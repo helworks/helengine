@@ -6,18 +6,15 @@ namespace helengine.editor {
     /// </summary>
     public class ReflectedComponentPropertyDescriptorBuilder {
         /// <summary>
-        /// Registered provider-backed custom property editors.
+        /// Registered provider-backed custom property editors, shared through the central component editor registry.
         /// </summary>
-        readonly List<IComponentPropertyEditorProvider> Providers;
+        readonly IReadOnlyList<IComponentPropertyEditorProvider> Providers;
 
         /// <summary>
-        /// Initializes the reflected descriptor builder with the currently supported custom editor providers.
+        /// Initializes the reflected descriptor builder against the currently registered custom editor providers.
         /// </summary>
         public ReflectedComponentPropertyDescriptorBuilder() {
-            Providers = new List<IComponentPropertyEditorProvider> {
-                new CameraClearSettingsPropertyEditorProvider(),
-                new SceneMapPropertyEditorProvider()
-            };
+            Providers = ComponentEditorRegistry.PropertyEditorProviders;
         }
 
         /// <summary>

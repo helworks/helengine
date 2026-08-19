@@ -78,11 +78,27 @@ namespace helengine.bepu.tests {
                 Size = new float3(2f, 4f, 6f)
             };
 
-            BepuPhysics.Collidables.Box boxShape = BepuShapeFactory3D.CreateBoxShape(collider);
+            BepuPhysics.Collidables.Box boxShape = BepuShapeFactory3D.CreateBoxShape(collider, float3.One);
 
             Assert.Equal(2f, boxShape.Width);
             Assert.Equal(4f, boxShape.Height);
             Assert.Equal(6f, boxShape.Length);
+        }
+
+        /// <summary>
+        /// Ensures box collider dimensions compose with the owning entity's world scale like the HelPhysics backend.
+        /// </summary>
+        [Fact]
+        public void CreateBoxShape_WithScaledEntity_MultipliesSizeByScale() {
+            BoxCollider3DComponent collider = new BoxCollider3DComponent {
+                Size = new float3(1f, 1f, 1f)
+            };
+
+            BepuPhysics.Collidables.Box boxShape = BepuShapeFactory3D.CreateBoxShape(collider, new float3(7f, 1f, 9f));
+
+            Assert.Equal(7f, boxShape.Width);
+            Assert.Equal(1f, boxShape.Height);
+            Assert.Equal(9f, boxShape.Length);
         }
 
         /// <summary>
@@ -94,9 +110,23 @@ namespace helengine.bepu.tests {
                 Radius = 0.75f
             };
 
-            BepuPhysics.Collidables.Sphere sphereShape = BepuShapeFactory3D.CreateSphereShape(collider);
+            BepuPhysics.Collidables.Sphere sphereShape = BepuShapeFactory3D.CreateSphereShape(collider, float3.One);
 
             Assert.Equal(0.75f, sphereShape.Radius);
+        }
+
+        /// <summary>
+        /// Ensures sphere collider radii scale by the entity's largest world-scale axis like the trigger overlap path.
+        /// </summary>
+        [Fact]
+        public void CreateSphereShape_WithScaledEntity_MultipliesRadiusByLargestAxis() {
+            SphereCollider3DComponent collider = new SphereCollider3DComponent {
+                Radius = 0.5f
+            };
+
+            BepuPhysics.Collidables.Sphere sphereShape = BepuShapeFactory3D.CreateSphereShape(collider, new float3(0.5f, 2f, 1f));
+
+            Assert.Equal(1f, sphereShape.Radius);
         }
 
         /// <summary>

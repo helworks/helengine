@@ -629,7 +629,7 @@ namespace helengine {
         /// <param name="rigidBody">Authored rigid body.</param>
         /// <param name="boxCollider">Authored box collider.</param>
         void RegisterBoxBody(Entity entity, RigidBody3DComponent rigidBody, BoxCollider3DComponent boxCollider) {
-            Box boxShape = BepuShapeFactory3D.CreateBoxShape(boxCollider);
+            Box boxShape = BepuShapeFactory3D.CreateBoxShape(boxCollider, entity.Scale);
             TypedIndex shapeIndex = SimulationValue.Shapes.Add(boxShape);
             if (rigidBody.BodyKind == BodyKind3D.Static) {
                 StaticHandle staticHandle = SimulationValue.Statics.Add(new StaticDescription(BepuEntitySynchronization3D.CreatePose(entity), shapeIndex));
@@ -651,7 +651,7 @@ namespace helengine {
         /// <param name="rigidBody">Authored rigid body.</param>
         /// <param name="sphereCollider">Authored sphere collider.</param>
         void RegisterSphereBody(Entity entity, RigidBody3DComponent rigidBody, SphereCollider3DComponent sphereCollider) {
-            Sphere sphereShape = BepuShapeFactory3D.CreateSphereShape(sphereCollider);
+            Sphere sphereShape = BepuShapeFactory3D.CreateSphereShape(sphereCollider, entity.Scale);
             TypedIndex shapeIndex = SimulationValue.Shapes.Add(sphereShape);
             if (rigidBody.BodyKind == BodyKind3D.Static) {
                 StaticHandle staticHandle = SimulationValue.Statics.Add(new StaticDescription(BepuEntitySynchronization3D.CreatePose(entity), shapeIndex));

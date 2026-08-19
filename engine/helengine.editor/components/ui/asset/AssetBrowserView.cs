@@ -888,7 +888,9 @@ namespace helengine.editor {
         /// <param name="point">Screen point to evaluate.</param>
         /// <returns>True when the point lies inside the row bounds.</returns>
         bool ContainsRowPoint(AssetBrowserRow row, int2 point) {
-            float3 position = row.Entity.Position;
+            // The caller supplies list-space coordinates, so the row must be tested against its raw local
+            // layout position; the composed world Position includes the panel offset and can never match.
+            float3 position = row.Entity.LocalPosition;
             return point.X >= position.X &&
                    point.X < position.X + Math.Max(1, Size.X) &&
                    point.Y >= position.Y &&

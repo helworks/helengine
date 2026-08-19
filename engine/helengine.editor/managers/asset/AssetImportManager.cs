@@ -797,6 +797,39 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the unprocessed source pixel dimensions for one texture source file. The processed
+        /// import cache cannot be used for this: it stores the active platform's processed payload, whose
+        /// dimensions already reflect that platform's max-resolution clamp.
+        /// </summary>
+        /// <param name="sourcePath">Absolute path to the texture source file.</param>
+        /// <param name="width">Receives the source image width, or zero when unresolved.</param>
+        /// <param name="height">Receives the source image height, or zero when unresolved.</param>
+        /// <returns>True when the source dimensions were resolved.</returns>
+        public bool TryGetTextureSourceDimensions(string sourcePath, out int width, out int height) {
+            width = 0;
+            height = 0;
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath)) {
+                return false;
+            }
+            if (!TryLoadOrCreateTextureImportSettings(sourcePath, out TextureAssetImportSettings settings)) {
+                return false;
+            }
+            if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
+                return false;
+            }
+
+            TextureAsset asset = AssetContentManager.Load<TextureAsset>(sourcePath, settings.Importer.ImporterId);
+            if (asset == null) {
+                return false;
+            }
+
+            width = asset.Width;
+            height = asset.Height;
+            NativeOwnership.DisposeAndDelete(asset);
+            return true;
+        }
+
+        /// <summary>
         /// Imports a text asset from a source file and writes it to disk.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the text source file.</param>

@@ -767,7 +767,9 @@ namespace helengine.vulkan {
             float4x4 transposed;
             float4x4.Transpose(ref worldViewProj, out transposed);
             float4x4 normalMatrix;
-            float4x4.InverseTranspose(ref world, out normalMatrix);
+            // Zero-scale entities produce singular world matrices; a degenerate draw has no visible surface,
+            // so an identity normal matrix is a safe fallback instead of crashing the frame.
+            float4x4.TryInverseTranspose(ref world, out normalMatrix);
             float4x4.Transpose(ref normalMatrix, out float4x4 normalMatrixTransposed);
             return new StandardMeshShaderData {
                 World = worldTransposed,

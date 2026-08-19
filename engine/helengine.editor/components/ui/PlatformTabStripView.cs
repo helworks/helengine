@@ -9,6 +9,11 @@ namespace helengine.editor {
         const int ArrowViewportSpacing = 4;
 
         /// <summary>
+        /// Gap between the two right-aligned overflow arrow buttons.
+        /// </summary>
+        const int ArrowPairSpacing = 2;
+
+        /// <summary>
         /// Font used to render tab and arrow labels.
         /// </summary>
         readonly FontAsset Font;
@@ -64,6 +69,22 @@ namespace helengine.editor {
         /// Button used to scroll the strip right.
         /// </summary>
         readonly ButtonComponent RightArrowButton;
+        /// <summary>
+        /// Generated left-pointing triangle texture shown on the left arrow button.
+        /// </summary>
+        readonly RuntimeTexture LeftArrowIconTexture;
+        /// <summary>
+        /// Generated right-pointing triangle texture shown on the right arrow button.
+        /// </summary>
+        readonly RuntimeTexture RightArrowIconTexture;
+        /// <summary>
+        /// Sprite that renders the left arrow icon.
+        /// </summary>
+        readonly SpriteComponent LeftArrowIconSprite;
+        /// <summary>
+        /// Sprite that renders the right arrow icon.
+        /// </summary>
+        readonly SpriteComponent RightArrowIconSprite;
         /// <summary>
         /// Host entity for the optional nested-environment add button.
         /// </summary>
@@ -137,6 +158,11 @@ namespace helengine.editor {
         /// Tracks whether the optional environment add affordance is visible.
         /// </summary>
         bool EnvironmentAddButtonVisibleValue;
+        /// <summary>
+        /// Tracks whether the environment add affordance currently reacts to clicks; when false the button
+        /// renders greyed out and ignores activation.
+        /// </summary>
+        bool EnvironmentAddButtonInteractiveValue = true;
 
         /// <summary>
         /// Initializes a new platform tab strip view.
@@ -194,8 +220,10 @@ namespace helengine.editor {
             };
             RootValue.AddChild(LeftArrowHost);
 
-            LeftArrowButton = CreateArrowButton("<", HandleLeftArrowClicked);
+            LeftArrowButton = CreateArrowButton(string.Empty, HandleLeftArrowClicked);
             LeftArrowHost.AddComponent(LeftArrowButton);
+            LeftArrowIconTexture = BuildArrowIconTexture(true);
+            LeftArrowIconSprite = AttachArrowIcon(LeftArrowHost, LeftArrowIconTexture);
 
             ViewportRoot = new EditorEntity {
                 LayerMask = layerMask,
@@ -226,8 +254,10 @@ namespace helengine.editor {
             };
             RootValue.AddChild(RightArrowHost);
 
-            RightArrowButton = CreateArrowButton(">", HandleRightArrowClicked);
+            RightArrowButton = CreateArrowButton(string.Empty, HandleRightArrowClicked);
             RightArrowHost.AddComponent(RightArrowButton);
+            RightArrowIconTexture = BuildArrowIconTexture(false);
+            RightArrowIconSprite = AttachArrowIcon(RightArrowHost, RightArrowIconTexture);
 
             EnvironmentAddHost = new EditorEntity {
                 LayerMask = layerMask,
@@ -379,6 +409,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Greys out or reactivates the nested-environment add affordance without hiding it, for selections
+        /// that cannot own environment overrides.
+        /// </summary>
+        /// <param name="interactive">True when the add button should react to clicks.</param>
+        public void SetEnvironmentAddButtonInteractive(bool interactive) {
+            EnvironmentAddButtonInteractiveValue = interactive;
+            byte4 activeColor = ThemeManager.Colors.AccentQuaternary;
+            byte4 idleColor = new byte4(activeColor.X, activeColor.Y, activeColor.Z, 90);
+            EnvironmentAddButton.SetTextColor(interactive ? activeColor : idleColor);
+        }
+
+        /// <summary>
         /// Updates the strip layout using the supplied top-left position and available width.
         /// </summary>
         /// <param name="left">Left position in pixels.</param>
@@ -389,10 +431,16 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(width), "Layout width must be positive.");
             }
 
+            // Reveal the selected tab only when the available width actually changes: hosts re-run layout
+            // continuously, and revealing on every pass snaps the strip back whenever the user scrolls away
+            // with the arrows.
+            bool widthChanged = LayoutWidthPixels != width;
             LayoutWidthPixels = width;
             RootValue.Position = new float3(left, top, 0.1f);
             LayoutTabs();
-            RevealPlatform(SelectedPlatformIdValue);
+            if (widthChanged) {
+                RevealPlatform(SelectedPlatformIdValue);
+            }
             UpdateSelectedVisualState();
             UpdateOverflowState();
         }
@@ -408,6 +456,8 @@ namespace helengine.editor {
             TextRenderOrder = textOrder;
             LeftArrowButton.SetRenderOrders(backgroundOrder, textOrder);
             RightArrowButton.SetRenderOrders(backgroundOrder, textOrder);
+            LeftArrowIconSprite.RenderOrder2D = textOrder;
+            RightArrowIconSprite.RenderOrder2D = textOrder;
             EnvironmentAddButton.SetRenderOrders(backgroundOrder, textOrder);
 
             for (int i = 0; i < Tabs.Count; i++) {
@@ -461,6 +511,71 @@ namespace helengine.editor {
         public void Dispose() {
             ClearTabs();
             EditorKeyboardFocusService.UnregisterGroup(this);
+            NativeOwnership.DisposeAndDelete(LeftArrowIconTexture);
+            NativeOwnership.DisposeAndDelete(RightArrowIconTexture);
+        }
+
+        /// <summary>
+        /// Builds one small triangle icon texture for an arrow button. The editor UI font atlas does not
+        /// include arrow glyphs, so the strip generates its own editor-local textures instead.
+        /// </summary>
+        /// <param name="pointsLeft">True for a left-pointing triangle; false for right-pointing.</param>
+        /// <returns>Generated white triangle texture tinted later through the sprite color.</returns>
+        static RuntimeTexture BuildArrowIconTexture(bool pointsLeft) {
+            const int size = 8;
+            byte[] colors = new byte[size * size * 4];
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    int margin = pointsLeft ? (size - 1 - x) / 2 : x / 2;
+                    bool filled = y >= margin && y <= size - 1 - margin;
+                    if (!filled) {
+                        continue;
+                    }
+
+                    int pixelIndex = ((y * size) + x) * 4;
+                    colors[pixelIndex] = 255;
+                    colors[pixelIndex + 1] = 255;
+                    colors[pixelIndex + 2] = 255;
+                    colors[pixelIndex + 3] = 255;
+                }
+            }
+
+            TextureAsset rawTexture = new TextureAsset {
+                Colors = colors,
+                Width = size,
+                Height = size
+            };
+            try {
+                return Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTexture);
+            } finally {
+                NativeOwnership.DisposeAndDelete(rawTexture);
+            }
+        }
+
+        /// <summary>
+        /// Attaches one centered arrow icon sprite to an arrow button host.
+        /// </summary>
+        /// <param name="arrowHost">Arrow button host entity.</param>
+        /// <param name="iconTexture">Generated triangle texture to render.</param>
+        /// <returns>Attached icon sprite.</returns>
+        SpriteComponent AttachArrowIcon(EditorEntity arrowHost, RuntimeTexture iconTexture) {
+            int iconSize = Math.Max(6, TabHeightValue / 3);
+            EditorEntity iconHost = new EditorEntity {
+                LayerMask = LayerMaskValue,
+                Position = new float3((ArrowButtonWidthValue - iconSize) / 2f, (TabHeightValue - iconSize) / 2f, 0.2f),
+                InternalEntity = true,
+                Enabled = true
+            };
+            arrowHost.AddChild(iconHost);
+
+            SpriteComponent iconSprite = new SpriteComponent {
+                Texture = iconTexture,
+                Size = new int2(iconSize, iconSize),
+                Color = ThemeManager.Colors.AccentQuaternary,
+                RenderOrder2D = RenderOrder2D.PanelForeground
+            };
+            iconHost.AddComponent(iconSprite);
+            return iconSprite;
         }
 
         /// <summary>
@@ -473,8 +588,10 @@ namespace helengine.editor {
             ButtonComponent button = new ButtonComponent(label, new int2(ArrowButtonWidthValue, TabHeightValue), Font, onClickAction);
             button.UseSquareCorners();
             button.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+            // The idle fill deliberately differs from the surrounding panel surface so the arrows read as
+            // square buttons instead of floating glyphs.
             button.SetVisualPalette(
-                ThemeManager.Colors.SurfacePrimary,
+                ThemeManager.Colors.SurfaceInput,
                 ThemeManager.Colors.AccentSecondary,
                 ThemeManager.Colors.AccentTertiary,
                 ThemeManager.Colors.SurfaceInput,
@@ -660,7 +777,7 @@ namespace helengine.editor {
         /// Raises the nested-environment request for the selected platform.
         /// </summary>
         void HandleEnvironmentAddClicked() {
-            if (!EnvironmentAddButtonVisibleValue || string.IsNullOrWhiteSpace(SelectedPlatformIdValue)) {
+            if (!EnvironmentAddButtonVisibleValue || !EnvironmentAddButtonInteractiveValue || string.IsNullOrWhiteSpace(SelectedPlatformIdValue)) {
                 return;
             }
 
@@ -675,26 +792,23 @@ namespace helengine.editor {
             int environmentButtonWidth = EnvironmentAddButtonVisibleValue ? ArrowButtonWidthValue + ArrowViewportSpacing : 0;
             int tabsAvailableWidth = Math.Max(1, availableWidth - environmentButtonWidth);
             TabsContentWidthPixels = GetTabsContentWidthPixels();
-            HasOverflowValue = TabsContentWidthPixels > tabsAvailableWidth;
 
-            int viewportLeft = 0;
-            int viewportWidth = tabsAvailableWidth;
-            if (HasOverflowValue) {
-                viewportLeft = ArrowButtonWidthValue + ArrowViewportSpacing;
-                viewportWidth = tabsAvailableWidth - ((ArrowButtonWidthValue + ArrowViewportSpacing) * 2);
-            }
-
+            // The arrow pair permanently reserves the right edge so the viewport never resizes when
+            // overflow toggles and the buttons never pop in and out.
+            int viewportWidth = tabsAvailableWidth - (ArrowViewportSpacing + (ArrowButtonWidthValue * 2) + ArrowPairSpacing);
             ViewportWidthPixels = Math.Max(1, viewportWidth);
+            HasOverflowValue = TabsContentWidthPixels > ViewportWidthPixels;
             HorizontalScrollOffsetPixels = Math.Clamp(HorizontalScrollOffsetPixels, 0, GetMaximumScrollOffsetPixels());
 
-            LeftArrowHost.Enabled = HasOverflowValue;
-            RightArrowHost.Enabled = HasOverflowValue;
-            LeftArrowHost.Position = new float3(0f, 0f, 0.1f);
+            LeftArrowHost.Enabled = PlatformIds.Count > 0;
+            RightArrowHost.Enabled = PlatformIds.Count > 0;
+            LeftArrowHost.Position = new float3(tabsAvailableWidth - ((ArrowButtonWidthValue * 2) + ArrowPairSpacing), 0f, 0.1f);
             RightArrowHost.Position = new float3(tabsAvailableWidth - ArrowButtonWidthValue, 0f, 0.1f);
+            UpdateArrowScrollStateVisuals();
             EnvironmentAddHost.Position = new float3(availableWidth - ArrowButtonWidthValue, 0f, 0.1f);
             EnvironmentAddHost.Enabled = EnvironmentAddButtonVisibleValue && PlatformIds.Count > 0;
 
-            ViewportRoot.Position = new float3(viewportLeft, 0f, 0.1f);
+            ViewportRoot.Position = new float3(0f, 0f, 0.1f);
             ViewportClipRect.Size = new int2(ViewportWidthPixels, TabHeightValue);
             TabsContentRoot.Position = new float3(-HorizontalScrollOffsetPixels, 0f, 0.1f);
 
@@ -745,12 +859,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates arrow-enable state derived from the current scroll offset and overflow width.
+        /// Updates arrow scroll state derived from the current scroll offset and clipped viewport width.
         /// </summary>
         void UpdateOverflowState() {
-            int availableWidth = LayoutWidthPixels > 0 ? LayoutWidthPixels : Math.Max(1, TabsContentWidthPixels);
-            int environmentButtonWidth = EnvironmentAddButtonVisibleValue ? ArrowButtonWidthValue + ArrowViewportSpacing : 0;
-            HasOverflowValue = TabsContentWidthPixels > Math.Max(1, availableWidth - environmentButtonWidth);
+            HasOverflowValue = TabsContentWidthPixels > ViewportWidthPixels;
+            UpdateArrowScrollStateVisuals();
+        }
+
+        /// <summary>
+        /// Dims each arrow icon when its scroll direction has nothing left to reveal.
+        /// </summary>
+        void UpdateArrowScrollStateVisuals() {
+            byte4 activeColor = ThemeManager.Colors.AccentQuaternary;
+            byte4 idleColor = new byte4(activeColor.X, activeColor.Y, activeColor.Z, 90);
+            LeftArrowIconSprite.Color = CanScrollLeft ? activeColor : idleColor;
+            RightArrowIconSprite.Color = CanScrollRight ? activeColor : idleColor;
         }
 
         /// <summary>

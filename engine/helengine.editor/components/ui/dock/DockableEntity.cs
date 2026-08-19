@@ -226,21 +226,35 @@ namespace helengine.editor {
         public int2 Size {
             get { return size; }
             set {
-                size = value;
-                titleBar.Size = new int2(value.X, TitleBarHeightPixels);
-                areaSprite.Size = new int2(value.X, value.Y);
-                panelOutline.Size = new int2(value.X, value.Y + TitleBarHeightPixels);
-                PanelMenuButtonEntity.Position = new float3(value.X - PanelMenuButtonWidth, 0f, 0f);
-                PanelMenuButtonBackground.Size = new int2(PanelMenuButtonWidth, TitleBarHeightPixels);
-                PanelMenuButtonInteractivity.Size = new int2(PanelMenuButtonWidth, TitleBarHeightPixels);
-                if (titleBarInteractivity != null) {
-                    titleBarInteractivity.Size = titleBarInteractableEnabled
-                        ? new int2(GetTitleBarInteractableWidth(), TitleBarHeightPixels)
-                        : new int2(0, 0);
+                // The dock layout engine reassigns every panel's size each frame; without this guard every
+                // panel re-runs its full OnSizeChanged relayout every frame even when nothing changed.
+                if (size.X == value.X && size.Y == value.Y) {
+                    return;
                 }
-                PanelMenu.UpdateLayout(new int2(Math.Max(1, value.X), Math.Max(1, value.Y + TitleBarHeightPixels)));
+
+                size = value;
+                ApplySizeChrome();
                 OnSizeChanged();
             }
+        }
+
+        /// <summary>
+        /// Applies the current size to the dock chrome visuals. Runs when the size changes and when scaled
+        /// metrics change the title-bar height while the size value stays the same.
+        /// </summary>
+        void ApplySizeChrome() {
+            titleBar.Size = new int2(size.X, TitleBarHeightPixels);
+            areaSprite.Size = new int2(size.X, size.Y);
+            panelOutline.Size = new int2(size.X, size.Y + TitleBarHeightPixels);
+            PanelMenuButtonEntity.Position = new float3(size.X - PanelMenuButtonWidth, 0f, 0f);
+            PanelMenuButtonBackground.Size = new int2(PanelMenuButtonWidth, TitleBarHeightPixels);
+            PanelMenuButtonInteractivity.Size = new int2(PanelMenuButtonWidth, TitleBarHeightPixels);
+            if (titleBarInteractivity != null) {
+                titleBarInteractivity.Size = titleBarInteractableEnabled
+                    ? new int2(GetTitleBarInteractableWidth(), TitleBarHeightPixels)
+                    : new int2(0, 0);
+            }
+            PanelMenu.UpdateLayout(new int2(Math.Max(1, size.X), Math.Max(1, size.Y + TitleBarHeightPixels)));
         }
 
         /// <summary>
@@ -328,7 +342,8 @@ namespace helengine.editor {
             PanelMenuButtonTextComponent.Font = font;
 
             HandleUiMetricsApplied();
-            Size = size;
+            ApplySizeChrome();
+            OnSizeChanged();
         }
 
         /// <summary>

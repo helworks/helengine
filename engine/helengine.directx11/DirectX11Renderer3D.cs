@@ -1652,12 +1652,27 @@ namespace helengine.directx11 {
                 throw new ArgumentNullException(nameof(drawable));
             }
 
-            Visit(new RenderFrameDrawableSubmission(
-                drawable,
-                0,
-                drawable.Materials.Length == 0 ? null : drawable.Materials[0],
-                false,
-                new RenderFrameBatchingMetadata(false, false, false)));
+            // Custom passes must draw every submesh: submitting only index zero left the remaining submesh
+            // ranges out of picker renders, which made multi-material meshes unclickable outside their first
+            // material region.
+            int submeshCount = 1;
+            if (drawable.Model is DirectX11ModelResource modelResource
+                && modelResource.Submeshes != null
+                && modelResource.Submeshes.Length > 0) {
+                submeshCount = modelResource.Submeshes.Length;
+            }
+
+            for (int submeshIndex = 0; submeshIndex < submeshCount; submeshIndex++) {
+                RuntimeMaterial material = drawable.Materials.Length == 0
+                    ? null
+                    : drawable.Materials[Math.Min(submeshIndex, drawable.Materials.Length - 1)];
+                Visit(new RenderFrameDrawableSubmission(
+                    drawable,
+                    submeshIndex,
+                    material,
+                    false,
+                    new RenderFrameBatchingMetadata(false, false, false)));
+            }
         }
 
         /// <summary>
@@ -1744,7 +1759,9 @@ namespace helengine.directx11 {
         /// <param name="hasEmissiveTexture">Whether the current material should sample an authored emissive texture.</param>
         /// <returns>Standard-mesh shader data configured for one draw.</returns>
         static StandardMeshShaderData BuildStandardMeshShaderData(float4x4 world, float3 cameraPosition, bool receivesShadows, bool hasEmissiveTexture) {
-            float4x4.InverseTranspose(ref world, out float4x4 inverseTransposeNormalMatrix);
+            // Zero-scale entities produce singular world matrices; a degenerate draw has no visible surface,
+            // so an identity normal matrix is a safe fallback instead of crashing the frame.
+            float4x4.TryInverseTranspose(ref world, out float4x4 inverseTransposeNormalMatrix);
             float4x4.Transpose(ref inverseTransposeNormalMatrix, out float4x4 normalMatrixTransposed);
 
             return new StandardMeshShaderData {

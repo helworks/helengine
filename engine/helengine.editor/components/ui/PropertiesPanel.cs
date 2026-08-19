@@ -574,6 +574,7 @@ namespace helengine.editor {
 
             importSettingsView = new AssetImportSettingsView(font, EditorLayerMasks.PropertiesPanelContent);
             importSettingsView.ApplyRequested += HandleImportSettingsApplyRequested;
+            importSettingsView.LayoutInvalidated += LayoutLines;
             ScrollContentRoot.AddChild(importSettingsView.Root);
 
             MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent, ModalHost);
@@ -693,7 +694,9 @@ namespace helengine.editor {
             IReadOnlyList<string> supportedPlatforms,
             string activePlatformId,
             IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null,
-            IReadOnlyList<string> environmentIds = null) {
+            IReadOnlyList<string> environmentIds = null,
+            int sourceImageWidth = 0,
+            int sourceImageHeight = 0) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
@@ -716,7 +719,7 @@ namespace helengine.editor {
             DeactivateSelectedEntityTransformProjection();
             currentEntry = entry;
             HideRemoveComponentDialog();
-            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind, platformDefinitionsById, environmentIds);
+            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind, platformDefinitionsById, environmentIds, sourceImageWidth, sourceImageHeight);
             MaterialView.Hide();
             AnimationClipView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;
@@ -952,6 +955,7 @@ namespace helengine.editor {
             CurrentComponentPlatformIds = ResolveComponentPlatformIds(supportedPlatformIds);
             CurrentComponentEnvironmentIds = NormalizeEnvironmentIds(environmentIds);
             ComponentEnvironmentOverridePlatforms.Clear();
+            SeedEnvironmentOverridePlatforms(entity);
             CurrentPlatformDefinitionsById = platformDefinitionsById ?? new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
             SelectedComponentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
             SelectedComponentEnvironmentId = string.Empty;
@@ -959,6 +963,7 @@ namespace helengine.editor {
             ActivateSelectedEntityTransformPlatform();
             ComponentPlatformTabStrip.SetPlatforms(CurrentComponentPlatformIds, SelectedComponentPlatformId, HandleComponentPlatformTabChanged);
             ComponentPlatformTabStrip.SetEnvironmentAddButtonVisible(true);
+            ComponentPlatformTabStrip.SetEnvironmentAddButtonInteractive(!IsCommonPlatformSelected(SelectedComponentPlatformId));
             ComponentEnvironmentTabStrip.Root.Enabled = false;
             ComponentPlatformTabStrip.Root.Enabled = !isBlueprintInherited;
             ApplyLines(isBlueprintInherited
@@ -972,6 +977,47 @@ namespace helengine.editor {
             ComponentView.ShowComponents(entity, SelectedComponentPlatformId, SelectedComponentEnvironmentId, isBlueprintInherited);
             SetTransformVisible(!isBlueprintInherited);
             LayoutLines();
+        }
+
+        /// <summary>
+        /// Seeds the opted-in environment override platforms from the entity's persisted override scopes, so
+        /// platforms with stored environment overrides keep their environment tabs across reselection.
+        /// </summary>
+        /// <param name="entity">Entity whose persisted override scopes should be inspected.</param>
+        void SeedEnvironmentOverridePlatforms(Entity entity) {
+            EntitySaveComponent saveComponent = FindEntitySaveComponent(entity);
+            if (saveComponent == null) {
+                return;
+            }
+
+            foreach (SceneEntityPlatformTransformOverrideAsset overrideState in saveComponent.EnumerateTransformPlatformOverrides()) {
+                if (!string.IsNullOrWhiteSpace(overrideState.EnvironmentId)) {
+                    ComponentEnvironmentOverridePlatforms.Add(overrideState.PlatformId);
+                }
+            }
+
+            foreach (SceneEntityPlatformExistenceOverrideAsset overrideState in saveComponent.EnumerateExistencePlatformOverrides()) {
+                if (!string.IsNullOrWhiteSpace(overrideState.EnvironmentId)) {
+                    ComponentEnvironmentOverridePlatforms.Add(overrideState.PlatformId);
+                }
+            }
+
+            foreach (EntityPlatformComponentOverrideState overrideState in saveComponent.EnumerateComponentPlatformOverrides()) {
+                if (!string.IsNullOrWhiteSpace(overrideState.EnvironmentId)) {
+                    ComponentEnvironmentOverridePlatforms.Add(overrideState.PlatformId);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns whether the supplied inspector platform tab id is the shared Common tab, which cannot own
+        /// nested environment overrides.
+        /// </summary>
+        /// <param name="platformId">Inspector platform tab id to evaluate.</param>
+        /// <returns>True when the Common tab is selected.</returns>
+        static bool IsCommonPlatformSelected(string platformId) {
+            return string.IsNullOrWhiteSpace(platformId)
+                || string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -1060,6 +1106,7 @@ namespace helengine.editor {
 
             PersistSelectedEntityTransformPlatform();
             SelectedComponentPlatformId = platformId;
+            ComponentPlatformTabStrip.SetEnvironmentAddButtonInteractive(!IsCommonPlatformSelected(platformId));
             SelectedComponentEnvironmentId = ComponentEnvironmentOverridePlatforms.Contains(platformId)
                 ? ResolveEnvironmentId(SelectedComponentEnvironmentId)
                 : string.Empty;
@@ -2350,9 +2397,12 @@ namespace helengine.editor {
                 return 0;
             }
 
-            ComponentPlatformTabStrip.UpdateLayout(ContentPadding, top, Math.Max(1, maxWidth));
+            // The tab strips bleed to the full panel content width so the first tab touches the panel border;
+            // the padded subrectangles above (entity name) and below (tab contents) keep their inset.
+            int stripWidth = Math.Max(1, maxWidth + (ContentPadding * 2));
+            ComponentPlatformTabStrip.UpdateLayout(0, top, stripWidth);
             if (ComponentEnvironmentTabStrip.Root.Enabled) {
-                ComponentEnvironmentTabStrip.UpdateLayout(ContentPadding, top + ComponentPlatformTabHeight, Math.Max(1, maxWidth));
+                ComponentEnvironmentTabStrip.UpdateLayout(0, top + ComponentPlatformTabHeight, stripWidth);
                 return ComponentPlatformTabHeight * 2;
             }
 

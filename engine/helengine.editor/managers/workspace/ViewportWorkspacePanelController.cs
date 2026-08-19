@@ -224,6 +224,7 @@ namespace helengine.editor {
             sceneCameraEntity.AddComponent(worldSpace2DPreviewSyncComponent);
             EditorViewportBorderGizmoSyncComponent viewportBorderGizmoSyncComponent = new EditorViewportBorderGizmoSyncComponent();
             sceneCameraEntity.AddComponent(viewportBorderGizmoSyncComponent);
+            sceneCameraEntity.AddComponent(new ComponentSceneSelectionEditorSyncComponent(render3D));
             CameraComponent gizmoCamera = CreateGizmoCamera(sceneCameraEntity, sceneCamera);
             EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
             EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera);

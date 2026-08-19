@@ -361,6 +361,23 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Attempts to build the transposed inverse matrix for normal-vector transformation, without throwing
+        /// for singular matrices such as zero-scale transforms.
+        /// </summary>
+        /// <param name="matrix">Matrix to invert and transpose.</param>
+        /// <param name="result">Transposed inverse matrix, or identity when the matrix is singular.</param>
+        /// <returns>True when the matrix was invertible.</returns>
+        public static bool TryInverseTranspose(ref float4x4 matrix, out float4x4 result) {
+            if (!TryInvert(ref matrix, out float4x4 inverted)) {
+                result = Identity;
+                return false;
+            }
+
+            Transpose(ref inverted, out result);
+            return true;
+        }
+
+        /// <summary>
         /// Attempts to invert one matrix using scalar cofactors so native runtime draws do not allocate a temporary matrix.
         /// </summary>
         /// <param name="matrix">Matrix to invert.</param>

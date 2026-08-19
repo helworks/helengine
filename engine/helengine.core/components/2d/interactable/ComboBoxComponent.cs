@@ -686,11 +686,24 @@ namespace helengine {
                 return;
             }
 
-            listRoot.Position = new float3(0f, size.Y + ListGap, 0.2f);
             int listHeight = itemHeight * items.Count;
             if (listHeight <= 0) {
                 listHeight = 1;
             }
+
+            // Open upward when the downward list would leave the nearest ancestor clip region: clipped list
+            // items are both invisible and rejected by pointer hit-testing, so they could never be selected.
+            float listOffsetY = size.Y + ListGap;
+            if (Parent != null && TryFindNearestAncestorClipRect(out float4 clipRect)) {
+                float3 comboOrigin = Parent.Position;
+                bool overflowsBelow = comboOrigin.Y + size.Y + ListGap + listHeight > clipRect.Y + clipRect.W;
+                bool fitsAbove = comboOrigin.Y - ListGap - listHeight >= clipRect.Y;
+                if (overflowsBelow && fitsAbove) {
+                    listOffsetY = -(ListGap + listHeight);
+                }
+            }
+
+            listRoot.Position = new float3(0f, listOffsetY, 0.2f);
             listBackground.Size = new int2(size.X, listHeight);
             if (background != null) {
                 listBackground.Radius = background.Radius;
@@ -955,6 +968,30 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Finds the clip rectangle of the nearest ancestor clip region constraining this combo box.
+        /// </summary>
+        /// <param name="clipRect">Receives the nearest ancestor clip rectangle when one exists.</param>
+        /// <returns>True when an ancestor clip region was found.</returns>
+        bool TryFindNearestAncestorClipRect(out float4 clipRect) {
+            Entity current = Parent;
+            while (current != null) {
+                if (current.Components != null) {
+                    for (int componentIndex = 0; componentIndex < current.Components.Count; componentIndex++) {
+                        if (current.Components[componentIndex] is IClipRegion2D clipRegion) {
+                            clipRect = clipRegion.GetClipRect();
+                            return true;
+                        }
+                    }
+                }
+
+                current = current.Parent;
+            }
+
+            clipRect = default;
+            return false;
+        }
+
+        /// <summary>
         /// Calculates a rounded corner radius based on the control size.
         /// </summary>
         /// <param name="size">Size used to derive the radius.</param>
@@ -971,17 +1008,21 @@ namespace helengine {
         /// <param name="mouseY">Pointer Y coordinate in window space.</param>
         /// <returns>True when the pointer is inside the combo box bounds.</returns>
         bool IsPointerInsideCombo(int mouseX, int mouseY) {
+            if (interactable == null) {
+                return false;
+            }
+
             ICamera camera = FindTopmostCameraAt(mouseX, mouseY, Parent.LayerMask);
             if (camera == null) {
                 return false;
             }
 
-            float4 viewport = camera.Viewport;
-            double localX = mouseX - viewport.X;
-            double localY = mouseY - viewport.Y;
-
-            float3 origin = Parent.Position;
-            if (GeometryUtils.IsPointInsideRect(localX, localY, origin, size.X, size.Y)) {
+            // Route the pointer through the shared hit-resolver conversion instead of subtracting the camera
+            // viewport directly: panel-content cameras position their world content at screen coordinates, so
+            // a raw viewport subtraction misjudged clicks inside the open list as outside and closed the
+            // drop-down on press before the item release could apply the selection.
+            PointerInteractableHitResolver.GetRelativePointerForInteractable(interactable, mouseX, mouseY, camera, out int relativeX, out int relativeY);
+            if (relativeX >= 0 && relativeX < size.X && relativeY >= 0 && relativeY < size.Y) {
                 return true;
             }
 
@@ -994,8 +1035,11 @@ namespace helengine {
                 return false;
             }
 
-            float3 listPosition = listRoot.Position;
-            return GeometryUtils.IsPointInsideRect(localX, localY, listPosition, size.X, listHeight);
+            float3 comboOrigin = Parent.Position;
+            float3 listOrigin = listRoot.Position;
+            double listRelativeX = relativeX - (listOrigin.X - comboOrigin.X);
+            double listRelativeY = relativeY - (listOrigin.Y - comboOrigin.Y);
+            return listRelativeX >= 0 && listRelativeX < size.X && listRelativeY >= 0 && listRelativeY < listHeight;
         }
 
         /// <summary>

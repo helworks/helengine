@@ -332,13 +332,15 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Creates child components and sets up interactivity when added to an enabled entity.
+        /// Creates child components and sets up interactivity when added to an entity. Visuals are created
+        /// even while the owning entity is disabled, because nothing revisits this once the entity is enabled
+        /// later; hierarchy enablement already keeps the disabled visuals from rendering or interacting.
         /// </summary>
         /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (!entity.Enabled) return;
+            if (roundedRect != null) return;
 
             byte backgroundOrder = RenderOrder2D.PanelSurface;
             byte textOrder = RenderOrder2D.PanelForeground;

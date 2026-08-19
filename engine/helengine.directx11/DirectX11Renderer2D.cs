@@ -84,6 +84,10 @@ namespace helengine.directx11 {
         /// </summary>
         readonly List<int> ActiveTextureSlots;
         /// <summary>
+        /// Tracks whether the released-font-atlas skip diagnostic was already logged this session.
+        /// </summary>
+        bool hasLoggedReleasedFontAtlasSkip;
+        /// <summary>
         /// Left edge of the current camera scissor rectangle.
         /// </summary>
         int currentScissorLeft;
@@ -282,11 +286,20 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="drawable">Text drawable.</param>
         public override void DrawText(ITextDrawable2D drawable) {
+            FontAsset font = drawable.Font;
+            if (font == null || font.Texture is not DirectX11TextureResource data || data.Resource == null) {
+                // A released font atlas must not crash the in-flight frame; skip the drawable and surface one
+                // diagnostic so the stale text registration can be tracked down.
+                if (!hasLoggedReleasedFontAtlasSkip) {
+                    hasLoggedReleasedFontAtlasSkip = true;
+                    Logger.WriteError($"Text drawable skipped: its font atlas texture was released while the drawable was still registered (text '{drawable.Text}').");
+                }
+                return;
+            }
+
             ConfigureSpritePipeline(spriteInputLayout);
 
             var context = Device.ImmediateContext;
-            FontAsset font = drawable.Font;
-            var data = (DirectX11TextureResource)font.Texture;
 
             context.PixelShader.SetShaderResource(0, data.Resource);
             context.PixelShader.SetSampler(0, spriteSampler);

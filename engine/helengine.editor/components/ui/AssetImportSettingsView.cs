@@ -293,6 +293,23 @@ namespace helengine.editor {
         /// <summary>
         /// Host entity for the apply button.
         /// </summary>
+        /// <summary>
+        /// Host entity for the estimated VRAM usage preview row.
+        /// </summary>
+        readonly EditorEntity VramPreviewHost;
+        /// <summary>
+        /// Text component that renders the estimated VRAM usage preview.
+        /// </summary>
+        readonly TextComponent VramPreviewText;
+        /// <summary>
+        /// Source image width in pixels supplied by the host for VRAM estimation, or zero when unknown.
+        /// </summary>
+        int SourceImageWidth;
+        /// <summary>
+        /// Source image height in pixels supplied by the host for VRAM estimation, or zero when unknown.
+        /// </summary>
+        int SourceImageHeight;
+
         readonly EditorEntity ApplyHost;
         /// <summary>
         /// Button used to apply the pending settings.
@@ -376,6 +393,11 @@ namespace helengine.editor {
         /// Raised when the user clicks apply with pending importer or processor changes.
         /// </summary>
         public event Action<AssetImportSettingsApplyRequest> ApplyRequested;
+
+        /// <summary>
+        /// Raised when the view's internal structure changes height so the hosting panel can re-run layout.
+        /// </summary>
+        public event Action LayoutInvalidated;
 
         /// <summary>
         /// Initializes a new view for asset import settings.
@@ -607,6 +629,18 @@ namespace helengine.editor {
             FontPixelSizeTextBox.TextChanged += HandleFontPixelSizeTextChanged;
             FontPixelSizeTextBoxHost.AddComponent(FontPixelSizeTextBox);
 
+            VramPreviewHost = new EditorEntity();
+            VramPreviewHost.LayerMask = layerMask;
+            VramPreviewHost.Enabled = false;
+            RootEntity.AddChild(VramPreviewHost);
+
+            VramPreviewText = new TextComponent();
+            VramPreviewText.Font = font;
+            VramPreviewText.Text = string.Empty;
+            VramPreviewText.Color = ThemeManager.Colors.InputForegroundSecondary;
+            VramPreviewText.RenderOrder2D = TextOrder;
+            VramPreviewHost.AddComponent(VramPreviewText);
+
             ApplyHost = new EditorEntity();
             ApplyHost.LayerMask = layerMask;
             RootEntity.AddChild(ApplyHost);
@@ -702,14 +736,26 @@ namespace helengine.editor {
         public int CurrentTextureMaxResolutionValue => GetActiveTextureProcessorSettings().MaxResolution;
 
         /// <summary>
-        /// Gets the current pending color-format value for the selected platform texture settings.
+        /// Gets the color-format value currently displayed for the selected platform texture settings,
+        /// including the platform-capability repair applied for display only.
         /// </summary>
-        public TextureAssetColorFormat CurrentTextureColorFormatValue => GetActiveTextureProcessorSettings().ColorFormat;
+        public TextureAssetColorFormat CurrentTextureColorFormatValue {
+            get {
+                ResolveDisplayTextureFormat(GetActiveTextureProcessorSettings(), out string displayColorFormatId, out _);
+                return new TextureAssetProcessorSettings { ColorFormatId = displayColorFormatId }.ColorFormat;
+            }
+        }
 
         /// <summary>
-        /// Gets the current pending alpha-precision value for the selected platform texture settings.
+        /// Gets the alpha-precision value currently displayed for the selected platform texture settings,
+        /// including the platform-capability repair applied for display only.
         /// </summary>
-        public TextureAssetAlphaPrecision CurrentTextureAlphaPrecisionValue => GetActiveTextureProcessorSettings().AlphaPrecision;
+        public TextureAssetAlphaPrecision CurrentTextureAlphaPrecisionValue {
+            get {
+                ResolveDisplayTextureFormat(GetActiveTextureProcessorSettings(), out _, out TextureAssetAlphaPrecision displayAlphaPrecision);
+                return displayAlphaPrecision;
+            }
+        }
         /// <summary>
         /// Gets the current pending indexing-method value for the selected platform texture settings.
         /// </summary>
@@ -737,7 +783,9 @@ namespace helengine.editor {
             string activePlatformId,
             AssetEntryKind entryKind,
             IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null,
-            IReadOnlyList<string> environmentIds = null) {
+            IReadOnlyList<string> environmentIds = null,
+            int sourceImageWidth = 0,
+            int sourceImageHeight = 0) {
             if (importerIds == null) {
                 throw new ArgumentNullException(nameof(importerIds));
             } else if (string.IsNullOrWhiteSpace(importerId)) {
@@ -756,6 +804,8 @@ namespace helengine.editor {
             SetSupportedPlatforms(supportedPlatforms);
             SetSupportedEnvironments(environmentIds);
             SetPlatformDefinitions(platformDefinitionsById);
+            SourceImageWidth = Math.Max(0, sourceImageWidth);
+            SourceImageHeight = Math.Max(0, sourceImageHeight);
 
             ActiveImporterId = importerId;
             PendingImporterId = importerId;
@@ -797,6 +847,10 @@ namespace helengine.editor {
             CurrentEnvironmentId = string.Empty;
             EnvironmentOverridesEnabled = false;
             EnvironmentTabStrip.Root.Enabled = false;
+            SourceImageWidth = 0;
+            SourceImageHeight = 0;
+            VramPreviewHost.Enabled = false;
+            VramPreviewText.Text = string.Empty;
         }
 
         /// <summary>
@@ -909,13 +963,21 @@ namespace helengine.editor {
                 currentTop += ControlHeight + RowSpacing;
             }
 
-            ApplyHost.Position = new float3(ProcessorPanelPadding, currentTop, 0.1f);
+            if (VramPreviewHost.Enabled) {
+                VramPreviewHost.Position = new float3(ProcessorPanelPadding, currentTop, 0.1f);
+                VramPreviewText.Size = new int2(Math.Max(1, width - (ProcessorPanelPadding * 2)), labelHeight);
+                currentTop += labelHeight + RowSpacing;
+            }
 
-            currentTop += ControlHeight + RowSpacing;
-            StatusHost.Position = new float3(ProcessorPanelPadding, currentTop, 0.1f);
-            StatusText.Size = new int2(Math.Max(1, width - (ProcessorPanelPadding * 2)), labelHeight);
+            // The apply button anchors to the bottom-right of the processor panel, with the status text
+            // filling the remaining width on its left.
+            int applyLeft = Math.Max(ProcessorPanelPadding, width - ProcessorPanelPadding - ApplyButtonWidth);
+            int statusOffsetY = (int)Math.Round((ControlHeight - labelHeight) / 2d);
+            ApplyHost.Position = new float3(applyLeft, currentTop, 0.1f);
+            StatusHost.Position = new float3(ProcessorPanelPadding, currentTop + statusOffsetY, 0.1f);
+            StatusText.Size = new int2(Math.Max(1, applyLeft - (ProcessorPanelPadding * 2)), labelHeight);
 
-            int processorPanelHeight = (currentTop + labelHeight + ProcessorPanelPadding) - processorPanelTop;
+            int processorPanelHeight = (currentTop + ControlHeight + ProcessorPanelPadding) - processorPanelTop;
             ProcessorPanelRoot.Position = new float3(0f, processorPanelTop, 0.05f);
             ProcessorPanelBackground.Size = new int2(width, Math.Max(1, processorPanelHeight));
 
@@ -975,6 +1037,10 @@ namespace helengine.editor {
             EnvironmentTabStrip.Root.Enabled = true;
             UpdateControlState();
             UpdateStatusText();
+            // The environment strip changed the view height and its root still sits at its construction
+            // position until a layout pass runs; the hosting panel re-runs layout to place it below the
+            // platform tabs and re-flow the content that follows.
+            LayoutInvalidated?.Invoke();
         }
 
         /// <summary>
@@ -1092,9 +1158,39 @@ namespace helengine.editor {
 
             TextureAssetProcessorSettings textureSettings = GetActiveTextureProcessorSettings();
             textureSettings.AlphaPrecision = Enum.Parse<TextureAssetAlphaPrecision>(selectedValue, false);
-            RepairTextureFormatSelection(textureSettings);
+            RepairTextureFormatSelectionPreservingAlpha(textureSettings);
             UpdateStatusText();
             SyncTextureProcessorControlsFromPendingSettings();
+        }
+
+        /// <summary>
+        /// Repairs one unsupported format pair while keeping the just-picked alpha precision: when the current
+        /// color format cannot pair with the requested alpha, the color format switches to one that can,
+        /// instead of silently reverting the alpha selection.
+        /// </summary>
+        /// <param name="textureSettings">Texture processor settings to validate and repair.</param>
+        void RepairTextureFormatSelectionPreservingAlpha(TextureAssetProcessorSettings textureSettings) {
+            if (textureSettings == null) {
+                throw new ArgumentNullException(nameof(textureSettings));
+            }
+
+            PlatformTextureFormatCapabilityDefinition textureCapability = ResolveActiveTextureFormatCapability();
+            if (textureCapability == null || textureCapability.SupportedCombinations.Length == 0) {
+                return;
+            }
+            if (IsSupportedTextureFormatCombination(textureCapability, textureSettings.ColorFormatId, textureSettings.AlphaPrecision)) {
+                return;
+            }
+
+            for (int i = 0; i < textureCapability.SupportedCombinations.Length; i++) {
+                PlatformTextureFormatCombinationDefinition supportedCombination = textureCapability.SupportedCombinations[i];
+                if (supportedCombination.AlphaPrecision == textureSettings.AlphaPrecision) {
+                    textureSettings.ColorFormatId = supportedCombination.ColorFormatId;
+                    return;
+                }
+            }
+
+            RepairTextureFormatSelection(textureSettings);
         }
 
         /// <summary>
@@ -1200,13 +1296,70 @@ namespace helengine.editor {
                 SyncFontProcessorControlsFromPendingSettings();
             }
 
+            UpdateVramPreviewText();
             UpdatePlatformTabVisualState();
+        }
+
+        /// <summary>
+        /// Updates the estimated VRAM preview from the pending texture configuration, comparing against the
+        /// currently applied configuration when the two differ.
+        /// </summary>
+        void UpdateVramPreviewText() {
+            bool showPreview = IsTextureProcessorVisible && SourceImageWidth > 0 && SourceImageHeight > 0;
+            VramPreviewHost.Enabled = showPreview;
+            if (!showPreview) {
+                VramPreviewText.Text = string.Empty;
+                return;
+            }
+
+            TextureAssetProcessorSettings pendingSettings = GetActiveTextureProcessorSettings();
+            if (!TextureVramUsageCalculator.TryCalculateBytes(SourceImageWidth, SourceImageHeight, pendingSettings, out long pendingBytes)) {
+                VramPreviewText.Text = "VRAM: unavailable for this platform format.";
+                return;
+            }
+
+            string pendingText = TextureVramUsageCalculator.FormatBytes(pendingBytes);
+            TextureAssetProcessorSettings activeSettings = ResolveActiveComparisonTextureSettings();
+            if (activeSettings != null
+                && TextureVramUsageCalculator.TryCalculateBytes(SourceImageWidth, SourceImageHeight, activeSettings, out long activeBytes)
+                && activeBytes != pendingBytes) {
+                VramPreviewText.Text = $"VRAM: {pendingText} (current: {TextureVramUsageCalculator.FormatBytes(activeBytes)})";
+                return;
+            }
+
+            VramPreviewText.Text = $"VRAM: {pendingText}";
+        }
+
+        /// <summary>
+        /// Resolves the applied texture settings for the current platform and environment scope without
+        /// mutating the active settings container.
+        /// </summary>
+        /// <returns>Applied texture settings for the current scope, or null when unresolved.</returns>
+        TextureAssetProcessorSettings ResolveActiveComparisonTextureSettings() {
+            if (ActiveProcessorSettings == null || string.IsNullOrWhiteSpace(CurrentPlatformId)) {
+                return null;
+            }
+
+            if (!ActiveProcessorSettings.Platforms.TryGetValue(CurrentPlatformId, out AssetPlatformProcessorSettings platformSettings) || platformSettings == null) {
+                platformSettings = new AssetPlatformProcessorSettings();
+            }
+
+            if (EnvironmentOverridesEnabled
+                && !string.IsNullOrWhiteSpace(CurrentEnvironmentId)
+                && platformSettings.Environments != null
+                && platformSettings.Environments.TryGetValue(CurrentEnvironmentId, out AssetPlatformProcessorSettings environmentSettings)
+                && environmentSettings != null) {
+                platformSettings = environmentSettings;
+            }
+
+            return CurrentEntryKind == AssetEntryKind.Font ? platformSettings.FontAtlasTexture : platformSettings.Texture;
         }
 
         /// <summary>
         /// Updates the status message based on current selections.
         /// </summary>
         void UpdateStatusText() {
+            UpdateVramPreviewText();
             if (ImporterIds.Count == 0) {
                 StatusText.Text = $"{StatusPrefix} No importers registered.";
                 return;
@@ -1363,15 +1516,49 @@ namespace helengine.editor {
         /// </summary>
         void SyncTextureProcessorControlsFromPendingSettings() {
             TextureAssetProcessorSettings textureSettings = GetActiveTextureProcessorSettings();
-            RepairTextureFormatSelection(textureSettings);
+            // Resolve the displayed format pair without writing the repair back: mutating the pending
+            // settings during a display sync made freshly opened assets report pending changes.
+            ResolveDisplayTextureFormat(textureSettings, out string displayColorFormatId, out TextureAssetAlphaPrecision displayAlphaPrecision);
             SyncTextureFormatValues();
 
             IsUpdatingTextureControls = true;
             TextureMaxResolutionTextBox.Text = textureSettings.MaxResolution.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            TextureColorFormatComboBox.SetItems(TextureColorFormatValues, GetTextureColorFormatIndex(textureSettings.ColorFormatId));
-            TextureAlphaPrecisionComboBox.SetItems(TextureAlphaPrecisionValues, GetTextureAlphaPrecisionIndex(textureSettings.AlphaPrecision));
+            TextureColorFormatComboBox.SetItems(TextureColorFormatValues, GetTextureColorFormatIndex(displayColorFormatId));
+            TextureAlphaPrecisionComboBox.SetItems(TextureAlphaPrecisionValues, GetTextureAlphaPrecisionIndex(displayAlphaPrecision));
             TextureIndexingMethodComboBox.SetItems(TextureIndexingMethodValues, GetTextureIndexingMethodIndex(textureSettings));
             IsUpdatingTextureControls = false;
+            UpdateVramPreviewText();
+        }
+
+        /// <summary>
+        /// Resolves the texture format pair shown by the combo boxes, applying the platform-capability repair
+        /// for display only so the stored pending settings stay untouched.
+        /// </summary>
+        /// <param name="textureSettings">Texture settings supplying the stored format pair.</param>
+        /// <param name="colorFormatId">Receives the color format id to display.</param>
+        /// <param name="alphaPrecision">Receives the alpha precision to display.</param>
+        void ResolveDisplayTextureFormat(
+            TextureAssetProcessorSettings textureSettings,
+            out string colorFormatId,
+            out TextureAssetAlphaPrecision alphaPrecision) {
+            if (textureSettings == null) {
+                throw new ArgumentNullException(nameof(textureSettings));
+            }
+
+            colorFormatId = textureSettings.ColorFormatId;
+            alphaPrecision = textureSettings.AlphaPrecision;
+
+            PlatformTextureFormatCapabilityDefinition textureCapability = ResolveActiveTextureFormatCapability();
+            if (textureCapability == null || textureCapability.SupportedCombinations.Length == 0) {
+                return;
+            }
+            if (IsSupportedTextureFormatCombination(textureCapability, colorFormatId, alphaPrecision)) {
+                return;
+            }
+
+            PlatformTextureFormatCombinationDefinition repairedCombination = ResolveRepairedTextureFormatCombination(textureCapability, colorFormatId);
+            colorFormatId = repairedCombination.ColorFormatId;
+            alphaPrecision = repairedCombination.AlphaPrecision;
         }
 
         /// <summary>

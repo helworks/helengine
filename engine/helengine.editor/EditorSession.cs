@@ -632,7 +632,8 @@ namespace helengine.editor {
                 SaveShortcutRequested = HandleGlobalSaveShortcut,
                 UndoShortcutRequested = HandleGlobalUndoShortcut,
                 RedoShortcutRequested = HandleGlobalRedoShortcut,
-                DeleteShortcutRequested = HandleGlobalDeleteShortcut
+                DeleteShortcutRequested = HandleGlobalDeleteShortcut,
+                DuplicateShortcutRequested = HandleGlobalDuplicateShortcut
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
             keyboardFocusEntity.InitializeHierarchy();
@@ -1067,9 +1068,45 @@ namespace helengine.editor {
         public string WindowTitle => titleBar.Title;
 
         /// <summary>
+        /// Owned-asset sets whose GPU release is deferred until the frame that retired them has finished
+        /// drawing, so in-flight render queues never dereference freshly disposed fonts or textures.
+        /// Created lazily because test harnesses construct sessions without running field initializers.
+        /// </summary>
+        List<RuntimeSceneOwnedAssetSet> PendingOwnedAssetReleases;
+
+        /// <summary>
+        /// Queues one owned-asset set for release at the start of the next editor update.
+        /// </summary>
+        /// <param name="ownedAssets">Owned-asset set retired by a scene switch.</param>
+        void DeferOwnedAssetRelease(RuntimeSceneOwnedAssetSet ownedAssets) {
+            if (ownedAssets == null) {
+                return;
+            }
+
+            PendingOwnedAssetReleases ??= new List<RuntimeSceneOwnedAssetSet>();
+            PendingOwnedAssetReleases.Add(ownedAssets);
+        }
+
+        /// <summary>
+        /// Releases owned-asset sets retired by earlier frames, after their final draw has completed.
+        /// </summary>
+        void FlushPendingOwnedAssetReleases() {
+            if (PendingOwnedAssetReleases == null || PendingOwnedAssetReleases.Count == 0) {
+                return;
+            }
+
+            for (int index = 0; index < PendingOwnedAssetReleases.Count; index++) {
+                EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(PendingOwnedAssetReleases[index]);
+            }
+
+            PendingOwnedAssetReleases.Clear();
+        }
+
+        /// <summary>
         /// Executes the editor update loop for input and entities.
         /// </summary>
         public void Update() {
+            FlushPendingOwnedAssetReleases();
             core.Update();
         }
 
@@ -1577,6 +1614,7 @@ namespace helengine.editor {
             EditorKeyboardFocusService.Reset();
             UntrackCurrentSceneFromSceneManager();
             ClearUserSceneEntities();
+            FlushPendingOwnedAssetReleases();
             ReleaseCurrentSceneOwnedAssets();
             core.Dispose();
         }
@@ -2617,6 +2655,62 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Handles the editor-global Ctrl+D shortcut by duplicating the selected authored scene entity and
+        /// recording the duplicate as one undoable creation.
+        /// </summary>
+        void HandleGlobalDuplicateShortcut() {
+            if (IsEditorGlobalShortcutBlocked()) {
+                return;
+            }
+
+            // Duplication shares delete eligibility: authored, scene-owned, not blueprint-inherited.
+            EditorEntity sourceEntity = ResolveSelectedDeletableSceneEntity();
+            if (sourceEntity == null) {
+                return;
+            }
+
+            SerializedEditorEntityState duplicateState = CaptureSerializedEntity(sourceEntity);
+            if (duplicateState?.EntityAsset == null) {
+                return;
+            }
+
+            AssignFreshSceneEntityIds(duplicateState.EntityAsset);
+            duplicateState.EntityAsset.Name = string.Concat(duplicateState.EntityAsset.Name, " Copy");
+            uint previousSelectionEntityId = GetSceneEntityId(sourceEntity);
+            SuppressSelectionHistoryRecording = true;
+            try {
+                EditorEntity duplicatedEntity = RestoreSerializedEntity(duplicateState);
+                RefreshHierarchy();
+                EditorSelectionService.SetSelectedEntity(duplicatedEntity);
+                HistoryMutationService.RecordCreatedEntity(duplicatedEntity, previousSelectionEntityId);
+            } catch (Exception ex) {
+                Logger.WriteError($"Scene entity duplication failed: {ex.Message}");
+            } finally {
+                SuppressSelectionHistoryRecording = false;
+            }
+        }
+
+        /// <summary>
+        /// Recursively assigns fresh stable scene entity ids across one detached entity asset subtree so a
+        /// duplicate never collides with the ids of the entity it was copied from.
+        /// </summary>
+        /// <param name="entityAsset">Detached entity asset whose subtree should receive fresh ids.</param>
+        void AssignFreshSceneEntityIds(SceneEntityAsset entityAsset) {
+            if (entityAsset == null) {
+                return;
+            }
+
+            entityAsset.Id = core.SceneEntityIdAllocator.Allocate();
+            if (entityAsset.Children == null) {
+                return;
+            }
+
+            for (int index = 0; index < entityAsset.Children.Length; index++) {
+                AssignFreshSceneEntityIds(entityAsset.Children[index]);
+            }
+        }
+
+        /// <summary>
         /// Returns true when one modal editor workflow should block global keyboard shortcuts.
         /// </summary>
         /// <returns>True when editor-global shortcuts should be ignored for the current frame.</returns>
@@ -3494,7 +3588,9 @@ namespace helengine.editor {
                 ClearSceneSelectionBeforeTeardown();
                 ClearUserSceneEntities(existingSceneEntities);
                 CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
-                EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(previousOwnedAssets);
+                // Releasing mid-frame crashed the in-flight draw when a retiring drawable still referenced a
+                // scene-owned font; the release waits until the frame that disposed the entities has rendered.
+                DeferOwnedAssetRelease(previousOwnedAssets);
                 AttachLoadedRoots(loadedSceneDocument.RootEntities);
                 BindSceneToPhysicsRuntime(loadedSceneDocument.RootEntities);
                 CurrentSceneOwnedAssets = loadedSceneDocument.OwnedAssets ?? throw new InvalidOperationException("Loaded editor scenes must provide an owned-asset set.");
@@ -3528,7 +3624,7 @@ namespace helengine.editor {
             ClearSceneSelectionBeforeTeardown();
             ClearUserSceneEntities();
             BindSceneToPhysicsRuntime(Array.Empty<Entity>());
-            ReleaseCurrentSceneOwnedAssets();
+            DeferCurrentSceneOwnedAssetsRelease();
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
@@ -3770,6 +3866,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Retires the current scene's owned assets into the deferred release queue so the frame that tore the
+        /// scene down finishes drawing before the GPU resources disappear.
+        /// </summary>
+        void DeferCurrentSceneOwnedAssetsRelease() {
+            if (CurrentSceneOwnedAssets == null) {
+                throw new InvalidOperationException("The current editor scene did not initialize its owned-asset tracking state.");
+            }
+
+            RuntimeSceneOwnedAssetSet ownedAssets = CurrentSceneOwnedAssets;
+            CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
+            DeferOwnedAssetRelease(ownedAssets);
+        }
+
+        /// <summary>
         /// Raises one tracked scene mutation notification so dirty-state can distinguish history-backed mutations from legacy untracked ones.
         /// </summary>
         void RaiseTrackedSceneMutated() {
@@ -3965,6 +4075,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the source pixel dimensions for one image asset so the import-settings view can estimate
+        /// VRAM usage; failures leave the dimensions at zero and simply hide the estimate.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the source image.</param>
+        /// <param name="width">Receives the source image width, or zero when unresolved.</param>
+        /// <param name="height">Receives the source image height, or zero when unresolved.</param>
+        void ResolveImageSourceDimensions(string fullPath, out int width, out int height) {
+            width = 0;
+            height = 0;
+            try {
+                assetImportManager.TryGetTextureSourceDimensions(fullPath, out width, out height);
+            } catch {
+            }
+        }
+
+        /// <summary>
         /// Handles asset selections from the browser to display import settings.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>
@@ -4083,8 +4209,10 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
+                    ResolveImageSourceDimensions(entry.FullPath, out int sourceImageWidth, out int sourceImageHeight);
+                    AssetProcessorSettings textureViewSettings = CreateTextureImportViewProcessorSettings(settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, textureViewSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), sourceImageWidth, sourceImageHeight);
                     }
                 } else {
                     AssetImportSettings settings;
@@ -4180,6 +4308,7 @@ namespace helengine.editor {
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings settings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
                     settings.Importer.ImporterId = request.ImporterId;
+                    ApplyTextureImportRequestProcessorSettings(settings, request.ProcessorSettings);
                     SetActiveProjectPlatform(request.SelectedPlatformId);
                     assetImportManager.CurrentEnvironmentId = request.SelectedEnvironmentId;
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
@@ -4204,8 +4333,10 @@ namespace helengine.editor {
                     }
                 } else if (entry.EntryKind == AssetEntryKind.Image) {
                     TextureAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
+                    ResolveImageSourceDimensions(entry.FullPath, out int refreshedImageWidth, out int refreshedImageHeight);
+                    AssetProcessorSettings refreshedTextureViewSettings = CreateTextureImportViewProcessorSettings(refreshedSettings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, new AssetProcessorSettings(), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, refreshedTextureViewSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), refreshedImageWidth, refreshedImageHeight);
                     }
                 } else {
                     AssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
@@ -4286,6 +4417,91 @@ namespace helengine.editor {
                     settings.Processor.Environments[pair.Key] = environments;
                 }
             }
+        }
+
+        /// <summary>
+        /// Creates one texture-focused processor-settings payload for the import-settings view.
+        /// </summary>
+        /// <param name="settings">Typed texture import settings to project into the view model.</param>
+        /// <returns>Processor settings payload consumed by the texture import-settings UI.</returns>
+        AssetProcessorSettings CreateTextureImportViewProcessorSettings(TextureAssetImportSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            AssetProcessorSettings processorSettings = new AssetProcessorSettings();
+            if (settings.Processor == null || settings.Processor.Platforms == null) {
+                return processorSettings;
+            }
+
+            foreach (KeyValuePair<string, TextureAssetProcessorSettings> pair in settings.Processor.Platforms) {
+                if (string.IsNullOrWhiteSpace(pair.Key)) {
+                    continue;
+                }
+
+                AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings {
+                    Texture = CloneTextureProcessorSettings(pair.Value)
+                };
+                processorSettings.Platforms[pair.Key] = platformSettings;
+                if (settings.Processor.Environments != null
+                    && settings.Processor.Environments.TryGetValue(pair.Key, out Dictionary<string, TextureAssetProcessorSettings> environments)
+                    && environments != null) {
+                    foreach (KeyValuePair<string, TextureAssetProcessorSettings> environment in environments) {
+                        platformSettings.Environments[environment.Key] = new AssetPlatformProcessorSettings {
+                            Texture = CloneTextureProcessorSettings(environment.Value)
+                        };
+                    }
+                }
+            }
+
+            return processorSettings;
+        }
+
+        /// <summary>
+        /// Applies one texture import-settings request payload to typed texture settings.
+        /// </summary>
+        /// <param name="settings">Typed texture settings to update.</param>
+        /// <param name="processorSettings">Processor settings payload emitted by the import-settings view.</param>
+        void ApplyTextureImportRequestProcessorSettings(TextureAssetImportSettings settings, AssetProcessorSettings processorSettings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            }
+
+            settings.Processor = new TextureAssetProcessorPlatformSettings();
+            foreach (KeyValuePair<string, AssetPlatformProcessorSettings> pair in processorSettings.Platforms) {
+                if (string.IsNullOrWhiteSpace(pair.Key)) {
+                    continue;
+                }
+
+                settings.Processor.Platforms[pair.Key] = CloneTextureProcessorSettings(pair.Value?.Texture);
+                if (pair.Value?.Environments != null) {
+                    Dictionary<string, TextureAssetProcessorSettings> environments = new Dictionary<string, TextureAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                    foreach (KeyValuePair<string, AssetPlatformProcessorSettings> environment in pair.Value.Environments) {
+                        environments[environment.Key] = CloneTextureProcessorSettings(environment.Value?.Texture);
+                    }
+                    settings.Processor.Environments[pair.Key] = environments;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates one copy of texture processor settings.
+        /// </summary>
+        /// <param name="settings">Texture processor settings to clone.</param>
+        /// <returns>Cloned texture processor settings.</returns>
+        TextureAssetProcessorSettings CloneTextureProcessorSettings(TextureAssetProcessorSettings settings) {
+            TextureAssetProcessorSettings clone = new TextureAssetProcessorSettings();
+            if (settings == null) {
+                return clone;
+            }
+
+            clone.MaxResolution = settings.MaxResolution;
+            clone.ColorFormatId = settings.ColorFormatId;
+            clone.AlphaPrecision = settings.AlphaPrecision;
+            clone.IndexingMethodId = settings.IndexingMethodId;
+            return clone;
         }
 
         /// <summary>
@@ -4441,7 +4657,7 @@ namespace helengine.editor {
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
                 IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = CreateSupportedPlatformDefinitionsById();
                 for (int index = 0; index < propertiesPanels.Count; index++) {
-                    propertiesPanels[index].ShowEntityProperties(args.SelectedEntity, ProjectSupportedPlatforms, platformDefinitionsById);
+                    propertiesPanels[index].ShowEntityProperties(args.SelectedEntity, ProjectSupportedPlatforms, platformDefinitionsById, ResolveProjectEnvironmentIds());
                 }
             } else {
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
@@ -4973,7 +5189,7 @@ namespace helengine.editor {
             }
 
             if (SelectedSceneEntity != null) {
-                panel.ShowEntityProperties(SelectedSceneEntity, ProjectSupportedPlatforms, CreateSupportedPlatformDefinitionsById());
+                panel.ShowEntityProperties(SelectedSceneEntity, ProjectSupportedPlatforms, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                 return;
             }
 

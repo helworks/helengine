@@ -1,0 +1,236 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.0.3 Chrome/140.0.7339.249 Electron/38.7.0 Safari/537.36" version="29.0.3">
+  <diagram name="Page-1" id="S3pNhfZKo8af6xIgWaex">
+    <mxGraphModel dx="3391" dy="1829" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cmhaw5el3nUinjj-piw--79" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--1" target="cmhaw5el3nUinjj-piw--37">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--94" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--1" target="cmhaw5el3nUinjj-piw--47">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--1" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#8B7CFF;fillColor=#2A2C4C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="544" y="120" width="200" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--2" value="&lt;b&gt;helengine.core&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=10;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="544" y="120" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--3" value="Shared runtime" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;fontSize=9;spacingLeft=8;spacingRight=8;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+          <mxGeometry x="544" y="140" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--4" value="C#" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fontSize=8;fillColor=#008a00;fontColor=#ffffff;strokeColor=#005700;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="708" y="125" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--22" value="&lt;b&gt;Core model&lt;/b&gt;: Core, Entity, Component,&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;ObjectManager&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="544" y="170" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--23" value="&lt;b&gt;Scene Lifecycle&lt;/b&gt;: Loading, Unloading, Persistence, Runtime Scenes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="544" y="200" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--24" value="&lt;b&gt;Content and Assets: &lt;/b&gt;ContentManager, asset processors, deserialization, pacakged assets&lt;span style=&quot;color: rgba(0, 0, 0, 0); font-family: monospace; font-size: 0px; text-wrap-mode: nowrap;&quot;&gt;%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22%26lt%3Bb%26gt%3BScene%20Lifecycle%26lt%3B%2Fb%26gt%3B%3A%20Loading%2C%20Unloading%2C%20Persistence%2C%20Runtime%20Scenes%22%20style%3D%22rounded%3D0%3BwhiteSpace%3Dwrap%3Bhtml%3D1%3BfillColor%3Dnone%3BstrokeColor%3D%238B7CFF%3BfontSize%3D8%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22200%22%20y%3D%22190%22%20width%3D%22200%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3E&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="544" y="230" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--25" value="&lt;b&gt;Content and Assets: &lt;/b&gt;ContentManager, asset processors, deserialization, pacakged assets&lt;span style=&quot;color: rgba(0, 0, 0, 0); font-family: monospace; font-size: 0px; text-wrap-mode: nowrap;&quot;&gt;%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22%26lt%3Bb%26gt%3BScene%20Lifecycle%26lt%3B%2Fb%26gt%3B%3A%20Loading%2C%20Unloading%2C%20Persistence%2C%20Runtime%20Scenes%22%20style%3D%22rounded%3D0%3BwhiteSpace%3Dwrap%3Bhtml%3D1%3BfillColor%3Dnone%3BstrokeColor%3D%238B7CFF%3BfontSize%3D8%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22200%22%20y%3D%22190%22%20width%3D%22200%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3E&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="544" y="260" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--27" value="&lt;b&gt;Gameplay Systems:&lt;/b&gt; animations, audio, materials, cameras, 2D/3D components" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="544" y="290" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--96" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--37" target="cmhaw5el3nUinjj-piw--95">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--98" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--37" target="cmhaw5el3nUinjj-piw--97">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--37" value="Converts C# to C++" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#8B7CFF;fillColor=#2A2C4C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="890" y="180" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--38" value="&lt;b&gt;csharpcodegen&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=10;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="890" y="180" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--40" value="C#" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fontSize=8;fillColor=#008a00;fontColor=#ffffff;strokeColor=#005700;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1054" y="185" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--46" target="cmhaw5el3nUinjj-piw--73">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--46" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#8B7CFF;fillColor=#2A2C4C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="200" y="365" width="200" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--47" value="&lt;b&gt;helengine.editor&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=10;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="200" y="365" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--48" value="UI e&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;ditor&lt;/span&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;fontSize=9;spacingLeft=8;spacingRight=8;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+          <mxGeometry x="200" y="385" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--49" value="C#" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fontSize=8;fillColor=#008a00;fontColor=#ffffff;strokeColor=#005700;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="364" y="370" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--50" value="&lt;b&gt;Core model&lt;/b&gt;: Core, Entity, Component,&amp;nbsp;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;ObjectManager&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="200" y="415" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--51" value="&lt;b&gt;Scene Lifecycle&lt;/b&gt;: Loading, Unloading, Persistence, Runtime Scenes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="200" y="445" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--52" value="&lt;b&gt;Content and Assets: &lt;/b&gt;ContentManager, asset processors, deserialization, pacakged assets&lt;span style=&quot;color: rgba(0, 0, 0, 0); font-family: monospace; font-size: 0px; text-wrap-mode: nowrap;&quot;&gt;%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22%26lt%3Bb%26gt%3BScene%20Lifecycle%26lt%3B%2Fb%26gt%3B%3A%20Loading%2C%20Unloading%2C%20Persistence%2C%20Runtime%20Scenes%22%20style%3D%22rounded%3D0%3BwhiteSpace%3Dwrap%3Bhtml%3D1%3BfillColor%3Dnone%3BstrokeColor%3D%238B7CFF%3BfontSize%3D8%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22200%22%20y%3D%22190%22%20width%3D%22200%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3E&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="200" y="475" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--53" value="&lt;b&gt;Content and Assets: &lt;/b&gt;ContentManager, asset processors, deserialization, pacakged assets&lt;span style=&quot;color: rgba(0, 0, 0, 0); font-family: monospace; font-size: 0px; text-wrap-mode: nowrap;&quot;&gt;%3CmxGraphModel%3E%3Croot%3E%3CmxCell%20id%3D%220%22%2F%3E%3CmxCell%20id%3D%221%22%20parent%3D%220%22%2F%3E%3CmxCell%20id%3D%222%22%20value%3D%22%26lt%3Bb%26gt%3BScene%20Lifecycle%26lt%3B%2Fb%26gt%3B%3A%20Loading%2C%20Unloading%2C%20Persistence%2C%20Runtime%20Scenes%22%20style%3D%22rounded%3D0%3BwhiteSpace%3Dwrap%3Bhtml%3D1%3BfillColor%3Dnone%3BstrokeColor%3D%238B7CFF%3BfontSize%3D8%3B%22%20vertex%3D%221%22%20parent%3D%221%22%3E%3CmxGeometry%20x%3D%22200%22%20y%3D%22190%22%20width%3D%22200%22%20height%3D%2230%22%20as%3D%22geometry%22%2F%3E%3C%2FmxCell%3E%3C%2Froot%3E%3C%2FmxGraphModel%3E&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="200" y="505" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--54" value="&lt;b&gt;Gameplay Systems:&lt;/b&gt; animations, audio, materials, cameras, 2D/3D components" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="200" y="535" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--91" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--55" target="cmhaw5el3nUinjj-piw--87">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="680" y="730" />
+              <mxPoint x="680" y="705" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--92" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--55" target="cmhaw5el3nUinjj-piw--46">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--55" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#8B7CFF;fillColor=#2A2C4C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="380" y="640" width="200" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--56" value="&lt;b&gt;helengine.files&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=10;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="380" y="640" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--57" value="Serialization library" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;fontSize=9;spacingLeft=8;spacingRight=8;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+          <mxGeometry x="380" y="660" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--58" value="C#" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fontSize=8;fillColor=#008a00;fontColor=#ffffff;strokeColor=#005700;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="544" y="645" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--59" value="&lt;b&gt;Serialization: &lt;/b&gt;Binary Serialization support, native engine format, readers, and endian-aware binary formats." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="380" y="690" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--60" value="&lt;b&gt;Specialized Assets: &lt;/b&gt;Fonts, Shaders" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="380" y="735" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--61" value="&lt;b&gt;Platform Containers: &lt;/b&gt;Platform-specific packaging writes and build plans" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="380" y="765" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--64" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#8B7CFF;fillColor=#2A2C4C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="-130" y="340" width="200" height="165" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--65" value="&lt;b&gt;helengine.directx11&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=10;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="-130" y="340" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--66" value="Rendering library" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;fontSize=9;spacingLeft=8;spacingRight=8;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+          <mxGeometry x="-130" y="360" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--67" value="C#" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fontSize=8;fillColor=#008a00;fontColor=#ffffff;strokeColor=#005700;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="34" y="345" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--68" value="&lt;b&gt;Device &amp;amp; Renderers: &lt;/b&gt;Manages DX11 surfaces, swap chains, 2D/3D rendering" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="-130" y="390" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--77" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--69" target="cmhaw5el3nUinjj-piw--52">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="140" y="430" />
+              <mxPoint x="140" y="475" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--69" value="&lt;b&gt;Shader Pipeline: &lt;/b&gt;Compiles HLSL sources, resolves includes, and builds shaders assets" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="-130" y="415" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--70" value="&lt;b&gt;Lighting &amp;amp; Shadows: &lt;/b&gt;Forward lighting, PBR materials, shadows" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="-130" y="445" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--80" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--73" target="cmhaw5el3nUinjj-piw--37">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--93" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--73" target="cmhaw5el3nUinjj-piw--84">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--73" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#79D98C;fillColor=#273D37;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="540" y="402.5" width="200" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--74" value="C#" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fontSize=8;fillColor=#008a00;fontColor=#ffffff;strokeColor=#005700;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="704" y="407.5" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--75" value="&lt;b&gt;project.heproj&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=10;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="540" y="402.5" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--76" value="User project" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;fontSize=9;spacingLeft=8;spacingRight=8;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+          <mxGeometry x="540" y="422.5" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--81" value="&lt;b&gt;Authoring Data: &lt;/b&gt;Textures, Models" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#79D98C;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="540" y="452.5" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--82" value="&lt;b&gt;Code: &lt;/b&gt;C# codebase" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#79D98C;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="540" y="482.5" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--100" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--83" target="cmhaw5el3nUinjj-piw--99">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--83" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#8B7CFF;fillColor=#2A2C4C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="734" y="600" width="200" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--84" value="&lt;b&gt;helengine.ps2.builder&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=10;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="734" y="600" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--85" value="PS2 builder library" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;fontSize=9;spacingLeft=8;spacingRight=8;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+          <mxGeometry x="734" y="620" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--86" value="C#" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fontSize=8;fillColor=#008a00;fontColor=#ffffff;strokeColor=#005700;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="898" y="605" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--87" value="&lt;b&gt;Serialization: &lt;/b&gt;Binary Serialization support, native engine format, readers, and endian-aware binary formats." style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="734" y="650" width="200" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--88" value="&lt;b&gt;Specialized Assets: &lt;/b&gt;Fonts, Shaders" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="734" y="695" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--89" value="&lt;b&gt;Platform Containers: &lt;/b&gt;Platform-specific packaging writes and build plans" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;spacingLeft=8;align=left;" vertex="1" parent="1">
+          <mxGeometry x="734" y="725" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--111" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--95" target="cmhaw5el3nUinjj-piw--108">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--95" value="&lt;b&gt;User project C++&lt;/b&gt;&lt;div&gt;Built under user specific flags&lt;b&gt;&lt;/b&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#F2B84B;fillColor=#3D372C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="257.5" width="200" height="62.5" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--112" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--97" target="cmhaw5el3nUinjj-piw--108">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--97" value="&lt;b&gt;Helengine.Core C++&lt;/b&gt;&lt;div&gt;Built under user specific flags&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#F2B84B;fillColor=#3D372C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="163.75" width="200" height="62.5" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--110" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--99" target="cmhaw5el3nUinjj-piw--108">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--99" value="&lt;b&gt;User project cooked assets&lt;br&gt;&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#F2B84B;fillColor=#3D372C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="348.75" width="200" height="62.5" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--109" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="cmhaw5el3nUinjj-piw--101" target="cmhaw5el3nUinjj-piw--108">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--101" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#8B7CFF;fillColor=#2A2C4C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="445" width="200" height="132.5" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--102" value="&lt;b&gt;helengine.ps2.player&lt;/b&gt;" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;rounded=0;fontSize=10;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="445" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--103" value="PS2 player library" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;rounded=0;fontSize=9;spacingLeft=8;spacingRight=8;labelPosition=center;verticalLabelPosition=middle;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="465" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--104" value="C++" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;fontSize=8;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1404" y="450" width="30" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--105" value="&lt;b&gt;Rendering: &lt;/b&gt;Rendering with VU microcode" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#8B7CFF;fontSize=8;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="495" width="200" height="32.5" as="geometry" />
+        </mxCell>
+        <mxCell id="cmhaw5el3nUinjj-piw--108" value="&lt;b&gt;game.iso&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;strokeWidth=2;strokeColor=#F2B84B;fillColor=#3D372C;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="302.5" width="200" height="62.5" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

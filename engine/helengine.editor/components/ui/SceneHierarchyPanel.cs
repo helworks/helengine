@@ -58,6 +58,15 @@ namespace helengine.editor {
         /// </summary>
         readonly byte rowTextOrder;
         /// <summary>
+        /// Snapshot of the node list accepted by the most recent row relayout, used to skip redundant
+        /// relayouts while the per-frame hierarchy refresh finds no structural changes.
+        /// </summary>
+        readonly List<NodeInfo> lastLayoutNodes;
+        /// <summary>
+        /// Snapshot of the row label sources accepted by the most recent row relayout.
+        /// </summary>
+        readonly List<string> lastLayoutNodeNames;
+        /// <summary>
         /// Row that owns the currently visible context menu.
         /// </summary>
         SceneHierarchyRow contextMenuRow;
@@ -114,11 +123,16 @@ namespace helengine.editor {
 
             scrollComponent = new ScrollComponent();
             scrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            // The content camera clips hierarchy rows to the panel body, so the trailing partial row renders
+            // cut off instead of leaving empty space at the end of the scrolled range.
+            scrollComponent.ShowsPartialTrailingItem = true;
             scrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
             contentRoot.AddComponent(scrollComponent);
 
             rows = new List<SceneHierarchyRow>(32);
             nodes = new List<NodeInfo>(64);
+            lastLayoutNodes = new List<NodeInfo>(64);
+            lastLayoutNodeNames = new List<string>(64);
             expandedEntities = new Dictionary<Entity, bool>();
             parentEntities = new HashSet<Entity>();
             hierarchyContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
@@ -163,11 +177,62 @@ namespace helengine.editor {
                 }
             }
 
-            scrollComponent.ItemCount = nodes.Count;
-            scrollComponent.ClampScrollOffset();
-            LayoutRows();
+            // This refresh runs every frame; only re-run the row relayout when the node structure or the
+            // displayed names actually changed. The viewport and scroll translation still update every
+            // frame because they follow the panel position, which changes without any node change.
+            if (HasNodeContentChanged()) {
+                CaptureNodeLayoutSnapshot();
+                scrollComponent.ItemCount = nodes.Count;
+                scrollComponent.ClampScrollOffset();
+                LayoutRows();
+            }
             UpdateContentViewport();
             UpdateScrollContentPosition();
+        }
+
+        /// <summary>
+        /// Returns whether the freshly rebuilt node list differs from the one accepted by the last relayout.
+        /// </summary>
+        /// <returns>True when the rows need a relayout.</returns>
+        bool HasNodeContentChanged() {
+            if (nodes.Count != lastLayoutNodes.Count) {
+                return true;
+            }
+
+            for (int index = 0; index < nodes.Count; index++) {
+                NodeInfo node = nodes[index];
+                NodeInfo lastNode = lastLayoutNodes[index];
+                if (!ReferenceEquals(node.Entity, lastNode.Entity)
+                    || node.Depth != lastNode.Depth
+                    || node.HasChildren != lastNode.HasChildren
+                    || node.IsExpanded != lastNode.IsExpanded
+                    || !string.Equals(ResolveNodeLabelSource(node.Entity), lastLayoutNodeNames[index], StringComparison.Ordinal)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Captures the node list and label sources accepted by the current relayout.
+        /// </summary>
+        void CaptureNodeLayoutSnapshot() {
+            lastLayoutNodes.Clear();
+            lastLayoutNodeNames.Clear();
+            for (int index = 0; index < nodes.Count; index++) {
+                lastLayoutNodes.Add(nodes[index]);
+                lastLayoutNodeNames.Add(ResolveNodeLabelSource(nodes[index].Entity));
+            }
+        }
+
+        /// <summary>
+        /// Resolves the raw label text source for one hierarchy entity.
+        /// </summary>
+        /// <param name="entity">Entity whose label source should be resolved.</param>
+        /// <returns>Label source string for change detection.</returns>
+        static string ResolveNodeLabelSource(Entity entity) {
+            return entity is EditorEntity editorEntity ? editorEntity.Name : entity.GetType().Name;
         }
 
         /// <summary>
@@ -295,6 +360,9 @@ namespace helengine.editor {
         /// <param name="args">Selection-change payload.</param>
         void HandleEditorSelectionChanged(EditorSelectionChangedEventArgs args) {
             RefreshHierarchy();
+            // The refresh skips row relayout when the node structure is unchanged, but a selection change
+            // must always repaint the row highlight states.
+            LayoutRows();
         }
 
         /// <summary>
@@ -370,7 +438,10 @@ namespace helengine.editor {
                 UpdateRowBackground(row, baseColor);
 
                 row.Background.Size = new int2(rowWidth, rowHeight);
-                row.Interactable.Size = new int2(rowWidth, rowHeight);
+                // The camera only clips rendering; the trailing partial row's hit area must not extend past
+                // the panel body into whatever sits below it.
+                int visibleRowHeight = Math.Min(rowHeight, contentHeight - (i * rowHeight));
+                row.Interactable.Size = new int2(rowWidth, Math.Max(0, visibleRowHeight));
 
                 int arrowLeft = GetRowPaddingLeftPixels() + node.Depth * GetRowIndentPixels();
                 row.ArrowHitLeft = arrowLeft;

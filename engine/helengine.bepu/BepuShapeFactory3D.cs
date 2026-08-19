@@ -7,29 +7,35 @@ namespace helengine {
     /// </summary>
     public static class BepuShapeFactory3D {
         /// <summary>
-        /// Builds one BEPU box shape from one authored box collider.
+        /// Builds one BEPU box shape from one authored box collider and the owning entity's world scale, matching the HelPhysics backend's effective-size convention.
         /// </summary>
         /// <param name="collider">Authored box collider to translate.</param>
-        /// <returns>BEPU box shape matching the authored collider.</returns>
-        public static Box CreateBoxShape(BoxCollider3DComponent collider) {
+        /// <param name="worldScale">Owning entity's composed world scale.</param>
+        /// <returns>BEPU box shape matching the authored collider scaled per axis.</returns>
+        public static Box CreateBoxShape(BoxCollider3DComponent collider, float3 worldScale) {
             if (collider == null) {
                 throw new ArgumentNullException(nameof(collider));
             }
 
-            return new Box(collider.Size.X, collider.Size.Y, collider.Size.Z);
+            return new Box(
+                Math.Abs(collider.Size.X * worldScale.X),
+                Math.Abs(collider.Size.Y * worldScale.Y),
+                Math.Abs(collider.Size.Z * worldScale.Z));
         }
 
         /// <summary>
-        /// Builds one BEPU sphere shape from one authored sphere collider.
+        /// Builds one BEPU sphere shape from one authored sphere collider and the owning entity's world scale, using the largest scale axis like the trigger overlap path.
         /// </summary>
         /// <param name="collider">Authored sphere collider to translate.</param>
-        /// <returns>BEPU sphere shape matching the authored collider.</returns>
-        public static Sphere CreateSphereShape(SphereCollider3DComponent collider) {
+        /// <param name="worldScale">Owning entity's composed world scale.</param>
+        /// <returns>BEPU sphere shape matching the authored collider scaled by the largest axis.</returns>
+        public static Sphere CreateSphereShape(SphereCollider3DComponent collider, float3 worldScale) {
             if (collider == null) {
                 throw new ArgumentNullException(nameof(collider));
             }
 
-            return new Sphere(collider.Radius);
+            float scaleFactor = Math.Max(Math.Abs(worldScale.X), Math.Max(Math.Abs(worldScale.Y), Math.Abs(worldScale.Z)));
+            return new Sphere(collider.Radius * scaleFactor);
         }
 
         /// <summary>

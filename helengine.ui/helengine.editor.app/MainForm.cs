@@ -358,9 +358,17 @@ namespace helengine.editor.app {
             } catch {
             }
 
+            sessionLogListener(new LogEntry(LogLevel.Info, $"Editor loop target: {1.0 / targetFrameSeconds:0.#} FPS ({targetFrameSeconds * 1000.0:0.##} ms budget).", 0d));
+
             TimeBeginPeriod(1);
             try {
                 System.Diagnostics.Stopwatch loopStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                double telemetryWindowStartSeconds = 0.0;
+                double telemetryFrameCostSumSeconds = 0.0;
+                double telemetryFrameCostMaxSeconds = 0.0;
+                double telemetrySleepSumSeconds = 0.0;
+                int telemetryFrameCount = 0;
+                const double telemetryWindowSeconds = 5.0;
                 for (; ; ) {
                     if (closed) {
                         break;
@@ -382,10 +390,33 @@ namespace helengine.editor.app {
                         RecordLoopException(ex);
                     }
 
-                    double remainingSeconds = targetFrameSeconds - (loopStopwatch.Elapsed.TotalSeconds - frameStartSeconds);
-                    int sleepMilliseconds = (int)(remainingSeconds * 1000.0);
-                    if (sleepMilliseconds >= 1) {
-                        Thread.Sleep(sleepMilliseconds);
+                    double frameCostSeconds = loopStopwatch.Elapsed.TotalSeconds - frameStartSeconds;
+                    double remainingSeconds = targetFrameSeconds - frameCostSeconds;
+                    // Always sleep at least 1 ms: the UI thread retrieves posted invoke callbacks ahead of input
+                    // messages, so a loop that never sleeps starves mouse and scroll input entirely once a frame
+                    // costs more than the frame budget.
+                    int sleepMilliseconds = Math.Max(1, (int)(remainingSeconds * 1000.0));
+                    double sleepStartSeconds = loopStopwatch.Elapsed.TotalSeconds;
+                    Thread.Sleep(sleepMilliseconds);
+
+                    telemetryFrameCostSumSeconds += frameCostSeconds;
+                    telemetryFrameCostMaxSeconds = Math.Max(telemetryFrameCostMaxSeconds, frameCostSeconds);
+                    telemetrySleepSumSeconds += loopStopwatch.Elapsed.TotalSeconds - sleepStartSeconds;
+                    telemetryFrameCount++;
+                    double telemetryElapsedSeconds = loopStopwatch.Elapsed.TotalSeconds - telemetryWindowStartSeconds;
+                    if (telemetryElapsedSeconds >= telemetryWindowSeconds && telemetryFrameCount > 0) {
+                        sessionLogListener(new LogEntry(
+                            LogLevel.Info,
+                            $"Editor loop: {telemetryFrameCount / telemetryElapsedSeconds:0.#} FPS, " +
+                            $"avg frame {telemetryFrameCostSumSeconds * 1000.0 / telemetryFrameCount:0.##} ms, " +
+                            $"max frame {telemetryFrameCostMaxSeconds * 1000.0:0.##} ms, " +
+                            $"avg sleep {telemetrySleepSumSeconds * 1000.0 / telemetryFrameCount:0.##} ms.",
+                            0d));
+                        telemetryWindowStartSeconds = loopStopwatch.Elapsed.TotalSeconds;
+                        telemetryFrameCostSumSeconds = 0.0;
+                        telemetryFrameCostMaxSeconds = 0.0;
+                        telemetrySleepSumSeconds = 0.0;
+                        telemetryFrameCount = 0;
                     }
                 }
             } finally {

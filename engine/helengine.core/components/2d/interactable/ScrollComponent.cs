@@ -198,6 +198,13 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets whether the automatic visible count rounds a partial trailing item up instead of down.
+        /// Enable only when the owning view clips overflow, so the partial item renders cut off instead of
+        /// leaving empty space at the end of the scrolled range.
+        /// </summary>
+        public bool ShowsPartialTrailingItem { get; set; }
+
+        /// <summary>
         /// Advances scrolling from the active mouse wheel while the pointer is inside the viewport.
         /// </summary>
         public override void Update() {
@@ -348,9 +355,9 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the count of complete items visible in the current viewport.
+        /// Resolves the count of visible items in the current viewport.
         /// </summary>
-        /// <returns>Complete visible item count derived from the viewport or an explicit override.</returns>
+        /// <returns>Visible item count derived from the viewport or an explicit override.</returns>
         int GetVisibleItemCount() {
             if (VisibleItemCountValue > 0) {
                 return VisibleItemCountValue;
@@ -362,6 +369,10 @@ namespace helengine {
             }
 
             int2 viewportSize = ResolveViewportSize();
+            if (ShowsPartialTrailingItem) {
+                return Math.Max(1, (viewportSize.Y + extent - 1) / extent);
+            }
+
             return Math.Max(1, viewportSize.Y / extent);
         }
 

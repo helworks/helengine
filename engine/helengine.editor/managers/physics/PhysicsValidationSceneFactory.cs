@@ -907,7 +907,7 @@ namespace helengine.editor {
                 Components = new[] {
                     CreateMeshComponentRecord(materialReference),
                     CreateRigidBodyComponentRecord(bodyKindCode, useGravity, 1d, 1d, float3.Zero, 1),
-                    CreateBoxColliderComponentRecord(scale, 2)
+                    CreateBoxColliderComponentRecord(float3.One, 2)
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -1000,7 +1000,7 @@ namespace helengine.editor {
                 Components = new[] {
                     CreateMeshComponentRecord(materialReference),
                     CreateRigidBodyComponentRecord(KinematicBodyKindCode, false, 1d, 1d, float3.Zero, 1),
-                    CreateBoxColliderComponentRecord(scale, 2),
+                    CreateBoxColliderComponentRecord(float3.One, 2),
                     CreateKinematicMotionComponentRecord(startLocalPosition, endLocalPosition, travelDurationSeconds, pingPong, 3)
                 },
                 Children = Array.Empty<SceneEntityAsset>()
@@ -1051,7 +1051,7 @@ namespace helengine.editor {
                 LocalOrientation = orientation,
                 Components = new[] {
                     CreateMeshComponentRecord(materialReference),
-                    CreateBoxColliderComponentRecord(scale, 1),
+                    CreateBoxColliderComponentRecord(float3.One, 1),
                     CreateCharacterControllerComponentRecord(desiredMoveDirection, moveSpeed, gravityScale, stepHeight, groundSnapDistance, 2)
                 },
                 Children = Array.Empty<SceneEntityAsset>()

@@ -211,7 +211,11 @@ namespace helengine.editor {
             float3 rotationAxis = DragRotationAxis;
             float4 deltaRotation;
             float4.CreateFromAxisAngle(ref rotationAxis, (float)resolvedAngle, out deltaRotation);
-            float4 newOrientation = deltaRotation * DragStartEntityOrientation;
+            // float4's `*` operator is component-wise, not quaternion multiplication; the world-axis delta
+            // must concatenate onto the drag-start orientation.
+            float4 dragStartOrientation = DragStartEntityOrientation;
+            float4.Concatenate(ref dragStartOrientation, ref deltaRotation, out float4 newOrientation);
+            newOrientation.Normalize();
             if (!DraggedEntity.Orientation.Equals(newOrientation)) {
                 DraggedEntity.Orientation = newOrientation;
             }

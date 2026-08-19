@@ -251,9 +251,12 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(row));
             }
 
+            // The pointer simulates a real screen click on the row: panel origin + dock title bar + browser
+            // toolbar + the row's local list slot. Building it from the composed world Position instead used
+            // to self-cancel with the equally world-based hit test and masked real-click misses.
             int2 pointer = new int2(
                 (int)Math.Round(panel.Position.X) + 24,
-                (int)Math.Round(panel.Position.Y) + panel.TitleBarHeightPixels + AssetBrowserView.ToolbarHeight + (int)Math.Round(row.Entity.Position.Y) + (row.Interactable.Size.Y / 2));
+                (int)Math.Round(panel.Position.Y) + panel.TitleBarHeightPixels + AssetBrowserView.ToolbarHeight + (int)Math.Round(row.Entity.LocalPosition.Y) + (row.Interactable.Size.Y / 2));
             int2 browserPoint = new int2(pointer.X - (int)Math.Round(panel.Position.X), pointer.Y - (int)Math.Round(panel.Position.Y) - panel.TitleBarHeightPixels);
             AssetBrowserEntry hoveredEntry;
             Assert.True(browserView.TryGetEntryAtPoint(browserPoint, out hoveredEntry));

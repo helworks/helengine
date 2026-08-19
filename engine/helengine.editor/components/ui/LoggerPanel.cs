@@ -32,6 +32,11 @@ namespace helengine.editor {
         readonly byte textOrder;
 
         /// <summary>
+        /// Shared clipped scroll body that clips scrolled rows against the visible panel body.
+        /// </summary>
+        readonly EditorClippedScrollBody ScrollBody;
+
+        /// <summary>
         /// Root entity hosting log rows.
         /// </summary>
         readonly EditorEntity contentRoot;
@@ -126,10 +131,9 @@ namespace helengine.editor {
             rowBackgroundOrder = RenderOrder2D.PanelSurface;
             textOrder = RenderOrder2D.PanelForeground;
 
-            contentRoot = new EditorEntity();
-            contentRoot.LayerMask = LayerMask;
-            contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
-            AddChild(contentRoot);
+            ScrollBody = new EditorClippedScrollBody(LayerMask);
+            AddChild(ScrollBody.HostEntity);
+            contentRoot = ScrollBody.ContentRoot;
 
             entries = new List<LogEntry>(MaxEntries);
             pendingEntries = new List<LogEntry>(32);
@@ -147,6 +151,9 @@ namespace helengine.editor {
             RowContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
             AddChild(RowContextMenu.Entity);
             ScrollComponent = new ScrollComponent();
+            // The clipped scroll body cuts the trailing partial row off at the panel bottom instead of
+            // leaving empty space at the end of the scrolled range.
+            ScrollComponent.ShowsPartialTrailingItem = true;
             EditorScrollComponentLayout.ConfigureAutomaticVisibleItems(
                 ScrollComponent,
                 new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y)),
@@ -360,11 +367,18 @@ namespace helengine.editor {
                 }
 
                 LogEntry entry = entries[i];
-                row.Entity.Enabled = true;
+                // Rows outside the visible body stay disabled so their interactables cannot capture pointer
+                // input through the viewport or dock chrome above the panel.
+                row.Entity.Enabled = ScrollBody.IsRowVisible(i * GetRowHeightPixels(), GetRowHeightPixels());
                 row.RowIndex = i;
                 row.Entity.Position = new float3(0, i * GetRowHeightPixels(), 0.1f);
                 row.Background.Size = new int2(rowWidth, GetRowHeightPixels());
-                row.Interactable.Size = new int2(rowWidth, GetRowHeightPixels());
+                // The clip only affects rendering; the trailing partial row's hit area must not extend past
+                // the panel body into whatever sits below it.
+                int bodyHeight = Math.Max(Size.Y, MinSize.Y);
+                int rowTopInBody = (i - FirstVisibleRowIndex) * GetRowHeightPixels();
+                int visibleRowHeight = Math.Min(GetRowHeightPixels(), bodyHeight - rowTopInBody);
+                row.Interactable.Size = new int2(rowWidth, Math.Max(0, visibleRowHeight));
 
                 row.Background.Color = ResolveRowBackgroundColor(i);
                 row.LabelHost.Position = new float3(GetRowPaddingPixels(), verticalOffset, 0.2f);
@@ -760,10 +774,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates the content root translation from the current scroll offset.
+        /// Updates the clipped body layout and content translation from the current scroll offset.
         /// </summary>
         void UpdateContentRootPosition() {
-            contentRoot.Position = new float3(0f, TitleBarHeightPixels - (FirstVisibleRowIndex * GetRowHeightPixels()), 0.05f);
+            ScrollBody.UpdateLayout(
+                new float3(0f, TitleBarHeightPixels, 0.05f),
+                new int2(Math.Max(Size.X, MinSize.X), Math.Max(Size.Y, MinSize.Y)));
+            ScrollBody.SetVerticalScrollPixels(FirstVisibleRowIndex * GetRowHeightPixels());
         }
 
         /// <summary>
@@ -812,7 +829,7 @@ namespace helengine.editor {
         /// <param name="scrollOffset">Current scroll offset in item units.</param>
         void HandleScrollOffsetChanged(ScrollComponent scrollComponent, int scrollOffset) {
             FirstVisibleRowIndex = scrollOffset;
-            UpdateContentRootPosition();
+            LayoutRows();
         }
 
         /// <summary>
