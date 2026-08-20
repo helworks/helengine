@@ -1251,6 +1251,19 @@ namespace helengine.editor {
 
             int separatorIndex = propertyPath.IndexOf('.');
             if (separatorIndex < 0) {
+                if (TryParseIndexedPropertyPath(propertyPath, out string arrayPropertyName, out int elementIndex)) {
+                    PropertyInfo readArrayProperty = target.GetType().GetProperty(arrayPropertyName, BindingFlags.Instance | BindingFlags.Public);
+                    if (readArrayProperty == null
+                        || !readArrayProperty.CanRead
+                        || readArrayProperty.GetValue(target) is not Array readArrayValue
+                        || elementIndex < 0
+                        || elementIndex >= readArrayValue.Length) {
+                        return null;
+                    }
+
+                    return readArrayValue.GetValue(elementIndex);
+                }
+
                 PropertyInfo directProperty = ResolveRequiredProperty(target.GetType(), propertyPath);
                 return directProperty.GetValue(target);
             }
@@ -1268,6 +1281,56 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Parses one direct property path shaped like <c>Name[index]</c> into its property name and element index.
+        /// </summary>
+        /// <param name="propertyPath">Stable property path to parse.</param>
+        /// <param name="propertyName">Receives the array property name when the path is indexed.</param>
+        /// <param name="elementIndex">Receives the zero-based element index when the path is indexed.</param>
+        /// <returns>True when the path addresses one array element.</returns>
+        static bool TryParseIndexedPropertyPath(string propertyPath, out string propertyName, out int elementIndex) {
+            propertyName = null;
+            elementIndex = -1;
+            int openBracketIndex = propertyPath.IndexOf('[');
+            if (openBracketIndex <= 0 || !propertyPath.EndsWith("]", StringComparison.Ordinal)) {
+                return false;
+            }
+
+            string indexText = propertyPath.Substring(openBracketIndex + 1, propertyPath.Length - openBracketIndex - 2);
+            if (!int.TryParse(indexText, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int parsedIndex)) {
+                return false;
+            }
+
+            propertyName = propertyPath.Substring(0, openBracketIndex);
+            elementIndex = parsedIndex;
+            return true;
+        }
+
+        /// <summary>
+        /// Resolves one required array property value and validates the requested element index.
+        /// </summary>
+        /// <param name="target">Component that owns the array property.</param>
+        /// <param name="arrayPropertyName">Array property name.</param>
+        /// <param name="elementIndex">Zero-based element index being addressed.</param>
+        /// <param name="propertyPath">Original property path used for diagnostics.</param>
+        /// <returns>Resolved array instance.</returns>
+        static Array ResolveRequiredArrayValue(object target, string arrayPropertyName, int elementIndex, string propertyPath) {
+            PropertyInfo arrayProperty = target.GetType().GetProperty(arrayPropertyName, BindingFlags.Instance | BindingFlags.Public);
+            if (arrayProperty == null || !arrayProperty.CanRead) {
+                throw new InvalidOperationException($"Property '{arrayPropertyName}' was not found or is not readable on '{target.GetType().FullName}'.");
+            }
+
+            if (arrayProperty.GetValue(target) is not Array arrayValue) {
+                throw new InvalidOperationException($"Property '{arrayPropertyName}' on '{target.GetType().FullName}' is not an array and cannot resolve path '{propertyPath}'.");
+            }
+
+            if (elementIndex < 0 || elementIndex >= arrayValue.Length) {
+                throw new InvalidOperationException($"Property path '{propertyPath}' addresses element {elementIndex} outside the current array length {arrayValue.Length} on '{target.GetType().FullName}'.");
+            }
+
+            return arrayValue;
+        }
+
+        /// <summary>
         /// Writes one value to the supplied component using a stable property path.
         /// </summary>
         /// <param name="target">Component that owns the requested property path.</param>
@@ -1282,6 +1345,12 @@ namespace helengine.editor {
 
             int separatorIndex = propertyPath.IndexOf('.');
             if (separatorIndex < 0) {
+                if (TryParseIndexedPropertyPath(propertyPath, out string arrayPropertyName, out int elementIndex)) {
+                    Array arrayValue = ResolveRequiredArrayValue(target, arrayPropertyName, elementIndex, propertyPath);
+                    arrayValue.SetValue(value, elementIndex);
+                    return;
+                }
+
                 PropertyInfo directProperty = ResolveRequiredProperty(target.GetType(), propertyPath);
                 directProperty.SetValue(target, value);
                 return;
