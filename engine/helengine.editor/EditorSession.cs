@@ -327,6 +327,16 @@ namespace helengine.editor {
         /// Modal dialog used to choose scene save destinations.
         /// </summary>
         SaveFileDialog saveFileDialog;
+
+        /// <summary>
+        /// Marks the save-file dialog as collecting a scene-export destination instead of a scene-save destination.
+        /// </summary>
+        bool saveFileDialogExportsScene;
+
+        /// <summary>
+        /// Lazily created scene mesh exporter loaded from the Assimp editor assembly.
+        /// </summary>
+        ISceneMeshExporter sceneMeshExporter;
         /// <summary>
         /// Modal dialog used to choose scene files to open.
         /// </summary>
@@ -725,6 +735,7 @@ namespace helengine.editor {
             titleBar.PreferencesRequested += HandlePreferencesRequested;
             titleBar.BuildRequested += HandleBuildRequested;
             titleBar.EnvironmentsRequested += HandleEnvironmentsRequested;
+            titleBar.ExportSceneRequested += HandleExportSceneRequested;
             titleBar.PlatformsRequested += HandlePlatformsRequested;
             titleBar.ProfilesRequested += HandleProfilesRequested;
             titleBar.BuildScriptsRequested += HandleBuildScriptsRequested;
@@ -1587,6 +1598,7 @@ namespace helengine.editor {
             titleBar.PreferencesRequested -= HandlePreferencesRequested;
             titleBar.BuildRequested -= HandleBuildRequested;
             titleBar.EnvironmentsRequested -= HandleEnvironmentsRequested;
+            titleBar.ExportSceneRequested -= HandleExportSceneRequested;
             titleBar.PlatformsRequested -= HandlePlatformsRequested;
             titleBar.ProfilesRequested -= HandleProfilesRequested;
             titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
@@ -3513,9 +3525,48 @@ namespace helengine.editor {
         /// Shows the save-file dialog using the current scene path to seed the folder and file name.
         /// </summary>
         void ShowSceneSaveDialog() {
+            saveFileDialogExportsScene = false;
             string initialRelativeDirectory = SceneSavePathResolver.GetInitialRelativeDirectory(CurrentScenePath);
             string suggestedFileName = SceneSavePathResolver.GetSuggestedFileName(CurrentScenePath);
             saveFileDialog.Show(initialRelativeDirectory, suggestedFileName);
+        }
+
+        /// <summary>
+        /// Shows the save-file dialog in export mode so the user can choose the glTF destination.
+        /// </summary>
+        void HandleExportSceneRequested() {
+            if (saveFileDialog == null) {
+                return;
+            }
+
+            saveFileDialogExportsScene = true;
+            string initialRelativeDirectory = SceneSavePathResolver.GetInitialRelativeDirectory(CurrentScenePath);
+            string suggestedFileName = SceneSavePathResolver.GetSuggestedFileName(CurrentScenePath);
+            saveFileDialog.Show(initialRelativeDirectory, suggestedFileName);
+        }
+
+        /// <summary>
+        /// Exports the live scene's mesh entities to one binary glTF file at the confirmed dialog destination.
+        /// </summary>
+        /// <param name="fullPath">Absolute destination path confirmed by the save dialog.</param>
+        void HandleSceneExportSaveRequested(string fullPath) {
+            try {
+                if (sceneMeshExporter == null) {
+                    System.Reflection.Assembly assimpAssembly = System.Reflection.Assembly.Load("helengine.editor.assimp");
+                    Type exporterType = assimpAssembly.GetType("helengine.editor.assimp.HelengineAssimpGltfExporter", throwOnError: true);
+                    sceneMeshExporter = (ISceneMeshExporter)Activator.CreateInstance(exporterType);
+                }
+
+                string outputPath = Path.ChangeExtension(fullPath, ".glb");
+                List<Entity> rootEntities = new List<Entity>(helengine.Core.Instance.ObjectManager.Entities);
+                string summary = sceneMeshExporter.Export(rootEntities, Path.Combine(projectPath, "assets"), outputPath);
+                Logger.WriteLine(summary);
+                saveFileDialogExportsScene = false;
+                saveFileDialog.Hide();
+            } catch (Exception ex) {
+                Logger.WriteError($"Scene export failed: {ex.Message}");
+                saveFileDialog.ShowError(ex.Message);
+            }
         }
 
         /// <summary>
@@ -3537,6 +3588,11 @@ namespace helengine.editor {
         void HandleSceneSaveRequested(string fullPath) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
+            }
+
+            if (saveFileDialogExportsScene) {
+                HandleSceneExportSaveRequested(fullPath);
+                return;
             }
 
             try {

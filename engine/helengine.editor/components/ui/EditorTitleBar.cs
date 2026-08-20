@@ -697,6 +697,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action EnvironmentsRequested;
         /// <summary>
+        /// Raised when the user selects the Export Scene command.
+        /// </summary>
+        public event Action ExportSceneRequested;
+        /// <summary>
         /// Raised when the user selects the Profiles command.
         /// </summary>
         public event Action ProfilesRequested;
@@ -896,7 +900,8 @@ namespace helengine.editor {
         /// <returns>Immutable collection of Tools menu items.</returns>
         IReadOnlyList<ContextMenuItem> BuildToolsMenuItems() {
             return new ContextMenuItem[] {
-                new ContextMenuItem("Environments...", RaiseEnvironmentsRequested)
+                new ContextMenuItem("Environments...", RaiseEnvironmentsRequested),
+                new ContextMenuItem("Export Scene...", RaiseExportSceneRequested)
             };
         }
 
@@ -2003,6 +2008,16 @@ namespace helengine.editor {
             HideMenus();
             if (EnvironmentsRequested != null) {
                 EnvironmentsRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the Export Scene command event.
+        /// </summary>
+        void RaiseExportSceneRequested() {
+            HideMenus();
+            if (ExportSceneRequested != null) {
+                ExportSceneRequested();
             }
         }
 
