@@ -25,6 +25,9 @@ namespace helengine.editor {
             Kind = kind;
             MaxEdgeLength = MeshComponentTessellationSettings.DefaultTessellationMaxEdgeLength;
             AtCookTime = true;
+            UvwMode = ModelUvwMapProcessor.BoxMode;
+            UvwPlane = ModelUvwMapProcessor.PlaneXZ;
+            UvwScale = 1d;
         }
 
         /// <summary>
@@ -46,5 +49,20 @@ namespace helengine.editor {
         /// Gets or sets whether the modifier result is previewed live in the editor viewport.
         /// </summary>
         public bool Preview { get; set; }
+
+        /// <summary>
+        /// Gets or sets the UVW map projection mode.
+        /// </summary>
+        public string UvwMode { get; set; }
+
+        /// <summary>
+        /// Gets or sets the world-plane identifier used by the UVW map world mode.
+        /// </summary>
+        public string UvwPlane { get; set; }
+
+        /// <summary>
+        /// Gets or sets the world or local units covered by one texture repeat in the UVW map modifier.
+        /// </summary>
+        public double UvwScale { get; set; }
     }
 }

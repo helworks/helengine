@@ -759,10 +759,19 @@ namespace helengine.editor {
             ComponentPropertyRow headerRow = AcquireRow(ComponentPropertyRowKind.Header);
             BindEditorOnlyHeaderRow(headerRow, commonComponent, editableComponent, saveComponent, platformId, "Modifiers");
             headerRow.CustomEditorTypeId = MeshModifiersEditorTypeId;
-            headerRow.CustomEditorEntryKey = string.Empty;
-            EnsureMeshModifierActionButton(headerRow, "Add");
+            headerRow.CustomEditorEntryKey = "add:" + MeshComponentModifier.TessellateKind;
+            EnsureMeshModifierActionButton(headerRow, "+ Tessellate");
             section.Rows.Add(headerRow);
             ActiveRows.Add(headerRow);
+
+            ComponentPropertyRow addUvwRow = AcquireRow(ComponentPropertyRowKind.Header);
+            BindEditorOnlyHeaderRow(addUvwRow, commonComponent, editableComponent, saveComponent, platformId, "-");
+            addUvwRow.Label.Text = string.Empty;
+            addUvwRow.CustomEditorTypeId = MeshModifiersEditorTypeId;
+            addUvwRow.CustomEditorEntryKey = "add:" + MeshComponentModifier.UvwMapKind;
+            EnsureMeshModifierActionButton(addUvwRow, "+ UVW Map");
+            section.Rows.Add(addUvwRow);
+            ActiveRows.Add(addUvwRow);
 
             EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(commonComponent);
             List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, platformId);
@@ -771,22 +780,29 @@ namespace helengine.editor {
                 ComponentPropertyRow modifierHeaderRow = AcquireRow(ComponentPropertyRowKind.Header);
                 BindEditorOnlyHeaderRow(modifierHeaderRow, commonComponent, editableComponent, saveComponent, platformId, ResolveModifierDisplayName(modifier.Kind));
                 modifierHeaderRow.CustomEditorTypeId = MeshModifiersEditorTypeId;
-                modifierHeaderRow.CustomEditorEntryKey = modifierIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                modifierHeaderRow.CustomEditorEntryKey = "remove:" + modifierIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 modifierHeaderRow.IndentLevel = 1;
                 EnsureMeshModifierActionButton(modifierHeaderRow, "Remove");
                 section.Rows.Add(modifierHeaderRow);
                 ActiveRows.Add(modifierHeaderRow);
 
-                if (!string.Equals(modifier.Kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
-                    continue;
+                if (string.Equals(modifier.Kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                        BuildMeshModifierMemberName(modifierIndex, "MaxEdgeLength"), "Max Edge Length", typeof(double));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
+                        BuildMeshModifierMemberName(modifierIndex, "AtCookTime"), "At Cook Time", typeof(bool));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
+                        BuildMeshModifierMemberName(modifierIndex, "Preview"), "Preview", typeof(bool));
+                } else if (string.Equals(modifier.Kind, MeshComponentModifier.UvwMapKind, StringComparison.Ordinal)) {
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                        BuildMeshModifierMemberName(modifierIndex, "UvwMode"), "Mode (Box/World)", typeof(string));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                        BuildMeshModifierMemberName(modifierIndex, "UvwPlane"), "Plane (XY/XZ/ZY)", typeof(string));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                        BuildMeshModifierMemberName(modifierIndex, "UvwScale"), "Scale", typeof(double));
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
+                        BuildMeshModifierMemberName(modifierIndex, "Preview"), "Preview", typeof(bool));
                 }
-
-                AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
-                    BuildMeshModifierMemberName(modifierIndex, "MaxEdgeLength"), "Max Edge Length", typeof(double));
-                AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
-                    BuildMeshModifierMemberName(modifierIndex, "AtCookTime"), "At Cook Time", typeof(bool));
-                AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
-                    BuildMeshModifierMemberName(modifierIndex, "Preview"), "Preview", typeof(bool));
             }
         }
 
@@ -936,22 +952,22 @@ namespace helengine.editor {
             SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
             EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
             List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId);
-            if (string.IsNullOrEmpty(row.CustomEditorEntryKey)) {
-                modifiers.Add(new MeshComponentModifier(MeshComponentModifier.TessellateKind));
-            } else {
-                int modifierIndex = int.Parse(row.CustomEditorEntryKey, System.Globalization.CultureInfo.InvariantCulture);
+            string entryKey = row.CustomEditorEntryKey ?? string.Empty;
+            if (entryKey.StartsWith("add:", StringComparison.Ordinal)) {
+                modifiers.Add(new MeshComponentModifier(entryKey.Substring("add:".Length)));
+            } else if (entryKey.StartsWith("remove:", StringComparison.Ordinal)) {
+                int modifierIndex = int.Parse(entryKey.Substring("remove:".Length), System.Globalization.CultureInfo.InvariantCulture);
                 if (modifierIndex < 0 || modifierIndex >= modifiers.Count) {
                     return;
                 }
 
-                if (modifiers[modifierIndex].Preview) {
-                    MeshComponentModifierPreviewService.RestorePreview(meshComponent);
-                }
-
                 modifiers.RemoveAt(modifierIndex);
+            } else {
+                return;
             }
 
             MeshComponentModifierStackService.SetStack(saveState, row.EditingPlatformId, modifiers);
+            RefreshMeshComponentModifierStackPreview(meshComponent, row.SaveComponent, modifiers);
             RebuildCurrentComponentView();
             RecordRowMutation(row, previousEntityState);
         }
@@ -982,6 +998,15 @@ namespace helengine.editor {
             }
             if (string.Equals(fieldName, "Preview", StringComparison.Ordinal)) {
                 return modifier?.Preview ?? false;
+            }
+            if (string.Equals(fieldName, "UvwMode", StringComparison.Ordinal)) {
+                return modifier?.UvwMode ?? ModelUvwMapProcessor.BoxMode;
+            }
+            if (string.Equals(fieldName, "UvwPlane", StringComparison.Ordinal)) {
+                return modifier?.UvwPlane ?? ModelUvwMapProcessor.PlaneXZ;
+            }
+            if (string.Equals(fieldName, "UvwScale", StringComparison.Ordinal)) {
+                return modifier?.UvwScale ?? 1d;
             }
 
             throw new InvalidOperationException($"Modifier row field '{fieldName}' is not recognized.");
@@ -1026,26 +1051,67 @@ namespace helengine.editor {
                 }
 
                 modifier.Preview = preview;
+            } else if (string.Equals(fieldName, "UvwMode", StringComparison.Ordinal)) {
+                string normalizedMode = NormalizeUvwToken(value as string);
+                if (!ModelUvwMapProcessor.IsSupportedMode(normalizedMode)) {
+                    return;
+                }
+
+                modifier.UvwMode = normalizedMode;
+            } else if (string.Equals(fieldName, "UvwPlane", StringComparison.Ordinal)) {
+                string normalizedPlane = (value as string ?? string.Empty).Trim().ToUpperInvariant();
+                if (!ModelUvwMapProcessor.IsSupportedPlane(normalizedPlane)) {
+                    return;
+                }
+
+                modifier.UvwPlane = normalizedPlane;
+            } else if (string.Equals(fieldName, "UvwScale", StringComparison.Ordinal)) {
+                if (value is not double uvwScale || !double.IsFinite(uvwScale) || uvwScale <= 0d) {
+                    return;
+                }
+
+                modifier.UvwScale = uvwScale;
             } else {
                 throw new InvalidOperationException($"Modifier row field '{fieldName}' is not recognized.");
             }
 
             MeshComponentModifierStackService.SetStack(saveState, row.EditingPlatformId, modifiers);
-            RefreshMeshComponentModifierPreview(meshComponent, row.SaveComponent, modifier);
+            RefreshMeshComponentModifierStackPreview(meshComponent, row.SaveComponent, modifiers);
         }
 
         /// <summary>
-        /// Applies or restores the live viewport preview for one modifier after its values change.
+        /// Normalizes one typed UVW mode token to its canonical capitalization.
+        /// </summary>
+        /// <param name="token">User-typed mode token.</param>
+        /// <returns>Canonical mode identifier, or the trimmed token when unrecognized.</returns>
+        static string NormalizeUvwToken(string token) {
+            string trimmed = (token ?? string.Empty).Trim();
+            if (string.Equals(trimmed, ModelUvwMapProcessor.BoxMode, StringComparison.OrdinalIgnoreCase)) {
+                return ModelUvwMapProcessor.BoxMode;
+            }
+            if (string.Equals(trimmed, ModelUvwMapProcessor.WorldMode, StringComparison.OrdinalIgnoreCase)) {
+                return ModelUvwMapProcessor.WorldMode;
+            }
+
+            return trimmed;
+        }
+
+        /// <summary>
+        /// Applies or restores the live viewport preview for one modifier stack after any of its values change.
         /// </summary>
         /// <param name="meshComponent">Mesh component owning the modifier stack.</param>
         /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
-        /// <param name="modifier">Modifier whose preview state should be reflected.</param>
-        void RefreshMeshComponentModifierPreview(MeshComponent meshComponent, EntitySaveComponent saveComponent, MeshComponentModifier modifier) {
-            if (!string.Equals(modifier.Kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
-                return;
+        /// <param name="modifiers">Ordered modifier stack whose preview-enabled entries should be reflected.</param>
+        void RefreshMeshComponentModifierStackPreview(MeshComponent meshComponent, EntitySaveComponent saveComponent, IReadOnlyList<MeshComponentModifier> modifiers) {
+            bool hasPreviewModifiers = false;
+            for (int index = 0; index < modifiers.Count; index++) {
+                if (modifiers[index] != null && modifiers[index].Preview) {
+                    hasPreviewModifiers = true;
+                    break;
+                }
             }
 
-            if (!modifier.Preview) {
+            if (!hasPreviewModifiers) {
                 MeshComponentModifierPreviewService.RestorePreview(meshComponent);
                 return;
             }
@@ -1055,7 +1121,7 @@ namespace helengine.editor {
                 return;
             }
 
-            MeshComponentModifierPreviewService.ApplyTessellationPreview(meshComponent, sourceModelAsset, modifier.MaxEdgeLength);
+            MeshComponentModifierPreviewService.ApplyStackPreview(meshComponent, sourceModelAsset, modifiers);
         }
 
         /// <summary>

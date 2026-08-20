@@ -14,26 +14,56 @@ namespace helengine.editor {
         readonly Dictionary<MeshComponent, RuntimeModel> PreviewModelsByComponent = new Dictionary<MeshComponent, RuntimeModel>();
 
         /// <summary>
-        /// Applies one tessellated preview model built from the supplied source geometry.
+        /// Applies one preview model built by running every preview-enabled modifier over the supplied source geometry in stack order.
         /// </summary>
-        /// <param name="meshComponent">Mesh component whose viewport model should preview the modifier result.</param>
+        /// <param name="meshComponent">Mesh component whose viewport model should preview the modifier results.</param>
         /// <param name="sourceModelAsset">Unmodified source geometry for the mesh.</param>
-        /// <param name="maximumEdgeLength">Maximum world-space edge length used by the tessellation modifier.</param>
-        public void ApplyTessellationPreview(MeshComponent meshComponent, ModelAsset sourceModelAsset, double maximumEdgeLength) {
+        /// <param name="modifiers">Ordered modifier stack; only preview-enabled entries are applied.</param>
+        public void ApplyStackPreview(MeshComponent meshComponent, ModelAsset sourceModelAsset, IReadOnlyList<MeshComponentModifier> modifiers) {
             if (meshComponent == null) {
                 throw new ArgumentNullException(nameof(meshComponent));
             }
             if (sourceModelAsset == null) {
                 throw new ArgumentNullException(nameof(sourceModelAsset));
             }
+            if (modifiers == null) {
+                throw new ArgumentNullException(nameof(modifiers));
+            }
             if (Core.Instance?.RenderManager3D == null) {
                 throw new InvalidOperationException("Modifier previews require an active 3D render manager.");
             }
 
+            bool hasPreviewModifiers = false;
             ModelAsset preparedAsset = ModelTessellationProcessor.Clone(sourceModelAsset);
             preparedAsset.Id = string.Empty;
             float3 worldScale = meshComponent.Parent != null ? meshComponent.Parent.Scale : float3.One;
-            ModelTessellationProcessor.Apply(preparedAsset, maximumEdgeLength, worldScale);
+            float3 worldPosition = meshComponent.Parent != null ? meshComponent.Parent.Position : float3.Zero;
+            float4 worldOrientation = meshComponent.Parent != null ? meshComponent.Parent.Orientation : float4.Identity;
+
+            for (int index = 0; index < modifiers.Count; index++) {
+                MeshComponentModifier modifier = modifiers[index];
+                if (modifier == null || !modifier.Preview) {
+                    continue;
+                }
+
+                if (string.Equals(modifier.Kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
+                    ModelTessellationProcessor.Apply(preparedAsset, modifier.MaxEdgeLength, worldScale);
+                    hasPreviewModifiers = true;
+                } else if (string.Equals(modifier.Kind, MeshComponentModifier.UvwMapKind, StringComparison.Ordinal)) {
+                    if (string.Equals(modifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal)) {
+                        ModelUvwMapProcessor.ApplyWorldMap(preparedAsset, modifier.UvwPlane, modifier.UvwScale, worldPosition, worldOrientation, worldScale);
+                    } else {
+                        ModelUvwMapProcessor.ApplyBoxMap(preparedAsset, modifier.UvwScale);
+                    }
+
+                    hasPreviewModifiers = true;
+                }
+            }
+
+            if (!hasPreviewModifiers) {
+                RestorePreview(meshComponent);
+                return;
+            }
 
             RuntimeModel previewModel = Core.Instance.RenderManager3D.BuildModelFromRaw(preparedAsset);
             if (!OriginalModelsByComponent.ContainsKey(meshComponent)) {

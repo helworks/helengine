@@ -90,6 +90,9 @@ namespace helengine.editor {
                 overrideState.SetMemberValue(BuildMemberName(index, "MaxEdgeLength"), modifier.MaxEdgeLength.ToString("R", CultureInfo.InvariantCulture));
                 overrideState.SetMemberValue(BuildMemberName(index, "AtCookTime"), modifier.AtCookTime.ToString(CultureInfo.InvariantCulture));
                 overrideState.SetMemberValue(BuildMemberName(index, "Preview"), modifier.Preview.ToString(CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwMode"), modifier.UvwMode ?? ModelUvwMapProcessor.BoxMode);
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwPlane"), modifier.UvwPlane ?? ModelUvwMapProcessor.PlaneXZ);
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwScale"), modifier.UvwScale.ToString("R", CultureInfo.InvariantCulture));
             }
         }
 
@@ -146,6 +149,15 @@ namespace helengine.editor {
                 }
                 if (overrideState.TryGetMemberValue(BuildMemberName(index, "Preview"), out string previewText)) {
                     modifier.Preview = bool.Parse(previewText);
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwMode"), out string uvwModeText)) {
+                    modifier.UvwMode = uvwModeText;
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwPlane"), out string uvwPlaneText)) {
+                    modifier.UvwPlane = uvwPlaneText;
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwScale"), out string uvwScaleText)) {
+                    modifier.UvwScale = double.Parse(uvwScaleText, NumberStyles.Float, CultureInfo.InvariantCulture);
                 }
 
                 modifiers.Add(modifier);

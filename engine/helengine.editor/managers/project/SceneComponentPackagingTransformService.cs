@@ -494,9 +494,11 @@ namespace helengine.editor {
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
             SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record, out EntityComponentPlatformOverrideState targetPlatformOverride);
+            EntityComponentPlatformOverrideState commonScopeOverride = ResolveCommonScopeComponentOverride(record);
             MeshComponentTessellationSettings meshTessellationSettings = ResolveMeshComponentTessellationSettings(
                 targetPlatformOverride,
-                ResolveCommonScopeComponentOverride(record));
+                commonScopeOverride);
+            List<MeshComponentModifier> meshUvwModifiers = ResolveMeshComponentCookUvwModifiers(targetPlatformOverride, commonScopeOverride);
             Component component = DeserializeAutomaticComponentForPackaging(baseRecord, descriptor, saveComponent);
             RestoreTargetPlatformAssetReferences(saveComponent, component, targetPlatformOverride);
             NormalizeAutomaticComponentForRuntimePackaging(component);
@@ -509,8 +511,77 @@ namespace helengine.editor {
                 record,
                 buildRootPath,
                 context,
-                meshTessellationSettings);
+                meshTessellationSettings,
+                meshUvwModifiers);
             return true;
+        }
+
+        /// <summary>
+        /// Builds the deterministic variant-identity suffix describing one ordered cook-time UVW modifier list.
+        /// </summary>
+        /// <param name="meshUvwModifiers">Ordered cook-time UVW modifiers.</param>
+        /// <param name="context">Cook context supplying the owning entity's world pose.</param>
+        /// <returns>Newline-delimited invariant identity suffix.</returns>
+        static string BuildUvwVariantIdentitySuffix(IReadOnlyList<MeshComponentModifier> meshUvwModifiers, SceneComponentPackagingTransformContext context) {
+            System.Text.StringBuilder builder = new System.Text.StringBuilder();
+            for (int index = 0; index < meshUvwModifiers.Count; index++) {
+                MeshComponentModifier modifier = meshUvwModifiers[index];
+                if (index > 0) {
+                    builder.Append('\n');
+                }
+
+                builder.Append("Uvw=").Append(modifier.UvwMode)
+                    .Append(':').Append(modifier.UvwPlane)
+                    .Append(':').Append(modifier.UvwScale.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                if (string.Equals(modifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal)) {
+                    builder.Append(":P")
+                        .Append(context.WorldPosition.X.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldPosition.Y.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldPosition.Z.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                        .Append(":O")
+                        .Append(context.WorldOrientation.X.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldOrientation.Y.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldOrientation.Z.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
+                        .Append(context.WorldOrientation.W.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Resolves the cook-time UVW map modifiers from the effective modifier stack for the target platform.
+        /// </summary>
+        /// <param name="targetPlatformOverride">Selected target-platform override payload, or null when no override exists.</param>
+        /// <param name="commonScopeOverride">Common-scope override payload that may carry a modifier stack, or null.</param>
+        /// <returns>Ordered cook-time UVW map modifiers; empty when none apply.</returns>
+        List<MeshComponentModifier> ResolveMeshComponentCookUvwModifiers(
+            EntityComponentPlatformOverrideState targetPlatformOverride,
+            EntityComponentPlatformOverrideState commonScopeOverride) {
+            List<MeshComponentModifier> uvwModifiers = new List<MeshComponentModifier>();
+            if (string.IsNullOrWhiteSpace(TargetPlatformId) || (targetPlatformOverride == null && commonScopeOverride == null)) {
+                return uvwModifiers;
+            }
+
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            if (targetPlatformOverride != null) {
+                saveState.SetPlatformOverride(TargetPlatformId, targetPlatformOverride);
+            }
+            if (commonScopeOverride != null) {
+                saveState.SetPlatformOverride(ComponentPlatformEditingService.CommonPlatformId, commonScopeOverride);
+            }
+
+            List<MeshComponentModifier> effectiveStack = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, TargetPlatformId);
+            for (int index = 0; index < effectiveStack.Count; index++) {
+                MeshComponentModifier modifier = effectiveStack[index];
+                if (modifier != null
+                    && string.Equals(modifier.Kind, MeshComponentModifier.UvwMapKind, StringComparison.Ordinal)
+                    && modifier.AtCookTime) {
+                    uvwModifiers.Add(modifier);
+                }
+            }
+
+            return uvwModifiers;
         }
 
         /// <summary>
@@ -711,7 +782,8 @@ namespace helengine.editor {
             SceneComponentAssetRecord sourceRecord,
             string buildRootPath,
             SceneComponentPackagingTransformContext context,
-            MeshComponentTessellationSettings meshTessellationSettings) {
+            MeshComponentTessellationSettings meshTessellationSettings,
+            IReadOnlyList<MeshComponentModifier> meshUvwModifiers) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
@@ -733,7 +805,7 @@ namespace helengine.editor {
 
             ScriptComponentReflectionSchema schema = PlatformExtendedSchemaBuilder.Build(component.GetType(), PlatformDefinition);
             EntityComponentSaveState rewrittenSaveState = RewriteAutomaticComponentSaveStateReferences(schema, saveState, buildRootPath);
-            ApplyMeshComponentTessellationVariant(component, rewrittenSaveState, buildRootPath, context, meshTessellationSettings, sourceRecord);
+            ApplyMeshComponentTessellationVariant(component, rewrittenSaveState, buildRootPath, context, meshTessellationSettings, meshUvwModifiers, sourceRecord);
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
@@ -823,10 +895,12 @@ namespace helengine.editor {
             string buildRootPath,
             SceneComponentPackagingTransformContext context,
             MeshComponentTessellationSettings settings,
+            IReadOnlyList<MeshComponentModifier> meshUvwModifiers,
             SceneComponentAssetRecord sourceRecord) {
             bool tessellateAtCookTime = settings.Tessellate && settings.TessellateAtCookTime;
             bool bakeScaleAtCookTime = settings.BakeScale && settings.BakeScaleAtCookTime;
-            if ((!tessellateAtCookTime && !bakeScaleAtCookTime) || component is not MeshComponent) {
+            bool applyUvwAtCookTime = meshUvwModifiers != null && meshUvwModifiers.Count > 0;
+            if ((!tessellateAtCookTime && !bakeScaleAtCookTime && !applyUvwAtCookTime) || component is not MeshComponent) {
                 return;
             }
             if (rewrittenSaveState == null) {
@@ -841,6 +915,9 @@ namespace helengine.editor {
                 TargetPlatformId,
                 settings,
                 context.WorldScale);
+            if (applyUvwAtCookTime) {
+                identity += "\n" + BuildUvwVariantIdentitySuffix(meshUvwModifiers, context);
+            }
             if (MeshTessellationVariantReferencesByIdentity.TryGetValue(identity, out SceneAssetReference existingReference)) {
                 rewrittenSaveState.SetAssetReference(nameof(MeshComponent.Model), existingReference);
                 return;
@@ -856,6 +933,22 @@ namespace helengine.editor {
                     sourceModelAsset,
                     settings.TessellationMaxEdgeLength,
                     bakeScaleAtCookTime ? float3.One : context.WorldScale);
+            }
+            if (applyUvwAtCookTime) {
+                for (int index = 0; index < meshUvwModifiers.Count; index++) {
+                    MeshComponentModifier uvwModifier = meshUvwModifiers[index];
+                    if (string.Equals(uvwModifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal)) {
+                        ModelUvwMapProcessor.ApplyWorldMap(
+                            sourceModelAsset,
+                            uvwModifier.UvwPlane,
+                            uvwModifier.UvwScale,
+                            context.WorldPosition,
+                            context.WorldOrientation,
+                            bakeScaleAtCookTime ? float3.One : context.WorldScale);
+                    } else {
+                        ModelUvwMapProcessor.ApplyBoxMap(sourceModelAsset, uvwModifier.UvwScale);
+                    }
+                }
             }
             string variantRelativePath = BuildMeshTessellationVariantRelativePath(identity);
             sourceModelAsset.Id = "generated:tessellation:" + identity;

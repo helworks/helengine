@@ -773,7 +773,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                RewriteEntityAsset(rootEntityAsset, buildRootPath, float3.One);
+                RewriteEntityAsset(rootEntityAsset, buildRootPath, float3.One, float3.Zero, float4.Identity);
                 rewrittenRootEntities.Add(rootEntityAsset);
             }
             sceneAsset.RootEntities = rewrittenRootEntities.ToArray();
@@ -794,7 +794,14 @@ namespace helengine.editor {
         /// <param name="entityAsset">Scene entity payload to rewrite.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         /// <param name="parentWorldScale">Final static world scale accumulated from the parent entity hierarchy.</param>
-        void RewriteEntityAsset(SceneEntityAsset entityAsset, string buildRootPath, float3 parentWorldScale) {
+        /// <param name="parentWorldPosition">Final static world position accumulated from the parent entity hierarchy.</param>
+        /// <param name="parentWorldOrientation">Final static world orientation accumulated from the parent entity hierarchy.</param>
+        void RewriteEntityAsset(
+            SceneEntityAsset entityAsset,
+            string buildRootPath,
+            float3 parentWorldScale,
+            float3 parentWorldPosition,
+            float4 parentWorldOrientation) {
             if (entityAsset == null) {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
@@ -804,9 +811,15 @@ namespace helengine.editor {
             ApplyTargetPlatformTransformOverride(entityAsset);
             ApplyTargetPlatformComponentOverrides(entityAsset);
             float3 worldScale = entityAsset.LocalScale * parentWorldScale;
+            float3 scaledLocalPosition = entityAsset.LocalPosition * parentWorldScale;
+            float3 worldPosition = parentWorldPosition + float4.RotateVector(scaledLocalPosition, parentWorldOrientation);
+            float4 localOrientation = entityAsset.LocalOrientation;
+            float4 accumulatedParentOrientation = parentWorldOrientation;
+            float4.Concatenate(ref localOrientation, ref accumulatedParentOrientation, out float4 worldOrientation);
+            worldOrientation.Normalize();
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {
-                componentRecords[index] = RewriteComponentRecord(componentRecords[index], buildRootPath, worldScale);
+                componentRecords[index] = RewriteComponentRecord(componentRecords[index], buildRootPath, worldScale, worldPosition, worldOrientation);
             }
 
             SceneEntityAsset[] childEntityAssets = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
@@ -817,7 +830,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                RewriteEntityAsset(childEntityAsset, buildRootPath, worldScale);
+                RewriteEntityAsset(childEntityAsset, buildRootPath, worldScale, worldPosition, worldOrientation);
                 rewrittenChildEntityAssets.Add(childEntityAsset);
             }
             entityAsset.Children = rewrittenChildEntityAssets.ToArray();
@@ -1251,8 +1264,10 @@ namespace helengine.editor {
         /// <param name="record">Component record to rewrite.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         /// <param name="worldScale">Final static world scale of the component's owning entity.</param>
+        /// <param name="worldPosition">Final static world position of the component's owning entity.</param>
+        /// <param name="worldOrientation">Final static world orientation of the component's owning entity.</param>
         /// <returns>Rewritten component record.</returns>
-        SceneComponentAssetRecord RewriteComponentRecord(SceneComponentAssetRecord record, string buildRootPath, float3 worldScale) {
+        SceneComponentAssetRecord RewriteComponentRecord(SceneComponentAssetRecord record, string buildRootPath, float3 worldScale, float3 worldPosition, float4 worldOrientation) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
@@ -1263,7 +1278,7 @@ namespace helengine.editor {
             }
 
             if (supportRule.SupportKind == PlatformComponentSupportKind.Transform) {
-                if (TransformService.TryTransform(record, buildRootPath, new SceneComponentPackagingTransformContext(worldScale), out SceneComponentAssetRecord transformedRecord)) {
+                if (TransformService.TryTransform(record, buildRootPath, new SceneComponentPackagingTransformContext(worldScale, worldPosition, worldOrientation), out SceneComponentAssetRecord transformedRecord)) {
                     return transformedRecord;
                 }
 
