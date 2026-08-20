@@ -201,6 +201,18 @@ namespace helengine.editor {
         /// </summary>
         readonly MeshComponentTessellationSettingsService MeshComponentTessellationSettingsService;
         /// <summary>
+        /// Reads and writes the editor-only MeshComponent modifier stack for the active inspector scope.
+        /// </summary>
+        readonly MeshComponentModifierStackService MeshComponentModifierStackService = new MeshComponentModifierStackService();
+        /// <summary>
+        /// Applies and restores live viewport previews of MeshComponent modifier results.
+        /// </summary>
+        readonly MeshComponentModifierPreviewService MeshComponentModifierPreviewService = new MeshComponentModifierPreviewService();
+        /// <summary>
+        /// Stable custom-editor marker used to route Modifiers section action buttons.
+        /// </summary>
+        const string MeshModifiersEditorTypeId = "helengine.editor.mesh-modifiers";
+        /// <summary>
         /// Resolves builder-owned synthetic component members for the active platform inspector context.
         /// </summary>
         readonly PlatformComponentMemberDescriptorResolver PlatformComponentMemberDescriptorResolver;
@@ -714,7 +726,373 @@ namespace helengine.editor {
             }
 
             AddPlatformComponentMemberRows(section, commonComponent, editableComponent, saveComponent, platformId);
-            AddMeshComponentTessellationRows(section, commonComponent, editableComponent, saveComponent, platformId);
+            AddMeshComponentModifierRows(section, commonComponent, editableComponent, saveComponent, platformId);
+        }
+
+        /// <summary>
+        /// Adds the Blender-style cook-time modifier stack rows for one MeshComponent on every inspector tab.
+        /// </summary>
+        /// <param name="section">Section receiving the modifier subsection.</param>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current inspector scope.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Inspector scope currently shown, including the common scope.</param>
+        void AddMeshComponentModifierRows(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId) {
+            if (section == null) {
+                throw new ArgumentNullException(nameof(section));
+            }
+            if (editableComponent == null) {
+                throw new ArgumentNullException(nameof(editableComponent));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (commonComponent is not MeshComponent || saveComponent == null || IsReadOnlyMode) {
+                return;
+            }
+
+            ComponentPropertyRow headerRow = AcquireRow(ComponentPropertyRowKind.Header);
+            BindEditorOnlyHeaderRow(headerRow, commonComponent, editableComponent, saveComponent, platformId, "Modifiers");
+            headerRow.CustomEditorTypeId = MeshModifiersEditorTypeId;
+            headerRow.CustomEditorEntryKey = string.Empty;
+            EnsureMeshModifierActionButton(headerRow, "Add");
+            section.Rows.Add(headerRow);
+            ActiveRows.Add(headerRow);
+
+            EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(commonComponent);
+            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, platformId);
+            for (int modifierIndex = 0; modifierIndex < modifiers.Count; modifierIndex++) {
+                MeshComponentModifier modifier = modifiers[modifierIndex];
+                ComponentPropertyRow modifierHeaderRow = AcquireRow(ComponentPropertyRowKind.Header);
+                BindEditorOnlyHeaderRow(modifierHeaderRow, commonComponent, editableComponent, saveComponent, platformId, ResolveModifierDisplayName(modifier.Kind));
+                modifierHeaderRow.CustomEditorTypeId = MeshModifiersEditorTypeId;
+                modifierHeaderRow.CustomEditorEntryKey = modifierIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                modifierHeaderRow.IndentLevel = 1;
+                EnsureMeshModifierActionButton(modifierHeaderRow, "Remove");
+                section.Rows.Add(modifierHeaderRow);
+                ActiveRows.Add(modifierHeaderRow);
+
+                if (!string.Equals(modifier.Kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                    BuildMeshModifierMemberName(modifierIndex, "MaxEdgeLength"), "Max Edge Length", typeof(double));
+                AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
+                    BuildMeshModifierMemberName(modifierIndex, "AtCookTime"), "At Cook Time", typeof(bool));
+                AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
+                    BuildMeshModifierMemberName(modifierIndex, "Preview"), "Preview", typeof(bool));
+            }
+        }
+
+        /// <summary>
+        /// Adds one bound value row for a modifier parameter.
+        /// </summary>
+        /// <param name="section">Section receiving the row.</param>
+        /// <param name="commonComponent">Common live MeshComponent attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current inspector scope.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="platformId">Inspector scope currently shown.</param>
+        /// <param name="rowKind">Row widget kind.</param>
+        /// <param name="memberName">Stable per-entry modifier member name.</param>
+        /// <param name="label">Visible row label.</param>
+        /// <param name="valueType">Value type accepted by the row.</param>
+        void AddMeshModifierValueRow(
+            ComponentSectionView section,
+            Component commonComponent,
+            Component editableComponent,
+            EntitySaveComponent saveComponent,
+            string platformId,
+            ComponentPropertyRowKind rowKind,
+            string memberName,
+            string label,
+            Type valueType) {
+            ComponentPropertyRow row = AcquireRow(rowKind);
+            BindMeshComponentTessellationRow(row, commonComponent, editableComponent, saveComponent, platformId, memberName, label, valueType);
+            row.IndentLevel = 1;
+            UpdateRowValue(row);
+            section.Rows.Add(row);
+            ActiveRows.Add(row);
+        }
+
+        /// <summary>
+        /// Resolves the visible display name for one modifier kind.
+        /// </summary>
+        /// <param name="kind">Stable modifier kind identifier.</param>
+        /// <returns>Visible display name.</returns>
+        static string ResolveModifierDisplayName(string kind) {
+            if (string.Equals(kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
+                return "Tessellate";
+            }
+            if (string.Equals(kind, MeshComponentModifier.UvwMapKind, StringComparison.Ordinal)) {
+                return "UVW Map";
+            }
+
+            return kind;
+        }
+
+        /// <summary>
+        /// Builds one stable per-entry modifier member name.
+        /// </summary>
+        /// <param name="modifierIndex">Zero-based stack entry index.</param>
+        /// <param name="suffix">Member suffix identifying the stored field.</param>
+        /// <returns>Stable detached member name.</returns>
+        static string BuildMeshModifierMemberName(int modifierIndex, string suffix) {
+            return MeshComponentModifierStackService.ModifierMemberNamePrefix + modifierIndex.ToString(System.Globalization.CultureInfo.InvariantCulture) + suffix;
+        }
+
+        /// <summary>
+        /// Parses one per-entry modifier member name into its stack index and field suffix.
+        /// </summary>
+        /// <param name="memberName">Member name to parse.</param>
+        /// <param name="modifierIndex">Receives the zero-based stack entry index.</param>
+        /// <param name="fieldName">Receives the member field suffix.</param>
+        /// <returns>True when the member name addresses one modifier stack field.</returns>
+        static bool TryParseMeshModifierMemberName(string memberName, out int modifierIndex, out string fieldName) {
+            modifierIndex = -1;
+            fieldName = null;
+            if (string.IsNullOrWhiteSpace(memberName) || !memberName.StartsWith(MeshComponentModifierStackService.ModifierMemberNamePrefix, StringComparison.Ordinal)) {
+                return false;
+            }
+
+            int digitStart = MeshComponentModifierStackService.ModifierMemberNamePrefix.Length;
+            int digitEnd = digitStart;
+            while (digitEnd < memberName.Length && char.IsDigit(memberName[digitEnd])) {
+                digitEnd++;
+            }
+
+            if (digitEnd == digitStart || digitEnd >= memberName.Length) {
+                return false;
+            }
+
+            modifierIndex = int.Parse(memberName.Substring(digitStart, digitEnd - digitStart), System.Globalization.CultureInfo.InvariantCulture);
+            fieldName = memberName.Substring(digitEnd);
+            return true;
+        }
+
+        /// <summary>
+        /// Returns whether one row edits a detached MeshComponent modifier stack field.
+        /// </summary>
+        /// <param name="row">Row to classify.</param>
+        /// <returns>True when the row is bound to one modifier stack member.</returns>
+        bool IsMeshComponentModifierRow(ComponentPropertyRow row) {
+            return row != null
+                && row.CommonComponent is MeshComponent
+                && TryParseMeshModifierMemberName(row.EditorOnlyMemberName, out _, out _);
+        }
+
+        /// <summary>
+        /// Ensures one Modifiers action button exists on the supplied row and shows the requested label.
+        /// </summary>
+        /// <param name="row">Row hosting the button.</param>
+        /// <param name="label">Visible button label.</param>
+        void EnsureMeshModifierActionButton(ComponentPropertyRow row, string label) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            if (row.ActionButtonHost == null || row.ActionButton == null) {
+                EditorEntity buttonHost = new EditorEntity();
+                buttonHost.LayerMask = RootEntity.LayerMask;
+                buttonHost.Position = float3.Zero;
+                row.Entity.AddChild(buttonHost);
+
+                ButtonComponent button = new ButtonComponent(label, new int2(PickButtonWidth, PickButtonHeight), Font, () => HandleMeshModifierActionButtonPressed(row), 0f);
+                button.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
+                button.UseHoverOnlyBackground();
+                button.UseSquareCorners();
+                button.SetTextColor(ThemeManager.Colors.AccentQuaternary);
+                buttonHost.AddComponent(button);
+
+                row.ActionButtonHost = buttonHost;
+                row.ActionButton = button;
+            }
+
+            row.ActionButtonHost.Enabled = true;
+            row.ActionButton.SetText(label);
+        }
+
+        /// <summary>
+        /// Routes one row action button press to the Modifiers section handlers, falling back to the scene-map handler for reused rows.
+        /// </summary>
+        /// <param name="row">Row whose action button was pressed.</param>
+        void HandleMeshModifierActionButtonPressed(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (!string.Equals(row.CustomEditorTypeId, MeshModifiersEditorTypeId, StringComparison.Ordinal)) {
+                HandleSceneMapActionButtonPressed(row);
+                return;
+            }
+            if (row.CommonComponent is not MeshComponent meshComponent || row.SaveComponent == null || string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
+                return;
+            }
+
+            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
+            EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
+            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId);
+            if (string.IsNullOrEmpty(row.CustomEditorEntryKey)) {
+                modifiers.Add(new MeshComponentModifier(MeshComponentModifier.TessellateKind));
+            } else {
+                int modifierIndex = int.Parse(row.CustomEditorEntryKey, System.Globalization.CultureInfo.InvariantCulture);
+                if (modifierIndex < 0 || modifierIndex >= modifiers.Count) {
+                    return;
+                }
+
+                if (modifiers[modifierIndex].Preview) {
+                    MeshComponentModifierPreviewService.RestorePreview(meshComponent);
+                }
+
+                modifiers.RemoveAt(modifierIndex);
+            }
+
+            MeshComponentModifierStackService.SetStack(saveState, row.EditingPlatformId, modifiers);
+            RebuildCurrentComponentView();
+            RecordRowMutation(row, previousEntityState);
+        }
+
+        /// <summary>
+        /// Reads the effective typed value represented by one modifier stack row.
+        /// </summary>
+        /// <param name="row">Row being queried.</param>
+        /// <returns>Effective modifier field value.</returns>
+        object ReadMeshComponentModifierRowValue(ComponentPropertyRow row) {
+            if (!TryParseMeshModifierMemberName(row.EditorOnlyMemberName, out int modifierIndex, out string fieldName)) {
+                throw new InvalidOperationException("Modifier rows require a modifier stack member name.");
+            }
+
+            List<MeshComponentModifier> modifiers = new List<MeshComponentModifier>();
+            if (row.SaveComponent != null
+                && row.CommonComponent != null
+                && row.SaveComponent.TryGetComponentState(row.CommonComponent, out EntityComponentSaveState saveState)) {
+                modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId);
+            }
+
+            MeshComponentModifier modifier = modifierIndex >= 0 && modifierIndex < modifiers.Count ? modifiers[modifierIndex] : null;
+            if (string.Equals(fieldName, "MaxEdgeLength", StringComparison.Ordinal)) {
+                return modifier?.MaxEdgeLength ?? MeshComponentTessellationSettings.DefaultTessellationMaxEdgeLength;
+            }
+            if (string.Equals(fieldName, "AtCookTime", StringComparison.Ordinal)) {
+                return modifier?.AtCookTime ?? true;
+            }
+            if (string.Equals(fieldName, "Preview", StringComparison.Ordinal)) {
+                return modifier?.Preview ?? false;
+            }
+
+            throw new InvalidOperationException($"Modifier row field '{fieldName}' is not recognized.");
+        }
+
+        /// <summary>
+        /// Persists one modifier stack field and refreshes the live viewport preview when the modifier previews in the editor.
+        /// </summary>
+        /// <param name="row">Row being updated.</param>
+        /// <param name="value">Typed value to persist.</param>
+        void SetMeshComponentModifierRowValue(ComponentPropertyRow row, object value) {
+            if (!TryParseMeshModifierMemberName(row.EditorOnlyMemberName, out int modifierIndex, out string fieldName)) {
+                throw new InvalidOperationException("Modifier rows require a modifier stack member name.");
+            }
+            if (row.CommonComponent is not MeshComponent meshComponent || row.SaveComponent == null) {
+                throw new InvalidOperationException("Modifier rows require a common MeshComponent and an entity save component.");
+            }
+
+            EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
+            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId);
+            if (modifierIndex < 0 || modifierIndex >= modifiers.Count) {
+                return;
+            }
+
+            MeshComponentModifier modifier = modifiers[modifierIndex];
+            if (string.Equals(fieldName, "MaxEdgeLength", StringComparison.Ordinal)) {
+                if (value is not double maxEdgeLength) {
+                    throw new ArgumentException("Modifier maximum edge length values must be double.", nameof(value));
+                }
+
+                MeshComponentTessellationSettings.ValidateTessellationMaxEdgeLength(maxEdgeLength);
+                modifier.MaxEdgeLength = maxEdgeLength;
+            } else if (string.Equals(fieldName, "AtCookTime", StringComparison.Ordinal)) {
+                if (value is not bool atCookTime) {
+                    throw new ArgumentException("Modifier cook-time values must be boolean.", nameof(value));
+                }
+
+                modifier.AtCookTime = atCookTime;
+            } else if (string.Equals(fieldName, "Preview", StringComparison.Ordinal)) {
+                if (value is not bool preview) {
+                    throw new ArgumentException("Modifier preview values must be boolean.", nameof(value));
+                }
+
+                modifier.Preview = preview;
+            } else {
+                throw new InvalidOperationException($"Modifier row field '{fieldName}' is not recognized.");
+            }
+
+            MeshComponentModifierStackService.SetStack(saveState, row.EditingPlatformId, modifiers);
+            RefreshMeshComponentModifierPreview(meshComponent, row.SaveComponent, modifier);
+        }
+
+        /// <summary>
+        /// Applies or restores the live viewport preview for one modifier after its values change.
+        /// </summary>
+        /// <param name="meshComponent">Mesh component owning the modifier stack.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <param name="modifier">Modifier whose preview state should be reflected.</param>
+        void RefreshMeshComponentModifierPreview(MeshComponent meshComponent, EntitySaveComponent saveComponent, MeshComponentModifier modifier) {
+            if (!string.Equals(modifier.Kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
+                return;
+            }
+
+            if (!modifier.Preview) {
+                MeshComponentModifierPreviewService.RestorePreview(meshComponent);
+                return;
+            }
+
+            ModelAsset sourceModelAsset = ResolveMeshComponentSourceModelAsset(meshComponent, saveComponent);
+            if (sourceModelAsset == null) {
+                return;
+            }
+
+            MeshComponentModifierPreviewService.ApplyTessellationPreview(meshComponent, sourceModelAsset, modifier.MaxEdgeLength);
+        }
+
+        /// <summary>
+        /// Resolves the unmodified source geometry for one mesh component from retained raw data, engine primitives, or its model reference.
+        /// </summary>
+        /// <param name="meshComponent">Mesh component whose source geometry should be resolved.</param>
+        /// <param name="saveComponent">Hidden save component attached to the owning entity.</param>
+        /// <returns>Resolved source geometry, or null when no source is available.</returns>
+        ModelAsset ResolveMeshComponentSourceModelAsset(MeshComponent meshComponent, EntitySaveComponent saveComponent) {
+            if (!MeshComponentModifierPreviewService.HasPreview(meshComponent) && meshComponent.Model?.RawModelAsset != null) {
+                return meshComponent.Model.RawModelAsset;
+            }
+            if (saveComponent == null
+                || !saveComponent.TryGetComponentState(meshComponent, out EntityComponentSaveState saveState)
+                || !saveState.TryGetAssetReference("Model", out SceneAssetReference modelReference)) {
+                return null;
+            }
+
+            if (modelReference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                if (string.Equals(modelReference.AssetId, ModelUtils.GeneratedCubeModelId, StringComparison.Ordinal)) {
+                    return ModelUtils.GenerateCubeMesh(float3.Zero, float3.One);
+                }
+                if (string.Equals(modelReference.AssetId, ModelUtils.GeneratedSphereModelId, StringComparison.Ordinal)) {
+                    return ModelUtils.GenerateSphereMesh(float3.Zero, float3.One);
+                }
+                if (string.Equals(modelReference.AssetId, ModelUtils.GeneratedPlaneModelId, StringComparison.Ordinal)) {
+                    return ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
+                }
+
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(modelReference.RelativePath) || FileSystemModelResolver == null) {
+                return null;
+            }
+
+            return FileSystemModelResolver.ResolveModelAsset(modelReference.RelativePath);
         }
 
         /// <summary>
@@ -1920,6 +2298,9 @@ namespace helengine.editor {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
             }
+            if (IsMeshComponentModifierRow(row)) {
+                return ReadMeshComponentModifierRowValue(row);
+            }
             if (IsMeshComponentTessellationRow(row)) {
                 return ReadMeshComponentTessellationRowValue(row);
             }
@@ -2374,7 +2755,11 @@ namespace helengine.editor {
                 return;
             }
 
-            if (row.TargetComponent == null || (row.Property == null && row.PlatformComponentMemberDescriptor == null && !IsMeshComponentTessellationRow(row))) {
+            if (row.TargetComponent == null
+                || (row.Property == null
+                    && row.PlatformComponentMemberDescriptor == null
+                    && !IsMeshComponentTessellationRow(row)
+                    && !IsMeshComponentModifierRow(row))) {
                 return;
             }
             if (string.Equals(row.CustomEditorTypeId, SceneMapPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal)) {
@@ -2508,7 +2893,10 @@ namespace helengine.editor {
                 HandleExistenceRowCheckedChanged(row, isChecked);
                 return;
             }
-            if (row.Property == null && row.PlatformComponentMemberDescriptor == null && !IsMeshComponentTessellationRow(row)) {
+            if (row.Property == null
+                && row.PlatformComponentMemberDescriptor == null
+                && !IsMeshComponentTessellationRow(row)
+                && !IsMeshComponentModifierRow(row)) {
                 return;
             }
 
@@ -2728,6 +3116,10 @@ namespace helengine.editor {
         void SetRowValue(ComponentPropertyRow row, object value) {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
+            }
+            if (IsMeshComponentModifierRow(row)) {
+                SetMeshComponentModifierRowValue(row, value);
+                return;
             }
             if (IsMeshComponentTessellationRow(row)) {
                 SetMeshComponentTessellationRowValue(row, value);
@@ -3408,6 +3800,10 @@ namespace helengine.editor {
         /// <param name="height">Row height.</param>
         void LayoutHeaderRow(ComponentPropertyRow row, int width, int height) {
             row.Label.Size = new int2(Math.Max(0, width), row.Label.Size.Y);
+            if (row.ActionButtonHost != null && row.ActionButton != null && row.ActionButtonHost.Enabled) {
+                float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
+                row.ActionButtonHost.Position = new float3(width - PickButtonWidth, buttonY, 0.2f);
+            }
         }
 
         /// <summary>

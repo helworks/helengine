@@ -502,7 +502,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures platform MeshComponent tessellation rows persist detached values without adding runtime properties to the component.
+        /// Ensures the platform Modifiers section adds a tessellation modifier and persists detached values without adding runtime properties to the component.
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenPlatformMeshTessellationIsEdited_PersistsPerPlatformDetachedValues() {
@@ -517,24 +517,28 @@ namespace helengine.editor.tests {
             SelectInspectorPlatform(panel, "ps2");
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
-            ComponentPropertyRow tessellateRow = GetSingleRow(view, "Tessellate");
-            ComponentPropertyRow edgeLengthRow = GetSingleRow(view, "Tessellation Max Edge Length");
-            InvokePrivate(view, "HandleBooleanCheckedChanged", tessellateRow.CheckBoxField, true);
+            ComponentPropertyRow modifiersHeaderRow = GetSingleRow(view, "Modifiers");
+            InvokePrivate(view, "HandleMeshModifierActionButtonPressed", modifiersHeaderRow);
+
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            GetSingleRow(view, "Tessellate");
+            ComponentPropertyRow edgeLengthRow = GetSingleRow(view, "Max Edge Length");
             edgeLengthRow.ScalarField.Text = "0.25";
             InvokePrivate(view, "HandleScalarSubmitted", edgeLengthRow.ScalarField);
 
             EntityComponentSaveState saveState = GetSaveComponent(entity).GetOrCreateComponentState(mesh);
             Assert.True(saveState.TryGetPlatformOverride("ps2", out EntityComponentPlatformOverrideState ps2Override));
-            Assert.True(ps2Override.HasPropertyOverride(MeshComponentTessellationSettingsService.TessellateMemberName));
+            Assert.True(ps2Override.TryGetMemberValue(MeshComponentModifierStackService.ModifierCountMemberName, out string ps2ModifierCount));
+            Assert.Equal("1", ps2ModifierCount);
+            Assert.True(ps2Override.TryGetMemberValue(MeshComponentTessellationSettingsService.TessellateMemberName, out string ps2LegacyTessellate));
+            Assert.Equal("True", ps2LegacyTessellate);
             Assert.True(ps2Override.TryGetMemberValue(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, out string ps2EdgeLength));
             Assert.Equal("0.25", ps2EdgeLength);
 
             SelectInspectorPlatform(panel, "windows");
             view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
-            tessellateRow = GetSingleRow(view, "Tessellate");
-            edgeLengthRow = GetSingleRow(view, "Tessellation Max Edge Length");
-            Assert.False(tessellateRow.CheckBoxField.IsChecked);
-            Assert.Equal("1", edgeLengthRow.ScalarField.Text);
+            GetSingleRow(view, "Modifiers");
+            Assert.DoesNotContain(GetActiveRows(view), row => string.Equals(row.Label.Text, "Max Edge Length", StringComparison.Ordinal));
             Assert.Null(typeof(MeshComponent).GetProperty("Tessellate"));
         }
 
@@ -578,9 +582,17 @@ namespace helengine.editor.tests {
         /// <param name="label">Row label to resolve.</param>
         /// <returns>The single matching row.</returns>
         ComponentPropertyRow GetSingleRow(ComponentPropertiesView view, string label) {
+            return Assert.Single(GetActiveRows(view), row => string.Equals(row.Label.Text, label, StringComparison.Ordinal));
+        }
+
+        /// <summary>
+        /// Reads the active property rows currently shown by one properties view.
+        /// </summary>
+        /// <param name="view">Properties view under test.</param>
+        /// <returns>Active property rows.</returns>
+        List<ComponentPropertyRow> GetActiveRows(ComponentPropertiesView view) {
             FieldInfo activeRowsField = typeof(ComponentPropertiesView).GetField("ActiveRows", BindingFlags.Instance | BindingFlags.NonPublic);
-            List<ComponentPropertyRow> rows = Assert.IsType<List<ComponentPropertyRow>>(activeRowsField.GetValue(view));
-            return Assert.Single(rows, row => string.Equals(row.Label.Text, label, StringComparison.Ordinal));
+            return Assert.IsType<List<ComponentPropertyRow>>(activeRowsField.GetValue(view));
         }
 
         /// <summary>

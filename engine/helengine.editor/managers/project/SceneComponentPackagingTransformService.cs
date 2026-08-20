@@ -293,6 +293,11 @@ namespace helengine.editor {
         readonly MeshComponentTessellationSettingsService MeshComponentTessellationSettingsService;
 
         /// <summary>
+        /// Resolves editor-only MeshComponent modifier stacks so common-scope modifiers reach platform packaging.
+        /// </summary>
+        readonly MeshComponentModifierStackService MeshComponentModifierStackService = new MeshComponentModifierStackService();
+
+        /// <summary>
         /// Reuses one cooked MeshComponent tessellation model reference for every equal source, platform, settings, and scale identity.
         /// </summary>
         readonly Dictionary<string, SceneAssetReference> MeshTessellationVariantReferencesByIdentity;
@@ -489,7 +494,9 @@ namespace helengine.editor {
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
             SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record, out EntityComponentPlatformOverrideState targetPlatformOverride);
-            MeshComponentTessellationSettings meshTessellationSettings = ResolveMeshComponentTessellationSettings(targetPlatformOverride);
+            MeshComponentTessellationSettings meshTessellationSettings = ResolveMeshComponentTessellationSettings(
+                targetPlatformOverride,
+                ResolveCommonScopeComponentOverride(record));
             Component component = DeserializeAutomaticComponentForPackaging(baseRecord, descriptor, saveComponent);
             RestoreTargetPlatformAssetReferences(saveComponent, component, targetPlatformOverride);
             NormalizeAutomaticComponentForRuntimePackaging(component);
@@ -748,18 +755,57 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves editor-only MeshComponent tessellation metadata from the selected target-platform override payload.
+        /// Resolves editor-only MeshComponent tessellation metadata from the target-platform override payload,
+        /// falling back to a common-scope modifier stack when the target platform does not author tessellation itself.
         /// </summary>
         /// <param name="targetPlatformOverride">Selected target-platform override payload, or null when no override exists.</param>
+        /// <param name="commonScopeOverride">Common-scope override payload that may carry a modifier stack, or null.</param>
         /// <returns>Validated component tessellation settings or the disabled default.</returns>
-        MeshComponentTessellationSettings ResolveMeshComponentTessellationSettings(EntityComponentPlatformOverrideState targetPlatformOverride) {
-            if (targetPlatformOverride == null || string.IsNullOrWhiteSpace(TargetPlatformId)) {
+        MeshComponentTessellationSettings ResolveMeshComponentTessellationSettings(
+            EntityComponentPlatformOverrideState targetPlatformOverride,
+            EntityComponentPlatformOverrideState commonScopeOverride) {
+            if (string.IsNullOrWhiteSpace(TargetPlatformId)) {
                 return new MeshComponentTessellationSettings();
             }
 
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetPlatformOverride(TargetPlatformId, targetPlatformOverride);
-            return MeshComponentTessellationSettingsService.GetForPlatform(saveState, TargetPlatformId);
+            if (targetPlatformOverride != null) {
+                saveState.SetPlatformOverride(TargetPlatformId, targetPlatformOverride);
+            }
+            if (commonScopeOverride != null) {
+                saveState.SetPlatformOverride(ComponentPlatformEditingService.CommonPlatformId, commonScopeOverride);
+            }
+
+            MeshComponentTessellationSettings platformSettings = targetPlatformOverride != null
+                ? MeshComponentTessellationSettingsService.GetForPlatform(saveState, TargetPlatformId)
+                : new MeshComponentTessellationSettings();
+            if (platformSettings.Tessellate) {
+                return platformSettings;
+            }
+
+            MeshComponentTessellationSettings stackSettings = MeshComponentModifierStackService.TryResolveTessellationSettings(saveState, TargetPlatformId);
+            return stackSettings ?? platformSettings;
+        }
+
+        /// <summary>
+        /// Resolves the common-scope override payload from one persisted component record when present.
+        /// </summary>
+        /// <param name="persistedRecord">Persisted component record whose override payloads should be searched.</param>
+        /// <returns>Common-scope override payload, or null.</returns>
+        EntityComponentPlatformOverrideState ResolveCommonScopeComponentOverride(SceneComponentAssetRecord persistedRecord) {
+            if (persistedRecord == null) {
+                return null;
+            }
+
+            IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(persistedRecord);
+            for (int index = 0; index < overrideStates.Count; index++) {
+                EntityComponentPlatformOverrideState overrideState = overrideStates[index];
+                if (overrideState != null && string.Equals(overrideState.PlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    return overrideState;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
