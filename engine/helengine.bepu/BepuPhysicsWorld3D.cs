@@ -757,12 +757,15 @@ namespace helengine {
             IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
             for (int index = 0; index < handles.Count; index++) {
                 BepuBodyHandle3D handle = handles[index];
-                if (!handle.HasBodyHandle || handle.IsStatic) {
+                // Only simulated dynamic bodies write their pose back: kinematic bodies are authored or
+                // animated on the entity side, and copying their stale runtime pose back every step would
+                // stomp entity-side animation that never feeds the physics body.
+                if (!handle.HasBodyHandle || !handle.IsDynamic) {
                     continue;
                 }
 
                 BodyReference bodyReference = SimulationValue.Bodies[handle.BodyHandle];
-                if (handle.IsDynamic && !bodyReference.Awake) {
+                if (!bodyReference.Awake) {
                     continue;
                 }
 

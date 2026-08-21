@@ -2037,9 +2037,9 @@ namespace helengine.directx11 {
         SamplerState CreateMaterialTextureSampler() {
             var samplerDesc = new SamplerStateDescription {
                 Filter = Filter.MinMagMipPoint,
-                AddressU = TextureAddressMode.Clamp,
-                AddressV = TextureAddressMode.Clamp,
-                AddressW = TextureAddressMode.Clamp,
+                AddressU = TextureAddressMode.Wrap,
+                AddressV = TextureAddressMode.Wrap,
+                AddressW = TextureAddressMode.Wrap,
                 ComparisonFunction = Comparison.Never,
                 MinimumLod = 0,
                 MaximumLod = float.MaxValue
