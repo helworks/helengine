@@ -51,9 +51,9 @@ namespace helengine.editor {
                     hasPreviewModifiers = true;
                 } else if (string.Equals(modifier.Kind, MeshComponentModifier.UvwMapKind, StringComparison.Ordinal)) {
                     if (string.Equals(modifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal)) {
-                        ModelUvwMapProcessor.ApplyWorldMap(preparedAsset, modifier.UvwPlane, modifier.UvwScale, worldPosition, worldOrientation, worldScale);
+                        ModelUvwMapProcessor.ApplyWorldMap(preparedAsset, modifier.UvwAxisX, modifier.UvwAxisY, modifier.UvwScaleX, modifier.UvwScaleY, modifier.UvwOffsetX, modifier.UvwOffsetY, worldPosition, worldOrientation);
                     } else {
-                        ModelUvwMapProcessor.ApplyBoxMap(preparedAsset, modifier.UvwScale);
+                        ModelUvwMapProcessor.ApplyBoxMap(preparedAsset, modifier.UvwBoxWidth, modifier.UvwBoxHeight, modifier.UvwBoxLength, modifier.UvwScaleX, modifier.UvwScaleY, modifier.UvwScaleZ, modifier.UvwOffsetX, modifier.UvwOffsetY);
                     }
 
                     hasPreviewModifiers = true;

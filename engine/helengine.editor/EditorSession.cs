@@ -164,6 +164,14 @@ namespace helengine.editor {
         /// </summary>
         EditorWorkspaceLayoutService WorkspaceLayoutService;
         /// <summary>
+        /// Persists per-project session state such as the last open scene.
+        /// </summary>
+        EditorSessionStateService sessionStateService;
+        /// <summary>
+        /// Tracks whether the one-time startup restore of the last open scene has run.
+        /// </summary>
+        bool startupSceneRestoreAttempted;
+        /// <summary>
         /// Docking manager coordinating dock layout and interaction.
         /// </summary>
         readonly DockingManager dockingManager;
@@ -211,6 +219,7 @@ namespace helengine.editor {
         /// Modal used to pick an asset for editor fields.
         /// </summary>
         AssetPickerModal assetPickerModal;
+        MeshModifierPickerModal meshModifierPickerModal;
         /// <summary>
         /// Main viewport dock panel.
         /// </summary>
@@ -655,6 +664,7 @@ namespace helengine.editor {
             PanelRegistry = new EditorWorkspacePanelRegistry();
             PanelInstances = new List<EditorWorkspacePanelInstance>();
             WorkspaceLayoutService = new EditorWorkspaceLayoutService(ResolveProjectRootPath(this.projectPath));
+            sessionStateService = new EditorSessionStateService(ResolveProjectRootPath(this.projectPath));
             InitializePanelRegistry();
 
             dockingManager = new DockingManager();
@@ -667,6 +677,7 @@ namespace helengine.editor {
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath);
+            meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
             scriptHotReloadService = new EditorGameScriptHotReloadService(
@@ -726,6 +737,7 @@ namespace helengine.editor {
             RefreshSceneDirtyState();
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
+            EditorMeshModifierPickerService.PickRequested += HandleMeshModifierPickRequested;
             EditorSceneMutationService.SceneMutated += HandleSceneMutated;
             titleBar.NewMapRequested += HandleNewMapRequested;
             titleBar.OpenMapRequested += HandleOpenMapRequested;
@@ -1127,6 +1139,10 @@ namespace helengine.editor {
         /// <param name="renderWidth">Current render width.</param>
         /// <param name="renderHeight">Current render height.</param>
         public void UpdateFrame(int renderWidth, int renderHeight) {
+            if (!startupSceneRestoreAttempted) {
+                startupSceneRestoreAttempted = true;
+                RestoreLastOpenScene();
+            }
             ProcessPendingShaderBuildNotifications();
             Update();
             UpdateLayout(renderWidth, renderHeight);
@@ -1202,6 +1218,7 @@ namespace helengine.editor {
             EditorKeyboardFocusService.SetDockOrder(dockingManager.Layout.GetVisibleDockablesInTraversalOrder());
             SynchronizeViewportOverlayCameras();
             assetPickerModal.UpdateLayout(width, height);
+            meshModifierPickerModal.UpdateLayout(width, height);
             saveFileDialog.UpdateLayout(width, height);
             openFileDialog.UpdateLayout(width, height);
             reparentEntityDialog.UpdateLayout(width, height);
@@ -1403,6 +1420,9 @@ namespace helengine.editor {
             if (assetPickerModal != null) {
                 assetPickerModal.Hide();
             }
+            if (meshModifierPickerModal != null) {
+                meshModifierPickerModal.Hide();
+            }
             if (saveFileDialog != null) {
                 saveFileDialog.Hide();
             }
@@ -1456,6 +1476,7 @@ namespace helengine.editor {
                 saveFileDialog = null;
                 openFileDialog = null;
             }
+            meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
             platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
             environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
@@ -1474,6 +1495,9 @@ namespace helengine.editor {
         void DisposeScaleSensitiveDialogs() {
             if (assetPickerModal != null) {
                 assetPickerModal.Dispose();
+            }
+            if (meshModifierPickerModal != null) {
+                meshModifierPickerModal.Dispose();
             }
             if (saveFileDialog != null) {
                 saveFileDialog.Dispose();
@@ -1585,6 +1609,7 @@ namespace helengine.editor {
             propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
             EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
             EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
+            EditorMeshModifierPickerService.PickRequested -= HandleMeshModifierPickRequested;
             EditorSceneMutationService.SceneMutated -= HandleSceneMutated;
             EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression;
             EditorEntityHistoryMutationService.Reset();
@@ -1646,6 +1671,21 @@ namespace helengine.editor {
             }
 
             assetPickerModal.Show(request.OnPicked, request.ExtensionFilter);
+        }
+
+        /// <summary>
+        /// Handles mesh modifier picker requests from editor UI.
+        /// </summary>
+        /// <param name="request">Request describing the pick operation.</param>
+        void HandleMeshModifierPickRequested(MeshModifierPickerRequest request) {
+            if (request == null) {
+                throw new ArgumentNullException(nameof(request));
+            }
+            if (meshModifierPickerModal == null) {
+                return;
+            }
+
+            meshModifierPickerModal.Show(request.OnPicked);
         }
 
         /// <summary>
@@ -2775,6 +2815,10 @@ namespace helengine.editor {
                 return true;
             }
 
+            if (meshModifierPickerModal != null && meshModifierPickerModal.Enabled) {
+                return true;
+            }
+
             return false;
         }
 
@@ -3598,6 +3642,7 @@ namespace helengine.editor {
             try {
                 SceneSaveService.Save(fullPath, CurrentSceneSettings);
                 CurrentScenePath = Path.GetFullPath(fullPath);
+                sessionStateService?.SetLastScenePath(CurrentScenePath);
                 MarkSceneClean();
                 IReadOnlyList<AssetBrowserPanel> assetBrowserPanels = GetAssetBrowserPanels();
                 for (int index = 0; index < assetBrowserPanels.Count; index++) {
@@ -3628,6 +3673,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reopens the last scene recorded for this project when it still exists on disk.
+        /// </summary>
+        void RestoreLastOpenScene() {
+            if (sessionStateService == null) {
+                return;
+            }
+
+            string lastScenePath = sessionStateService.TryGetLastScenePath();
+            if (string.IsNullOrWhiteSpace(lastScenePath) || !File.Exists(lastScenePath)) {
+                return;
+            }
+
+            LoadSceneIntoSession(lastScenePath);
+        }
+
+        /// <summary>
         /// Loads one `.helen` scene into the active editor session and swaps it into the live scene on success.
         /// </summary>
         /// <param name="fullPath">Absolute path to the scene file that should be opened.</param>
@@ -3651,6 +3712,7 @@ namespace helengine.editor {
                 BindSceneToPhysicsRuntime(loadedSceneDocument.RootEntities);
                 CurrentSceneOwnedAssets = loadedSceneDocument.OwnedAssets ?? throw new InvalidOperationException("Loaded editor scenes must provide an owned-asset set.");
                 CurrentScenePath = Path.GetFullPath(fullPath);
+                sessionStateService?.SetLastScenePath(CurrentScenePath);
                 CurrentSceneSettings = loadedSceneDocument.SceneSettings;
                 TrackCurrentSceneInSceneManager(loadedSceneDocument.RootEntities, CurrentSceneSettings);
                 sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);

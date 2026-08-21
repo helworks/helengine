@@ -160,6 +160,16 @@ namespace helengine.editor {
         public CheckBoxComponent CheckBoxField { get; set; }
 
         /// <summary>
+        /// Gets or sets the host entity for combo-box rows.
+        /// </summary>
+        public EditorEntity ComboBoxHost { get; set; }
+
+        /// <summary>
+        /// Gets or sets the combo-box component for choice rows.
+        /// </summary>
+        public ComboBoxComponent ComboBoxField { get; set; }
+
+        /// <summary>
         /// Gets or sets the host entity for value text.
         /// </summary>
         public EditorEntity ValueHost { get; set; }

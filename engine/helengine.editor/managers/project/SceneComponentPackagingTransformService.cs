@@ -531,8 +531,15 @@ namespace helengine.editor {
                 }
 
                 builder.Append("Uvw=").Append(modifier.UvwMode)
-                    .Append(':').Append(modifier.UvwPlane)
-                    .Append(':').Append(modifier.UvwScale.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                    .Append(':').Append(modifier.UvwAxisX).Append(modifier.UvwAxisY)
+                    .Append(":B").Append(modifier.UvwBoxWidth.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                    .Append(',').Append(modifier.UvwBoxHeight.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                    .Append(',').Append(modifier.UvwBoxLength.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                    .Append(':').Append(modifier.UvwScaleX.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                    .Append(',').Append(modifier.UvwScaleY.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                    .Append(',').Append(modifier.UvwScaleZ.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                    .Append(":F").Append(modifier.UvwOffsetX.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                    .Append(',').Append(modifier.UvwOffsetY.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
                 if (string.Equals(modifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal)) {
                     builder.Append(":P")
                         .Append(context.WorldPosition.X.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
@@ -940,13 +947,25 @@ namespace helengine.editor {
                     if (string.Equals(uvwModifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal)) {
                         ModelUvwMapProcessor.ApplyWorldMap(
                             sourceModelAsset,
-                            uvwModifier.UvwPlane,
-                            uvwModifier.UvwScale,
+                            uvwModifier.UvwAxisX,
+                            uvwModifier.UvwAxisY,
+                            uvwModifier.UvwScaleX,
+                            uvwModifier.UvwScaleY,
+                            uvwModifier.UvwOffsetX,
+                            uvwModifier.UvwOffsetY,
                             context.WorldPosition,
-                            context.WorldOrientation,
-                            bakeScaleAtCookTime ? float3.One : context.WorldScale);
+                            context.WorldOrientation);
                     } else {
-                        ModelUvwMapProcessor.ApplyBoxMap(sourceModelAsset, uvwModifier.UvwScale);
+                        ModelUvwMapProcessor.ApplyBoxMap(
+                            sourceModelAsset,
+                            uvwModifier.UvwBoxWidth,
+                            uvwModifier.UvwBoxHeight,
+                            uvwModifier.UvwBoxLength,
+                            uvwModifier.UvwScaleX,
+                            uvwModifier.UvwScaleY,
+                            uvwModifier.UvwScaleZ,
+                            uvwModifier.UvwOffsetX,
+                            uvwModifier.UvwOffsetY);
                     }
                 }
             }

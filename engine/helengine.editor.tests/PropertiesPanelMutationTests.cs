@@ -518,7 +518,16 @@ namespace helengine.editor.tests {
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             ComponentPropertyRow modifiersHeaderRow = GetSingleRow(view, "Modifiers");
-            InvokePrivate(view, "HandleMeshModifierActionButtonPressed", modifiersHeaderRow);
+            MeshModifierPickerRequest pickerRequest = null;
+            Action<MeshModifierPickerRequest> pickerHandler = request => pickerRequest = request;
+            EditorMeshModifierPickerService.PickRequested += pickerHandler;
+            try {
+                InvokePrivate(view, "HandleMeshModifierActionButtonPressed", modifiersHeaderRow);
+            } finally {
+                EditorMeshModifierPickerService.PickRequested -= pickerHandler;
+            }
+            Assert.NotNull(pickerRequest);
+            pickerRequest.OnPicked(MeshComponentModifier.TessellateKind);
 
             view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             GetSingleRow(view, "Tessellate");
@@ -540,6 +549,116 @@ namespace helengine.editor.tests {
             GetSingleRow(view, "Modifiers");
             Assert.DoesNotContain(GetActiveRows(view), row => string.Equals(row.Label.Text, "Max Edge Length", StringComparison.Ordinal));
             Assert.Null(typeof(MeshComponent).GetProperty("Tessellate"));
+        }
+
+        /// <summary>
+        /// Ensures enabling a world UVW map preview through the inspector swaps the live mesh model with world-projected texture coordinates.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenWorldUvwMapPreviewIsEnabled_SwapsMeshModelWithWorldProjectedTexCoords() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            EditorEntity entity = new EditorEntity {
+                Name = "Ground Box",
+                Position = new float3(10f, 0f, 4f),
+                Scale = new float3(8f, 1f, 8f)
+            };
+            MeshComponent mesh = new MeshComponent();
+            entity.AddComponent(mesh);
+
+            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" });
+            SelectInspectorPlatform(panel, "ps2");
+
+            EntityComponentSaveState saveState = GetSaveComponent(entity).GetOrCreateComponentState(mesh);
+            saveState.SetAssetReference("Model", EngineSceneAssetReferenceFactory.CreateCubeModel());
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow modifiersHeaderRow = GetSingleRow(view, "Modifiers");
+            MeshModifierPickerRequest pickerRequest = null;
+            Action<MeshModifierPickerRequest> pickerHandler = request => pickerRequest = request;
+            EditorMeshModifierPickerService.PickRequested += pickerHandler;
+            try {
+                InvokePrivate(view, "HandleMeshModifierActionButtonPressed", modifiersHeaderRow);
+            } finally {
+                EditorMeshModifierPickerService.PickRequested -= pickerHandler;
+            }
+            Assert.NotNull(pickerRequest);
+            pickerRequest.OnPicked(MeshComponentModifier.UvwMapKind);
+
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow modeRow = GetSingleRow(view, "Mode");
+            InvokePrivate(view, "HandleComboBoxRowSelectionChanged", modeRow, ModelUvwMapProcessor.WorldMode);
+
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            GetSingleRow(view, "X Axis");
+            GetSingleRow(view, "Y Axis");
+            Assert.DoesNotContain(GetActiveRows(view), row => string.Equals(row.Label.Text, "Scale Z", StringComparison.Ordinal));
+            ComponentPropertyRow previewRow = GetSingleRow(view, "Preview");
+            InvokePrivate(view, "HandleBooleanCheckedChanged", previewRow.CheckBoxField, true);
+
+            Assert.NotNull(mesh.Model);
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            Assert.NotEmpty(renderManager.BuiltModelAssets);
+            ModelAsset previewAsset = renderManager.BuiltModelAssets[renderManager.BuiltModelAssets.Count - 1];
+            for (int index = 0; index < previewAsset.Positions.Length; index++) {
+                // World mapping composes position and rotation only; the entity scale is never applied.
+                float3 world = new float3(10f, 0f, 4f) + previewAsset.Positions[index];
+                Assert.Equal(world.X, previewAsset.TexCoords[index].X, 3);
+                Assert.Equal(world.Z, previewAsset.TexCoords[index].Y, 3);
+            }
+        }
+
+        /// <summary>
+        /// Ensures enabling a box UVW map preview projects local positions over the per-axis repeat scales.
+        /// </summary>
+        [Fact]
+        public void ShowEntityProperties_WhenBoxUvwMapPreviewIsEnabled_ProjectsLocalPositionsPerAxis() {
+            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            EditorEntity entity = new EditorEntity {
+                Name = "Ground Box",
+                Scale = new float3(8f, 1f, 8f)
+            };
+            MeshComponent mesh = new MeshComponent();
+            entity.AddComponent(mesh);
+
+            panel.ShowEntityProperties(entity, new[] { "ps2", "windows" });
+            SelectInspectorPlatform(panel, "ps2");
+
+            EntityComponentSaveState saveState = GetSaveComponent(entity).GetOrCreateComponentState(mesh);
+            saveState.SetAssetReference("Model", EngineSceneAssetReferenceFactory.CreateCubeModel());
+
+            ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            ComponentPropertyRow modifiersHeaderRow = GetSingleRow(view, "Modifiers");
+            MeshModifierPickerRequest pickerRequest = null;
+            Action<MeshModifierPickerRequest> pickerHandler = request => pickerRequest = request;
+            EditorMeshModifierPickerService.PickRequested += pickerHandler;
+            try {
+                InvokePrivate(view, "HandleMeshModifierActionButtonPressed", modifiersHeaderRow);
+            } finally {
+                EditorMeshModifierPickerService.PickRequested -= pickerHandler;
+            }
+            Assert.NotNull(pickerRequest);
+            pickerRequest.OnPicked(MeshComponentModifier.UvwMapKind);
+
+            view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
+            GetSingleRow(view, "Width");
+            GetSingleRow(view, "Height");
+            GetSingleRow(view, "Length");
+            GetSingleRow(view, "W Scale");
+            Assert.DoesNotContain(GetActiveRows(view), row => string.Equals(row.Label.Text, "X Axis", StringComparison.Ordinal));
+            ComponentPropertyRow previewRow = GetSingleRow(view, "Preview");
+            InvokePrivate(view, "HandleBooleanCheckedChanged", previewRow.CheckBoxField, true);
+
+            Assert.NotNull(mesh.Model);
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            Assert.NotEmpty(renderManager.BuiltModelAssets);
+            ModelAsset previewAsset = renderManager.BuiltModelAssets[renderManager.BuiltModelAssets.Count - 1];
+            float maxAbsU = 0f;
+            for (int index = 0; index < previewAsset.TexCoords.Length; index++) {
+                maxAbsU = Math.Max(maxAbsU, Math.Abs(previewAsset.TexCoords[index].X));
+            }
+
+            // A unit cube half-extent of 0.5 with the default tiling of 1 spans +/-0.5 repeats; the entity scale is ignored.
+            Assert.Equal(0.5f, maxAbsU, 3);
         }
 
         /// <summary>

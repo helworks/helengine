@@ -36,8 +36,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the effective modifier stack for one platform: the platform-authored stack, falling back to
-        /// platform-authored legacy tessellation members, then to the common-scope stack.
+        /// Resolves the effective modifier stack for one platform: the inherited common-scope stack followed by the
+        /// platform's own additions (or its legacy tessellation members when no platform stack is authored).
         /// </summary>
         /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
         /// <param name="platformId">Target platform identifier.</param>
@@ -45,24 +45,37 @@ namespace helengine.editor {
         public List<MeshComponentModifier> ResolveEffectiveStack(EntityComponentSaveState saveState, string platformId) {
             ValidateSaveStateAndPlatformId(saveState, platformId);
 
-            List<MeshComponentModifier> platformStack = TryGetAuthoredStack(saveState, platformId);
-            if (platformStack != null) {
-                return platformStack;
+            if (string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return TryGetAuthoredStack(saveState, platformId) ?? new List<MeshComponentModifier>();
+            }
+
+            List<MeshComponentModifier> effectiveStack = new List<MeshComponentModifier>();
+            List<MeshComponentModifier> commonStack = TryGetAuthoredStack(saveState, ComponentPlatformEditingService.CommonPlatformId);
+            if (commonStack != null) {
+                effectiveStack.AddRange(commonStack);
+            }
+
+            effectiveStack.AddRange(GetScopeEditableStack(saveState, platformId));
+            return effectiveStack;
+        }
+
+        /// <summary>
+        /// Returns the modifier entries directly editable in one scope: the authored common stack on the common scope,
+        /// and the platform's own additions (or its legacy tessellation members) on platform scopes.
+        /// </summary>
+        /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
+        /// <param name="platformId">Scope identifier being edited.</param>
+        /// <returns>Ordered editable modifier entries for the scope.</returns>
+        public List<MeshComponentModifier> GetScopeEditableStack(EntityComponentSaveState saveState, string platformId) {
+            ValidateSaveStateAndPlatformId(saveState, platformId);
+
+            List<MeshComponentModifier> authoredStack = TryGetAuthoredStack(saveState, platformId);
+            if (authoredStack != null) {
+                return authoredStack;
             }
 
             List<MeshComponentModifier> legacyStack = TryReadLegacyTessellationStack(saveState, platformId);
-            if (legacyStack != null) {
-                return legacyStack;
-            }
-
-            if (!string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                List<MeshComponentModifier> commonStack = TryGetAuthoredStack(saveState, ComponentPlatformEditingService.CommonPlatformId);
-                if (commonStack != null) {
-                    return commonStack;
-                }
-            }
-
-            return new List<MeshComponentModifier>();
+            return legacyStack ?? new List<MeshComponentModifier>();
         }
 
         /// <summary>
@@ -91,8 +104,16 @@ namespace helengine.editor {
                 overrideState.SetMemberValue(BuildMemberName(index, "AtCookTime"), modifier.AtCookTime.ToString(CultureInfo.InvariantCulture));
                 overrideState.SetMemberValue(BuildMemberName(index, "Preview"), modifier.Preview.ToString(CultureInfo.InvariantCulture));
                 overrideState.SetMemberValue(BuildMemberName(index, "UvwMode"), modifier.UvwMode ?? ModelUvwMapProcessor.BoxMode);
-                overrideState.SetMemberValue(BuildMemberName(index, "UvwPlane"), modifier.UvwPlane ?? ModelUvwMapProcessor.PlaneXZ);
-                overrideState.SetMemberValue(BuildMemberName(index, "UvwScale"), modifier.UvwScale.ToString("R", CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwAxisX"), modifier.UvwAxisX ?? ModelUvwMapProcessor.AxisX);
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwAxisY"), modifier.UvwAxisY ?? ModelUvwMapProcessor.AxisZ);
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwBoxWidth"), modifier.UvwBoxWidth.ToString("R", CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwBoxHeight"), modifier.UvwBoxHeight.ToString("R", CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwBoxLength"), modifier.UvwBoxLength.ToString("R", CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwScaleX"), modifier.UvwScaleX.ToString("R", CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwScaleY"), modifier.UvwScaleY.ToString("R", CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwScaleZ"), modifier.UvwScaleZ.ToString("R", CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwOffsetX"), modifier.UvwOffsetX.ToString("R", CultureInfo.InvariantCulture));
+                overrideState.SetMemberValue(BuildMemberName(index, "UvwOffsetY"), modifier.UvwOffsetY.ToString("R", CultureInfo.InvariantCulture));
             }
         }
 
@@ -153,11 +174,45 @@ namespace helengine.editor {
                 if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwMode"), out string uvwModeText)) {
                     modifier.UvwMode = uvwModeText;
                 }
-                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwPlane"), out string uvwPlaneText)) {
-                    modifier.UvwPlane = uvwPlaneText;
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwPlane"), out string legacyUvwPlaneText) && legacyUvwPlaneText.Length == 2) {
+                    modifier.UvwAxisX = legacyUvwPlaneText.Substring(0, 1);
+                    modifier.UvwAxisY = legacyUvwPlaneText.Substring(1, 1);
                 }
-                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwScale"), out string uvwScaleText)) {
-                    modifier.UvwScale = double.Parse(uvwScaleText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwAxisX"), out string uvwAxisXText)) {
+                    modifier.UvwAxisX = uvwAxisXText;
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwAxisY"), out string uvwAxisYText)) {
+                    modifier.UvwAxisY = uvwAxisYText;
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwScale"), out string legacyUvwScaleText)) {
+                    double legacyUvwScale = double.Parse(legacyUvwScaleText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                    modifier.UvwScaleX = legacyUvwScale;
+                    modifier.UvwScaleY = legacyUvwScale;
+                    modifier.UvwScaleZ = legacyUvwScale;
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwBoxWidth"), out string uvwBoxWidthText)) {
+                    modifier.UvwBoxWidth = double.Parse(uvwBoxWidthText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwBoxHeight"), out string uvwBoxHeightText)) {
+                    modifier.UvwBoxHeight = double.Parse(uvwBoxHeightText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwBoxLength"), out string uvwBoxLengthText)) {
+                    modifier.UvwBoxLength = double.Parse(uvwBoxLengthText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwScaleX"), out string uvwScaleXText)) {
+                    modifier.UvwScaleX = double.Parse(uvwScaleXText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwScaleY"), out string uvwScaleYText)) {
+                    modifier.UvwScaleY = double.Parse(uvwScaleYText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwScaleZ"), out string uvwScaleZText)) {
+                    modifier.UvwScaleZ = double.Parse(uvwScaleZText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwOffsetX"), out string uvwOffsetXText)) {
+                    modifier.UvwOffsetX = double.Parse(uvwOffsetXText, NumberStyles.Float, CultureInfo.InvariantCulture);
+                }
+                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwOffsetY"), out string uvwOffsetYText)) {
+                    modifier.UvwOffsetY = double.Parse(uvwOffsetYText, NumberStyles.Float, CultureInfo.InvariantCulture);
                 }
 
                 modifiers.Add(modifier);

@@ -652,6 +652,9 @@ namespace helengine.editor {
                 if (row.RevertButtonHost != null) {
                     row.RevertButtonHost.Enabled = false;
                 }
+                if (row.ComboBoxField != null) {
+                    row.ComboBoxField.IsOpen = false;
+                }
                 RowPool.Add(row);
             }
 
@@ -759,22 +762,25 @@ namespace helengine.editor {
             ComponentPropertyRow headerRow = AcquireRow(ComponentPropertyRowKind.Header);
             BindEditorOnlyHeaderRow(headerRow, commonComponent, editableComponent, saveComponent, platformId, "Modifiers");
             headerRow.CustomEditorTypeId = MeshModifiersEditorTypeId;
-            headerRow.CustomEditorEntryKey = "add:" + MeshComponentModifier.TessellateKind;
-            EnsureMeshModifierActionButton(headerRow, "+ Tessellate");
+            headerRow.CustomEditorEntryKey = "add-menu";
+            EnsureMeshModifierActionButton(headerRow, "+");
             section.Rows.Add(headerRow);
             ActiveRows.Add(headerRow);
 
-            ComponentPropertyRow addUvwRow = AcquireRow(ComponentPropertyRowKind.Header);
-            BindEditorOnlyHeaderRow(addUvwRow, commonComponent, editableComponent, saveComponent, platformId, "-");
-            addUvwRow.Label.Text = string.Empty;
-            addUvwRow.CustomEditorTypeId = MeshModifiersEditorTypeId;
-            addUvwRow.CustomEditorEntryKey = "add:" + MeshComponentModifier.UvwMapKind;
-            EnsureMeshModifierActionButton(addUvwRow, "+ UVW Map");
-            section.Rows.Add(addUvwRow);
-            ActiveRows.Add(addUvwRow);
-
             EntityComponentSaveState saveState = saveComponent.GetOrCreateComponentState(commonComponent);
-            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, platformId);
+            if (!string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                List<MeshComponentModifier> inheritedModifiers = MeshComponentModifierStackService.TryGetAuthoredStack(saveState, ComponentPlatformEditingService.CommonPlatformId)
+                    ?? new List<MeshComponentModifier>();
+                for (int inheritedIndex = 0; inheritedIndex < inheritedModifiers.Count; inheritedIndex++) {
+                    ComponentPropertyRow inheritedRow = AcquireRow(ComponentPropertyRowKind.Header);
+                    BindEditorOnlyHeaderRow(inheritedRow, commonComponent, editableComponent, saveComponent, platformId, BuildInheritedModifierSummary(inheritedModifiers[inheritedIndex]));
+                    inheritedRow.IndentLevel = 1;
+                    section.Rows.Add(inheritedRow);
+                    ActiveRows.Add(inheritedRow);
+                }
+            }
+
+            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.GetScopeEditableStack(saveState, platformId);
             for (int modifierIndex = 0; modifierIndex < modifiers.Count; modifierIndex++) {
                 MeshComponentModifier modifier = modifiers[modifierIndex];
                 ComponentPropertyRow modifierHeaderRow = AcquireRow(ComponentPropertyRowKind.Header);
@@ -782,7 +788,7 @@ namespace helengine.editor {
                 modifierHeaderRow.CustomEditorTypeId = MeshModifiersEditorTypeId;
                 modifierHeaderRow.CustomEditorEntryKey = "remove:" + modifierIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 modifierHeaderRow.IndentLevel = 1;
-                EnsureMeshModifierActionButton(modifierHeaderRow, "Remove");
+                EnsureMeshModifierActionButton(modifierHeaderRow, "X");
                 section.Rows.Add(modifierHeaderRow);
                 ActiveRows.Add(modifierHeaderRow);
 
@@ -794,12 +800,39 @@ namespace helengine.editor {
                     AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
                         BuildMeshModifierMemberName(modifierIndex, "Preview"), "Preview", typeof(bool));
                 } else if (string.Equals(modifier.Kind, MeshComponentModifier.UvwMapKind, StringComparison.Ordinal)) {
+                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.ComboBox,
+                        BuildMeshModifierMemberName(modifierIndex, "UvwMode"), "Mode", typeof(string),
+                        new[] { ModelUvwMapProcessor.BoxMode, ModelUvwMapProcessor.WorldMode });
+                    bool isWorldMode = string.Equals(modifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal);
+                    if (isWorldMode) {
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.ComboBox,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwAxisX"), "X Axis", typeof(string),
+                            new[] { ModelUvwMapProcessor.AxisX, ModelUvwMapProcessor.AxisY, ModelUvwMapProcessor.AxisZ });
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.ComboBox,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwAxisY"), "Y Axis", typeof(string),
+                            new[] { ModelUvwMapProcessor.AxisX, ModelUvwMapProcessor.AxisY, ModelUvwMapProcessor.AxisZ });
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwScaleX"), "Scale X", typeof(double));
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwScaleY"), "Scale Y", typeof(double));
+                    } else {
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwBoxWidth"), "Width", typeof(double));
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwBoxHeight"), "Height", typeof(double));
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwBoxLength"), "Length", typeof(double));
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwScaleX"), "U Scale", typeof(double));
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwScaleY"), "V Scale", typeof(double));
+                        AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
+                            BuildMeshModifierMemberName(modifierIndex, "UvwScaleZ"), "W Scale", typeof(double));
+                    }
                     AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
-                        BuildMeshModifierMemberName(modifierIndex, "UvwMode"), "Mode (Box/World)", typeof(string));
+                        BuildMeshModifierMemberName(modifierIndex, "UvwOffsetX"), "Offset U", typeof(double));
                     AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
-                        BuildMeshModifierMemberName(modifierIndex, "UvwPlane"), "Plane (XY/XZ/ZY)", typeof(string));
-                    AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Scalar,
-                        BuildMeshModifierMemberName(modifierIndex, "UvwScale"), "Scale", typeof(double));
+                        BuildMeshModifierMemberName(modifierIndex, "UvwOffsetY"), "Offset V", typeof(double));
                     AddMeshModifierValueRow(section, commonComponent, editableComponent, saveComponent, platformId, ComponentPropertyRowKind.Boolean,
                         BuildMeshModifierMemberName(modifierIndex, "Preview"), "Preview", typeof(bool));
                 }
@@ -818,6 +851,7 @@ namespace helengine.editor {
         /// <param name="memberName">Stable per-entry modifier member name.</param>
         /// <param name="label">Visible row label.</param>
         /// <param name="valueType">Value type accepted by the row.</param>
+        /// <param name="comboItems">Choice list applied to combo-box rows.</param>
         void AddMeshModifierValueRow(
             ComponentSectionView section,
             Component commonComponent,
@@ -827,13 +861,38 @@ namespace helengine.editor {
             ComponentPropertyRowKind rowKind,
             string memberName,
             string label,
-            Type valueType) {
+            Type valueType,
+            IReadOnlyList<string> comboItems = null) {
             ComponentPropertyRow row = AcquireRow(rowKind);
             BindMeshComponentTessellationRow(row, commonComponent, editableComponent, saveComponent, platformId, memberName, label, valueType);
             row.IndentLevel = 1;
+            if (rowKind == ComponentPropertyRowKind.ComboBox && comboItems != null && row.ComboBoxField != null) {
+                IsSynchronizing = true;
+                row.ComboBoxField.SetItems(comboItems, -1);
+                IsSynchronizing = false;
+            }
             UpdateRowValue(row);
             section.Rows.Add(row);
             ActiveRows.Add(row);
+        }
+
+        /// <summary>
+        /// Builds one read-only summary label for a common-scope modifier shown on a platform tab.
+        /// </summary>
+        /// <param name="modifier">Inherited common-scope modifier.</param>
+        /// <returns>Summary label including the inherited-scope marker and key parameters.</returns>
+        static string BuildInheritedModifierSummary(MeshComponentModifier modifier) {
+            if (string.Equals(modifier.Kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
+                return $"Tessellate (Common, edge {modifier.MaxEdgeLength.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)})";
+            }
+            if (string.Equals(modifier.Kind, MeshComponentModifier.UvwMapKind, StringComparison.Ordinal)) {
+                string scaleSummary = string.Equals(modifier.UvwMode, ModelUvwMapProcessor.WorldMode, StringComparison.Ordinal)
+                    ? $"{modifier.UvwAxisX}{modifier.UvwAxisY} x{modifier.UvwScaleX.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)},{modifier.UvwScaleY.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}"
+                    : $"{modifier.UvwBoxWidth.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}x{modifier.UvwBoxHeight.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}x{modifier.UvwBoxLength.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}";
+                return $"UVW Map (Common, {modifier.UvwMode} {scaleSummary})";
+            }
+
+            return $"{modifier.Kind} (Common)";
         }
 
         /// <summary>
@@ -949,25 +1008,54 @@ namespace helengine.editor {
                 return;
             }
 
-            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
-            EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
-            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId);
             string entryKey = row.CustomEditorEntryKey ?? string.Empty;
-            if (entryKey.StartsWith("add:", StringComparison.Ordinal)) {
-                modifiers.Add(new MeshComponentModifier(entryKey.Substring("add:".Length)));
-            } else if (entryKey.StartsWith("remove:", StringComparison.Ordinal)) {
-                int modifierIndex = int.Parse(entryKey.Substring("remove:".Length), System.Globalization.CultureInfo.InvariantCulture);
-                if (modifierIndex < 0 || modifierIndex >= modifiers.Count) {
-                    return;
-                }
-
-                modifiers.RemoveAt(modifierIndex);
-            } else {
+            if (string.Equals(entryKey, "add-menu", StringComparison.Ordinal)) {
+                ShowMeshModifierAddMenu(row);
+                return;
+            }
+            if (!entryKey.StartsWith("remove:", StringComparison.Ordinal)) {
                 return;
             }
 
+            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
+            EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
+            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.GetScopeEditableStack(saveState, row.EditingPlatformId);
+            int modifierIndex = int.Parse(entryKey.Substring("remove:".Length), System.Globalization.CultureInfo.InvariantCulture);
+            if (modifierIndex < 0 || modifierIndex >= modifiers.Count) {
+                return;
+            }
+
+            modifiers.RemoveAt(modifierIndex);
             MeshComponentModifierStackService.SetStack(saveState, row.EditingPlatformId, modifiers);
-            RefreshMeshComponentModifierStackPreview(meshComponent, row.SaveComponent, modifiers);
+            RefreshMeshComponentModifierStackPreview(meshComponent, row.SaveComponent, MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId));
+            RebuildCurrentComponentView();
+            RecordRowMutation(row, previousEntityState);
+        }
+
+        /// <summary>
+        /// Requests the shared Add Modifier modal listing the available modifier kinds.
+        /// </summary>
+        /// <param name="row">Modifiers header row whose button was pressed.</param>
+        void ShowMeshModifierAddMenu(ComponentPropertyRow row) {
+            EditorMeshModifierPickerService.RequestPick(kind => HandleMeshModifierKindSelected(row, kind));
+        }
+
+        /// <summary>
+        /// Appends one modifier of the selected kind to the scope stack that opened the Add Modifier modal.
+        /// </summary>
+        /// <param name="row">Modifiers header row that requested the pick.</param>
+        /// <param name="kind">Stable modifier kind identifier selected in the modal.</param>
+        void HandleMeshModifierKindSelected(ComponentPropertyRow row, string kind) {
+            if (row == null || row.CommonComponent is not MeshComponent meshComponent || row.SaveComponent == null || string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
+                return;
+            }
+
+            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
+            EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
+            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.GetScopeEditableStack(saveState, row.EditingPlatformId);
+            modifiers.Add(new MeshComponentModifier(kind));
+            MeshComponentModifierStackService.SetStack(saveState, row.EditingPlatformId, modifiers);
+            RefreshMeshComponentModifierStackPreview(meshComponent, row.SaveComponent, MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId));
             RebuildCurrentComponentView();
             RecordRowMutation(row, previousEntityState);
         }
@@ -986,7 +1074,7 @@ namespace helengine.editor {
             if (row.SaveComponent != null
                 && row.CommonComponent != null
                 && row.SaveComponent.TryGetComponentState(row.CommonComponent, out EntityComponentSaveState saveState)) {
-                modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId);
+                modifiers = MeshComponentModifierStackService.GetScopeEditableStack(saveState, row.EditingPlatformId);
             }
 
             MeshComponentModifier modifier = modifierIndex >= 0 && modifierIndex < modifiers.Count ? modifiers[modifierIndex] : null;
@@ -1002,11 +1090,35 @@ namespace helengine.editor {
             if (string.Equals(fieldName, "UvwMode", StringComparison.Ordinal)) {
                 return modifier?.UvwMode ?? ModelUvwMapProcessor.BoxMode;
             }
-            if (string.Equals(fieldName, "UvwPlane", StringComparison.Ordinal)) {
-                return modifier?.UvwPlane ?? ModelUvwMapProcessor.PlaneXZ;
+            if (string.Equals(fieldName, "UvwAxisX", StringComparison.Ordinal)) {
+                return modifier?.UvwAxisX ?? ModelUvwMapProcessor.AxisX;
             }
-            if (string.Equals(fieldName, "UvwScale", StringComparison.Ordinal)) {
-                return modifier?.UvwScale ?? 1d;
+            if (string.Equals(fieldName, "UvwAxisY", StringComparison.Ordinal)) {
+                return modifier?.UvwAxisY ?? ModelUvwMapProcessor.AxisZ;
+            }
+            if (string.Equals(fieldName, "UvwBoxWidth", StringComparison.Ordinal)) {
+                return modifier?.UvwBoxWidth ?? 1d;
+            }
+            if (string.Equals(fieldName, "UvwBoxHeight", StringComparison.Ordinal)) {
+                return modifier?.UvwBoxHeight ?? 1d;
+            }
+            if (string.Equals(fieldName, "UvwBoxLength", StringComparison.Ordinal)) {
+                return modifier?.UvwBoxLength ?? 1d;
+            }
+            if (string.Equals(fieldName, "UvwScaleX", StringComparison.Ordinal)) {
+                return modifier?.UvwScaleX ?? 1d;
+            }
+            if (string.Equals(fieldName, "UvwScaleY", StringComparison.Ordinal)) {
+                return modifier?.UvwScaleY ?? 1d;
+            }
+            if (string.Equals(fieldName, "UvwScaleZ", StringComparison.Ordinal)) {
+                return modifier?.UvwScaleZ ?? 1d;
+            }
+            if (string.Equals(fieldName, "UvwOffsetX", StringComparison.Ordinal)) {
+                return modifier?.UvwOffsetX ?? 0d;
+            }
+            if (string.Equals(fieldName, "UvwOffsetY", StringComparison.Ordinal)) {
+                return modifier?.UvwOffsetY ?? 0d;
             }
 
             throw new InvalidOperationException($"Modifier row field '{fieldName}' is not recognized.");
@@ -1026,7 +1138,7 @@ namespace helengine.editor {
             }
 
             EntityComponentSaveState saveState = row.SaveComponent.GetOrCreateComponentState(row.CommonComponent);
-            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId);
+            List<MeshComponentModifier> modifiers = MeshComponentModifierStackService.GetScopeEditableStack(saveState, row.EditingPlatformId);
             if (modifierIndex < 0 || modifierIndex >= modifiers.Count) {
                 return;
             }
@@ -1058,25 +1170,74 @@ namespace helengine.editor {
                 }
 
                 modifier.UvwMode = normalizedMode;
-            } else if (string.Equals(fieldName, "UvwPlane", StringComparison.Ordinal)) {
-                string normalizedPlane = (value as string ?? string.Empty).Trim().ToUpperInvariant();
-                if (!ModelUvwMapProcessor.IsSupportedPlane(normalizedPlane)) {
+            } else if (string.Equals(fieldName, "UvwAxisX", StringComparison.Ordinal)) {
+                string normalizedAxisX = (value as string ?? string.Empty).Trim().ToUpperInvariant();
+                if (!ModelUvwMapProcessor.IsSupportedAxis(normalizedAxisX)) {
                     return;
                 }
 
-                modifier.UvwPlane = normalizedPlane;
-            } else if (string.Equals(fieldName, "UvwScale", StringComparison.Ordinal)) {
-                if (value is not double uvwScale || !double.IsFinite(uvwScale) || uvwScale <= 0d) {
+                modifier.UvwAxisX = normalizedAxisX;
+            } else if (string.Equals(fieldName, "UvwAxisY", StringComparison.Ordinal)) {
+                string normalizedAxisY = (value as string ?? string.Empty).Trim().ToUpperInvariant();
+                if (!ModelUvwMapProcessor.IsSupportedAxis(normalizedAxisY)) {
                     return;
                 }
 
-                modifier.UvwScale = uvwScale;
+                modifier.UvwAxisY = normalizedAxisY;
+            } else if (string.Equals(fieldName, "UvwBoxWidth", StringComparison.Ordinal)) {
+                if (value is not double uvwBoxWidth || !double.IsFinite(uvwBoxWidth) || uvwBoxWidth == 0d) {
+                    return;
+                }
+
+                modifier.UvwBoxWidth = uvwBoxWidth;
+            } else if (string.Equals(fieldName, "UvwBoxHeight", StringComparison.Ordinal)) {
+                if (value is not double uvwBoxHeight || !double.IsFinite(uvwBoxHeight) || uvwBoxHeight == 0d) {
+                    return;
+                }
+
+                modifier.UvwBoxHeight = uvwBoxHeight;
+            } else if (string.Equals(fieldName, "UvwBoxLength", StringComparison.Ordinal)) {
+                if (value is not double uvwBoxLength || !double.IsFinite(uvwBoxLength) || uvwBoxLength == 0d) {
+                    return;
+                }
+
+                modifier.UvwBoxLength = uvwBoxLength;
+            } else if (string.Equals(fieldName, "UvwScaleX", StringComparison.Ordinal)) {
+                if (value is not double uvwScaleX || !double.IsFinite(uvwScaleX)) {
+                    return;
+                }
+
+                modifier.UvwScaleX = uvwScaleX;
+            } else if (string.Equals(fieldName, "UvwScaleY", StringComparison.Ordinal)) {
+                if (value is not double uvwScaleY || !double.IsFinite(uvwScaleY)) {
+                    return;
+                }
+
+                modifier.UvwScaleY = uvwScaleY;
+            } else if (string.Equals(fieldName, "UvwScaleZ", StringComparison.Ordinal)) {
+                if (value is not double uvwScaleZ || !double.IsFinite(uvwScaleZ)) {
+                    return;
+                }
+
+                modifier.UvwScaleZ = uvwScaleZ;
+            } else if (string.Equals(fieldName, "UvwOffsetX", StringComparison.Ordinal)) {
+                if (value is not double uvwOffsetX || !double.IsFinite(uvwOffsetX)) {
+                    return;
+                }
+
+                modifier.UvwOffsetX = uvwOffsetX;
+            } else if (string.Equals(fieldName, "UvwOffsetY", StringComparison.Ordinal)) {
+                if (value is not double uvwOffsetY || !double.IsFinite(uvwOffsetY)) {
+                    return;
+                }
+
+                modifier.UvwOffsetY = uvwOffsetY;
             } else {
                 throw new InvalidOperationException($"Modifier row field '{fieldName}' is not recognized.");
             }
 
             MeshComponentModifierStackService.SetStack(saveState, row.EditingPlatformId, modifiers);
-            RefreshMeshComponentModifierStackPreview(meshComponent, row.SaveComponent, modifiers);
+            RefreshMeshComponentModifierStackPreview(meshComponent, row.SaveComponent, MeshComponentModifierStackService.ResolveEffectiveStack(saveState, row.EditingPlatformId));
         }
 
         /// <summary>
@@ -2002,6 +2163,9 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Scalar:
                     UpdateScalarRow(row);
                     break;
+                case ComponentPropertyRowKind.ComboBox:
+                    UpdateComboBoxRow(row);
+                    break;
                 case ComponentPropertyRowKind.ReadOnly:
                     UpdateReadOnlyRow(row);
                     break;
@@ -2254,6 +2418,35 @@ namespace helengine.editor {
             }
 
             UpdateBooleanField(row, isChecked);
+        }
+
+        /// <summary>
+        /// Updates a combo-box row with the component property value.
+        /// </summary>
+        /// <param name="row">Row to update.</param>
+        void UpdateComboBoxRow(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.ComboBoxField == null) {
+                return;
+            }
+
+            string currentValue = GetRowValue(row) as string ?? string.Empty;
+            int selectedIndex = -1;
+            IReadOnlyList<string> items = row.ComboBoxField.Items;
+            for (int index = 0; index < items.Count; index++) {
+                if (string.Equals(items[index], currentValue, StringComparison.OrdinalIgnoreCase)) {
+                    selectedIndex = index;
+                    break;
+                }
+            }
+
+            IsSynchronizing = true;
+            if (row.ComboBoxField.SelectedIndex != selectedIndex) {
+                row.ComboBoxField.SelectedIndex = selectedIndex;
+            }
+            IsSynchronizing = false;
         }
 
         /// <summary>
@@ -2976,6 +3169,39 @@ namespace helengine.editor {
             SetRowValue(row, isChecked);
             UpdateBooleanField(row, isChecked);
             UpdateMeshComponentTessellationRows(row.CommonComponent, row.EditingPlatformId);
+            RecordRowMutation(row, previousEntityState);
+        }
+
+        /// <summary>
+        /// Handles selection changes for combo-box choice rows.
+        /// </summary>
+        /// <param name="row">Row whose combo box raised the change event.</param>
+        /// <param name="selectedItem">Newly selected item text.</param>
+        void HandleComboBoxRowSelectionChanged(ComponentPropertyRow row, string selectedItem) {
+            if (IsSynchronizing) {
+                return;
+            }
+            if (row == null || row.TargetComponent == null) {
+                return;
+            }
+            if (row.Property == null
+                && row.PlatformComponentMemberDescriptor == null
+                && !IsMeshComponentModifierRow(row)) {
+                return;
+            }
+
+            string currentValue = GetRowValue(row) as string;
+            if (string.Equals(currentValue, selectedItem, StringComparison.Ordinal)) {
+                return;
+            }
+
+            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
+            SetRowValue(row, selectedItem);
+            UpdateComboBoxRow(row);
+            if (IsMeshComponentModifierRow(row)) {
+                // A mode change swaps which parameter rows the modifier shows, so the section must rebuild.
+                RebuildCurrentComponentView();
+            }
             RecordRowMutation(row, previousEntityState);
         }
 
@@ -3832,6 +4058,9 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Scalar:
                     LayoutScalarRow(row, contentWidth, height, labelWidth);
                     break;
+                case ComponentPropertyRowKind.ComboBox:
+                    LayoutComboBoxRow(row, contentWidth, height, labelWidth);
+                    break;
                 case ComponentPropertyRowKind.ReadOnly:
                     LayoutReadOnlyRow(row, contentWidth, height, labelWidth);
                     break;
@@ -4006,6 +4235,24 @@ namespace helengine.editor {
                 float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
                 row.ActionButtonHost.Position = new float3(labelWidth + FieldSpacing + fieldWidth + FieldSpacing, buttonY, 0.2f);
             }
+        }
+
+        /// <summary>
+        /// Layouts a combo-box row with one drop-down choice field.
+        /// </summary>
+        /// <param name="row">Combo-box row to layout.</param>
+        /// <param name="width">Available width.</param>
+        /// <param name="height">Row height.</param>
+        /// <param name="labelWidth">Width reserved for labels.</param>
+        void LayoutComboBoxRow(ComponentPropertyRow row, int width, int height, int labelWidth) {
+            if (row.ComboBoxHost == null || row.ComboBoxField == null) {
+                return;
+            }
+
+            int fieldWidth = Math.Max(48, width - labelWidth - FieldSpacing);
+            float fieldY = (float)Math.Round((height - FieldHeight) * 0.5);
+            row.ComboBoxHost.Position = new float3(labelWidth + FieldSpacing, fieldY, 0.2f);
+            row.ComboBoxField.Size = new int2(fieldWidth, FieldHeight);
         }
 
         /// <summary>
@@ -4730,6 +4977,9 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Scalar:
                     BuildScalarRow(row, rowEntity);
                     break;
+                case ComponentPropertyRowKind.ComboBox:
+                    BuildComboBoxRow(row, rowEntity);
+                    break;
                 case ComponentPropertyRowKind.ReadOnly:
                     BuildReadOnlyRow(row, rowEntity);
                     break;
@@ -5182,6 +5432,25 @@ namespace helengine.editor {
 
             row.CheckBoxHost = checkBoxHost;
             row.CheckBoxField = checkBox;
+        }
+
+        /// <summary>
+        /// Builds the drop-down choice control for a combo-box row.
+        /// </summary>
+        /// <param name="row">Row to populate.</param>
+        /// <param name="rowEntity">Row root entity.</param>
+        void BuildComboBoxRow(ComponentPropertyRow row, EditorEntity rowEntity) {
+            var comboBoxHost = new EditorEntity();
+            comboBoxHost.LayerMask = RootEntity.LayerMask;
+            comboBoxHost.Position = float3.Zero;
+            rowEntity.AddChild(comboBoxHost);
+
+            var comboBox = new ComboBoxComponent(new int2(120, FieldHeight), Font, Array.Empty<string>(), -1);
+            comboBox.SelectionChanged += (selectedIndex, selectedItem) => HandleComboBoxRowSelectionChanged(row, selectedItem);
+            comboBoxHost.AddComponent(comboBox);
+
+            row.ComboBoxHost = comboBoxHost;
+            row.ComboBoxField = comboBox;
         }
 
         /// <summary>

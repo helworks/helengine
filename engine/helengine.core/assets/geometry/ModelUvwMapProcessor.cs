@@ -14,55 +14,63 @@ namespace helengine {
         public const string WorldMode = "World";
 
         /// <summary>
-        /// Stable plane identifier projecting world X to U and world Y to V.
+        /// Stable axis identifier selecting the world X component.
         /// </summary>
-        public const string PlaneXY = "XY";
+        public const string AxisX = "X";
 
         /// <summary>
-        /// Stable plane identifier projecting world X to U and world Z to V.
+        /// Stable axis identifier selecting the world Y component.
         /// </summary>
-        public const string PlaneXZ = "XZ";
+        public const string AxisY = "Y";
 
         /// <summary>
-        /// Stable plane identifier projecting world Z to U and world Y to V.
+        /// Stable axis identifier selecting the world Z component.
         /// </summary>
-        public const string PlaneZY = "ZY";
+        public const string AxisZ = "Z";
 
         /// <summary>
-        /// Projects world-space vertex positions onto one axis plane and stores them as texture coordinates.
+        /// Maps world-space vertex positions to texture coordinates using one chosen world axis per UV component.
         /// </summary>
         /// <param name="asset">Model whose texture coordinates should be rewritten in place.</param>
-        /// <param name="plane">Axis plane identifier selecting the two projected world axes.</param>
-        /// <param name="scale">World units covered by one repeat of the texture.</param>
+        /// <param name="axisU">World axis identifier mapped to the U component.</param>
+        /// <param name="axisV">World axis identifier mapped to the V component.</param>
+        /// <param name="scaleU">Texture repeats per world unit along U.</param>
+        /// <param name="scaleV">Texture repeats per world unit along V.</param>
+        /// <param name="offsetU">Offset added to the U component after scaling.</param>
+        /// <param name="offsetV">Offset added to the V component after scaling.</param>
         /// <param name="worldPosition">World position of the owning entity.</param>
         /// <param name="worldOrientation">World orientation of the owning entity.</param>
-        /// <param name="worldScale">World scale of the owning entity.</param>
         public static void ApplyWorldMap(
             ModelAsset asset,
-            string plane,
-            double scale,
+            string axisU,
+            string axisV,
+            double scaleU,
+            double scaleV,
+            double offsetU,
+            double offsetV,
             float3 worldPosition,
-            float4 worldOrientation,
-            float3 worldScale) {
+            float4 worldOrientation) {
             ValidateAsset(asset);
-            ValidateScale(scale);
-            if (!IsSupportedPlane(plane)) {
-                throw new ArgumentException($"World map plane '{plane}' is not supported.", nameof(plane));
+            ValidateFinite(scaleU, nameof(scaleU));
+            ValidateFinite(scaleV, nameof(scaleV));
+            ValidateFinite(offsetU, nameof(offsetU));
+            ValidateFinite(offsetV, nameof(offsetV));
+            if (!IsSupportedAxis(axisU)) {
+                throw new ArgumentException($"World map axis '{axisU}' is not supported.", nameof(axisU));
+            }
+            if (!IsSupportedAxis(axisV)) {
+                throw new ArgumentException($"World map axis '{axisV}' is not supported.", nameof(axisV));
             }
 
-            float inverseScale = (float)(1d / scale);
             float2[] texCoords = new float2[asset.Positions.Length];
             for (int vertexIndex = 0; vertexIndex < asset.Positions.Length; vertexIndex++) {
-                float3 localPosition = asset.Positions[vertexIndex];
-                float3 scaledPosition = new float3(
-                    localPosition.X * worldScale.X,
-                    localPosition.Y * worldScale.Y,
-                    localPosition.Z * worldScale.Z);
-                float3 worldVertex = worldPosition + float4.RotateVector(scaledPosition, worldOrientation);
-                float2 projected = ProjectPlane(worldVertex, plane);
-                texCoords[vertexIndex] = new float2(projected.X * inverseScale, projected.Y * inverseScale);
+                float3 worldVertex = worldPosition + float4.RotateVector(asset.Positions[vertexIndex], worldOrientation);
+                texCoords[vertexIndex] = new float2(
+                    SelectAxisComponent(worldVertex, axisU) * (float)scaleU + (float)offsetU,
+                    SelectAxisComponent(worldVertex, axisV) * (float)scaleV + (float)offsetV);
             }
 
+            NativeOwnership.Release(ref asset.TexCoords);
             asset.TexCoords = texCoords;
         }
 
@@ -71,20 +79,50 @@ namespace helengine {
         /// splitting shared vertices whose triangles project onto different box faces.
         /// </summary>
         /// <param name="asset">Model whose texture coordinates should be rewritten in place.</param>
-        /// <param name="scale">Local units covered by one repeat of the texture.</param>
-        public static void ApplyBoxMap(ModelAsset asset, double scale) {
+        /// <param name="boxWidth">Mapping box size along the X axis in world units; one texture repeat spans this distance.</param>
+        /// <param name="boxHeight">Mapping box size along the Y axis in world units; one texture repeat spans this distance.</param>
+        /// <param name="boxLength">Mapping box size along the Z axis in world units; one texture repeat spans this distance.</param>
+        /// <param name="tileU">Tiling multiplier applied on top of the box width.</param>
+        /// <param name="tileV">Tiling multiplier applied on top of the box height.</param>
+        /// <param name="tileW">Tiling multiplier applied on top of the box length.</param>
+        /// <param name="offsetU">Offset added to the U component after mapping.</param>
+        /// <param name="offsetV">Offset added to the V component after mapping.</param>
+        public static void ApplyBoxMap(
+            ModelAsset asset,
+            double boxWidth,
+            double boxHeight,
+            double boxLength,
+            double tileU,
+            double tileV,
+            double tileW,
+            double offsetU,
+            double offsetV) {
             ValidateAsset(asset);
-            ValidateScale(scale);
+            ValidateBoxDimension(boxWidth, nameof(boxWidth));
+            ValidateBoxDimension(boxHeight, nameof(boxHeight));
+            ValidateBoxDimension(boxLength, nameof(boxLength));
+            ValidateFinite(tileU, nameof(tileU));
+            ValidateFinite(tileV, nameof(tileV));
+            ValidateFinite(tileW, nameof(tileW));
+            ValidateFinite(offsetU, nameof(offsetU));
+            ValidateFinite(offsetV, nameof(offsetV));
             if (asset.Indices16 == null || asset.Indices16.Length == 0) {
                 throw new InvalidOperationException("Box mapping requires 16-bit model indices.");
             }
+            if (asset.Normals == null || asset.Normals.Length != asset.Positions.Length) {
+                throw new InvalidOperationException("Box mapping requires an equally sized normal stream.");
+            }
 
-            float inverseScale = (float)(1d / scale);
+            float3 axisScale = new float3(
+                (float)(tileU / boxWidth),
+                (float)(tileV / boxHeight),
+                (float)(tileW / boxLength));
+            float2 uvOffset = new float2((float)offsetU, (float)offsetV);
             List<float3> positions = new List<float3>(asset.Positions);
-            List<float3> normals = asset.Normals != null ? new List<float3>(asset.Normals) : null;
+            List<float3> normals = new List<float3>(asset.Normals);
             List<float2> texCoords = new List<float2>(new float2[asset.Positions.Length]);
             int[] assignedAxisByVertex = new int[asset.Positions.Length];
-            Dictionary<(int VertexIndex, int Axis), int> splitVertices = new Dictionary<(int, int), int>();
+            Dictionary<int, int> splitVertices = new Dictionary<int, int>();
             ushort[] indices = asset.Indices16;
 
             for (int index = 0; index + 2 < indices.Length; index += 3) {
@@ -103,8 +141,7 @@ namespace helengine {
                         texCoords,
                         assignedAxisByVertex,
                         splitVertices);
-                    float2 projected = ProjectAxis(positions[resolvedIndex], axis);
-                    texCoords[resolvedIndex] = new float2(projected.X * inverseScale, projected.Y * inverseScale);
+                    texCoords[resolvedIndex] = ProjectAxisScaled(positions[resolvedIndex], axis, axisScale) + uvOffset;
                     if (resolvedIndex > ushort.MaxValue) {
                         throw new InvalidOperationException("Box mapping vertex splitting exceeded 16-bit index capacity.");
                     }
@@ -113,23 +150,26 @@ namespace helengine {
                 }
             }
 
-            asset.Positions = positions.ToArray();
-            if (normals != null) {
-                asset.Normals = normals.ToArray();
-            }
-
-            asset.TexCoords = texCoords.ToArray();
+            float3[] outputPositions = positions.ToArray();
+            float3[] outputNormals = normals.ToArray();
+            float2[] outputTexCoords = texCoords.ToArray();
+            NativeOwnership.Release(ref asset.Positions);
+            NativeOwnership.Release(ref asset.Normals);
+            NativeOwnership.Release(ref asset.TexCoords);
+            asset.Positions = outputPositions;
+            asset.Normals = outputNormals;
+            asset.TexCoords = outputTexCoords;
         }
 
         /// <summary>
-        /// Returns whether one plane identifier is supported by world mapping.
+        /// Returns whether one world axis identifier is supported by world mapping.
         /// </summary>
-        /// <param name="plane">Plane identifier to validate.</param>
-        /// <returns>True for the supported XY, XZ, and ZY identifiers.</returns>
-        public static bool IsSupportedPlane(string plane) {
-            return string.Equals(plane, PlaneXY, StringComparison.Ordinal)
-                || string.Equals(plane, PlaneXZ, StringComparison.Ordinal)
-                || string.Equals(plane, PlaneZY, StringComparison.Ordinal);
+        /// <param name="axis">Axis identifier to validate.</param>
+        /// <returns>True for the supported X, Y, and Z identifiers.</returns>
+        public static bool IsSupportedAxis(string axis) {
+            return string.Equals(axis, AxisX, StringComparison.Ordinal)
+                || string.Equals(axis, AxisY, StringComparison.Ordinal)
+                || string.Equals(axis, AxisZ, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -153,7 +193,7 @@ namespace helengine {
             List<float3> normals,
             List<float2> texCoords,
             int[] assignedAxisByVertex,
-            Dictionary<(int VertexIndex, int Axis), int> splitVertices) {
+            Dictionary<int, int> splitVertices) {
             if (vertexIndex < assignedAxisByVertex.Length) {
                 if (assignedAxisByVertex[vertexIndex] == 0) {
                     assignedAxisByVertex[vertexIndex] = axis + 1;
@@ -164,15 +204,16 @@ namespace helengine {
                 }
             }
 
-            if (splitVertices.TryGetValue((vertexIndex, axis), out int existingSplitIndex)) {
+            int splitKey = vertexIndex * 3 + axis;
+            if (splitVertices.TryGetValue(splitKey, out int existingSplitIndex)) {
                 return existingSplitIndex;
             }
 
             positions.Add(positions[vertexIndex]);
-            normals?.Add(normals[vertexIndex]);
-            texCoords.Add(default);
+            normals.Add(normals[vertexIndex]);
+            texCoords.Add(new float2(0f, 0f));
             int splitIndex = positions.Count - 1;
-            splitVertices[(vertexIndex, axis)] = splitIndex;
+            splitVertices[splitKey] = splitIndex;
             return splitIndex;
         }
 
@@ -193,37 +234,39 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Projects one position onto the plane perpendicular to the supplied dominant axis.
+        /// Projects one local position onto the plane perpendicular to the supplied dominant axis,
+        /// multiplying each projected component by its own axis tiling scale.
         /// </summary>
-        /// <param name="position">Position to project.</param>
+        /// <param name="position">Local position to project.</param>
         /// <param name="axis">Dominant axis index.</param>
-        /// <returns>Two projected components.</returns>
-        static float2 ProjectAxis(float3 position, int axis) {
+        /// <param name="axisScale">Per-axis texture repeats per local unit.</param>
+        /// <returns>Two projected texture coordinates.</returns>
+        static float2 ProjectAxisScaled(float3 position, int axis, float3 axisScale) {
             if (axis == 0) {
-                return new float2(position.Z, position.Y);
+                return new float2(position.Z * axisScale.Z, position.Y * axisScale.Y);
             }
             if (axis == 1) {
-                return new float2(position.X, position.Z);
+                return new float2(position.X * axisScale.X, position.Z * axisScale.Z);
             }
 
-            return new float2(position.X, position.Y);
+            return new float2(position.X * axisScale.X, position.Y * axisScale.Y);
         }
 
         /// <summary>
-        /// Projects one world position onto the requested axis plane.
+        /// Selects one world position component by its axis identifier.
         /// </summary>
         /// <param name="worldVertex">World-space vertex position.</param>
-        /// <param name="plane">Axis plane identifier.</param>
-        /// <returns>Two projected components.</returns>
-        static float2 ProjectPlane(float3 worldVertex, string plane) {
-            if (string.Equals(plane, PlaneXY, StringComparison.Ordinal)) {
-                return new float2(worldVertex.X, worldVertex.Y);
+        /// <param name="axis">Axis identifier to select.</param>
+        /// <returns>Selected world component.</returns>
+        static float SelectAxisComponent(float3 worldVertex, string axis) {
+            if (string.Equals(axis, AxisX, StringComparison.Ordinal)) {
+                return worldVertex.X;
             }
-            if (string.Equals(plane, PlaneXZ, StringComparison.Ordinal)) {
-                return new float2(worldVertex.X, worldVertex.Z);
+            if (string.Equals(axis, AxisY, StringComparison.Ordinal)) {
+                return worldVertex.Y;
             }
 
-            return new float2(worldVertex.Z, worldVertex.Y);
+            return worldVertex.Z;
         }
 
         /// <summary>
@@ -240,12 +283,24 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Validates one finite positive projection scale.
+        /// Validates one finite scale or offset value.
         /// </summary>
-        /// <param name="scale">World or local units covered by one texture repeat.</param>
-        static void ValidateScale(double scale) {
-            if (double.IsNaN(scale) || double.IsInfinity(scale) || scale <= 0d) {
-                throw new ArgumentOutOfRangeException(nameof(scale), "UVW map scales must be finite and positive.");
+        /// <param name="value">Scale or offset value to validate.</param>
+        /// <param name="parameterName">Name of the validated parameter.</param>
+        static void ValidateFinite(double value, string parameterName) {
+            if (double.IsNaN(value) || double.IsInfinity(value)) {
+                throw new ArgumentOutOfRangeException(parameterName, "UVW map scales and offsets must be finite.");
+            }
+        }
+
+        /// <summary>
+        /// Validates one finite non-zero mapping box dimension.
+        /// </summary>
+        /// <param name="value">Box dimension in world units.</param>
+        /// <param name="parameterName">Name of the validated parameter.</param>
+        static void ValidateBoxDimension(double value, string parameterName) {
+            if (double.IsNaN(value) || double.IsInfinity(value) || value == 0d) {
+                throw new ArgumentOutOfRangeException(parameterName, "UVW box dimensions must be finite and non-zero.");
             }
         }
     }

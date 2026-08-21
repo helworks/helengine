@@ -26,8 +26,16 @@ namespace helengine.editor {
             MaxEdgeLength = MeshComponentTessellationSettings.DefaultTessellationMaxEdgeLength;
             AtCookTime = true;
             UvwMode = ModelUvwMapProcessor.BoxMode;
-            UvwPlane = ModelUvwMapProcessor.PlaneXZ;
-            UvwScale = 1d;
+            UvwAxisX = ModelUvwMapProcessor.AxisX;
+            UvwAxisY = ModelUvwMapProcessor.AxisZ;
+            UvwBoxWidth = 1d;
+            UvwBoxHeight = 1d;
+            UvwBoxLength = 1d;
+            UvwScaleX = 1d;
+            UvwScaleY = 1d;
+            UvwScaleZ = 1d;
+            UvwOffsetX = 0d;
+            UvwOffsetY = 0d;
         }
 
         /// <summary>
@@ -56,13 +64,53 @@ namespace helengine.editor {
         public string UvwMode { get; set; }
 
         /// <summary>
-        /// Gets or sets the world-plane identifier used by the UVW map world mode.
+        /// Gets or sets the world axis mapped to the U component in the UVW map world mode.
         /// </summary>
-        public string UvwPlane { get; set; }
+        public string UvwAxisX { get; set; }
 
         /// <summary>
-        /// Gets or sets the world or local units covered by one texture repeat in the UVW map modifier.
+        /// Gets or sets the world axis mapped to the V component in the UVW map world mode.
         /// </summary>
-        public double UvwScale { get; set; }
+        public string UvwAxisY { get; set; }
+
+        /// <summary>
+        /// Gets or sets the mapping box size along the X axis in world units for the box mode.
+        /// </summary>
+        public double UvwBoxWidth { get; set; }
+
+        /// <summary>
+        /// Gets or sets the mapping box size along the Y axis in world units for the box mode.
+        /// </summary>
+        public double UvwBoxHeight { get; set; }
+
+        /// <summary>
+        /// Gets or sets the mapping box size along the Z axis in world units for the box mode.
+        /// </summary>
+        public double UvwBoxLength { get; set; }
+
+        /// <summary>
+        /// Gets or sets the tiling multiplier applied on top of the box width (or the U component in world mode).
+        /// </summary>
+        public double UvwScaleX { get; set; }
+
+        /// <summary>
+        /// Gets or sets the texture repeats per unit along the Y axis (or the V component in world mode).
+        /// </summary>
+        public double UvwScaleY { get; set; }
+
+        /// <summary>
+        /// Gets or sets the texture repeats per unit along the Z axis in box mode.
+        /// </summary>
+        public double UvwScaleZ { get; set; }
+
+        /// <summary>
+        /// Gets or sets the offset added to the U component after scaling.
+        /// </summary>
+        public double UvwOffsetX { get; set; }
+
+        /// <summary>
+        /// Gets or sets the offset added to the V component after scaling.
+        /// </summary>
+        public double UvwOffsetY { get; set; }
     }
 }

@@ -45,19 +45,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures a platform-authored stack overrides the common-scope stack entirely.
+        /// Ensures platform-authored additions append after the inherited common-scope stack.
         /// </summary>
         [Fact]
-        public void ResolveEffectiveStack_WithPlatformStack_OverridesCommonStack() {
+        public void ResolveEffectiveStack_WithCommonStackAndPlatformAdditions_AppendsPlatformEntries() {
             MeshComponentModifierStackService service = new MeshComponentModifierStackService();
             EntityComponentSaveState saveState = new EntityComponentSaveState();
 
             service.SetStack(saveState, ComponentPlatformEditingService.CommonPlatformId, [
-                new MeshComponentModifier(MeshComponentModifier.TessellateKind) { MaxEdgeLength = 2.0 }
+                new MeshComponentModifier(MeshComponentModifier.UvwMapKind) { UvwMode = ModelUvwMapProcessor.WorldMode, UvwAxisX = ModelUvwMapProcessor.AxisX, UvwAxisY = ModelUvwMapProcessor.AxisZ, UvwScaleX = 2.0, UvwScaleY = 3.0 }
             ]);
-            service.SetStack(saveState, "ps2", []);
+            service.SetStack(saveState, "ps2", [
+                new MeshComponentModifier(MeshComponentModifier.TessellateKind) { MaxEdgeLength = 1.0 }
+            ]);
 
-            Assert.Empty(service.ResolveEffectiveStack(saveState, "ps2"));
+            List<MeshComponentModifier> ps2Stack = service.ResolveEffectiveStack(saveState, "ps2");
+            Assert.Equal(2, ps2Stack.Count);
+            Assert.Equal(MeshComponentModifier.UvwMapKind, ps2Stack[0].Kind);
+            Assert.Equal(MeshComponentModifier.TessellateKind, ps2Stack[1].Kind);
+
+            List<MeshComponentModifier> windowsStack = service.ResolveEffectiveStack(saveState, "windows");
+            MeshComponentModifier windowsModifier = Assert.Single(windowsStack);
+            Assert.Equal(MeshComponentModifier.UvwMapKind, windowsModifier.Kind);
+            Assert.Equal(2.0, windowsModifier.UvwScaleX);
+            Assert.Equal(3.0, windowsModifier.UvwScaleY);
+            Assert.Equal(ModelUvwMapProcessor.AxisX, windowsModifier.UvwAxisX);
+            Assert.Equal(ModelUvwMapProcessor.AxisZ, windowsModifier.UvwAxisY);
         }
 
         /// <summary>

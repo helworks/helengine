@@ -32,6 +32,10 @@ namespace helengine.editor {
         /// </summary>
         Scalar,
         /// <summary>
+        /// Editable row selecting one entry from a fixed choice list.
+        /// </summary>
+        ComboBox,
+        /// <summary>
         /// Editable row for a Vector4 value.
         /// </summary>
         Vector4,
