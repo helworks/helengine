@@ -47,6 +47,52 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures newly seeded platform profiles receive the shared default runtime version.
+        /// </summary>
+        [Fact]
+        public void Load_WhenPlatformFilesAreMissing_SeedsDefaultVersion() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+
+            EditorProfileSettingsDocument document = service.Load(new[] { "ps2", "psp" });
+
+            Assert.Equal("1.0.0", document.Platforms[0].Version);
+            Assert.Equal("1.0.0", document.Platforms[1].Version);
+        }
+
+        /// <summary>
+        /// Ensures independently configured platform versions survive the split-file persistence round trip.
+        /// </summary>
+        [Fact]
+        public void SaveAndReload_PreservesDistinctPlatformVersions() {
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+            EditorProfileSettingsDocument document = CreateProfileDocument("ps2", "psp");
+            document.Platforms[0].Version = "1.0.0";
+            document.Platforms[1].Version = "1.0.1";
+
+            service.Save(document);
+            EditorProfileSettingsDocument reloaded = service.Load(new[] { "ps2", "psp" });
+
+            Assert.Equal("1.0.0", reloaded.Platforms[0].Version);
+            Assert.Equal("1.0.1", reloaded.Platforms[1].Version);
+        }
+
+        /// <summary>
+        /// Ensures an older platform settings file with no version property receives the migration default.
+        /// </summary>
+        [Fact]
+        public void Load_WhenExistingPlatformFileOmitsVersion_UsesDefaultVersion() {
+            Directory.CreateDirectory(Path.Combine(TempRootPath, "settings"));
+            File.WriteAllText(
+                Path.Combine(TempRootPath, "settings", "platform.ps2.json"),
+                "{\"platformId\":\"ps2\",\"build\":{},\"graphics\":{},\"codegen\":{},\"input\":{}}");
+
+            EditorProfileSettingsService service = new EditorProfileSettingsService(TempRootPath);
+            EditorProfileSettingsDocument document = service.Load(new[] { "ps2" });
+
+            Assert.Equal("1.0.0", Assert.Single(document.Platforms).Version);
+        }
+
+        /// <summary>
         /// Ensures saving one multi-platform document writes one file per platform.
         /// </summary>
         [Fact]

@@ -218,6 +218,9 @@ namespace helengine.editor {
             }
 
             platform.PlatformId = platformId;
+            platform.Version = string.IsNullOrWhiteSpace(platform.Version)
+                ? EditorPlatformProfileSettingsDocument.DefaultVersion
+                : platform.Version.Trim();
             platform.Build ??= new EditorBuildProfileSettingsDocument();
             platform.Graphics ??= new EditorGraphicsProfileSettingsDocument();
             platform.Codegen ??= new EditorCodegenProfileSettingsDocument();

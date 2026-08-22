@@ -6,9 +6,19 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorPlatformProfileSettingsDocument {
         /// <summary>
+        /// Default runtime version used when an older profile file has no platform version.
+        /// </summary>
+        public const string DefaultVersion = "1.0.0";
+
+        /// <summary>
         /// Gets or sets the platform identifier this profile record belongs to.
         /// </summary>
         public string PlatformId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the runtime version stamped into builds for this platform.
+        /// </summary>
+        public string Version { get; set; } = DefaultVersion;
 
         /// <summary>
         /// Gets or sets the build-profile values used when cooking assets for this platform.
