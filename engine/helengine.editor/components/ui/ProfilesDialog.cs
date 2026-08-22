@@ -13,7 +13,7 @@ namespace helengine.editor {
         /// <summary>
         /// Fixed panel height used by the dialog.
         /// </summary>
-        public const int PanelHeight = 372;
+        public const int PanelHeight = 406;
 
         /// <summary>
         /// Padding applied inside the dialog panel.
@@ -114,6 +114,26 @@ namespace helengine.editor {
         /// Combo box used to switch between per-platform profile records.
         /// </summary>
         readonly ComboBoxComponent PlatformComboBox;
+
+        /// <summary>
+        /// Host entity for the platform version label.
+        /// </summary>
+        readonly EditorEntity VersionLabelHost;
+
+        /// <summary>
+        /// Label describing the platform version field.
+        /// </summary>
+        readonly TextComponent VersionLabelText;
+
+        /// <summary>
+        /// Host entity for the platform version control.
+        /// </summary>
+        readonly EditorEntity VersionTextBoxHost;
+
+        /// <summary>
+        /// Text box used to edit the selected platform's runtime version.
+        /// </summary>
+        readonly TextBoxComponent VersionTextBox;
 
         /// <summary>
         /// Builder-defined build settings rendered for the active platform.
@@ -288,6 +308,20 @@ namespace helengine.editor {
             ConfigureDialogComboBox(PlatformComboBox);
             PlatformComboBoxHost.AddComponent(PlatformComboBox);
 
+            VersionLabelHost = CreateTextHost();
+            DialogPanelRoot.AddChild(VersionLabelHost);
+            VersionLabelText = CreateLabelText("Version");
+            VersionLabelHost.AddComponent(VersionLabelText);
+
+            VersionTextBoxHost = CreateTextHost();
+            DialogPanelRoot.AddChild(VersionTextBoxHost);
+            VersionTextBox = new TextBoxComponent(
+                new int2(GetSettingValueWidth(), GetFieldRowHeightPixels()),
+                DialogFontValue,
+                EditorPlatformProfileSettingsDocument.DefaultVersion);
+            VersionTextBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            VersionTextBoxHost.AddComponent(VersionTextBox);
+
             BuildTabButtonHost = CreateTextHost();
             DialogPanelRoot.AddChild(BuildTabButtonHost);
             BuildTabButton = new ButtonComponent("Build", GetTabButtonSize(), DialogFontValue, HandleBuildTabClicked, 0f);
@@ -447,6 +481,7 @@ namespace helengine.editor {
             ResetDialogPositioning();
             Enabled = false;
             StatusText.Text = string.Empty;
+            VersionTextBox.Text = EditorPlatformProfileSettingsDocument.DefaultVersion;
             CurrentDocument = null;
             ActivePlatformSelectionModel = null;
             SelectionModelResolver = null;
@@ -576,6 +611,9 @@ namespace helengine.editor {
             platform.Build.SelectedOptionValues ??= [];
             platform.Graphics.SelectedOptionValues ??= [];
             platform.Codegen.SelectedOptionValues ??= [];
+            VersionTextBox.Text = string.IsNullOrWhiteSpace(platform.Version)
+                ? EditorPlatformProfileSettingsDocument.DefaultVersion
+                : platform.Version;
 
             PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platform, buildProfile);
@@ -630,6 +668,9 @@ namespace helengine.editor {
             }
 
             EditorPlatformProfileSettingsDocument platform = GetPlatformDocument(CurrentPlatformId);
+            platform.Version = string.IsNullOrWhiteSpace(VersionTextBox.Text)
+                ? EditorPlatformProfileSettingsDocument.DefaultVersion
+                : VersionTextBox.Text.Trim();
             PlatformBuildProfileDefinition buildProfile = ResolveBuildProfile(platform);
             PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platform, buildProfile);
             PlatformCodegenProfileDefinition codegenProfile = ResolveCodegenProfile(platform, buildProfile);
@@ -694,6 +735,9 @@ namespace helengine.editor {
                     platform.Build.SelectedBuildProfileId ??= string.Empty;
                     platform.Graphics.SelectedGraphicsProfileId ??= string.Empty;
                     platform.Codegen.SelectedCodegenProfileId ??= string.Empty;
+                    platform.Version = string.IsNullOrWhiteSpace(platform.Version)
+                        ? EditorPlatformProfileSettingsDocument.DefaultVersion
+                        : platform.Version.Trim();
 
                     return platform;
                 }
@@ -701,6 +745,7 @@ namespace helengine.editor {
 
             EditorPlatformProfileSettingsDocument createdPlatform = new EditorPlatformProfileSettingsDocument {
                 PlatformId = platformId,
+                Version = EditorPlatformProfileSettingsDocument.DefaultVersion,
                 Build = new EditorBuildProfileSettingsDocument(),
                 Graphics = new EditorGraphicsProfileSettingsDocument(),
                 Codegen = new EditorCodegenProfileSettingsDocument()
@@ -837,6 +882,9 @@ namespace helengine.editor {
 
             EditorPlatformProfileSettingsDocument clone = new EditorPlatformProfileSettingsDocument {
                 PlatformId = platform.PlatformId,
+                Version = string.IsNullOrWhiteSpace(platform.Version)
+                    ? EditorPlatformProfileSettingsDocument.DefaultVersion
+                    : platform.Version,
                 Build = new EditorBuildProfileSettingsDocument {
                     SelectedBuildProfileId = platform.Build?.SelectedBuildProfileId ?? string.Empty,
                     SelectedOptionValues = CloneOptionValues(platform.Build?.SelectedOptionValues)
@@ -882,10 +930,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Positions the three tab buttons below the platform selector row.
+        /// Positions the platform version row below the platform selector.
+        /// </summary>
+        void LayoutVersion() {
+            float rowY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels();
+            VersionLabelHost.Position = new float3(GetPanelPaddingPixels(), rowY + GetPlatformLabelOffsetY(), 0.1f);
+            VersionTextBoxHost.Position = new float3(GetPanelPaddingPixels() + GetLabelColumnWidth() + GetLabelColumnSpacingPixels(), rowY, 0.1f);
+            VersionTextBox.Size = new int2(GetSettingValueWidth(), GetFieldRowHeightPixels());
+        }
+
+        /// <summary>
+        /// Positions the three tab buttons below the platform identity rows.
         /// </summary>
         void LayoutTabs() {
-            float rowY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels();
+            float rowY = GetTabsTop();
             BuildTabButtonHost.Position = new float3(GetPanelPaddingPixels(), rowY, 0.1f);
             GraphicsTabButtonHost.Position = new float3(GetPanelPaddingPixels() + GetTabButtonWidthPixels() + GetTabButtonSpacingPixels(), rowY, 0.1f);
             CodegenTabButtonHost.Position = new float3(GetPanelPaddingPixels() + ((GetTabButtonWidthPixels() + GetTabButtonSpacingPixels()) * 2f), rowY, 0.1f);
@@ -895,7 +953,7 @@ namespace helengine.editor {
         /// Positions the builder-defined settings sections beneath the active tab row.
         /// </summary>
         void LayoutSettingsSections() {
-            float contentTopY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels() + GetTabButtonHeightPixels() + GetTabContentSpacingPixels();
+            float contentTopY = GetTabsTop() + GetTabButtonHeightPixels() + GetTabContentSpacingPixels();
             BuildContentHost.Position = new float3(GetPanelPaddingPixels(), contentTopY, 0.1f);
             GraphicsContentHost.Position = new float3(GetPanelPaddingPixels(), contentTopY, 0.1f);
             CodegenContentHost.Position = new float3(GetPanelPaddingPixels(), contentTopY, 0.1f);
@@ -911,7 +969,7 @@ namespace helengine.editor {
         /// Positions the status text above the footer.
         /// </summary>
         void LayoutStatus() {
-            float statusY = GetPlatformSelectorTop() + GetFieldRowHeightPixels() + GetSectionSpacingPixels() + GetTabButtonHeightPixels() + GetTabContentSpacingPixels() + GetActiveSectionContentHeight() + GetStatusTopPadding();
+            float statusY = GetTabsTop() + GetTabButtonHeightPixels() + GetTabContentSpacingPixels() + GetActiveSectionContentHeight() + GetStatusTopPadding();
             float footerLimitY = DialogHeight - GetFooterHeightPixels() - GetFooterStatusBottomGap();
             if (statusY > footerLimitY) {
                 statusY = footerLimitY;
@@ -944,6 +1002,7 @@ namespace helengine.editor {
         /// </summary>
         protected override void HandleDialogLayoutChanged() {
             LayoutPlatformSelector();
+            LayoutVersion();
             LayoutTabs();
             LayoutSettingsSections();
             LayoutStatus();
@@ -956,6 +1015,16 @@ namespace helengine.editor {
         /// <returns>Scaled selector top position in pixels.</returns>
         float GetPlatformSelectorTop() {
             return DialogMetrics.ScalePixels(HeaderHeight + PanelPadding);
+        }
+
+        /// <summary>
+        /// Gets the scaled top position used by the tab row below both platform identity fields.
+        /// </summary>
+        /// <returns>Scaled tab-row top position in pixels.</returns>
+        float GetTabsTop() {
+            return GetPlatformSelectorTop()
+                + (GetFieldRowHeightPixels() * 2f)
+                + (GetSectionSpacingPixels() * 2f);
         }
 
         /// <summary>

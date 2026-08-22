@@ -136,8 +136,13 @@ namespace helengine.editor.tests {
         public void Show_WhenPlatformSelectionChanges_LoadsTheSelectedPlatformValues() {
             ProfilesDialog dialog = new ProfilesDialog(CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
+            document.Platforms[0].Version = "1.0.0";
+            document.Platforms[1].Version = "1.0.1";
 
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
+
+            TextBoxComponent versionTextBox = GetPrivateField<TextBoxComponent>(dialog, "VersionTextBox");
+            Assert.Equal("1.0.0", versionTextBox.Text);
 
             ComboBoxComponent platformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "PlatformComboBox");
             platformComboBox.SelectedIndex = 1;
@@ -156,6 +161,28 @@ namespace helengine.editor.tests {
             Assert.True(codegenSection.Items[1].CheckBox.IsChecked);
             Assert.False(codegenSection.Items[2].CheckBox.IsChecked);
             Assert.Equal("ps2", platformComboBox.SelectedItem);
+            Assert.Equal("1.0.1", versionTextBox.Text);
+        }
+
+        /// <summary>
+        /// Ensures saving the dialog returns an edited platform version without mutating the source document.
+        /// </summary>
+        [Fact]
+        public void HandleSaveClicked_PreservesEditedPlatformVersionInTheReturnedDocument() {
+            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            EditorProfileSettingsDocument document = CreateProfileDocument();
+            document.Platforms[0].Version = "1.0.0";
+
+            dialog.Show(document, new[] { "windows", "ps2" }, "windows", CreateSelectionModel());
+            TextBoxComponent versionTextBox = GetPrivateField<TextBoxComponent>(dialog, "VersionTextBox");
+            versionTextBox.Text = "1.0.1";
+
+            ProfilesDialogSelection selection = null;
+            dialog.ConfirmRequested += value => selection = value;
+            InvokePrivate(dialog, "HandleSaveClicked");
+
+            Assert.Equal("1.0.0", document.Platforms[0].Version);
+            Assert.Equal("1.0.1", selection.ProfileSettingsDocument.Platforms[0].Version);
         }
 
         /// <summary>
@@ -191,7 +218,9 @@ namespace helengine.editor.tests {
             EditorEntity buildTabButtonHost = GetPrivateField<EditorEntity>(dialog, "BuildTabButtonHost");
             EditorEntity buildContentHost = GetPrivateField<EditorEntity>(dialog, "BuildContentHost");
             EditorEntity platformComboBoxHost = GetPrivateField<EditorEntity>(dialog, "PlatformComboBoxHost");
+            EditorEntity versionTextBoxHost = GetPrivateField<EditorEntity>(dialog, "VersionTextBoxHost");
             ComboBoxComponent platformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "PlatformComboBox");
+            TextBoxComponent versionTextBox = GetPrivateField<TextBoxComponent>(dialog, "VersionTextBox");
             EditorPlatformSettingsSection buildSettingsSection = GetPrivateField<EditorPlatformSettingsSection>(dialog, "BuildSettingsSection");
             ButtonComponent buildTabButton = GetPrivateField<ButtonComponent>(dialog, "BuildTabButton");
             ButtonComponent saveButton = GetPrivateField<ButtonComponent>(dialog, "SaveButton");
@@ -200,11 +229,13 @@ namespace helengine.editor.tests {
             Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding + ProfilesDialog.LabelColumnWidth + 12), (int)Math.Round(platformComboBoxHost.LocalPosition.X));
             Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding), (int)Math.Round(platformComboBoxHost.LocalPosition.Y));
             Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.PlatformComboBoxWidth), metrics.ScalePixels(ProfilesDialog.FieldRowHeight)), platformComboBox.Size);
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing), (int)Math.Round(versionTextBoxHost.LocalPosition.Y));
+            Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.PanelWidth - (ProfilesDialog.PanelPadding * 2) - ProfilesDialog.LabelColumnWidth - 12), metrics.ScalePixels(ProfilesDialog.FieldRowHeight)), versionTextBox.Size);
             Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding), (int)Math.Round(buildTabButtonHost.LocalPosition.X));
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing), (int)Math.Round(buildTabButtonHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + (ProfilesDialog.FieldRowHeight * 2) + (ProfilesDialog.SectionSpacing * 2)), (int)Math.Round(buildTabButtonHost.LocalPosition.Y));
             Assert.Equal(new int2(metrics.ScalePixels(ProfilesDialog.TabButtonWidth), metrics.ScalePixels(ProfilesDialog.TabButtonHeight)), buildTabButton.Size);
             Assert.Equal(metrics.ScalePixels(ProfilesDialog.PanelPadding), (int)Math.Round(buildContentHost.LocalPosition.X));
-            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + ProfilesDialog.FieldRowHeight + ProfilesDialog.SectionSpacing + ProfilesDialog.TabButtonHeight + ProfilesDialog.TabContentSpacing), (int)Math.Round(buildContentHost.LocalPosition.Y));
+            Assert.Equal(metrics.ScalePixels(ProfilesDialog.HeaderHeight + ProfilesDialog.PanelPadding + (ProfilesDialog.FieldRowHeight * 2) + (ProfilesDialog.SectionSpacing * 2) + ProfilesDialog.TabButtonHeight + ProfilesDialog.TabContentSpacing), (int)Math.Round(buildContentHost.LocalPosition.Y));
             Assert.Equal(0, (int)Math.Round(buildSettingsSection.Root.LocalPosition.Y));
             Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), saveButton.Size);
             Assert.Equal(new int2(metrics.ScalePixels(88), metrics.ScalePixels(22)), cancelButton.Size);
