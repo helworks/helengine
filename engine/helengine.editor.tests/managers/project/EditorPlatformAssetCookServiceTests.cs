@@ -85,6 +85,36 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the selected platform profile controls the runtime version stamped into the cooked manifest.
+    /// </summary>
+    [Fact]
+    public void Cook_UsesPlatformProfileVersionForRuntimeManifest() {
+        Directory.CreateDirectory(Path.Combine(ProjectRootPath, "settings"));
+        File.WriteAllText(
+            Path.Combine(ProjectRootPath, "settings", "platform.windows.json"),
+            "{\"platformId\":\"windows\",\"version\":\"1.0.1\",\"build\":{},\"graphics\":{},\"codegen\":{},\"input\":{}}");
+        WriteSceneAsset("Scenes/MainMenu.helen", Array.Empty<SceneAssetReference>());
+
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            Array.Empty<IAssetImporterRegistration>(),
+            PackagedFontAssetFactory.Create());
+        TestPlatformMaterialAssetBuilder builder = new();
+
+        PlatformBuildManifest manifest = service.Cook(
+            builder.Definition,
+            new[] { "MainMenu" },
+            BuildRootPath,
+            new[] { "windows" },
+            builder);
+
+        Assert.Equal("1.0.1", manifest.PlatformVersion);
+    }
+
+    /// <summary>
     /// Ensures explicitly declared material files preserve producer identity without requiring serialized payload classification.
     /// </summary>
     [Fact]

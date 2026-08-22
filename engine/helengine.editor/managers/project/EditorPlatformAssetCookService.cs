@@ -125,13 +125,16 @@ namespace helengine.editor {
                 cookedArtifactDeclarations);
             Console.WriteLine("[helengine-editor] build cooked artifacts completed");
 
+            string platformName = ResolvePlatformName(platformDefinition, materialBuilder);
+            string platformVersion = ResolvePlatformVersion(platformName);
+
             PlatformBuildManifest manifest = new PlatformBuildManifest(
                 2,
                 ProjectId,
                 ProjectVersion,
                 RequiredEngineVersion,
-                ResolvePlatformName(platformDefinition, materialBuilder),
-                ResolvePlatformVersion(materialBuilder),
+                platformName,
+                platformVersion,
                 orderedSceneIds[0],
                 scenes,
                 Array.Empty<PlatformBuildAsset>(),
@@ -201,17 +204,29 @@ namespace helengine.editor {
         /// <param name="platformId">Stable platform identifier whose shared input settings should be loaded.</param>
         /// <returns>Runtime standard platform input configuration resolved from project settings.</returns>
         StandardPlatformInputConfiguration ResolveStandardPlatformInputConfiguration(string platformId) {
+            return StandardPlatformInputConfigurationFactory.Create(ResolvePlatformProfile(platformId));
+        }
+
+        /// <summary>
+        /// Resolves the normalized persisted profile for one platform.
+        /// </summary>
+        /// <param name="platformId">Stable platform identifier whose profile should be loaded.</param>
+        /// <returns>Normalized profile document for the requested platform.</returns>
+        EditorPlatformProfileSettingsDocument ResolvePlatformProfile(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
             EditorProfileSettingsDocument profileSettings = ProfileSettingsService.Load(new[] { platformId });
             for (int index = 0; index < profileSettings.Platforms.Count; index++) {
                 EditorPlatformProfileSettingsDocument platformSettings = profileSettings.Platforms[index];
-                if (!string.Equals(platformSettings.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
+                if (platformSettings != null
+                    && string.Equals(platformSettings.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                    return platformSettings;
                 }
-
-                return StandardPlatformInputConfigurationFactory.Create(platformSettings);
             }
 
-            return StandardPlatformInputConfiguration.Empty;
+            throw new InvalidOperationException($"Platform profile '{platformId}' could not be resolved.");
         }
 
         /// <summary>
@@ -253,19 +268,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the builder-stamped platform version that should be reported by the running artifact.
+        /// Resolves the profile-stamped platform version that should be reported by the running artifact.
         /// </summary>
-        /// <param name="builder">Loaded platform builder used by the build graph.</param>
-        /// <returns>Builder-stamped runtime platform version string.</returns>
-        static string ResolvePlatformVersion(IPlatformAssetBuilder builder) {
-            if (builder?.Descriptor == null) {
-                throw new InvalidOperationException("Platform builder descriptor is required to stamp runtime platform version metadata.");
-            }
-            if (string.IsNullOrWhiteSpace(builder.Descriptor.BuilderVersion)) {
-                throw new InvalidOperationException("Platform builder descriptor must declare a builder version.");
-            }
-
-            return builder.Descriptor.BuilderVersion;
+        /// <param name="platformId">Stable platform identifier whose profile owns the version.</param>
+        /// <returns>Profile-stamped runtime platform version string.</returns>
+        string ResolvePlatformVersion(string platformId) {
+            EditorPlatformProfileSettingsDocument platform = ResolvePlatformProfile(platformId);
+            return string.IsNullOrWhiteSpace(platform.Version)
+                ? EditorPlatformProfileSettingsDocument.DefaultVersion
+                : platform.Version.Trim();
         }
 
         PlatformBuildScene[] BuildSceneEntries(IReadOnlyList<string> orderedSceneIds, IReadOnlyList<string> orderedSceneIdentityPaths, string cookRootPath) {
