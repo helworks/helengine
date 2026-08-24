@@ -13,6 +13,11 @@ namespace helengine.editor {
         const string ImportSettingsExtension = ".hasset";
 
         /// <summary>
+        /// Shared file classifier used by the asset browser and identity services.
+        /// </summary>
+        readonly EditorAssetPathClassifier pathClassifier;
+
+        /// <summary>
         /// Extensions treated as image assets.
         /// </summary>
         readonly HashSet<string> imageExtensions = new HashSet<string>(TextureImportFormatCatalog.AllTextureExtensions, StringComparer.OrdinalIgnoreCase);
@@ -85,6 +90,7 @@ namespace helengine.editor {
         public EditorAssetManager(string projectPath) {
             assetsRootPath = ResolveAssetsRoot(projectPath);
             currentRelativePath = string.Empty;
+            pathClassifier = new EditorAssetPathClassifier();
         }
 
         /// <summary>
@@ -155,10 +161,10 @@ namespace helengine.editor {
 
                     string relativePath = CombineRelativePath(currentRelativePath, name);
                     string extension = Path.GetExtension(filePath);
-                    if (ShouldHideFile(filePath, extension)) {
+                    if (pathClassifier.ShouldHide(filePath)) {
                         continue;
                     }
-                    AssetEntryKind entryKind = ClassifyEntryKind(filePath, extension);
+                    AssetEntryKind entryKind = pathClassifier.Classify(filePath);
                     entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind));
                 }
             } catch (Exception ex) {
@@ -212,7 +218,7 @@ namespace helengine.editor {
                 return AssetEntryKind.Directory;
             }
 
-            return ClassifyEntryKind(entry.FullPath, entry.Extension);
+            return pathClassifier.Classify(entry.FullPath);
         }
 
         /// <summary>
