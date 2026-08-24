@@ -20,6 +20,9 @@ namespace helengine.editor {
         /// </summary>
         public List<string> SelectedSceneIds { get; set; } = [];
 
+        /// <summary>Gets or sets canonical stable references captured for this queued build.</summary>
+        public List<SceneAssetReference> SelectedSceneReferences { get; set; } = [];
+
         /// <summary>
         /// Gets or sets the user-selected output directory path for this queued build.
         /// </summary>
@@ -130,6 +133,9 @@ namespace helengine.editor {
                 QueueItemId = Guid.NewGuid().ToString("N"),
                 PlatformId = platformConfig.PlatformId,
                 SelectedSceneIds = orderedSceneIds,
+                SelectedSceneReferences = platformConfig.SelectedSceneReferences != null
+                    ? new List<SceneAssetReference>(platformConfig.SelectedSceneReferences)
+                    : [],
                 OutputDirectoryPath = Path.GetFullPath(outputDirectoryPath),
                 DebugBuild = platformConfig.DebugBuild,
                 SelectedEnvironmentId = ResolveSelectedEnvironmentId(platformConfig, platformConfig.SelectedBuildProfileId),

@@ -135,7 +135,7 @@ namespace helengine.editor {
         /// <summary>
         /// Converts picked browser entries into stable scene asset references.
         /// </summary>
-        readonly SceneAssetReferenceFactory AssetReferenceFactory;
+        SceneAssetReferenceFactory AssetReferenceFactory;
         /// <summary>
         /// Resolves file-system model source files through the processed model cache.
         /// </summary>
@@ -386,6 +386,14 @@ namespace helengine.editor {
             CurrentPlatformId = ComponentPlatformEditingService.CommonPlatformId;
             CurrentEnvironmentId = string.Empty;
             PlatformDefinitionsById = new Dictionary<string, PlatformDefinition>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Routes file-backed asset selections through the project identity resolver.
+        /// </summary>
+        /// <param name="resolver">Project-scoped authored asset resolver.</param>
+        public void SetAssetReferenceResolver(EditorAssetReferenceResolver resolver) {
+            AssetReferenceFactory = new SceneAssetReferenceFactory(resolver ?? throw new ArgumentNullException(nameof(resolver)));
         }
 
         /// <summary>

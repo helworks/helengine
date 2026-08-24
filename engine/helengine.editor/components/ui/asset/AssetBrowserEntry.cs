@@ -14,7 +14,8 @@ namespace helengine.editor {
         /// <param name="sourceKind">Backing source for the entry metadata.</param>
         /// <param name="entryKind">Visual category used by the browser row.</param>
         /// <param name="providerId">Stable provider identifier for generated entries.</param>
-        /// <param name="assetId">Stable generated asset identifier for generated assets.</param>
+        /// <param name="assetId">Stable generated or authored asset identifier.</param>
+        /// <param name="contentHash">Content hash for authored file entries.</param>
         public AssetBrowserEntry(
             string name,
             string relativePath,
@@ -24,7 +25,8 @@ namespace helengine.editor {
             AssetBrowserEntrySourceKind sourceKind,
             AssetEntryKind entryKind,
             string providerId,
-            string assetId) {
+            string assetId,
+            string contentHash = "") {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Entry name must be provided.", nameof(name));
             }
@@ -38,6 +40,7 @@ namespace helengine.editor {
             EntryKind = entryKind;
             ProviderId = providerId ?? string.Empty;
             AssetId = assetId ?? string.Empty;
+            ContentHash = contentHash ?? string.Empty;
         }
 
         /// <summary>
@@ -69,7 +72,7 @@ namespace helengine.editor {
         /// <param name="extension">File extension including the dot.</param>
         /// <param name="entryKind">Visual category used by the browser row.</param>
         /// <returns>Filesystem-backed file entry.</returns>
-        public static AssetBrowserEntry CreateFileSystemFile(string name, string relativePath, string fullPath, string extension, AssetEntryKind entryKind) {
+        public static AssetBrowserEntry CreateFileSystemFile(string name, string relativePath, string fullPath, string extension, AssetEntryKind entryKind, string assetId = "", string contentHash = "") {
             return new AssetBrowserEntry(
                 name,
                 relativePath,
@@ -79,7 +82,8 @@ namespace helengine.editor {
                 AssetBrowserEntrySourceKind.FileSystem,
                 entryKind,
                 string.Empty,
-                string.Empty);
+                assetId,
+                contentHash);
         }
 
         /// <summary>
@@ -168,6 +172,11 @@ namespace helengine.editor {
         /// Gets the stable generated asset identifier for generated assets.
         /// </summary>
         public string AssetId { get; }
+
+        /// <summary>
+        /// Gets the cached content hash for authored filesystem entries.
+        /// </summary>
+        public string ContentHash { get; }
 
         /// <summary>
         /// Gets a value indicating whether this entry is supplied by a generated asset provider.

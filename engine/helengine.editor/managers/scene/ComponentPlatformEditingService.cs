@@ -1531,6 +1531,13 @@ namespace helengine.editor {
             public AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference) {
                 throw new InvalidOperationException("Detached platform override editing does not support animation clip reconstruction through the scene resolver.");
             }
+
+            /// <summary>Rejects unexpected audio resolution for detached override editing.</summary>
+            /// <param name="reference">Reference that was unexpectedly requested.</param>
+            /// <returns>This method never returns.</returns>
+            public AudioAsset ResolveAudio(SceneAssetReference reference) {
+                throw new InvalidOperationException("Detached platform override editing does not support audio asset reconstruction through the scene resolver.");
+            }
         }
     }
 }

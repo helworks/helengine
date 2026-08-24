@@ -73,6 +73,30 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Replaces matching references after authored-asset recovery.
+        /// </summary>
+        /// <param name="replacements">Old-to-canonical reference map.</param>
+        /// <returns>True when at least one reference changed.</returns>
+        public bool ReplaceAssetReferences(IReadOnlyDictionary<SceneAssetReference, SceneAssetReference> replacements) {
+            if (replacements == null) {
+                throw new ArgumentNullException(nameof(replacements));
+            }
+            bool changed = false;
+            List<string> names = new List<string>(AssetReferencesByName.Keys);
+            for (int index = 0; index < names.Count; index++) {
+                SceneAssetReference current = AssetReferencesByName[names[index]];
+                if (replacements.TryGetValue(current, out SceneAssetReference replacement) && replacement != null) {
+                    AssetReferencesByName[names[index]] = replacement;
+                    changed = true;
+                }
+            }
+            foreach (EntityComponentPlatformOverrideState overrideState in PlatformOverridesByScope.EnumerateValues()) {
+                changed |= overrideState.ReplaceAssetReferences(replacements);
+            }
+            return changed;
+        }
+
+        /// <summary>
         /// Stores one named platform override payload for this component.
         /// </summary>
         /// <param name="platformId">Platform identifier that owns the override payload.</param>

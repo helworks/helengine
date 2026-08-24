@@ -4,6 +4,19 @@ namespace helengine.editor {
     /// </summary>
     public class SceneAssetReferenceFactory {
         /// <summary>
+        /// Optional resolver used to canonicalize file-backed browser selections.
+        /// </summary>
+        readonly EditorAssetReferenceResolver resolver;
+
+        /// <summary>
+        /// Initializes a scene reference factory.
+        /// </summary>
+        /// <param name="resolver">Optional editor asset reference resolver.</param>
+        public SceneAssetReferenceFactory(EditorAssetReferenceResolver resolver = null) {
+            this.resolver = resolver;
+        }
+
+        /// <summary>
         /// Creates one stable scene asset reference from an asset-browser entry.
         /// </summary>
         /// <param name="entry">Selected browser entry to convert.</param>
@@ -25,7 +38,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entry">Selected file-backed browser entry to convert.</param>
         /// <returns>Stable file-backed scene asset reference.</returns>
-        static SceneAssetReference CreateFileSystemFromEntry(AssetBrowserEntry entry) {
+        SceneAssetReference CreateFileSystemFromEntry(AssetBrowserEntry entry) {
+            if (resolver != null && !string.IsNullOrWhiteSpace(entry.FullPath)) {
+                return resolver.CreateFileReference(entry.FullPath, entry.EntryKind);
+            }
+            if (!string.IsNullOrWhiteSpace(entry.AssetId) && !string.IsNullOrWhiteSpace(entry.ContentHash)) {
+                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(entry.AssetId, entry.RelativePath, entry.ContentHash);
+            }
             if (entry.EntryKind == AssetEntryKind.Image) {
                 return global::helengine.SceneAssetReferenceFactory.CreateFileSystemTexture(entry.RelativePath);
             }

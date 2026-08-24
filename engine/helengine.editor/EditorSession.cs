@@ -674,6 +674,8 @@ namespace helengine.editor {
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
+            EditorAssetReferenceResolver authoredAssetReferenceResolver = new EditorAssetReferenceResolver(this.projectPath);
+            propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath);
@@ -709,7 +711,7 @@ namespace helengine.editor {
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
             sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
-            sceneAssetReferenceFactory = new SceneAssetReferenceFactory();
+            sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
             sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
@@ -2573,6 +2575,10 @@ namespace helengine.editor {
 
             string blueprintAssetPath = ResolveAssetRelativePath(entry.FullPath);
             EditorEntity entity = SceneCreationService.CreateBlueprintInstance(BuildModelEntityName(entry), blueprintAssetPath);
+            BlueprintInstanceComponent instanceComponent = entity.Components.OfType<BlueprintInstanceComponent>().FirstOrDefault();
+            if (instanceComponent != null && !entry.IsGenerated && !string.IsNullOrWhiteSpace(entry.AssetId) && !string.IsNullOrWhiteSpace(entry.ContentHash)) {
+                instanceComponent.BlueprintAssetReference = sceneAssetReferenceFactory.CreateFromEntry(entry);
+            }
             SceneFileLoadService.ExpandBlueprintInstanceRoot(entity);
             entity.Position = ResolveAddToScenePlacementPosition();
             return entity;
@@ -3307,6 +3313,9 @@ namespace helengine.editor {
             string materialFullPath = Path.GetFullPath(Path.Combine(sourceDirectoryPath, generatedMaterial.RelativeMaterialPath));
             string assetsRootPath = ResolveAssetsRootPath(projectPath);
             string relativePath = Path.GetRelativePath(assetsRootPath, materialFullPath).Replace('\\', '/');
+            if (File.Exists(materialFullPath)) {
+                return new EditorAssetReferenceResolver(projectPath).CreateFileReference(materialFullPath, AssetEntryKind.Material);
+            }
             return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
         }
 

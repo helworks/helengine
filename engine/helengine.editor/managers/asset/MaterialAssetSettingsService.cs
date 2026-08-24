@@ -1166,6 +1166,14 @@ namespace helengine.editor {
                     clone.FieldValues[entry.Key] = entry.Value;
                 }
             }
+            clone.AssetReferenceValues = new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase);
+            if (source.AssetReferenceValues != null) {
+                foreach (KeyValuePair<string, SceneAssetReference> entry in source.AssetReferenceValues) {
+                    if (!string.IsNullOrWhiteSpace(entry.Key) && entry.Value != null) {
+                        clone.AssetReferenceValues[entry.Key] = entry.Value;
+                    }
+                }
+            }
 
             return clone;
         }
@@ -1188,16 +1196,24 @@ namespace helengine.editor {
             if (destination.FieldValues == null) {
                 destination.FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             }
-            if (overrideSettings.FieldValues == null) {
-                return;
-            }
+            if (overrideSettings.FieldValues != null) {
+                foreach (KeyValuePair<string, string> entry in overrideSettings.FieldValues) {
+                    if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) {
+                        continue;
+                    }
 
-            foreach (KeyValuePair<string, string> entry in overrideSettings.FieldValues) {
-                if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) {
-                    continue;
+                    destination.FieldValues[entry.Key] = entry.Value;
                 }
-
-                destination.FieldValues[entry.Key] = entry.Value;
+            }
+            if (destination.AssetReferenceValues == null) {
+                destination.AssetReferenceValues = new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase);
+            }
+            if (overrideSettings.AssetReferenceValues != null) {
+                foreach (KeyValuePair<string, SceneAssetReference> entry in overrideSettings.AssetReferenceValues) {
+                    if (!string.IsNullOrWhiteSpace(entry.Key) && entry.Value != null) {
+                        destination.AssetReferenceValues[entry.Key] = entry.Value;
+                    }
+                }
             }
         }
 

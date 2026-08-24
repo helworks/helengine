@@ -100,6 +100,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Enumerates save-state containers held by this hidden component.
+        /// </summary>
+        /// <returns>Component save states.</returns>
+        public IEnumerable<EntityComponentSaveState> EnumerateComponentStates() {
+            return SaveStatesByComponent.Values;
+        }
+
+        /// <summary>
         /// Stores one named asset reference for one component.
         /// </summary>
         /// <param name="component">Component that owns the reference.</param>

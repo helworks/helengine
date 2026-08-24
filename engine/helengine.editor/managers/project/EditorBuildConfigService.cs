@@ -13,6 +13,10 @@ namespace helengine.editor {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
+        static EditorBuildConfigService() {
+            JsonSerializerOptions.Converters.Add(new SceneAssetReferenceJsonConverter());
+        }
+
         /// <summary>
         /// Gets the absolute path to the current project root directory.
         /// </summary>
@@ -116,6 +120,7 @@ namespace helengine.editor {
                     }
 
                     platform.SelectedSceneIds ??= [];
+                    platform.SelectedSceneReferences ??= [];
                     platform.SceneOrders ??= [];
                     platform.SelectedBuildProfileId ??= string.Empty;
                     platform.EditorPrebuildCommandIdsByBuildProfileId ??= [];
@@ -144,6 +149,7 @@ namespace helengine.editor {
                     }
 
                     queueItem.SelectedSceneIds ??= [];
+                    queueItem.SelectedSceneReferences ??= [];
                     queueItem.SelectedBuildProfileId ??= string.Empty;
                     queueItem.SelectedGraphicsProfileId ??= string.Empty;
                     queueItem.SelectedBuildOptionValues ??= [];

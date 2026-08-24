@@ -14,6 +14,11 @@ namespace helengine.editor {
         public List<string> SelectedSceneIds { get; set; } = [];
 
         /// <summary>
+        /// Gets or sets canonical stable references for selected authored or generated scenes.
+        /// </summary>
+        public List<SceneAssetReference> SelectedSceneReferences { get; set; } = [];
+
+        /// <summary>
         /// Gets or sets the per-scene ordering values used to sort selected scenes before a build request is queued.
         /// </summary>
         public List<EditorBuildSceneOrderDocument> SceneOrders { get; set; } = [];

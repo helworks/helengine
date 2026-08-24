@@ -10,8 +10,13 @@ namespace helengine.editor {
         /// </summary>
         static JsonSerializerOptions JsonSerializerOptions { get; } = new JsonSerializerOptions {
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
+
+        static EditorSessionStateService() {
+            JsonSerializerOptions.Converters.Add(new SceneAssetReferenceJsonConverter());
+        }
 
         /// <summary>
         /// Absolute project root that owns the local session state file.
@@ -50,6 +55,9 @@ namespace helengine.editor {
                 }
 
                 EditorSessionStateDocument document = JsonSerializer.Deserialize<EditorSessionStateDocument>(File.ReadAllText(StateFilePath), JsonSerializerOptions);
+                if (document?.LastSceneReference != null) {
+                    return ResolveReferencePath(document.LastSceneReference);
+                }
                 if (string.IsNullOrWhiteSpace(document?.LastScenePath)) {
                     return null;
                 }
@@ -78,14 +86,34 @@ namespace helengine.editor {
                 string storedPath = fullPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)
                     ? Path.GetRelativePath(ProjectRootPath, fullPath)
                     : fullPath;
+                SceneAssetReference reference = null;
+                string assetsRoot = Path.Combine(ProjectRootPath, "assets");
+                if (fullPath.StartsWith(assetsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && File.Exists(fullPath)) {
+                    AssetEntryKind kind = new EditorAssetPathClassifier().Classify(fullPath);
+                    AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService();
+                    AssetIdentityMetadataDocument metadata = metadataService.LoadOrCreate(fullPath, string.Empty);
+                    string hash = new EditorAssetHashCache(ProjectRootPath).GetContentHash(fullPath);
+                    reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(metadata.AssetId, Path.GetRelativePath(assetsRoot, fullPath).Replace('\\', '/'), hash);
+                }
                 Directory.CreateDirectory(Path.Combine(ProjectRootPath, "user_settings"));
                 File.WriteAllText(StateFilePath, JsonSerializer.Serialize(new EditorSessionStateDocument {
-                    LastScenePath = storedPath
+                    LastScenePath = reference == null ? storedPath : null,
+                    LastSceneReference = reference
                 }, JsonSerializerOptions));
             } catch (Exception ex) {
                 // Failing to persist session state must never fail the scene operation that triggered it.
                 Logger.WriteError($"Editor session state write failed: {ex.Message}");
             }
+        }
+
+        /// <summary>Resolves a typed scene reference to its current project path.</summary>
+        string ResolveReferencePath(SceneAssetReference reference) {
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                return Path.Combine(ProjectRootPath, reference.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+            }
+            EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+            AssetReferenceResolution resolution = resolver.Resolve(reference, AssetEntryKind.Scene);
+            return resolution.FullPath;
         }
     }
 }

@@ -27,6 +27,8 @@ namespace helengine.editor {
         /// Service used to inspect authored material settings documents.
         /// </summary>
         readonly MaterialAssetSettingsService MaterialAssetSettingsService;
+        /// <summary>Project-scoped resolver used to create canonical authored references.</summary>
+        readonly EditorAssetReferenceResolver AssetReferenceResolver;
 
         /// <summary>
         /// Cached authored model source paths keyed by their stable imported model asset id.
@@ -50,6 +52,7 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
             MaterialAssetSettingsService = new MaterialAssetSettingsService();
+            AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
         }
 
         /// <summary>
@@ -248,7 +251,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemModel(relativePath);
+            reference = AssetReferenceResolver.CreateFileReference(Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)), AssetEntryKind.Model);
             return true;
         }
 
@@ -300,7 +303,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
+            reference = AssetReferenceResolver.CreateFileReference(Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)), AssetEntryKind.Material);
             return true;
         }
 

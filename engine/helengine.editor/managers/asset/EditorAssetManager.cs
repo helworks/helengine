@@ -18,6 +18,16 @@ namespace helengine.editor {
         readonly EditorAssetPathClassifier pathClassifier;
 
         /// <summary>
+        /// Sidecar service used to provide stable authored identities.
+        /// </summary>
+        readonly AssetIdentityMetadataService identityMetadataService;
+
+        /// <summary>
+        /// Project-scoped content hash cache.
+        /// </summary>
+        readonly EditorAssetHashCache identityHashCache;
+
+        /// <summary>
         /// Extensions treated as image assets.
         /// </summary>
         readonly HashSet<string> imageExtensions = new HashSet<string>(TextureImportFormatCatalog.AllTextureExtensions, StringComparer.OrdinalIgnoreCase);
@@ -91,6 +101,9 @@ namespace helengine.editor {
             assetsRootPath = ResolveAssetsRoot(projectPath);
             currentRelativePath = string.Empty;
             pathClassifier = new EditorAssetPathClassifier();
+            string projectRootPath = Path.GetDirectoryName(assetsRootPath) ?? Directory.GetCurrentDirectory();
+            identityMetadataService = new AssetIdentityMetadataService();
+            identityHashCache = new EditorAssetHashCache(projectRootPath);
         }
 
         /// <summary>
@@ -165,7 +178,9 @@ namespace helengine.editor {
                         continue;
                     }
                     AssetEntryKind entryKind = pathClassifier.Classify(filePath);
-                    entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind));
+                    AssetIdentityMetadataDocument metadata = identityMetadataService.LoadOrCreate(filePath, string.Empty);
+                    string contentHash = identityHashCache.GetContentHash(filePath);
+                    entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind, metadata.AssetId, contentHash));
                 }
             } catch (Exception ex) {
                 System.Diagnostics.Debug.WriteLine($"Asset browser refresh failed: {ex.Message}");

@@ -37,5 +37,10 @@ namespace helengine.editor {
         /// <param name="reference">Stable scene asset reference to resolve.</param>
         /// <returns>Animation clip asset resolved from the reference.</returns>
         AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference);
+
+        /// <summary>Resolves one stable scene asset reference into a runtime audio asset.</summary>
+        /// <param name="reference">Stable scene asset reference to resolve.</param>
+        /// <returns>Audio asset resolved from the reference.</returns>
+        AudioAsset ResolveAudio(SceneAssetReference reference);
     }
 }

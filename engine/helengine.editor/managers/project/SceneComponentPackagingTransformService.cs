@@ -2236,7 +2236,10 @@ namespace helengine.editor {
                 SchemaId = platformMaterialSettings.SchemaId,
                 FieldValues = platformMaterialSettings.FieldValues != null
                     ? new Dictionary<string, string>(platformMaterialSettings.FieldValues, StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                AssetReferenceValues = platformMaterialSettings.AssetReferenceValues != null
+                    ? new Dictionary<string, SceneAssetReference>(platformMaterialSettings.AssetReferenceValues, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase)
             };
         }
 
@@ -2256,6 +2259,13 @@ namespace helengine.editor {
             Dictionary<string, string> fieldValues = materialSettings.FieldValues != null
                 ? new Dictionary<string, string>(materialSettings.FieldValues, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (materialSettings.AssetReferenceValues != null) {
+                foreach (KeyValuePair<string, SceneAssetReference> referenceEntry in materialSettings.AssetReferenceValues) {
+                    fieldValues[referenceEntry.Key] = referenceEntry.Value.SourceKind == SceneAssetReferenceSourceKind.Generated
+                        ? referenceEntry.Value.AssetId
+                        : referenceEntry.Value.RelativePath;
+                }
+            }
 
             fieldValues["casts-shadows"] = materialAsset.CastsShadows ? "true" : "false";
             fieldValues["receives-shadows"] = materialAsset.ReceivesShadows ? "true" : "false";

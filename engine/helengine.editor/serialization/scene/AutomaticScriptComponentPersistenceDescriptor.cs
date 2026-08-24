@@ -751,6 +751,9 @@ namespace helengine.editor {
             if (valueType == typeof(AnimationClipAsset)) {
                 return referenceResolver.ResolveAnimationClip(reference);
             }
+            if (valueType == typeof(AudioAsset)) {
+                return referenceResolver.ResolveAudio(reference);
+            }
 
             throw new InvalidOperationException($"Automatic script-component persistence does not support asset-backed member type '{valueType.FullName}'.");
         }

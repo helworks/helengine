@@ -12,6 +12,8 @@ namespace helengine.editor {
         /// Blueprint-load service reused to materialize source blueprint entities.
         /// </summary>
         readonly BlueprintLoadService BlueprintLoadService;
+        /// <summary>Project-scoped resolver for canonical blueprint references.</summary>
+        readonly EditorAssetReferenceResolver AssetReferenceResolver;
 
         /// <summary>
         /// Initializes a new blueprint editor expansion service.
@@ -35,6 +37,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver);
+            AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
         }
 
         /// <summary>
@@ -47,13 +50,13 @@ namespace helengine.editor {
             }
 
             BlueprintInstanceComponent instanceComponent = FindBlueprintInstanceComponent(instanceRoot);
-            if (instanceComponent == null || string.IsNullOrWhiteSpace(instanceComponent.BlueprintAssetPath)) {
+            if (instanceComponent == null || (instanceComponent.BlueprintAssetReference == null && string.IsNullOrWhiteSpace(instanceComponent.BlueprintAssetPath))) {
                 return;
             }
 
             RemoveExpandedChildren(instanceRoot);
 
-            string blueprintFullPath = ResolveBlueprintFullPath(instanceComponent.BlueprintAssetPath);
+            string blueprintFullPath = ResolveBlueprintFullPath(instanceComponent);
             using FileStream stream = new FileStream(blueprintFullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             Asset asset = AssetSerializer.Deserialize(stream);
             if (asset is not BlueprintAsset blueprintAsset) {
@@ -65,7 +68,8 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Blueprint instance expansion did not materialize a root entity.");
             }
 
-            MarkInheritedSubtree(loadedBlueprint.RootEntity, instanceComponent.BlueprintAssetPath);
+            string inheritedPath = instanceComponent.BlueprintAssetReference?.RelativePath ?? instanceComponent.BlueprintAssetPath;
+            MarkInheritedSubtree(loadedBlueprint.RootEntity, inheritedPath);
             instanceRoot.AddChild(loadedBlueprint.RootEntity);
         }
 
@@ -162,16 +166,22 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="blueprintAssetPath">Project-relative blueprint asset path.</param>
         /// <returns>Absolute blueprint file path.</returns>
-        string ResolveBlueprintFullPath(string blueprintAssetPath) {
-            if (string.IsNullOrWhiteSpace(blueprintAssetPath)) {
+        string ResolveBlueprintFullPath(BlueprintInstanceComponent instanceComponent) {
+            if (instanceComponent.BlueprintAssetReference != null) {
+                AssetReferenceResolution resolution = AssetReferenceResolver.Resolve(instanceComponent.BlueprintAssetReference, AssetEntryKind.Blueprint);
+                instanceComponent.BlueprintAssetReference = resolution.CanonicalReference;
+                return resolution.FullPath;
+            }
+            if (string.IsNullOrWhiteSpace(instanceComponent.BlueprintAssetPath)) {
                 throw new InvalidOperationException("Blueprint instance roots must define a blueprint asset path.");
             }
-
-            string fullPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", blueprintAssetPath.Replace('/', Path.DirectorySeparatorChar)));
+            string fullPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", instanceComponent.BlueprintAssetPath.Replace('/', Path.DirectorySeparatorChar)));
             if (!fullPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
                 throw new InvalidOperationException("Blueprint instance asset path must stay inside the current project.");
             }
-
+            if (File.Exists(fullPath)) {
+                instanceComponent.BlueprintAssetReference = AssetReferenceResolver.CreateFileReference(fullPath, AssetEntryKind.Blueprint);
+            }
             return fullPath;
         }
 

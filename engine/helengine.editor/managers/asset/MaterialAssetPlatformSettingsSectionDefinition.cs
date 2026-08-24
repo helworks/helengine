@@ -39,6 +39,9 @@ namespace helengine.editor {
             foreach (KeyValuePair<string, string> pair in source.FieldValues) {
                 clone.FieldValues[pair.Key] = pair.Value;
             }
+            foreach (KeyValuePair<string, SceneAssetReference> pair in source.AssetReferenceValues) {
+                clone.AssetReferenceValues[pair.Key] = pair.Value;
+            }
 
             return clone;
         }
@@ -54,7 +57,7 @@ namespace helengine.editor {
             MaterialAssetProcessorSettings rightSettings = RequireSettings(right);
             if (!string.Equals(leftSettings.SchemaId, rightSettings.SchemaId, StringComparison.Ordinal)) {
                 return false;
-            } else if (leftSettings.FieldValues.Count != rightSettings.FieldValues.Count) {
+            } else if (leftSettings.FieldValues.Count != rightSettings.FieldValues.Count || leftSettings.AssetReferenceValues.Count != rightSettings.AssetReferenceValues.Count) {
                 return false;
             }
 
@@ -62,6 +65,12 @@ namespace helengine.editor {
                 if (!rightSettings.FieldValues.TryGetValue(pair.Key, out string otherValue)) {
                     return false;
                 } else if (!string.Equals(pair.Value, otherValue, StringComparison.Ordinal)) {
+                    return false;
+                }
+            }
+
+            foreach (KeyValuePair<string, SceneAssetReference> pair in leftSettings.AssetReferenceValues) {
+                if (!rightSettings.AssetReferenceValues.TryGetValue(pair.Key, out SceneAssetReference otherReference) || !ReferenceEquals(pair.Value, otherReference) && !string.Equals(pair.Value?.AssetId, otherReference?.AssetId, StringComparison.Ordinal)) {
                     return false;
                 }
             }
