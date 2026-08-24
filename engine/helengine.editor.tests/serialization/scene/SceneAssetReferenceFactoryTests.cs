@@ -1,5 +1,6 @@
 using System.Reflection;
 using Xunit;
+using helengine.editor;
 
 namespace helengine.editor.tests.serialization.scene;
 
@@ -17,7 +18,40 @@ public sealed class SceneAssetReferenceFactoryTests {
         Assert.False(typeof(SceneAssetReference).GetProperty(nameof(SceneAssetReference.RelativePath))?.CanWrite ?? true);
         Assert.False(typeof(SceneAssetReference).GetProperty(nameof(SceneAssetReference.ProviderId))?.CanWrite ?? true);
         Assert.False(typeof(SceneAssetReference).GetProperty(nameof(SceneAssetReference.AssetId))?.CanWrite ?? true);
+        Assert.False(typeof(SceneAssetReference).GetProperty(nameof(SceneAssetReference.ContentHash))?.CanWrite ?? true);
         Assert.Null(typeof(global::helengine.SceneAssetReferenceFactory).GetMethod("Rehydrate", BindingFlags.Public | BindingFlags.Static));
+    }
+
+    /// <summary>
+    /// Ensures a file-backed reference preserves its stable identity and content hash alongside its path.
+    /// </summary>
+    [Fact]
+    public void CreateFileSystemReference_ReturnsStableIdentityPathAndHash() {
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "00112233445566778899aabbccddeeff",
+            "Textures/Shared.png",
+            "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+
+        Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, reference.SourceKind);
+        Assert.Equal("00112233445566778899aabbccddeeff", reference.AssetId);
+        Assert.Equal("Textures/Shared.png", reference.RelativePath);
+        Assert.Equal("sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", reference.ContentHash);
+        Assert.Equal(string.Empty, reference.ProviderId);
+    }
+
+    /// <summary>
+    /// Ensures invalid stable identity and hash values are rejected before a reference can be persisted.
+    /// </summary>
+    [Fact]
+    public void CreateFileSystemReference_RejectsInvalidIdentityAndHash() {
+        Assert.Throws<ArgumentException>(() => global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "not-a-guid",
+            "Textures/Shared.png",
+            "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+        Assert.Throws<ArgumentException>(() => global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "00112233445566778899aabbccddeeff",
+            "Textures/Shared.png",
+            "sha256:bad"));
     }
 
     /// <summary>
@@ -31,6 +65,46 @@ public sealed class SceneAssetReferenceFactoryTests {
         Assert.Equal("Fonts/DemoDiscBody.ttf", reference.RelativePath);
         Assert.Equal(string.Empty, reference.ProviderId);
         Assert.Equal(string.Empty, reference.AssetId);
+        Assert.Equal(string.Empty, reference.ContentHash);
+    }
+
+    /// <summary>
+    /// Ensures the legacy four-field reference payload remains readable with an empty recovery hash.
+    /// </summary>
+    [Fact]
+    public void ReadLegacyFourFieldReference_LeavesContentHashEmpty() {
+        SceneAssetReference reference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+            SceneAssetReferenceSourceKind.FileSystem,
+            "Textures/Legacy.png",
+            string.Empty,
+            string.Empty);
+
+        Assert.Equal("Textures/Legacy.png", reference.RelativePath);
+        Assert.Equal(string.Empty, reference.AssetId);
+        Assert.Equal(string.Empty, reference.ContentHash);
+    }
+
+    /// <summary>
+    /// Ensures nested component payload version one carries the canonical content hash.
+    /// </summary>
+    [Fact]
+    public void SceneComponentReferenceEncoding_VersionOne_RoundTripsContentHash() {
+        SceneAssetReference original = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "00112233445566778899aabbccddeeff",
+            "Textures/Shared.png",
+            "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+        using MemoryStream stream = new MemoryStream();
+        using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
+            SceneComponentBinaryFieldEncoding.WriteOptionalReference(writer, original, 1);
+        }
+
+        stream.Position = 0;
+        using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian, true);
+        SceneAssetReference roundTrip = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader, 1);
+
+        Assert.Equal(original.AssetId, roundTrip.AssetId);
+        Assert.Equal(original.RelativePath, roundTrip.RelativePath);
+        Assert.Equal(original.ContentHash, roundTrip.ContentHash);
     }
 
     /// <summary>

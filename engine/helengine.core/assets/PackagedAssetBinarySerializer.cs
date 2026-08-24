@@ -16,7 +16,13 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 22;
+        public const byte CurrentVersion = 23;
+
+        /// <summary>
+        /// First asset version whose scene reference table includes the editor recovery hash field.
+        /// Packaged writers may leave this field empty after resolving authored references.
+        /// </summary>
+        const byte AssetReferenceContentHashVersion = 23;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -626,7 +632,7 @@ namespace helengine {
             asset.RootEntities = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>();
             EngineBinaryReadContext.CurrentReadStage = "SceneAsset:AssetReferences";
             asset.AssetReferences = version >= 4
-                ? ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>()
+                ? ReadSceneAssetReferenceArray(reader, version >= AssetReferenceContentHashVersion) ?? Array.Empty<SceneAssetReference>()
                 : Array.Empty<SceneAssetReference>();
             EngineBinaryReadContext.CurrentReadStage = "SceneAsset:Physics3DSceneFeatureFlags";
             asset.Physics3DSceneFeatureFlags = version >= 5
@@ -921,8 +927,8 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset reference.</returns>
-        static SceneAssetReference ReadSceneAssetReference(EngineBinaryReader reader) {
-            return SceneAssetReferenceFactory.ReadRequiredReference(reader);
+        static SceneAssetReference ReadSceneAssetReference(EngineBinaryReader reader, bool includeContentHash) {
+            return SceneAssetReferenceFactory.ReadRequiredReference(reader, includeContentHash);
         }
 
         /// <summary>
@@ -930,9 +936,9 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset references.</returns>
-        static SceneAssetReference[] ReadSceneAssetReferenceArray(EngineBinaryReader reader) {
+        static SceneAssetReference[] ReadSceneAssetReferenceArray(EngineBinaryReader reader, bool includeContentHash) {
             EngineBinaryReadContext.CurrentReadStage = "SceneAssetReferenceArray:Length";
-            return reader.ReadArray(ReadSceneAssetReference);
+            return reader.ReadArray(currentReader => ReadSceneAssetReference(currentReader, includeContentHash));
         }
 
         /// <summary>

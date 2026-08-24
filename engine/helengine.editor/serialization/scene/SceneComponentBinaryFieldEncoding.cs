@@ -9,6 +9,16 @@ namespace helengine.editor {
         /// <param name="writer">Destination writer receiving the encoded reference.</param>
         /// <param name="reference">Reference to encode.</param>
         public static void WriteOptionalReference(EngineBinaryWriter writer, SceneAssetReference reference) {
+            WriteOptionalReference(writer, reference, 0);
+        }
+
+        /// <summary>
+        /// Writes one optional scene asset reference using the selected nested payload encoding.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the encoded reference.</param>
+        /// <param name="reference">Reference to encode.</param>
+        /// <param name="encodingVersion">Nested reference encoding version.</param>
+        public static void WriteOptionalReference(EngineBinaryWriter writer, SceneAssetReference reference, byte encodingVersion) {
             if (writer == null) {
                 throw new ArgumentNullException(nameof(writer));
             }
@@ -22,6 +32,9 @@ namespace helengine.editor {
             writer.WriteString(reference.RelativePath);
             writer.WriteString(reference.ProviderId);
             writer.WriteString(reference.AssetId);
+            if (encodingVersion >= 1) {
+                writer.WriteString(reference.ContentHash);
+            }
         }
 
         /// <summary>
@@ -30,7 +43,17 @@ namespace helengine.editor {
         /// <param name="reader">Source reader positioned at the encoded reference.</param>
         /// <returns>Decoded scene asset reference when present; otherwise null.</returns>
         public static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+            return ReadOptionalReference(reader, 0);
+        }
+
+        /// <summary>
+        /// Reads one optional scene asset reference using the selected nested payload encoding.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the encoded reference.</param>
+        /// <param name="encodingVersion">Nested reference encoding version.</param>
+        /// <returns>Decoded scene asset reference when present; otherwise null.</returns>
+        public static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader, byte encodingVersion) {
+            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader, encodingVersion >= 1);
         }
 
         /// <summary>
@@ -39,6 +62,16 @@ namespace helengine.editor {
         /// <param name="writer">Destination writer receiving the encoded references.</param>
         /// <param name="references">Ordered references to encode.</param>
         public static void WriteOptionalReferenceArray(EngineBinaryWriter writer, SceneAssetReference[] references) {
+            WriteOptionalReferenceArray(writer, references, 0);
+        }
+
+        /// <summary>
+        /// Writes one ordered optional-reference array using the selected nested payload encoding.
+        /// </summary>
+        /// <param name="writer">Destination writer receiving the encoded references.</param>
+        /// <param name="references">Ordered references to encode.</param>
+        /// <param name="encodingVersion">Nested reference encoding version.</param>
+        public static void WriteOptionalReferenceArray(EngineBinaryWriter writer, SceneAssetReference[] references, byte encodingVersion) {
             if (writer == null) {
                 throw new ArgumentNullException(nameof(writer));
             } else if (references == null) {
@@ -47,7 +80,7 @@ namespace helengine.editor {
 
             writer.WriteInt32(references.Length);
             for (int referenceIndex = 0; referenceIndex < references.Length; referenceIndex++) {
-                WriteOptionalReference(writer, references[referenceIndex]);
+                WriteOptionalReference(writer, references[referenceIndex], encodingVersion);
             }
         }
 
@@ -57,6 +90,16 @@ namespace helengine.editor {
         /// <param name="reader">Source reader positioned at the encoded reference array.</param>
         /// <returns>Decoded reference array.</returns>
         public static SceneAssetReference[] ReadOptionalReferenceArray(EngineBinaryReader reader) {
+            return ReadOptionalReferenceArray(reader, 0);
+        }
+
+        /// <summary>
+        /// Reads one ordered optional-reference array using the selected nested payload encoding.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the encoded reference array.</param>
+        /// <param name="encodingVersion">Nested reference encoding version.</param>
+        /// <returns>Decoded reference array.</returns>
+        public static SceneAssetReference[] ReadOptionalReferenceArray(EngineBinaryReader reader, byte encodingVersion) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -68,7 +111,7 @@ namespace helengine.editor {
 
             SceneAssetReference[] references = new SceneAssetReference[referenceCount];
             for (int referenceIndex = 0; referenceIndex < referenceCount; referenceIndex++) {
-                references[referenceIndex] = ReadOptionalReference(reader);
+                references[referenceIndex] = ReadOptionalReference(reader, encodingVersion);
             }
 
             return references;

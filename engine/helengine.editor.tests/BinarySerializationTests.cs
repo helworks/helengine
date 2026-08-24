@@ -202,9 +202,43 @@ namespace helengine.editor.tests {
             Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
             Assert.Equal(new float3(2f, 2f, 2f), deserialized.RootEntities[0].LocalScale);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntities[0].Components[0].Payload);
+            Assert.Equal((byte)1, deserialized.RootEntities[0].Components[0].AssetReferenceEncodingVersion);
             Assert.Equal(2u, deserialized.RootEntities[0].Children[0].Id);
             Assert.Equal("Child", deserialized.RootEntities[0].Children[0].Name);
             Assert.Equal((ushort)0x4444, deserialized.RootEntities[0].Children[0].LayerMask);
+        }
+
+        /// <summary>
+        /// Ensures current editor scene payloads round-trip the five-field file reference and advertise version 23.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_SceneAsset_WithCanonicalFileReference_RoundTripsVersion23Payload() {
+            SceneAsset asset = new SceneAsset {
+                Id = "Scenes/Identity.helen",
+                AssetReferences = new[] {
+                    global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                        "00112233445566778899aabbccddeeff",
+                        "Textures/Shared.png",
+                        "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                },
+                RootEntities = Array.Empty<SceneEntityAsset>()
+            };
+
+            byte[] data = AssetSerializer.SerializeToBytes(asset);
+            EngineBinaryHeader header = ReadHeader(data);
+            SceneAsset deserialized = Assert.IsType<SceneAsset>(AssetSerializer.DeserializeFromBytes(data));
+            SceneAssetReferenceTestFactoryAssertCanonicalReference(deserialized.AssetReferences.Single());
+
+            Assert.Equal((byte)23, header.Version);
+        }
+
+        /// <summary>
+        /// Verifies the canonical reference values without deriving expectations from the serializer implementation.
+        /// </summary>
+        static void SceneAssetReferenceTestFactoryAssertCanonicalReference(SceneAssetReference reference) {
+            Assert.Equal("00112233445566778899aabbccddeeff", reference.AssetId);
+            Assert.Equal("Textures/Shared.png", reference.RelativePath);
+            Assert.Equal("sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", reference.ContentHash);
         }
 
         /// <summary>

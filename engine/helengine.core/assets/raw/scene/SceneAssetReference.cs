@@ -9,12 +9,14 @@ namespace helengine {
         /// <param name="sourceKind">Reference source kind.</param>
         /// <param name="relativePath">Stable relative path.</param>
         /// <param name="providerId">Generated provider id when applicable.</param>
-        /// <param name="assetId">Generated asset id when applicable.</param>
-        internal SceneAssetReference(SceneAssetReferenceSourceKind sourceKind, string relativePath, string providerId, string assetId) {
+        /// <param name="assetId">Stable authored asset id or generated asset id when applicable.</param>
+        /// <param name="contentHash">Content hash for file-backed authored assets.</param>
+        internal SceneAssetReference(SceneAssetReferenceSourceKind sourceKind, string relativePath, string providerId, string assetId, string contentHash) {
             SourceKind = sourceKind;
             RelativePath = relativePath ?? string.Empty;
             ProviderId = providerId ?? string.Empty;
             AssetId = assetId ?? string.Empty;
+            ContentHash = contentHash ?? string.Empty;
         }
 
         /// <summary>
@@ -36,5 +38,10 @@ namespace helengine {
         /// Gets the provider-local asset identifier.
         /// </summary>
         public string AssetId { get; }
+
+        /// <summary>
+        /// Gets the content hash used as the final recovery key for file-backed authored assets.
+        /// </summary>
+        public string ContentHash { get; }
     }
 }
