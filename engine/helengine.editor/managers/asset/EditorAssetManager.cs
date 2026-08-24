@@ -178,7 +178,7 @@ namespace helengine.editor {
                         continue;
                     }
                     AssetEntryKind entryKind = pathClassifier.Classify(filePath);
-                    AssetIdentityMetadataDocument metadata = identityMetadataService.LoadOrCreate(filePath, string.Empty);
+                    AssetIdentityMetadataDocument metadata = LoadOrRepairIdentityMetadata(filePath);
                     string contentHash = identityHashCache.GetContentHash(filePath);
                     entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind, metadata.AssetId, contentHash));
                 }
@@ -187,6 +187,23 @@ namespace helengine.editor {
             }
 
             entries.Sort(CompareEntries);
+        }
+
+        /// <summary>
+        /// Loads one authored identity sidecar, repairing malformed metadata so one bad sidecar cannot hide the source file.
+        /// </summary>
+        /// <param name="filePath">Absolute authored source path.</param>
+        /// <returns>Validated current identity metadata.</returns>
+        AssetIdentityMetadataDocument LoadOrRepairIdentityMetadata(string filePath) {
+            try {
+                return identityMetadataService.LoadOrCreate(filePath, string.Empty);
+            } catch (InvalidOperationException) {
+                AssetIdentityMetadataDocument repaired = new AssetIdentityMetadataDocument {
+                    AssetId = Guid.NewGuid().ToString("N")
+                };
+                identityMetadataService.Save(filePath, repaired);
+                return repaired;
+            }
         }
 
         /// <summary>
