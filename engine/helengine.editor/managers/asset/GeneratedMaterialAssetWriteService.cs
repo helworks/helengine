@@ -39,6 +39,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Generated material assets must include a stable asset id.");
             }
 
+            if (string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {
+                definition.MaterialAsset.AuthoringAssetId = Guid.NewGuid().ToString("N");
+            }
+            definition.MaterialAsset.FormerAuthoringAssetIds ??= Array.Empty<string>();
+
             string fullPath = Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
             string directoryPath = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
@@ -47,7 +52,11 @@ namespace helengine.editor {
 
             Directory.CreateDirectory(directoryPath);
             MaterialAssetImportSettings importSettings = BuildImportSettings(definition);
-            MaterialAssetSettingsServiceValue.Save(fullPath, importSettings);
+            MaterialAssetSettingsServiceValue.Save(
+                fullPath,
+                importSettings,
+                definition.MaterialAsset.AuthoringAssetId,
+                definition.MaterialAsset.FormerAuthoringAssetIds);
         }
 
         /// <summary>

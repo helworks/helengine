@@ -230,6 +230,21 @@ namespace helengine.editor {
         /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
         /// <param name="settings">Resolved in-memory settings payload to save.</param>
         public void Save(string materialAssetPath, MaterialAssetImportSettings settings) {
+            Save(materialAssetPath, settings, string.Empty, null);
+        }
+
+        /// <summary>
+        /// Saves material settings with an explicit embedded authoring identity supplied by a generated-asset API.
+        /// </summary>
+        /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
+        /// <param name="settings">Resolved in-memory settings payload to save.</param>
+        /// <param name="authoringAssetId">Embedded authoring asset id.</param>
+        /// <param name="formerAuthoringAssetIds">Former embedded authoring ids.</param>
+        public void Save(
+            string materialAssetPath,
+            MaterialAssetImportSettings settings,
+            string authoringAssetId,
+            IReadOnlyList<string> formerAuthoringAssetIds) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             } else if (settings == null) {
@@ -242,9 +257,26 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material settings must include processor platform settings.");
             }
 
-            AssetIdentityMetadataDocument identity = File.Exists(materialAssetPath)
-                ? new AssetIdentityMetadataService().Load(materialAssetPath)
-                : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
+            AssetIdentityMetadataDocument identity;
+            if (!string.IsNullOrWhiteSpace(authoringAssetId)) {
+                identity = new AssetIdentityMetadataDocument {
+                    AssetId = authoringAssetId,
+                    FormerAssetIds = formerAuthoringAssetIds == null
+                        ? new List<string>()
+                        : new List<string>(formerAuthoringAssetIds)
+                };
+            } else {
+                MaterialAssetCommonSettingsDocument existingCommonDocument;
+                if (File.Exists(materialAssetPath) && TryLoadCommonDocument(materialAssetPath, out existingCommonDocument) &&
+                    !string.IsNullOrWhiteSpace(existingCommonDocument.AuthoringAssetId)) {
+                    identity = new AssetIdentityMetadataDocument {
+                        AssetId = existingCommonDocument.AuthoringAssetId,
+                        FormerAssetIds = new List<string>(existingCommonDocument.FormerAuthoringAssetIds ?? new List<string>())
+                    };
+                } else {
+                    identity = new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
+                }
+            }
             MaterialAssetCommonSettingsDocument commonDocument = BuildCommonDocument(settings);
             commonDocument.AuthoringAssetId = identity.AssetId;
             commonDocument.FormerAuthoringAssetIds = new List<string>(identity.FormerAssetIds);

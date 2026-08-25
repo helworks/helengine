@@ -87,7 +87,11 @@ namespace helengine.editor {
                 return true;
             }
 
-            return hassetKind != AssetEntryKind.Material;
+            if (hassetKind == AssetEntryKind.Material && !IsAuthoredMaterialPath(fullPath)) {
+                return true;
+            }
+
+            return hassetKind == AssetEntryKind.File;
         }
 
         /// <summary>
@@ -103,7 +107,7 @@ namespace helengine.editor {
         /// Determines whether one authored file stores identity metadata inside its engine-native payload.
         /// </summary>
         /// <param name="fullPath">Absolute or project-relative authored file path.</param>
-        /// <returns>True for native scene, blueprint, and material containers.</returns>
+        /// <returns>True for native authored containers that carry embedded identity.</returns>
         public bool UsesEmbeddedIdentity(string fullPath) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 return false;
@@ -122,8 +126,10 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 return header.FormatId == global::helengine.files.EditorAssetBinarySerializer.FormatId &&
-                    ((header.RecordKind == (ushort)EditorBinaryRecordKind.Asset && header.ValueKind == (ushort)EditorAssetBinaryValueKind.MaterialAsset) ||
-                     (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings && header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument));
+                     (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset ||
+                     (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings &&
+                      header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument &&
+                      IsAuthoredMaterialPath(fullPath)));
             } catch {
                 return false;
             }
@@ -148,8 +154,8 @@ namespace helengine.editor {
                     entryKind = AssetEntryKind.File;
                     return true;
                 }
-                if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset && header.ValueKind == (ushort)EditorAssetBinaryValueKind.MaterialAsset) {
-                    entryKind = AssetEntryKind.Material;
+                if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
+                    entryKind = ClassifyNativeAssetValueKind(header.ValueKind);
                     return true;
                 }
                 if (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings && header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument) {
@@ -163,6 +169,47 @@ namespace helengine.editor {
                 entryKind = AssetEntryKind.Unknown;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Maps a native asset value kind to the editor browser category.
+        /// </summary>
+        /// <param name="valueKind">Native asset value kind.</param>
+        /// <returns>Editor asset category.</returns>
+        static AssetEntryKind ClassifyNativeAssetValueKind(ushort valueKind) {
+            switch ((EditorAssetBinaryValueKind)valueKind) {
+                case EditorAssetBinaryValueKind.TextureAsset:
+                    return AssetEntryKind.Image;
+                case EditorAssetBinaryValueKind.ModelAsset:
+                    return AssetEntryKind.Model;
+                case EditorAssetBinaryValueKind.MaterialAsset:
+                    return AssetEntryKind.Material;
+                case EditorAssetBinaryValueKind.SceneAsset:
+                    return AssetEntryKind.Scene;
+                case EditorAssetBinaryValueKind.BlueprintAsset:
+                    return AssetEntryKind.Blueprint;
+                case EditorAssetBinaryValueKind.AudioAsset:
+                    return AssetEntryKind.Audio;
+                default:
+                    return AssetEntryKind.File;
+            }
+        }
+
+        /// <summary>
+        /// Determines whether a material `.hasset` is an authored material in the project's materials folder.
+        /// Imported model material settings live beside source models and remain editor-only sidecars.
+        /// </summary>
+        /// <param name="fullPath">Absolute or project-relative asset path.</param>
+        /// <returns>True when the path is under an assets/materials directory.</returns>
+        static bool IsAuthoredMaterialPath(string fullPath) {
+            string normalized = fullPath.Replace('\\', '/').TrimStart('/');
+            int assetsSegment = normalized.IndexOf("assets/", StringComparison.OrdinalIgnoreCase);
+            if (assetsSegment < 0) {
+                return false;
+            }
+
+            string assetsRelativePath = normalized.Substring(assetsSegment + "assets/".Length);
+            return assetsRelativePath.StartsWith("materials/", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

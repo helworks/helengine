@@ -1307,7 +1307,10 @@ namespace helengine.editor {
                 try {
                     EngineBinaryReadContext.CurrentAssetPath = cookedSceneAssetPath;
                     using FileStream stream = File.OpenRead(cookedSceneAssetPath);
-                    Asset asset = AssetSerializer.Deserialize(stream);
+                    // Cooked packaged scenes intentionally contain path-only asset references.
+                    // Read them with the runtime packaged serializer rather than the strict
+                    // editor serializer, which requires authoring asset identities.
+                    Asset asset = global::helengine.AssetSerializer.Deserialize(stream);
                     if (asset is not SceneAsset sceneAsset) {
                         throw new InvalidOperationException($"Cooked scene '{cookedSceneAssetPath}' did not deserialize into a SceneAsset.");
                     }

@@ -403,7 +403,7 @@ namespace helengine.editor {
             try {
                 EngineBinaryReadContext.CurrentAssetPath = fullScenePath;
                 using FileStream stream = File.OpenRead(fullScenePath);
-                Asset asset = AssetSerializer.Deserialize(stream);
+                Asset asset = global::helengine.AssetSerializer.Deserialize(stream);
                 if (asset is not SceneAsset sceneAsset) {
                     throw new InvalidOperationException($"Cooked scene '{cookedRelativePath}' did not deserialize into a SceneAsset.");
                 }
@@ -660,7 +660,7 @@ namespace helengine.editor {
                     return string.Empty;
                 }
 
-                Asset asset = AssetSerializer.Deserialize(stream);
+                Asset asset = global::helengine.AssetSerializer.Deserialize(stream);
                 if (asset is ModelAsset) {
                     return "model";
                 }
@@ -694,7 +694,7 @@ namespace helengine.editor {
                     return "asset";
                 }
 
-                Asset asset = AssetSerializer.Deserialize(stream);
+                Asset asset = global::helengine.AssetSerializer.Deserialize(stream);
                 if (asset is ModelAsset) {
                     return "model";
                 }

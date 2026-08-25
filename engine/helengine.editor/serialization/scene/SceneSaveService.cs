@@ -32,6 +32,10 @@ namespace helengine.editor {
         /// </summary>
         readonly SceneAssetReferenceInferenceService AssetReferenceInferenceService;
         /// <summary>
+        /// Service that canonicalizes path-only authored references supplied by editor tooling before serialization.
+        /// </summary>
+        readonly EditorAssetReferenceCanonicalizationService AssetReferenceCanonicalizationService;
+        /// <summary>
         /// Service that resolves common entity transforms separately from projected platform overrides during serialization.
         /// </summary>
         readonly EntityPlatformTransformEditingService TransformEditingService;
@@ -59,6 +63,7 @@ namespace helengine.editor {
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
             AssetReferenceInferenceService = new SceneAssetReferenceInferenceService(ProjectRootPath);
+            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(ProjectRootPath);
             TransformEditingService = new EntityPlatformTransformEditingService();
             ComponentEditingService = new ComponentPlatformEditingService();
         }
@@ -228,6 +233,7 @@ namespace helengine.editor {
                         saveState = saveComponent.GetOrCreateComponentState(component);
                         saveState.ComponentKey = ComponentEditingService.EnsureComponentKey(component, saveComponent);
                         AssetReferenceInferenceService.PopulateAssetReferences(component, saveState);
+                        AssetReferenceCanonicalizationService.Canonicalize(component, saveState);
                     }
 
                     IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(component);
@@ -242,6 +248,7 @@ namespace helengine.editor {
                 }
             }
 
+            CanonicalizeAddedComponentReferences(saveComponent);
             AppendPlatformComponentOverrideAssetReferences(saveComponent, assetReferences, assetReferenceKeys);
 
             List<SceneEntityAsset> childEntities = new List<SceneEntityAsset>();
@@ -503,6 +510,28 @@ namespace helengine.editor {
                 foreach (EntityPlatformAddedComponentState addedComponentState in componentOverrideState.EnumerateAddedComponents()) {
                     if (addedComponentState?.SaveState != null) {
                         AppendAssetReferences(addedComponentState.SaveState, assetReferences, assetReferenceKeys);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Canonicalizes authored references on detached platform-only components before their payloads are serialized.
+        /// </summary>
+        /// <param name="saveComponent">Entity save metadata containing platform-only component states.</param>
+        void CanonicalizeAddedComponentReferences(EntitySaveComponent saveComponent) {
+            if (saveComponent == null) {
+                return;
+            }
+
+            foreach (EntityPlatformComponentOverrideState componentOverrideState in saveComponent.EnumerateComponentPlatformOverrides()) {
+                if (componentOverrideState == null) {
+                    continue;
+                }
+
+                foreach (EntityPlatformAddedComponentState addedComponentState in componentOverrideState.EnumerateAddedComponents()) {
+                    if (addedComponentState?.Component != null && addedComponentState.SaveState != null) {
+                        AssetReferenceCanonicalizationService.Canonicalize(addedComponentState.Component, addedComponentState.SaveState);
                     }
                 }
             }

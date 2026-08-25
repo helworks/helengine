@@ -436,12 +436,7 @@ namespace helengine.editor {
                 }
 
                 if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
-                    if (header.ValueKind == (ushort)EditorAssetBinaryValueKind.MaterialAsset) {
-                        entryKind = AssetEntryKind.Material;
-                        return true;
-                    }
-
-                    entryKind = AssetEntryKind.File;
+                    entryKind = ClassifyNativeAssetValueKind(header.ValueKind);
                     return true;
                 }
 
@@ -456,6 +451,30 @@ namespace helengine.editor {
             } catch {
                 entryKind = AssetEntryKind.Unknown;
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Maps a native asset value kind to the asset-browser category.
+        /// </summary>
+        /// <param name="valueKind">Native asset value kind.</param>
+        /// <returns>Asset-browser category.</returns>
+        static AssetEntryKind ClassifyNativeAssetValueKind(ushort valueKind) {
+            switch ((EditorAssetBinaryValueKind)valueKind) {
+                case EditorAssetBinaryValueKind.TextureAsset:
+                    return AssetEntryKind.Image;
+                case EditorAssetBinaryValueKind.ModelAsset:
+                    return AssetEntryKind.Model;
+                case EditorAssetBinaryValueKind.MaterialAsset:
+                    return AssetEntryKind.Material;
+                case EditorAssetBinaryValueKind.SceneAsset:
+                    return AssetEntryKind.Scene;
+                case EditorAssetBinaryValueKind.BlueprintAsset:
+                    return AssetEntryKind.Blueprint;
+                case EditorAssetBinaryValueKind.AudioAsset:
+                    return AssetEntryKind.Audio;
+                default:
+                    return AssetEntryKind.File;
             }
         }
 

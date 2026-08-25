@@ -82,7 +82,10 @@ public sealed class EditorAssetManagerTests : IDisposable {
         EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
         string metadataPath = Path.Combine(TempRootPath, "assets", "Texture.png.hmeta");
         string importerPath = Path.Combine(TempRootPath, "assets", "Texture.png.hasset");
-        string materialPath = Path.Combine(TempRootPath, "assets", "Material.hasset");
+        string materialPath = Path.Combine(TempRootPath, "assets", "materials", "Material.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(materialPath)!);
+        string importedMaterialPath = Path.Combine(TempRootPath, "assets", "models", "Model", "Material.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(importedMaterialPath)!);
         using (FileStream stream = File.Create(materialPath)) {
             EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(
                 EngineBinaryEndianness.LittleEndian,
@@ -91,9 +94,18 @@ public sealed class EditorAssetManagerTests : IDisposable {
                 (ushort)EditorBinaryRecordKind.Asset,
                 (ushort)EditorAssetBinaryValueKind.MaterialAsset));
         }
+        using (FileStream stream = File.Create(importedMaterialPath)) {
+            EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(
+                EngineBinaryEndianness.LittleEndian,
+                global::helengine.files.EditorAssetBinarySerializer.CurrentVersion,
+                global::helengine.files.EditorAssetBinarySerializer.FormatId,
+                (ushort)EditorBinaryRecordKind.AssetImportSettings,
+                (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument));
+        }
 
         Assert.True(classifier.ShouldHide(metadataPath));
         Assert.True(classifier.ShouldHide(importerPath));
         Assert.False(classifier.ShouldHide(materialPath));
+        Assert.True(classifier.ShouldHide(importedMaterialPath));
     }
 }
