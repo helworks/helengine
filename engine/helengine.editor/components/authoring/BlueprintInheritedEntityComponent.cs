@@ -6,9 +6,6 @@ namespace helengine.editor {
         /// <summary>
         /// Gets or sets the project-relative blueprint asset path that produced this inherited entity.
         /// </summary>
-        [LegacyAssetReferenceInput]
-        public string BlueprintAssetPath { get; set; } = string.Empty;
-
         /// <summary>Gets or sets the canonical stable blueprint source reference.</summary>
         [ScenePersistenceIgnore]
         public SceneAssetReference BlueprintAssetReference { get; set; }

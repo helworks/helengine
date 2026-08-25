@@ -8,6 +8,42 @@ namespace helengine.editor.tests.serialization.scene;
 /// Verifies constrained scene asset reference construction.
 /// </summary>
 public sealed class SceneAssetReferenceFactoryTests {
+    /// <summary>Ensures current editor component fields reject packaged path-only filesystem references.</summary>
+    [Fact]
+    public void ReadOptionalReference_WhenCurrentFieldIsPathOnly_Throws() {
+        using MemoryStream stream = new MemoryStream();
+        using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
+            SceneComponentBinaryFieldEncoding.WriteOptionalReference(
+                writer,
+                global::helengine.SceneAssetReferenceFactory.CreateFileSystemTexture("textures/test.png"));
+        }
+        stream.Position = 0;
+        using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+
+        Assert.Throws<ArgumentException>(() => SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader));
+    }
+
+    /// <summary>Ensures packaged component fields retain their explicit path-only contract.</summary>
+    [Fact]
+    public void ReadOptionalReference_WhenPackagedFieldIsPathOnly_ReturnsReference() {
+        using MemoryStream stream = new MemoryStream();
+        using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
+            writer.WriteByte(1);
+            writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
+            writer.WriteString("textures/test.png");
+            writer.WriteString(string.Empty);
+            writer.WriteString(string.Empty);
+            writer.WriteString(string.Empty);
+        }
+        stream.Position = 0;
+        using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+
+        Assert.Equal("textures/test.png", reference.RelativePath);
+        Assert.Empty(reference.AssetId);
+        Assert.Empty(reference.ContentHash);
+    }
     /// <summary>
     /// Ensures the scene asset reference no longer exposes a public parameterless constructor or writable properties.
     /// </summary>
@@ -69,38 +105,22 @@ public sealed class SceneAssetReferenceFactoryTests {
     }
 
     /// <summary>
-    /// Ensures the legacy four-field reference payload remains readable with an empty recovery hash.
+    /// Ensures the only nested component reference encoding carries the canonical content hash.
     /// </summary>
     [Fact]
-    public void ReadLegacyFourFieldReference_LeavesContentHashEmpty() {
-        SceneAssetReference reference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
-            SceneAssetReferenceSourceKind.FileSystem,
-            "Textures/Legacy.png",
-            string.Empty,
-            string.Empty);
-
-        Assert.Equal("Textures/Legacy.png", reference.RelativePath);
-        Assert.Equal(string.Empty, reference.AssetId);
-        Assert.Equal(string.Empty, reference.ContentHash);
-    }
-
-    /// <summary>
-    /// Ensures nested component payload version one carries the canonical content hash.
-    /// </summary>
-    [Fact]
-    public void SceneComponentReferenceEncoding_VersionOne_RoundTripsContentHash() {
+    public void SceneComponentReferenceEncoding_RoundTripsContentHash() {
         SceneAssetReference original = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
             "00112233445566778899aabbccddeeff",
             "Textures/Shared.png",
             "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
         using MemoryStream stream = new MemoryStream();
         using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
-            SceneComponentBinaryFieldEncoding.WriteOptionalReference(writer, original, 1);
+            SceneComponentBinaryFieldEncoding.WriteOptionalReference(writer, original);
         }
 
         stream.Position = 0;
         using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian, true);
-        SceneAssetReference roundTrip = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader, 1);
+        SceneAssetReference roundTrip = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
 
         Assert.Equal(original.AssetId, roundTrip.AssetId);
         Assert.Equal(original.RelativePath, roundTrip.RelativePath);

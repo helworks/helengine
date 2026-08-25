@@ -46,7 +46,7 @@ namespace helengine.editor.tests {
                         LayerMask = EditorLayerMasks.SceneObjects,
                         Components = [
                             SerializeComponent(new BlueprintInstanceComponent {
-                                BlueprintAssetPath = "Blueprints/TestBlueprint.hblueprint"
+                                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/TestBlueprint.hblueprint")
                             })
                         ],
                         Children = Array.Empty<SceneEntityAsset>()
@@ -61,7 +61,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(stream);
             }
 
             SceneEntityAsset instanceRoot = Assert.Single(packagedScene.RootEntities);
@@ -100,7 +100,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(stream);
             }
 
             Assert.DoesNotContain(packagedScene.RootEntities, entity => entity.Name == "Console Presentation");
@@ -143,7 +143,7 @@ namespace helengine.editor.tests {
                         LayerMask = EditorLayerMasks.SceneObjects,
                         Components = [
                             SerializeComponent(new BlueprintInstanceComponent {
-                                BlueprintAssetPath = "Blueprints/BottomScreenControls.hblueprint"
+                                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/BottomScreenControls.hblueprint")
                             })
                         ],
                         Children = Array.Empty<SceneEntityAsset>()
@@ -160,7 +160,7 @@ namespace helengine.editor.tests {
 
             SceneAsset psVitaPackagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(sceneId))) {
-                psVitaPackagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                psVitaPackagedScene = global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(stream);
             }
 
             SceneEntityAsset psVitaInstanceRoot = Assert.Single(psVitaPackagedScene.RootEntities);
@@ -176,7 +176,7 @@ namespace helengine.editor.tests {
 
             SceneAsset dsPackagedScene;
             using (FileStream stream = File.OpenRead(Path.Combine(dsBuildRootPath, PackagedScenePathResolver.BuildRelativePath(sceneId, 0).Replace('/', Path.DirectorySeparatorChar)))) {
-                dsPackagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                dsPackagedScene = global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(stream);
             }
 
             SceneEntityAsset dsInstanceRoot = Assert.Single(dsPackagedScene.RootEntities);
@@ -208,7 +208,7 @@ namespace helengine.editor.tests {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 Components = [
                     SerializeComponent(new BlueprintInstanceComponent {
-                        BlueprintAssetPath = blueprintAssetPath
+                        BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintAssetPath)
                     })
                 ],
                 PlatformExistenceOverrides = [
@@ -232,6 +232,7 @@ namespace helengine.editor.tests {
             using FileStream stream = File.Create(fullPath);
             AssetSerializer.Serialize(stream, new BlueprintAsset {
                 Id = relativePath,
+                AuthoringAssetId = Guid.NewGuid().ToString("N"),
                 RootEntity = new SceneEntityAsset {
                     Id = 1u,
                     Name = rootName,
@@ -260,6 +261,7 @@ namespace helengine.editor.tests {
             string fullPath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Scene directory could not be resolved."));
 
+            sceneAsset.AuthoringAssetId = Guid.NewGuid().ToString("N");
             using FileStream stream = File.Create(fullPath);
             AssetSerializer.Serialize(stream, sceneAsset);
         }

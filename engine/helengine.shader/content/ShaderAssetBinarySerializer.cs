@@ -9,6 +9,11 @@ namespace helengine {
         const byte PreviousVersionWithoutRuntimeAssetId = 2;
 
         /// <summary>
+        /// First asset version that embeds editor authoring identity after runtime identity.
+        /// </summary>
+        const byte AuthoringIdentityVersion = 24;
+
+        /// <summary>
         /// Deserializes one shader asset from the provided stream.
         /// </summary>
         /// <param name="stream">Stream containing one serialized shader asset payload.</param>
@@ -151,6 +156,10 @@ namespace helengine {
             asset.RuntimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
                 ? (ulong)reader.ReadInt64()
                 : 0ul;
+            if (version >= AuthoringIdentityVersion) {
+                asset.AuthoringAssetId = reader.ReadString();
+                asset.FormerAuthoringAssetIds = reader.ReadArray(ReadStringValue) ?? Array.Empty<string>();
+            }
         }
 
         /// <summary>

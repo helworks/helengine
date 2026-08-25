@@ -72,7 +72,10 @@ namespace helengine.editor {
 
             string materialId = BuildMaterialAssetId(materialPath);
 
-            var materialAsset = new MaterialAsset { Id = materialId };
+            var materialAsset = new MaterialAsset {
+                Id = materialId,
+                AuthoringAssetId = Guid.NewGuid().ToString("N")
+            };
 
             using (FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, materialAsset);
@@ -90,6 +93,7 @@ namespace helengine.editor {
 
             BlueprintAsset blueprintAsset = new BlueprintAsset {
                 Id = BuildBlueprintAssetId(blueprintPath),
+                AuthoringAssetId = Guid.NewGuid().ToString("N"),
                 RootEntity = new SceneEntityAsset {
                     Id = 1u,
                     Name = "Root",

@@ -16,13 +16,12 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 23;
+        public const byte CurrentVersion = 24;
 
         /// <summary>
-        /// First asset version whose scene reference table includes the editor recovery hash field.
-        /// Packaged writers may leave this field empty after resolving authored references.
+        /// First asset version that embeds editor authoring identity after runtime identity.
         /// </summary>
-        const byte AssetReferenceContentHashVersion = 23;
+        const byte AuthoringIdentityVersion = 24;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -194,10 +193,8 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized texture asset.</returns>
         static TextureAsset ReadTextureAsset(EngineBinaryReader reader, byte version) {
-            string assetId = reader.ReadString();
-            ulong runtimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
-                ? (ulong)reader.ReadInt64()
-                : 0ul;
+            TextureAsset asset = new TextureAsset();
+            ReadAssetIdentity(reader, asset, version);
             ushort width = reader.ReadUInt16();
             ushort height = reader.ReadUInt16();
             TextureAssetColorFormat colorFormat = version >= TextureColorFormatVersion
@@ -210,16 +207,13 @@ namespace helengine {
                 ? reader.ReadByteArray()
                 : new byte[0];
             byte[] colors = reader.ReadByteArray();
-            return new TextureAsset {
-                Id = assetId,
-                RuntimeAssetId = runtimeAssetId,
-                Width = width,
-                Height = height,
-                ColorFormat = colorFormat,
-                AlphaPrecision = alphaPrecision,
-                PaletteColors = paletteColors,
-                Colors = colors
-            };
+            asset.Width = width;
+            asset.Height = height;
+            asset.ColorFormat = colorFormat;
+            asset.AlphaPrecision = alphaPrecision;
+            asset.PaletteColors = paletteColors;
+            asset.Colors = colors;
+            return asset;
         }
 
         /// <summary>
@@ -297,10 +291,8 @@ namespace helengine {
                 throw new InvalidOperationException($"Unsupported asset binary version '{version}'.");
             }
 
-            string assetId = reader.ReadString();
-            ulong runtimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
-                ? (ulong)reader.ReadInt64()
-                : 0ul;
+            ModelAsset asset = new ModelAsset();
+            ReadAssetIdentity(reader, asset, version);
             float3[] positions = reader.ReadArray(ReadFloat3);
             float3[] normals = reader.ReadArray(ReadFloat3);
             float2[] texCoords = reader.ReadArray(ReadFloat2);
@@ -311,16 +303,13 @@ namespace helengine {
                 ReadAndDiscardLegacyPackedMeshTail(reader);
             }
 
-            return new ModelAsset {
-                Id = assetId,
-                RuntimeAssetId = runtimeAssetId,
-                Positions = positions,
-                Normals = normals,
-                TexCoords = texCoords,
-                Indices16 = indices16,
-                Indices32 = indices32,
-                Submeshes = submeshes
-            };
+            asset.Positions = positions;
+            asset.Normals = normals;
+            asset.TexCoords = texCoords;
+            asset.Indices16 = indices16;
+            asset.Indices32 = indices32;
+            asset.Submeshes = submeshes;
+            return asset;
         }
 
         /// <summary>
@@ -632,7 +621,7 @@ namespace helengine {
             asset.RootEntities = ReadSceneEntityAssetArray(reader, version) ?? Array.Empty<SceneEntityAsset>();
             EngineBinaryReadContext.CurrentReadStage = "SceneAsset:AssetReferences";
             asset.AssetReferences = version >= 4
-                ? ReadSceneAssetReferenceArray(reader, version >= AssetReferenceContentHashVersion) ?? Array.Empty<SceneAssetReference>()
+                ? ReadSceneAssetReferenceArray(reader) ?? Array.Empty<SceneAssetReference>()
                 : Array.Empty<SceneAssetReference>();
             EngineBinaryReadContext.CurrentReadStage = "SceneAsset:Physics3DSceneFeatureFlags";
             asset.Physics3DSceneFeatureFlags = version >= 5
@@ -927,8 +916,8 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset reference.</returns>
-        static SceneAssetReference ReadSceneAssetReference(EngineBinaryReader reader, bool includeContentHash) {
-            return SceneAssetReferenceFactory.ReadRequiredReference(reader, includeContentHash);
+        static SceneAssetReference ReadSceneAssetReference(EngineBinaryReader reader) {
+            return SceneAssetReferenceFactory.ReadRequiredReference(reader);
         }
 
         /// <summary>
@@ -936,9 +925,9 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset references.</returns>
-        static SceneAssetReference[] ReadSceneAssetReferenceArray(EngineBinaryReader reader, bool includeContentHash) {
+        static SceneAssetReference[] ReadSceneAssetReferenceArray(EngineBinaryReader reader) {
             EngineBinaryReadContext.CurrentReadStage = "SceneAssetReferenceArray:Length";
-            return reader.ReadArray(currentReader => ReadSceneAssetReference(currentReader, includeContentHash));
+            return reader.ReadArray(ReadSceneAssetReference);
         }
 
         /// <summary>
@@ -1053,6 +1042,10 @@ namespace helengine {
             asset.RuntimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
                 ? (ulong)reader.ReadInt64()
                 : 0ul;
+            if (version >= AuthoringIdentityVersion) {
+                asset.AuthoringAssetId = reader.ReadString();
+                asset.FormerAuthoringAssetIds = reader.ReadArray(ReadStringValue) ?? Array.Empty<string>();
+            }
         }
 
         /// <summary>

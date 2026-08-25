@@ -292,6 +292,7 @@ namespace helengine.editor {
             if (ReferenceHealingReplacements != null) {
                 throw new InvalidOperationException("Reference healing is already active.");
             }
+            IdentityReferenceResolver.BeginResolutionScope();
             ReferenceHealingReplacements = new Dictionary<SceneAssetReference, SceneAssetReference>();
         }
 
@@ -308,6 +309,9 @@ namespace helengine.editor {
         /// <summary>Returns and clears the active healing map.</summary>
         IReadOnlyDictionary<SceneAssetReference, SceneAssetReference> CompleteReferenceHealingScope() {
             Dictionary<SceneAssetReference, SceneAssetReference> result = ReferenceHealingReplacements ?? new Dictionary<SceneAssetReference, SceneAssetReference>();
+            if (ReferenceHealingReplacements != null) {
+                IdentityReferenceResolver.EndResolutionScope();
+            }
             ReferenceHealingReplacements = null;
             return result;
         }
@@ -502,7 +506,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads one preview material asset for the requested platform, migrating legacy binary material assets when the authored file predates settings documents.
+        /// Loads one current preview material asset for the requested platform.
         /// </summary>
         /// <param name="fullPath">Absolute path to the authored material asset.</param>
         /// <param name="platformId">Preview platform whose effective material payload should be resolved.</param>
@@ -515,81 +519,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            ShaderMaterialAsset settingsMaterialAsset = null;
-            InvalidOperationException settingsLoadException = null;
-            try {
-                settingsMaterialAsset = MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
-            } catch (InvalidOperationException ex) {
-                settingsLoadException = ex;
-            }
-
-            if (settingsLoadException != null) {
-                ShaderMaterialAsset migratedMaterialAsset = TryMigrateLegacyMaterialAsset(fullPath, platformId);
-                if (migratedMaterialAsset != null) {
-                    return migratedMaterialAsset;
-                }
-
-                throw settingsLoadException;
-            }
-
-            return settingsMaterialAsset;
-        }
-
-        /// <summary>
-        /// Attempts to migrate one legacy binary material asset into the current settings-document format and reload it for the requested preview platform.
-        /// </summary>
-        /// <param name="fullPath">Absolute path to the authored material asset.</param>
-        /// <param name="platformId">Preview platform whose effective material payload should be resolved after migration.</param>
-        /// <returns>Migrated runtime-facing material asset, or null when the file is not a legacy binary material asset.</returns>
-        ShaderMaterialAsset TryMigrateLegacyMaterialAsset(string fullPath, string platformId) {
-            MaterialAsset legacyMaterialAsset = TryLoadLegacyBinaryMaterialAsset(fullPath);
-            if (legacyMaterialAsset == null) {
-                return null;
-            }
-
-            IReadOnlyList<string> supportedPlatforms = new EditorProjectPlatformsService(ProjectRootPath).Load().SupportedPlatforms;
-            AvailablePlatformProviderResolver availablePlatformResolver = new AvailablePlatformProviderResolver(
-                new PlatformDiscoveryOptions(ProjectRootPath));
-            EditorPlatformCatalogService platformCatalogService = new EditorPlatformCatalogService(
-                availablePlatformResolver.LoadPlatforms(LoadRequiredEngineVersion()));
-            MaterialSettingsService.LoadOrCreate(
-                fullPath,
-                legacyMaterialAsset,
-                supportedPlatforms,
-                platformCatalogService.ResolveSelectionModel);
             return MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
-        }
-
-        /// <summary>
-        /// Attempts to deserialize one authored material file as a legacy binary material asset.
-        /// </summary>
-        /// <param name="fullPath">Absolute path to the authored material asset.</param>
-        /// <returns>Legacy binary material asset, or null when the file is already a settings document or another asset type.</returns>
-        MaterialAsset TryLoadLegacyBinaryMaterialAsset(string fullPath) {
-            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
-            try {
-                EngineBinaryReadContext.CurrentAssetPath = fullPath;
-                using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                return AssetSerializer.Deserialize(stream) as MaterialAsset;
-            } catch {
-                return null;
-            } finally {
-                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
-            }
-        }
-
-        /// <summary>
-        /// Loads the required engine version declared by the current project file.
-        /// </summary>
-        /// <returns>Exact engine version required by the current project.</returns>
-        string LoadRequiredEngineVersion() {
-            string projectFilePath = new helengine.projectfile.ProjectFilePathResolver().Resolve(ProjectRootPath);
-            helengine.projectfile.ProjectFileReadResult readResult = new helengine.projectfile.ProjectFileReader().ReadAsync(projectFilePath).GetAwaiter().GetResult();
-            if (!readResult.Succeeded || readResult.Document == null || string.IsNullOrWhiteSpace(readResult.Document.RequiredEngineVersion)) {
-                throw new InvalidOperationException("The current project file did not provide a required engine version.");
-            }
-
-            return readResult.Document.RequiredEngineVersion;
         }
 
         /// <summary>
@@ -913,7 +843,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("File-backed asset references must stay inside the project assets folder.");
             }
 
-            if (File.Exists(fullPath) || !string.IsNullOrWhiteSpace(reference.AssetId) || !string.IsNullOrWhiteSpace(reference.ContentHash)) {
+            if (!string.IsNullOrWhiteSpace(reference.AssetId) || !string.IsNullOrWhiteSpace(reference.ContentHash)) {
                 AssetReferenceResolution resolution = IdentityReferenceResolver.Resolve(reference, expectedKind);
                 if (ReferenceHealingReplacements != null && resolution.ReferenceChanged) {
                     ReferenceHealingReplacements[reference] = resolution.CanonicalReference;

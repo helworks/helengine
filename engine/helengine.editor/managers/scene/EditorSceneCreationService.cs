@@ -139,22 +139,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates one root blueprint instance entity referencing the supplied blueprint asset path.
+        /// Creates one root blueprint instance entity referencing the supplied blueprint asset.
         /// </summary>
         /// <param name="name">Display name assigned to the instance root.</param>
-        /// <param name="blueprintAssetPath">Project-relative blueprint asset path referenced by the instance.</param>
+        /// <param name="blueprintAssetReference">Canonical blueprint asset reference used by the instance.</param>
         /// <returns>Configured blueprint instance root entity.</returns>
-        public EditorEntity CreateBlueprintInstance(string name, string blueprintAssetPath) {
+        public EditorEntity CreateBlueprintInstance(string name, SceneAssetReference blueprintAssetReference) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Blueprint instance name must be provided.", nameof(name));
             }
-            if (string.IsNullOrWhiteSpace(blueprintAssetPath)) {
-                throw new ArgumentException("Blueprint asset path must be provided.", nameof(blueprintAssetPath));
+            if (blueprintAssetReference == null || blueprintAssetReference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                throw new ArgumentException("A file-backed blueprint asset reference must be provided.", nameof(blueprintAssetReference));
             }
 
             EditorEntity entity = CreateBaseEntity(name);
             entity.AddComponent(new BlueprintInstanceComponent {
-                BlueprintAssetPath = blueprintAssetPath
+                BlueprintAssetReference = blueprintAssetReference
             });
             return entity;
         }

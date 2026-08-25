@@ -6,6 +6,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets or sets the project-relative scene identifier whose order is being tracked.
         /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
         public string SceneId { get; set; } = string.Empty;
 
         /// <summary>Gets or sets the canonical stable scene reference for this order entry.</summary>

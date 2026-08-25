@@ -42,7 +42,7 @@ namespace helengine.editor.tests {
                 Name = "Blueprint Child"
             };
             entity.AddComponent(new BlueprintInheritedEntityComponent {
-                BlueprintAssetPath = "Blueprints/Test.hblueprint",
+                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/Test.hblueprint"),
                 SourceEntityId = 7u
             });
 
@@ -101,7 +101,7 @@ namespace helengine.editor.tests {
                 Intensity = 2.5f
             });
             entity.AddComponent(new BlueprintInheritedEntityComponent {
-                BlueprintAssetPath = "Blueprints/Test.hblueprint",
+                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/Test.hblueprint"),
                 SourceEntityId = 7u
             });
             return entity;

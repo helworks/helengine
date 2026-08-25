@@ -75,6 +75,31 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a missing sidecar at the saved path cannot override a UUID already owned by another asset.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenSavedPathMetadataIsMissing_ExistingAssetIdOwnerStillWins() {
+        string idOwnerPath = CreateAsset("Models/A.fbx", new byte[] { 1, 2, 3 });
+        string savedPath = CreateAsset("Models/B.fbx", new byte[] { 4, 5, 6 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        metadata.Save(idOwnerPath, new AssetIdentityMetadataDocument {
+            AssetId = "00112233445566778899aabbccddeeff",
+            FormerAssetIds = new List<string>()
+        });
+        EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "00112233445566778899aabbccddeeff",
+            "Models/B.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal(AssetReferenceResolutionTier.AssetId, result.Tier);
+        Assert.Equal(idOwnerPath, result.FullPath);
+        Assert.NotEqual(savedPath, result.FullPath);
+    }
+
+    /// <summary>
     /// Ensures hash fallback selects the ordinally smallest compatible candidate.
     /// </summary>
     [Fact]

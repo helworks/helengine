@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Performs editor asset moves and duplicates while preserving identity sidecars correctly.
+    /// Performs editor asset moves and duplicates while preserving embedded and sidecar identities correctly.
     /// </summary>
     public sealed class EditorAssetFileOperationService {
         readonly string ProjectRootPath;
@@ -22,7 +22,7 @@ namespace helengine.editor {
             PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
         }
 
-        /// <summary>Moves an authored asset and all adjacent editor sidecars.</summary>
+        /// <summary>Moves an authored asset and any adjacent editor sidecars.</summary>
         /// <param name="sourcePath">Existing source path.</param>
         /// <param name="destinationPath">Unused destination path.</param>
         public void Move(string sourcePath, string destinationPath) {
@@ -32,8 +32,10 @@ namespace helengine.editor {
             List<Tuple<string, string>> moved = new List<Tuple<string, string>>();
             try {
                 MoveIfPresent(source, destination, moved, true);
-                MoveIfPresent(source + ".hasset", destination + ".hasset", moved, false);
-                MoveIfPresent(source + ".hmeta", destination + ".hmeta", moved, false);
+                if (!PathClassifier.UsesEmbeddedIdentity(destination)) {
+                    MoveIfPresent(source + ".hasset", destination + ".hasset", moved, false);
+                    MoveIfPresent(source + ".hmeta", destination + ".hmeta", moved, false);
+                }
             } catch {
                 for (int index = moved.Count - 1; index >= 0; index--) {
                     if (File.Exists(moved[index].Item2) && !File.Exists(moved[index].Item1)) {
@@ -56,7 +58,13 @@ namespace helengine.editor {
                 if (File.Exists(source + ".hasset")) {
                     File.Copy(source + ".hasset", destination + ".hasset");
                 }
-                MetadataService.LoadOrCreate(destination, string.Empty);
+                if (PathClassifier.UsesEmbeddedIdentity(destination)) {
+                    MetadataService.Save(destination, new AssetIdentityMetadataDocument {
+                        AssetId = Guid.NewGuid().ToString("N")
+                    });
+                } else {
+                    MetadataService.LoadOrCreate(destination, string.Empty);
+                }
             } catch {
                 DeleteIfPresent(destination + ".hmeta");
                 DeleteIfPresent(destination + ".hasset");
@@ -95,7 +103,10 @@ namespace helengine.editor {
             if (File.Exists(fullPath) || File.Exists(fullPath + ".hasset") || File.Exists(fullPath + ".hmeta")) {
                 throw new InvalidOperationException($"Asset destination '{path}' already exists.");
             }
-            if (PathClassifier.Classify(fullPath) != expectedKind) {
+            AssetEntryKind destinationKind = PathClassifier.Classify(fullPath);
+            bool isNativeMaterialDestination = expectedKind == AssetEntryKind.Material &&
+                string.Equals(Path.GetExtension(fullPath), EditorFileTemplateRegistry.MaterialExtension, StringComparison.OrdinalIgnoreCase);
+            if (destinationKind != expectedKind && !isNativeMaterialDestination) {
                 throw new InvalidOperationException($"Asset destination '{path}' does not preserve kind '{expectedKind}'.");
             }
             return fullPath;

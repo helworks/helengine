@@ -31,6 +31,12 @@ namespace helengine.editor.tests.serialization {
                 SchemaId = "lit",
                 FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
                     ["BaseColor"] = "#ffffff"
+                },
+                AssetReferenceValues = new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase) {
+                    ["BaseTexture"] = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                        "11111111222243338444555555555555",
+                        "textures/base.png",
+                        "sha256:" + new string('a', 64))
                 }
             });
             AssetPlatformSettingsSectionRegistry.Shared.SetSection(windowsSettings, "font", new FontAssetProcessorSettings {
@@ -58,6 +64,9 @@ namespace helengine.editor.tests.serialization {
             ModelAssetProcessorSettings modelSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<ModelAssetProcessorSettings>(
                 deserialized.Processor.Platforms["windows"],
                 "model");
+            MaterialAssetProcessorSettings materialSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<MaterialAssetProcessorSettings>(
+                deserialized.Processor.Platforms["windows"],
+                "material");
 
             Assert.Equal(14, fontSettings.PixelSize);
             Assert.Equal(TextureAssetColorFormat.Indexed4, fontAtlasSettings.ColorFormat);
@@ -65,13 +74,17 @@ namespace helengine.editor.tests.serialization {
             Assert.True(modelSettings.FlipWinding);
             Assert.True(modelSettings.Tessellate);
             Assert.Equal(0.5d, modelSettings.TessellationMaxEdgeLength);
+            SceneAssetReference baseTexture = Assert.IsType<SceneAssetReference>(materialSettings.AssetReferenceValues["BaseTexture"]);
+            Assert.Equal("11111111222243338444555555555555", baseTexture.AssetId);
+            Assert.Equal("textures/base.png", baseTexture.RelativePath);
+            Assert.Equal("sha256:" + new string('a', 64), baseTexture.ContentHash);
         }
 
         /// <summary>
-        /// Ensures version-nine generic settings payloads default newly added model tessellation settings.
+        /// Ensures any non-current generic settings payload is rejected.
         /// </summary>
         [Fact]
-        public void Deserialize_WhenPayloadIsVersionNine_DefaultsModelTessellationSettings() {
+        public void Deserialize_WhenPayloadIsNotCurrent_Throws() {
             using MemoryStream stream = new MemoryStream();
             EngineBinaryHeader header = new EngineBinaryHeader(
                 EngineBinaryEndianness.LittleEndian,
@@ -93,14 +106,7 @@ namespace helengine.editor.tests.serialization {
 
             stream.Position = 0;
 
-            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
-            ModelAssetProcessorSettings modelSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<ModelAssetProcessorSettings>(
-                deserialized.Processor.Platforms["windows"],
-                ModelAssetPlatformSettingsSectionDefinition.SectionIdValue);
-
-            Assert.True(modelSettings.FlipWinding);
-            Assert.False(modelSettings.Tessellate);
-            Assert.Equal(1.0d, modelSettings.TessellationMaxEdgeLength);
+            Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(stream));
         }
     }
 }

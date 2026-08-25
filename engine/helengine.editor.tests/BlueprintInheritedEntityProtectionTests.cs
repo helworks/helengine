@@ -70,7 +70,7 @@ namespace helengine.editor.tests {
         static EditorEntity CreateInheritedEntity() {
             EditorEntity entity = new EditorEntity { IsSceneOwned = true };
             entity.AddComponent(new BlueprintInheritedEntityComponent {
-                BlueprintAssetPath = "blueprints/games/split_play/GoldenCoin.hblueprint",
+                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/games/split_play/GoldenCoin.hblueprint"),
                 SourceEntityId = 7u
             });
             return entity;

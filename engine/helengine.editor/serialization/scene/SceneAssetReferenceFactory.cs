@@ -45,20 +45,7 @@ namespace helengine.editor {
             if (!string.IsNullOrWhiteSpace(entry.AssetId) && !string.IsNullOrWhiteSpace(entry.ContentHash)) {
                 return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(entry.AssetId, entry.RelativePath, entry.ContentHash);
             }
-            if (entry.EntryKind == AssetEntryKind.Image) {
-                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemTexture(entry.RelativePath);
-            }
-            if (entry.EntryKind == AssetEntryKind.Model) {
-                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemModel(entry.RelativePath);
-            }
-            if (entry.EntryKind == AssetEntryKind.Material) {
-                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(entry.RelativePath);
-            }
-            if (entry.EntryKind == AssetEntryKind.Font) {
-                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemFont(entry.RelativePath);
-            }
-
-            throw new InvalidOperationException($"Asset browser entry kind '{entry.EntryKind}' does not support scene asset references.");
+            throw new InvalidOperationException($"File-backed asset browser entry '{entry.RelativePath}' is missing its current asset id or content hash.");
         }
 
         /// <summary>

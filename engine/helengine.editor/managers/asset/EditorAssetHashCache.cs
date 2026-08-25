@@ -34,6 +34,11 @@ namespace helengine.editor {
         readonly AssetFileHasher FileHasher;
 
         /// <summary>
+        /// Shared classifier used to identify native payloads whose embedded identity is excluded from content hashes.
+        /// </summary>
+        readonly EditorAssetPathClassifier PathClassifier;
+
+        /// <summary>
         /// Loaded cache entries keyed by normalized relative path.
         /// </summary>
         readonly Dictionary<string, EditorAssetHashCacheEntry> Entries;
@@ -57,6 +62,7 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             CacheFilePath = Path.Combine(ProjectRootPath, "cache", "editor", "asset-identity-index.json");
             FileHasher = fileHasher ?? new AssetFileHasher();
+            PathClassifier = new EditorAssetPathClassifier();
             Entries = new Dictionary<string, EditorAssetHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -83,7 +89,7 @@ namespace helengine.editor {
                 return cachedEntry.ContentHash;
             }
 
-            string contentHash = string.Concat("sha256:", FileHasher.ComputeHash(fullPath));
+            string contentHash = string.Concat("sha256:", ComputeContentHash(fullPath));
             Entries[relativePath] = new EditorAssetHashCacheEntry {
                 RelativePath = relativePath,
                 Length = fileInfo.Length,
@@ -92,6 +98,39 @@ namespace helengine.editor {
             };
             Save();
             return contentHash;
+        }
+
+        /// <summary>
+        /// Computes one recovery hash, canonicalizing native payloads without their embedded identity metadata.
+        /// </summary>
+        /// <param name="fullPath">Absolute authored source path.</param>
+        /// <returns>Lowercase SHA-256 hex without the algorithm prefix.</returns>
+        string ComputeContentHash(string fullPath) {
+            if (!PathClassifier.UsesEmbeddedIdentity(fullPath)) {
+                return FileHasher.ComputeHash(fullPath);
+            }
+
+            using FileStream input = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(input);
+            input.Position = 0;
+            using MemoryStream canonical = new MemoryStream();
+            if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
+                Asset asset = AssetSerializer.Deserialize(input);
+                asset.AuthoringAssetId = string.Empty;
+                asset.FormerAuthoringAssetIds = Array.Empty<string>();
+                AssetSerializer.Serialize(canonical, asset);
+            } else if (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings &&
+                       header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument) {
+                MaterialAssetCommonSettingsDocument material = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(input);
+                material.AuthoringAssetId = string.Empty;
+                material.FormerAuthoringAssetIds.Clear();
+                MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(canonical, material);
+            } else {
+                throw new InvalidOperationException($"Engine-native asset '{fullPath}' does not expose canonical identity metadata.");
+            }
+
+            canonical.Position = 0;
+            return FileHasher.ComputeHash(canonical);
         }
 
         /// <summary>

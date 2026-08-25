@@ -66,8 +66,6 @@ namespace helengine.editor {
         /// <summary>
         /// Relative project asset path for the shared physics demo mesh shader.
         /// </summary>
-        const string PhysicsDemoShaderRelativePath = "Shaders/physics/PhysicsDemoMesh.hlsl";
-
         /// <summary>
         /// Relative project asset path for the neutral physics demo material.
         /// </summary>
@@ -179,242 +177,6 @@ namespace helengine.editor {
         static readonly float4 CornflowerBlueClearColor = new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f);
 
         /// <summary>
-        /// Shared shader source used to render the exported physics demo meshes with per-material colors and shadowed forward lighting.
-        /// </summary>
-        const string PhysicsDemoShaderSource =
-            "cbuffer TransformBuffer : register(b0)\n" +
-            "{\n" +
-            "    float4x4 world;\n" +
-            "    float4x4 worldViewProj;\n" +
-            "    float4x4 normalMatrix;\n" +
-            "    float4 cameraPosition;\n" +
-            "};\n" +
-            "\n" +
-            "cbuffer ForwardLightBuffer : register(b1)\n" +
-            "{\n" +
-            "    float4 lightMetadata;\n" +
-            "    float4 light0ColorAndType;\n" +
-            "    float4 light0DirectionAndShadow;\n" +
-            "    float4 light0PositionAndRange;\n" +
-            "    float4 light0SpotAngles;\n" +
-            "    float4 light1ColorAndType;\n" +
-            "    float4 light1DirectionAndShadow;\n" +
-            "    float4 light1PositionAndRange;\n" +
-            "    float4 light1SpotAngles;\n" +
-            "    float4 light2ColorAndType;\n" +
-            "    float4 light2DirectionAndShadow;\n" +
-            "    float4 light2PositionAndRange;\n" +
-            "    float4 light2SpotAngles;\n" +
-            "    float4 light3ColorAndType;\n" +
-            "    float4 light3DirectionAndShadow;\n" +
-            "    float4 light3PositionAndRange;\n" +
-            "    float4 light3SpotAngles;\n" +
-            "};\n" +
-            "\n" +
-            "cbuffer ShadowBuffer : register(b2)\n" +
-            "{\n" +
-            "    float4 shadowMetadata;\n" +
-            "    float4 shadowLight0AtlasRect;\n" +
-            "    float4 shadowLight0Metadata;\n" +
-            "    float4x4 shadowLight0WorldToShadowClip;\n" +
-            "    float4 shadowLight1AtlasRect;\n" +
-            "    float4 shadowLight1Metadata;\n" +
-            "    float4x4 shadowLight1WorldToShadowClip;\n" +
-            "    float4 shadowLight2AtlasRect;\n" +
-            "    float4 shadowLight2Metadata;\n" +
-            "    float4x4 shadowLight2WorldToShadowClip;\n" +
-            "    float4 shadowLight3AtlasRect;\n" +
-            "    float4 shadowLight3Metadata;\n" +
-            "    float4x4 shadowLight3WorldToShadowClip;\n" +
-            "};\n" +
-            "\n" +
-            "cbuffer MaterialColorBuffer : register(b3)\n" +
-            "{\n" +
-            "    float4 surfaceColor;\n" +
-            "};\n" +
-            "\n" +
-            "Texture2D shadowAtlasTexture : register(t1);\n" +
-            "SamplerState shadowAtlasSampler : register(s1);\n" +
-            "TextureCube pointShadowTexture0 : register(t2);\n" +
-            "TextureCube pointShadowTexture1 : register(t3);\n" +
-            "TextureCube pointShadowTexture2 : register(t4);\n" +
-            "TextureCube pointShadowTexture3 : register(t5);\n" +
-            "SamplerState pointShadowSampler : register(s2);\n" +
-            "\n" +
-            "struct VS_IN\n" +
-            "{\n" +
-            "    float3 pos : POSITION;\n" +
-            "    float3 normal : NORMAL;\n" +
-            "    float2 texCoord : TEXCOORD0;\n" +
-            "};\n" +
-            "\n" +
-            "struct PS_IN\n" +
-            "{\n" +
-            "    float4 pos : SV_POSITION;\n" +
-            "    float3 worldPos : TEXCOORD0;\n" +
-            "    float3 normal : TEXCOORD1;\n" +
-            "};\n" +
-            "\n" +
-            "PS_IN VS(VS_IN input)\n" +
-            "{\n" +
-            "    PS_IN output;\n" +
-            "    float4 worldPosition = mul(float4(input.pos, 1.0f), world);\n" +
-            "    output.pos = mul(float4(input.pos, 1.0f), worldViewProj);\n" +
-            "    output.worldPos = worldPosition.xyz;\n" +
-            "    output.normal = mul(float4(input.normal, 0.0f), normalMatrix).xyz;\n" +
-            "    return output;\n" +
-            "}\n" +
-            "\n" +
-            "float SamplePointShadowTexture(int textureIndex, float3 sampleDirection)\n" +
-            "{\n" +
-            "    if (textureIndex == 0)\n" +
-            "    {\n" +
-            "        return pointShadowTexture0.Sample(pointShadowSampler, sampleDirection).r;\n" +
-            "    }\n" +
-            "\n" +
-            "    if (textureIndex == 1)\n" +
-            "    {\n" +
-            "        return pointShadowTexture1.Sample(pointShadowSampler, sampleDirection).r;\n" +
-            "    }\n" +
-            "\n" +
-            "    if (textureIndex == 2)\n" +
-            "    {\n" +
-            "        return pointShadowTexture2.Sample(pointShadowSampler, sampleDirection).r;\n" +
-            "    }\n" +
-            "\n" +
-            "    return pointShadowTexture3.Sample(pointShadowSampler, sampleDirection).r;\n" +
-            "}\n" +
-            "\n" +
-            "float3 EvaluateForwardLight(\n" +
-            "    float4 colorAndType,\n" +
-            "    float4 directionAndShadow,\n" +
-            "    float4 positionAndRange,\n" +
-            "    float4 spotAngles,\n" +
-            "    float4 shadowAtlasRect,\n" +
-            "    float4 shadowSlotMetadata,\n" +
-            "    float4x4 worldToShadowClip,\n" +
-            "    float3 litSurfaceColor,\n" +
-            "    float3 worldPos,\n" +
-            "    float3 normal,\n" +
-            "    float3 viewDirection)\n" +
-            "{\n" +
-            "    int lightType = (int)(colorAndType.w + 0.5f);\n" +
-            "    float3 radiance = colorAndType.xyz;\n" +
-            "    float3 lightDirection = float3(0.0f, 0.0f, 0.0f);\n" +
-            "    float attenuation = 1.0f;\n" +
-            "\n" +
-            "    if (lightType == 0)\n" +
-            "    {\n" +
-            "        lightDirection = normalize(-directionAndShadow.xyz);\n" +
-            "    }\n" +
-            "    else\n" +
-            "    {\n" +
-            "        float3 toLight = positionAndRange.xyz - worldPos;\n" +
-            "        float distanceToLight = length(toLight);\n" +
-            "        if (distanceToLight <= 0.0001f || positionAndRange.w <= 0.0f)\n" +
-            "        {\n" +
-            "            return float3(0.0f, 0.0f, 0.0f);\n" +
-            "        }\n" +
-            "\n" +
-            "        lightDirection = toLight / distanceToLight;\n" +
-            "        float normalizedDistance = saturate(distanceToLight / positionAndRange.w);\n" +
-            "        float rangeAttenuation = 1.0f - (normalizedDistance * normalizedDistance);\n" +
-            "        attenuation = rangeAttenuation * rangeAttenuation;\n" +
-            "\n" +
-            "        if (lightType == 2)\n" +
-            "        {\n" +
-            "            float3 lightForward = normalize(directionAndShadow.xyz);\n" +
-            "            float3 lightToSurface = normalize(worldPos - positionAndRange.xyz);\n" +
-            "            float cone = dot(lightForward, lightToSurface);\n" +
-            "            float coneRange = max(spotAngles.x - spotAngles.y, 0.0001f);\n" +
-            "            float spotAttenuation = saturate((cone - spotAngles.y) / coneRange);\n" +
-            "            attenuation *= spotAttenuation * spotAttenuation;\n" +
-            "        }\n" +
-            "    }\n" +
-            "\n" +
-            "    if (attenuation <= 0.0f)\n" +
-            "    {\n" +
-            "        return float3(0.0f, 0.0f, 0.0f);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (shadowSlotMetadata.x > 0.5f && shadowSlotMetadata.z < 1.5f && shadowMetadata.x > 0.5f)\n" +
-            "    {\n" +
-            "        float4 shadowClip = mul(float4(worldPos, 1.0f), worldToShadowClip);\n" +
-            "        if (abs(shadowClip.w) > 0.0001f)\n" +
-            "        {\n" +
-            "            float3 shadowNdc = shadowClip.xyz / shadowClip.w;\n" +
-            "            float2 shadowUv = float2((shadowNdc.x * 0.5f) + 0.5f, (-shadowNdc.y * 0.5f) + 0.5f);\n" +
-            "            if (shadowUv.x >= 0.0f && shadowUv.x <= 1.0f && shadowUv.y >= 0.0f && shadowUv.y <= 1.0f && shadowNdc.z >= 0.0f && shadowNdc.z <= 1.0f)\n" +
-            "            {\n" +
-            "                float2 atlasUv = shadowAtlasRect.xy + (shadowUv * shadowAtlasRect.zw);\n" +
-            "                float sampledDepth = shadowAtlasTexture.Sample(shadowAtlasSampler, atlasUv).r;\n" +
-            "                float shadowBias = 0.0015f;\n" +
-            "                float shadowVisibility = (shadowNdc.z - shadowBias) <= sampledDepth ? 1.0f : 0.0f;\n" +
-            "                attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);\n" +
-            "            }\n" +
-            "        }\n" +
-            "    }\n" +
-            "    else if (shadowSlotMetadata.x > 0.5f && shadowSlotMetadata.z > 1.5f && lightType == 1)\n" +
-            "    {\n" +
-            "        float3 lightToSurface = worldPos - positionAndRange.xyz;\n" +
-            "        float distanceToSurface = length(lightToSurface);\n" +
-            "        if (distanceToSurface > 0.0001f && positionAndRange.w > 0.0f)\n" +
-            "        {\n" +
-            "            int pointShadowTextureIndex = (int)(shadowSlotMetadata.w + 0.5f);\n" +
-            "            float3 sampleDirection = lightToSurface / distanceToSurface;\n" +
-            "            float currentDepth = saturate(distanceToSurface / positionAndRange.w);\n" +
-            "            float sampledDepth = SamplePointShadowTexture(pointShadowTextureIndex, sampleDirection);\n" +
-            "            float shadowBias = 0.01f;\n" +
-            "            float shadowVisibility = (currentDepth - shadowBias) <= sampledDepth ? 1.0f : 0.0f;\n" +
-            "            attenuation *= lerp(1.0f, shadowVisibility, shadowSlotMetadata.y);\n" +
-            "        }\n" +
-            "    }\n" +
-            "\n" +
-            "    float diffuse = saturate(dot(normal, lightDirection));\n" +
-            "    if (diffuse <= 0.0f)\n" +
-            "    {\n" +
-            "        return float3(0.0f, 0.0f, 0.0f);\n" +
-            "    }\n" +
-            "\n" +
-            "    float3 halfVector = normalize(lightDirection + viewDirection);\n" +
-            "    float specular = pow(saturate(dot(normal, halfVector)), 32.0f);\n" +
-            "    float3 diffuseColor = litSurfaceColor * radiance * diffuse * attenuation;\n" +
-            "    float3 specularColor = radiance * specular * 0.35f * attenuation;\n" +
-            "    return diffuseColor + specularColor;\n" +
-            "}\n" +
-            "\n" +
-            "float4 PS(PS_IN input) : SV_Target\n" +
-            "{\n" +
-            "    float3 ambientColor = float3(0.14f, 0.16f, 0.18f);\n" +
-            "    float3 normal = normalize(input.normal);\n" +
-            "    float3 viewDirection = normalize(cameraPosition.xyz - input.worldPos);\n" +
-            "    float3 color = surfaceColor.xyz * ambientColor;\n" +
-            "    int activeLightCount = (int)(lightMetadata.x + 0.5f);\n" +
-            "\n" +
-            "    if (activeLightCount > 0)\n" +
-            "    {\n" +
-            "        color += EvaluateForwardLight(light0ColorAndType, light0DirectionAndShadow, light0PositionAndRange, light0SpotAngles, shadowLight0AtlasRect, shadowLight0Metadata, shadowLight0WorldToShadowClip, surfaceColor.xyz, input.worldPos, normal, viewDirection);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (activeLightCount > 1)\n" +
-            "    {\n" +
-            "        color += EvaluateForwardLight(light1ColorAndType, light1DirectionAndShadow, light1PositionAndRange, light1SpotAngles, shadowLight1AtlasRect, shadowLight1Metadata, shadowLight1WorldToShadowClip, surfaceColor.xyz, input.worldPos, normal, viewDirection);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (activeLightCount > 2)\n" +
-            "    {\n" +
-            "        color += EvaluateForwardLight(light2ColorAndType, light2DirectionAndShadow, light2PositionAndRange, light2SpotAngles, shadowLight2AtlasRect, shadowLight2Metadata, shadowLight2WorldToShadowClip, surfaceColor.xyz, input.worldPos, normal, viewDirection);\n" +
-            "    }\n" +
-            "\n" +
-            "    if (activeLightCount > 3)\n" +
-            "    {\n" +
-            "        color += EvaluateForwardLight(light3ColorAndType, light3DirectionAndShadow, light3PositionAndRange, light3SpotAngles, shadowLight3AtlasRect, shadowLight3Metadata, shadowLight3WorldToShadowClip, surfaceColor.xyz, input.worldPos, normal, viewDirection);\n" +
-            "    }\n" +
-            "\n" +
-            "    return float4(saturate(color), surfaceColor.w);\n" +
-            "}\n";
-
-        /// <summary>
         /// Current payload version for serialized rigid-body component scene records.
         /// </summary>
         const byte RigidBodyComponentPayloadVersion = 1;
@@ -458,6 +220,16 @@ namespace helengine.editor {
         /// Allocates numeric entity ids while one validation scene asset is being built.
         /// </summary>
         readonly SceneEntityAssetIdAllocator SceneEntityIdAllocator;
+
+        /// <summary>
+        /// Project-scoped resolver used while exporting validation scenes.
+        /// </summary>
+        EditorAssetReferenceResolver ExportReferenceResolver;
+
+        /// <summary>
+        /// Absolute project root used while exporting validation scenes.
+        /// </summary>
+        string ExportProjectRootPath;
 
         /// <summary>
         /// Initializes the validation-scene factory with a fresh scene-local entity id allocator.
@@ -517,19 +289,34 @@ namespace helengine.editor {
 
             WriteSupportAssets(projectRootPath);
 
-            string[] sceneIds = PhysicsValidationSceneCatalog.GetSceneIds();
-            for (int index = 0; index < sceneIds.Length; index++) {
-                string sceneId = sceneIds[index];
-                SceneAsset sceneAsset = CreateSceneAsset(sceneId);
-                string fullPath = GetSceneFullPath(projectRootPath, sceneId);
-                string directoryPath = Path.GetDirectoryName(fullPath);
-                if (string.IsNullOrWhiteSpace(directoryPath)) {
-                    throw new InvalidOperationException($"Could not resolve the directory path for scene '{sceneId}'.");
-                }
+            ExportProjectRootPath = Path.GetFullPath(projectRootPath);
+            ExportReferenceResolver = new EditorAssetReferenceResolver(ExportProjectRootPath);
+            ExportReferenceResolver.BeginResolutionScope();
+            try {
+                AssetIdentityMetadataService identityMetadataService = new AssetIdentityMetadataService();
+                string[] sceneIds = PhysicsValidationSceneCatalog.GetSceneIds();
+                for (int index = 0; index < sceneIds.Length; index++) {
+                    string sceneId = sceneIds[index];
+                    SceneAsset sceneAsset = CreateSceneAsset(sceneId);
+                    string fullPath = GetSceneFullPath(projectRootPath, sceneId);
+                    AssetIdentityMetadataDocument identity = File.Exists(fullPath)
+                        ? identityMetadataService.Load(fullPath)
+                        : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
+                    sceneAsset.AuthoringAssetId = identity.AssetId;
+                    sceneAsset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
+                    string directoryPath = Path.GetDirectoryName(fullPath);
+                    if (string.IsNullOrWhiteSpace(directoryPath)) {
+                        throw new InvalidOperationException($"Could not resolve the directory path for scene '{sceneId}'.");
+                    }
 
-                Directory.CreateDirectory(directoryPath);
-                using FileStream stream = File.Create(fullPath);
-                AssetSerializer.Serialize(stream, sceneAsset);
+                    Directory.CreateDirectory(directoryPath);
+                    using FileStream stream = File.Create(fullPath);
+                    AssetSerializer.Serialize(stream, sceneAsset);
+                }
+            } finally {
+                ExportReferenceResolver.EndResolutionScope();
+                ExportReferenceResolver = null;
+                ExportProjectRootPath = null;
             }
         }
 
@@ -1088,7 +875,7 @@ namespace helengine.editor {
         /// Creates the shared generated-asset reference list used by validation scene mesh components.
         /// </summary>
         /// <returns>Stable generated asset reference list.</returns>
-        static SceneAssetReference[] CreateAssetReferences() {
+        SceneAssetReference[] CreateAssetReferences() {
             return new[] {
                 global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel(),
                 global::helengine.EngineSceneAssetReferenceFactory.CreateSphereModel(),
@@ -1111,7 +898,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sphereIndex">Zero-based sphere index.</param>
         /// <returns>Distinct colored material reference for the requested sphere.</returns>
-        static SceneAssetReference CreateSphereStackMaterialReference(int sphereIndex) {
+        SceneAssetReference CreateSphereStackMaterialReference(int sphereIndex) {
             if (sphereIndex < 0) {
                 throw new ArgumentOutOfRangeException(nameof(sphereIndex), "Sphere index must be non-negative.");
             }
@@ -1134,12 +921,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="relativePath">Relative project asset path.</param>
         /// <returns>Scene asset reference targeting a file-backed asset.</returns>
-        static SceneAssetReference CreatePhysicsDemoMaterialReference(string relativePath) {
+        SceneAssetReference CreatePhysicsDemoMaterialReference(string relativePath) {
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 throw new ArgumentException("Relative path must be provided.", nameof(relativePath));
             }
 
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
+            if (ExportReferenceResolver == null || string.IsNullOrWhiteSpace(ExportProjectRootPath)) {
+                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
+            }
+
+            string fullPath = Path.Combine(
+                ExportProjectRootPath,
+                "assets",
+                relativePath.Replace('/', Path.DirectorySeparatorChar));
+            return ExportReferenceResolver.CreateFileReference(fullPath, AssetEntryKind.Material);
         }
 
         /// <summary>
@@ -1273,7 +1068,6 @@ namespace helengine.editor {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
 
-            DeleteObsoletePhysicsDemoShaderAsset(projectRootPath);
             WriteMaterialAsset(projectRootPath, PhysicsDemoGroundMaterialRelativePath, "PhysicsDemoGround", new float4(0.77f, 0.80f, 0.84f, 1.0f), false, true);
             WriteMaterialAsset(projectRootPath, PhysicsDemoNeutralMaterialRelativePath, "PhysicsDemoNeutral", new float4(0.77f, 0.80f, 0.84f, 1.0f), true, true);
             WriteMaterialAsset(projectRootPath, PhysicsDemoBlueMaterialRelativePath, "PhysicsDemoBlue", new float4(0.33f, 0.56f, 0.90f, 1.0f), true, true);
@@ -1284,40 +1078,6 @@ namespace helengine.editor {
             WriteMaterialAsset(projectRootPath, PhysicsDemoRedMaterialRelativePath, "PhysicsDemoRed", new float4(0.90f, 0.32f, 0.29f, 1.0f), true, true);
             WriteMaterialAsset(projectRootPath, PhysicsDemoOrangeMaterialRelativePath, "PhysicsDemoOrange", new float4(0.95f, 0.52f, 0.22f, 1.0f), true, true);
             WriteMaterialAsset(projectRootPath, PhysicsDemoPurpleMaterialRelativePath, "PhysicsDemoPurple", new float4(0.55f, 0.43f, 0.92f, 1.0f), true, true);
-        }
-
-        /// <summary>
-        /// Deletes the obsolete custom shader generated by older physics demo material exports.
-        /// </summary>
-        /// <param name="projectRootPath">Absolute project root path that owns the `assets` directory.</param>
-        static void DeleteObsoletePhysicsDemoShaderAsset(string projectRootPath) {
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
-            }
-
-            string fullPath = Path.Combine(projectRootPath, "assets", PhysicsDemoShaderRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            if (File.Exists(fullPath)) {
-                File.Delete(fullPath);
-            }
-        }
-
-        /// <summary>
-        /// Writes the shared file-backed HLSL shader used by the exported physics validation scenes.
-        /// </summary>
-        /// <param name="projectRootPath">Absolute project root path that owns the `assets` directory.</param>
-        static void WriteShaderAsset(string projectRootPath) {
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
-            }
-
-            string fullPath = Path.Combine(projectRootPath, "assets", PhysicsDemoShaderRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            string directoryPath = Path.GetDirectoryName(fullPath);
-            if (string.IsNullOrWhiteSpace(directoryPath)) {
-                throw new InvalidOperationException($"Could not resolve a directory path for shader '{PhysicsDemoShaderRelativePath}'.");
-            }
-
-            Directory.CreateDirectory(directoryPath);
-            File.WriteAllText(fullPath, PhysicsDemoShaderSource);
         }
 
         /// <summary>

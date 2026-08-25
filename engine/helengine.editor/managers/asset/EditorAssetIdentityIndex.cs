@@ -85,7 +85,7 @@ namespace helengine.editor {
             List<EditorAssetIdentityEntry> loadedEntries = new List<EditorAssetIdentityEntry>();
             for (int index = 0; index < sourcePaths.Count; index++) {
                 string fullPath = sourcePaths[index];
-                AssetIdentityMetadataDocument document = LoadOrRepairIdentityMetadata(fullPath);
+                AssetIdentityMetadataDocument document = LoadIdentityMetadata(fullPath);
                 loadedEntries.Add(CreateEntry(fullPath, document));
             }
 
@@ -224,20 +224,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads one identity sidecar, replacing malformed metadata with a fresh identity so indexing can continue.
+        /// Loads one current identity, creating metadata only when an external sidecar is absent.
         /// </summary>
         /// <param name="fullPath">Absolute authored source path.</param>
         /// <returns>Validated identity metadata.</returns>
-        AssetIdentityMetadataDocument LoadOrRepairIdentityMetadata(string fullPath) {
-            try {
-                return MetadataService.LoadOrCreate(fullPath, string.Empty);
-            } catch (InvalidOperationException) {
-                AssetIdentityMetadataDocument repaired = new AssetIdentityMetadataDocument {
-                    AssetId = Guid.NewGuid().ToString("N")
-                };
-                MetadataService.Save(fullPath, repaired);
-                return repaired;
+        AssetIdentityMetadataDocument LoadIdentityMetadata(string fullPath) {
+            if (PathClassifier.UsesEmbeddedIdentity(fullPath)) {
+                return MetadataService.Load(fullPath);
             }
+            return MetadataService.LoadOrCreate(fullPath, string.Empty);
         }
 
         /// <summary>

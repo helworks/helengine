@@ -177,33 +177,32 @@ namespace helengine.editor {
                     if (pathClassifier.ShouldHide(filePath)) {
                         continue;
                     }
-                    AssetEntryKind entryKind = pathClassifier.Classify(filePath);
-                    AssetIdentityMetadataDocument metadata = LoadOrRepairIdentityMetadata(filePath);
-                    string contentHash = identityHashCache.GetContentHash(filePath);
-                    entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind, metadata.AssetId, contentHash));
+                    try {
+                        AssetEntryKind entryKind = pathClassifier.Classify(filePath);
+                        AssetIdentityMetadataDocument metadata = LoadIdentityMetadata(filePath);
+                        string contentHash = identityHashCache.GetContentHash(filePath);
+                        entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind, metadata.AssetId, contentHash));
+                    } catch (Exception ex) {
+                        Logger.WriteError($"Asset browser skipped '{relativePath}': {ex.Message}");
+                    }
                 }
             } catch (Exception ex) {
-                System.Diagnostics.Debug.WriteLine($"Asset browser refresh failed: {ex.Message}");
+                Logger.WriteError($"Asset browser refresh failed: {ex.Message}");
             }
 
             entries.Sort(CompareEntries);
         }
 
         /// <summary>
-        /// Loads one authored identity sidecar, repairing malformed metadata so one bad sidecar cannot hide the source file.
+        /// Loads one current identity, creating metadata only when an external sidecar is absent.
         /// </summary>
         /// <param name="filePath">Absolute authored source path.</param>
         /// <returns>Validated current identity metadata.</returns>
-        AssetIdentityMetadataDocument LoadOrRepairIdentityMetadata(string filePath) {
-            try {
-                return identityMetadataService.LoadOrCreate(filePath, string.Empty);
-            } catch (InvalidOperationException) {
-                AssetIdentityMetadataDocument repaired = new AssetIdentityMetadataDocument {
-                    AssetId = Guid.NewGuid().ToString("N")
-                };
-                identityMetadataService.Save(filePath, repaired);
-                return repaired;
+        AssetIdentityMetadataDocument LoadIdentityMetadata(string filePath) {
+            if (pathClassifier.UsesEmbeddedIdentity(filePath)) {
+                return identityMetadataService.Load(filePath);
             }
+            return identityMetadataService.LoadOrCreate(filePath, string.Empty);
         }
 
         /// <summary>

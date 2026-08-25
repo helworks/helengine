@@ -82,7 +82,7 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(document.PlatformId)) {
                 throw new InvalidOperationException("Material platform override cannot contain a blank platform id.");
             }
-            document.EnvironmentId = header.Version >= 2 ? reader.ReadString() : string.Empty;
+            document.EnvironmentId = reader.ReadString();
 
             document.Processor.HasSchemaIdOverride = ReadBooleanByte(reader);
             document.Processor.SchemaId = reader.ReadString();
@@ -100,9 +100,7 @@ namespace helengine.editor {
 
                 document.Processor.FieldValues.Add(fieldId, reader.ReadString());
             }
-            if (header.Version >= 3) {
-                ReadReferences(reader, document.Processor.AssetReferenceValues);
-            }
+            ReadReferences(reader, document.Processor.AssetReferenceValues);
 
             return document;
         }
@@ -120,7 +118,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected material platform override record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetPlatformOverrideDocument) {
                 throw new InvalidOperationException($"Unexpected material platform override value kind '{header.ValueKind}'.");
-            } else if (header.Version < 1 || header.Version > CurrentVersion) {
+            } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported material platform override binary version '{header.Version}'.");
             }
         }

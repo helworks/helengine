@@ -296,15 +296,12 @@ namespace helengine.editor {
         /// <param name="blueprintAssetPath">Project-relative blueprint asset path.</param>
         /// <returns>Loaded blueprint asset payload.</returns>
         BlueprintAsset LoadBlueprintAsset(BlueprintInstanceComponent instanceComponent) {
-            string blueprintAssetPath = instanceComponent.BlueprintAssetPath;
-            string fullPath;
-            if (instanceComponent.BlueprintAssetReference != null) {
-                AssetReferenceResolution resolution = AssetReferenceResolver.Resolve(instanceComponent.BlueprintAssetReference, AssetEntryKind.Blueprint);
-                fullPath = resolution.FullPath;
-                blueprintAssetPath = resolution.CanonicalReference.RelativePath;
-            } else {
-                fullPath = ResolveBlueprintFullPath(blueprintAssetPath);
+            if (instanceComponent.BlueprintAssetReference == null) {
+                throw new InvalidOperationException("Blueprint instances must define a canonical blueprint reference.");
             }
+            AssetReferenceResolution resolution = AssetReferenceResolver.Resolve(instanceComponent.BlueprintAssetReference, AssetEntryKind.Blueprint);
+            string fullPath = resolution.FullPath;
+            string blueprintAssetPath = resolution.CanonicalReference.RelativePath;
             using FileStream stream = File.OpenRead(fullPath);
             Asset asset = AssetSerializer.Deserialize(stream);
             if (asset is BlueprintAsset blueprintAsset) {
@@ -516,11 +513,12 @@ namespace helengine.editor {
                 return null;
             }
 
-            return global::helengine.SceneAssetReferenceFactory.Rehydrate(
+            return global::helengine.SceneAssetReferenceFactory.RehydratePackaged(
                 reference.SourceKind,
                 reference.RelativePath,
                 reference.ProviderId,
-                reference.AssetId);
+                reference.AssetId,
+                reference.ContentHash);
         }
 
         static SceneEntityPlatformExistenceOverrideAsset CloneExistenceOverride(SceneEntityPlatformExistenceOverrideAsset overrideAsset) {

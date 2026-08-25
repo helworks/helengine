@@ -13,6 +13,10 @@ namespace helengine.editor {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
+        static EditorWorkspaceLayoutService() {
+            JsonSerializerOptions.Converters.Add(new SceneAssetReferenceJsonConverter());
+        }
+
         /// <summary>
         /// Absolute project root that owns the local workspace settings file.
         /// </summary>

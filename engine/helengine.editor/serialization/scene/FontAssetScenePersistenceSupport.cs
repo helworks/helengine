@@ -92,17 +92,7 @@ namespace helengine.editor {
         /// <param name="reader">Reader positioned at the reference payload.</param>
         /// <returns>Stable scene asset reference when present; otherwise null.</returns>
         internal static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
-        }
-
-        /// <summary>
-        /// Reads one optional font reference using the selected nested payload encoding.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the reference payload.</param>
-        /// <param name="encodingVersion">Nested reference encoding version.</param>
-        /// <returns>Stable font reference when present; otherwise null.</returns>
-        internal static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader, byte encodingVersion) {
-            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader, encodingVersion >= 1);
+            return global::helengine.SceneAssetReferenceFactory.ReadOptionalCurrentReference(reader);
         }
 
         /// <summary>
@@ -111,16 +101,6 @@ namespace helengine.editor {
         /// <param name="writer">Writer receiving the serialized reference.</param>
         /// <param name="reference">Reference to write.</param>
         internal static void WriteOptionalReference(EngineBinaryWriter writer, SceneAssetReference reference) {
-            WriteOptionalReference(writer, reference, 0);
-        }
-
-        /// <summary>
-        /// Writes one optional font reference using the selected nested payload encoding.
-        /// </summary>
-        /// <param name="writer">Writer receiving the serialized reference.</param>
-        /// <param name="reference">Reference to write.</param>
-        /// <param name="encodingVersion">Nested reference encoding version.</param>
-        internal static void WriteOptionalReference(EngineBinaryWriter writer, SceneAssetReference reference, byte encodingVersion) {
             if (writer == null) {
                 throw new ArgumentNullException(nameof(writer));
             }
@@ -134,9 +114,7 @@ namespace helengine.editor {
             writer.WriteString(reference.RelativePath);
             writer.WriteString(reference.ProviderId);
             writer.WriteString(reference.AssetId);
-            if (encodingVersion >= 1) {
-                writer.WriteString(reference.ContentHash);
-            }
+            writer.WriteString(reference.ContentHash);
         }
 
         /// <summary>

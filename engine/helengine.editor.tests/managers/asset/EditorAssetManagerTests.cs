@@ -35,7 +35,6 @@ public sealed class EditorAssetManagerTests : IDisposable {
     public void LoadEntries_HidesIdentityMetadataSidecars() {
         string assetPath = Path.Combine(TempRootPath, "assets", "Visible.png");
         File.WriteAllBytes(assetPath, new byte[] { 1, 2, 3 });
-        File.WriteAllText(assetPath + ".hmeta", "{}");
         EditorAssetManager manager = new EditorAssetManager(TempRootPath);
         List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
 
@@ -43,6 +42,36 @@ public sealed class EditorAssetManagerTests : IDisposable {
 
         Assert.Contains(entries, entry => entry.Name == "Visible.png");
         Assert.DoesNotContain(entries, entry => entry.Name == "Visible.png.hmeta");
+    }
+
+    /// <summary>
+    /// Ensures one malformed sidecar is preserved and reported without hiding later valid assets.
+    /// </summary>
+    [Fact]
+    public void LoadEntries_WhenSidecarIsMalformed_PreservesItAndContinuesDirectoryEnumeration() {
+        string malformedAssetPath = Path.Combine(TempRootPath, "assets", "A-Malformed.png");
+        string validAssetPath = Path.Combine(TempRootPath, "assets", "B-Visible.png");
+        File.WriteAllBytes(malformedAssetPath, new byte[] { 1, 2, 3 });
+        File.WriteAllBytes(validAssetPath, new byte[] { 4, 5, 6 });
+        string metadataPath = malformedAssetPath + ".hmeta";
+        const string malformedMetadata = "{}";
+        File.WriteAllText(metadataPath, malformedMetadata);
+        EditorAssetManager manager = new EditorAssetManager(TempRootPath);
+        List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
+        List<string> errors = new List<string>();
+        void CaptureError(LogEntry entry) => errors.Add(entry.Message);
+
+        Logger.ErrorLogged += CaptureError;
+        try {
+            manager.LoadEntries(entries);
+        } finally {
+            Logger.ErrorLogged -= CaptureError;
+        }
+
+        Assert.Equal(malformedMetadata, File.ReadAllText(metadataPath));
+        Assert.DoesNotContain(entries, entry => entry.Name == "A-Malformed.png");
+        Assert.Contains(entries, entry => entry.Name == "B-Visible.png");
+        Assert.Contains(errors, message => message.Contains("A-Malformed.png", StringComparison.Ordinal));
     }
 
     /// <summary>

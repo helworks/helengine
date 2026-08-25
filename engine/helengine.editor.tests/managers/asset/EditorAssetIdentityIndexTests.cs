@@ -96,6 +96,21 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures malformed existing sidecars fail visibly and are never replaced with a fresh identity.
+    /// </summary>
+    [Fact]
+    public void Refresh_WhenExistingSidecarIsMalformed_ThrowsWithoutOverwritingMetadata() {
+        string assetPath = CreateAsset("Models/Broken.fbx");
+        string metadataPath = assetPath + ".hmeta";
+        const string malformedJson = "{not json";
+        File.WriteAllText(metadataPath, malformedJson);
+
+        Assert.Throws<InvalidOperationException>(() => CreateIndex().Refresh());
+
+        Assert.Equal(malformedJson, File.ReadAllText(metadataPath));
+    }
+
+    /// <summary>
     /// Creates the identity index with its project-scoped dependencies.
     /// </summary>
     /// <returns>Configured identity index.</returns>

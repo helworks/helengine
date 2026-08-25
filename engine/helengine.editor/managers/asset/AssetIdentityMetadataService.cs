@@ -2,7 +2,8 @@ using System.Text.Json;
 
 namespace helengine.editor {
     /// <summary>
-    /// Loads, validates, creates, and atomically saves authored asset identity sidecars.
+    /// Loads, validates, creates, and atomically saves authored asset identities.
+    /// Native formats embed identity; external source formats use adjacent sidecars.
     /// </summary>
     public sealed class AssetIdentityMetadataService {
         /// <summary>
@@ -19,17 +20,25 @@ namespace helengine.editor {
         };
 
         /// <summary>
+        /// Shared classifier that selects embedded identity storage for engine-native authored formats.
+        /// </summary>
+        readonly EditorAssetPathClassifier PathClassifier = new EditorAssetPathClassifier();
+
+        /// <summary>
         /// Returns the metadata sidecar path for one authored asset.
         /// </summary>
         /// <param name="assetPath">Absolute authored asset path.</param>
         /// <returns>Adjacent metadata sidecar path.</returns>
         public string GetMetadataPath(string assetPath) {
             ValidateAssetPath(assetPath);
+            if (PathClassifier.UsesEmbeddedIdentity(assetPath)) {
+                throw new InvalidOperationException($"Engine-native asset '{assetPath}' stores identity metadata inside the file.");
+            }
             return assetPath + ".hmeta";
         }
 
         /// <summary>
-        /// Loads and strictly validates an existing metadata sidecar.
+        /// Loads and strictly validates existing embedded or sidecar identity metadata.
         /// </summary>
         /// <param name="assetPath">Absolute authored asset path.</param>
         /// <returns>Validated metadata document.</returns>
@@ -37,6 +46,10 @@ namespace helengine.editor {
             ValidateAssetPath(assetPath);
             if (!File.Exists(assetPath)) {
                 throw new InvalidOperationException($"Authored asset '{assetPath}' does not exist.");
+            }
+
+            if (PathClassifier.UsesEmbeddedIdentity(assetPath)) {
+                return LoadEmbedded(assetPath);
             }
 
             string metadataPath = GetMetadataPath(assetPath);
@@ -64,7 +77,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads existing metadata or creates a new validated sidecar for an authored asset.
+        /// Loads existing metadata or creates a new validated sidecar for an external authored asset.
         /// </summary>
         /// <param name="assetPath">Absolute authored asset path.</param>
         /// <param name="requestedAssetId">Optional requested stable UUID.</param>
@@ -73,6 +86,10 @@ namespace helengine.editor {
             ValidateAssetPath(assetPath);
             if (!File.Exists(assetPath)) {
                 throw new InvalidOperationException($"Authored asset '{assetPath}' does not exist.");
+            }
+
+            if (PathClassifier.UsesEmbeddedIdentity(assetPath)) {
+                return LoadEmbedded(assetPath);
             }
 
             string metadataPath = GetMetadataPath(assetPath);
@@ -94,7 +111,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Strictly validates and atomically saves one metadata document beside its source asset.
+        /// Strictly validates and atomically saves one embedded or sidecar metadata document.
         /// </summary>
         /// <param name="assetPath">Absolute authored asset path.</param>
         /// <param name="document">Metadata document to save.</param>
@@ -106,6 +123,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(document));
             }
 
+            if (PathClassifier.UsesEmbeddedIdentity(assetPath)) {
+                ValidateDocument(document, assetPath);
+                SaveEmbedded(assetPath, document);
+                return;
+            }
+
             string metadataPath = GetMetadataPath(assetPath);
             ValidateDocument(document, metadataPath);
             string temporaryPath = metadataPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -113,6 +136,95 @@ namespace helengine.editor {
                 string json = JsonSerializer.Serialize(document, JsonOptions);
                 File.WriteAllText(temporaryPath, json, new System.Text.UTF8Encoding(false));
                 File.Move(temporaryPath, metadataPath, true);
+            } finally {
+                if (File.Exists(temporaryPath)) {
+                    File.Delete(temporaryPath);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Loads identity metadata from one current engine-native authored payload.
+        /// Missing identity is rejected and never upgraded.
+        /// </summary>
+        /// <param name="assetPath">Absolute native authored asset path.</param>
+        /// <returns>Validated embedded identity metadata.</returns>
+        AssetIdentityMetadataDocument LoadEmbedded(string assetPath) {
+            try {
+                using FileStream stream = new FileStream(assetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                stream.Position = 0;
+                AssetIdentityMetadataDocument document;
+                if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
+                    if (header.Version != EditorAssetBinarySerializer.CurrentVersion) {
+                        throw new InvalidOperationException($"Engine-native asset '{assetPath}' uses unsupported version '{header.Version}'. Regenerate it in the current format.");
+                    }
+                    Asset asset = AssetSerializer.Deserialize(stream);
+                    document = new AssetIdentityMetadataDocument {
+                        AssetId = asset.AuthoringAssetId,
+                        FormerAssetIds = new List<string>(asset.FormerAuthoringAssetIds ?? Array.Empty<string>())
+                    };
+                } else if (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings &&
+                           header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument) {
+                    MaterialAssetCommonSettingsDocument material = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
+                    document = new AssetIdentityMetadataDocument {
+                        AssetId = material.AuthoringAssetId,
+                        FormerAssetIds = new List<string>(material.FormerAuthoringAssetIds ?? new List<string>())
+                    };
+                } else {
+                    throw new InvalidOperationException($"Engine-native asset '{assetPath}' does not expose embedded identity metadata.");
+                }
+
+                if (string.IsNullOrWhiteSpace(document.AssetId)) {
+                    throw new InvalidOperationException($"Engine-native asset '{assetPath}' is missing required embedded identity metadata.");
+                }
+                ValidateDocument(document, assetPath);
+                return document;
+            } catch (InvalidOperationException) {
+                throw;
+            } catch (Exception exception) {
+                throw new InvalidOperationException($"Failed to read embedded asset identity metadata from '{assetPath}'.", exception);
+            }
+        }
+
+        /// <summary>
+        /// Rewrites only the embedded identity fields of one current engine-native authored payload.
+        /// </summary>
+        /// <param name="assetPath">Absolute native authored asset path.</param>
+        /// <param name="document">Validated identity metadata to embed.</param>
+        void SaveEmbedded(string assetPath, AssetIdentityMetadataDocument document) {
+            Asset asset = null;
+            MaterialAssetCommonSettingsDocument material = null;
+            using (FileStream input = new FileStream(assetPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(input);
+                input.Position = 0;
+                if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
+                    if (header.Version != EditorAssetBinarySerializer.CurrentVersion) {
+                        throw new InvalidOperationException($"Engine-native asset '{assetPath}' uses unsupported version '{header.Version}'. Regenerate it in the current format.");
+                    }
+                    asset = AssetSerializer.Deserialize(input);
+                    asset.AuthoringAssetId = document.AssetId;
+                    asset.FormerAuthoringAssetIds = document.FormerAssetIds.ToArray();
+                } else if (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings &&
+                           header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument) {
+                    material = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(input);
+                    material.AuthoringAssetId = document.AssetId;
+                    material.FormerAuthoringAssetIds = new List<string>(document.FormerAssetIds);
+                } else {
+                    throw new InvalidOperationException($"Engine-native asset '{assetPath}' does not expose embedded identity metadata.");
+                }
+            }
+
+            string temporaryPath = assetPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try {
+                using (FileStream output = File.Create(temporaryPath)) {
+                    if (asset != null) {
+                        AssetSerializer.Serialize(output, asset);
+                    } else {
+                        MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(output, material);
+                    }
+                }
+                File.Move(temporaryPath, assetPath, true);
             } finally {
                 if (File.Exists(temporaryPath)) {
                     File.Delete(temporaryPath);

@@ -20,5 +20,15 @@ namespace helengine.editor {
         /// Gets or sets the shared material processor settings inherited by every platform.
         /// </summary>
         public MaterialAssetProcessorSettings Processor { get; set; }
+
+        /// <summary>
+        /// Gets or sets the stable authored UUID embedded in this native material document.
+        /// </summary>
+        public string AuthoringAssetId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets former authored UUID aliases retained after duplicate identity repair.
+        /// </summary>
+        public List<string> FormerAuthoringAssetIds { get; set; } = new List<string>();
     }
 }

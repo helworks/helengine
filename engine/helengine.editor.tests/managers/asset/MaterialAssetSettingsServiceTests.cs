@@ -4,6 +4,42 @@ namespace helengine.editor {
     /// </summary>
     public sealed class MaterialAssetSettingsServiceTests {
         /// <summary>
+        /// Ensures native authored material documents mint identity once and preserve it without sidecars.
+        /// </summary>
+        [Fact]
+        public void Save_WhenMaterialIsSavedRepeatedly_PreservesEmbeddedIdentityWithoutSidecar() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+
+            try {
+                string materialAssetPath = Path.Combine(tempDirectoryPath, "Identity.hasset");
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetImportSettings settings = CreateSharedTextureSettings("texture-id");
+
+                service.Save(materialAssetPath, settings);
+                MaterialAssetCommonSettingsDocument first;
+                using (FileStream stream = File.OpenRead(materialAssetPath)) {
+                    first = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
+                }
+
+                service.Save(materialAssetPath, settings);
+                MaterialAssetCommonSettingsDocument second;
+                using (FileStream stream = File.OpenRead(materialAssetPath)) {
+                    second = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
+                }
+
+                Assert.False(string.IsNullOrWhiteSpace(first.AuthoringAssetId));
+                Assert.Equal(first.AuthoringAssetId, second.AuthoringAssetId);
+                Assert.Empty(second.FormerAuthoringAssetIds);
+                Assert.False(File.Exists(materialAssetPath + ".hmeta"));
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures one non-empty shared texture id survives save/load when every platform publishes the same authored value.
         /// </summary>
         [Fact]

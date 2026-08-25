@@ -2256,16 +2256,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(materialAsset));
             }
 
-            Dictionary<string, string> fieldValues = materialSettings.FieldValues != null
-                ? new Dictionary<string, string>(materialSettings.FieldValues, StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (materialSettings.AssetReferenceValues != null) {
-                foreach (KeyValuePair<string, SceneAssetReference> referenceEntry in materialSettings.AssetReferenceValues) {
-                    fieldValues[referenceEntry.Key] = referenceEntry.Value.SourceKind == SceneAssetReferenceSourceKind.Generated
-                        ? referenceEntry.Value.AssetId
-                        : referenceEntry.Value.RelativePath;
-                }
-            }
+            Dictionary<string, string> fieldValues = new MaterialAssetReferenceProjectionService().CreateResolvedFieldValues(materialSettings);
 
             fieldValues["casts-shadows"] = materialAsset.CastsShadows ? "true" : "false";
             fieldValues["receives-shadows"] = materialAsset.ReceivesShadows ? "true" : "false";

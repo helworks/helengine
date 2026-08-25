@@ -50,6 +50,33 @@ namespace helengine.editor.tests.serialization.blueprint {
         }
 
         /// <summary>
+        /// Ensures native blueprints mint embedded identity once and preserve it on later saves without sidecars.
+        /// </summary>
+        [Fact]
+        public void Save_WhenBlueprintIsSavedRepeatedly_PreservesEmbeddedIdentityWithoutSidecar() {
+            CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
+            BlueprintSaveService saveService = new BlueprintSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());
+            string blueprintPath = Path.Combine(TempProjectRootPath, "assets", "Blueprints", "Identity.hblueprint");
+
+            saveService.Save(blueprintPath);
+            BlueprintAsset firstAsset;
+            using (FileStream stream = File.OpenRead(blueprintPath)) {
+                firstAsset = Assert.IsType<BlueprintAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            saveService.Save(blueprintPath);
+            BlueprintAsset secondAsset;
+            using (FileStream stream = File.OpenRead(blueprintPath)) {
+                secondAsset = Assert.IsType<BlueprintAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.False(string.IsNullOrWhiteSpace(firstAsset.AuthoringAssetId));
+            Assert.Equal(firstAsset.AuthoringAssetId, secondAsset.AuthoringAssetId);
+            Assert.Empty(secondAsset.FormerAuthoringAssetIds);
+            Assert.False(File.Exists(blueprintPath + ".hmeta"));
+        }
+
+        /// <summary>
         /// Ensures blueprint save writes one `.hblueprint` file and round-trips stable entity ids, component keys, asset references, and platform overrides.
         /// </summary>
         [Fact]

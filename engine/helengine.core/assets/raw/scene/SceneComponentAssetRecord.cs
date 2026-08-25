@@ -47,9 +47,5 @@ namespace helengine {
         /// </summary>
         public byte[] Payload { get; set; } = Array.Empty<byte>();
 
-        /// <summary>
-        /// Gets or sets the nested asset-reference payload encoding version used by this component.
-        /// </summary>
-        public byte AssetReferenceEncodingVersion { get; set; } = 1;
     }
 }

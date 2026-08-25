@@ -70,7 +70,8 @@ namespace helengine.editor {
             }
 
             foreach (KeyValuePair<string, SceneAssetReference> pair in leftSettings.AssetReferenceValues) {
-                if (!rightSettings.AssetReferenceValues.TryGetValue(pair.Key, out SceneAssetReference otherReference) || !ReferenceEquals(pair.Value, otherReference) && !string.Equals(pair.Value?.AssetId, otherReference?.AssetId, StringComparison.Ordinal)) {
+                if (!rightSettings.AssetReferenceValues.TryGetValue(pair.Key, out SceneAssetReference otherReference) ||
+                    !ReferencesEqual(pair.Value, otherReference)) {
                     return false;
                 }
             }
@@ -89,8 +90,8 @@ namespace helengine.editor {
             }
 
             MaterialAssetProcessorSettings materialSettings = RequireSettings(settings);
-            if (materialSettings.FieldValues == null) {
-                throw new InvalidOperationException("Material field values must be provided.");
+            if (materialSettings.FieldValues == null || materialSettings.AssetReferenceValues == null) {
+                throw new InvalidOperationException("Material field values and typed references must be provided.");
             }
 
             writer.WriteString(materialSettings.SchemaId ?? string.Empty);
@@ -104,6 +105,18 @@ namespace helengine.editor {
 
                 writer.WriteString(pair.Key);
                 writer.WriteString(pair.Value);
+            }
+            writer.WriteInt32(materialSettings.AssetReferenceValues.Count);
+            foreach (KeyValuePair<string, SceneAssetReference> pair in materialSettings.AssetReferenceValues) {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null) {
+                    throw new InvalidOperationException("Material typed reference entries must include a field id and reference.");
+                }
+                writer.WriteString(pair.Key);
+                writer.WriteByte((byte)pair.Value.SourceKind);
+                writer.WriteString(pair.Value.RelativePath ?? string.Empty);
+                writer.WriteString(pair.Value.ProviderId ?? string.Empty);
+                writer.WriteString(pair.Value.AssetId ?? string.Empty);
+                writer.WriteString(pair.Value.ContentHash ?? string.Empty);
             }
         }
 
@@ -135,7 +148,39 @@ namespace helengine.editor {
                 materialSettings.FieldValues[fieldId] = reader.ReadString();
             }
 
+            int referenceCount = reader.ReadInt32();
+            if (referenceCount < 0) {
+                throw new InvalidOperationException("Material typed reference count cannot be negative.");
+            }
+            for (int referenceIndex = 0; referenceIndex < referenceCount; referenceIndex++) {
+                string fieldId = reader.ReadString();
+                if (string.IsNullOrWhiteSpace(fieldId) || materialSettings.AssetReferenceValues.ContainsKey(fieldId)) {
+                    throw new InvalidOperationException("Material typed references cannot contain a blank or duplicate field id.");
+                }
+                SceneAssetReferenceSourceKind sourceKind = (SceneAssetReferenceSourceKind)reader.ReadByte();
+                string relativePath = reader.ReadString();
+                string providerId = reader.ReadString();
+                string assetId = reader.ReadString();
+                string contentHash = reader.ReadString();
+                materialSettings.AssetReferenceValues.Add(fieldId, global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                    sourceKind, relativePath, providerId, assetId, contentHash));
+            }
+
             return materialSettings;
+        }
+
+        static bool ReferencesEqual(SceneAssetReference left, SceneAssetReference right) {
+            if (ReferenceEquals(left, right)) {
+                return true;
+            } else if (left == null || right == null) {
+                return false;
+            }
+
+            return left.SourceKind == right.SourceKind &&
+                string.Equals(left.RelativePath, right.RelativePath, StringComparison.Ordinal) &&
+                string.Equals(left.ProviderId, right.ProviderId, StringComparison.Ordinal) &&
+                string.Equals(left.AssetId, right.AssetId, StringComparison.Ordinal) &&
+                string.Equals(left.ContentHash, right.ContentHash, StringComparison.Ordinal);
         }
 
         /// <summary>

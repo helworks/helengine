@@ -79,6 +79,40 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures embedded native identities do not affect the semantic recovery hash.
+    /// A regression that hashes the complete native file makes the cache hashes differ.
+    /// </summary>
+    [Fact]
+    public void GetContentHash_ForNativeFiles_ExcludesEmbeddedIdentityMetadata() {
+        string firstPath = Path.Combine(TempRootPath, "assets", "First.helen");
+        string secondPath = Path.Combine(TempRootPath, "assets", "Second.helen");
+        WriteNativeScene(firstPath);
+        WriteNativeScene(secondPath);
+        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService();
+        metadataService.Save(firstPath, new AssetIdentityMetadataDocument { AssetId = "00112233445566778899aabbccddeeff" });
+        metadataService.Save(secondPath, new AssetIdentityMetadataDocument { AssetId = "ffeeddccbbaa99887766554433221100" });
+
+        string firstRawHash = new AssetFileHasher().ComputeHash(firstPath);
+        string secondRawHash = new AssetFileHasher().ComputeHash(secondPath);
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath);
+
+        Assert.NotEqual(firstRawHash, secondRawHash);
+        Assert.Equal(cache.GetContentHash(firstPath), cache.GetContentHash(secondPath));
+    }
+
+    /// <summary>
+    /// Writes a deterministic native scene fixture used to compare semantic hashes.
+    /// </summary>
+    static void WriteNativeScene(string path) {
+        using FileStream stream = File.Create(path);
+        AssetSerializer.Serialize(stream, new SceneAsset {
+            Id = "Shared",
+            RootEntities = Array.Empty<SceneEntityAsset>(),
+            AssetReferences = Array.Empty<SceneAssetReference>()
+        });
+    }
+
+    /// <summary>
     /// Creates one source file below the isolated assets root.
     /// </summary>
     /// <param name="relativePath">Path relative to assets.</param>

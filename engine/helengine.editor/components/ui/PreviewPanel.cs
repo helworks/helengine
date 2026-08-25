@@ -148,10 +148,6 @@ namespace helengine.editor {
         /// Current binding kind owned by the preview panel.
         /// </summary>
         PreviewPanelBindingKind BindingKindValue;
-        /// <summary>
-        /// Relative asset path used when the preview panel is bound to one asset.
-        /// </summary>
-        string BoundAssetRelativePath = string.Empty;
         /// <summary>Canonical reference for the currently bound authored asset.</summary>
         SceneAssetReference BoundAssetReferenceValue;
         /// <summary>
@@ -457,7 +453,6 @@ namespace helengine.editor {
                 IsLocked = IsLockedValue,
                 BindingKind = BindingKindValue,
                 AssetReference = BoundAssetReferenceValue,
-                AssetRelativePath = BoundAssetRelativePath,
                 SceneEntityId = BoundSceneEntityId
             };
         }
@@ -474,9 +469,6 @@ namespace helengine.editor {
             IsLockedValue = state.IsLocked;
             BindingKindValue = state.BindingKind;
             BoundAssetReferenceValue = state.AssetReference;
-            BoundAssetRelativePath = BoundAssetReferenceValue != null
-                ? BoundAssetReferenceValue.RelativePath ?? string.Empty
-                : state.AssetRelativePath ?? string.Empty;
             BoundSceneEntityId = state.SceneEntityId;
         }
 
@@ -571,7 +563,6 @@ namespace helengine.editor {
 
             SetPreviewSource(previewSource);
             BindingKindValue = PreviewPanelBindingKind.Asset;
-            BoundAssetRelativePath = assetEntry.RelativePath ?? string.Empty;
             BoundAssetReferenceValue = CreateAuthoredReference(assetEntry);
             BoundSceneEntityId = 0u;
             return true;
@@ -602,7 +593,7 @@ namespace helengine.editor {
 
             SetPreviewSource(previewSource);
             BindingKindValue = PreviewPanelBindingKind.Camera;
-            BoundAssetRelativePath = string.Empty;
+            BoundAssetReferenceValue = null;
             BoundSceneEntityId = ResolveSceneEntityId(selectedEntity);
             return true;
         }
@@ -632,7 +623,6 @@ namespace helengine.editor {
             }
 
             SetPreviewSource(previewSource);
-            BoundAssetRelativePath = assetEntry.RelativePath ?? string.Empty;
             BoundAssetReferenceValue = CreateAuthoredReference(assetEntry);
             BoundSceneEntityId = 0u;
             return true;
@@ -663,7 +653,7 @@ namespace helengine.editor {
             }
 
             SetPreviewSource(previewSource);
-            BoundAssetRelativePath = string.Empty;
+            BoundAssetReferenceValue = null;
             BoundSceneEntityId = ResolveSceneEntityId(selectedEntity);
             return true;
         }
@@ -678,7 +668,7 @@ namespace helengine.editor {
 
             ClearPreview();
             BindingKindValue = PreviewPanelBindingKind.None;
-            BoundAssetRelativePath = string.Empty;
+            BoundAssetReferenceValue = null;
             BoundSceneEntityId = 0u;
         }
 
@@ -692,7 +682,7 @@ namespace helengine.editor {
 
             ClearPreview();
             BindingKindValue = PreviewPanelBindingKind.None;
-            BoundAssetRelativePath = string.Empty;
+            BoundAssetReferenceValue = null;
             BoundSceneEntityId = 0u;
         }
 

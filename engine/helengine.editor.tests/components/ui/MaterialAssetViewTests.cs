@@ -21,6 +21,8 @@ public sealed class MaterialAssetViewTests : IDisposable {
     public MaterialAssetViewTests() {
         TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-material-asset-view-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(TempRootPath);
+        Directory.CreateDirectory(Path.Combine(TempRootPath, "assets"));
+        EditorProjectPaths.Initialize(TempRootPath);
 
         Core core = new Core(new CoreInitializationOptions {
             ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
@@ -44,7 +46,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     public void Show_when_multiple_platforms_are_available_renders_separate_panels_for_each_platform() {
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
         string materialPath = Path.Combine(TempRootPath, "Test.hasset");
-        File.WriteAllBytes(materialPath, Array.Empty<byte>());
+        new MaterialAssetSettingsService().Save(materialPath, CreateSettings(useCustomShader: false));
 
         view.Show(
             AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
@@ -127,7 +129,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
         };
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, modalHost);
         string materialPath = Path.Combine(TempRootPath, "Test.hasset");
-        File.WriteAllBytes(materialPath, Array.Empty<byte>());
+        new MaterialAssetSettingsService().Save(materialPath, CreateSettings(useCustomShader: false));
 
         view.Show(
             AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
@@ -166,7 +168,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     public void Show_when_custom_shader_is_disabled_does_not_leave_stale_interactables() {
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
         string materialPath = Path.Combine(TempRootPath, "Test.hasset");
-        File.WriteAllBytes(materialPath, Array.Empty<byte>());
+        new MaterialAssetSettingsService().Save(materialPath, CreateSettings(useCustomShader: true));
 
         view.Show(
             AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
@@ -188,6 +190,47 @@ public sealed class MaterialAssetViewTests : IDisposable {
 
         Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, candidate => candidate.Parent == null);
         Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, candidate => ReferenceEquals(candidate, interactable) && candidate.Parent == null);
+    }
+
+    /// <summary>
+    /// Verifies texture picks persist canonical typed references and recover after the source moves.
+    /// </summary>
+    [Fact]
+    public void HandleTexturePicked_when_source_moves_reopens_with_healed_typed_reference() {
+        string materialPath = Path.Combine(TempRootPath, "assets", "Materials", "Test.hasset");
+        string texturePath = Path.Combine(TempRootPath, "assets", "Images", "Diffuse.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(materialPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(texturePath)!);
+        File.WriteAllBytes(texturePath, [1, 2, 3, 4]);
+        MaterialAssetImportSettings settings = CreateSettings(useCustomShader: false);
+        MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+        settingsService.Save(materialPath, settings);
+        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
+        view.Show(
+            AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
+            new ShaderMaterialAsset { Id = "Materials/Test.hasset" },
+            settings,
+            ["windows"],
+            "windows",
+            platformId => EditorPlatformBuildSelectionModel.From(CreatePlatformDefinition(platformId)));
+        AssetBrowserEntry textureEntry = AssetBrowserEntry.CreateFileSystemFile(
+            "Diffuse.png", "Images/Diffuse.png", texturePath, ".png", AssetEntryKind.Image);
+
+        InvokePrivate(view, "HandleTexturePicked", "windows", "texture-id", textureEntry);
+
+        SceneAssetReference pickedReference = settings.Processor.Platforms["windows"].AssetReferenceValues["texture-id"];
+        Assert.False(string.IsNullOrWhiteSpace(pickedReference.AssetId));
+        Assert.StartsWith("sha256:", pickedReference.ContentHash, StringComparison.Ordinal);
+        Assert.False(settings.Processor.Platforms["windows"].FieldValues.ContainsKey("texture-id"));
+
+        string movedTexturePath = Path.Combine(TempRootPath, "assets", "Images", "MovedDiffuse.png");
+        new EditorAssetFileOperationService(TempRootPath).Move(texturePath, movedTexturePath);
+        Assert.True(settingsService.TryLoad(materialPath, out MaterialAssetImportSettings healedSettings));
+
+        SceneAssetReference healedReference = healedSettings.Processor.Platforms["windows"].AssetReferenceValues["texture-id"];
+        Assert.Equal("Images/MovedDiffuse.png", healedReference.RelativePath);
+        Assert.Equal(pickedReference.AssetId, healedReference.AssetId);
+        Assert.Equal("Images.MovedDiffuse", settingsService.LoadMaterialAsset(materialPath, "windows").DiffuseTextureAssetId);
     }
 
     /// <summary>

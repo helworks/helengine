@@ -118,9 +118,7 @@ namespace helengine.editor {
 
                     platformSettings.FieldValues.Add(fieldId, reader.ReadString());
                 }
-                if (header.Version >= 2) {
-                    ReadReferences(reader, platformSettings.AssetReferenceValues);
-                }
+                ReadReferences(reader, platformSettings.AssetReferenceValues);
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
@@ -141,7 +139,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected material asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetImportSettings) {
                 throw new InvalidOperationException($"Unexpected material asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version < 1 || header.Version > CurrentVersion) {
+            } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported material asset import settings binary version '{header.Version}'.");
             }
         }

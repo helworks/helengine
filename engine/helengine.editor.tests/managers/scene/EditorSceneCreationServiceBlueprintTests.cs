@@ -44,13 +44,14 @@ namespace helengine.editor.tests.managers.scene {
         public void CreateBlueprintInstance_CreatesSceneOwnedRootWithInstanceComponent() {
             EditorSceneCreationService creationService = new EditorSceneCreationService();
 
-            EditorEntity entity = creationService.CreateBlueprintInstance("GoldenCoin", "blueprints/games/split_play/GoldenCoin.hblueprint");
+            SceneAssetReference reference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/games/split_play/GoldenCoin.hblueprint");
+            EditorEntity entity = creationService.CreateBlueprintInstance("GoldenCoin", reference);
 
             Assert.Equal("GoldenCoin", entity.Name);
             Assert.True(entity.IsSceneOwned);
             BlueprintInstanceComponent instanceComponent = FindInstanceComponent(entity);
             Assert.NotNull(instanceComponent);
-            Assert.Equal("blueprints/games/split_play/GoldenCoin.hblueprint", instanceComponent.BlueprintAssetPath);
+            Assert.Same(reference, instanceComponent.BlueprintAssetReference);
         }
 
         /// <summary>
@@ -60,8 +61,8 @@ namespace helengine.editor.tests.managers.scene {
         public void CreateBlueprintInstance_WhenAssetPathIsMissing_Throws() {
             EditorSceneCreationService creationService = new EditorSceneCreationService();
 
-            Assert.Throws<ArgumentException>(() => creationService.CreateBlueprintInstance("GoldenCoin", " "));
-            Assert.Throws<ArgumentException>(() => creationService.CreateBlueprintInstance(" ", "blueprints/x.hblueprint"));
+            Assert.Throws<ArgumentException>(() => creationService.CreateBlueprintInstance("GoldenCoin", null));
+            Assert.Throws<ArgumentException>(() => creationService.CreateBlueprintInstance(" ", global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/x.hblueprint")));
         }
 
         /// <summary>

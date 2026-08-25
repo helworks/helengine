@@ -565,10 +565,11 @@ namespace helengine.editor.tests {
             EditorWorkspacePanelInstance previewInstance = Assert.Single(harness.Session.GetPanelInstancesForTest("preview"));
             PreviewPanel panel = Assert.IsType<PreviewPanel>(previewInstance.Dockable);
             string relativePath = harness.WriteSourceModel("Models/Locked.obj");
+            SceneAssetReference assetReference = harness.CreateCurrentAssetReference(relativePath, AssetEntryKind.Model);
             panel.RestoreState(new PreviewPanelStateDocument {
                 IsLocked = true,
                 BindingKind = PreviewPanelBindingKind.Asset,
-                AssetRelativePath = relativePath
+                AssetReference = assetReference
             });
 
             harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.SaveSlot1);
@@ -580,7 +581,7 @@ namespace helengine.editor.tests {
             PreviewPanelStateDocument state = restored.CaptureState();
             Assert.True(state.IsLocked);
             Assert.Equal(PreviewPanelBindingKind.Asset, state.BindingKind);
-            Assert.Equal(relativePath, state.AssetRelativePath);
+            Assert.Equal(relativePath, state.AssetReference.RelativePath);
             Assert.IsType<ModelPreviewSource>(restored.ActivePreviewSource);
         }
 
@@ -794,6 +795,18 @@ namespace helengine.editor.tests {
                 Directory.CreateDirectory(directoryPath);
                 File.WriteAllBytes(fullPath, new byte[] { 1, 2, 3, 4 });
                 return relativePath.Replace('\\', '/');
+            }
+
+            /// <summary>
+            /// Creates one canonical stable reference for an authored test asset.
+            /// </summary>
+            /// <param name="relativePath">Project-assets-relative source path.</param>
+            /// <param name="entryKind">Expected authored asset kind.</param>
+            /// <returns>Canonical reference containing the source identity and current content hash.</returns>
+            public SceneAssetReference CreateCurrentAssetReference(string relativePath, AssetEntryKind entryKind) {
+                string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+                string fullPath = Path.Combine(TempProjectRootPath, "assets", normalizedRelativePath);
+                return new EditorAssetReferenceResolver(TempProjectRootPath).CreateFileReference(fullPath, entryKind);
             }
 
             /// <summary>

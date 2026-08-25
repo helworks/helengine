@@ -1,15 +1,15 @@
 namespace helengine.editor {
     /// <summary>
-    /// Persists generated authored material assets through the shared asset serializer plus material-settings sidecar pipeline.
+    /// Persists generated authored material assets through the native embedded material-settings pipeline.
     /// </summary>
     public sealed class GeneratedMaterialAssetWriteService {
         /// <summary>
-        /// Stable importer identifier used for generated material settings sidecars.
+        /// Stable importer identifier used for generated material settings.
         /// </summary>
         const string MaterialImporterId = "helengine.material";
 
         /// <summary>
-        /// Shared material-settings service used to persist generated per-platform sidecars.
+        /// Shared material-settings service used to persist generated per-platform data.
         /// </summary>
         readonly MaterialAssetSettingsService MaterialAssetSettingsServiceValue;
 
@@ -21,7 +21,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Writes one generated material asset and its per-platform settings sidecar into the supplied project.
+        /// Writes one generated material asset with embedded per-platform settings into the supplied project.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path that owns the <c>assets</c> directory.</param>
         /// <param name="relativePath">Project-relative material asset path to write under <c>assets</c>.</param>

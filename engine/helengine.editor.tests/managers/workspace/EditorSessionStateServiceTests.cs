@@ -26,31 +26,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the last scene path round-trips through the state file as a project-relative path.
+        /// Ensures the last scene round-trips through the state file as a current stable reference.
         /// </summary>
         [Fact]
-        public void SetLastScenePath_WithProjectScene_RoundTripsRelativePath() {
+        public void SetLastScenePath_WithCurrentProjectScene_RoundTripsStableReference() {
             EditorSessionStateService service = new EditorSessionStateService(ProjectRootPath);
             string scenePath = Path.Combine(ProjectRootPath, "assets", "scenes", "level_01.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+            using (FileStream stream = File.Create(scenePath)) {
+                AssetSerializer.Serialize(stream, new SceneAsset {
+                    Id = "level_01",
+                    AuthoringAssetId = Guid.NewGuid().ToString("N")
+                });
+            }
 
             service.SetLastScenePath(scenePath);
 
             string stateText = File.ReadAllText(Path.Combine(ProjectRootPath, "user_settings", "editor_session.json"));
             Assert.DoesNotContain(ProjectRootPath.Replace('\\', '/'), stateText.Replace("\\\\", "/").Replace('\\', '/'));
+            Assert.Contains("lastSceneReference", stateText);
+            Assert.DoesNotContain("lastScenePath", stateText);
             Assert.Equal(Path.GetFullPath(scenePath), new EditorSessionStateService(ProjectRootPath).TryGetLastScenePath());
         }
 
         /// <summary>
-        /// Ensures scenes outside the project root round-trip as absolute paths.
+        /// Ensures scenes outside the project root are not persisted as an alternate path-only format.
         /// </summary>
         [Fact]
-        public void SetLastScenePath_WithExternalScene_RoundTripsAbsolutePath() {
+        public void SetLastScenePath_WithExternalScene_DoesNotPersistAbsolutePath() {
             EditorSessionStateService service = new EditorSessionStateService(ProjectRootPath);
             string externalScenePath = Path.Combine(Path.GetTempPath(), "helengine-session-state-tests", "external.helen");
 
             service.SetLastScenePath(externalScenePath);
 
-            Assert.Equal(Path.GetFullPath(externalScenePath), service.TryGetLastScenePath());
+            Assert.Null(service.TryGetLastScenePath());
+            Assert.False(File.Exists(Path.Combine(ProjectRootPath, "user_settings", "editor_session.json")));
         }
 
         /// <summary>

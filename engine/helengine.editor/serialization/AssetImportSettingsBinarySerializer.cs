@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 11;
+        public const byte CurrentVersion = 12;
 
         /// <summary>
         /// Payload endianness used by the current asset import settings format.
@@ -111,20 +111,18 @@ namespace helengine.editor {
 
                 AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
                 DeserializePlatformSettings(reader, platformSettings, header.Version, $"platform '{platformId}'");
-                if (header.Version >= 11) {
-                    int environmentCount = reader.ReadInt32();
-                    if (environmentCount < 0) {
-                        throw new InvalidOperationException("Asset import settings environment count cannot be negative.");
+                int environmentCount = reader.ReadInt32();
+                if (environmentCount < 0) {
+                    throw new InvalidOperationException("Asset import settings environment count cannot be negative.");
+                }
+                for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
+                    string environmentId = reader.ReadString();
+                    if (string.IsNullOrWhiteSpace(environmentId) || platformSettings.Environments.ContainsKey(environmentId)) {
+                        throw new InvalidOperationException($"Asset import settings cannot contain duplicate or blank environment id for platform '{platformId}'.");
                     }
-                    for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
-                        string environmentId = reader.ReadString();
-                        if (string.IsNullOrWhiteSpace(environmentId) || platformSettings.Environments.ContainsKey(environmentId)) {
-                            throw new InvalidOperationException($"Asset import settings cannot contain duplicate or blank environment id for platform '{platformId}'.");
-                        }
-                        AssetPlatformProcessorSettings environmentSettings = new AssetPlatformProcessorSettings();
-                        DeserializePlatformSettings(reader, environmentSettings, header.Version, $"environment '{environmentId}' on platform '{platformId}'");
-                        platformSettings.Environments.Add(environmentId, environmentSettings);
-                    }
+                    AssetPlatformProcessorSettings environmentSettings = new AssetPlatformProcessorSettings();
+                    DeserializePlatformSettings(reader, environmentSettings, header.Version, $"environment '{environmentId}' on platform '{platformId}'");
+                    platformSettings.Environments.Add(environmentId, environmentSettings);
                 }
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
@@ -146,7 +144,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)ValueKind) {
                 throw new InvalidOperationException($"Unexpected asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version < 9 || header.Version > CurrentVersion) {
+            } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported asset import settings binary version '{header.Version}'.");
             }
         }

@@ -100,6 +100,36 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Determines whether one authored file stores identity metadata inside its engine-native payload.
+        /// </summary>
+        /// <param name="fullPath">Absolute or project-relative authored file path.</param>
+        /// <returns>True for native scene, blueprint, and material containers.</returns>
+        public bool UsesEmbeddedIdentity(string fullPath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                return false;
+            }
+
+            string extension = Path.GetExtension(fullPath);
+            if (string.Equals(extension, SceneAsset.FileExtension, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(extension, BlueprintAsset.FileExtension, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+            if (!string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {
+                return false;
+            }
+
+            try {
+                using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                return header.FormatId == global::helengine.files.EditorAssetBinarySerializer.FormatId &&
+                    ((header.RecordKind == (ushort)EditorBinaryRecordKind.Asset && header.ValueKind == (ushort)EditorAssetBinaryValueKind.MaterialAsset) ||
+                     (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings && header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument));
+            } catch {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Classifies one `.hasset` file by its HELE header.
         /// </summary>
         /// <param name="filePath">Absolute `.hasset` path.</param>

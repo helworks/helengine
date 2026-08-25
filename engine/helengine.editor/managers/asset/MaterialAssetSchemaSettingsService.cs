@@ -23,6 +23,7 @@ namespace helengine.editor {
             if (materialSchemas.Count == 0) {
                 materialSettings.SchemaId = string.Empty;
                 materialSettings.FieldValues = CreateFieldValueMap();
+                materialSettings.AssetReferenceValues = CreateAssetReferenceMap();
                 return null;
             }
 
@@ -72,10 +73,18 @@ namespace helengine.editor {
             MaterialAssetProcessorSettings materialSettings,
             PlatformMaterialSchemaDefinition selectedSchema) {
             Dictionary<string, string> existingValues = materialSettings.FieldValues ?? CreateFieldValueMap();
+            Dictionary<string, SceneAssetReference> existingReferences = materialSettings.AssetReferenceValues ?? CreateAssetReferenceMap();
             Dictionary<string, string> nextValues = CreateFieldValueMap();
+            Dictionary<string, SceneAssetReference> nextReferences = CreateAssetReferenceMap();
 
             for (int index = 0; index < selectedSchema.Fields.Length; index++) {
                 PlatformMaterialFieldDefinition field = selectedSchema.Fields[index];
+                if (field.FieldKind == PlatformMaterialFieldKind.AssetReference &&
+                    existingReferences.TryGetValue(field.FieldId, out SceneAssetReference existingReference) &&
+                    existingReference != null) {
+                    nextReferences[field.FieldId] = existingReference;
+                    continue;
+                }
                 string value = field.DefaultValue ?? string.Empty;
                 if (existingValues.TryGetValue(field.FieldId, out string existingValue) && existingValue != null) {
                     value = existingValue;
@@ -86,6 +95,7 @@ namespace helengine.editor {
 
             materialSettings.SchemaId = selectedSchema.SchemaId;
             materialSettings.FieldValues = nextValues;
+            materialSettings.AssetReferenceValues = nextReferences;
         }
 
         /// <summary>
@@ -117,6 +127,11 @@ namespace helengine.editor {
         /// <returns>Empty field-value map.</returns>
         Dictionary<string, string> CreateFieldValueMap() {
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Creates a case-insensitive typed reference map.</summary>
+        static Dictionary<string, SceneAssetReference> CreateAssetReferenceMap() {
+            return new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase);
         }
     }
 }

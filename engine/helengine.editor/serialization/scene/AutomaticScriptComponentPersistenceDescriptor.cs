@@ -430,6 +430,10 @@ namespace helengine.editor {
             if (TryWriteEngineSerializedPayload(writer, valueType, value)) {
                 return;
             }
+            if (valueType == typeof(SceneAssetReference)) {
+                SceneComponentBinaryFieldEncoding.WriteOptionalReference(writer, (SceneAssetReference)value);
+                return;
+            }
             if (TryWriteLeafValue(writer, valueType, value)) {
                 return;
             }
@@ -468,6 +472,9 @@ namespace helengine.editor {
 
             if (TryReadEngineSerializedPayload(reader, valueType, out object payloadValue)) {
                 return payloadValue;
+            }
+            if (valueType == typeof(SceneAssetReference)) {
+                return SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
             }
             if (TryReadLeafValue(reader, valueType, out object leafValue)) {
                 return leafValue;

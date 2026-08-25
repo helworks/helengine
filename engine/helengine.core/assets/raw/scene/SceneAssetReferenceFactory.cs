@@ -77,16 +77,6 @@ namespace helengine {
         /// <param name="reader">Reader positioned at the optional reference payload.</param>
         /// <returns>Validated scene asset reference when present; otherwise null.</returns>
         public static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            return ReadOptionalReference(reader, false);
-        }
-
-        /// <summary>
-        /// Reads one optional reference from a versioned nested component payload.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the optional reference payload.</param>
-        /// <param name="includeContentHash">Whether the payload contains the current content-hash field.</param>
-        /// <returns>Validated scene asset reference when present; otherwise null.</returns>
-        internal static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader, bool includeContentHash) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -94,11 +84,23 @@ namespace helengine {
                 return null;
             }
 
-            return ReadRequiredReference(reader, includeContentHash);
+            return ReadRequiredReference(reader);
+        }
+
+        /// <summary>Reads one optional current editor-authored reference and rejects path-only filesystem payloads.</summary>
+        internal static SceneAssetReference ReadOptionalCurrentReference(EngineBinaryReader reader) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
+            }
+            if (reader.ReadByte() == 0) {
+                return null;
+            }
+
+            return ReadRequiredCurrentReference(reader);
         }
 
         /// <summary>
-        /// Rehydrates one serialized scene asset reference through the sanctioned construction path.
+        /// Rehydrates one generated scene asset reference through the sanctioned construction path.
         /// </summary>
         /// <param name="sourceKind">Serialized source kind.</param>
         /// <param name="relativePath">Serialized relative path.</param>
@@ -109,7 +111,9 @@ namespace helengine {
             if (sourceKind == SceneAssetReferenceSourceKind.FileSystem) {
                 return CreateFileSystem(relativePath);
             }
-
+            if (sourceKind != SceneAssetReferenceSourceKind.Generated) {
+                throw new InvalidOperationException($"Unsupported scene asset reference source kind '{sourceKind}'.");
+            }
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 throw new InvalidOperationException("Generated scene asset references must include a relative path.");
             }
@@ -134,13 +138,19 @@ namespace helengine {
         /// <returns>Validated scene asset reference.</returns>
         internal static SceneAssetReference Rehydrate(SceneAssetReferenceSourceKind sourceKind, string relativePath, string providerId, string assetId, string contentHash) {
             if (sourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                if (string.IsNullOrWhiteSpace(assetId) && string.IsNullOrWhiteSpace(contentHash)) {
-                    return CreateFileSystem(relativePath);
-                }
                 return CreateFileSystemReference(assetId, relativePath, contentHash);
             }
 
             return Rehydrate(sourceKind, relativePath, providerId, assetId);
+        }
+
+        /// <summary>Rehydrates one packaged runtime reference, whose filesystem contract is path-only.</summary>
+        internal static SceneAssetReference RehydratePackaged(SceneAssetReferenceSourceKind sourceKind, string relativePath, string providerId, string assetId, string contentHash) {
+            if (sourceKind == SceneAssetReferenceSourceKind.FileSystem &&
+                string.IsNullOrWhiteSpace(assetId) && string.IsNullOrWhiteSpace(contentHash)) {
+                return CreateFileSystem(relativePath);
+            }
+            return Rehydrate(sourceKind, relativePath, providerId, assetId, contentHash);
         }
 
         /// <summary>
@@ -149,16 +159,16 @@ namespace helengine {
         /// <param name="reader">Reader positioned at the required reference payload.</param>
         /// <returns>Validated scene asset reference.</returns>
         internal static SceneAssetReference ReadRequiredReference(EngineBinaryReader reader) {
+            return ReadRequiredReference(reader, true);
+        }
+
+        /// <summary>Reads one current editor-authored reference and rejects path-only filesystem payloads.</summary>
+        internal static SceneAssetReference ReadRequiredCurrentReference(EngineBinaryReader reader) {
             return ReadRequiredReference(reader, false);
         }
 
-        /// <summary>
-        /// Reads one required reference from either the legacy four-field or current five-field layout.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the required reference payload.</param>
-        /// <param name="includeContentHash">Whether the payload contains the current content-hash field.</param>
-        /// <returns>Validated scene asset reference.</returns>
-        internal static SceneAssetReference ReadRequiredReference(EngineBinaryReader reader, bool includeContentHash) {
+        /// <summary>Reads one serialized reference for the selected persistence contract.</summary>
+        static SceneAssetReference ReadRequiredReference(EngineBinaryReader reader, bool packagedRuntime) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -171,19 +181,13 @@ namespace helengine {
             string providerId = reader.ReadString();
             EngineBinaryReadContext.CurrentReadStage = "SceneAssetReference:AssetId";
             string assetId = reader.ReadString();
-            string contentHash = string.Empty;
-            if (includeContentHash) {
-                EngineBinaryReadContext.CurrentReadStage = "SceneAssetReference:ContentHash";
-                contentHash = reader.ReadString();
-            }
+            EngineBinaryReadContext.CurrentReadStage = "SceneAssetReference:ContentHash";
+            string contentHash = reader.ReadString();
             EngineBinaryReadContext.LastCheckpoint = $"SceneAssetReferenceEnd:{relativePath}@{reader.GetStreamPosition()}";
 
-            return Rehydrate(
-                sourceKind,
-                relativePath,
-                providerId,
-                assetId,
-                contentHash);
+            return packagedRuntime
+                ? RehydratePackaged(sourceKind, relativePath, providerId, assetId, contentHash)
+                : Rehydrate(sourceKind, relativePath, providerId, assetId, contentHash);
         }
 
         /// <summary>

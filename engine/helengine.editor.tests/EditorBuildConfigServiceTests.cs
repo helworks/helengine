@@ -158,10 +158,10 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures newly enabled platforms are added with one current-scene default without overwriting existing selections.
+    /// Ensures invalid path-only selections are discarded while newly enabled platforms receive current-format defaults.
     /// </summary>
     [Fact]
-    public void Load_WhenSupportedPlatformIsMissingFromBuildConfig_AddsItWithCurrentSceneAndKeepsExistingPlatforms() {
+    public void Load_WhenPathOnlySelectionExists_DiscardsItAndSeedsNewPlatform() {
         EditorBuildConfigService service = CreateService();
         WriteBuildConfigFile(
             """
@@ -182,7 +182,7 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
         EditorBuildConfigDocument document = service.Load(["windows", "linux"], "Scenes/Menu.helen");
 
         Assert.Equal(2, document.Platforms.Count);
-        AssertPlatform(document.Platforms[0], "windows", ["Scenes/City.helen"], @"C:\builds\windows");
+        AssertPlatform(document.Platforms[0], "windows", [], @"C:\builds\windows");
         AssertPlatform(document.Platforms[1], "linux", ["Scenes/Menu.helen"], string.Empty);
     }
 

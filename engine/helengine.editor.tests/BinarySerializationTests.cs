@@ -202,19 +202,19 @@ namespace helengine.editor.tests {
             Assert.Equal(new float3(1f, 2f, 3f), deserialized.RootEntities[0].LocalPosition);
             Assert.Equal(new float3(2f, 2f, 2f), deserialized.RootEntities[0].LocalScale);
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntities[0].Components[0].Payload);
-            Assert.Equal((byte)1, deserialized.RootEntities[0].Components[0].AssetReferenceEncodingVersion);
             Assert.Equal(2u, deserialized.RootEntities[0].Children[0].Id);
             Assert.Equal("Child", deserialized.RootEntities[0].Children[0].Name);
             Assert.Equal((ushort)0x4444, deserialized.RootEntities[0].Children[0].LayerMask);
         }
 
         /// <summary>
-        /// Ensures current editor scene payloads round-trip the five-field file reference and advertise version 23.
+        /// Ensures current editor scene payloads round-trip embedded identity and the five-field file reference.
         /// </summary>
         [Fact]
-        public void AssetSerializer_SceneAsset_WithCanonicalFileReference_RoundTripsVersion23Payload() {
+        public void AssetSerializer_SceneAsset_WithCanonicalFileReference_RoundTripsCurrentPayload() {
             SceneAsset asset = new SceneAsset {
                 Id = "Scenes/Identity.helen",
+                AuthoringAssetId = "ffeeddccbbaa99887766554433221100",
                 AssetReferences = new[] {
                     global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
                         "00112233445566778899aabbccddeeff",
@@ -229,7 +229,25 @@ namespace helengine.editor.tests {
             SceneAsset deserialized = Assert.IsType<SceneAsset>(AssetSerializer.DeserializeFromBytes(data));
             SceneAssetReferenceTestFactoryAssertCanonicalReference(deserialized.AssetReferences.Single());
 
-            Assert.Equal((byte)23, header.Version);
+            Assert.Equal(EditorAssetBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal(asset.AuthoringAssetId, deserialized.AuthoringAssetId);
+        }
+
+        /// <summary>Ensures current authored scene arrays reject packaged path-only references.</summary>
+        [Fact]
+        public void AssetSerializer_SceneAsset_WithPathOnlyFileReference_RejectsCurrentPayloadOnRead() {
+            SceneAsset scene = new SceneAsset {
+                Id = "Scene",
+                RootEntities = Array.Empty<SceneEntityAsset>(),
+                AssetReferences = new[] {
+                    global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial("materials/test.hasset")
+                }
+            };
+            using MemoryStream stream = new MemoryStream();
+            AssetSerializer.Serialize(stream, scene);
+            stream.Position = 0;
+
+            Assert.Throws<ArgumentException>(() => AssetSerializer.Deserialize(stream));
         }
 
         /// <summary>
@@ -431,7 +449,7 @@ namespace helengine.editor.tests {
 
             string packagedScenePath = Path.Combine(buildRootPath, "cooked", "scenes", "TestPackagedScene.hasset");
             using FileStream stream = File.OpenRead(packagedScenePath);
-            SceneAsset scene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset scene = global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(stream);
 
             SceneEntityAsset rootEntity = Assert.Single(scene.RootEntities);
             Assert.Equal(1u, rootEntity.Id);
@@ -465,6 +483,56 @@ namespace helengine.editor.tests {
             Assert.Equal(asset.Id, deserialized.Id);
             Assert.Equal(5u, Assert.Single(deserialized.RootEntities).Id);
             Assert.Equal("RuntimeRoot", deserialized.RootEntities[0].Name);
+        }
+
+        /// <summary>
+        /// Ensures every generic runtime asset reader consumes the embedded v24 authoring identity prefix.
+        /// </summary>
+        [Fact]
+        public void RuntimeAssetSerializer_WhenGivenCurrentEditorPayloads_ReadsEverySupportedAssetKind() {
+            Asset[] assets = {
+                new TextureAsset { Id = "Texture", Colors = Array.Empty<byte>() },
+                new ModelAsset { Id = "Model" },
+                new TextAsset { Id = "Text", Text = "payload" },
+                new MaterialAsset { Id = "Material" },
+                new PlatformMaterialAsset { Id = "PlatformMaterial", RendererFamilyId = string.Empty, TextureRelativePath = string.Empty },
+                new AnimationClipAsset { Id = "Animation" },
+                new AudioAsset { Id = "Audio" },
+                new SceneAsset { Id = "Scene", RootEntities = Array.Empty<SceneEntityAsset>(), AssetReferences = Array.Empty<SceneAssetReference>() }
+            };
+
+            for (int index = 0; index < assets.Length; index++) {
+                assets[index].AuthoringAssetId = "00112233445566778899aabbccddeeff";
+                assets[index].FormerAuthoringAssetIds = ["ffeeddccbbaa99887766554433221100"];
+                byte[] data = global::helengine.files.AssetSerializer.SerializeToBytes(assets[index]);
+
+                Asset deserialized = global::helengine.AssetSerializer.DeserializeFromBytes(data);
+
+                Assert.Equal(assets[index].GetType(), deserialized.GetType());
+                Assert.Equal(assets[index].AuthoringAssetId, deserialized.AuthoringAssetId);
+                Assert.Equal(assets[index].FormerAuthoringAssetIds, deserialized.FormerAuthoringAssetIds);
+            }
+        }
+
+        /// <summary>Ensures the dedicated runtime shader reader consumes embedded v24 identity fields.</summary>
+        [Fact]
+        public void ShaderAssetBinarySerializer_WhenGivenCurrentEditorPayload_ReadsEmbeddedIdentity() {
+            ShaderAsset asset = new ShaderAsset {
+                Id = "Shader",
+                AuthoringAssetId = "00112233445566778899aabbccddeeff",
+                FormerAuthoringAssetIds = ["ffeeddccbbaa99887766554433221100"],
+                Name = "Shader",
+                TargetName = "directx11",
+                Programs = Array.Empty<ShaderProgramAsset>(),
+                Binaries = Array.Empty<ShaderBinaryAsset>()
+            };
+            byte[] data = global::helengine.files.AssetSerializer.SerializeToBytes(asset);
+            using MemoryStream stream = new MemoryStream(data);
+
+            ShaderAsset deserialized = ShaderAssetBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(asset.AuthoringAssetId, deserialized.AuthoringAssetId);
+            Assert.Equal(asset.FormerAuthoringAssetIds, deserialized.FormerAuthoringAssetIds);
         }
 
         /// <summary>

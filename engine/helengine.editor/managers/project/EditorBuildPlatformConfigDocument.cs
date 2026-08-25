@@ -11,6 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Gets or sets the project-relative scene identifiers selected for this platform.
         /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
         public List<string> SelectedSceneIds { get; set; } = [];
 
         /// <summary>

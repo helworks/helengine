@@ -67,6 +67,89 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures native duplication rewrites the embedded identity and never creates a sidecar.
+    /// </summary>
+    [Fact]
+    public void Duplicate_NativeScene_MintsIndependentEmbeddedIdentityWithoutSidecar() {
+        string sourcePath = Path.Combine(TempRootPath, "assets", "Source.helen");
+        SceneAsset sourceAsset = new SceneAsset {
+            Id = "Source.helen",
+            AuthoringAssetId = Guid.NewGuid().ToString("N")
+        };
+        using (FileStream stream = File.Create(sourcePath)) {
+            AssetSerializer.Serialize(stream, sourceAsset);
+        }
+        string destinationPath = Path.Combine(TempRootPath, "assets", "Copy.helen");
+        EditorAssetFileOperationService service = new EditorAssetFileOperationService(TempRootPath);
+
+        service.Duplicate(sourcePath, destinationPath);
+
+        using FileStream destinationStream = File.OpenRead(destinationPath);
+        SceneAsset destinationAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(destinationStream));
+        Assert.NotEqual(sourceAsset.AuthoringAssetId, destinationAsset.AuthoringAssetId);
+        Assert.Empty(destinationAsset.FormerAuthoringAssetIds);
+        Assert.False(File.Exists(destinationPath + ".hmeta"));
+    }
+
+    /// <summary>
+    /// Ensures both current native material containers can move without destination-header inspection.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Move_NativeMaterial_PreservesEmbeddedIdentity(bool useCommonSettingsContainer) {
+        string sourcePath = CreateNativeMaterial("Source.hasset", useCommonSettingsContainer);
+        AssetIdentityMetadataDocument sourceIdentity = new AssetIdentityMetadataService().Load(sourcePath);
+        string destinationPath = Path.Combine(TempRootPath, "assets", "Moved.hasset");
+
+        new EditorAssetFileOperationService(TempRootPath).Move(sourcePath, destinationPath);
+
+        AssetIdentityMetadataDocument destinationIdentity = new AssetIdentityMetadataService().Load(destinationPath);
+        Assert.Equal(sourceIdentity.AssetId, destinationIdentity.AssetId);
+        Assert.False(File.Exists(destinationPath + ".hmeta"));
+    }
+
+    /// <summary>
+    /// Ensures both current native material containers duplicate with independent embedded identities.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Duplicate_NativeMaterial_MintsIndependentEmbeddedIdentity(bool useCommonSettingsContainer) {
+        string sourcePath = CreateNativeMaterial("Source.hasset", useCommonSettingsContainer);
+        AssetIdentityMetadataDocument sourceIdentity = new AssetIdentityMetadataService().Load(sourcePath);
+        string destinationPath = Path.Combine(TempRootPath, "assets", "Copy.hasset");
+
+        new EditorAssetFileOperationService(TempRootPath).Duplicate(sourcePath, destinationPath);
+
+        AssetIdentityMetadataDocument destinationIdentity = new AssetIdentityMetadataService().Load(destinationPath);
+        Assert.NotEqual(sourceIdentity.AssetId, destinationIdentity.AssetId);
+        Assert.Empty(destinationIdentity.FormerAssetIds);
+        Assert.False(File.Exists(destinationPath + ".hmeta"));
+    }
+
+    /// <summary>Creates one current native material fixture.</summary>
+    string CreateNativeMaterial(string fileName, bool useCommonSettingsContainer) {
+        string path = Path.Combine(TempRootPath, "assets", fileName);
+        string authoringAssetId = Guid.NewGuid().ToString("N");
+        using FileStream stream = File.Create(path);
+        if (useCommonSettingsContainer) {
+            MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument {
+                AuthoringAssetId = authoringAssetId
+            };
+            document.Importer.ImporterId = "material";
+            document.Importer.AssetId = "Material";
+            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
+        } else {
+            AssetSerializer.Serialize(stream, new MaterialAsset {
+                Id = "Material",
+                AuthoringAssetId = authoringAssetId
+            });
+        }
+        return path;
+    }
+
+    /// <summary>
     /// Creates one source asset below the isolated assets root.
     /// </summary>
     /// <param name="relativePath">Path relative to assets.</param>
