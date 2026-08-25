@@ -69,27 +69,23 @@ namespace helengine {
         /// Updates hover and capture routing for the current pointer frame.
         /// </summary>
         public void Update() {
-#if DESKTOP_PLATFORM
             ObjectManager objectManager = Core.ObjectManager;
             List<IInteractable2D> interactables = objectManager.Interactables;
             List<IDrawable2D> drawables2D = objectManager.Drawables2D;
 
             PointerInteraction interaction = PointerInteraction.None;
-            if (Input.WasMouseLeftButtonReleased()) {
+            if (Input.WasPointerPrimaryReleased()) {
                 interaction = PointerInteraction.Release;
-            } else if (Input.WasMouseLeftButtonPressed()) {
+            } else if (Input.WasPointerPrimaryPressed()) {
                 interaction = PointerInteraction.Press;
             }
-
-            int mouseX = Input.GetMouseX();
-            int mouseY = Input.GetMouseY();
 
             if (Highlighted != null) {
                 int pointerX;
                 int pointerY;
-                PointerInteractableHitResolver.GetRelativePointerForInteractable(Highlighted, Input.GetMouseX(), Input.GetMouseY(), capturedCamera, out pointerX, out pointerY);
-                int deltaX = Input.GetMouseDeltaX();
-                int deltaY = Input.GetMouseDeltaY();
+                PointerInteractableHitResolver.GetRelativePointerForInteractable(Highlighted, Input.GetPointerX(), Input.GetPointerY(), capturedCamera, out pointerX, out pointerY);
+                int deltaX = Input.GetPointerDeltaX();
+                int deltaY = Input.GetPointerDeltaY();
                 if (interaction == PointerInteraction.None && (deltaX != 0 || deltaY != 0)) {
                     interaction = PointerInteraction.Hover;
                 }
@@ -108,8 +104,8 @@ namespace helengine {
             ResolveTopInteractableAt(
                 interactables,
                 drawables2D,
-                Input.GetMouseX(),
-                Input.GetMouseY(),
+                Input.GetPointerX(),
+                Input.GetPointerY(),
                 out IInteractable2D hit,
                 out ICamera hitCamera);
 
@@ -117,8 +113,8 @@ namespace helengine {
             if (hoveringChanged && Hovering != null) {
                 int prevPointerX;
                 int prevPointerY;
-                ICamera hoverCamera = FindCameraForInteractableAt(Hovering, Input.GetMouseX(), Input.GetMouseY());
-                PointerInteractableHitResolver.GetRelativePointerForInteractable(Hovering, Input.GetMouseX(), Input.GetMouseY(), hoverCamera, out prevPointerX, out prevPointerY);
+                ICamera hoverCamera = FindCameraForInteractableAt(Hovering, Input.GetPointerX(), Input.GetPointerY());
+                PointerInteractableHitResolver.GetRelativePointerForInteractable(Hovering, Input.GetPointerX(), Input.GetPointerY(), hoverCamera, out prevPointerX, out prevPointerY);
                 int2 previousPointer = new int2(prevPointerX, prevPointerY);
                 int2 zeroDelta = new int2(0, 0);
                 Hovering.OnCursor(previousPointer, zeroDelta, PointerInteraction.Leave);
@@ -131,9 +127,9 @@ namespace helengine {
 
             int currentPointerX;
             int currentPointerY;
-            PointerInteractableHitResolver.GetRelativePointerForInteractable(Hovering, Input.GetMouseX(), Input.GetMouseY(), hitCamera, out currentPointerX, out currentPointerY);
-            int currentDeltaX = Input.GetMouseDeltaX();
-            int currentDeltaY = Input.GetMouseDeltaY();
+            PointerInteractableHitResolver.GetRelativePointerForInteractable(Hovering, Input.GetPointerX(), Input.GetPointerY(), hitCamera, out currentPointerX, out currentPointerY);
+            int currentDeltaX = Input.GetPointerDeltaX();
+            int currentDeltaY = Input.GetPointerDeltaY();
             if (interaction == PointerInteraction.Press) {
                 if (hoveringChanged) {
                     int2 hoverPointer = new int2(currentPointerX, currentPointerY);
@@ -151,7 +147,6 @@ namespace helengine {
                 int2 hoverDelta = new int2(currentDeltaX, currentDeltaY);
                 Hovering.OnCursor(hoverPointer, hoverDelta, PointerInteraction.Hover);
             }
-#endif
         }
 
         /// <summary>

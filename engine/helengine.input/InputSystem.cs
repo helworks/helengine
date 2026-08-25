@@ -157,6 +157,82 @@ public sealed class InputSystem {
 #endif
 
     /// <summary>
+    /// Gets the pointer X coordinate in window space, backed by the mouse on desktop platforms and by the
+    /// backend pointer state (touch/stylus) elsewhere.
+    /// </summary>
+    /// <returns>Pointer X position in pixels.</returns>
+    public int GetPointerX() {
+#if DESKTOP_PLATFORM
+        return mouseState.X;
+#else
+        return CurrentFrame.Pointer.X;
+#endif
+    }
+
+    /// <summary>
+    /// Gets the pointer Y coordinate in window space, backed by the mouse on desktop platforms and by the
+    /// backend pointer state (touch/stylus) elsewhere.
+    /// </summary>
+    /// <returns>Pointer Y position in pixels.</returns>
+    public int GetPointerY() {
+#if DESKTOP_PLATFORM
+        return mouseState.Y;
+#else
+        return CurrentFrame.Pointer.Y;
+#endif
+    }
+
+    /// <summary>
+    /// Gets the pointer X movement delta for the current frame.
+    /// </summary>
+    /// <returns>Pointer X delta in pixels.</returns>
+    public int GetPointerDeltaX() {
+#if DESKTOP_PLATFORM
+        return mouseDelta.X;
+#else
+        return CurrentFrame.Pointer.DeltaX;
+#endif
+    }
+
+    /// <summary>
+    /// Gets the pointer Y movement delta for the current frame.
+    /// </summary>
+    /// <returns>Pointer Y delta in pixels.</returns>
+    public int GetPointerDeltaY() {
+#if DESKTOP_PLATFORM
+        return mouseDelta.Y;
+#else
+        return CurrentFrame.Pointer.DeltaY;
+#endif
+    }
+
+    /// <summary>
+    /// Gets whether the primary pointer button (left mouse button or touch contact) was pressed this frame.
+    /// </summary>
+    /// <returns>True when the primary pointer transitioned to pressed.</returns>
+    public bool WasPointerPrimaryPressed() {
+#if DESKTOP_PLATFORM
+        return WasMouseLeftButtonPressed();
+#else
+        return CurrentFrame.Pointer.IsButtonDown(InputPointerButton.Primary)
+            && !previousFrame.Pointer.IsButtonDown(InputPointerButton.Primary);
+#endif
+    }
+
+    /// <summary>
+    /// Gets whether the primary pointer button (left mouse button or touch contact) was released this frame.
+    /// </summary>
+    /// <returns>True when the primary pointer transitioned to released.</returns>
+    public bool WasPointerPrimaryReleased() {
+#if DESKTOP_PLATFORM
+        return WasMouseLeftButtonReleased();
+#else
+        return !CurrentFrame.Pointer.IsButtonDown(InputPointerButton.Primary)
+            && previousFrame.Pointer.IsButtonDown(InputPointerButton.Primary);
+#endif
+    }
+
+    /// <summary>
     /// Binds a backend that will be queried on the next frame capture.
     /// </summary>
     /// <param name="backend">Backend that captures raw input.</param>

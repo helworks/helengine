@@ -306,6 +306,25 @@ namespace helengine {
         /// </summary>
         public double FrameDeltaSeconds { get; private set; }
         /// <summary>
+        /// Gets the host-measured duration of the most recent update pass, in milliseconds.
+        /// </summary>
+        public double LastHostUpdateMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Gets the host-measured duration of the most recent draw pass, in milliseconds.
+        /// </summary>
+        public double LastHostDrawMilliseconds { get; private set; }
+
+        /// <summary>
+        /// Stores host-measured frame phase durations so gameplay diagnostics can present them.
+        /// </summary>
+        /// <param name="updateMilliseconds">Duration of the most recent update pass in milliseconds.</param>
+        /// <param name="drawMilliseconds">Duration of the most recent draw pass in milliseconds.</param>
+        public void SetHostFrameTimings(double updateMilliseconds, double drawMilliseconds) {
+            LastHostUpdateMilliseconds = updateMilliseconds;
+            LastHostDrawMilliseconds = drawMilliseconds;
+        }
+        /// <summary>
         /// Gets the platform metadata injected by the active host during core initialization.
         /// </summary>
         public PlatformInfo PlatformInfo { get; private set; }
