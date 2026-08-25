@@ -95,12 +95,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether one path is an authored source eligible for identity indexing.
+        /// Determines whether one path is eligible for identity indexing and reference recovery.
         /// </summary>
         /// <param name="fullPath">Absolute or project-relative file path.</param>
-        /// <returns>True when the path is not an editor-only sidecar.</returns>
+        /// <returns>True for authored files and hidden imported-material settings that still participate in references.</returns>
         public bool IsAuthoredAsset(string fullPath) {
-            return !ShouldHide(fullPath) && File.Exists(fullPath);
+            if (!File.Exists(fullPath)) {
+                return false;
+            }
+            if (!ShouldHide(fullPath)) {
+                return true;
+            }
+
+            // Imported model material settings remain hidden from the browser, but generated
+            // scenes still need to resolve them through the same public identity contract.
+            AssetEntryKind hiddenKind;
+            return TryClassifyHassetFile(fullPath, out hiddenKind) && hiddenKind == AssetEntryKind.Material;
         }
 
         /// <summary>
