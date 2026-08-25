@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the current material asset import settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 1;
+        public const byte CurrentVersion = 2;
 
         /// <summary>
         /// Payload endianness used by the current material asset import settings format.
@@ -52,7 +52,7 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Material asset import settings cannot contain a blank processor platform id.");
                 } else if (entry.Value == null) {
                     throw new InvalidOperationException($"Material asset import settings must include processor settings for platform '{entry.Key}'.");
-                } else if (entry.Value.FieldValues == null) {
+                } else if (entry.Value.FieldValues == null || entry.Value.AssetReferenceValues == null) {
                     throw new InvalidOperationException($"Material asset import settings must include material field values for platform '{entry.Key}'.");
                 }
 
@@ -69,6 +69,7 @@ namespace helengine.editor {
                     writer.WriteString(fieldEntry.Key);
                     writer.WriteString(fieldEntry.Value);
                 }
+                WriteReferences(writer, entry.Value.AssetReferenceValues);
             }
         }
 
@@ -117,6 +118,7 @@ namespace helengine.editor {
 
                     platformSettings.FieldValues.Add(fieldId, reader.ReadString());
                 }
+                ReadReferences(reader, platformSettings.AssetReferenceValues);
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
@@ -139,6 +141,40 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected material asset import settings value kind '{header.ValueKind}'.");
             } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported material asset import settings binary version '{header.Version}'.");
+            }
+        }
+
+        /// <summary>Writes typed reference values.</summary>
+        static void WriteReferences(EngineBinaryWriter writer, Dictionary<string, SceneAssetReference> references) {
+            writer.WriteInt32(references.Count);
+            foreach (KeyValuePair<string, SceneAssetReference> entry in references) {
+                if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) {
+                    throw new InvalidOperationException("Material asset reference values must contain nonblank ids and references.");
+                }
+                writer.WriteString(entry.Key);
+                writer.WriteInt32((int)entry.Value.SourceKind);
+                writer.WriteString(entry.Value.RelativePath);
+                writer.WriteString(entry.Value.ProviderId);
+                writer.WriteString(entry.Value.AssetId);
+                writer.WriteString(entry.Value.ContentHash);
+            }
+        }
+
+        /// <summary>Reads typed reference values.</summary>
+        static void ReadReferences(EngineBinaryReader reader, Dictionary<string, SceneAssetReference> references) {
+            int count = reader.ReadInt32();
+            if (count < 0) {
+                throw new InvalidOperationException("Material asset reference value count cannot be negative.");
+            }
+            for (int index = 0; index < count; index++) {
+                string fieldId = reader.ReadString();
+                SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                    (SceneAssetReferenceSourceKind)reader.ReadInt32(),
+                    reader.ReadString(),
+                    reader.ReadString(),
+                    reader.ReadString(),
+                    reader.ReadString());
+                references.Add(fieldId, reference);
             }
         }
     }

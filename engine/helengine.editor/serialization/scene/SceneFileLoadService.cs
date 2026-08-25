@@ -198,23 +198,36 @@ namespace helengine.editor {
             }
 
             IEditorOwnedAssetTrackingSceneAssetReferenceResolver ownedAssetTrackingResolver = ReferenceResolver as IEditorOwnedAssetTrackingSceneAssetReferenceResolver;
+            IEditorAssetReferenceHealingResolver healingResolver = ReferenceResolver as IEditorAssetReferenceHealingResolver;
             bool ownedAssetTrackingStarted = false;
+            bool healingStarted = false;
             try {
                 ownedAssetTrackingResolver?.BeginOwnedAssetTracking();
                 ownedAssetTrackingStarted = ownedAssetTrackingResolver != null;
+                healingResolver?.BeginReferenceHealing();
+                healingStarted = healingResolver != null;
                 EngineBinaryReadContext.CurrentAssetPath = assetPath;
                 IReadOnlyList<EditorEntity> loadedRoots = SceneLoadService.Load(sceneAsset);
                 EditorEntity[] rootEntityArray = loadedRoots.ToArray();
                 SetRootsEnabled(rootEntityArray, false);
+                IReadOnlyDictionary<SceneAssetReference, SceneAssetReference> replacements = healingStarted
+                    ? healingResolver.CompleteReferenceHealing()
+                    : new Dictionary<SceneAssetReference, SceneAssetReference>();
+                healingStarted = false;
+                bool referencesHealed = replacements.Count > 0 && new SceneAssetReferenceHealingService().Apply(rootEntityArray, replacements);
                 RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver != null
                     ? ownedAssetTrackingResolver.CompleteOwnedAssetTracking()
                     : CreateEmptyOwnedAssetSet();
                 return new LoadedEditorSceneDocument {
                     RootEntities = rootEntityArray,
                     SceneSettings = sceneAsset.SceneSettings,
-                    OwnedAssets = ownedAssets
+                    OwnedAssets = ownedAssets,
+                    ReferencesHealed = referencesHealed
                 };
             } catch {
+                if (healingStarted) {
+                    healingResolver.CancelReferenceHealing();
+                }
                 if (ownedAssetTrackingStarted) {
                     RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver.CancelOwnedAssetTracking();
                     EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);

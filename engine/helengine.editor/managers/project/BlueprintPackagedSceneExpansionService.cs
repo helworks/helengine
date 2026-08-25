@@ -24,6 +24,8 @@ namespace helengine.editor {
         /// Resolver used while deserializing blueprint instance component payloads. Blueprint instance metadata should not depend on runtime assets.
         /// </summary>
         readonly ISceneAssetReferenceResolver ComponentReferenceResolver;
+        /// <summary>Project-scoped authored blueprint resolver.</summary>
+        readonly EditorAssetReferenceResolver AssetReferenceResolver;
 
         /// <summary>
         /// Next scene entity id assigned to a cloned Blueprint subtree during the current scene expansion.
@@ -46,6 +48,7 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             PersistenceRegistry = persistenceRegistry;
             ComponentReferenceResolver = new NullSceneAssetReferenceResolver();
+            AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
         }
 
         /// <summary>
@@ -126,7 +129,7 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(componentIndex));
             }
 
-            BlueprintAsset blueprintAsset = LoadBlueprintAsset(instanceComponent.BlueprintAssetPath);
+            BlueprintAsset blueprintAsset = LoadBlueprintAsset(instanceComponent);
             ValidateNoNestedBlueprintInstances(blueprintAsset.RootEntity);
 
             RemoveComponentAt(instanceRoot, componentIndex);
@@ -292,8 +295,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="blueprintAssetPath">Project-relative blueprint asset path.</param>
         /// <returns>Loaded blueprint asset payload.</returns>
-        BlueprintAsset LoadBlueprintAsset(string blueprintAssetPath) {
-            string fullPath = ResolveBlueprintFullPath(blueprintAssetPath);
+        BlueprintAsset LoadBlueprintAsset(BlueprintInstanceComponent instanceComponent) {
+            if (instanceComponent.BlueprintAssetReference == null) {
+                throw new InvalidOperationException("Blueprint instances must define a canonical blueprint reference.");
+            }
+            AssetReferenceResolution resolution = AssetReferenceResolver.Resolve(instanceComponent.BlueprintAssetReference, AssetEntryKind.Blueprint);
+            string fullPath = resolution.FullPath;
+            string blueprintAssetPath = resolution.CanonicalReference.RelativePath;
             using FileStream stream = File.OpenRead(fullPath);
             Asset asset = AssetSerializer.Deserialize(stream);
             if (asset is BlueprintAsset blueprintAsset) {
@@ -505,11 +513,12 @@ namespace helengine.editor {
                 return null;
             }
 
-            return global::helengine.SceneAssetReferenceFactory.Rehydrate(
+            return global::helengine.SceneAssetReferenceFactory.RehydratePackaged(
                 reference.SourceKind,
                 reference.RelativePath,
                 reference.ProviderId,
-                reference.AssetId);
+                reference.AssetId,
+                reference.ContentHash);
         }
 
         static SceneEntityPlatformExistenceOverrideAsset CloneExistenceOverride(SceneEntityPlatformExistenceOverrideAsset overrideAsset) {
@@ -586,6 +595,13 @@ namespace helengine.editor {
 
             public AnimationClipAsset ResolveAnimationClip(SceneAssetReference reference) {
                 throw new InvalidOperationException("Blueprint instance metadata must not require animation clip resolution during packaging.");
+            }
+
+            /// <summary>Rejects unexpected audio resolution during packaging.</summary>
+            /// <param name="reference">Reference that was unexpectedly requested.</param>
+            /// <returns>This method never returns.</returns>
+            public AudioAsset ResolveAudio(SceneAssetReference reference) {
+                throw new InvalidOperationException("Blueprint instance metadata must not require audio resolution during packaging.");
             }
         }
     }

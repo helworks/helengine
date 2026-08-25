@@ -4,6 +4,19 @@ namespace helengine.editor {
     /// </summary>
     public class SceneAssetReferenceFactory {
         /// <summary>
+        /// Optional resolver used to canonicalize file-backed browser selections.
+        /// </summary>
+        readonly EditorAssetReferenceResolver resolver;
+
+        /// <summary>
+        /// Initializes a scene reference factory.
+        /// </summary>
+        /// <param name="resolver">Optional editor asset reference resolver.</param>
+        public SceneAssetReferenceFactory(EditorAssetReferenceResolver resolver = null) {
+            this.resolver = resolver;
+        }
+
+        /// <summary>
         /// Creates one stable scene asset reference from an asset-browser entry.
         /// </summary>
         /// <param name="entry">Selected browser entry to convert.</param>
@@ -25,21 +38,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entry">Selected file-backed browser entry to convert.</param>
         /// <returns>Stable file-backed scene asset reference.</returns>
-        static SceneAssetReference CreateFileSystemFromEntry(AssetBrowserEntry entry) {
-            if (entry.EntryKind == AssetEntryKind.Image) {
-                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemTexture(entry.RelativePath);
+        SceneAssetReference CreateFileSystemFromEntry(AssetBrowserEntry entry) {
+            if (resolver != null && !string.IsNullOrWhiteSpace(entry.FullPath)) {
+                return resolver.CreateFileReference(entry.FullPath, entry.EntryKind);
             }
-            if (entry.EntryKind == AssetEntryKind.Model) {
-                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemModel(entry.RelativePath);
+            if (!string.IsNullOrWhiteSpace(entry.AssetId) && !string.IsNullOrWhiteSpace(entry.ContentHash)) {
+                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(entry.AssetId, entry.RelativePath, entry.ContentHash);
             }
-            if (entry.EntryKind == AssetEntryKind.Material) {
-                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(entry.RelativePath);
-            }
-            if (entry.EntryKind == AssetEntryKind.Font) {
-                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemFont(entry.RelativePath);
-            }
-
-            throw new InvalidOperationException($"Asset browser entry kind '{entry.EntryKind}' does not support scene asset references.");
+            throw new InvalidOperationException($"File-backed asset browser entry '{entry.RelativePath}' is missing its current asset id or content hash.");
         }
 
         /// <summary>

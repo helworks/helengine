@@ -22,5 +22,8 @@ namespace helengine.editor {
             Array.Empty<AudioAsset>(),
             Array.Empty<RuntimeModel>(),
             Array.Empty<RuntimeMaterial>());
+
+        /// <summary>Gets or sets whether authored references were healed while loading.</summary>
+        public bool ReferencesHealed { get; set; }
     }
 }

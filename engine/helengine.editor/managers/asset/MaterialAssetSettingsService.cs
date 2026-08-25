@@ -203,6 +203,7 @@ namespace helengine.editor {
 
             NormalizeCommonDocument(commonDocument, materialAsset);
             MaterialAssetImportSettings settings = BuildEffectiveSettings(materialAssetPath, commonDocument, materialAsset, supportedPlatforms, selectionModelResolver);
+            ResolveAssetReferences(materialAssetPath, settings);
             if (persistResolvedSettings) {
                 Save(materialAssetPath, settings);
             }
@@ -241,7 +242,12 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material settings must include processor platform settings.");
             }
 
+            AssetIdentityMetadataDocument identity = File.Exists(materialAssetPath)
+                ? new AssetIdentityMetadataService().Load(materialAssetPath)
+                : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
             MaterialAssetCommonSettingsDocument commonDocument = BuildCommonDocument(settings);
+            commonDocument.AuthoringAssetId = identity.AssetId;
+            commonDocument.FormerAuthoringAssetIds = new List<string>(identity.FormerAssetIds);
             Dictionary<string, MaterialAssetPlatformOverrideDocument> overrideDocuments = BuildOverrideDocuments(settings, commonDocument);
             SaveCommonDocument(materialAssetPath, commonDocument);
             SaveOverrideDocuments(materialAssetPath, overrideDocuments);
@@ -290,7 +296,11 @@ namespace helengine.editor {
                 }
             }
 
-            return settings.Processor.Platforms.Count > 0;
+            bool loaded = settings.Processor.Platforms.Count > 0;
+            if (loaded && ResolveAssetReferences(materialAssetPath, settings)) {
+                Save(materialAssetPath, settings);
+            }
+            return loaded;
         }
 
         /// <summary>
@@ -361,6 +371,8 @@ namespace helengine.editor {
                     ApplyOverrideSettings(platformSettings, environmentOverrideDocument.Processor);
                 }
             }
+
+            ResolveAssetReferences(materialAssetPath, platformSettings);
 
             return true;
         }
@@ -445,28 +457,29 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material platform settings must include field values.");
             }
 
+            Dictionary<string, string> fieldValues = new MaterialAssetReferenceProjectionService().CreateResolvedFieldValues(platformSettings);
             bool changed = false;
             if (IsStandardShaderSchema(platformSettings.SchemaId)) {
-                bool useCustomShader = IsCustomShaderEnabled(platformSettings.FieldValues);
+                bool useCustomShader = IsCustomShaderEnabled(fieldValues);
                 if (useCustomShader) {
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, ShaderAssetIdFieldId, shaderMaterialAsset.ShaderAssetId, StandardShaderAssetId, value => shaderMaterialAsset.ShaderAssetId = value);
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, VertexProgramFieldId, shaderMaterialAsset.VertexProgram, StandardVertexProgramName, value => shaderMaterialAsset.VertexProgram = value);
-                    changed |= ApplyCustomShaderMirroredField(platformSettings.FieldValues, PixelProgramFieldId, shaderMaterialAsset.PixelProgram, StandardPixelProgramName, value => shaderMaterialAsset.PixelProgram = value);
+                    changed |= ApplyCustomShaderMirroredField(fieldValues, ShaderAssetIdFieldId, shaderMaterialAsset.ShaderAssetId, StandardShaderAssetId, value => shaderMaterialAsset.ShaderAssetId = value);
+                    changed |= ApplyCustomShaderMirroredField(fieldValues, VertexProgramFieldId, shaderMaterialAsset.VertexProgram, StandardVertexProgramName, value => shaderMaterialAsset.VertexProgram = value);
+                    changed |= ApplyCustomShaderMirroredField(fieldValues, PixelProgramFieldId, shaderMaterialAsset.PixelProgram, StandardPixelProgramName, value => shaderMaterialAsset.PixelProgram = value);
                 } else {
                     changed |= ApplyStandardShaderMirroredFields(shaderMaterialAsset);
                     changed |= ApplyMaterialVariant(shaderMaterialAsset, StandardShaderVariantName);
                 }
             } else {
-                changed |= ApplyMirroredField(platformSettings.FieldValues, ShaderAssetIdFieldId, shaderMaterialAsset.ShaderAssetId, value => shaderMaterialAsset.ShaderAssetId = value, true);
-                changed |= ApplyMirroredField(platformSettings.FieldValues, VertexProgramFieldId, shaderMaterialAsset.VertexProgram, value => shaderMaterialAsset.VertexProgram = value, true);
-                changed |= ApplyMirroredField(platformSettings.FieldValues, PixelProgramFieldId, shaderMaterialAsset.PixelProgram, value => shaderMaterialAsset.PixelProgram = value, true);
+                changed |= ApplyMirroredField(fieldValues, ShaderAssetIdFieldId, shaderMaterialAsset.ShaderAssetId, value => shaderMaterialAsset.ShaderAssetId = value, true);
+                changed |= ApplyMirroredField(fieldValues, VertexProgramFieldId, shaderMaterialAsset.VertexProgram, value => shaderMaterialAsset.VertexProgram = value, true);
+                changed |= ApplyMirroredField(fieldValues, PixelProgramFieldId, shaderMaterialAsset.PixelProgram, value => shaderMaterialAsset.PixelProgram = value, true);
                 changed |= ApplyMaterialVariant(shaderMaterialAsset, MeshVariantName);
             }
 
-            changed |= ApplyMirroredField(platformSettings.FieldValues, TextureAssetIdFieldId, shaderMaterialAsset.DiffuseTextureAssetId, value => shaderMaterialAsset.DiffuseTextureAssetId = value, true);
-            changed |= ApplyMirroredField(platformSettings.FieldValues, EmissiveTextureAssetIdFieldId, shaderMaterialAsset.EmissiveTextureAssetId, value => shaderMaterialAsset.EmissiveTextureAssetId = value, true);
-            changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, CastsShadowFieldId, shaderMaterialAsset.CastsShadows, value => shaderMaterialAsset.CastsShadows = value);
-            changed |= ApplyMirroredBooleanField(platformSettings.FieldValues, ReceivesShadowFieldId, shaderMaterialAsset.ReceivesShadows, value => shaderMaterialAsset.ReceivesShadows = value);
+            changed |= ApplyMirroredField(fieldValues, TextureAssetIdFieldId, shaderMaterialAsset.DiffuseTextureAssetId, value => shaderMaterialAsset.DiffuseTextureAssetId = value, true);
+            changed |= ApplyMirroredField(fieldValues, EmissiveTextureAssetIdFieldId, shaderMaterialAsset.EmissiveTextureAssetId, value => shaderMaterialAsset.EmissiveTextureAssetId = value, true);
+            changed |= ApplyMirroredBooleanField(fieldValues, CastsShadowFieldId, shaderMaterialAsset.CastsShadows, value => shaderMaterialAsset.CastsShadows = value);
+            changed |= ApplyMirroredBooleanField(fieldValues, ReceivesShadowFieldId, shaderMaterialAsset.ReceivesShadows, value => shaderMaterialAsset.ReceivesShadows = value);
             return changed;
         }
 
@@ -509,7 +522,7 @@ namespace helengine.editor {
 
             bool changed = ApplyPlatformMaterialFields(shaderMaterialAsset, platformSettings);
             if (IsStandardShaderSchema(platformSettings.SchemaId)) {
-                changed |= ApplyStandardShaderRuntimeFields(shaderMaterialAsset, platformSettings.FieldValues);
+                changed |= ApplyStandardShaderRuntimeFields(shaderMaterialAsset, new MaterialAssetReferenceProjectionService().CreateResolvedFieldValues(platformSettings));
             }
 
             return changed;
@@ -762,6 +775,14 @@ namespace helengine.editor {
                 }
             }
 
+            if (firstPlatformSettings.AssetReferenceValues != null) {
+                foreach (KeyValuePair<string, SceneAssetReference> entry in firstPlatformSettings.AssetReferenceValues) {
+                    if (!string.IsNullOrWhiteSpace(entry.Key) && entry.Value != null && HasSharedAssetReference(settings, platformIds, entry.Key, entry.Value)) {
+                        document.Processor.AssetReferenceValues[entry.Key] = entry.Value;
+                    }
+                }
+            }
+
             return document;
         }
 
@@ -856,6 +877,20 @@ namespace helengine.editor {
                 }
 
                 document.Processor.FieldValues[entry.Key] = entry.Value;
+            }
+
+            if (platformSettings.AssetReferenceValues != null) {
+                foreach (KeyValuePair<string, SceneAssetReference> entry in platformSettings.AssetReferenceValues) {
+                    if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) {
+                        continue;
+                    }
+                    SceneAssetReference commonReference = null;
+                    bool commonHasReference = commonSettings?.AssetReferenceValues != null &&
+                        commonSettings.AssetReferenceValues.TryGetValue(entry.Key, out commonReference);
+                    if (!commonHasReference || !AssetReferencesEqual(commonReference, entry.Value)) {
+                        document.Processor.AssetReferenceValues[entry.Key] = entry.Value;
+                    }
+                }
             }
 
             return document;
@@ -1114,6 +1149,29 @@ namespace helengine.editor {
             return true;
         }
 
+        /// <summary>Returns whether every platform publishes the same typed reference.</summary>
+        static bool HasSharedAssetReference(MaterialAssetImportSettings settings, IReadOnlyList<string> platformIds, string fieldId, SceneAssetReference reference) {
+            for (int index = 0; index < platformIds.Count; index++) {
+                MaterialAssetProcessorSettings platformSettings = settings.Processor.Platforms[platformIds[index]];
+                if (platformSettings?.AssetReferenceValues == null ||
+                    !platformSettings.AssetReferenceValues.TryGetValue(fieldId, out SceneAssetReference candidate) ||
+                    !AssetReferencesEqual(reference, candidate)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>Compares every persisted typed reference field.</summary>
+        static bool AssetReferencesEqual(SceneAssetReference left, SceneAssetReference right) {
+            return ReferenceEquals(left, right) || left != null && right != null &&
+                left.SourceKind == right.SourceKind &&
+                string.Equals(left.RelativePath, right.RelativePath, StringComparison.Ordinal) &&
+                string.Equals(left.ProviderId, right.ProviderId, StringComparison.Ordinal) &&
+                string.Equals(left.AssetId, right.AssetId, StringComparison.Ordinal) &&
+                string.Equals(left.ContentHash, right.ContentHash, StringComparison.Ordinal);
+        }
+
         /// <summary>
         /// Returns true when the supplied override payload contains any explicit override values.
         /// </summary>
@@ -1124,7 +1182,9 @@ namespace helengine.editor {
                 return false;
             }
 
-            return overrideSettings.HasSchemaIdOverride || (overrideSettings.FieldValues != null && overrideSettings.FieldValues.Count > 0);
+            return overrideSettings.HasSchemaIdOverride ||
+                (overrideSettings.FieldValues != null && overrideSettings.FieldValues.Count > 0) ||
+                (overrideSettings.AssetReferenceValues != null && overrideSettings.AssetReferenceValues.Count > 0);
         }
 
         /// <summary>
@@ -1166,6 +1226,14 @@ namespace helengine.editor {
                     clone.FieldValues[entry.Key] = entry.Value;
                 }
             }
+            clone.AssetReferenceValues = new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase);
+            if (source.AssetReferenceValues != null) {
+                foreach (KeyValuePair<string, SceneAssetReference> entry in source.AssetReferenceValues) {
+                    if (!string.IsNullOrWhiteSpace(entry.Key) && entry.Value != null) {
+                        clone.AssetReferenceValues[entry.Key] = entry.Value;
+                    }
+                }
+            }
 
             return clone;
         }
@@ -1188,16 +1256,24 @@ namespace helengine.editor {
             if (destination.FieldValues == null) {
                 destination.FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             }
-            if (overrideSettings.FieldValues == null) {
-                return;
-            }
+            if (overrideSettings.FieldValues != null) {
+                foreach (KeyValuePair<string, string> entry in overrideSettings.FieldValues) {
+                    if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) {
+                        continue;
+                    }
 
-            foreach (KeyValuePair<string, string> entry in overrideSettings.FieldValues) {
-                if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) {
-                    continue;
+                    destination.FieldValues[entry.Key] = entry.Value;
                 }
-
-                destination.FieldValues[entry.Key] = entry.Value;
+            }
+            if (destination.AssetReferenceValues == null) {
+                destination.AssetReferenceValues = new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase);
+            }
+            if (overrideSettings.AssetReferenceValues != null) {
+                foreach (KeyValuePair<string, SceneAssetReference> entry in overrideSettings.AssetReferenceValues) {
+                    if (!string.IsNullOrWhiteSpace(entry.Key) && entry.Value != null) {
+                        destination.AssetReferenceValues[entry.Key] = entry.Value;
+                    }
+                }
             }
         }
 
@@ -1664,6 +1740,102 @@ namespace helengine.editor {
                 parsedColor.W / 255f));
         }
 
+
+        /// <summary>Resolves and canonicalizes every typed reference in one material settings document.</summary>
+        bool ResolveAssetReferences(string materialAssetPath, MaterialAssetImportSettings settings) {
+            if (settings?.Processor == null) {
+                return false;
+            }
+            bool hasReferences = settings.Processor.Platforms.Values.Any(HasAssetReferences) ||
+                settings.Processor.Environments.Values.Any(environment => environment.Values.Any(HasAssetReferences));
+            if (!hasReferences) {
+                return false;
+            }
+            string assetsRootPath = FindAssetsRoot(materialAssetPath);
+            string projectRootPath = Directory.GetParent(assetsRootPath)?.FullName
+                ?? throw new InvalidOperationException($"Material asset '{materialAssetPath}' does not have a project root.");
+            EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
+            EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
+            bool changed = false;
+            resolver.BeginResolutionScope();
+            try {
+                foreach (MaterialAssetProcessorSettings platformSettings in settings.Processor.Platforms.Values) {
+                    changed |= ResolveAssetReferences(assetsRootPath, platformSettings, resolver, classifier);
+                }
+                foreach (Dictionary<string, MaterialAssetProcessorSettings> environments in settings.Processor.Environments.Values) {
+                    foreach (MaterialAssetProcessorSettings environmentSettings in environments.Values) {
+                        changed |= ResolveAssetReferences(assetsRootPath, environmentSettings, resolver, classifier);
+                    }
+                }
+            } finally {
+                resolver.EndResolutionScope();
+            }
+            return changed;
+        }
+
+        static bool HasAssetReferences(MaterialAssetProcessorSettings settings) {
+            return settings?.AssetReferenceValues != null && settings.AssetReferenceValues.Count > 0;
+        }
+
+        /// <summary>Resolves one effective platform payload through one project-wide index scope.</summary>
+        bool ResolveAssetReferences(string materialAssetPath, MaterialAssetProcessorSettings settings) {
+            if (!HasAssetReferences(settings)) {
+                return false;
+            }
+            string assetsRootPath = FindAssetsRoot(materialAssetPath);
+            string projectRootPath = Directory.GetParent(assetsRootPath)?.FullName
+                ?? throw new InvalidOperationException($"Material asset '{materialAssetPath}' does not have a project root.");
+            EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
+            resolver.BeginResolutionScope();
+            try {
+                return ResolveAssetReferences(assetsRootPath, settings, resolver, new EditorAssetPathClassifier());
+            } finally {
+                resolver.EndResolutionScope();
+            }
+        }
+
+        /// <summary>Resolves and canonicalizes every typed reference in one effective platform payload.</summary>
+        bool ResolveAssetReferences(
+            string assetsRootPath,
+            MaterialAssetProcessorSettings settings,
+            EditorAssetReferenceResolver resolver,
+            EditorAssetPathClassifier classifier) {
+            if (settings?.AssetReferenceValues == null || settings.AssetReferenceValues.Count == 0) {
+                return false;
+            }
+            bool changed = false;
+            string[] fieldIds = settings.AssetReferenceValues.Keys.ToArray();
+            for (int index = 0; index < fieldIds.Length; index++) {
+                string fieldId = fieldIds[index];
+                SceneAssetReference reference = settings.AssetReferenceValues[fieldId];
+                if (reference == null || reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                    continue;
+                }
+                string candidatePath = Path.Combine(assetsRootPath, (reference.RelativePath ?? string.Empty).Replace('/', Path.DirectorySeparatorChar));
+                AssetEntryKind expectedKind = classifier.Classify(candidatePath);
+                if (expectedKind == AssetEntryKind.Unknown) {
+                    throw new InvalidOperationException($"Material field '{fieldId}' has an unclassifiable asset path '{reference.RelativePath}'.");
+                }
+                AssetReferenceResolution resolution = resolver.Resolve(reference, expectedKind);
+                if (resolution.ReferenceChanged) {
+                    settings.AssetReferenceValues[fieldId] = resolution.CanonicalReference;
+                    changed = true;
+                }
+            }
+            return changed;
+        }
+
+        /// <summary>Finds the owning project assets directory for one material path.</summary>
+        static string FindAssetsRoot(string materialAssetPath) {
+            DirectoryInfo directory = new FileInfo(Path.GetFullPath(materialAssetPath)).Directory;
+            while (directory != null && !string.Equals(directory.Name, "assets", StringComparison.OrdinalIgnoreCase)) {
+                directory = directory.Parent;
+            }
+            if (directory == null || directory.Parent == null) {
+                throw new InvalidOperationException($"Material asset '{materialAssetPath}' must be inside a project assets directory.");
+            }
+            return directory.FullName;
+        }
 
         /// <summary>
         /// Inserts or replaces one named constant-buffer payload on the material asset.

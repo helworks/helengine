@@ -13,6 +13,10 @@ namespace helengine.editor {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
+        static EditorBuildConfigService() {
+            JsonSerializerOptions.Converters.Add(new SceneAssetReferenceJsonConverter());
+        }
+
         /// <summary>
         /// Gets the absolute path to the current project root directory.
         /// </summary>
@@ -80,6 +84,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(document));
             }
 
+            SynchronizeSceneReferences(document);
             NormalizeDocument(document);
             string buildConfigDirectoryPath = Path.GetDirectoryName(BuildConfigFilePath);
             Directory.CreateDirectory(buildConfigDirectoryPath);
@@ -116,7 +121,15 @@ namespace helengine.editor {
                     }
 
                     platform.SelectedSceneIds ??= [];
+                    platform.SelectedSceneReferences ??= [];
+                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences);
                     platform.SceneOrders ??= [];
+                    for (int orderIndex = 0; orderIndex < platform.SceneOrders.Count; orderIndex++) {
+                        EditorBuildSceneOrderDocument order = platform.SceneOrders[orderIndex];
+                        if (order?.SceneReference != null) {
+                            order.SceneId = CreateSceneCatalogService().ResolveSceneId(order.SceneReference);
+                        }
+                    }
                     platform.SelectedBuildProfileId ??= string.Empty;
                     platform.EditorPrebuildCommandIdsByBuildProfileId ??= [];
                     platform.SelectedGraphicsProfileId ??= string.Empty;
@@ -144,6 +157,8 @@ namespace helengine.editor {
                     }
 
                     queueItem.SelectedSceneIds ??= [];
+                    queueItem.SelectedSceneReferences ??= [];
+                    queueItem.SelectedSceneIds = ResolveSceneIds(queueItem.SelectedSceneReferences);
                     queueItem.SelectedBuildProfileId ??= string.Empty;
                     queueItem.SelectedGraphicsProfileId ??= string.Empty;
                     queueItem.SelectedBuildOptionValues ??= [];
@@ -169,6 +184,47 @@ namespace helengine.editor {
             } catch {
                 return null;
             }
+        }
+
+        /// <summary>Synchronizes persisted scene references from the editor's operational scene-id lists.</summary>
+        void SynchronizeSceneReferences(EditorBuildConfigDocument document) {
+            EditorProjectSceneCatalogService catalog = CreateSceneCatalogService();
+            document.Platforms ??= [];
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                EditorBuildPlatformConfigDocument platform = document.Platforms[index];
+                if (platform == null) {
+                    continue;
+                }
+                platform.SelectedSceneIds ??= [];
+                platform.SelectedSceneReferences = platform.SelectedSceneIds.Select(catalog.CreateSceneReference).ToList();
+                platform.SceneOrders ??= [];
+                for (int orderIndex = 0; orderIndex < platform.SceneOrders.Count; orderIndex++) {
+                    EditorBuildSceneOrderDocument order = platform.SceneOrders[orderIndex];
+                    if (order != null && !string.IsNullOrWhiteSpace(order.SceneId)) {
+                        order.SceneReference = catalog.CreateSceneReference(order.SceneId);
+                    }
+                }
+            }
+
+            document.QueueItems ??= [];
+            for (int index = 0; index < document.QueueItems.Count; index++) {
+                EditorBuildQueueItemDocument queueItem = document.QueueItems[index];
+                if (queueItem == null) {
+                    continue;
+                }
+                queueItem.SelectedSceneIds ??= [];
+                queueItem.SelectedSceneReferences = queueItem.SelectedSceneIds.Select(catalog.CreateSceneReference).ToList();
+            }
+        }
+
+        /// <summary>Resolves operational ids from one current persisted reference list.</summary>
+        List<string> ResolveSceneIds(IReadOnlyList<SceneAssetReference> references) {
+            EditorProjectSceneCatalogService catalog = CreateSceneCatalogService();
+            return (references ?? Array.Empty<SceneAssetReference>()).Select(catalog.ResolveSceneId).ToList();
+        }
+
+        EditorProjectSceneCatalogService CreateSceneCatalogService() {
+            return new EditorProjectSceneCatalogService(ProjectRootPath);
         }
 
         /// <summary>

@@ -430,6 +430,10 @@ namespace helengine.editor {
             if (TryWriteEngineSerializedPayload(writer, valueType, value)) {
                 return;
             }
+            if (valueType == typeof(SceneAssetReference)) {
+                SceneComponentBinaryFieldEncoding.WriteOptionalReference(writer, (SceneAssetReference)value);
+                return;
+            }
             if (TryWriteLeafValue(writer, valueType, value)) {
                 return;
             }
@@ -468,6 +472,9 @@ namespace helengine.editor {
 
             if (TryReadEngineSerializedPayload(reader, valueType, out object payloadValue)) {
                 return payloadValue;
+            }
+            if (valueType == typeof(SceneAssetReference)) {
+                return SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
             }
             if (TryReadLeafValue(reader, valueType, out object leafValue)) {
                 return leafValue;
@@ -750,6 +757,9 @@ namespace helengine.editor {
             }
             if (valueType == typeof(AnimationClipAsset)) {
                 return referenceResolver.ResolveAnimationClip(reference);
+            }
+            if (valueType == typeof(AudioAsset)) {
+                return referenceResolver.ResolveAudio(reference);
             }
 
             throw new InvalidOperationException($"Automatic script-component persistence does not support asset-backed member type '{valueType.FullName}'.");

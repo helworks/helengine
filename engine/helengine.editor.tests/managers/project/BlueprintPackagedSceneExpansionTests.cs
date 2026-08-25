@@ -47,7 +47,7 @@ namespace helengine.editor.tests.managers.project {
                         LocalOrientation = float4.Identity,
                         Components = [
                             SerializeComponent(new BlueprintInstanceComponent {
-                                BlueprintAssetPath = "Blueprints/TestBlueprint.hblueprint"
+                                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/TestBlueprint.hblueprint")
                             })
                         ],
                         Children = Array.Empty<SceneEntityAsset>()
@@ -64,7 +64,7 @@ namespace helengine.editor.tests.managers.project {
             Assert.Empty(instanceRoot.Components);
             SceneEntityAsset expandedBlueprintRoot = Assert.Single(instanceRoot.Children);
             Assert.Equal("Blueprint Root", expandedBlueprintRoot.Name);
-            Assert.Equal(1u, expandedBlueprintRoot.Id);
+            Assert.Equal(101u, expandedBlueprintRoot.Id);
             Assert.Equal("Blueprint Child", Assert.Single(expandedBlueprintRoot.Children).Name);
             Assert.Single(sceneAsset.AssetReferences);
             Assert.Equal(blueprintMaterialReference.AssetId, sceneAsset.AssetReferences[0].AssetId);
@@ -103,7 +103,7 @@ namespace helengine.editor.tests.managers.project {
                         LocalOrientation = float4.Identity,
                         Components = [
                             SerializeComponent(new BlueprintInstanceComponent {
-                                BlueprintAssetPath = "Blueprints/EnvironmentBlueprint.hblueprint"
+                                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/EnvironmentBlueprint.hblueprint")
                             })
                         ],
                         Children = Array.Empty<SceneEntityAsset>()
@@ -140,7 +140,7 @@ namespace helengine.editor.tests.managers.project {
                         LocalOrientation = float4.Identity,
                         Components = [
                             SerializeComponent(new BlueprintInstanceComponent {
-                                BlueprintAssetPath = "Blueprints/NestedBlueprint.hblueprint"
+                                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/NestedBlueprint.hblueprint")
                             })
                         ],
                         Children = Array.Empty<SceneEntityAsset>()
@@ -182,7 +182,7 @@ namespace helengine.editor.tests.managers.project {
                         Components = [
                             SerializeComponent(textureProbeComponent, saveState),
                             SerializeComponent(new BlueprintInstanceComponent {
-                                BlueprintAssetPath = "Blueprints/TestBlueprint.hblueprint"
+                                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/TestBlueprint.hblueprint")
                             })
                         ],
                         Children = Array.Empty<SceneEntityAsset>()
@@ -256,7 +256,7 @@ namespace helengine.editor.tests.managers.project {
                         LocalOrientation = float4.Identity,
                         Components = [
                             SerializeComponent(new BlueprintInstanceComponent {
-                                BlueprintAssetPath = blueprintPath,
+                                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintPath),
                                 EntityReferenceOverrides = [
                                     new BlueprintEntityReferenceOverrideAsset {
                                         SourceEntityId = 2u,
@@ -374,6 +374,7 @@ namespace helengine.editor.tests.managers.project {
             using FileStream stream = File.Create(fullPath);
             AssetSerializer.Serialize(stream, new BlueprintAsset {
                 Id = relativePath,
+                AuthoringAssetId = Guid.NewGuid().ToString("N"),
                 RootEntity = rootEntity,
                 AssetReferences = materialReference == null
                     ? Array.Empty<SceneAssetReference>()
@@ -392,6 +393,7 @@ namespace helengine.editor.tests.managers.project {
             using FileStream stream = File.Create(fullPath);
             AssetSerializer.Serialize(stream, new BlueprintAsset {
                 Id = relativePath,
+                AuthoringAssetId = Guid.NewGuid().ToString("N"),
                 RootEntity = new SceneEntityAsset {
                     Id = 1u,
                     Name = "Blueprint Root",
@@ -401,7 +403,7 @@ namespace helengine.editor.tests.managers.project {
                     LocalOrientation = float4.Identity,
                     Components = [
                         SerializeComponent(new BlueprintInstanceComponent {
-                            BlueprintAssetPath = "Blueprints/Other.hblueprint"
+                            BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("Blueprints/Other.hblueprint")
                         })
                     ],
                     Children = Array.Empty<SceneEntityAsset>()

@@ -89,6 +89,11 @@ namespace helengine.editor {
                     RootEntity = rootEntities[0],
                     AssetReferences = sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>()
                 };
+                AssetIdentityMetadataDocument identity = File.Exists(normalizedPath)
+                    ? new AssetIdentityMetadataService().Load(normalizedPath)
+                    : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
+                blueprintAsset.AuthoringAssetId = identity.AssetId;
+                blueprintAsset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
 
                 using FileStream outputStream = new FileStream(normalizedPath, FileMode.Create, FileAccess.Write, FileShare.None);
                 AssetSerializer.Serialize(outputStream, blueprintAsset);

@@ -4,8 +4,8 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorSessionStateDocument {
         /// <summary>
-        /// Gets or sets the last open scene path, stored project-relative when the scene lives inside the project.
+        /// Gets or sets the canonical stable reference to the last authored scene.
         /// </summary>
-        public string LastScenePath { get; set; }
+        public SceneAssetReference LastSceneReference { get; set; }
     }
 }

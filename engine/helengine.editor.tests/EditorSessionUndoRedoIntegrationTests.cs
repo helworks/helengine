@@ -375,7 +375,7 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity inheritedEntity = CreateUserSceneEntity(501u, "Inherited Coin");
             inheritedEntity.AddComponent(new BlueprintInheritedEntityComponent {
-                BlueprintAssetPath = "blueprints/games/split_play/GoldenCoin.hblueprint",
+                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/games/split_play/GoldenCoin.hblueprint"),
                 SourceEntityId = 501u
             });
             EditorSelectionService.SetSelectedEntity(inheritedEntity);
@@ -394,7 +394,7 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity inheritedEntity = CreateUserSceneEntity(502u, "Inherited Selection");
             inheritedEntity.AddComponent(new BlueprintInheritedEntityComponent {
-                BlueprintAssetPath = "blueprints/games/split_play/GoldenCoin.hblueprint",
+                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/games/split_play/GoldenCoin.hblueprint"),
                 SourceEntityId = 502u
             });
             EditorUndoRedoService undoRedoService = GetPrivateField<EditorUndoRedoService>(session, "UndoRedoService");

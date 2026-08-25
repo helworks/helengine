@@ -10,8 +10,13 @@ namespace helengine.editor {
         /// </summary>
         static JsonSerializerOptions JsonSerializerOptions { get; } = new JsonSerializerOptions {
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
         };
+
+        static EditorSessionStateService() {
+            JsonSerializerOptions.Converters.Add(new SceneAssetReferenceJsonConverter());
+        }
 
         /// <summary>
         /// Absolute project root that owns the local session state file.
@@ -50,13 +55,10 @@ namespace helengine.editor {
                 }
 
                 EditorSessionStateDocument document = JsonSerializer.Deserialize<EditorSessionStateDocument>(File.ReadAllText(StateFilePath), JsonSerializerOptions);
-                if (string.IsNullOrWhiteSpace(document?.LastScenePath)) {
+                if (document?.LastSceneReference == null) {
                     return null;
                 }
-
-                return Path.IsPathRooted(document.LastScenePath)
-                    ? Path.GetFullPath(document.LastScenePath)
-                    : Path.GetFullPath(Path.Combine(ProjectRootPath, document.LastScenePath));
+                return ResolveReferencePath(document.LastSceneReference);
             } catch (Exception ex) {
                 // A corrupt state file must never block editor startup.
                 Logger.WriteError($"Editor session state read failed: {ex.Message}");
@@ -75,17 +77,29 @@ namespace helengine.editor {
 
             try {
                 string fullPath = Path.GetFullPath(scenePath);
-                string storedPath = fullPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)
-                    ? Path.GetRelativePath(ProjectRootPath, fullPath)
-                    : fullPath;
+                string assetsRoot = Path.Combine(ProjectRootPath, "assets");
+                if (!fullPath.StartsWith(assetsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {
+                    throw new InvalidOperationException("The last scene must be a current authored scene inside the project assets directory.");
+                }
+                SceneAssetReference reference = new EditorAssetReferenceResolver(ProjectRootPath).CreateFileReference(fullPath, AssetEntryKind.Scene);
                 Directory.CreateDirectory(Path.Combine(ProjectRootPath, "user_settings"));
                 File.WriteAllText(StateFilePath, JsonSerializer.Serialize(new EditorSessionStateDocument {
-                    LastScenePath = storedPath
+                    LastSceneReference = reference
                 }, JsonSerializerOptions));
             } catch (Exception ex) {
                 // Failing to persist session state must never fail the scene operation that triggered it.
                 Logger.WriteError($"Editor session state write failed: {ex.Message}");
             }
+        }
+
+        /// <summary>Resolves a typed scene reference to its current project path.</summary>
+        string ResolveReferencePath(SceneAssetReference reference) {
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                throw new InvalidOperationException("The last scene reference must be filesystem-backed.");
+            }
+            EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+            AssetReferenceResolution resolution = resolver.Resolve(reference, AssetEntryKind.Scene);
+            return resolution.FullPath;
         }
     }
 }

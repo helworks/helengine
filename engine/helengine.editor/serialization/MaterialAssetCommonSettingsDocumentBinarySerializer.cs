@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the shared material settings payload layout.
         /// </summary>
-        public const byte CurrentVersion = 1;
+        public const byte CurrentVersion = 3;
 
         /// <summary>
         /// Payload endianness used by the current shared material settings format.
@@ -32,7 +32,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material common settings must include importer settings.");
             } else if (document.Processor == null) {
                 throw new InvalidOperationException("Material common settings must include processor settings.");
-            } else if (document.Processor.FieldValues == null) {
+            } else if (document.Processor.FieldValues == null || document.Processor.AssetReferenceValues == null) {
                 throw new InvalidOperationException("Material common settings must include field values.");
             }
 
@@ -45,6 +45,13 @@ namespace helengine.editor {
             EngineBinaryHeaderSerializer.Write(stream, header);
 
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
+            writer.WriteString(document.AuthoringAssetId ?? string.Empty);
+            writer.WriteInt32(document.FormerAuthoringAssetIds?.Count ?? 0);
+            if (document.FormerAuthoringAssetIds != null) {
+                for (int index = 0; index < document.FormerAuthoringAssetIds.Count; index++) {
+                    writer.WriteString(document.FormerAuthoringAssetIds[index]);
+                }
+            }
             writer.WriteString(document.Importer.ImporterId ?? string.Empty);
             writer.WriteString(document.Importer.SourceChecksum ?? string.Empty);
             writer.WriteString(document.Importer.AssetId ?? string.Empty);
@@ -60,6 +67,7 @@ namespace helengine.editor {
                 writer.WriteString(entry.Key);
                 writer.WriteString(entry.Value);
             }
+            WriteReferences(writer, document.Processor.AssetReferenceValues);
         }
 
         /// <summary>
@@ -77,6 +85,14 @@ namespace helengine.editor {
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
 
             MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument();
+            document.AuthoringAssetId = reader.ReadString();
+            int formerAssetIdCount = reader.ReadInt32();
+            if (formerAssetIdCount < 0) {
+                throw new InvalidOperationException("Material common settings former asset id count cannot be negative.");
+            }
+            for (int index = 0; index < formerAssetIdCount; index++) {
+                document.FormerAuthoringAssetIds.Add(reader.ReadString());
+            }
             document.Importer.ImporterId = reader.ReadString();
             document.Importer.SourceChecksum = reader.ReadString();
             document.Importer.AssetId = reader.ReadString();
@@ -95,6 +111,7 @@ namespace helengine.editor {
 
                 document.Processor.FieldValues.Add(fieldId, reader.ReadString());
             }
+            ReadReferences(reader, document.Processor.AssetReferenceValues);
 
             return document;
         }
@@ -114,6 +131,36 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected material common settings value kind '{header.ValueKind}'.");
             } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported material common settings binary version '{header.Version}'.");
+            }
+        }
+
+        /// <summary>Writes typed material references.</summary>
+        static void WriteReferences(EngineBinaryWriter writer, Dictionary<string, SceneAssetReference> references) {
+            writer.WriteInt32(references.Count);
+            foreach (KeyValuePair<string, SceneAssetReference> entry in references) {
+                writer.WriteString(entry.Key);
+                writer.WriteInt32((int)entry.Value.SourceKind);
+                writer.WriteString(entry.Value.RelativePath);
+                writer.WriteString(entry.Value.ProviderId);
+                writer.WriteString(entry.Value.AssetId);
+                writer.WriteString(entry.Value.ContentHash);
+            }
+        }
+
+        /// <summary>Reads typed material references.</summary>
+        static void ReadReferences(EngineBinaryReader reader, Dictionary<string, SceneAssetReference> references) {
+            int count = reader.ReadInt32();
+            if (count < 0) {
+                throw new InvalidOperationException("Material common settings reference count cannot be negative.");
+            }
+            for (int index = 0; index < count; index++) {
+                string fieldId = reader.ReadString();
+                references.Add(fieldId, global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                    (SceneAssetReferenceSourceKind)reader.ReadInt32(),
+                    reader.ReadString(),
+                    reader.ReadString(),
+                    reader.ReadString(),
+                    reader.ReadString()));
             }
         }
     }

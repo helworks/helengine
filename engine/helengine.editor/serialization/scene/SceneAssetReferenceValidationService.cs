@@ -71,6 +71,21 @@ namespace helengine.editor {
         /// <param name="reference">Scene asset reference to validate.</param>
         /// <param name="context">Human-readable owner context used in failure messages.</param>
         public static void ValidateTypedReference(Type valueType, SceneAssetReference reference, string context) {
+            ValidateTypedReference(valueType, reference, context, false);
+        }
+
+        /// <summary>
+        /// Validates one typed reference at an authored editor persistence boundary.
+        /// </summary>
+        /// <param name="valueType">Asset-backed member type that owns the reference.</param>
+        /// <param name="reference">Scene asset reference to validate.</param>
+        /// <param name="context">Human-readable owner context used in failure messages.</param>
+        public static void ValidateAuthoredTypedReference(Type valueType, SceneAssetReference reference, string context) {
+            ValidateTypedReference(valueType, reference, context, true);
+        }
+
+        /// <summary>Validates one typed reference for authored or packaged persistence.</summary>
+        static void ValidateTypedReference(Type valueType, SceneAssetReference reference, string context, bool requireStableFileIdentity) {
             if (valueType == null) {
                 throw new ArgumentNullException(nameof(valueType));
             }
@@ -82,27 +97,27 @@ namespace helengine.editor {
             }
 
             if (valueType == typeof(FontAsset)) {
-                ValidateFontReference(reference, context);
+                ValidateFontReference(reference, context, requireStableFileIdentity);
                 return;
             }
             if (valueType == typeof(RuntimeTexture)) {
-                ValidateTextureReference(reference, context);
+                ValidateTextureReference(reference, context, requireStableFileIdentity);
                 return;
             }
             if (valueType == typeof(RuntimeModel)) {
-                ValidateModelReference(reference, context);
+                ValidateModelReference(reference, context, requireStableFileIdentity);
                 return;
             }
             if (valueType == typeof(RuntimeMaterial)) {
-                ValidateMaterialReference(reference, context);
+                ValidateMaterialReference(reference, context, requireStableFileIdentity);
                 return;
             }
             if (valueType == typeof(AnimationClipAsset)) {
-                ValidateAnimationClipReference(reference, context);
+                ValidateAnimationClipReference(reference, context, requireStableFileIdentity);
                 return;
             }
             if (valueType == typeof(AudioAsset)) {
-                ValidateAudioReference(reference, context);
+                ValidateAudioReference(reference, context, requireStableFileIdentity);
                 return;
             }
 
@@ -144,7 +159,7 @@ namespace helengine.editor {
                 return;
             }
 
-            ValidateTypedReference(valueType, reference, BuildReferenceContext(component, referenceName, platformId));
+            ValidateAuthoredTypedReference(valueType, reference, BuildReferenceContext(component, referenceName, platformId));
         }
 
         /// <summary>
@@ -195,9 +210,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reference">Reference to validate.</param>
         /// <param name="context">Human-readable owner context.</param>
-        static void ValidateFontReference(SceneAssetReference reference, string context) {
+        static void ValidateFontReference(SceneAssetReference reference, string context, bool requireStableFileIdentity) {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                ValidateFileSystemReference("font", reference, context);
+                ValidateFileSystemReference("font", reference, context, requireStableFileIdentity);
                 return;
             }
             if (reference.SourceKind != SceneAssetReferenceSourceKind.Generated) {
@@ -221,9 +236,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reference">Reference to validate.</param>
         /// <param name="context">Human-readable owner context.</param>
-        static void ValidateTextureReference(SceneAssetReference reference, string context) {
+        static void ValidateTextureReference(SceneAssetReference reference, string context, bool requireStableFileIdentity) {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                ValidateFileSystemReference("texture", reference, context);
+                ValidateFileSystemReference("texture", reference, context, requireStableFileIdentity);
                 return;
             }
 
@@ -235,9 +250,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reference">Reference to validate.</param>
         /// <param name="context">Human-readable owner context.</param>
-        static void ValidateModelReference(SceneAssetReference reference, string context) {
+        static void ValidateModelReference(SceneAssetReference reference, string context, bool requireStableFileIdentity) {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                ValidateFileSystemReference("model", reference, context);
+                ValidateFileSystemReference("model", reference, context, requireStableFileIdentity);
                 return;
             }
             if (reference.SourceKind != SceneAssetReferenceSourceKind.Generated) {
@@ -262,9 +277,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reference">Reference to validate.</param>
         /// <param name="context">Human-readable owner context.</param>
-        static void ValidateMaterialReference(SceneAssetReference reference, string context) {
+        static void ValidateMaterialReference(SceneAssetReference reference, string context, bool requireStableFileIdentity) {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                ValidateFileSystemReference("material", reference, context);
+                ValidateFileSystemReference("material", reference, context, requireStableFileIdentity);
                 return;
             }
             if (reference.SourceKind != SceneAssetReferenceSourceKind.Generated) {
@@ -287,9 +302,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reference">Reference to validate.</param>
         /// <param name="context">Human-readable owner context.</param>
-        static void ValidateAnimationClipReference(SceneAssetReference reference, string context) {
+        static void ValidateAnimationClipReference(SceneAssetReference reference, string context, bool requireStableFileIdentity) {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                ValidateFileSystemReference("animation clip", reference, context);
+                ValidateFileSystemReference("animation clip", reference, context, requireStableFileIdentity);
                 return;
             }
 
@@ -301,9 +316,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reference">Reference to validate.</param>
         /// <param name="context">Human-readable owner context.</param>
-        static void ValidateAudioReference(SceneAssetReference reference, string context) {
+        static void ValidateAudioReference(SceneAssetReference reference, string context, bool requireStableFileIdentity) {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                ValidateFileSystemReference("audio", reference, context);
+                ValidateFileSystemReference("audio", reference, context, requireStableFileIdentity);
                 return;
             }
 
@@ -316,13 +331,46 @@ namespace helengine.editor {
         /// <param name="assetKind">Human-readable asset kind used in failure messages.</param>
         /// <param name="reference">Reference to validate.</param>
         /// <param name="context">Human-readable owner context.</param>
-        static void ValidateFileSystemReference(string assetKind, SceneAssetReference reference, string context) {
+        static void ValidateFileSystemReference(string assetKind, SceneAssetReference reference, string context, bool requireStableFileIdentity) {
             if (string.IsNullOrWhiteSpace(reference.RelativePath)) {
                 throw new InvalidOperationException($"File-backed {assetKind} references must include a relative path for {context}.");
             }
-            if (!string.IsNullOrEmpty(reference.ProviderId) || !string.IsNullOrEmpty(reference.AssetId)) {
-                throw new InvalidOperationException($"File-backed {assetKind} references must not include generated identifiers for {context}.");
+            if (!string.IsNullOrEmpty(reference.ProviderId)) {
+                throw new InvalidOperationException($"File-backed {assetKind} references must not include a generated provider id for {context}.");
             }
+            if (!requireStableFileIdentity) {
+                return;
+            }
+            if (!IsStableAssetId(reference.AssetId)) {
+                throw new InvalidOperationException($"File-backed {assetKind} references must include a lowercase 32-character hexadecimal asset id for {context}.");
+            }
+            if (!IsContentHash(reference.ContentHash)) {
+                throw new InvalidOperationException($"File-backed {assetKind} references must include a lowercase SHA-256 content hash for {context}.");
+            }
+        }
+
+        /// <summary>Checks the current separator-free authored UUID format.</summary>
+        static bool IsStableAssetId(string value) {
+            return !string.IsNullOrWhiteSpace(value) && value.Length == 32 && IsLowerHex(value);
+        }
+
+        /// <summary>Checks the current lowercase SHA-256 reference format.</summary>
+        static bool IsContentHash(string value) {
+            return !string.IsNullOrWhiteSpace(value) &&
+                   value.Length == 71 &&
+                   value.StartsWith("sha256:", StringComparison.Ordinal) &&
+                   IsLowerHex(value.Substring(7));
+        }
+
+        /// <summary>Checks whether one value contains only lowercase hexadecimal digits.</summary>
+        static bool IsLowerHex(string value) {
+            for (int index = 0; index < value.Length; index++) {
+                char character = value[index];
+                if (!((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f'))) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /// <summary>

@@ -8,6 +8,7 @@ namespace helengine.editor {
         /// </summary>
         public MaterialAssetProcessorSettings() {
             FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            AssetReferenceValues = new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase);
             SchemaId = string.Empty;
         }
 
@@ -20,5 +21,10 @@ namespace helengine.editor {
         /// Gets or sets the serialized field values keyed by builder-defined field identifier.
         /// </summary>
         public Dictionary<string, string> FieldValues { get; set; }
+
+        /// <summary>
+        /// Gets or sets typed authored and generated asset references keyed by builder field id.
+        /// </summary>
+        public Dictionary<string, SceneAssetReference> AssetReferenceValues { get; set; }
     }
 }

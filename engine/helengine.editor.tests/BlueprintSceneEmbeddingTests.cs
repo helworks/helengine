@@ -62,7 +62,7 @@ namespace helengine.editor.tests {
             EditorEntity instanceRoot = Assert.Single(loaded.RootEntities);
             Assert.Equal("Blueprint Instance", instanceRoot.Name);
             BlueprintInstanceComponent instanceComponent = Assert.IsType<BlueprintInstanceComponent>(Assert.Single(instanceRoot.Components, component => component is BlueprintInstanceComponent));
-            Assert.Equal("Blueprints/TestBlueprint.hblueprint", instanceComponent.BlueprintAssetPath);
+            Assert.Equal("Blueprints/TestBlueprint.hblueprint", instanceComponent.BlueprintAssetReference.RelativePath);
 
             EditorEntity inheritedRoot = Assert.IsType<EditorEntity>(Assert.Single(instanceRoot.Children));
             Assert.Equal("Blueprint Root", inheritedRoot.Name);
@@ -134,6 +134,7 @@ namespace helengine.editor.tests {
             using FileStream stream = File.Create(blueprintPath);
             AssetSerializer.Serialize(stream, new BlueprintAsset {
                 Id = relativeBlueprintPath,
+                AuthoringAssetId = Guid.NewGuid().ToString("N"),
                 RootEntity = new SceneEntityAsset {
                     Id = 1u,
                     Name = "Blueprint Root",
@@ -166,7 +167,7 @@ namespace helengine.editor.tests {
             EditorEntity instanceRoot = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("Blueprint Instance"));
             instanceRoot.LocalPosition = new float3(4f, 5f, 6f);
             instanceRoot.AddComponent(new BlueprintInstanceComponent {
-                BlueprintAssetPath = blueprintAssetPath
+                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintAssetPath)
             });
 
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());
@@ -186,12 +187,12 @@ namespace helengine.editor.tests {
         string SaveSceneWithTwoBlueprintInstances(string relativeScenePath, string blueprintAssetPath) {
             EditorEntity firstInstanceRoot = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("Blueprint Instance A"));
             firstInstanceRoot.AddComponent(new BlueprintInstanceComponent {
-                BlueprintAssetPath = blueprintAssetPath
+                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintAssetPath)
             });
 
             EditorEntity secondInstanceRoot = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("Blueprint Instance B"));
             secondInstanceRoot.AddComponent(new BlueprintInstanceComponent {
-                BlueprintAssetPath = blueprintAssetPath
+                BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintAssetPath)
             });
 
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());

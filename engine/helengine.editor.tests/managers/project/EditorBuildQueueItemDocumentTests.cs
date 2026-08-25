@@ -472,7 +472,11 @@ namespace helengine.editor.tests {
         void WriteScene(string sceneId) {
             string scenePath = Path.Combine(TempProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
-            File.WriteAllText(scenePath, string.Empty);
+            using FileStream stream = File.Create(scenePath);
+            AssetSerializer.Serialize(stream, new SceneAsset {
+                Id = sceneId,
+                AuthoringAssetId = Guid.NewGuid().ToString("N")
+            });
         }
 
         /// <summary>

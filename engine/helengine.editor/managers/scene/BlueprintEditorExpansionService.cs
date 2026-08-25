@@ -12,6 +12,8 @@ namespace helengine.editor {
         /// Blueprint-load service reused to materialize source blueprint entities.
         /// </summary>
         readonly BlueprintLoadService BlueprintLoadService;
+        /// <summary>Project-scoped resolver for canonical blueprint references.</summary>
+        readonly EditorAssetReferenceResolver AssetReferenceResolver;
 
         /// <summary>
         /// Initializes a new blueprint editor expansion service.
@@ -35,6 +37,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver);
+            AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
         }
 
         /// <summary>
@@ -47,13 +50,13 @@ namespace helengine.editor {
             }
 
             BlueprintInstanceComponent instanceComponent = FindBlueprintInstanceComponent(instanceRoot);
-            if (instanceComponent == null || string.IsNullOrWhiteSpace(instanceComponent.BlueprintAssetPath)) {
+            if (instanceComponent?.BlueprintAssetReference == null) {
                 return;
             }
 
             RemoveExpandedChildren(instanceRoot);
 
-            string blueprintFullPath = ResolveBlueprintFullPath(instanceComponent.BlueprintAssetPath);
+            string blueprintFullPath = ResolveBlueprintFullPath(instanceComponent);
             using FileStream stream = new FileStream(blueprintFullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             Asset asset = AssetSerializer.Deserialize(stream);
             if (asset is not BlueprintAsset blueprintAsset) {
@@ -65,7 +68,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Blueprint instance expansion did not materialize a root entity.");
             }
 
-            MarkInheritedSubtree(loadedBlueprint.RootEntity, instanceComponent.BlueprintAssetPath);
+            MarkInheritedSubtree(loadedBlueprint.RootEntity, instanceComponent.BlueprintAssetReference);
             instanceRoot.AddChild(loadedBlueprint.RootEntity);
         }
 
@@ -98,8 +101,8 @@ namespace helengine.editor {
         /// Marks one loaded blueprint subtree as inherited read-only content.
         /// </summary>
         /// <param name="entity">Entity at the current subtree root.</param>
-        /// <param name="blueprintAssetPath">Project-relative blueprint asset path that produced the subtree.</param>
-        void MarkInheritedSubtree(EditorEntity entity, string blueprintAssetPath) {
+        /// <param name="blueprintAssetReference">Canonical blueprint reference that produced the subtree.</param>
+        void MarkInheritedSubtree(EditorEntity entity, SceneAssetReference blueprintAssetReference) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
@@ -111,7 +114,7 @@ namespace helengine.editor {
             }
 
             entity.AddComponent(new BlueprintInheritedEntityComponent {
-                BlueprintAssetPath = blueprintAssetPath ?? string.Empty,
+                BlueprintAssetReference = blueprintAssetReference,
                 SourceEntityId = sourceEntityId
             });
 
@@ -138,7 +141,7 @@ namespace helengine.editor {
                     }
 
                     entity.AddComponent(new BlueprintInheritedComponentMarker {
-                        BlueprintAssetPath = blueprintAssetPath ?? string.Empty,
+                        BlueprintAssetReference = blueprintAssetReference,
                         SourceEntityId = sourceEntityId,
                         SourceComponentKey = sourceComponentKey,
                         TargetComponentTypeId = visibleComponents[i].GetType().FullName ?? visibleComponents[i].GetType().Name
@@ -152,7 +155,7 @@ namespace helengine.editor {
 
             for (int i = 0; i < entity.Children.Count; i++) {
                 if (entity.Children[i] is EditorEntity childEntity) {
-                    MarkInheritedSubtree(childEntity, blueprintAssetPath);
+                    MarkInheritedSubtree(childEntity, blueprintAssetReference);
                 }
             }
         }
@@ -162,17 +165,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="blueprintAssetPath">Project-relative blueprint asset path.</param>
         /// <returns>Absolute blueprint file path.</returns>
-        string ResolveBlueprintFullPath(string blueprintAssetPath) {
-            if (string.IsNullOrWhiteSpace(blueprintAssetPath)) {
-                throw new InvalidOperationException("Blueprint instance roots must define a blueprint asset path.");
-            }
-
-            string fullPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", blueprintAssetPath.Replace('/', Path.DirectorySeparatorChar)));
-            if (!fullPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException("Blueprint instance asset path must stay inside the current project.");
-            }
-
-            return fullPath;
+        string ResolveBlueprintFullPath(BlueprintInstanceComponent instanceComponent) {
+            AssetReferenceResolution resolution = AssetReferenceResolver.Resolve(instanceComponent.BlueprintAssetReference, AssetEntryKind.Blueprint);
+            instanceComponent.BlueprintAssetReference = resolution.CanonicalReference;
+            return resolution.FullPath;
         }
 
         /// <summary>

@@ -8,6 +8,7 @@ namespace helengine.editor {
         /// </summary>
         public MaterialAssetProcessorOverrideSettings() {
             FieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            AssetReferenceValues = new Dictionary<string, SceneAssetReference>(StringComparer.OrdinalIgnoreCase);
             SchemaId = string.Empty;
         }
 
@@ -25,5 +26,8 @@ namespace helengine.editor {
         /// Gets or sets the field values that differ from the shared material settings payload.
         /// </summary>
         public Dictionary<string, string> FieldValues { get; set; }
+
+        /// <summary>Gets or sets typed references that override shared material fields.</summary>
+        public Dictionary<string, SceneAssetReference> AssetReferenceValues { get; set; }
     }
 }

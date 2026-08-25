@@ -46,5 +46,6 @@ namespace helengine {
         /// Gets or sets the opaque component payload bytes.
         /// </summary>
         public byte[] Payload { get; set; } = Array.Empty<byte>();
+
     }
 }

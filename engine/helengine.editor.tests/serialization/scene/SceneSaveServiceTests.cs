@@ -50,6 +50,32 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures native scenes mint embedded identity once and preserve it on later saves without sidecars.
+        /// </summary>
+        [Fact]
+        public void Save_WhenSceneIsSavedRepeatedly_PreservesEmbeddedIdentityWithoutSidecar() {
+            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Identity.helen");
+
+            saveService.Save(scenePath);
+            SceneAsset firstAsset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                firstAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            saveService.Save(scenePath);
+            SceneAsset secondAsset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                secondAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            Assert.False(string.IsNullOrWhiteSpace(firstAsset.AuthoringAssetId));
+            Assert.Equal(firstAsset.AuthoringAssetId, secondAsset.AuthoringAssetId);
+            Assert.Empty(secondAsset.FormerAuthoringAssetIds);
+            Assert.False(File.Exists(scenePath + ".hmeta"));
+        }
+
+        /// <summary>
         /// Ensures scene save writes one `.helen` file, excludes internal editor entities, and round-trips mesh persistence through the load service.
         /// </summary>
         [Fact]

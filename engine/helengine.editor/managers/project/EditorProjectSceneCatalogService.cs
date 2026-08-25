@@ -3,6 +3,7 @@ namespace helengine.editor {
     /// Enumerates project scenes that can be selected by the local build dialog.
     /// </summary>
     public sealed class EditorProjectSceneCatalogService : ISceneIdPathResolver {
+        const string GeneratedSceneProviderId = "editor.scene-catalog";
         /// <summary>
         /// Absolute project root containing the `assets` directory.
         /// </summary>
@@ -106,6 +107,41 @@ namespace helengine.editor {
             }
 
             return Path.GetRelativePath(AssetsRootPath, resolvedScenePath).Replace('\\', '/');
+        }
+
+        /// <summary>Creates the current stable reference for an authored or generated scene id.</summary>
+        public SceneAssetReference CreateSceneReference(string sceneId) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
+            }
+
+            if (GetSceneIds().Contains(sceneId, StringComparer.Ordinal)) {
+                string relativePath = ResolveScenePath(sceneId);
+                string fullPath = Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                return new EditorAssetReferenceResolver(ProjectRootPath).CreateFileReference(fullPath, AssetEntryKind.Scene);
+            }
+
+            return global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                SceneAssetReferenceSourceKind.Generated,
+                sceneId,
+                GeneratedSceneProviderId,
+                sceneId);
+        }
+
+        /// <summary>Resolves a persisted stable scene reference back to the operational scene id.</summary>
+        public string ResolveSceneId(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                if (!string.Equals(reference.ProviderId, GeneratedSceneProviderId, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"Unsupported generated scene provider '{reference.ProviderId}'.");
+                }
+                return reference.AssetId;
+            }
+
+            AssetReferenceResolution resolution = new EditorAssetReferenceResolver(ProjectRootPath).Resolve(reference, AssetEntryKind.Scene);
+            return ResolveSceneId(resolution.FullPath);
         }
 
         /// <summary>

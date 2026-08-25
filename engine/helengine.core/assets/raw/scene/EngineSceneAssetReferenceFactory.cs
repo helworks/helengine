@@ -72,7 +72,7 @@ namespace helengine {
         /// <param name="assetId">Generated asset id.</param>
         /// <returns>Validated generated scene asset reference.</returns>
         static SceneAssetReference CreateGenerated(string relativePath, string assetId) {
-            return new SceneAssetReference(SceneAssetReferenceSourceKind.Generated, relativePath, ProviderIdValue, assetId);
+            return new SceneAssetReference(SceneAssetReferenceSourceKind.Generated, relativePath, ProviderIdValue, assetId, string.Empty);
         }
     }
 }

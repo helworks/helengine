@@ -22,6 +22,7 @@ namespace helengine.editor {
             writer.WriteString(reference.RelativePath);
             writer.WriteString(reference.ProviderId);
             writer.WriteString(reference.AssetId);
+            writer.WriteString(reference.ContentHash);
         }
 
         /// <summary>
@@ -30,7 +31,7 @@ namespace helengine.editor {
         /// <param name="reader">Source reader positioned at the encoded reference.</param>
         /// <returns>Decoded scene asset reference when present; otherwise null.</returns>
         public static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+            return global::helengine.SceneAssetReferenceFactory.ReadOptionalCurrentReference(reader);
         }
 
         /// <summary>

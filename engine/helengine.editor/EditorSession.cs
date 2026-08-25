@@ -674,6 +674,8 @@ namespace helengine.editor {
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
+            EditorAssetReferenceResolver authoredAssetReferenceResolver = new EditorAssetReferenceResolver(this.projectPath);
+            propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath);
@@ -709,7 +711,7 @@ namespace helengine.editor {
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
             sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
-            sceneAssetReferenceFactory = new SceneAssetReferenceFactory();
+            sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
             sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
@@ -2571,30 +2573,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Only blueprint assets can be instantiated into the scene.");
             }
 
-            string blueprintAssetPath = ResolveAssetRelativePath(entry.FullPath);
-            EditorEntity entity = SceneCreationService.CreateBlueprintInstance(BuildModelEntityName(entry), blueprintAssetPath);
+            SceneAssetReference blueprintReference = sceneAssetReferenceFactory.CreateFromEntry(entry);
+            EditorEntity entity = SceneCreationService.CreateBlueprintInstance(BuildModelEntityName(entry), blueprintReference);
             SceneFileLoadService.ExpandBlueprintInstanceRoot(entity);
             entity.Position = ResolveAddToScenePlacementPosition();
             return entity;
-        }
-
-        /// <summary>
-        /// Resolves one absolute asset file path to its assets-root-relative form using forward slashes.
-        /// </summary>
-        /// <param name="fullPath">Absolute path to an asset inside the project assets folder.</param>
-        /// <returns>Assets-root-relative path with forward slashes.</returns>
-        string ResolveAssetRelativePath(string fullPath) {
-            if (string.IsNullOrWhiteSpace(fullPath)) {
-                throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
-            }
-
-            string assetsRootPath = Path.GetFullPath(Path.Combine(ResolveProjectRootPath(projectPath), "assets"));
-            string relativePath = Path.GetRelativePath(assetsRootPath, Path.GetFullPath(fullPath));
-            if (relativePath.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relativePath)) {
-                throw new InvalidOperationException("Asset path must live inside the project assets folder.");
-            }
-
-            return relativePath.Replace(Path.DirectorySeparatorChar, '/');
         }
 
         /// <summary>
@@ -3305,9 +3288,10 @@ namespace helengine.editor {
             }
 
             string materialFullPath = Path.GetFullPath(Path.Combine(sourceDirectoryPath, generatedMaterial.RelativeMaterialPath));
-            string assetsRootPath = ResolveAssetsRootPath(projectPath);
-            string relativePath = Path.GetRelativePath(assetsRootPath, materialFullPath).Replace('\\', '/');
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
+            if (!File.Exists(materialFullPath)) {
+                throw new InvalidOperationException($"Imported material source '{materialFullPath}' does not exist and cannot produce a canonical asset reference.");
+            }
+            return new EditorAssetReferenceResolver(projectPath).CreateFileReference(materialFullPath, AssetEntryKind.Material);
         }
 
         /// <summary>
@@ -5151,7 +5135,7 @@ namespace helengine.editor {
             }
 
             if (state.BindingKind == PreviewPanelBindingKind.Asset) {
-                if (TryResolvePreviewAssetEntry(state.AssetRelativePath, out AssetBrowserEntry assetEntry) && panel.RestoreLockedAssetSelection(assetEntry, previewSourceResolver)) {
+                if (state.AssetReference != null && TryResolvePreviewAssetEntry(state.AssetReference, out AssetBrowserEntry assetEntry) && panel.RestoreLockedAssetSelection(assetEntry, previewSourceResolver)) {
                     return;
                 }
 
@@ -5172,25 +5156,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Tries to rebuild one previewable asset entry from its persisted relative path.
+        /// Tries to rebuild one previewable asset entry from its persisted stable reference.
         /// </summary>
-        /// <param name="relativePath">Project-relative asset path captured by a preview panel.</param>
+        /// <param name="assetReference">Stable authored asset reference captured by a preview panel.</param>
         /// <param name="assetEntry">Resolved previewable asset entry when one exists.</param>
-        /// <returns>True when the asset path exists and can be previewed; otherwise false.</returns>
-        bool TryResolvePreviewAssetEntry(string relativePath, out AssetBrowserEntry assetEntry) {
+        /// <returns>True when the asset reference resolves and can be previewed; otherwise false.</returns>
+        bool TryResolvePreviewAssetEntry(SceneAssetReference assetReference, out AssetBrowserEntry assetEntry) {
             assetEntry = null;
-            if (string.IsNullOrWhiteSpace(relativePath)) {
+            if (assetReference == null || assetReference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
                 return false;
             }
 
-            string assetsRootPath = ResolveAssetsRootPath(projectPath);
-            string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-            string fullPath = Path.GetFullPath(Path.Combine(assetsRootPath, normalizedRelativePath));
-            if (!File.Exists(fullPath)) {
-                return false;
-            }
-
-            string extension = Path.GetExtension(fullPath);
+            string extension = Path.GetExtension(assetReference.RelativePath);
             if (string.IsNullOrWhiteSpace(extension)) {
                 return false;
             }
@@ -5200,13 +5177,23 @@ namespace helengine.editor {
                 return false;
             }
 
-            assetEntry = AssetBrowserEntry.CreateFileSystemFile(
-                Path.GetFileName(fullPath),
-                relativePath.Replace('\\', '/'),
-                fullPath,
-                extension,
-                entryKind);
-            return true;
+            try {
+                AssetReferenceResolution resolution = new EditorAssetReferenceResolver(projectPath).Resolve(assetReference, entryKind);
+                SceneAssetReference canonicalReference = resolution.CanonicalReference;
+                assetEntry = AssetBrowserEntry.CreateFileSystemFile(
+                    Path.GetFileName(resolution.FullPath),
+                    canonicalReference.RelativePath,
+                    resolution.FullPath,
+                    Path.GetExtension(resolution.FullPath),
+                    entryKind,
+                    canonicalReference.AssetId,
+                    canonicalReference.ContentHash);
+                return true;
+            } catch (InvalidOperationException) {
+                return false;
+            } catch (ArgumentException) {
+                return false;
+            }
         }
 
         /// <summary>

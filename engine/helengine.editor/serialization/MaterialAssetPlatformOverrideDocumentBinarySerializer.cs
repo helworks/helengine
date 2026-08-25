@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Serializer version for the material override payload layout.
         /// </summary>
-        public const byte CurrentVersion = 2;
+        public const byte CurrentVersion = 3;
 
         /// <summary>
         /// Payload endianness used by the current material override format.
@@ -32,7 +32,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material platform override must specify a platform id.");
             } else if (document.Processor == null) {
                 throw new InvalidOperationException("Material platform override must include processor settings.");
-            } else if (document.Processor.FieldValues == null) {
+            } else if (document.Processor.FieldValues == null || document.Processor.AssetReferenceValues == null) {
                 throw new InvalidOperationException("Material platform override must include field values.");
             }
 
@@ -60,6 +60,7 @@ namespace helengine.editor {
                 writer.WriteString(entry.Key);
                 writer.WriteString(entry.Value);
             }
+            WriteReferences(writer, document.Processor.AssetReferenceValues);
         }
 
         /// <summary>
@@ -81,7 +82,7 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(document.PlatformId)) {
                 throw new InvalidOperationException("Material platform override cannot contain a blank platform id.");
             }
-            document.EnvironmentId = header.Version >= 2 ? reader.ReadString() : string.Empty;
+            document.EnvironmentId = reader.ReadString();
 
             document.Processor.HasSchemaIdOverride = ReadBooleanByte(reader);
             document.Processor.SchemaId = reader.ReadString();
@@ -99,6 +100,7 @@ namespace helengine.editor {
 
                 document.Processor.FieldValues.Add(fieldId, reader.ReadString());
             }
+            ReadReferences(reader, document.Processor.AssetReferenceValues);
 
             return document;
         }
@@ -116,7 +118,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected material platform override record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetPlatformOverrideDocument) {
                 throw new InvalidOperationException($"Unexpected material platform override value kind '{header.ValueKind}'.");
-            } else if (header.Version < 1 || header.Version > CurrentVersion) {
+            } else if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException($"Unsupported material platform override binary version '{header.Version}'.");
             }
         }
@@ -139,6 +141,36 @@ namespace helengine.editor {
             }
 
             throw new InvalidOperationException($"Unsupported material platform override boolean value '{value}'.");
+        }
+
+        /// <summary>Writes typed material references.</summary>
+        static void WriteReferences(EngineBinaryWriter writer, Dictionary<string, SceneAssetReference> references) {
+            writer.WriteInt32(references.Count);
+            foreach (KeyValuePair<string, SceneAssetReference> entry in references) {
+                writer.WriteString(entry.Key);
+                writer.WriteInt32((int)entry.Value.SourceKind);
+                writer.WriteString(entry.Value.RelativePath);
+                writer.WriteString(entry.Value.ProviderId);
+                writer.WriteString(entry.Value.AssetId);
+                writer.WriteString(entry.Value.ContentHash);
+            }
+        }
+
+        /// <summary>Reads typed material references.</summary>
+        static void ReadReferences(EngineBinaryReader reader, Dictionary<string, SceneAssetReference> references) {
+            int count = reader.ReadInt32();
+            if (count < 0) {
+                throw new InvalidOperationException("Material platform override reference count cannot be negative.");
+            }
+            for (int index = 0; index < count; index++) {
+                string fieldId = reader.ReadString();
+                references.Add(fieldId, global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                    (SceneAssetReferenceSourceKind)reader.ReadInt32(),
+                    reader.ReadString(),
+                    reader.ReadString(),
+                    reader.ReadString(),
+                    reader.ReadString()));
+            }
         }
     }
 }

@@ -18,7 +18,12 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 22;
+        public const byte CurrentVersion = 24;
+
+        /// <summary>
+        /// First asset version that embeds editor authoring identity after runtime identity.
+        /// </summary>
+        const byte AuthoringIdentityVersion = 24;
 
         /// <summary>
         /// Last asset version that used the legacy scene entity layout without stable entity ids.
@@ -1366,6 +1371,7 @@ namespace helengine.files {
             writer.WriteString(reference.RelativePath);
             writer.WriteString(reference.ProviderId);
             writer.WriteString(reference.AssetId);
+            writer.WriteString(reference.ContentHash);
         }
 
         /// <summary>
@@ -1374,7 +1380,7 @@ namespace helengine.files {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset reference.</returns>
         static SceneAssetReference ReadSceneAssetReference(EngineBinaryReader reader) {
-            return SceneAssetReferenceFactory.ReadRequiredReference(reader);
+            return SceneAssetReferenceFactory.ReadRequiredCurrentReference(reader);
         }
 
         /// <summary>
@@ -1383,7 +1389,7 @@ namespace helengine.files {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Deserialized scene asset references.</returns>
         static SceneAssetReference[] ReadSceneAssetReferenceArray(EngineBinaryReader reader) {
-            return reader.ReadArray(ReadSceneAssetReference);
+            return reader.ReadArray(SceneAssetReferenceFactory.ReadRequiredCurrentReference);
         }
 
         /// <summary>
@@ -1537,6 +1543,8 @@ namespace helengine.files {
         static void WriteAssetIdentity(EngineBinaryWriter writer, Asset asset) {
             writer.WriteString(asset.Id);
             writer.WriteInt64(unchecked((long)asset.RuntimeAssetId));
+            writer.WriteString(asset.AuthoringAssetId ?? string.Empty);
+            writer.WriteArray(asset.FormerAuthoringAssetIds ?? Array.Empty<string>(), WriteStringValue);
         }
 
         /// <summary>
@@ -1550,6 +1558,10 @@ namespace helengine.files {
             asset.RuntimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
                 ? unchecked((ulong)reader.ReadInt64())
                 : 0ul;
+            if (version >= AuthoringIdentityVersion) {
+                asset.AuthoringAssetId = reader.ReadString();
+                asset.FormerAuthoringAssetIds = reader.ReadArray(ReadStringValue) ?? Array.Empty<string>();
+            }
         }
 
         /// <summary>

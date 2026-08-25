@@ -231,6 +231,16 @@ namespace helengine.editor.tests.testing {
             return animationClip;
         }
 
+        /// <summary>Resolves one registered audio reference to an audio asset.</summary>
+        /// <param name="reference">Stable reference to resolve.</param>
+        /// <returns>Resolved audio asset.</returns>
+        public AudioAsset ResolveAudio(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            return new AudioAsset();
+        }
+
         /// <summary>
         /// Builds a stable dictionary key for one scene asset reference.
         /// </summary>

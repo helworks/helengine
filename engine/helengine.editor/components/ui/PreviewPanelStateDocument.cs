@@ -13,10 +13,8 @@ namespace helengine.editor {
         /// </summary>
         public PreviewPanelBindingKind BindingKind { get; set; }
 
-        /// <summary>
-        /// Gets or sets the relative asset path used when the preview panel is bound to one asset.
-        /// </summary>
-        public string AssetRelativePath { get; set; } = string.Empty;
+        /// <summary>Gets or sets the canonical stable reference for an asset binding.</summary>
+        public SceneAssetReference AssetReference { get; set; }
 
         /// <summary>
         /// Gets or sets the stable scene entity id used when the preview panel is bound to one camera.

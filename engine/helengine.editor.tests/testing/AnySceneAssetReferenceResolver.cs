@@ -109,5 +109,15 @@ namespace helengine.editor.tests.testing {
 
             return AnimationClip;
         }
+
+        /// <summary>Resolves one audio reference to a shared test audio asset.</summary>
+        /// <param name="reference">Ignored scene asset reference.</param>
+        /// <returns>Shared test audio asset.</returns>
+        public AudioAsset ResolveAudio(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            return new AudioAsset();
+        }
     }
 }

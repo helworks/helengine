@@ -679,6 +679,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Routes component asset selections through the project identity resolver.
+        /// </summary>
+        /// <param name="resolver">Project-scoped authored asset resolver.</param>
+        public void SetAssetReferenceResolver(EditorAssetReferenceResolver resolver) {
+            if (resolver == null) {
+                throw new ArgumentNullException(nameof(resolver));
+            }
+            ComponentView.SetAssetReferenceResolver(resolver);
+        }
+
+        /// <summary>
         /// Shows import settings for the specified asset entry.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>

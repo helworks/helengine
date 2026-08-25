@@ -13,5 +13,16 @@ namespace helengine {
         /// A value of zero indicates ephemeral runtime-only content.
         /// </summary>
         public ulong RuntimeAssetId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the stable editor-authored UUID embedded in engine-native source files.
+        /// Runtime-generated assets leave this value empty.
+        /// </summary>
+        public string AuthoringAssetId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets former editor-authored UUID aliases retained after duplicate identity repair.
+        /// </summary>
+        public string[] FormerAuthoringAssetIds { get; set; } = Array.Empty<string>();
     }
 }

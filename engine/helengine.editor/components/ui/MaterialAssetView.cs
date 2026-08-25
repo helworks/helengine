@@ -416,6 +416,11 @@ namespace helengine.editor {
                 return;
             }
 
+            PlatformMaterialFieldDefinition field = FindFieldDefinition(FindActiveSchema(platformId), fieldId);
+            if (field?.FieldKind == PlatformMaterialFieldKind.AssetReference) {
+                return;
+            }
+
             materialSettings.FieldValues[fieldId] = textBox.Text ?? string.Empty;
         }
 
@@ -606,8 +611,8 @@ namespace helengine.editor {
             }
 
             try {
-                string shaderId = ShaderAssetIdUtils.BuildShaderAssetId(entry.FullPath);
-                ApplyShaderIdToActivePlatform(platformId, fieldId, shaderId);
+                SceneAssetReference reference = CreatePickedAssetReference(entry);
+                ApplyShaderReferenceToActivePlatform(platformId, fieldId, reference);
                 UpdateFieldControlsFromSettings(platformId);
                 SaveCurrentMaterialState(platformId);
             } catch (Exception ex) {
@@ -635,8 +640,8 @@ namespace helengine.editor {
             }
 
             try {
-                string textureId = ShaderAssetIdUtils.BuildShaderAssetId(entry.FullPath);
-                ApplyTextureIdToActivePlatform(platformId, fieldId, textureId);
+                SceneAssetReference reference = CreatePickedAssetReference(entry);
+                ApplyTextureReferenceToActivePlatform(platformId, fieldId, reference);
                 UpdateFieldControlsFromSettings(platformId);
                 SaveCurrentMaterialState(platformId);
             } catch (Exception ex) {
@@ -649,13 +654,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldId">Builder-defined field identifier that stores the shader asset id.</param>
         /// <param name="shaderId">Shader identifier to apply.</param>
-        void ApplyShaderIdToActivePlatform(string platformId, string fieldId, string shaderId) {
+        void ApplyShaderReferenceToActivePlatform(string platformId, string fieldId, SceneAssetReference reference) {
             MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSettings == null) {
                 throw new InvalidOperationException("Active platform material settings are not available.");
             }
 
-            materialSettings.FieldValues[fieldId] = shaderId ?? string.Empty;
+            string shaderId = new MaterialAssetReferenceProjectionService().ResolveBuilderValue(fieldId, reference);
+            materialSettings.AssetReferenceValues[fieldId] = reference;
+            materialSettings.FieldValues.Remove(fieldId);
             materialSettings.FieldValues[VertexProgramFieldId] = string.IsNullOrWhiteSpace(shaderId) ? string.Empty : string.Concat(shaderId, ".vs");
             materialSettings.FieldValues[PixelProgramFieldId] = string.IsNullOrWhiteSpace(shaderId) ? string.Empty : string.Concat(shaderId, ".ps");
             materialSettings.FieldValues[UseCustomShaderFieldId] = "true";
@@ -667,13 +674,25 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier that owns the field.</param>
         /// <param name="fieldId">Builder-defined field identifier that stores the texture asset id.</param>
         /// <param name="textureId">Texture identifier to apply.</param>
-        void ApplyTextureIdToActivePlatform(string platformId, string fieldId, string textureId) {
+        void ApplyTextureReferenceToActivePlatform(string platformId, string fieldId, SceneAssetReference reference) {
             MaterialAssetProcessorSettings materialSettings = GetMaterialSettings(platformId);
             if (materialSettings == null) {
                 throw new InvalidOperationException("Active platform material settings are not available.");
             }
 
-            materialSettings.FieldValues[fieldId] = textureId ?? string.Empty;
+            materialSettings.AssetReferenceValues[fieldId] = reference;
+            materialSettings.FieldValues.Remove(fieldId);
+        }
+
+        /// <summary>Creates one canonical typed reference from a picked filesystem entry.</summary>
+        static SceneAssetReference CreatePickedAssetReference(AssetBrowserEntry entry) {
+            if (entry == null || entry.IsDirectory || string.IsNullOrWhiteSpace(entry.FullPath)) {
+                throw new InvalidOperationException("A picked material asset must be a filesystem file.");
+            }
+            if (string.IsNullOrWhiteSpace(EditorProjectPaths.ProjectRoot)) {
+                throw new InvalidOperationException("Project paths must be initialized before assigning material assets.");
+            }
+            return new EditorAssetReferenceResolver(EditorProjectPaths.ProjectRoot).CreateFileReference(entry.FullPath, entry.EntryKind);
         }
 
         /// <summary>
@@ -836,6 +855,9 @@ namespace helengine.editor {
 
             for (int index = 0; index < panel.FieldRows.Count; index++) {
                 MaterialAssetFieldEditorRow row = panel.FieldRows[index];
+                if (row.FieldKind == PlatformMaterialFieldKind.AssetReference) {
+                    continue;
+                }
                 if (row.TextBox != null) {
                     materialSettings.FieldValues[row.FieldId] = row.TextBox.Text ?? string.Empty;
                 } else if (row.ComboBox != null) {
@@ -1063,6 +1085,12 @@ namespace helengine.editor {
         /// <param name="field">Builder-defined field being resolved.</param>
         /// <returns>Serialized field value.</returns>
         string ResolveFieldValue(MaterialAssetProcessorSettings materialSettings, PlatformMaterialFieldDefinition field) {
+            if (field.FieldKind == PlatformMaterialFieldKind.AssetReference &&
+                materialSettings.AssetReferenceValues != null &&
+                materialSettings.AssetReferenceValues.TryGetValue(field.FieldId, out SceneAssetReference reference) &&
+                reference != null) {
+                return new MaterialAssetReferenceProjectionService().ResolveBuilderValue(field.FieldId, reference);
+            }
             if (materialSettings.FieldValues != null && materialSettings.FieldValues.TryGetValue(field.FieldId, out string value)) {
                 return value ?? string.Empty;
             }

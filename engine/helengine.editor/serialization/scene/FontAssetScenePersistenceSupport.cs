@@ -92,7 +92,7 @@ namespace helengine.editor {
         /// <param name="reader">Reader positioned at the reference payload.</param>
         /// <returns>Stable scene asset reference when present; otherwise null.</returns>
         internal static SceneAssetReference ReadOptionalReference(EngineBinaryReader reader) {
-            return global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+            return global::helengine.SceneAssetReferenceFactory.ReadOptionalCurrentReference(reader);
         }
 
         /// <summary>
@@ -114,6 +114,7 @@ namespace helengine.editor {
             writer.WriteString(reference.RelativePath);
             writer.WriteString(reference.ProviderId);
             writer.WriteString(reference.AssetId);
+            writer.WriteString(reference.ContentHash);
         }
 
         /// <summary>

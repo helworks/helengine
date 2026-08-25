@@ -52,7 +52,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
 
         MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
         string materialPath = Path.Combine(TempRootPath, "Test.hasset");
-        File.WriteAllBytes(materialPath, Array.Empty<byte>());
+        new MaterialAssetSettingsService().Save(materialPath, CreateSettings(useCustomShader: true));
 
         view.Show(
             AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),

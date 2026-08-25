@@ -89,6 +89,11 @@ namespace helengine.editor {
 
             EntityReferenceTable.Clear();
             SceneAsset asset = BuildSceneAsset(fullPath, sceneSettings);
+            AssetIdentityMetadataDocument identity = File.Exists(fullPath)
+                ? new AssetIdentityMetadataService().Load(fullPath)
+                : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
+            asset.AuthoringAssetId = identity.AssetId;
+            asset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
             string directoryPath = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException("Scene path does not include a writable directory.");

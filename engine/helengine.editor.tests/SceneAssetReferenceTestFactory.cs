@@ -4,12 +4,22 @@ namespace helengine.editor.tests {
     /// </summary>
     public static class SceneAssetReferenceTestFactory {
         /// <summary>
+        /// Creates a structurally current file reference for tests that do not exercise project identity lookup.
+        /// </summary>
+        public static SceneAssetReference CreateCurrentFileSystem(string relativePath) {
+            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "00112233445566778899aabbccddeeff",
+                relativePath,
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+        }
+
+        /// <summary>
         /// Creates one file-backed font scene asset reference.
         /// </summary>
         /// <param name="relativePath">Project-relative font path.</param>
         /// <returns>Validated file-backed font reference.</returns>
         public static SceneAssetReference CreateFileSystemFont(string relativePath) {
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemFont(relativePath);
+            return CreateCurrentFileSystem(relativePath);
         }
 
         /// <summary>
@@ -18,7 +28,7 @@ namespace helengine.editor.tests {
         /// <param name="relativePath">Project-relative texture path.</param>
         /// <returns>Validated file-backed texture reference.</returns>
         public static SceneAssetReference CreateFileSystemTexture(string relativePath) {
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemTexture(relativePath);
+            return CreateCurrentFileSystem(relativePath);
         }
 
         /// <summary>
@@ -27,7 +37,7 @@ namespace helengine.editor.tests {
         /// <param name="relativePath">Project-relative model path.</param>
         /// <returns>Validated file-backed model reference.</returns>
         public static SceneAssetReference CreateFileSystemModel(string relativePath) {
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemModel(relativePath);
+            return CreateCurrentFileSystem(relativePath);
         }
 
         /// <summary>
@@ -36,7 +46,7 @@ namespace helengine.editor.tests {
         /// <param name="relativePath">Project-relative material path.</param>
         /// <returns>Validated file-backed material reference.</returns>
         public static SceneAssetReference CreateFileSystemMaterial(string relativePath) {
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(relativePath);
+            return CreateCurrentFileSystem(relativePath);
         }
 
         /// <summary>
@@ -45,7 +55,7 @@ namespace helengine.editor.tests {
         /// <param name="relativePath">Project-relative animation clip path.</param>
         /// <returns>Validated file-backed animation clip reference.</returns>
         public static SceneAssetReference CreateFileSystemAnimationClip(string relativePath) {
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemAnimationClip(relativePath);
+            return CreateCurrentFileSystem(relativePath);
         }
 
         /// <summary>
@@ -54,7 +64,7 @@ namespace helengine.editor.tests {
         /// <param name="relativePath">Project-relative audio path.</param>
         /// <returns>Validated file-backed audio reference.</returns>
         public static SceneAssetReference CreateFileSystemAudio(string relativePath) {
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemAudio(relativePath);
+            return CreateCurrentFileSystem(relativePath);
         }
 
         /// <summary>
@@ -118,6 +128,7 @@ namespace helengine.editor.tests {
             writer.WriteString(relativePath ?? string.Empty);
             writer.WriteString(providerId ?? string.Empty);
             writer.WriteString(assetId ?? string.Empty);
+            writer.WriteString(string.Empty);
 
             stream.Position = 0;
 

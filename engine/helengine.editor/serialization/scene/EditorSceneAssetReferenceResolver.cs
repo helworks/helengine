@@ -5,7 +5,7 @@ namespace helengine.editor {
     /// <summary>
     /// Resolves persisted scene asset references back into runtime assets for editor scene loading.
     /// </summary>
-    public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver, IEditorOwnedAssetTrackingSceneAssetReferenceResolver {
+    public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver, IEditorOwnedAssetTrackingSceneAssetReferenceResolver, IEditorAssetReferenceHealingResolver {
         /// <summary>
         /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
         /// </summary>
@@ -59,6 +59,12 @@ namespace helengine.editor {
         /// </summary>
         readonly MaterialAssetSettingsService MaterialSettingsService;
         /// <summary>
+        /// Project-scoped authored identity resolver used before runtime asset loading.
+        /// </summary>
+        readonly EditorAssetReferenceResolver IdentityReferenceResolver;
+        /// <summary>Reference replacements recorded for the active healing scope.</summary>
+        Dictionary<SceneAssetReference, SceneAssetReference> ReferenceHealingReplacements;
+        /// <summary>
         /// Tracks scene-owned runtime textures resolved during the active editor scene-load scope.
         /// </summary>
         List<RuntimeTexture> ActiveOwnedTextures;
@@ -74,6 +80,8 @@ namespace helengine.editor {
         /// Tracks scene-owned runtime materials resolved during the active editor scene-load scope.
         /// </summary>
         List<RuntimeMaterial> ActiveOwnedMaterials;
+        /// <summary>Tracks scene-owned audio assets resolved during the active load scope.</summary>
+        List<AudioAsset> ActiveOwnedAudio;
 
         /// <summary>
         /// Initializes a new runtime asset resolver for scene loading.
@@ -94,6 +102,7 @@ namespace helengine.editor {
             ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
             MaterialSettingsService = new MaterialAssetSettingsService();
+            IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
         }
 
         /// <summary>
@@ -120,6 +129,7 @@ namespace helengine.editor {
             AssetContentManager = assetContentManager;
             FileSystemModelResolver = fileSystemModelResolver;
             MaterialSettingsService = new MaterialAssetSettingsService();
+            IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
         }
 
         /// <summary>
@@ -155,6 +165,7 @@ namespace helengine.editor {
             FileSystemModelResolver = fileSystemModelResolver;
             FileSystemFontResolver = fileSystemFontResolver;
             MaterialSettingsService = new MaterialAssetSettingsService();
+            IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
         }
 
         /// <summary>
@@ -196,6 +207,7 @@ namespace helengine.editor {
             FileSystemFontResolver = fileSystemFontResolver;
             FileSystemTextureResolver = fileSystemTextureResolver;
             MaterialSettingsService = new MaterialAssetSettingsService();
+            IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
         }
 
         /// <summary>
@@ -275,11 +287,40 @@ namespace helengine.editor {
             return runtimeTexture;
         }
 
+        /// <summary>Starts recording authored reference repairs for one scene load.</summary>
+        public void BeginReferenceHealing() {
+            if (ReferenceHealingReplacements != null) {
+                throw new InvalidOperationException("Reference healing is already active.");
+            }
+            IdentityReferenceResolver.BeginResolutionScope();
+            ReferenceHealingReplacements = new Dictionary<SceneAssetReference, SceneAssetReference>();
+        }
+
+        /// <summary>Completes recording and returns the repairs made during the scope.</summary>
+        public IReadOnlyDictionary<SceneAssetReference, SceneAssetReference> CompleteReferenceHealing() {
+            return CompleteReferenceHealingScope();
+        }
+
+        /// <summary>Cancels recording and discards the repairs made during the scope.</summary>
+        public IReadOnlyDictionary<SceneAssetReference, SceneAssetReference> CancelReferenceHealing() {
+            return CompleteReferenceHealingScope();
+        }
+
+        /// <summary>Returns and clears the active healing map.</summary>
+        IReadOnlyDictionary<SceneAssetReference, SceneAssetReference> CompleteReferenceHealingScope() {
+            Dictionary<SceneAssetReference, SceneAssetReference> result = ReferenceHealingReplacements ?? new Dictionary<SceneAssetReference, SceneAssetReference>();
+            if (ReferenceHealingReplacements != null) {
+                IdentityReferenceResolver.EndResolutionScope();
+            }
+            ReferenceHealingReplacements = null;
+            return result;
+        }
+
         /// <summary>
         /// Starts one editor scene-owned asset tracking scope for the next scene materialization.
         /// </summary>
         public void BeginOwnedAssetTracking() {
-            if (ActiveOwnedTextures != null || ActiveOwnedFonts != null || ActiveOwnedModels != null || ActiveOwnedMaterials != null) {
+            if (ActiveOwnedTextures != null || ActiveOwnedFonts != null || ActiveOwnedAudio != null || ActiveOwnedModels != null || ActiveOwnedMaterials != null) {
                 throw new InvalidOperationException("Editor scene asset tracking is already active.");
             }
 
@@ -287,6 +328,7 @@ namespace helengine.editor {
             ActiveOwnedFonts = new List<FontAsset>();
             ActiveOwnedModels = new List<RuntimeModel>();
             ActiveOwnedMaterials = new List<RuntimeMaterial>();
+            ActiveOwnedAudio = new List<AudioAsset>();
         }
 
         /// <summary>
@@ -294,7 +336,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scene-owned runtime assets resolved during the active editor scene-load scope.</returns>
         public RuntimeSceneOwnedAssetSet CompleteOwnedAssetTracking() {
-            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
+            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedAudio == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
                 throw new InvalidOperationException("Editor scene asset tracking is not active.");
             }
 
@@ -302,14 +344,16 @@ namespace helengine.editor {
             List<FontAsset> ownedFonts = ActiveOwnedFonts;
             List<RuntimeModel> ownedModels = ActiveOwnedModels;
             List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
+            List<AudioAsset> ownedAudio = ActiveOwnedAudio;
             ActiveOwnedTextures = null;
             ActiveOwnedFonts = null;
             ActiveOwnedModels = null;
             ActiveOwnedMaterials = null;
+            ActiveOwnedAudio = null;
             return new RuntimeSceneOwnedAssetSet(
                 ownedTextures,
                 ownedFonts,
-                Array.Empty<AudioAsset>(),
+                ownedAudio,
                 ownedModels,
                 ownedMaterials);
         }
@@ -319,7 +363,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Scene-owned runtime assets resolved before the editor scene load failed.</returns>
         public RuntimeSceneOwnedAssetSet CancelOwnedAssetTracking() {
-            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
+            if (ActiveOwnedTextures == null || ActiveOwnedFonts == null || ActiveOwnedAudio == null || ActiveOwnedModels == null || ActiveOwnedMaterials == null) {
                 throw new InvalidOperationException("Editor scene asset tracking is not active.");
             }
 
@@ -327,14 +371,16 @@ namespace helengine.editor {
             List<FontAsset> ownedFonts = ActiveOwnedFonts;
             List<RuntimeModel> ownedModels = ActiveOwnedModels;
             List<RuntimeMaterial> ownedMaterials = ActiveOwnedMaterials;
+            List<AudioAsset> ownedAudio = ActiveOwnedAudio;
             ActiveOwnedTextures = null;
             ActiveOwnedFonts = null;
             ActiveOwnedModels = null;
             ActiveOwnedMaterials = null;
+            ActiveOwnedAudio = null;
             return new RuntimeSceneOwnedAssetSet(
                 ownedTextures,
                 ownedFonts,
-                Array.Empty<AudioAsset>(),
+                ownedAudio,
                 ownedModels,
                 ownedMaterials);
         }
@@ -352,8 +398,26 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported animation clip reference source kind '{reference.SourceKind}'.");
             }
 
-            string fullPath = ResolveFileSystemAssetPath(reference);
+            string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.File);
             return AssetContentManager.Load<AnimationClipAsset>(fullPath, EditorContentProcessorIds.AnimationClipAsset);
+        }
+
+        /// <summary>Resolves one persisted audio reference into an editor audio asset.</summary>
+        /// <param name="reference">File-backed audio reference.</param>
+        /// <returns>Loaded audio asset.</returns>
+        public AudioAsset ResolveAudio(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                throw new InvalidOperationException($"Unsupported audio reference source kind '{reference.SourceKind}'.");
+            }
+            string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Audio);
+            AudioAsset audioAsset = AssetContentManager.Load<AudioAsset>(fullPath, EditorContentProcessorIds.AudioAsset);
+            if (ActiveOwnedAudio != null && !ActiveOwnedAudio.Contains(audioAsset)) {
+                ActiveOwnedAudio.Add(audioAsset);
+            }
+            return audioAsset;
         }
 
         /// <summary>
@@ -372,7 +436,7 @@ namespace helengine.editor {
         /// <param name="reference">File-backed model reference to resolve.</param>
         /// <returns>Runtime model built from the processed model asset.</returns>
         RuntimeModel ResolveFileSystemModel(SceneAssetReference reference) {
-            string fullPath = ResolveFileSystemAssetPath(reference);
+            string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Model);
             if (FileSystemModelResolver == null) {
                 ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, EditorContentProcessorIds.ModelAsset);
                 RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
@@ -401,7 +465,7 @@ namespace helengine.editor {
         /// <param name="reference">File-backed material reference to resolve.</param>
         /// <returns>Runtime material built from the serialized material asset.</returns>
         RuntimeMaterial ResolveFileSystemMaterial(SceneAssetReference reference) {
-            string fullPath = ResolveFileSystemAssetPath(reference);
+            string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Material);
             string platformId = ResolveMaterialPreviewPlatformId(fullPath);
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new InvalidOperationException("At least one supported project platform must exist before file-backed materials can be resolved.");
@@ -442,7 +506,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads one preview material asset for the requested platform, migrating legacy binary material assets when the authored file predates settings documents.
+        /// Loads one current preview material asset for the requested platform.
         /// </summary>
         /// <param name="fullPath">Absolute path to the authored material asset.</param>
         /// <param name="platformId">Preview platform whose effective material payload should be resolved.</param>
@@ -455,81 +519,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            ShaderMaterialAsset settingsMaterialAsset = null;
-            InvalidOperationException settingsLoadException = null;
-            try {
-                settingsMaterialAsset = MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
-            } catch (InvalidOperationException ex) {
-                settingsLoadException = ex;
-            }
-
-            if (settingsLoadException != null) {
-                ShaderMaterialAsset migratedMaterialAsset = TryMigrateLegacyMaterialAsset(fullPath, platformId);
-                if (migratedMaterialAsset != null) {
-                    return migratedMaterialAsset;
-                }
-
-                throw settingsLoadException;
-            }
-
-            return settingsMaterialAsset;
-        }
-
-        /// <summary>
-        /// Attempts to migrate one legacy binary material asset into the current settings-document format and reload it for the requested preview platform.
-        /// </summary>
-        /// <param name="fullPath">Absolute path to the authored material asset.</param>
-        /// <param name="platformId">Preview platform whose effective material payload should be resolved after migration.</param>
-        /// <returns>Migrated runtime-facing material asset, or null when the file is not a legacy binary material asset.</returns>
-        ShaderMaterialAsset TryMigrateLegacyMaterialAsset(string fullPath, string platformId) {
-            MaterialAsset legacyMaterialAsset = TryLoadLegacyBinaryMaterialAsset(fullPath);
-            if (legacyMaterialAsset == null) {
-                return null;
-            }
-
-            IReadOnlyList<string> supportedPlatforms = new EditorProjectPlatformsService(ProjectRootPath).Load().SupportedPlatforms;
-            AvailablePlatformProviderResolver availablePlatformResolver = new AvailablePlatformProviderResolver(
-                new PlatformDiscoveryOptions(ProjectRootPath));
-            EditorPlatformCatalogService platformCatalogService = new EditorPlatformCatalogService(
-                availablePlatformResolver.LoadPlatforms(LoadRequiredEngineVersion()));
-            MaterialSettingsService.LoadOrCreate(
-                fullPath,
-                legacyMaterialAsset,
-                supportedPlatforms,
-                platformCatalogService.ResolveSelectionModel);
             return MaterialSettingsService.LoadMaterialAsset(fullPath, platformId);
-        }
-
-        /// <summary>
-        /// Attempts to deserialize one authored material file as a legacy binary material asset.
-        /// </summary>
-        /// <param name="fullPath">Absolute path to the authored material asset.</param>
-        /// <returns>Legacy binary material asset, or null when the file is already a settings document or another asset type.</returns>
-        MaterialAsset TryLoadLegacyBinaryMaterialAsset(string fullPath) {
-            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
-            try {
-                EngineBinaryReadContext.CurrentAssetPath = fullPath;
-                using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                return AssetSerializer.Deserialize(stream) as MaterialAsset;
-            } catch {
-                return null;
-            } finally {
-                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
-            }
-        }
-
-        /// <summary>
-        /// Loads the required engine version declared by the current project file.
-        /// </summary>
-        /// <returns>Exact engine version required by the current project.</returns>
-        string LoadRequiredEngineVersion() {
-            string projectFilePath = new helengine.projectfile.ProjectFilePathResolver().Resolve(ProjectRootPath);
-            helengine.projectfile.ProjectFileReadResult readResult = new helengine.projectfile.ProjectFileReader().ReadAsync(projectFilePath).GetAwaiter().GetResult();
-            if (!readResult.Succeeded || readResult.Document == null || string.IsNullOrWhiteSpace(readResult.Document.RequiredEngineVersion)) {
-                throw new InvalidOperationException("The current project file did not provide a required engine version.");
-            }
-
-            return readResult.Document.RequiredEngineVersion;
         }
 
         /// <summary>
@@ -644,7 +634,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(reference));
             }
 
-            string fullPath = ResolveFileSystemAssetPath(reference);
+            string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Image);
             if (FileSystemTextureResolver != null) {
                 return FileSystemTextureResolver.ResolveTextureAsset(fullPath);
             }
@@ -805,7 +795,7 @@ namespace helengine.editor {
         /// <param name="reference">File-backed font reference to resolve.</param>
         /// <returns>Runtime font asset built from the packaged font asset.</returns>
         FontAsset ResolveFileSystemFont(SceneAssetReference reference) {
-            string fullPath = ResolveFileSystemAssetPath(reference);
+            string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Font);
             if (FileSystemFontResolver != null) {
                 FontAsset resolvedFont = FileSystemFontResolver.ResolveFontAsset(fullPath);
                 TrackOwnedFont(resolvedFont);
@@ -843,7 +833,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reference">File-backed asset reference to resolve.</param>
         /// <returns>Absolute path to the referenced asset file.</returns>
-        string ResolveFileSystemAssetPath(SceneAssetReference reference) {
+        string ResolveFileSystemAssetPath(SceneAssetReference reference, AssetEntryKind expectedKind) {
             if (string.IsNullOrWhiteSpace(reference.RelativePath)) {
                 throw new InvalidOperationException("File-backed asset references must include a relative path.");
             }
@@ -851,6 +841,14 @@ namespace helengine.editor {
             string fullPath = Path.GetFullPath(Path.Combine(AssetsRootPath, reference.RelativePath));
             if (!IsPathInsideAssetsRoot(fullPath)) {
                 throw new InvalidOperationException("File-backed asset references must stay inside the project assets folder.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(reference.AssetId) || !string.IsNullOrWhiteSpace(reference.ContentHash)) {
+                AssetReferenceResolution resolution = IdentityReferenceResolver.Resolve(reference, expectedKind);
+                if (ReferenceHealingReplacements != null && resolution.ReferenceChanged) {
+                    ReferenceHealingReplacements[reference] = resolution.CanonicalReference;
+                }
+                return resolution.FullPath;
             }
 
             return fullPath;
