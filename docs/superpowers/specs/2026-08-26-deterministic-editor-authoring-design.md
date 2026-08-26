@@ -30,20 +30,22 @@ Generated native files preserve the embedded identity already owned by their des
 
 ## Public API
 
-The public entry point is a disposable session:
+Project-authored commands receive the disposable project session through their existing public command context:
 
 ```csharp
-using EditorProjectAuthoringSession session = EditorProjectAuthoringSession.Open(projectRootPath);
+public void Execute(IEditorCommandContext context) {
+    IEditorProjectAuthoringSession session = context.Authoring;
 
-SceneAssetReference model = session.CreateReference(
-    "models/ship.obj",
-    AssetEntryKind.Model);
+    SceneAssetReference model = session.CreateReference(
+        "models/ship.obj",
+        AssetEntryKind.Model);
 
-using EditorAuthoringTransaction transaction = session.BeginTransaction();
-transaction.WriteAsset("scenes/demo.helen", sceneAsset);
-transaction.Commit();
+    using EditorAuthoringTransaction transaction = session.BeginTransaction();
+    transaction.WriteAsset("scenes/demo.helen", sceneAsset);
+    transaction.Commit();
 
-EditorAssetRepairReport report = session.RepairReport;
+    EditorAssetRepairReport report = session.RepairReport;
+}
 ```
 
 `EditorProjectAuthoringSession` is project-root scoped and owns:
@@ -56,10 +58,15 @@ EditorAssetRepairReport report = session.RepairReport;
 - the active transaction, if any; and
 - an append-only repair report for the session.
 
-The required public operations are:
+`IEditorCommandContext` adds:
 
 ```csharp
-public static EditorProjectAuthoringSession Open(string projectRootPath);
+IEditorProjectAuthoringSession Authoring { get; }
+```
+
+The required public authoring operations are:
+
+```csharp
 public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind);
 public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind);
 public RuntimeModel LoadImportedRuntimeModel(string relativePath);
@@ -69,7 +76,7 @@ public void RefreshExternalChanges();
 public EditorAssetRepairReport RepairReport { get; }
 ```
 
-Convenience typed reference methods may exist, but they delegate to the same session and do not create new indexes. There is no public API that requires `EditorProjectPaths`, `EditorHostImporterFactory`, `AssetSerializer`, or `AssetImportManager` knowledge from project code.
+The editor host creates the concrete `EditorProjectAuthoringSession` with its current importer registrations and owns its lifetime. GUI and CLI command contexts expose the same session interface. Convenience typed reference methods may exist, but they delegate to that session and do not create new indexes. There is no public API that requires `EditorProjectPaths`, `EditorHostImporterFactory`, `AssetSerializer`, or `AssetImportManager` knowledge from project code.
 
 ## Session Lifetime and Concurrency
 
@@ -180,7 +187,7 @@ If an ordinary exception occurs during publication, the transaction restores eve
 
 ## Importer Boundary
 
-The editor host provides current importer registrations through a public neutral factory owned by the editor library, not the UI application assembly. `EditorProjectAuthoringSession.Open` configures them automatically.
+The editor host supplies its current importer registrations when it creates the concrete session. Registration composition may remain host-owned because it depends on host graphics/audio/importer assemblies, but it is never exposed to project commands.
 
 `LoadImportedRuntimeModel` validates the expected model kind, resolves current import settings, imports or reuses the current cache, and returns the runtime model. Equivalent public operations may later be added for other runtime asset kinds without exposing the manager or registration graph.
 
