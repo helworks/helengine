@@ -356,57 +356,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy version-fourteen scene payloads default the dont-unload scene setting to false.
+        /// Ensures authored asset payloads reject both older and newer format versions with regeneration guidance.
         /// </summary>
         [Fact]
-        public void DeserializeSceneAsset_WhenPayloadVersionIsFourteen_DefaultsDontUnloadToFalse() {
-            using MemoryStream stream = new MemoryStream();
-            EngineBinaryHeader header = new EngineBinaryHeader(
-                EngineBinaryEndianness.LittleEndian,
-                14,
-                EditorAssetBinarySerializer.FormatId,
-                (ushort)EditorAssetBinarySerializer.RecordKind,
-                (ushort)EditorAssetBinaryValueKind.SceneAsset);
-            EngineBinaryHeaderSerializer.Write(stream, header);
-            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
-                writer.WriteString("scene-id");
-                writer.WriteInt64(0L);
-                writer.WriteArray(Array.Empty<SceneEntityAsset>(), static (arrayWriter, entity) => throw new InvalidOperationException($"Unexpected entity payload write for '{entity.Id}'"));
-                writer.WriteArray(Array.Empty<SceneAssetReference>(), static (arrayWriter, reference) => throw new InvalidOperationException($"Unexpected reference payload write for '{reference.AssetId}'"));
-                writer.WriteUInt32(0u);
-                writer.WriteInt32(1280);
-                writer.WriteInt32(720);
-            }
-
-            stream.Position = 0;
-
-            SceneAsset deserialized = Assert.IsType<SceneAsset>(EditorAssetBinarySerializer.Deserialize(stream));
-            Assert.False(deserialized.SceneSettings.DontUnload);
+        public void Deserialize_WhenAuthoredAssetVersionIsNotCurrent_ThrowsRegenerationGuidance() {
+            AssertUnsupportedEditorAssetVersion((byte)(EditorAssetBinarySerializer.CurrentVersion - 1));
+            AssertUnsupportedEditorAssetVersion((byte)(EditorAssetBinarySerializer.CurrentVersion + 1));
         }
 
         /// <summary>
-        /// Ensures unsupported scene-asset payload versions are rejected instead of being normalized forward.
+        /// Builds an authored asset header with an unsupported version and verifies the exact rejection contract.
         /// </summary>
-        [Fact]
-        public void DeserializeSceneAsset_WhenPayloadVersionIsLegacy_ThrowsUnsupportedAssetBinaryVersion() {
+        static void AssertUnsupportedEditorAssetVersion(byte version) {
             using MemoryStream stream = new MemoryStream();
             EngineBinaryHeader header = new EngineBinaryHeader(
                 EngineBinaryEndianness.LittleEndian,
-                1,
+                version,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)EditorAssetBinarySerializer.RecordKind,
                 (ushort)EditorAssetBinaryValueKind.SceneAsset);
             EngineBinaryHeaderSerializer.Write(stream, header);
-            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
-                writer.WriteString("scene-id");
-                writer.WriteArray(Array.Empty<SceneEntityAsset>(), static (arrayWriter, entity) => throw new InvalidOperationException($"Unexpected older-version entity payload write for '{entity.Id}'."));
-                writer.WriteArray(Array.Empty<SceneAssetReference>(), static (arrayWriter, reference) => throw new InvalidOperationException($"Unexpected older-version reference payload write for '{reference.AssetId}'."));
-                writer.WriteUInt32(55u);
-            }
-
             stream.Position = 0;
+
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => EditorAssetBinarySerializer.Deserialize(stream));
-            Assert.Contains("Unsupported asset binary version", exception.Message);
+            Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(EditorAssetBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
