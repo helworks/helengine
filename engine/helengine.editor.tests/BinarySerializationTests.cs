@@ -666,6 +666,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures shader material payloads with an older or newer header version are rejected with regeneration guidance.
+        /// </summary>
+        [Fact]
+        public void ShaderMaterialAssetBinarySerializer_Deserialize_WhenHeaderVersionIsNotCurrent_ThrowsRegenerationGuidance() {
+            AssertUnsupportedShaderMaterialVersion((byte)(ShaderMaterialAssetBinarySerializer.CurrentVersion - 1));
+            AssertUnsupportedShaderMaterialVersion((byte)(ShaderMaterialAssetBinarySerializer.CurrentVersion + 1));
+        }
+
+        /// <summary>
+        /// Builds a valid shader material header with an unsupported version and verifies the rejection contract.
+        /// </summary>
+        /// <param name="version">Version encoded in the header.</param>
+        static void AssertUnsupportedShaderMaterialVersion(byte version) {
+            using MemoryStream stream = new MemoryStream();
+            EngineBinaryHeader header = new EngineBinaryHeader(
+                EngineBinaryEndianness.LittleEndian,
+                version,
+                ShaderMaterialAssetBinarySerializer.FormatId,
+                ShaderMaterialAssetBinarySerializer.RecordKind,
+                ShaderMaterialAssetBinarySerializer.ValueKind);
+            EngineBinaryHeaderSerializer.Write(stream, header);
+            stream.Position = 0;
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => ShaderMaterialAssetBinarySerializer.Deserialize(stream));
+            Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(ShaderMaterialAssetBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures material assets serialized with an unsupported editor asset version are rejected.
         /// </summary>
         [Fact]

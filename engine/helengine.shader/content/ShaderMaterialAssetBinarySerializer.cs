@@ -104,12 +104,13 @@ namespace helengine {
                 if (header.ValueKind != ValueKind) {
                     throw new InvalidOperationException($"Unsupported shader material value kind '{header.ValueKind}'.");
                 }
-                if (header.Version > CurrentVersion) {
-                    throw new InvalidOperationException($"Unsupported shader material binary version '{header.Version}'.");
+                if (header.Version != CurrentVersion) {
+                    throw new InvalidOperationException(
+                        $"Shader material version '{header.Version}' is unsupported; version '{CurrentVersion}' is required. Regenerate the shader material asset.");
                 }
 
                 using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
-                return ReadShaderMaterialAsset(reader, header.Version);
+                return ReadShaderMaterialAsset(reader);
             } finally {
                 NativeOwnership.Delete(header);
             }
@@ -130,12 +131,11 @@ namespace helengine {
         /// Reads one shader-owned raw material asset payload from the supplied binary reader.
         /// </summary>
         /// <param name="reader">Binary reader positioned at the payload.</param>
-        /// <param name="version">Serialized shader material payload version.</param>
         /// <returns>Deserialized shader-owned raw material asset.</returns>
-        static ShaderMaterialAsset ReadShaderMaterialAsset(EngineBinaryReader reader, byte version) {
+        static ShaderMaterialAsset ReadShaderMaterialAsset(EngineBinaryReader reader) {
             ShaderMaterialAsset asset = new ShaderMaterialAsset();
             asset.Id = reader.ReadString();
-            asset.RuntimeAssetId = ReadRuntimeAssetId(reader, version);
+            asset.RuntimeAssetId = ReadRuntimeAssetId(reader);
             asset.ShaderAssetId = reader.ReadString();
             asset.VertexProgram = reader.ReadString();
             asset.PixelProgram = reader.ReadString();
@@ -143,7 +143,7 @@ namespace helengine {
             asset.DiffuseTextureAssetId = reader.ReadString();
             asset.NormalTextureAssetId = reader.ReadString();
             asset.EmissiveTextureAssetId = reader.ReadString();
-            asset.RoughnessTextureAssetId = version >= 3 ? reader.ReadString() : string.Empty;
+            asset.RoughnessTextureAssetId = reader.ReadString();
             NativeOwnership.Release(ref asset.RenderState);
             asset.RenderState = ReadMaterialRenderState(reader);
             NativeOwnership.DisposeItemsAndRelease(ref asset.ConstantBuffers);
@@ -154,34 +154,14 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Reads one serialized runtime asset identifier while preserving all 64 bits across serializer versions.
+        /// Reads one serialized runtime asset identifier from its two unsigned 32-bit words.
         /// </summary>
         /// <param name="reader">Binary reader positioned at the runtime asset identifier payload.</param>
-        /// <param name="version">Serialized shader material payload version.</param>
         /// <returns>Decoded runtime asset identifier.</returns>
-        static ulong ReadRuntimeAssetId(EngineBinaryReader reader, byte version) {
-            if (version >= 2) {
-                ulong low = reader.ReadUInt32();
-                ulong high = reader.ReadUInt32();
-                return (high << 32) | low;
-            }
-
-            return ReadLegacyRuntimeAssetId(reader);
-        }
-
-        /// <summary>
-        /// Reads one legacy version-1 runtime asset identifier that was stored as a signed 64-bit payload.
-        /// </summary>
-        /// <param name="reader">Binary reader positioned at the legacy runtime asset identifier payload.</param>
-        /// <returns>Decoded runtime asset identifier.</returns>
-        static ulong ReadLegacyRuntimeAssetId(EngineBinaryReader reader) {
-            long serializedRuntimeAssetId = reader.ReadInt64();
-            if (serializedRuntimeAssetId >= 0) {
-                return (ulong)serializedRuntimeAssetId;
-            }
-
-            ulong lowerBits = (ulong)(serializedRuntimeAssetId & long.MaxValue);
-            return lowerBits | 0x8000000000000000UL;
+        static ulong ReadRuntimeAssetId(EngineBinaryReader reader) {
+            ulong low = reader.ReadUInt32();
+            ulong high = reader.ReadUInt32();
+            return (high << 32) | low;
         }
 
         /// <summary>
