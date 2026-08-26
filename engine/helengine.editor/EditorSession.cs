@@ -4252,6 +4252,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Determines whether one browser entry requires the audio import-settings rejection path.
+        /// </summary>
+        /// <param name="entry">Asset browser entry to inspect.</param>
+        /// <returns>True for built-in audio entries and dynamically registered audio extensions.</returns>
+        bool IsAudioImportSettingsEntry(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            return entry.EntryKind == AssetEntryKind.Audio
+                || (assetImportManager != null && assetImportManager.IsAudioExtension(entry.Extension));
+        }
+
+        /// <summary>
         /// Handles asset selections from the browser to display import settings.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>
@@ -4332,7 +4346,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (entry.EntryKind == AssetEntryKind.Audio) {
+            if (IsAudioImportSettingsEntry(entry)) {
                 ShowAudioImportSettingsUnavailable(entry);
                 RefreshPreviewSource();
                 return;
@@ -4464,7 +4478,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (entry.EntryKind == AssetEntryKind.Audio) {
+            if (IsAudioImportSettingsEntry(entry)) {
                 ShowAudioImportSettingsUnavailable(entry);
                 return;
             }
@@ -5413,7 +5427,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (entry.EntryKind == AssetEntryKind.Audio) {
+            if (IsAudioImportSettingsEntry(entry)) {
                 ShowAudioImportSettingsUnavailable(panel, entry);
                 return;
             }

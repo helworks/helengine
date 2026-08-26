@@ -204,6 +204,68 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a dynamically registered audio extension that the static browser classifier does not know is rejected by every settings UI route without reading or creating a sectioned sidecar.
+        /// </summary>
+        [Fact]
+        public void CustomAudioImporterExtension_RejectsTypedSettingsWithoutSectionedAccess() {
+            const string customExtension = ".dynamicaudio";
+            string sourcePath = WriteSourceAudio("custom.dynamicaudio");
+            string missingSourcePath = WriteSourceAudio("missing.dynamicaudio");
+            EditorSession session = CreateSession();
+            AssetImportManager manager = GetPrivateField<AssetImportManager>(session, "assetImportManager");
+            PropertiesPanel panel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-dynamic-audio", new TestAudioImporter(), new[] { customExtension }));
+
+            AudioAssetImportSettings settings = new AudioAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = "test-dynamic-audio",
+                    SourceChecksum = "audio-checksum",
+                    AssetId = "audio-id"
+                }
+            };
+            manager.SaveAudioImportSettings(sourcePath, settings);
+            string settingsPath = sourcePath + ".hasset";
+            byte[] originalSidecar = File.ReadAllBytes(settingsPath);
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
+                "custom.dynamicaudio",
+                "Audio/custom.dynamicaudio",
+                sourcePath,
+                customExtension,
+                AssetEntryKind.File);
+
+            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier().Classify(sourcePath));
+            Assert.True(manager.IsAudioExtension(customExtension));
+
+            InvokePrivate(session, "HandleAssetSelected", entry);
+            Assert.Contains("Audio import settings are not editable", GetImportErrorText(panel), StringComparison.Ordinal);
+            Assert.Equal(originalSidecar, File.ReadAllBytes(settingsPath));
+
+            AssetImportSettingsApplyRequest request = new AssetImportSettingsApplyRequest(
+                "test-dynamic-audio",
+                "windows",
+                new AssetProcessorSettings());
+            InvokePrivate(session, "HandleImportSettingsApplyRequested", entry, request);
+            Assert.Contains("Audio import settings are not editable", GetImportErrorText(panel), StringComparison.Ordinal);
+            Assert.Equal(originalSidecar, File.ReadAllBytes(settingsPath));
+
+            InvokePrivate(session, "HandlePropertiesPanelAssetState", panel, entry);
+            Assert.Contains("Audio import settings are not editable", GetImportErrorText(panel), StringComparison.Ordinal);
+            Assert.Equal(originalSidecar, File.ReadAllBytes(settingsPath));
+
+            AssetBrowserEntry missingEntry = AssetBrowserEntry.CreateFileSystemFile(
+                "missing.dynamicaudio",
+                "Audio/missing.dynamicaudio",
+                missingSourcePath,
+                customExtension,
+                AssetEntryKind.File);
+            string missingSettingsPath = missingSourcePath + ".hasset";
+            Assert.False(File.Exists(missingSettingsPath));
+            InvokePrivate(session, "HandleAssetSelected", missingEntry);
+            Assert.Contains("Audio import settings are not editable", GetImportErrorText(panel), StringComparison.Ordinal);
+            Assert.False(File.Exists(missingSettingsPath));
+        }
+
+        /// <summary>
         /// Ensures applying model processor settings rebuilds the live scene mesh from the processed cache using the selected platform.
         /// </summary>
         [Fact]
