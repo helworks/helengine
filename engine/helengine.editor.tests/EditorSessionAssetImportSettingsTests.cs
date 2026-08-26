@@ -86,6 +86,68 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures audio settings selection, apply, and refresh reject editing without reading or rewriting the typed audio sidecar.
+        /// </summary>
+        [Fact]
+        public void AudioImportSettingsSelectionApplyAndRefresh_RejectsWithoutTouchingTypedSidecar() {
+            string sourcePath = WriteSourceAudio("music.wav");
+            EditorSession session = CreateSession();
+            AssetImportManager manager = GetPrivateField<AssetImportManager>(session, "assetImportManager");
+            PropertiesPanel panel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), new[] { ".wav" }));
+            AudioAssetImportSettings settings = new AudioAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = "test-audio",
+                    SourceChecksum = "audio-checksum",
+                    AssetId = "audio-id"
+                }
+            };
+            settings.Processor.Platforms["windows"] = new AudioAssetProcessorSettings {
+                EncodingFamilyId = "pcm-buffered",
+                PlaybackMode = AudioPlaybackMode.Predecoded,
+                TargetChannels = 1,
+                TargetSampleRate = 22050,
+                StreamChunkByteSize = 8192,
+                DefaultLoop = true,
+                DefaultBusId = "music"
+            };
+            manager.SaveAudioImportSettings(sourcePath, settings);
+            string settingsPath = sourcePath + ".hasset";
+            byte[] originalSidecar = File.ReadAllBytes(settingsPath);
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
+                "music.wav",
+                "Audio/music.wav",
+                sourcePath,
+                ".wav",
+                AssetEntryKind.Audio);
+
+            InvokePrivate(session, "HandleAssetSelected", entry);
+
+            List<TextComponent> lineTexts = GetPrivateField<List<TextComponent>>(panel, "lineTexts");
+            Assert.Contains("Audio import settings are not editable", lineTexts[2].Text, StringComparison.Ordinal);
+            Assert.Equal(originalSidecar, File.ReadAllBytes(settingsPath));
+
+            AssetProcessorSettings requestProcessorSettings = new AssetProcessorSettings();
+            requestProcessorSettings.Platforms["windows"] = new AssetPlatformProcessorSettings {
+                Audio = new AudioAssetProcessorSettings {
+                    EncodingFamilyId = "pcm-buffered",
+                    PlaybackMode = AudioPlaybackMode.Predecoded
+                }
+            };
+            AssetImportSettingsApplyRequest request = new AssetImportSettingsApplyRequest("test-audio", "windows", requestProcessorSettings);
+            InvokePrivate(session, "HandleImportSettingsApplyRequested", entry, request);
+            Assert.Equal(originalSidecar, File.ReadAllBytes(settingsPath));
+
+            InvokePrivate(session, "HandlePropertiesPanelAssetState", panel, entry);
+            Assert.Equal(originalSidecar, File.ReadAllBytes(settingsPath));
+            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                AudioAssetImportSettings restoredSettings = AudioAssetImportSettingsBinarySerializer.Deserialize(stream);
+                Assert.Equal("test-audio", restoredSettings.Importer.ImporterId);
+                Assert.Equal(AudioPlaybackMode.Predecoded, restoredSettings.Processor.Platforms["windows"].PlaybackMode);
+            }
+        }
+
+        /// <summary>
         /// Ensures applying model processor settings rebuilds the live scene mesh from the processed cache using the selected platform.
         /// </summary>
         [Fact]
@@ -265,12 +327,50 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes one minimal audio source file inside the temporary assets root.
+        /// </summary>
+        /// <param name="fileName">Source file name to create.</param>
+        /// <returns>Absolute path to the created audio source file.</returns>
+        string WriteSourceAudio(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(AssetsRootPath, fileName);
+            File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
+            return sourcePath;
+        }
+
+        /// <summary>
         /// Retrieves the hidden save component attached to one editor entity.
         /// </summary>
         /// <param name="entity">Entity whose save component should be read.</param>
         /// <returns>Attached hidden save component.</returns>
         EntitySaveComponent GetSaveComponent(EditorEntity entity) {
             return Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
+        }
+
+        /// <summary>
+        /// Provides deterministic imported audio metadata for audio-settings UI behavior coverage.
+        /// </summary>
+        sealed class TestAudioImporter : IAudioImporter {
+            /// <summary>
+            /// Imports a minimal source stream into deterministic PCM metadata.
+            /// </summary>
+            /// <param name="stream">Source stream containing authored audio bytes.</param>
+            /// <returns>Imported audio metadata and PCM payload.</returns>
+            public ImportedAudioSource ImportAudio(Stream stream) {
+                if (stream == null) {
+                    throw new ArgumentNullException(nameof(stream));
+                }
+
+                return new ImportedAudioSource {
+                    Channels = 1,
+                    SampleRate = 22050,
+                    DurationSeconds = 1f,
+                    Pcm16Bytes = new byte[] { 1, 2, 3, 4 }
+                };
+            }
         }
 
         /// <summary>

@@ -72,6 +72,37 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures missing settings generation writes typed sidecars that the current texture and model import paths can consume.
+        /// </summary>
+        [Fact]
+        public void GenerateMissingImportSettings_WhenTextureAndModelSourcesExist_WritesTypedSidecars() {
+            string textureSourcePath = WriteSourceTexture("generated-texture.png");
+            string modelSourcePath = Path.Combine(AssetsRootPath, "generated-model.obj");
+            File.WriteAllBytes(modelSourcePath, new byte[] { 1, 2, 3, 4 });
+
+            AssetImportManager manager = CreateManager();
+            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+
+            List<string> createdSettings = manager.GenerateMissingImportSettings();
+
+            Assert.Contains(textureSourcePath + ".hasset", createdSettings);
+            Assert.Contains(modelSourcePath + ".hasset", createdSettings);
+            using (FileStream textureStream = new FileStream(textureSourcePath + ".hasset", FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                TextureAssetImportSettings textureSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(textureStream);
+                Assert.Equal("test-texture", textureSettings.Importer.ImporterId);
+            }
+            using (FileStream modelStream = new FileStream(modelSourcePath + ".hasset", FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                ModelAssetImportSettings modelSettings = ModelAssetImportSettingsBinarySerializer.Deserialize(modelStream);
+                Assert.Equal("test-model", modelSettings.Importer.ImporterId);
+            }
+
+            TextureAsset textureAsset = manager.ImportTexture(textureSourcePath);
+            ModelAsset modelAsset = manager.ImportModel(modelSourcePath);
+            Assert.NotNull(textureAsset);
+            Assert.NotNull(modelAsset);
+        }
+
+        /// <summary>
         /// Ensures an existing current cached texture is reused during startup import scanning.
         /// </summary>
         [Fact]
@@ -160,6 +191,25 @@ namespace helengine.editor.tests {
             Assert.Contains("obsolete", exception.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(obsoleteData, File.ReadAllBytes(settingsPath));
+        }
+
+        /// <summary>
+        /// Ensures a sharing violation while opening a typed sidecar remains an I/O failure instead of being reported as obsolete data.
+        /// </summary>
+        [Fact]
+        public void LoadOrCreateTextureImportSettings_WhenSidecarReadIsBlocked_PreservesIoFailure() {
+            string sourcePath = WriteSourceTexture("blocked-settings-read.png");
+            string settingsPath = sourcePath + ".hasset";
+            AssetImportManager manager = CreateManager();
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            manager.SaveTextureImportSettings(sourcePath, settings);
+
+            using (FileStream lockStream = new FileStream(settingsPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
+                IOException exception = Assert.Throws<IOException>(
+                    () => manager.LoadOrCreateTextureImportSettings(sourcePath));
+
+                Assert.DoesNotContain("obsolete", exception.Message, StringComparison.OrdinalIgnoreCase);
+            }
         }
 
         /// <summary>

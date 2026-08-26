@@ -577,7 +577,7 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 document = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
                 return true;
-            } catch (Exception exception) {
+            } catch (Exception exception) when (IsExpectedMaterialSettingsFormatException(exception)) {
                 document = null;
                 throw new InvalidOperationException($"Material settings document '{settingsPath}' is obsolete or invalid. {exception.Message} Regenerate the material settings document.", exception);
             }
@@ -599,10 +599,21 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(overridePath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 document = MaterialAssetPlatformOverrideDocumentBinarySerializer.Deserialize(stream);
                 return true;
-            } catch (Exception exception) {
+            } catch (Exception exception) when (IsExpectedMaterialSettingsFormatException(exception)) {
                 document = null;
                 throw new InvalidOperationException($"Material platform settings document '{overridePath}' is obsolete or invalid. {exception.Message} Regenerate the material platform settings document.", exception);
             }
+        }
+
+        /// <summary>
+        /// Determines whether an exception indicates malformed or unsupported material settings data that can be regenerated.
+        /// </summary>
+        /// <param name="exception">Exception raised while reading a material settings payload.</param>
+        /// <returns>True when the exception is an expected payload-format failure.</returns>
+        static bool IsExpectedMaterialSettingsFormatException(Exception exception) {
+            return exception is EndOfStreamException
+                || exception is InvalidOperationException
+                || exception is ArgumentException;
         }
 
         /// <summary>

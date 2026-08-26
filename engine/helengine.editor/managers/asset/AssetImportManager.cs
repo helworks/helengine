@@ -1194,13 +1194,43 @@ namespace helengine.editor {
                     continue;
                 }
 
-                AssetImportSettings settings;
-                if (!TryCreateDefaultSettings(sourcePath, out settings)) {
+                string extension = Path.GetExtension(sourcePath);
+                if (IsTextureExtension(extension)) {
+                    TextureAssetImportSettings textureSettings;
+                    if (!TryCreateDefaultTextureImportSettings(sourcePath, out textureSettings)) {
+                        continue;
+                    }
+
+                    UpdateTextureImportSettingsChecksum(textureSettings, sourcePath);
+                    SaveTextureImportSettings(sourcePath, textureSettings);
+                } else if (IsModelExtension(extension)) {
+                    ModelAssetImportSettings modelSettings;
+                    if (!TryCreateDefaultModelImportSettings(sourcePath, out modelSettings)) {
+                        continue;
+                    }
+
+                    UpdateModelImportSettingsChecksum(modelSettings, sourcePath);
+                    SaveModelImportSettings(sourcePath, modelSettings);
+                } else if (IsAudioExtension(extension)) {
+                    AudioAssetImportSettings audioSettings;
+                    if (!TryCreateDefaultAudioImportSettings(sourcePath, out audioSettings)) {
+                        continue;
+                    }
+
+                    UpdateAudioImportSettingsChecksum(audioSettings, sourcePath);
+                    SaveAudioImportSettings(sourcePath, audioSettings);
+                } else if (IsTextExtension(extension) || IsFontExtension(extension)) {
+                    AssetImportSettings settings;
+                    if (!TryCreateDefaultSettings(sourcePath, out settings)) {
+                        continue;
+                    }
+
+                    UpdateSettingsChecksum(settings, sourcePath);
+                    SaveImportSettings(sourcePath, settings);
+                } else {
                     continue;
                 }
 
-                UpdateSettingsChecksum(settings, sourcePath);
-                SaveImportSettings(sourcePath, settings);
                 createdSettings.Add(settingsPath);
             }
 
@@ -2123,7 +2153,7 @@ namespace helengine.editor {
                     settings = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
                 }
                 return true;
-            } catch (Exception ex) {
+            } catch (Exception ex) when (IsExpectedImportSettingsFormatException(ex)) {
                 settings = null;
                 throw new InvalidOperationException(
                     $"Sectioned import settings sidecar '{settingsPath}' is obsolete or invalid. {ex.Message} Regenerate the sectioned asset import settings sidecar.",
@@ -2263,7 +2293,7 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 settings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
-            } catch (Exception ex) {
+            } catch (Exception ex) when (IsExpectedImportSettingsFormatException(ex)) {
                 settings = null;
                 throw new InvalidOperationException(
                     $"Texture import settings sidecar '{settingsPath}' is obsolete or invalid. {ex.Message} Regenerate the texture import settings sidecar.",
@@ -2291,7 +2321,7 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
-            } catch (Exception ex) {
+            } catch (Exception ex) when (IsExpectedImportSettingsFormatException(ex)) {
                 settings = null;
                 throw new InvalidOperationException(
                     $"Model import settings sidecar '{settingsPath}' is obsolete or invalid. {ex.Message} Regenerate the model import settings sidecar.",
@@ -2319,12 +2349,23 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 settings = AudioAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
-            } catch (Exception ex) {
+            } catch (Exception ex) when (IsExpectedImportSettingsFormatException(ex)) {
                 settings = null;
                 throw new InvalidOperationException(
                     $"Audio import settings sidecar '{settingsPath}' is obsolete or invalid. {ex.Message} Regenerate the audio import settings sidecar.",
                     ex);
             }
+        }
+
+        /// <summary>
+        /// Determines whether an exception indicates malformed or unsupported settings data that can be regenerated.
+        /// </summary>
+        /// <param name="exception">Exception raised while reading a settings payload.</param>
+        /// <returns>True when the exception is an expected payload-format failure.</returns>
+        static bool IsExpectedImportSettingsFormatException(Exception exception) {
+            return exception is EndOfStreamException
+                || exception is InvalidOperationException
+                || exception is ArgumentException;
         }
 
         /// <summary>

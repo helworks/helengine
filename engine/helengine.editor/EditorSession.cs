@@ -4193,6 +4193,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reports that the current editor has no audio import-settings editor while leaving typed audio sidecars untouched.
+        /// </summary>
+        /// <param name="entry">Audio asset entry that cannot be edited in this editor.</param>
+        void ShowAudioImportSettingsUnavailable(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
+            for (int index = 0; index < propertiesPanels.Count; index++) {
+                propertiesPanels[index].ShowImportError(entry, "Audio import settings are not editable in the current editor.");
+            }
+        }
+
+        /// <summary>
         /// Handles asset selections from the browser to display import settings.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>
@@ -4269,6 +4284,12 @@ namespace helengine.editor {
                         errorPanels[index].ShowImportError(entry, ex.Message);
                     }
                 }
+                RefreshPreviewSource();
+                return;
+            }
+
+            if (entry.EntryKind == AssetEntryKind.Audio) {
+                ShowAudioImportSettingsUnavailable(entry);
                 RefreshPreviewSource();
                 return;
             }
@@ -4396,6 +4417,11 @@ namespace helengine.editor {
             }
 
             if (entry.IsDirectory) {
+                return;
+            }
+
+            if (entry.EntryKind == AssetEntryKind.Audio) {
+                ShowAudioImportSettingsUnavailable(entry);
                 return;
             }
 
@@ -5340,6 +5366,11 @@ namespace helengine.editor {
                 } catch (Exception ex) {
                     panel.ShowImportError(entry, ex.Message);
                 }
+                return;
+            }
+
+            if (entry.EntryKind == AssetEntryKind.Audio) {
+                ShowAudioImportSettingsUnavailable(entry);
                 return;
             }
 
