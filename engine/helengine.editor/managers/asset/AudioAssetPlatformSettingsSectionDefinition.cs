@@ -87,9 +87,8 @@ namespace helengine.editor {
         /// Deserializes one audio settings payload.
         /// </summary>
         /// <param name="reader">Reader positioned at the payload body.</param>
-        /// <param name="assetImportSettingsFormatVersion">Version of the enclosing asset import settings payload.</param>
         /// <returns>Deserialized audio settings payload.</returns>
-        public object Deserialize(EngineBinaryReader reader, byte assetImportSettingsFormatVersion) {
+        public object Deserialize(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }

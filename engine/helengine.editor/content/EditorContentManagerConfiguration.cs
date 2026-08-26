@@ -85,7 +85,7 @@ namespace helengine.editor {
             RegisterProcessorIfMissing(
                 contentManager,
                 EditorContentProcessorIds.AssetImportSettings,
-                new BinaryContentProcessor<AssetImportSettings>(AssetImportSettingsBinarySerializer.Deserialize),
+                new BinaryContentProcessor<AssetImportSettings>(SectionedAssetImportSettingsBinarySerializer.Deserialize),
                 new[] { AssetImportManager.SettingsExtension });
             RegisterProcessorIfMissing(
                 contentManager,

@@ -88,9 +88,8 @@ namespace helengine.editor {
         /// Deserializes one texture settings payload.
         /// </summary>
         /// <param name="reader">Reader positioned at the payload body.</param>
-        /// <param name="assetImportSettingsFormatVersion">Version of the enclosing asset import settings payload.</param>
         /// <returns>Deserialized texture settings payload.</returns>
-        public object Deserialize(EngineBinaryReader reader, byte assetImportSettingsFormatVersion) {
+        public object Deserialize(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }

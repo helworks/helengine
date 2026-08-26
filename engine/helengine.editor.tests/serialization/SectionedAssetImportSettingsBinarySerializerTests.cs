@@ -4,7 +4,7 @@ namespace helengine.editor.tests.serialization {
     /// <summary>
     /// Verifies section-based asset import settings serialization.
     /// </summary>
-    public sealed class AssetImportSettingsBinarySerializerTests {
+    public sealed class SectionedAssetImportSettingsBinarySerializerTests {
         /// <summary>
         /// Ensures all built-in platform sections survive one binary roundtrip.
         /// </summary>
@@ -51,10 +51,10 @@ namespace helengine.editor.tests.serialization {
             settings.Processor.Platforms["windows"] = windowsSettings;
 
             using MemoryStream stream = new MemoryStream();
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             stream.Position = 0;
 
-            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            AssetImportSettings deserialized = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
             FontAssetProcessorSettings fontSettings = AssetPlatformSettingsSectionRegistry.Shared.GetOrCreateSection<FontAssetProcessorSettings>(
                 deserialized.Processor.Platforms["windows"],
                 "font");
@@ -90,8 +90,8 @@ namespace helengine.editor.tests.serialization {
                 EngineBinaryEndianness.LittleEndian,
                 9,
                 EditorAssetBinarySerializer.FormatId,
-                (ushort)AssetImportSettingsBinarySerializer.RecordKind,
-                (ushort)AssetImportSettingsBinarySerializer.ValueKind);
+                (ushort)SectionedAssetImportSettingsBinarySerializer.RecordKind,
+                (ushort)SectionedAssetImportSettingsBinarySerializer.ValueKind);
             EngineBinaryHeaderSerializer.Write(stream, header);
             using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian, true)) {
                 writer.WriteString("assimp");
@@ -106,7 +106,12 @@ namespace helengine.editor.tests.serialization {
 
             stream.Position = 0;
 
-            Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(stream));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => SectionedAssetImportSettingsBinarySerializer.Deserialize(stream));
+
+            Assert.Contains("9", exception.Message, StringComparison.Ordinal);
+            Assert.Contains(SectionedAssetImportSettingsBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -107,20 +107,18 @@ namespace helengine.editor {
                 settings.Processor.Platforms.Add(platformId, ReadProcessorSettings(reader, platformId));
             }
 
-            if (header.Version >= 2) {
-                int environmentPlatformCount = reader.ReadInt32();
-                if (environmentPlatformCount < 0) throw new InvalidOperationException("Audio asset import settings environment platform count cannot be negative.");
-                for (int index = 0; index < environmentPlatformCount; index++) {
-                    string platformId = reader.ReadString();
-                    int environmentCount = reader.ReadInt32();
-                    if (environmentCount < 0) throw new InvalidOperationException("Audio asset import settings environment count cannot be negative.");
-                    Dictionary<string, AudioAssetProcessorSettings> environments = new Dictionary<string, AudioAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
-                    for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
-                        string environmentId = reader.ReadString();
-                        environments.Add(environmentId, ReadProcessorSettings(reader, environmentId));
-                    }
-                    settings.Processor.Environments.Add(platformId, environments);
+            int environmentPlatformCount = reader.ReadInt32();
+            if (environmentPlatformCount < 0) throw new InvalidOperationException("Audio asset import settings environment platform count cannot be negative.");
+            for (int index = 0; index < environmentPlatformCount; index++) {
+                string platformId = reader.ReadString();
+                int environmentCount = reader.ReadInt32();
+                if (environmentCount < 0) throw new InvalidOperationException("Audio asset import settings environment count cannot be negative.");
+                Dictionary<string, AudioAssetProcessorSettings> environments = new Dictionary<string, AudioAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
+                    string environmentId = reader.ReadString();
+                    environments.Add(environmentId, ReadProcessorSettings(reader, environmentId));
                 }
+                settings.Processor.Environments.Add(platformId, environments);
             }
 
             return settings;
@@ -137,8 +135,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported audio asset import settings format id '{header.FormatId}'.");
             } else if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected audio asset import settings record kind '{header.RecordKind}'.");
-            } else if (header.Version < 1 || header.Version > CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported audio asset import settings binary version '{header.Version}'.");
+            } else if (header.Version != CurrentVersion) {
+                throw new InvalidOperationException(
+                    $"Unsupported audio asset import settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the audio import settings sidecar.");
             }
         }
 

@@ -130,7 +130,8 @@ namespace helengine.editor {
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument) {
                 throw new InvalidOperationException($"Unexpected material common settings value kind '{header.ValueKind}'.");
             } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported material common settings binary version '{header.Version}'.");
+                throw new InvalidOperationException(
+                    $"Unsupported material common settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the material settings document.");
             }
         }
 

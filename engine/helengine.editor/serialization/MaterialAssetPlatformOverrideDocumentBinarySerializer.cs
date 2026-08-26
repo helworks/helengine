@@ -119,7 +119,8 @@ namespace helengine.editor {
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetPlatformOverrideDocument) {
                 throw new InvalidOperationException($"Unexpected material platform override value kind '{header.ValueKind}'.");
             } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported material platform override binary version '{header.Version}'.");
+                throw new InvalidOperationException(
+                    $"Unsupported material platform override binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the material platform settings document.");
             }
         }
 

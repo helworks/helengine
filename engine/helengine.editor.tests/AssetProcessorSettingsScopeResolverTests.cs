@@ -42,9 +42,9 @@ namespace helengine.editor.tests {
             };
 
             using MemoryStream stream = new MemoryStream();
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             stream.Position = 0;
-            AssetImportSettings restored = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            AssetImportSettings restored = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
             Assert.True(restored.Processor.Platforms["windows"].Environments["debug"].Model.Tessellate);
         }
     }

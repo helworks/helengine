@@ -67,10 +67,49 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Ensures obsolete material settings documents fail with regeneration guidance instead of being treated as missing.
+        /// </summary>
+        [Fact]
+        public void TryLoad_WhenCommonDocumentUsesUnsupportedVersion_ThrowsRegenerationGuidanceWithoutRewrite() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+
+            try {
+                string materialAssetPath = Path.Combine(tempDirectoryPath, "UnsupportedVersion.hasset");
+                MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument {
+                    AuthoringAssetId = "11111111222243338444555555555555"
+                };
+                document.Importer.ImporterId = "helengine.material";
+                document.Processor.SchemaId = "standard-shader";
+                document.Processor.FieldValues["base-color"] = "#ffffffff";
+                using (MemoryStream stream = new MemoryStream()) {
+                    MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
+                    byte[] data = stream.ToArray();
+                    data[5] = (byte)(MaterialAssetCommonSettingsDocumentBinarySerializer.CurrentVersion - 1);
+                    File.WriteAllBytes(materialAssetPath, data);
+                }
+                byte[] originalData = File.ReadAllBytes(materialAssetPath);
+
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                    () => service.TryLoad(materialAssetPath, out _));
+
+                Assert.Contains("obsolete", exception.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains(MaterialAssetCommonSettingsDocumentBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+                Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Equal(originalData, File.ReadAllBytes(materialAssetPath));
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures raw legacy shader-material payloads are rejected so project materials must use the shared per-platform settings flow.
         /// </summary>
         [Fact]
-        public void LoadMaterialAsset_WhenLegacyShaderMaterialPayloadIsStoredInBaseFile_ThrowsForMissingMaterialSettingsDocument() {
+        public void LoadMaterialAsset_WhenLegacyShaderMaterialPayloadIsStoredInBaseFile_ThrowsObsoleteSettingsGuidanceWithoutRewrite() {
             string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-material-settings-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempDirectoryPath);
 
@@ -99,10 +138,13 @@ namespace helengine.editor {
                 using (FileStream stream = File.Create(materialAssetPath)) {
                     ShaderMaterialAssetBinarySerializer.Serialize(stream, sourceMaterialAsset);
                 }
+                byte[] originalData = File.ReadAllBytes(materialAssetPath);
 
                 MaterialAssetSettingsService service = new MaterialAssetSettingsService();
                 InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.LoadMaterialAsset(materialAssetPath, "windows"));
-                Assert.Contains("could not be loaded", exception.Message, StringComparison.Ordinal);
+                Assert.Contains("obsolete", exception.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Equal(originalData, File.ReadAllBytes(materialAssetPath));
             } finally {
                 if (Directory.Exists(tempDirectoryPath)) {
                     Directory.Delete(tempDirectoryPath, true);

@@ -100,25 +100,23 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Model asset import settings cannot contain a blank processor platform id.");
                 }
 
-                ModelAssetProcessorSettings platformSettings = ReadModelSettings(reader, header.Version);
+                ModelAssetProcessorSettings platformSettings = ReadModelSettings(reader);
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
 
-            if (header.Version >= 3) {
-                int environmentPlatformCount = reader.ReadInt32();
-                if (environmentPlatformCount < 0) throw new InvalidOperationException("Model asset import settings environment platform count cannot be negative.");
-                for (int index = 0; index < environmentPlatformCount; index++) {
-                    string platformId = reader.ReadString();
-                    int environmentCount = reader.ReadInt32();
-                    if (environmentCount < 0) throw new InvalidOperationException("Model asset import settings environment count cannot be negative.");
-                    Dictionary<string, ModelAssetProcessorSettings> environments = new Dictionary<string, ModelAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
-                    for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
-                        string environmentId = reader.ReadString();
-                        environments.Add(environmentId, ReadModelSettings(reader, header.Version));
-                    }
-                    settings.Processor.Environments.Add(platformId, environments);
+            int environmentPlatformCount = reader.ReadInt32();
+            if (environmentPlatformCount < 0) throw new InvalidOperationException("Model asset import settings environment platform count cannot be negative.");
+            for (int index = 0; index < environmentPlatformCount; index++) {
+                string platformId = reader.ReadString();
+                int environmentCount = reader.ReadInt32();
+                if (environmentCount < 0) throw new InvalidOperationException("Model asset import settings environment count cannot be negative.");
+                Dictionary<string, ModelAssetProcessorSettings> environments = new Dictionary<string, ModelAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
+                    string environmentId = reader.ReadString();
+                    environments.Add(environmentId, ReadModelSettings(reader));
                 }
+                settings.Processor.Environments.Add(platformId, environments);
             }
 
             return settings;
@@ -137,8 +135,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unexpected model asset import settings record kind '{header.RecordKind}'.");
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings) {
                 throw new InvalidOperationException($"Unexpected model asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version < 1 || header.Version > CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported model asset import settings binary version '{header.Version}'.");
+            } else if (header.Version != CurrentVersion) {
+                throw new InvalidOperationException(
+                    $"Unsupported model asset import settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the model import settings sidecar.");
             }
         }
 
@@ -180,13 +179,13 @@ namespace helengine.editor {
             writer.WriteDouble(settings.TessellationMaxEdgeLength);
         }
 
-        static ModelAssetProcessorSettings ReadModelSettings(EngineBinaryReader reader, byte version) {
-            ModelAssetProcessorSettings settings = new ModelAssetProcessorSettings { FlipWinding = ReadBooleanByte(reader) };
-            if (version >= 2) {
-                settings.Tessellate = ReadBooleanByte(reader);
-                settings.TessellationMaxEdgeLength = reader.ReadDouble();
-                ValidateTessellationMaxEdgeLength(settings.TessellationMaxEdgeLength);
-            }
+        static ModelAssetProcessorSettings ReadModelSettings(EngineBinaryReader reader) {
+            ModelAssetProcessorSettings settings = new ModelAssetProcessorSettings {
+                FlipWinding = ReadBooleanByte(reader),
+                Tessellate = ReadBooleanByte(reader),
+                TessellationMaxEdgeLength = reader.ReadDouble()
+            };
+            ValidateTessellationMaxEdgeLength(settings.TessellationMaxEdgeLength);
             return settings;
         }
     }

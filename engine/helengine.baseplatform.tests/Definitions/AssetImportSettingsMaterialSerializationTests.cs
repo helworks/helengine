@@ -35,7 +35,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
     /// Verifies asset import settings round-trip material processor settings alongside model settings.
     /// </summary>
     [Fact]
-    public void AssetImportSettingsBinarySerializer_round_trips_material_processor_settings() {
+    public void SectionedAssetImportSettingsBinarySerializer_round_trips_material_processor_settings() {
         AssetImportSettings settings = new AssetImportSettings();
         settings.Importer.ImporterId = "helengine.material";
         settings.Importer.SourceChecksum = "checksum";
@@ -52,10 +52,10 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         settings.Processor.Platforms["windows"] = platformSettings;
 
         using MemoryStream stream = new MemoryStream();
-        AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+        SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
         stream.Position = 0;
 
-        AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+        AssetImportSettings deserialized = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
 
         Assert.Equal("helengine.material", deserialized.Importer.ImporterId);
         Assert.True(deserialized.Processor.Platforms["windows"].Model.FlipWinding);

@@ -433,15 +433,17 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures packaging rebuilds a corrupt material settings sidecar instead of failing on deserialize.
+        /// Ensures packaging rejects a corrupt material settings sidecar with regeneration guidance and leaves it untouched.
         /// </summary>
         [Fact]
-        public void Package_WhenMaterialSettingsSidecarIsCorrupt_RebuildsSettingsAndPackagesScene() {
+        public void Package_WhenMaterialSettingsSidecarIsCorrupt_ThrowsRegenerationGuidanceWithoutRewrite() {
             string sceneId = "Scenes/MaterialScene.helen";
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
 
             WriteCityStyleStandardMaterialAsset(materialRelativePath);
             WriteCorruptMaterialSettingsOverride(materialRelativePath, "windows");
+            string overridePath = GetMaterialPlatformOverridePath(materialRelativePath, "windows");
+            byte[] originalOverrideData = File.ReadAllBytes(overridePath);
             WriteSceneAsset(sceneId, materialRelativePath);
 
             FontAsset defaultFont = CreatePackagedFontAsset();
@@ -455,16 +457,12 @@ namespace helengine.editor.tests {
                 "debug",
                 "directx11");
 
-            packager.Package(new[] { sceneId }, BuildRootPath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => packager.Package(new[] { sceneId }, BuildRootPath));
 
-            Assert.NotNull(materialBuilder.LastMaterialCookRequest);
-            string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.hasset");
-            Assert.True(File.Exists(cookedMaterialPath));
-
-            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
-            Assert.True(settingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings settings));
-            Assert.Equal("standard-shader", settings.SchemaId);
+            Assert.Contains("obsolete", exception.ToString(), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Regenerate", exception.ToString(), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(originalOverrideData, File.ReadAllBytes(overridePath));
         }
 
         /// <summary>
@@ -4032,7 +4030,7 @@ namespace helengine.editor.tests {
         /// Resolves one project-relative material override path for the supplied platform.
         /// </summary>
         /// <param name="materialRelativePath">Project-relative base material path.</param>
-        /// <param name="platformId">Platform identifier appended before the `.hasset` suffix.</param>
+        /// <param name="platformId">Platform identifier appended after the material `.hasset` suffix.</param>
         /// <returns>Absolute override file path under the project assets tree.</returns>
         string GetMaterialPlatformOverridePath(string materialRelativePath, string platformId) {
             if (string.IsNullOrWhiteSpace(materialRelativePath)) {
@@ -4042,9 +4040,7 @@ namespace helengine.editor.tests {
             }
 
             string relativePath = materialRelativePath.Replace('/', Path.DirectorySeparatorChar);
-            string extension = Path.GetExtension(relativePath);
-            string basePathWithoutExtension = relativePath.Substring(0, relativePath.Length - extension.Length);
-            return Path.Combine(ProjectRootPath, "assets", $"{basePathWithoutExtension}.{platformId}{extension}");
+            return Path.Combine(ProjectRootPath, "assets", $"{relativePath}.{platformId}{AssetImportManager.SettingsExtension}");
         }
 
         /// <summary>

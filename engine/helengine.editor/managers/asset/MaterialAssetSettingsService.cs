@@ -577,9 +577,9 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 document = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
                 return true;
-            } catch {
+            } catch (Exception exception) {
                 document = null;
-                return false;
+                throw new InvalidOperationException($"Material settings document '{settingsPath}' is obsolete or invalid. {exception.Message} Regenerate the material settings document.", exception);
             }
         }
 
@@ -599,9 +599,9 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(overridePath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 document = MaterialAssetPlatformOverrideDocumentBinarySerializer.Deserialize(stream);
                 return true;
-            } catch {
+            } catch (Exception exception) {
                 document = null;
-                return false;
+                throw new InvalidOperationException($"Material platform settings document '{overridePath}' is obsolete or invalid. {exception.Message} Regenerate the material platform settings document.", exception);
             }
         }
 
@@ -1383,14 +1383,14 @@ namespace helengine.editor {
         /// <param name="fieldValues">Serialized material field values keyed by field id.</param>
         /// <param name="fieldId">Field identifier to inspect.</param>
         /// <param name="currentValue">Current value stored on the material asset.</param>
-        /// <param name="fallbackValue">Fallback value used when the current material value is blank.</param>
+        /// <param name="defaultValue">Default value used when the current material value is blank.</param>
         /// <param name="applyValue">Callback that writes the updated value back to the material asset.</param>
         /// <returns>True when the material asset changed.</returns>
         bool ApplyCustomShaderMirroredField(
             Dictionary<string, string> fieldValues,
             string fieldId,
             string currentValue,
-            string fallbackValue,
+            string defaultValue,
             Action<string> applyValue) {
             if (fieldValues == null) {
                 throw new ArgumentNullException(nameof(fieldValues));
@@ -1410,7 +1410,7 @@ namespace helengine.editor {
                 return true;
             }
 
-            string resolvedValue = string.IsNullOrWhiteSpace(currentValue) ? fallbackValue : currentValue;
+            string resolvedValue = string.IsNullOrWhiteSpace(currentValue) ? defaultValue : currentValue;
             if (string.Equals(currentValue ?? string.Empty, resolvedValue ?? string.Empty, StringComparison.Ordinal)) {
                 return false;
             }

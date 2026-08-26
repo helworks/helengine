@@ -1145,7 +1145,7 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
             AssetImportSettings settings = null;
-            bool loadedFromDisk = settingsFileExists && TryLoadImportSettings(settingsPath, out settings);
+            bool loadedFromDisk = settingsFileExists && TryLoadSectionedImportSettings(settingsPath, out settings);
             bool repaired = false;
             if (!loadedFromDisk) {
                 settings = CreateDefaultSettings(sourcePath);
@@ -1154,7 +1154,7 @@ namespace helengine.editor {
             }
 
             UpdateSettingsChecksum(settings, sourcePath);
-            if (settingsFileExists && (!loadedFromDisk || repaired)) {
+            if (settingsFileExists && repaired) {
                 SaveImportSettings(sourcePath, settings);
             }
 
@@ -1178,7 +1178,7 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             EnsureDirectoryForFile(settingsPath);
             using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+                SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             }
         }
 
@@ -2108,7 +2108,7 @@ namespace helengine.editor {
         /// <param name="settingsPath">Absolute path to the settings file.</param>
         /// <param name="settings">Deserialized import settings when the file exists.</param>
         /// <returns>True when the settings file was loaded successfully.</returns>
-        bool TryLoadImportSettings(string settingsPath, out AssetImportSettings settings) {
+        bool TryLoadSectionedImportSettings(string settingsPath, out AssetImportSettings settings) {
             if (string.IsNullOrWhiteSpace(settingsPath)) {
                 throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
             }
@@ -2120,12 +2120,14 @@ namespace helengine.editor {
 
             try {
                 using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                    settings = AssetImportSettingsBinarySerializer.Deserialize(stream);
+                    settings = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
                 }
                 return true;
-            } catch {
+            } catch (Exception ex) {
                 settings = null;
-                return false;
+                throw new InvalidOperationException(
+                    $"Sectioned import settings sidecar '{settingsPath}' is obsolete or invalid. {ex.Message} Regenerate the sectioned asset import settings sidecar.",
+                    ex);
             }
         }
 
@@ -2157,17 +2159,13 @@ namespace helengine.editor {
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
-            try {
-                if (settingsFileExists && TryLoadImportSettings(settingsPath, out settings)) {
-                    bool repaired = RepairLoadedImportSettings(sourcePath, settings);
-                    UpdateSettingsChecksum(settings, sourcePath);
-                    if (repaired) {
-                        SaveImportSettings(sourcePath, settings);
-                    }
-                    return true;
+            if (settingsFileExists && TryLoadSectionedImportSettings(settingsPath, out settings)) {
+                bool repaired = RepairLoadedImportSettings(sourcePath, settings);
+                UpdateSettingsChecksum(settings, sourcePath);
+                if (repaired) {
+                    SaveImportSettings(sourcePath, settings);
                 }
-            } catch (Exception ex) {
-                throw new InvalidOperationException($"Failed to load generic import settings for source '{sourcePath}'.", ex);
+                return true;
             }
 
             if (!TryCreateDefaultSettings(sourcePath, out settings)) {
@@ -2175,10 +2173,6 @@ namespace helengine.editor {
             }
 
             UpdateSettingsChecksum(settings, sourcePath);
-            if (settingsFileExists) {
-                SaveImportSettings(sourcePath, settings);
-            }
-
             return true;
         }
 
@@ -2250,31 +2244,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to load typed texture import settings from a settings file.
+        /// Attempts to load current typed texture import settings from a settings file.
         /// </summary>
         /// <param name="settingsPath">Absolute path to the settings file.</param>
         /// <param name="settings">Deserialized settings when the file exists.</param>
         /// <returns>True when the settings file was loaded successfully.</returns>
         bool TryLoadTextureImportSettings(string settingsPath, out TextureAssetImportSettings settings) {
-            return TryLoadTextureImportSettings(settingsPath, out settings, out _, out _);
-        }
-
-        /// <summary>
-        /// Attempts to load typed texture import settings from a settings file, falling back to legacy generic import settings when needed.
-        /// </summary>
-        /// <param name="settingsPath">Absolute path to the settings file.</param>
-        /// <param name="settings">Deserialized settings when the file exists.</param>
-        /// <param name="requiresRewrite">True when the settings were loaded through the legacy generic format and should be rewritten as current typed settings.</param>
-        /// <param name="preserveLegacyAssetId">True when the legacy sidecar stored one explicit imported texture asset id that must survive the typed rewrite.</param>
-        /// <returns>True when the settings file was loaded successfully.</returns>
-        bool TryLoadTextureImportSettings(string settingsPath, out TextureAssetImportSettings settings, out bool requiresRewrite, out bool preserveLegacyAssetId) {
             if (string.IsNullOrWhiteSpace(settingsPath)) {
                 throw new ArgumentException("Settings path must be provided.", nameof(settingsPath));
             }
 
             settings = null;
-            requiresRewrite = false;
-            preserveLegacyAssetId = false;
             if (!File.Exists(settingsPath)) {
                 return false;
             }
@@ -2283,19 +2263,12 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 settings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
-            } catch {
+            } catch (Exception ex) {
                 settings = null;
+                throw new InvalidOperationException(
+                    $"Texture import settings sidecar '{settingsPath}' is obsolete or invalid. {ex.Message} Regenerate the texture import settings sidecar.",
+                    ex);
             }
-
-            if (!TryLoadImportSettings(settingsPath, out AssetImportSettings legacySettings) || legacySettings == null) {
-                settings = null;
-                return false;
-            }
-
-            settings = ConvertLegacyTextureImportSettings(legacySettings);
-            requiresRewrite = true;
-            preserveLegacyAssetId = !string.IsNullOrWhiteSpace(legacySettings.Importer?.AssetId);
-            return true;
         }
 
         /// <summary>
@@ -2318,9 +2291,11 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
-            } catch {
+            } catch (Exception ex) {
                 settings = null;
-                return false;
+                throw new InvalidOperationException(
+                    $"Model import settings sidecar '{settingsPath}' is obsolete or invalid. {ex.Message} Regenerate the model import settings sidecar.",
+                    ex);
             }
         }
 
@@ -2344,9 +2319,11 @@ namespace helengine.editor {
                 using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
                 settings = AudioAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
-            } catch {
+            } catch (Exception ex) {
                 settings = null;
-                return false;
+                throw new InvalidOperationException(
+                    $"Audio import settings sidecar '{settingsPath}' is obsolete or invalid. {ex.Message} Regenerate the audio import settings sidecar.",
+                    ex);
             }
         }
 
@@ -2594,9 +2571,7 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
             TextureAssetImportSettings settings = null;
-            bool requiresRewrite = false;
-            bool preserveLegacyAssetId = false;
-            bool loadedFromDisk = settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings, out requiresRewrite, out preserveLegacyAssetId);
+            bool loadedFromDisk = settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings);
             bool repaired = false;
             if (!loadedFromDisk) {
                 try {
@@ -2608,8 +2583,8 @@ namespace helengine.editor {
                 repaired = RepairTextureImporterId(sourcePath, settings);
             }
 
-            UpdateTextureImportSettingsChecksum(settings, sourcePath, preserveLegacyAssetId);
-            if (settingsFileExists && (!loadedFromDisk || repaired || requiresRewrite)) {
+            UpdateTextureImportSettingsChecksum(settings, sourcePath);
+            if (settingsFileExists && repaired) {
                 SaveTextureImportSettings(sourcePath, settings);
             }
 
@@ -2647,12 +2622,10 @@ namespace helengine.editor {
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
-            bool requiresRewrite = false;
-            bool preserveLegacyAssetId = false;
-            if (settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings, out requiresRewrite, out preserveLegacyAssetId)) {
+            if (settingsFileExists && TryLoadTextureImportSettings(settingsPath, out settings)) {
                 bool repaired = RepairTextureImporterId(sourcePath, settings);
-                UpdateTextureImportSettingsChecksum(settings, sourcePath, preserveLegacyAssetId);
-                if (repaired || requiresRewrite) {
+                UpdateTextureImportSettingsChecksum(settings, sourcePath);
+                if (repaired) {
                     SaveTextureImportSettings(sourcePath, settings);
                 }
                 return true;
@@ -2663,61 +2636,7 @@ namespace helengine.editor {
             }
 
             UpdateTextureImportSettingsChecksum(settings, sourcePath);
-            if (settingsFileExists) {
-                SaveTextureImportSettings(sourcePath, settings);
-            }
-
             return true;
-        }
-
-        /// <summary>
-        /// Converts one legacy generic import-settings payload into the current typed texture-settings shape.
-        /// </summary>
-        /// <param name="legacySettings">Legacy generic import settings to convert.</param>
-        /// <returns>Typed texture import settings that preserve the legacy importer metadata and per-platform texture processor settings.</returns>
-        TextureAssetImportSettings ConvertLegacyTextureImportSettings(AssetImportSettings legacySettings) {
-            if (legacySettings == null) {
-                throw new ArgumentNullException(nameof(legacySettings));
-            } else if (legacySettings.Importer == null) {
-                throw new InvalidOperationException("Legacy texture import settings must include importer metadata.");
-            }
-
-            TextureAssetImportSettings convertedSettings = new TextureAssetImportSettings();
-            convertedSettings.Importer.ImporterId = legacySettings.Importer.ImporterId ?? string.Empty;
-            convertedSettings.Importer.SourceChecksum = legacySettings.Importer.SourceChecksum ?? string.Empty;
-            convertedSettings.Importer.AssetId = legacySettings.Importer.AssetId ?? string.Empty;
-
-            if (legacySettings.Processor == null || legacySettings.Processor.Platforms == null) {
-                return convertedSettings;
-            }
-
-            foreach (KeyValuePair<string, AssetPlatformProcessorSettings> entry in legacySettings.Processor.Platforms) {
-                if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) {
-                    continue;
-                }
-
-                convertedSettings.Processor.Platforms[entry.Key] = CloneTextureProcessorSettings(entry.Value.Texture);
-            }
-
-            return convertedSettings;
-        }
-
-        /// <summary>
-        /// Clones one legacy texture processor settings record into the current typed texture-settings shape.
-        /// </summary>
-        /// <param name="settings">Legacy settings instance to clone.</param>
-        /// <returns>Cloned texture processor settings.</returns>
-        TextureAssetProcessorSettings CloneTextureProcessorSettings(TextureAssetProcessorSettings settings) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            return new TextureAssetProcessorSettings {
-                MaxResolution = settings.MaxResolution,
-                ColorFormatId = settings.ColorFormatId,
-                AlphaPrecision = settings.AlphaPrecision,
-                IndexingMethodId = settings.IndexingMethodId ?? string.Empty
-            };
         }
 
         /// <summary>
@@ -2733,12 +2652,7 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
             ModelAssetImportSettings settings = null;
-            bool loadedFromDisk = false;
-            try {
-                loadedFromDisk = settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings);
-            } catch (Exception ex) {
-                throw new InvalidOperationException($"Failed to load model import settings for source '{sourcePath}'.", ex);
-            }
+            bool loadedFromDisk = settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings);
             bool repaired = false;
             if (!loadedFromDisk) {
                 try {
@@ -2751,7 +2665,7 @@ namespace helengine.editor {
             }
 
             UpdateModelImportSettingsChecksum(settings, sourcePath);
-            if (settingsFileExists && (!loadedFromDisk || repaired)) {
+            if (settingsFileExists && repaired) {
                 SaveModelImportSettings(sourcePath, settings);
             }
 
@@ -2771,12 +2685,7 @@ namespace helengine.editor {
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
             AudioAssetImportSettings settings = null;
-            bool loadedFromDisk = false;
-            try {
-                loadedFromDisk = settingsFileExists && TryLoadAudioImportSettings(settingsPath, out settings);
-            } catch (Exception ex) {
-                throw new InvalidOperationException($"Failed to load audio import settings for source '{sourcePath}'.", ex);
-            }
+            bool loadedFromDisk = settingsFileExists && TryLoadAudioImportSettings(settingsPath, out settings);
             bool repaired = false;
             if (!loadedFromDisk) {
                 try {
@@ -2789,7 +2698,7 @@ namespace helengine.editor {
             }
 
             UpdateAudioImportSettingsChecksum(settings, sourcePath);
-            if (settingsFileExists && (!loadedFromDisk || repaired)) {
+            if (settingsFileExists && repaired) {
                 SaveAudioImportSettings(sourcePath, settings);
             }
 
@@ -2845,17 +2754,13 @@ namespace helengine.editor {
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
-            try {
-                if (settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings)) {
-                    bool repaired = RepairModelImporterId(sourcePath, settings);
-                    UpdateModelImportSettingsChecksum(settings, sourcePath);
-                    if (repaired) {
-                        SaveModelImportSettings(sourcePath, settings);
-                    }
-                    return true;
+            if (settingsFileExists && TryLoadModelImportSettings(settingsPath, out settings)) {
+                bool repaired = RepairModelImporterId(sourcePath, settings);
+                UpdateModelImportSettingsChecksum(settings, sourcePath);
+                if (repaired) {
+                    SaveModelImportSettings(sourcePath, settings);
                 }
-            } catch (Exception ex) {
-                throw new InvalidOperationException($"Failed to load model import settings for source '{sourcePath}'.", ex);
+                return true;
             }
 
             if (!TryCreateDefaultModelImportSettings(sourcePath, out settings)) {
@@ -2863,10 +2768,6 @@ namespace helengine.editor {
             }
 
             UpdateModelImportSettingsChecksum(settings, sourcePath);
-            if (settingsFileExists) {
-                SaveModelImportSettings(sourcePath, settings);
-            }
-
             return true;
         }
 
@@ -2883,17 +2784,13 @@ namespace helengine.editor {
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
-            try {
-                if (settingsFileExists && TryLoadAudioImportSettings(settingsPath, out settings)) {
-                    bool repaired = RepairAudioImporterId(sourcePath, settings);
-                    UpdateAudioImportSettingsChecksum(settings, sourcePath);
-                    if (repaired) {
-                        SaveAudioImportSettings(sourcePath, settings);
-                    }
-                    return true;
+            if (settingsFileExists && TryLoadAudioImportSettings(settingsPath, out settings)) {
+                bool repaired = RepairAudioImporterId(sourcePath, settings);
+                UpdateAudioImportSettingsChecksum(settings, sourcePath);
+                if (repaired) {
+                    SaveAudioImportSettings(sourcePath, settings);
                 }
-            } catch (Exception ex) {
-                throw new InvalidOperationException($"Failed to load audio import settings for source '{sourcePath}'.", ex);
+                return true;
             }
 
             if (!TryCreateDefaultAudioImportSettings(sourcePath, out settings)) {
@@ -2901,10 +2798,6 @@ namespace helengine.editor {
             }
 
             UpdateAudioImportSettingsChecksum(settings, sourcePath);
-            if (settingsFileExists) {
-                SaveAudioImportSettings(sourcePath, settings);
-            }
-
             return true;
         }
 
@@ -3404,21 +3297,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates typed texture import settings to store the current source checksum.
+        /// Updates typed texture import settings to store the current source checksum and deterministic asset id.
         /// </summary>
         /// <param name="settings">Settings to update.</param>
         /// <param name="sourcePath">Absolute path to the source file.</param>
         void UpdateTextureImportSettingsChecksum(TextureAssetImportSettings settings, string sourcePath) {
-            UpdateTextureImportSettingsChecksum(settings, sourcePath, false);
-        }
-
-        /// <summary>
-        /// Updates typed texture import settings to store the current source checksum while optionally preserving one explicit legacy imported asset id.
-        /// </summary>
-        /// <param name="settings">Settings to update.</param>
-        /// <param name="sourcePath">Absolute path to the source file.</param>
-        /// <param name="preserveLegacyAssetId">True when the current importer asset id originated from a legacy sidecar and must not be recomputed.</param>
-        void UpdateTextureImportSettingsChecksum(TextureAssetImportSettings settings, string sourcePath, bool preserveLegacyAssetId) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             } else if (string.IsNullOrWhiteSpace(sourcePath)) {
@@ -3427,9 +3310,7 @@ namespace helengine.editor {
 
             string checksum = fileHasher.ComputeHash(sourcePath);
             settings.Importer.SourceChecksum = checksum;
-            if (!preserveLegacyAssetId || string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
-                settings.Importer.AssetId = BuildTextureAssetId(sourcePath, settings, checksum);
-            }
+            settings.Importer.AssetId = BuildTextureAssetId(sourcePath, settings, checksum);
         }
 
         /// <summary>

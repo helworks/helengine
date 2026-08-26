@@ -826,20 +826,20 @@ namespace helengine.editor.tests {
         /// Ensures asset import settings round-trip through the custom binary serializer and emit the expected header.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_WritesExpectedHeaderAndRoundTrips() {
+        public void SectionedAssetImportSettingsBinarySerializer_WritesExpectedHeaderAndRoundTrips() {
             AssetImportSettings settings = CreateAssetImportSettings();
 
             using MemoryStream stream = new MemoryStream();
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             byte[] data = stream.ToArray();
             EngineBinaryHeader header = ReadHeader(data);
             stream.Position = 0;
-            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            AssetImportSettings deserialized = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
 
             Assert.Equal(EditorAssetBinarySerializer.FormatId, header.FormatId);
-            Assert.Equal((ushort)AssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
-            Assert.Equal((ushort)AssetImportSettingsBinarySerializer.ValueKind, header.ValueKind);
-            Assert.Equal(AssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
+            Assert.Equal((ushort)SectionedAssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
+            Assert.Equal((ushort)SectionedAssetImportSettingsBinarySerializer.ValueKind, header.ValueKind);
+            Assert.Equal(SectionedAssetImportSettingsBinarySerializer.CurrentVersion, header.Version);
             Assert.Equal(settings.Importer.ImporterId, deserialized.Importer.ImporterId);
             Assert.Equal(settings.Importer.SourceChecksum, deserialized.Importer.SourceChecksum);
             Assert.Equal(settings.Importer.AssetId, deserialized.Importer.AssetId);
@@ -853,7 +853,7 @@ namespace helengine.editor.tests {
         /// Ensures texture processor settings round-trip through the asset import settings serializer for each platform.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_RoundTripsTextureMaxResolutionPerPlatform() {
+        public void SectionedAssetImportSettingsBinarySerializer_RoundTripsTextureMaxResolutionPerPlatform() {
             AssetImportSettings settings = CreateAssetImportSettings();
             settings.Processor.Platforms["windows"].Texture = new TextureAssetProcessorSettings {
                 MaxResolution = 512,
@@ -866,10 +866,10 @@ namespace helengine.editor.tests {
             };
 
             using MemoryStream stream = new MemoryStream();
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             stream.Position = 0;
 
-            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            AssetImportSettings deserialized = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
 
             Assert.Equal(512, deserialized.Processor.Platforms["windows"].Texture.MaxResolution);
             Assert.Equal(TextureAssetColorFormat.Rgba32, deserialized.Processor.Platforms["windows"].Texture.ColorFormat);
@@ -883,7 +883,7 @@ namespace helengine.editor.tests {
         /// Ensures generic asset import settings preserve the selected indexing method for indexed texture formats.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_RoundTripsTextureIndexingMethodPerPlatform() {
+        public void SectionedAssetImportSettingsBinarySerializer_RoundTripsTextureIndexingMethodPerPlatform() {
             AssetImportSettings settings = CreateAssetImportSettings();
             settings.Processor.Platforms["android"].Texture = new TextureAssetProcessorSettings {
                 MaxResolution = 256,
@@ -893,10 +893,10 @@ namespace helengine.editor.tests {
             };
 
             using MemoryStream stream = new MemoryStream();
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             stream.Position = 0;
 
-            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            AssetImportSettings deserialized = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
 
             Assert.Equal(
                 TextureAssetIndexingMethod.QuantizedIndexed.ToString(),
@@ -907,7 +907,7 @@ namespace helengine.editor.tests {
         /// Ensures generic asset import settings preserve opaque platform-owned texture color-format identifiers.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_WhenGameCubeUsesOpaqueColorFormatId_PreservesThatFormat() {
+        public void SectionedAssetImportSettingsBinarySerializer_WhenGameCubeUsesOpaqueColorFormatId_PreservesThatFormat() {
             AssetImportSettings settings = CreateAssetImportSettings();
             settings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
@@ -918,10 +918,10 @@ namespace helengine.editor.tests {
             };
 
             using MemoryStream stream = new MemoryStream();
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             stream.Position = 0;
 
-            AssetImportSettings deserialized = AssetImportSettingsBinarySerializer.Deserialize(stream);
+            AssetImportSettings deserialized = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
 
             Assert.Equal(256, deserialized.Processor.Platforms["gamecube"].Texture.MaxResolution);
             Assert.Equal("GxRgb5A3", deserialized.Processor.Platforms["gamecube"].Texture.ColorFormatId);
@@ -932,10 +932,10 @@ namespace helengine.editor.tests {
         /// Ensures invalid import-settings payload headers are rejected.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_Deserialize_WithInvalidHeader_Throws() {
+        public void SectionedAssetImportSettingsBinarySerializer_Deserialize_WithInvalidHeader_Throws() {
             using MemoryStream stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("older-settings"));
 
-            Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(stream));
+            Assert.Throws<InvalidOperationException>(() => SectionedAssetImportSettingsBinarySerializer.Deserialize(stream));
         }
 
         /// <summary>
@@ -1012,7 +1012,7 @@ namespace helengine.editor.tests {
             EditorContentManagerConfiguration.ConfigureProjectContentManager(contentManager);
 
             using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+                SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             }
 
             AssetImportSettings loadedSettings = contentManager.Load<AssetImportSettings>(settingsPath);
@@ -1027,28 +1027,28 @@ namespace helengine.editor.tests {
         /// Ensures unsupported older asset-import-settings versions are rejected by the serializer.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_Deserialize_WithOlderVersion_Throws() {
+        public void SectionedAssetImportSettingsBinarySerializer_Deserialize_WithOlderVersion_Throws() {
             AssetImportSettings settings = CreateAssetImportSettings();
             byte[] data;
 
             using (MemoryStream stream = new MemoryStream()) {
-                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+                SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
                 data = stream.ToArray();
             }
 
             data[5] = 2;
 
             using MemoryStream deserializeStream = new MemoryStream(data);
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Deserialize(deserializeStream));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => SectionedAssetImportSettingsBinarySerializer.Deserialize(deserializeStream));
 
-            Assert.Contains("Unsupported asset import settings binary version", exception.Message);
+            Assert.Contains("Unsupported sectioned asset import settings binary version", exception.Message);
         }
 
         /// <summary>
         /// Ensures negative texture processor limits are rejected during asset import settings serialization.
         /// </summary>
         [Fact]
-        public void AssetImportSettingsBinarySerializer_Serialize_WhenTextureMaxResolutionIsNegative_Throws() {
+        public void SectionedAssetImportSettingsBinarySerializer_Serialize_WhenTextureMaxResolutionIsNegative_Throws() {
             AssetImportSettings settings = CreateAssetImportSettings();
             settings.Processor.Platforms["windows"].Texture = new TextureAssetProcessorSettings {
                 MaxResolution = -1,
@@ -1057,7 +1057,7 @@ namespace helengine.editor.tests {
 
             using MemoryStream stream = new MemoryStream();
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AssetImportSettingsBinarySerializer.Serialize(stream, settings));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings));
             Assert.Contains("Texture max resolution cannot be negative", exception.Message);
         }
 
@@ -1115,10 +1115,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures version-one model settings deserialize with tessellation defaults.
+        /// Ensures version-one model settings are rejected instead of defaulting missing tessellation fields.
         /// </summary>
         [Fact]
-        public void ModelAssetImportSettingsBinarySerializer_DeserializeVersionOne_DefaultsTessellationSettings() {
+        public void ModelAssetImportSettingsBinarySerializer_DeserializeVersionOne_ThrowsRegenerationGuidance() {
             using MemoryStream stream = new MemoryStream();
             EngineBinaryHeader header = new EngineBinaryHeader(
                 EngineBinaryEndianness.LittleEndian,
@@ -1138,40 +1138,38 @@ namespace helengine.editor.tests {
 
             stream.Position = 0;
 
-            ModelAssetImportSettings deserialized = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => ModelAssetImportSettingsBinarySerializer.Deserialize(stream));
 
-            ModelAssetProcessorSettings platformSettings = deserialized.Processor.Platforms["windows"];
-            Assert.True(platformSettings.FlipWinding);
-            Assert.False(platformSettings.Tessellate);
-            Assert.Equal(1.0d, platformSettings.TessellationMaxEdgeLength);
+            Assert.Contains("1", exception.Message, StringComparison.Ordinal);
+            Assert.Contains(ModelAssetImportSettingsBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
-        /// Ensures stale legacy model settings are replaced with current typed settings when a source file is reopened.
+        /// Ensures obsolete generic model settings are rejected without conversion or rewriting.
         /// </summary>
         [Fact]
-        public void LoadOrCreateModelImportSettings_WhenLegacySidecarExists_RecreatesCurrentTypedSettings() {
-            string sourcePath = Path.Combine(TempRootPath, "DemoDiscBody.ttf");
+        public void LoadOrCreateModelImportSettings_WhenObsoleteGenericSidecarExists_ThrowsWithoutRewrite() {
+            string sourcePath = Path.Combine(TempRootPath, "DemoDiscBody.obj");
             string settingsPath = sourcePath + ".hasset";
             File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
 
-            AssetImportSettings legacySettings = CreateAssetImportSettings();
+            AssetImportSettings obsoleteSettings = CreateAssetImportSettings();
             using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetImportSettingsBinarySerializer.Serialize(stream, legacySettings);
+                SectionedAssetImportSettingsBinarySerializer.Serialize(stream, obsoleteSettings);
             }
+            byte[] obsoleteData = File.ReadAllBytes(settingsPath);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             AssetImportManager manager = new AssetImportManager(TempRootPath, contentManager);
 
-            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => manager.LoadOrCreateModelImportSettings(sourcePath));
 
-            Assert.False(string.IsNullOrWhiteSpace(settings.Importer.SourceChecksum));
-            Assert.False(string.IsNullOrWhiteSpace(settings.Importer.AssetId));
-
-            byte[] rewrittenSettings = File.ReadAllBytes(settingsPath);
-            EngineBinaryHeader header = ReadHeader(rewrittenSettings);
-            Assert.Equal((ushort)ModelAssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
-            Assert.Equal((ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings, header.ValueKind);
+            Assert.Contains("obsolete", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(obsoleteData, File.ReadAllBytes(settingsPath));
         }
 
         /// <summary>
@@ -1196,6 +1194,202 @@ namespace helengine.editor.tests {
             Assert.Equal("standard-shader", deserialized.Processor.Platforms["windows"].SchemaId);
             Assert.Equal("#ffffffff", deserialized.Processor.Platforms["windows"].FieldValues["base-color"]);
             Assert.Equal("Textures/checker", deserialized.Processor.Platforms["windows"].FieldValues["texture-id"]);
+        }
+
+        /// <summary>
+        /// Ensures typed texture settings reject every version other than the current layout and explain regeneration.
+        /// </summary>
+        [Theory]
+        [InlineData((byte)(TextureAssetImportSettingsBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(TextureAssetImportSettingsBinarySerializer.CurrentVersion + 1))]
+        public void TextureAssetImportSettingsBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
+            TextureAssetImportSettings settings = CreateTextureAssetImportSettings();
+            byte[] data = SerializeTextureSettings(settings);
+            data[5] = version;
+
+            using MemoryStream stream = new MemoryStream(data);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => TextureAssetImportSettingsBinarySerializer.Deserialize(stream));
+
+            Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(TextureAssetImportSettingsBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures typed model settings reject every version other than the current layout and explain regeneration.
+        /// </summary>
+        [Theory]
+        [InlineData((byte)(ModelAssetImportSettingsBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(ModelAssetImportSettingsBinarySerializer.CurrentVersion + 1))]
+        public void ModelAssetImportSettingsBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
+            ModelAssetImportSettings settings = CreateModelAssetImportSettings();
+            byte[] data = SerializeModelSettings(settings);
+            data[5] = version;
+
+            using MemoryStream stream = new MemoryStream(data);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => ModelAssetImportSettingsBinarySerializer.Deserialize(stream));
+
+            Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(ModelAssetImportSettingsBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures typed material settings reject every version other than the current layout and explain regeneration.
+        /// </summary>
+        [Theory]
+        [InlineData((byte)(MaterialAssetImportSettingsBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(MaterialAssetImportSettingsBinarySerializer.CurrentVersion + 1))]
+        public void MaterialAssetImportSettingsBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
+            MaterialAssetImportSettings settings = CreateMaterialAssetImportSettings();
+            byte[] data = SerializeMaterialSettings(settings);
+            data[5] = version;
+
+            using MemoryStream stream = new MemoryStream(data);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => MaterialAssetImportSettingsBinarySerializer.Deserialize(stream));
+
+            Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(MaterialAssetImportSettingsBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures shared material settings documents reject every version other than the current layout and explain regeneration.
+        /// </summary>
+        [Theory]
+        [InlineData((byte)(MaterialAssetCommonSettingsDocumentBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(MaterialAssetCommonSettingsDocumentBinarySerializer.CurrentVersion + 1))]
+        public void MaterialAssetCommonSettingsDocumentBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
+            MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument {
+                AuthoringAssetId = "11111111222243338444555555555555"
+            };
+            document.Importer.ImporterId = "helengine.material";
+            document.Processor.SchemaId = "standard-shader";
+            document.Processor.FieldValues["base-color"] = "#ffffffff";
+            byte[] data = SerializeMaterialCommonSettings(document);
+            data[5] = version;
+
+            using MemoryStream stream = new MemoryStream(data);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream));
+
+            Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(MaterialAssetCommonSettingsDocumentBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures platform material override documents reject every version other than the current layout and explain regeneration.
+        /// </summary>
+        [Theory]
+        [InlineData((byte)(MaterialAssetPlatformOverrideDocumentBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(MaterialAssetPlatformOverrideDocumentBinarySerializer.CurrentVersion + 1))]
+        public void MaterialAssetPlatformOverrideDocumentBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
+            MaterialAssetPlatformOverrideDocument document = new MaterialAssetPlatformOverrideDocument {
+                PlatformId = "windows"
+            };
+            document.Processor.FieldValues["base-color"] = "#ffffffff";
+            byte[] data = SerializeMaterialPlatformOverride(document);
+            data[5] = version;
+
+            using MemoryStream stream = new MemoryStream(data);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => MaterialAssetPlatformOverrideDocumentBinarySerializer.Deserialize(stream));
+
+            Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(MaterialAssetPlatformOverrideDocumentBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures current shared material settings preserve non-default identity, importer, field, and reference values.
+        /// </summary>
+        [Fact]
+        public void MaterialAssetCommonSettingsDocumentBinarySerializer_RoundTripsNonDefaultSettings() {
+            MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument {
+                AuthoringAssetId = "11111111222243338444555555555555",
+                FormerAuthoringAssetIds = new List<string> { "aaaaaaaa222243338444555555555555" }
+            };
+            document.Importer.ImporterId = "helengine.material";
+            document.Importer.SourceChecksum = "sha256:" + new string('a', 64);
+            document.Importer.AssetId = "Materials/Panel.hasset";
+            document.Processor.SchemaId = "standard-shader";
+            document.Processor.FieldValues["base-color"] = "#12345678";
+            document.Processor.AssetReferenceValues["texture-id"] = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "99999999222243338444555555555555",
+                "Textures/Panel.png",
+                "sha256:" + new string('b', 64));
+
+            byte[] data = SerializeMaterialCommonSettings(document);
+            using MemoryStream stream = new MemoryStream(data);
+            MaterialAssetCommonSettingsDocument restored = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(document.AuthoringAssetId, restored.AuthoringAssetId);
+            Assert.Equal(document.FormerAuthoringAssetIds, restored.FormerAuthoringAssetIds);
+            Assert.Equal(document.Importer.ImporterId, restored.Importer.ImporterId);
+            Assert.Equal(document.Importer.SourceChecksum, restored.Importer.SourceChecksum);
+            Assert.Equal(document.Importer.AssetId, restored.Importer.AssetId);
+            Assert.Equal(document.Processor.SchemaId, restored.Processor.SchemaId);
+            Assert.Equal(document.Processor.FieldValues["base-color"], restored.Processor.FieldValues["base-color"]);
+            SceneAssetReference reference = restored.Processor.AssetReferenceValues["texture-id"];
+            Assert.Equal("99999999222243338444555555555555", reference.AssetId);
+            Assert.Equal("Textures/Panel.png", reference.RelativePath);
+            Assert.Equal("sha256:" + new string('b', 64), reference.ContentHash);
+        }
+
+        /// <summary>
+        /// Ensures current platform material overrides preserve non-default scope, schema, field, and reference values.
+        /// </summary>
+        [Fact]
+        public void MaterialAssetPlatformOverrideDocumentBinarySerializer_RoundTripsNonDefaultSettings() {
+            MaterialAssetPlatformOverrideDocument document = new MaterialAssetPlatformOverrideDocument {
+                PlatformId = "windows",
+                EnvironmentId = "hdr"
+            };
+            document.Processor.HasSchemaIdOverride = true;
+            document.Processor.SchemaId = "standard-shader";
+            document.Processor.FieldValues["base-color"] = "#87654321";
+            document.Processor.AssetReferenceValues["texture-id"] = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "88888888222243338444555555555555",
+                "Textures/HdrPanel.png",
+                "sha256:" + new string('c', 64));
+
+            byte[] data = SerializeMaterialPlatformOverride(document);
+            using MemoryStream stream = new MemoryStream(data);
+            MaterialAssetPlatformOverrideDocument restored = MaterialAssetPlatformOverrideDocumentBinarySerializer.Deserialize(stream);
+
+            Assert.Equal(document.PlatformId, restored.PlatformId);
+            Assert.Equal(document.EnvironmentId, restored.EnvironmentId);
+            Assert.True(restored.Processor.HasSchemaIdOverride);
+            Assert.Equal(document.Processor.SchemaId, restored.Processor.SchemaId);
+            Assert.Equal(document.Processor.FieldValues["base-color"], restored.Processor.FieldValues["base-color"]);
+            SceneAssetReference reference = restored.Processor.AssetReferenceValues["texture-id"];
+            Assert.Equal("88888888222243338444555555555555", reference.AssetId);
+            Assert.Equal("Textures/HdrPanel.png", reference.RelativePath);
+            Assert.Equal("sha256:" + new string('c', 64), reference.ContentHash);
+        }
+
+        /// <summary>
+        /// Ensures typed audio settings reject every version other than the current layout and explain regeneration.
+        /// </summary>
+        [Theory]
+        [InlineData((byte)(AudioAssetImportSettingsBinarySerializer.CurrentVersion - 1))]
+        [InlineData((byte)(AudioAssetImportSettingsBinarySerializer.CurrentVersion + 1))]
+        public void AudioAssetImportSettingsBinarySerializer_Deserialize_WhenVersionIsNotCurrent_ReportsRegeneration(byte version) {
+            AudioAssetImportSettings settings = CreateAudioAssetImportSettings();
+            byte[] data = SerializeAudioSettings(settings);
+            data[5] = version;
+
+            using MemoryStream stream = new MemoryStream(data);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => AudioAssetImportSettingsBinarySerializer.Deserialize(stream));
+
+            Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(AudioAssetImportSettingsBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -1574,6 +1768,72 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Serializes current texture settings so a test can replace only the version byte.
+        /// </summary>
+        /// <param name="settings">Texture settings to serialize.</param>
+        /// <returns>Serialized texture settings bytes.</returns>
+        static byte[] SerializeTextureSettings(TextureAssetImportSettings settings) {
+            using MemoryStream stream = new MemoryStream();
+            TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Serializes current model settings so a test can replace only the version byte.
+        /// </summary>
+        /// <param name="settings">Model settings to serialize.</param>
+        /// <returns>Serialized model settings bytes.</returns>
+        static byte[] SerializeModelSettings(ModelAssetImportSettings settings) {
+            using MemoryStream stream = new MemoryStream();
+            ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Serializes current material settings so a test can replace only the version byte.
+        /// </summary>
+        /// <param name="settings">Material settings to serialize.</param>
+        /// <returns>Serialized material settings bytes.</returns>
+        static byte[] SerializeMaterialSettings(MaterialAssetImportSettings settings) {
+            using MemoryStream stream = new MemoryStream();
+            MaterialAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Serializes current shared material settings so a test can replace only the version byte.
+        /// </summary>
+        /// <param name="document">Shared material settings document to serialize.</param>
+        /// <returns>Serialized shared material settings bytes.</returns>
+        static byte[] SerializeMaterialCommonSettings(MaterialAssetCommonSettingsDocument document) {
+            using MemoryStream stream = new MemoryStream();
+            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Serializes current material platform override settings so a test can replace only the version byte.
+        /// </summary>
+        /// <param name="document">Platform override document to serialize.</param>
+        /// <returns>Serialized platform override bytes.</returns>
+        static byte[] SerializeMaterialPlatformOverride(MaterialAssetPlatformOverrideDocument document) {
+            using MemoryStream stream = new MemoryStream();
+            MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(stream, document);
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// Serializes current audio settings so a test can replace only the version byte.
+        /// </summary>
+        /// <param name="settings">Audio settings to serialize.</param>
+        /// <returns>Serialized audio settings bytes.</returns>
+        static byte[] SerializeAudioSettings(AudioAssetImportSettings settings) {
+            using MemoryStream stream = new MemoryStream();
+            AudioAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            return stream.ToArray();
+        }
+
+        /// <summary>
         /// Creates representative asset import settings for serializer testing.
         /// </summary>
         /// <returns>Asset import settings with sample values.</returns>
@@ -1621,6 +1881,33 @@ namespace helengine.editor.tests {
                         ["android"] = new TextureAssetProcessorSettings {
                             MaxResolution = 128,
                             ColorFormat = TextureAssetColorFormat.Rgba4444
+                        }
+                    }
+                }
+            };
+        }
+
+        /// <summary>
+        /// Creates representative typed audio asset import settings for serializer testing.
+        /// </summary>
+        /// <returns>Audio asset import settings with sample values.</returns>
+        static AudioAssetImportSettings CreateAudioAssetImportSettings() {
+            return new AudioAssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = "wav",
+                    SourceChecksum = "audio-checksum",
+                    AssetId = "audio-id"
+                },
+                Processor = new AudioAssetProcessorPlatformSettings {
+                    Platforms = new Dictionary<string, AudioAssetProcessorSettings> {
+                        ["windows"] = new AudioAssetProcessorSettings {
+                            EncodingFamilyId = "pcm-streamed",
+                            PlaybackMode = AudioPlaybackMode.Streamed,
+                            TargetChannels = 2,
+                            TargetSampleRate = 44100,
+                            StreamChunkByteSize = 4096,
+                            DefaultLoop = true,
+                            DefaultBusId = "music"
                         }
                     }
                 }

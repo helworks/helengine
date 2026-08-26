@@ -115,10 +115,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures stale texture import settings are regenerated in the current typed format instead of failing to load.
+        /// Ensures stale texture import settings fail with regeneration guidance and remain untouched.
         /// </summary>
         [Fact]
-        public void LoadOrCreateTextureImportSettings_WhenSettingsUseUnsupportedVersion_RecreatesDefaults() {
+        public void LoadOrCreateTextureImportSettings_WhenSettingsUseUnsupportedVersion_ThrowsRegenerationGuidanceWithoutRewrite() {
             string sourcePath = WriteSourceTexture("unsupported-settings-version.png");
             string settingsPath = sourcePath + ".hasset";
             AssetImportManager manager = CreateManager();
@@ -132,70 +132,55 @@ namespace helengine.editor.tests {
             unsupportedVersionSettings[5] = 2;
             File.WriteAllBytes(settingsPath, unsupportedVersionSettings);
 
-            TextureAssetImportSettings recoveredSettings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => manager.LoadOrCreateTextureImportSettings(sourcePath));
 
-            Assert.Equal(settings.Importer.ImporterId, recoveredSettings.Importer.ImporterId);
-            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                TextureAssetImportSettings savedSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
-                Assert.Equal(settings.Importer.ImporterId, savedSettings.Importer.ImporterId);
-            }
+            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains(TextureAssetImportSettingsBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(unsupportedVersionSettings, File.ReadAllBytes(settingsPath));
         }
 
         /// <summary>
-        /// Ensures legacy generic texture sidecars are upgraded to the current typed texture settings format without losing GameCube processor settings.
+        /// Ensures obsolete generic texture sidecars are rejected without conversion or rewriting.
         /// </summary>
         [Fact]
-        public void LoadOrCreateTextureImportSettings_WhenLegacyGenericSidecarCarriesGameCubeTextureSettings_PreservesThemInTypedRewrite() {
-            string sourcePath = WriteSourceTexture("legacy-generic-gamecube-texture-settings.png");
+        public void LoadOrCreateTextureImportSettings_WhenObsoleteGenericSidecarExists_ThrowsWithoutRewrite() {
+            string sourcePath = WriteSourceTexture("obsolete-generic-texture-settings.png");
             string settingsPath = sourcePath + ".hasset";
             AssetImportManager manager = CreateManager();
-            manager.CurrentPlatformId = "gamecube";
 
-            AssetImportSettings legacySettings = manager.LoadOrCreateImportSettings(sourcePath);
-            legacySettings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
-                Texture = new TextureAssetProcessorSettings {
-                    MaxResolution = 256,
-                    ColorFormatId = "GxRgb5A3",
-                    AlphaPrecision = TextureAssetAlphaPrecision.A8
-                }
-            };
-            manager.SaveImportSettings(sourcePath, legacySettings);
+            AssetImportSettings obsoleteSettings = manager.LoadOrCreateImportSettings(sourcePath);
+            manager.SaveImportSettings(sourcePath, obsoleteSettings);
+            byte[] obsoleteData = File.ReadAllBytes(settingsPath);
 
-            TextureAssetImportSettings rewrittenSettings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => manager.LoadOrCreateTextureImportSettings(sourcePath));
 
-            Assert.True(rewrittenSettings.Processor.Platforms.TryGetValue("gamecube", out TextureAssetProcessorSettings platformSettings));
-            Assert.NotNull(platformSettings);
-            Assert.Equal(256, platformSettings.MaxResolution);
-            Assert.Equal("GxRgb5A3", platformSettings.ColorFormatId);
-            Assert.Equal(TextureAssetAlphaPrecision.A8, platformSettings.AlphaPrecision);
-
-            byte[] rewrittenData = File.ReadAllBytes(settingsPath);
-            EngineBinaryHeader header = ReadHeader(rewrittenData);
-            Assert.Equal((ushort)TextureAssetImportSettingsBinarySerializer.RecordKind, header.RecordKind);
-            Assert.Equal((ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings, header.ValueKind);
+            Assert.Contains("obsolete", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(obsoleteData, File.ReadAllBytes(settingsPath));
         }
 
         /// <summary>
-        /// Ensures imported texture source resolution honors an explicit sidecar asset id even when the id does not match the current computed identity.
+        /// Ensures imported texture source resolution honors an explicit current typed sidecar asset id.
         /// </summary>
         [Fact]
-        public void TryResolveImportedTextureSourcePath_WhenLegacySidecarCarriesExplicitAssetId_ResolvesSourcePath() {
-            string sourcePath = WriteSourceTexture("legacy-explicit-texture-id.png");
+        public void TryResolveImportedTextureSourcePath_WhenCurrentTypedSidecarCarriesExplicitAssetId_ResolvesSourcePath() {
+            string sourcePath = WriteSourceTexture("explicit-texture-id.png");
             AssetImportManager manager = CreateManager();
             manager.CurrentPlatformId = "gamecube";
 
-            AssetImportSettings legacySettings = manager.LoadOrCreateImportSettings(sourcePath);
-            legacySettings.Importer.AssetId = "legacy-generated-texture-id";
-            legacySettings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
-                Texture = new TextureAssetProcessorSettings {
-                    MaxResolution = 256,
-                    ColorFormatId = "GxRgb5A3",
-                    AlphaPrecision = TextureAssetAlphaPrecision.A8
-                }
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            settings.Importer.AssetId = "current-generated-texture-id";
+            settings.Processor.Platforms["gamecube"] = new TextureAssetProcessorSettings {
+                MaxResolution = 256,
+                ColorFormatId = "GxRgb5A3",
+                AlphaPrecision = TextureAssetAlphaPrecision.A8
             };
-            manager.SaveImportSettings(sourcePath, legacySettings);
+            manager.SaveTextureImportSettings(sourcePath, settings);
 
-            bool resolved = manager.TryResolveImportedTextureSourcePath("legacy-generated-texture-id", out string resolvedSourcePath);
+            bool resolved = manager.TryResolveImportedTextureSourcePath("current-generated-texture-id", out string resolvedSourcePath);
 
             Assert.True(resolved);
             Assert.Equal(Path.GetFullPath(sourcePath), resolvedSourcePath);
@@ -723,30 +708,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures stale generic font settings are treated as missing and rebuilt when importing a ttf source.
+        /// Ensures stale generic font settings fail with regeneration guidance and remain untouched.
         /// </summary>
         [Fact]
-        public void ImportFont_WhenGenericSettingsSidecarIsStale_RebuildsSettingsAndImportsFont() {
+        public void ImportFont_WhenGenericSettingsSidecarIsStale_ThrowsRegenerationGuidanceWithoutRewrite() {
             string sourcePath = WriteSourceFont("demo-body.ttf");
             string settingsPath = sourcePath + ".hasset";
             AssetImportManager manager = CreateFontManager();
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
 
             using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+                SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             }
 
             byte[] corruptedSettings = File.ReadAllBytes(settingsPath);
             corruptedSettings[5] = 2;
             File.WriteAllBytes(settingsPath, corruptedSettings);
 
-            FontAsset fontAsset = manager.ImportFont(sourcePath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => manager.ImportFont(sourcePath));
 
-            Assert.NotNull(fontAsset);
-            using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-                AssetImportSettings rebuiltSettings = AssetImportSettingsBinarySerializer.Deserialize(stream);
-                Assert.Equal("test-font", rebuiltSettings.Importer.ImporterId);
-            }
+            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains(SectionedAssetImportSettingsBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(corruptedSettings, File.ReadAllBytes(settingsPath));
         }
 
         /// <summary>

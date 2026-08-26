@@ -140,7 +140,8 @@ namespace helengine.editor {
             } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetImportSettings) {
                 throw new InvalidOperationException($"Unexpected material asset import settings value kind '{header.ValueKind}'.");
             } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported material asset import settings binary version '{header.Version}'.");
+                throw new InvalidOperationException(
+                    $"Unsupported material asset import settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the material import settings sidecar.");
             }
         }
 

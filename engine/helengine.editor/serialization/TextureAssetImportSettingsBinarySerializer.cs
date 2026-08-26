@@ -92,8 +92,6 @@ namespace helengine.editor {
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
             if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings) {
                 throw new InvalidOperationException($"Unexpected texture asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version < 1 || header.Version > CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported texture asset import settings binary version '{header.Version}'.");
             }
 
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
@@ -112,25 +110,23 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Texture asset import settings cannot contain a blank processor platform id.");
                 }
 
-                TextureAssetProcessorSettings platformSettings = ReadTextureSettings(reader, header.Version, platformId);
+                TextureAssetProcessorSettings platformSettings = ReadTextureSettings(reader, platformId);
 
                 settings.Processor.Platforms.Add(platformId, platformSettings);
             }
 
-            if (header.Version >= 6) {
-                int environmentPlatformCount = reader.ReadInt32();
-                if (environmentPlatformCount < 0) throw new InvalidOperationException("Texture asset import settings environment platform count cannot be negative.");
-                for (int index = 0; index < environmentPlatformCount; index++) {
-                    string platformId = reader.ReadString();
-                    int environmentCount = reader.ReadInt32();
-                    if (environmentCount < 0) throw new InvalidOperationException("Texture asset import settings environment count cannot be negative.");
-                    Dictionary<string, TextureAssetProcessorSettings> environments = new Dictionary<string, TextureAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
-                    for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
-                        string environmentId = reader.ReadString();
-                        environments.Add(environmentId, ReadTextureSettings(reader, header.Version, environmentId));
-                    }
-                    settings.Processor.Environments.Add(platformId, environments);
+            int environmentPlatformCount = reader.ReadInt32();
+            if (environmentPlatformCount < 0) throw new InvalidOperationException("Texture asset import settings environment platform count cannot be negative.");
+            for (int index = 0; index < environmentPlatformCount; index++) {
+                string platformId = reader.ReadString();
+                int environmentCount = reader.ReadInt32();
+                if (environmentCount < 0) throw new InvalidOperationException("Texture asset import settings environment count cannot be negative.");
+                Dictionary<string, TextureAssetProcessorSettings> environments = new Dictionary<string, TextureAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
+                for (int environmentIndex = 0; environmentIndex < environmentCount; environmentIndex++) {
+                    string environmentId = reader.ReadString();
+                    environments.Add(environmentId, ReadTextureSettings(reader, environmentId));
                 }
+                settings.Processor.Environments.Add(platformId, environments);
             }
 
             return settings;
@@ -147,33 +143,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported texture asset import settings format id '{header.FormatId}'.");
             } else if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected texture asset import settings record kind '{header.RecordKind}'.");
+            } else if (header.Version != CurrentVersion) {
+                throw new InvalidOperationException(
+                    $"Unsupported texture asset import settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the texture import settings sidecar.");
             }
-        }
-
-        /// <summary>
-        /// Reads one serialized texture color-format value.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the texture format byte.</param>
-        /// <returns>Decoded texture color format.</returns>
-        static TextureAssetColorFormat ReadLegacyTextureAssetColorFormat(EngineBinaryReader reader) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-
-            byte serializedValue = reader.ReadByte();
-            if (serializedValue == (byte)TextureAssetColorFormat.Rgba32) {
-                return TextureAssetColorFormat.Rgba32;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.Rgba4444) {
-                return TextureAssetColorFormat.Rgba4444;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed4) {
-                return TextureAssetColorFormat.Indexed4;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.Indexed8) {
-                return TextureAssetColorFormat.Indexed8;
-            } else if (serializedValue == (byte)TextureAssetColorFormat.GxRgb5A3) {
-                return TextureAssetColorFormat.GxRgb5A3;
-            }
-
-            throw new InvalidOperationException($"Unsupported texture color format '{serializedValue}'.");
         }
 
         /// <summary>
@@ -222,12 +195,15 @@ namespace helengine.editor {
             writer.WriteString(settings.IndexingMethodId ?? string.Empty);
         }
 
-        static TextureAssetProcessorSettings ReadTextureSettings(EngineBinaryReader reader, byte version, string ownerId) {
+        static TextureAssetProcessorSettings ReadTextureSettings(EngineBinaryReader reader, string ownerId) {
             TextureAssetProcessorSettings settings = new TextureAssetProcessorSettings { MaxResolution = reader.ReadInt32() };
             if (settings.MaxResolution < 0) throw new InvalidOperationException($"Texture asset import settings cannot contain a negative max resolution for '{ownerId}'.");
-            settings.ColorFormatId = version >= 5 ? reader.ReadString() : ReadLegacyTextureAssetColorFormat(reader).ToString();
-            settings.AlphaPrecision = version >= 3 ? ReadTextureAssetAlphaPrecision(reader) : TextureAssetAlphaPrecision.A8;
-            settings.IndexingMethodId = version >= 5 ? reader.ReadString() : string.Empty;
+            settings.ColorFormatId = reader.ReadString();
+            if (string.IsNullOrWhiteSpace(settings.ColorFormatId)) {
+                throw new InvalidOperationException($"Texture asset import settings cannot contain a blank texture color format id for '{ownerId}'.");
+            }
+            settings.AlphaPrecision = ReadTextureAssetAlphaPrecision(reader);
+            settings.IndexingMethodId = reader.ReadString();
             return settings;
         }
     }

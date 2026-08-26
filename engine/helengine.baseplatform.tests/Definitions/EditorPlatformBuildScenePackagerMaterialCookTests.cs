@@ -292,7 +292,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         settings.Processor.Platforms["windows"] = platformSettings;
 
         using FileStream stream = new FileStream(materialPath + ".hasset", FileMode.Create, FileAccess.Write, FileShare.None);
-        AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
     }
 
     /// <summary>

@@ -111,7 +111,7 @@ namespace helengine.editor {
             using MemoryStream stream = new MemoryStream();
             byte[] versionBytes = System.Text.Encoding.UTF8.GetBytes(CacheFormatVersion);
             stream.Write(versionBytes, 0, versionBytes.Length);
-            AssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
             return ComputeChecksum(stream.ToArray());
         }
 
