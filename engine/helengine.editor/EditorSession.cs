@@ -4203,8 +4203,52 @@ namespace helengine.editor {
 
             IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
             for (int index = 0; index < propertiesPanels.Count; index++) {
-                propertiesPanels[index].ShowImportError(entry, "Audio import settings are not editable in the current editor.");
+                ShowAudioImportSettingsUnavailable(propertiesPanels[index], entry);
             }
+        }
+
+        /// <summary>
+        /// Reports that the current editor has no audio import-settings editor to one properties panel.
+        /// </summary>
+        /// <param name="panel">Properties panel that should receive the error.</param>
+        /// <param name="entry">Audio asset entry that cannot be edited in this editor.</param>
+        void ShowAudioImportSettingsUnavailable(PropertiesPanel panel, AssetBrowserEntry entry) {
+            if (panel == null) {
+                throw new ArgumentNullException(nameof(panel));
+            }
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            panel.ShowImportError(entry, "Audio import settings are not editable in the current editor.");
+        }
+
+        /// <summary>
+        /// Determines whether one browser entry requires the typed model import-settings path.
+        /// </summary>
+        /// <param name="entry">Asset browser entry to inspect.</param>
+        /// <returns>True for built-in model entries and dynamically registered model extensions.</returns>
+        bool IsModelImportSettingsEntry(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            return entry.EntryKind == AssetEntryKind.Model
+                || (assetImportManager != null && assetImportManager.IsModelExtension(entry.Extension));
+        }
+
+        /// <summary>
+        /// Determines whether one browser entry requires the typed texture import-settings path.
+        /// </summary>
+        /// <param name="entry">Asset browser entry to inspect.</param>
+        /// <returns>True for built-in image entries and dynamically registered texture extensions.</returns>
+        bool IsTextureImportSettingsEntry(AssetBrowserEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+
+            return entry.EntryKind == AssetEntryKind.Image
+                || (assetImportManager != null && assetImportManager.IsTextureExtension(entry.Extension));
         }
 
         /// <summary>
@@ -4306,7 +4350,7 @@ namespace helengine.editor {
                 }
 
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
-                if (entry.EntryKind == AssetEntryKind.Model) {
+                if (IsModelImportSettingsEntry(entry)) {
                     ModelAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateModelImportSettings(entry.FullPath, out settings)) {
                         for (int index = 0; index < propertiesPanels.Count; index++) {
@@ -4321,7 +4365,7 @@ namespace helengine.editor {
                     for (int index = 0; index < propertiesPanels.Count; index++) {
                         propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                     }
-                } else if (entry.EntryKind == AssetEntryKind.Image) {
+                } else if (IsTextureImportSettingsEntry(entry)) {
                     TextureAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateTextureImportSettings(entry.FullPath, out settings)) {
                         for (int index = 0; index < propertiesPanels.Count; index++) {
@@ -4426,14 +4470,14 @@ namespace helengine.editor {
             }
 
             try {
-                if (entry.EntryKind == AssetEntryKind.Model) {
+                if (IsModelImportSettingsEntry(entry)) {
                     ModelAssetImportSettings settings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
                     settings.Importer.ImporterId = request.ImporterId;
                     ApplyModelImportRequestProcessorSettings(settings, request.ProcessorSettings);
                     SetActiveProjectPlatform(request.SelectedPlatformId);
                     assetImportManager.CurrentEnvironmentId = request.SelectedEnvironmentId;
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
-                } else if (entry.EntryKind == AssetEntryKind.Image) {
+                } else if (IsTextureImportSettingsEntry(entry)) {
                     TextureAssetImportSettings settings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
                     settings.Importer.ImporterId = request.ImporterId;
                     ApplyTextureImportRequestProcessorSettings(settings, request.ProcessorSettings);
@@ -4453,13 +4497,13 @@ namespace helengine.editor {
 
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
-                if (entry.EntryKind == AssetEntryKind.Model) {
+                if (IsModelImportSettingsEntry(entry)) {
                     ModelAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
                     AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(refreshedSettings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
                         propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
                     }
-                } else if (entry.EntryKind == AssetEntryKind.Image) {
+                } else if (IsTextureImportSettingsEntry(entry)) {
                     TextureAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
                     ResolveImageSourceDimensions(entry.FullPath, out int refreshedImageWidth, out int refreshedImageHeight);
                     AssetProcessorSettings refreshedTextureViewSettings = CreateTextureImportViewProcessorSettings(refreshedSettings);
@@ -5370,7 +5414,7 @@ namespace helengine.editor {
             }
 
             if (entry.EntryKind == AssetEntryKind.Audio) {
-                ShowAudioImportSettingsUnavailable(entry);
+                ShowAudioImportSettingsUnavailable(panel, entry);
                 return;
             }
 
@@ -5381,7 +5425,7 @@ namespace helengine.editor {
                     return;
                 }
 
-                if (entry.EntryKind == AssetEntryKind.Model) {
+                if (IsModelImportSettingsEntry(entry)) {
                     ModelAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateModelImportSettings(entry.FullPath, out settings)) {
                         panel.ShowEmpty();
@@ -5390,7 +5434,7 @@ namespace helengine.editor {
 
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
                     panel.ShowImportSettings(entry, settings.Importer.ImporterId, CreateModelImportViewProcessorSettings(settings), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds());
-                } else if (entry.EntryKind == AssetEntryKind.Image) {
+                } else if (IsTextureImportSettingsEntry(entry)) {
                     TextureAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateTextureImportSettings(entry.FullPath, out settings)) {
                         panel.ShowEmpty();

@@ -78,15 +78,18 @@ namespace helengine.editor.tests {
         public void GenerateMissingImportSettings_WhenTextureAndModelSourcesExist_WritesTypedSidecars() {
             string textureSourcePath = WriteSourceTexture("generated-texture.png");
             string modelSourcePath = Path.Combine(AssetsRootPath, "generated-model.obj");
+            string audioSourcePath = WriteSourceAudio("generated-audio.wav");
             File.WriteAllBytes(modelSourcePath, new byte[] { 1, 2, 3, 4 });
 
             AssetImportManager manager = CreateManager();
             manager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), new[] { ".wav" }));
 
             List<string> createdSettings = manager.GenerateMissingImportSettings();
 
             Assert.Contains(textureSourcePath + ".hasset", createdSettings);
             Assert.Contains(modelSourcePath + ".hasset", createdSettings);
+            Assert.Contains(audioSourcePath + ".hasset", createdSettings);
             using (FileStream textureStream = new FileStream(textureSourcePath + ".hasset", FileMode.Open, FileAccess.Read, FileShare.Read)) {
                 TextureAssetImportSettings textureSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(textureStream);
                 Assert.Equal("test-texture", textureSettings.Importer.ImporterId);
@@ -94,6 +97,10 @@ namespace helengine.editor.tests {
             using (FileStream modelStream = new FileStream(modelSourcePath + ".hasset", FileMode.Open, FileAccess.Read, FileShare.Read)) {
                 ModelAssetImportSettings modelSettings = ModelAssetImportSettingsBinarySerializer.Deserialize(modelStream);
                 Assert.Equal("test-model", modelSettings.Importer.ImporterId);
+            }
+            using (FileStream audioStream = new FileStream(audioSourcePath + ".hasset", FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                AudioAssetImportSettings audioSettings = AudioAssetImportSettingsBinarySerializer.Deserialize(audioStream);
+                Assert.Equal("test-audio", audioSettings.Importer.ImporterId);
             }
 
             TextureAsset textureAsset = manager.ImportTexture(textureSourcePath);
@@ -856,6 +863,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes a minimal source audio file for importer tests.
+        /// </summary>
+        /// <param name="fileName">Source file name to create inside the assets folder.</param>
+        /// <returns>Absolute path to the source file.</returns>
+        string WriteSourceAudio(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(AssetsRootPath, fileName);
+            File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
+            return sourcePath;
+        }
+
+        /// <summary>
         /// Writes a minimal source font file for importer tests.
         /// </summary>
         /// <param name="fileName">Source file name to create inside the assets folder.</param>
@@ -882,6 +904,29 @@ namespace helengine.editor.tests {
 
             using MemoryStream stream = new MemoryStream(data);
             return EngineBinaryHeaderSerializer.Read(stream);
+        }
+
+        /// <summary>
+        /// Provides deterministic imported audio metadata for missing-settings generation coverage.
+        /// </summary>
+        sealed class TestAudioImporter : IAudioImporter {
+            /// <summary>
+            /// Imports a minimal source stream into deterministic PCM metadata.
+            /// </summary>
+            /// <param name="stream">Source stream containing authored audio bytes.</param>
+            /// <returns>Imported audio metadata and PCM payload.</returns>
+            public ImportedAudioSource ImportAudio(Stream stream) {
+                if (stream == null) {
+                    throw new ArgumentNullException(nameof(stream));
+                }
+
+                return new ImportedAudioSource {
+                    Channels = 1,
+                    SampleRate = 22050,
+                    DurationSeconds = 1f,
+                    Pcm16Bytes = new byte[] { 1, 2, 3, 4 }
+                };
+            }
         }
     }
 }

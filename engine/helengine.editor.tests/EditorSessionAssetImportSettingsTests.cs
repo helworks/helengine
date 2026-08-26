@@ -148,6 +148,62 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a dynamically registered texture extension that the static browser classifier does not know still uses typed settings for selection, apply, and refresh.
+        /// </summary>
+        [Fact]
+        public void CustomTextureImporterExtension_UsesTypedSettingsAcrossSelectionApplyAndRefresh() {
+            const string customExtension = ".dynamictexture";
+            string sourcePath = WriteSourceTexture("custom.dynamictexture");
+            EditorSession session = CreateSession();
+            AssetImportManager manager = GetPrivateField<AssetImportManager>(session, "assetImportManager");
+            PropertiesPanel panel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+            manager.RegisterTextureImporter(new TextureImporterRegistration(
+                "test-dynamic-texture",
+                new ConfigurableTextureImporter(new byte[] { 5, 6, 7, 8 }),
+                new[] { customExtension }));
+
+            TextureAssetImportSettings settings = manager.LoadOrCreateTextureImportSettings(sourcePath);
+            manager.SaveTextureImportSettings(sourcePath, settings);
+            byte[] originalSidecar = File.ReadAllBytes(sourcePath + ".hasset");
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
+                "custom.dynamictexture",
+                "Textures/custom.dynamictexture",
+                sourcePath,
+                customExtension,
+                AssetEntryKind.File);
+            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier().Classify(sourcePath));
+            Assert.True(manager.IsTextureExtension(customExtension));
+
+            InvokePrivate(session, "HandleAssetSelected", entry);
+            Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+
+            AssetProcessorSettings requestProcessorSettings = new AssetProcessorSettings();
+            requestProcessorSettings.Platforms["windows"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Rgba32,
+                    AlphaPrecision = TextureAssetAlphaPrecision.A8
+                }
+            };
+            AssetImportSettingsApplyRequest request = new AssetImportSettingsApplyRequest(
+                "test-dynamic-texture",
+                "windows",
+                requestProcessorSettings);
+
+            InvokePrivate(session, "HandleImportSettingsApplyRequested", entry, request);
+            Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+            InvokePrivate(session, "HandlePropertiesPanelAssetState", panel, entry);
+            Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+
+            using (FileStream stream = new FileStream(sourcePath + ".hasset", FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                TextureAssetImportSettings restoredSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
+                Assert.Equal("test-dynamic-texture", restoredSettings.Importer.ImporterId);
+                Assert.Equal(128, restoredSettings.Processor.Platforms["windows"].MaxResolution);
+            }
+            Assert.NotEqual(originalSidecar, File.ReadAllBytes(sourcePath + ".hasset"));
+        }
+
+        /// <summary>
         /// Ensures applying model processor settings rebuilds the live scene mesh from the processed cache using the selected platform.
         /// </summary>
         [Fact]
@@ -324,6 +380,36 @@ namespace helengine.editor.tests {
 
             File.WriteAllText(sourcePath, "test model source");
             return sourcePath;
+        }
+
+        /// <summary>
+        /// Writes one minimal texture source file inside the temporary assets root.
+        /// </summary>
+        /// <param name="fileName">Source file name to create.</param>
+        /// <returns>Absolute path to the created texture source file.</returns>
+        string WriteSourceTexture(string fileName) {
+            if (string.IsNullOrWhiteSpace(fileName)) {
+                throw new ArgumentException("File name must be provided.", nameof(fileName));
+            }
+
+            string sourcePath = Path.Combine(AssetsRootPath, fileName);
+            string directoryPath = Path.GetDirectoryName(sourcePath);
+            if (!string.IsNullOrWhiteSpace(directoryPath)) {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
+            return sourcePath;
+        }
+
+        /// <summary>
+        /// Reads the current import-error line from the test properties panel.
+        /// </summary>
+        /// <param name="panel">Properties panel to inspect.</param>
+        /// <returns>Visible error/status line text.</returns>
+        string GetImportErrorText(PropertiesPanel panel) {
+            List<TextComponent> lineTexts = GetPrivateField<List<TextComponent>>(panel, "lineTexts");
+            return lineTexts.Count > 2 ? lineTexts[2].Text : string.Empty;
         }
 
         /// <summary>
