@@ -386,10 +386,10 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures the automatic reflected fallback still understands legacy tagged `TextComponent` payloads that persisted the font under `FontReference`.
+        /// Ensures tagged payloads that use the removed `FontReference` alias fail instead of restoring a legacy field.
         /// </summary>
         [Fact]
-        public void DeserializeComponent_WhenLegacyTextComponentPayloadUsesFontReference_RestoresFontAndSaveState() {
+        public void DeserializeComponent_WhenTaggedTextPayloadUsesLegacyFontReference_ThrowsUnsupportedField() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneAssetReference fontReference = BuildFontReference("Fonts/Legacy.hefont");
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
@@ -402,15 +402,10 @@ namespace helengine.editor.tests.serialization.scene {
             resolver.RegisterFont(fontReference, loadedFont);
             EntitySaveComponent loadedSaveComponent = new EntitySaveComponent();
 
-            TextComponent restored = Assert.IsType<TextComponent>(descriptor.DeserializeComponent(record, loadedSaveComponent, resolver));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, loadedSaveComponent, resolver));
 
-            Assert.Same(loadedFont, restored.Font);
-            Assert.Equal("Legacy", restored.Text);
-            Assert.True(loadedSaveComponent.TryGetComponentState(restored, out EntityComponentSaveState loadedSaveState));
-            Assert.True(loadedSaveState.TryGetAssetReference(nameof(TextComponent.Font), out SceneAssetReference loadedReference));
-            Assert.Equal(fontReference.RelativePath, loadedReference.RelativePath);
-            Assert.Equal(fontReference.ProviderId, loadedReference.ProviderId);
-            Assert.Equal(fontReference.AssetId, loadedReference.AssetId);
+            Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -461,10 +456,10 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures legacy scenes persisted with the old anchor component id now materialize the renamed layout component.
+        /// Ensures scenes persisted with the removed anchor component id fail instead of resolving the renamed layout component.
         /// </summary>
         [Fact]
-        public void DeserializeComponent_WhenLegacyAnchorComponentTypeIdIsUsed_ReturnsLayoutComponent() {
+        public void DeserializeComponent_WhenLegacyAnchorComponentTypeIdIsUsed_ThrowsUnsupportedComponentType() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.AnchorComponent",
@@ -472,9 +467,46 @@ namespace helengine.editor.tests.serialization.scene {
                 Payload = Array.Empty<byte>()
             };
 
-            LayoutComponent component = Assert.IsType<LayoutComponent>(descriptor.DeserializeComponent(record, null, null));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, null, null));
 
-            Assert.Equal(0, component.AnchorFlags);
+            Assert.Contains("could not be resolved", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures the resolver rejects an assembly-qualified engine component id instead of treating it as a current stable id.
+        /// </summary>
+        [Fact]
+        public void PersistedComponentTypeResolver_WhenAssemblyQualifiedEngineIdIsUsed_ReturnsNull() {
+            Type resolvedType = PersistedComponentTypeResolver.TryResolve("helengine.TextComponent, helengine.core");
+
+            Assert.Null(resolvedType);
+        }
+
+        /// <summary>
+        /// Ensures the registry rejects an assembly-qualified engine component id instead of normalizing it to the current short id.
+        /// </summary>
+        [Fact]
+        public void RuntimeComponentRegistry_WhenAssemblyQualifiedEngineIdIsUsed_ThrowsUnsupportedComponentType() {
+            RuntimeComponentRegistry registry = RuntimeComponentRegistry.CreateDefault();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => registry.GetDeserializer("helengine.TextComponent, helengine.core"));
+
+            Assert.Contains("helengine.TextComponent, helengine.core", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures removed component compatibility symbols do not remain available as runtime entry points.
+        /// </summary>
+        [Fact]
+        public void CurrentComponentPayloadApis_DoNotExposeRemovedCompatibilitySymbols() {
+            Assert.Null(typeof(RuntimeComponentRegistry).GetMethod(
+                "NormalizeLegacyEngineComponentTypeId",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic));
+            Assert.Null(typeof(AutomaticScriptComponentPersistenceDescriptor).GetMethod(
+                "ResolveLegacyTaggedFieldName",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic));
         }
 
         /// <summary>
@@ -558,6 +590,7 @@ namespace helengine.editor.tests.serialization.scene {
                 fieldWriter.WriteString(fontReference.RelativePath);
                 fieldWriter.WriteString(fontReference.ProviderId);
                 fieldWriter.WriteString(fontReference.AssetId);
+                fieldWriter.WriteString(fontReference.ContentHash);
             });
             writer.WriteField(nameof(TextComponent.Text), fieldWriter => {
                 fieldWriter.WriteString("Legacy");

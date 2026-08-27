@@ -1720,28 +1720,4 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         }
     }
 
-    /// <summary>
-    /// Verifies generated-core unity emission keeps the physics3d runtime-module registration source alive when the generated module bootstrap references it.
-    /// </summary>
-    [Fact]
-    public void Write_generated_core_translation_unit_when_runtime_module_bootstrap_references_physics3d_registration_keeps_registration_source() {
-        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-modules-physics3d");
-        try {
-            Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, ResolveRepositoryRootPath());
-            Directory.CreateDirectory(generatedCoreRootPath);
-            File.WriteAllText(Path.Combine(generatedCoreRootPath, "Physics3DRuntimeComponentRegistration.cpp"), "// physics3d registration source");
-            File.WriteAllText(Path.Combine(generatedCoreRootPath, "Physics3DRuntimeComponentRegistration.hpp"), "class Physics3DRuntimeComponentRegistration;");
-            File.WriteAllText(
-                Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.cpp"),
-                "#include \"Physics3DRuntimeComponentRegistration.hpp\"\nvoid RegisterGeneratedRuntimeModules(Core* core)\n{\nPhysics3DRuntimeComponentRegistration::Register(core);\n}\n");
-
-            EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
-
-            string unitySourcePath = Path.Combine(generatedCoreRootPath, "helengine_core_unity.cpp");
-            string unitySource = File.ReadAllText(unitySourcePath);
-            Assert.Contains("#include \"Physics3DRuntimeComponentRegistration.cpp\"", unitySource, StringComparison.Ordinal);
-        } finally {
-            DeleteDirectoryIfPresent(generatedCoreRootPath);
-        }
-    }
 }

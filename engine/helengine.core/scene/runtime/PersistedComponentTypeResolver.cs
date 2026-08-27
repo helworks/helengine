@@ -3,18 +3,9 @@ using System.Reflection;
 
 namespace helengine {
     /// <summary>
-    /// Resolves persisted component type identifiers back to runtime component types for both assembly-qualified script ids and legacy engine short ids.
+    /// Resolves current persisted component type identifiers back to runtime component types.
     /// </summary>
     public static class PersistedComponentTypeResolver {
-        /// <summary>
-        /// Assembly names that may contain engine-owned component types persisted with legacy short identifiers.
-        /// </summary>
-        static readonly string[] CandidateAssemblyNames = [
-            "helengine.core",
-            "helengine.physics",
-            "helengine.physics3d"
-        ];
-
         /// <summary>
         /// Resolves one persisted component type identifier back to its runtime type when available.
         /// </summary>
@@ -24,55 +15,31 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
                 return null;
             }
-            if (string.Equals(componentTypeId, "helengine.AnchorComponent", StringComparison.Ordinal)
-                || string.Equals(componentTypeId, "helengine.AnchorComponent, helengine.core", StringComparison.Ordinal)) {
-                return typeof(LayoutComponent);
-            }
-
-            Type componentType = TryResolveAssemblyQualifiedType(componentTypeId);
-            if (componentType != null) {
-                return componentType;
-            }
             if (componentTypeId.Contains(',', StringComparison.Ordinal)) {
-                return null;
+                try {
+                    Type assemblyQualifiedType = Type.GetType(componentTypeId, false);
+                    string assemblyName = assemblyQualifiedType?.Assembly.GetName().Name ?? string.Empty;
+                    if (assemblyQualifiedType == null
+                        || (string.Equals(assemblyQualifiedType.Namespace, "helengine", StringComparison.Ordinal)
+                            && assemblyName.StartsWith("helengine", StringComparison.Ordinal))) {
+                        return null;
+                    }
+
+                    return assemblyQualifiedType;
+                } catch (Exception) {
+                    return null;
+                }
             }
 
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
             for (int index = 0; index < assemblies.Length; index++) {
-                componentType = assemblies[index].GetType(componentTypeId, false, false);
-                if (componentType != null) {
-                    return componentType;
-                }
-            }
-
-            for (int index = 0; index < CandidateAssemblyNames.Length; index++) {
-                componentType = Type.GetType(componentTypeId + ", " + CandidateAssemblyNames[index], false);
+                Type componentType = assemblies[index].GetType(componentTypeId, false, false);
                 if (componentType != null) {
                     return componentType;
                 }
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Attempts to resolve one persisted component identifier directly when it is already assembly-qualified.
-        /// </summary>
-        /// <param name="componentTypeId">Persisted component identifier to evaluate.</param>
-        /// <returns>Resolved runtime type when the identifier is valid and loadable; otherwise null.</returns>
-        static Type TryResolveAssemblyQualifiedType(string componentTypeId) {
-            if (string.IsNullOrWhiteSpace(componentTypeId)) {
-                return null;
-            }
-            if (!componentTypeId.Contains(',', StringComparison.Ordinal)) {
-                return null;
-            }
-
-            try {
-                return Type.GetType(componentTypeId, false);
-            } catch (Exception) {
-                return null;
-            }
         }
     }
 }

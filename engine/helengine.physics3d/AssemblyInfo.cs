@@ -2,8 +2,8 @@ using helengine;
 
 [assembly: GeneratedRuntimeModuleManifest(
     "physics3d-runtime-module",
-    typeof(Physics3DRuntimeComponentRegistration),
-    nameof(Physics3DRuntimeComponentRegistration.Register),
+    typeof(BepuRuntimeComponentRegistration),
+    nameof(BepuRuntimeComponentRegistration.Register),
     typeof(RigidBody3DComponent),
     typeof(BoxCollider3DComponent),
     typeof(SphereCollider3DComponent),

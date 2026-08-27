@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Builds one tolerant editor scene component payload from named binary fields.
+    /// Builds one current editor scene component payload from named binary fields.
     /// </summary>
     public sealed class EditorTaggedSceneComponentFieldWriter {
         /// <summary>

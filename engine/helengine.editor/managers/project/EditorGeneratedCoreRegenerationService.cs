@@ -1857,7 +1857,6 @@ namespace helengine.editor {
         /// <returns>Case-insensitive set of custom-physics runtime reference type names.</returns>
         static HashSet<string> BuildCustomPhysics3DReferenceTypeNameSet() {
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
-                "Physics3DRuntimeComponentRegistration",
                 "PhysicsWorld3D",
                 "PhysicsWorld3DCompatibilityRuntime",
                 "PhysicsWorld3DProfile",

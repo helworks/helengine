@@ -61,11 +61,8 @@ namespace helengine.editor.tests.serialization.scene {
                 "Engine/Materials/Standard",
                 "engine",
                 "engine:material:standard");
-            SceneAssetReference secondMaterialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
-                SceneAssetReferenceSourceKind.FileSystem,
-                "Materials/Accent.helmat",
-                string.Empty,
-                string.Empty);
+            SceneAssetReference secondMaterialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(
+                "Materials/Accent.helmat");
             TestRuntimeModel restoredModel = new TestRuntimeModel();
             TestRuntimeMaterial restoredFirstMaterial = new TestRuntimeMaterial();
             TestRuntimeMaterial restoredSecondMaterial = new TestRuntimeMaterial();
@@ -92,31 +89,14 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures legacy mesh payloads that still use the removed `MaterialReferences` field name restore material-slot save metadata before the scene is re-saved.
+        /// Ensures mesh payloads that use removed legacy field names fail instead of restoring an alias.
         /// </summary>
         [Fact]
-        public void Deserialize_WhenMeshUsesLegacyMaterialReferencesField_RestoresMaterialSlotSaveState() {
+        public void Deserialize_WhenMeshUsesLegacyMaterialReferencesField_ThrowsUnsupportedField() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
-            EntitySaveComponent saveComponent = new EntitySaveComponent();
-            SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
-                SceneAssetReferenceSourceKind.Generated,
-                "Engine/Models/Cube",
-                "engine",
-                "engine:model:cube");
-            SceneAssetReference materialReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
-                SceneAssetReferenceSourceKind.FileSystem,
-                "Materials/physics/PhysicsDemoBlue.hasset",
-                string.Empty,
-                string.Empty);
-            TestRuntimeModel restoredModel = new TestRuntimeModel();
-            TestRuntimeMaterial restoredMaterial = new TestRuntimeMaterial();
-            resolver.RegisterModel(modelReference, restoredModel);
-            resolver.RegisterMaterial(materialReference, restoredMaterial);
-
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
-            writer.WriteField("ModelReference", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, modelReference));
-            writer.WriteField("MaterialReferences", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(fieldWriter, new[] { materialReference }));
+            writer.WriteField("ModelReference", fieldWriter => fieldWriter.WriteByte(1));
+            writer.WriteField("MaterialReferences", fieldWriter => fieldWriter.WriteByte(1));
             writer.WriteField("RenderOrder3D", fieldWriter => fieldWriter.WriteByte(4));
 
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
@@ -125,15 +105,10 @@ namespace helengine.editor.tests.serialization.scene {
                 Payload = writer.BuildPayload()
             };
 
-            MeshComponent restored = Assert.IsType<MeshComponent>(descriptor.DeserializeComponent(record, saveComponent, resolver));
-            RuntimeMaterial[] restoredMaterials = GetMeshMaterials(restored);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, null, null));
 
-            Assert.Same(restoredModel, restored.Model);
-            Assert.Single(restoredMaterials);
-            Assert.Same(restoredMaterial, restoredMaterials[0]);
-            Assert.True(saveComponent.TryGetComponentState(restored, out EntityComponentSaveState restoredSaveState));
-            Assert.True(restoredSaveState.TryGetAssetReference("Materials[0]", out SceneAssetReference restoredMaterialReference));
-            Assert.Equal("Materials/physics/PhysicsDemoBlue.hasset", restoredMaterialReference.RelativePath);
+            Assert.Contains("unsupported field", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

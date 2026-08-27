@@ -82,13 +82,15 @@ namespace helengine.bepu.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteInt32(6);
+            writer.WriteInt32(8);
             writer.WriteFloat3(float3.Zero);
             writer.WriteInt32((int)bodyKind);
             writer.WriteDouble(1.0);
             writer.WriteFloat3(float3.Zero);
             writer.WriteDouble(1.0);
             writer.WriteByte(useGravity ? (byte)1 : (byte)0);
+            writer.WriteDouble(0.5);
+            writer.WriteInt32(10);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.RigidBody3DComponent",

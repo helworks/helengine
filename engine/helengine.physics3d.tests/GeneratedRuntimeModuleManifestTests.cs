@@ -11,13 +11,13 @@ namespace helengine.physics3d.tests {
         [Fact]
         public void Physics3DAssembly_DeclaresGeneratedRuntimeModuleManifest() {
             GeneratedRuntimeModuleManifestAttribute manifest = Assert.Single(
-                typeof(Physics3DRuntimeComponentRegistration)
+                typeof(PhysicsSceneFeatureAnalyzer3D)
                     .Assembly
                     .GetCustomAttributes<GeneratedRuntimeModuleManifestAttribute>());
 
             Assert.Equal("physics3d-runtime-module", manifest.ModuleId);
-            Assert.Equal(typeof(Physics3DRuntimeComponentRegistration), manifest.RegistrationType);
-            Assert.Equal(nameof(Physics3DRuntimeComponentRegistration.Register), manifest.RegistrationMethodName);
+            Assert.Equal(typeof(BepuRuntimeComponentRegistration), manifest.RegistrationType);
+            Assert.Equal(nameof(BepuRuntimeComponentRegistration.Register), manifest.RegistrationMethodName);
             Assert.Contains(typeof(RigidBody3DComponent), manifest.ActivationTypes);
             Assert.Contains(typeof(BoxCollider3DComponent), manifest.ActivationTypes);
             Assert.Contains(typeof(SphereCollider3DComponent), manifest.ActivationTypes);

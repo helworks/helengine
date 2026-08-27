@@ -15,7 +15,7 @@ namespace helengine.physics3d.tests {
             try {
                 core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
-                Physics3DRuntimeComponentRegistration.Register(core);
+                BepuRuntimeComponentRegistration.Register(core);
 
                 Assert.Null(core.PhysicsRuntime);
             } finally {
@@ -32,7 +32,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreatePhysicsSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -53,23 +53,22 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
-        /// Ensures a legacy six-member rigid-body payload loads while retaining constructor defaults for appended sleep settings.
+        /// Ensures a legacy six-member rigid-body payload is rejected instead of defaulting appended sleep settings.
         /// </summary>
         [Fact]
-        public void LoadSceneAsset_WithLegacyRigidBodyPayload_RetainsSleepDefaults() {
+        public void LoadSceneAsset_WithLegacyRigidBodyPayload_ThrowsUnsupportedMemberCount() {
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
-            SceneAsset sceneAsset = CreatePhysicsSceneAsset();
+            SceneAsset sceneAsset = CreateLegacyPhysicsSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
-            IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
-            RigidBody3DComponent rigidBody = FindRigidBody(rootEntities[1]);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => sceneLoadService.Load(sceneAsset));
 
-            Assert.Equal(0.5d, rigidBody.SleepThreshold);
-            Assert.Equal(10, rigidBody.SleepTicks);
+            Assert.Contains("members", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -97,7 +96,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateSpherePhysicsSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -126,7 +125,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateAutomaticSpherePhysicsSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -157,7 +156,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCapsulePhysicsSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -186,7 +185,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateKinematicPushSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -218,7 +217,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterSlopeSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -245,7 +244,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterSteepSlopeSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -272,7 +271,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterStepsSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -299,7 +298,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterMovingPlatformRideSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -328,7 +327,7 @@ namespace helengine.physics3d.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterCeilingLiftSceneAsset();
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
@@ -362,6 +361,17 @@ namespace helengine.physics3d.tests {
                 },
                 AssetReferences = Array.Empty<SceneAssetReference>()
             };
+        }
+
+        /// <summary>
+        /// Creates one physics scene whose rigid-body records intentionally omit the current appended sleep members.
+        /// </summary>
+        /// <returns>Scene asset containing one legacy six-member rigid-body payload.</returns>
+        static SceneAsset CreateLegacyPhysicsSceneAsset() {
+            SceneAsset sceneAsset = CreatePhysicsSceneAsset();
+            sceneAsset.RootEntities[0].Components[0] = CreateLegacyRigidBodyRecord(BodyKind3D.Static, false);
+            sceneAsset.RootEntities[1].Components[0] = CreateLegacyRigidBodyRecord(BodyKind3D.Dynamic, true);
+            return sceneAsset;
         }
 
         /// <summary>
@@ -524,27 +534,7 @@ namespace helengine.physics3d.tests {
             BodyKind3D bodyKind,
             bool useGravity,
             float3 boxSize) {
-            return CreateBodyEntity(entityId, localPosition, bodyKind, useGravity, boxSize, 2);
-        }
-
-        /// <summary>
-        /// Creates one serialized body entity that owns a rigid body and box collider payload with a specific box-collider version.
-        /// </summary>
-        /// <param name="entityId">Stable scene entity id.</param>
-        /// <param name="localPosition">Initial local position.</param>
-        /// <param name="bodyKind">Rigid body kind to serialize.</param>
-        /// <param name="useGravity">True when the rigid body should receive gravity.</param>
-        /// <param name="boxSize">Full collider size.</param>
-        /// <param name="boxColliderVersion">Box-collider payload format version to encode.</param>
-        /// <returns>Serialized scene entity.</returns>
-        static SceneEntityAsset CreateBodyEntity(
-            string entityId,
-            float3 localPosition,
-            BodyKind3D bodyKind,
-            bool useGravity,
-            float3 boxSize,
-            byte boxColliderVersion) {
-            return CreateBodyEntity(entityId, localPosition, boxSize, float4.Identity, bodyKind, useGravity, boxColliderVersion);
+            return CreateBodyEntity(entityId, localPosition, boxSize, float4.Identity, bodyKind, useGravity);
         }
 
         /// <summary>
@@ -564,28 +554,6 @@ namespace helengine.physics3d.tests {
             float4 localOrientation,
             BodyKind3D bodyKind,
             bool useGravity) {
-            return CreateBodyEntity(entityId, localPosition, boxSize, localOrientation, bodyKind, useGravity, 2);
-        }
-
-        /// <summary>
-        /// Creates one serialized body entity that owns a rigid body and box collider payload with a specific box-collider version.
-        /// </summary>
-        /// <param name="entityId">Stable scene entity id.</param>
-        /// <param name="localPosition">Initial local position.</param>
-        /// <param name="boxSize">Full collider size.</param>
-        /// <param name="localOrientation">Initial local orientation.</param>
-        /// <param name="bodyKind">Rigid body kind to serialize.</param>
-        /// <param name="useGravity">True when the rigid body should receive gravity.</param>
-        /// <param name="boxColliderVersion">Box-collider payload format version to encode.</param>
-        /// <returns>Serialized scene entity.</returns>
-        static SceneEntityAsset CreateBodyEntity(
-            string entityId,
-            float3 localPosition,
-            float3 boxSize,
-            float4 localOrientation,
-            BodyKind3D bodyKind,
-            bool useGravity,
-            byte boxColliderVersion) {
             if (string.IsNullOrWhiteSpace(entityId)) {
                 throw new ArgumentException("Entity id must be provided.", nameof(entityId));
             }
@@ -598,7 +566,7 @@ namespace helengine.physics3d.tests {
                 LocalOrientation = localOrientation,
                 Components = new[] {
                     CreateRigidBodyRecord(bodyKind, useGravity),
-                    CreateBoxColliderRecord(boxSize, boxColliderVersion)
+                    CreateBoxColliderRecord(boxSize)
                 },
                 Children = Array.Empty<SceneEntityAsset>()
             };
@@ -820,6 +788,33 @@ namespace helengine.physics3d.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
+            writer.WriteInt32(8);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteInt32((int)bodyKind);
+            writer.WriteDouble(1d);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteDouble(1d);
+            writer.WriteByte(useGravity ? (byte)1 : (byte)0);
+            writer.WriteDouble(0.5d);
+            writer.WriteInt32(10);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.RigidBody3DComponent",
+                ComponentIndex = 0,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates one legacy six-member automatic rigid-body payload for rejection tests.
+        /// </summary>
+        /// <param name="bodyKind">Rigid-body kind to encode.</param>
+        /// <param name="useGravity">True when gravity should be enabled.</param>
+        /// <returns>Legacy rigid-body scene record.</returns>
+        static SceneComponentAssetRecord CreateLegacyRigidBodyRecord(BodyKind3D bodyKind, bool useGravity) {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
             writer.WriteInt32(6);
             writer.WriteFloat3(float3.Zero);
             writer.WriteInt32((int)bodyKind);
@@ -888,20 +883,6 @@ namespace helengine.physics3d.tests {
         /// <param name="boxSize">Full collider size.</param>
         /// <returns>Serialized scene component record.</returns>
         static SceneComponentAssetRecord CreateBoxColliderRecord(float3 boxSize) {
-            return CreateBoxColliderRecord(boxSize, 2);
-        }
-
-        /// <summary>
-        /// Creates one serialized box collider component record using the automatic runtime member order.
-        /// </summary>
-        /// <param name="boxSize">Full collider size.</param>
-        /// <param name="version">Expected compatibility marker for the current helper shape.</param>
-        /// <returns>Serialized scene component record.</returns>
-        static SceneComponentAssetRecord CreateBoxColliderRecord(float3 boxSize, byte version) {
-            if (version != 2) {
-                throw new InvalidOperationException("Legacy box-collider runtime payload versions are no longer supported by the physics scene-load tests.");
-            }
-
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
@@ -995,7 +976,7 @@ namespace helengine.physics3d.tests {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteInt32(7);
+            writer.WriteInt32(8);
             writer.WriteByte(1);
             writer.WriteInt32(collisionData.Indices.Length);
             for (int index = 0; index < collisionData.Indices.Length; index++) {
@@ -1007,6 +988,7 @@ namespace helengine.physics3d.tests {
             }
             writer.WriteUInt16(1);
             writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteByte(0);
             writer.WriteDouble(0.4d);
             writer.WriteByte(0);
             writer.WriteDouble(0d);

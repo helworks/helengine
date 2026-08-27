@@ -39,7 +39,7 @@ namespace helengine.editor {
         public string ComponentTypeId => "helengine.AutomaticScriptComponentPersistenceDescriptor";
 
         /// <summary>
-        /// Serializes one eligible scripted component into a tolerant named-field payload.
+        /// Serializes one eligible scripted component into the current tagged named-field payload.
         /// </summary>
         /// <param name="component">Live scripted component instance to serialize.</param>
         /// <param name="componentIndex">Entity-local index used to preserve component ordering.</param>
@@ -100,7 +100,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to deserialize one payload through the tolerant tagged editor scene-component format.
+        /// Attempts to deserialize one payload through the current tagged editor scene-component format.
         /// </summary>
         /// <param name="component">Target component instance receiving restored member values.</param>
         /// <param name="schema">Reflected schema that defines the member layout.</param>
@@ -121,8 +121,23 @@ namespace helengine.editor {
             }
 
             bool matchedTaggedField = false;
+            string unsupportedFieldName = null;
             try {
                 EditorTaggedSceneComponentFieldReader reader = new EditorTaggedSceneComponentFieldReader(payload);
+                HashSet<string> currentFieldNames = new HashSet<string>(
+                    schema.Members.Select(member => member.Name),
+                    StringComparer.Ordinal);
+                foreach (string fieldName in reader.FieldNames) {
+                    if (!currentFieldNames.Contains(fieldName)) {
+                        unsupportedFieldName = fieldName;
+                        break;
+                    }
+                }
+
+                if (reader.FieldNames.Count == 0 && schema.Members.Count == 0) {
+                    matchedTaggedField = true;
+                }
+
                 for (int index = 0; index < schema.Members.Count; index++) {
                     ScriptComponentReflectionMember member = schema.Members[index];
                     if (TryGetTaggedFieldReader(reader, member, out EngineBinaryReader fieldReader)) {
@@ -133,7 +148,6 @@ namespace helengine.editor {
                     }
                 }
 
-                return true;
             } catch (Exception ex) when (ex is EndOfStreamException || ex is InvalidOperationException) {
                 if (matchedTaggedField) {
                     throw;
@@ -141,15 +155,27 @@ namespace helengine.editor {
 
                 return false;
             }
+
+            if (!string.IsNullOrWhiteSpace(unsupportedFieldName)) {
+                throw new InvalidOperationException(
+                    $"Automatic scripted component payload contains unsupported field '{unsupportedFieldName}'; current tagged field names are required.");
+            }
+
+            if (!matchedTaggedField) {
+                throw new InvalidOperationException(
+                    "Automatic scripted component payload contains no current tagged field names.");
+            }
+
+            return true;
         }
 
         /// <summary>
-        /// Attempts to resolve one tagged field reader for the reflected member, including legacy authored field aliases kept for backward compatibility.
+        /// Attempts to resolve one tagged field reader for the reflected member using its current persisted name.
         /// </summary>
         /// <param name="reader">Tagged payload reader that owns the serialized fields.</param>
         /// <param name="member">Reflected member that should be restored.</param>
         /// <param name="fieldReader">Reader over the resolved field payload when available.</param>
-        /// <returns>True when the field or one supported legacy alias exists; otherwise false.</returns>
+        /// <returns>True when the current field exists; otherwise false.</returns>
         static bool TryGetTaggedFieldReader(
             EditorTaggedSceneComponentFieldReader reader,
             ScriptComponentReflectionMember member,
@@ -164,42 +190,8 @@ namespace helengine.editor {
                 return true;
             }
 
-            string legacyFieldName = ResolveLegacyTaggedFieldName(member);
-            if (string.IsNullOrWhiteSpace(legacyFieldName)) {
-                fieldReader = null;
-                return false;
-            }
-
-            return reader.TryGetFieldReader(legacyFieldName, out fieldReader);
-        }
-
-        /// <summary>
-        /// Resolves one supported legacy tagged field alias for the reflected member when older authored scenes used a different persisted field name.
-        /// </summary>
-        /// <param name="member">Reflected member under evaluation.</param>
-        /// <returns>Legacy tagged field name when one is supported; otherwise an empty string.</returns>
-        static string ResolveLegacyTaggedFieldName(ScriptComponentReflectionMember member) {
-            if (member == null) {
-                throw new ArgumentNullException(nameof(member));
-            }
-
-            if (member.ValueType == typeof(FontAsset) && string.Equals(member.Name, "Font", StringComparison.Ordinal)) {
-                return "FontReference";
-            }
-            if (member.ValueType == typeof(RuntimeTexture) && string.Equals(member.Name, "Texture", StringComparison.Ordinal)) {
-                return "TextureReference";
-            }
-            if (member.ValueType == typeof(RuntimeModel) && string.Equals(member.Name, "Model", StringComparison.Ordinal)) {
-                return "ModelReference";
-            }
-            if (member.ValueType == typeof(RuntimeMaterial) && string.Equals(member.Name, "Material", StringComparison.Ordinal)) {
-                return "MaterialReference";
-            }
-            if (member.ValueType == typeof(RuntimeMaterial[]) && string.Equals(member.Name, "Materials", StringComparison.Ordinal)) {
-                return "MaterialReferences";
-            }
-
-            return string.Empty;
+            fieldReader = null;
+            return false;
         }
 
         /// <summary>
@@ -230,34 +222,15 @@ namespace helengine.editor {
             }
 
             int memberCount = reader.ReadInt32();
-            int requiredMemberCount = GetRequiredMemberCount(schema.Members);
-            if (memberCount < requiredMemberCount || memberCount > schema.Members.Count) {
+            if (memberCount != schema.Members.Count) {
                 throw new InvalidOperationException(
-                    $"Automatic scripted component payload requires between {requiredMemberCount} and {schema.Members.Count} members but contained {memberCount}.");
+                    $"Automatic scripted component payload requires exactly {schema.Members.Count} members but contained {memberCount}.");
             }
 
             for (int index = 0; index < memberCount; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
                 member.SetValue(component, ReadSupportedMemberValue(reader, member, component, saveComponent, referenceResolver));
             }
-        }
-
-        /// <summary>
-        /// Counts the non-appended schema members that every ordinal payload must contain.
-        /// </summary>
-        /// <param name="members">Ordered reflected schema members.</param>
-        /// <returns>Count of required non-appended members.</returns>
-        static int GetRequiredMemberCount(IReadOnlyList<ScriptComponentReflectionMember> members) {
-            int requiredMemberCount = 0;
-            for (int index = 0; index < members.Count; index++) {
-                if (members[index].IsAppended) {
-                    break;
-                }
-
-                requiredMemberCount++;
-            }
-
-            return requiredMemberCount;
         }
 
         /// <summary>
@@ -398,10 +371,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Returns whether one reflected component type should preserve the historical short engine type id instead of one assembly-qualified script id.
+        /// Returns whether one reflected engine component type should use its stable short type id instead of one assembly-qualified script id.
         /// </summary>
         /// <param name="componentType">Reflected component type under evaluation.</param>
-        /// <returns>True when the component should persist as one legacy short engine type id; otherwise false.</returns>
+        /// <returns>True when the component should persist as one stable short engine type id; otherwise false.</returns>
         static bool ShouldUseShortEngineComponentTypeId(Type componentType) {
             if (componentType == null) {
                 throw new ArgumentNullException(nameof(componentType));

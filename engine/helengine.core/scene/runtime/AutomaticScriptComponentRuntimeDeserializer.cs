@@ -31,9 +31,9 @@ namespace helengine {
         readonly Type[] MemberTypes;
 
         /// <summary>
-        /// Minimum ordinal member count required before omitted members may be treated as appended extensions.
+        /// Number of current ordinal members required by the component payload.
         /// </summary>
-        readonly int RequiredMemberCount;
+        readonly int MemberCount;
 
         /// <summary>
         /// Initializes one automatic scripted-component runtime deserializer.
@@ -55,7 +55,7 @@ namespace helengine {
             ComponentTypeValue = componentType;
             Members = LoadMembers(componentType);
             MemberTypes = LoadMemberTypes(Members);
-            RequiredMemberCount = GetRequiredMemberCount(Members);
+            MemberCount = Members.Length;
         }
 
         /// <summary>
@@ -86,9 +86,9 @@ namespace helengine {
             }
 
             int memberCount = reader.ReadInt32();
-            if (memberCount < RequiredMemberCount || memberCount > Members.Length) {
+            if (memberCount != MemberCount) {
                 throw new InvalidOperationException(
-                    $"Packaged scripted component '{ComponentTypeIdValue}' requires between {RequiredMemberCount} and {Members.Length} members but payload contained {memberCount}.");
+                    $"Packaged scripted component '{ComponentTypeIdValue}' requires exactly {MemberCount} members but payload contained {memberCount}.");
             }
 
             for (int index = 0; index < memberCount; index++) {
@@ -125,24 +125,6 @@ namespace helengine {
             }
 
             return memberTypes;
-        }
-
-        /// <summary>
-        /// Counts the non-appended members that every ordinal payload must contain.
-        /// </summary>
-        /// <param name="members">Ordered persisted members.</param>
-        /// <returns>Count of required non-appended members.</returns>
-        static int GetRequiredMemberCount(MemberInfo[] members) {
-            int requiredMemberCount = 0;
-            for (int index = 0; index < members.Length; index++) {
-                if (ScenePersistenceMemberOrdering.IsAppended(members[index])) {
-                    break;
-                }
-
-                requiredMemberCount++;
-            }
-
-            return requiredMemberCount;
         }
 
         /// <summary>

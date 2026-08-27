@@ -1982,11 +1982,15 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
         using MemoryStream stream = new MemoryStream();
         using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
         writer.WriteByte(1);
-        writer.WriteByte((byte)bodyKind);
-        writer.WriteByte(useGravity ? (byte)1 : (byte)0);
-        writer.WriteSingle(1f);
-        writer.WriteSingle(1f);
+        writer.WriteInt32(8);
         writer.WriteFloat3(float3.Zero);
+        writer.WriteInt32((int)bodyKind);
+        writer.WriteDouble(1.0);
+        writer.WriteFloat3(float3.Zero);
+        writer.WriteDouble(1.0);
+        writer.WriteByte(useGravity ? (byte)1 : (byte)0);
+        writer.WriteDouble(0.5);
+        writer.WriteInt32(10);
 
         return new SceneComponentAssetRecord {
             ComponentTypeId = "helengine.RigidBody3DComponent",
@@ -2004,11 +2008,15 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
     static SceneComponentAssetRecord CreateBoxColliderRecord(float3 size, bool isTrigger) {
         using MemoryStream stream = new MemoryStream();
         using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-        writer.WriteByte(2);
-        writer.WriteFloat3(size);
+        writer.WriteByte(1);
+        writer.WriteInt32(7);
         writer.WriteUInt16(1);
         writer.WriteUInt16(ushort.MaxValue);
+        writer.WriteDouble(0.5);
         writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
+        writer.WriteDouble(0.0);
+        writer.WriteFloat3(size);
+        writer.WriteDouble(0.5);
 
         return new SceneComponentAssetRecord {
             ComponentTypeId = "helengine.BoxCollider3DComponent",

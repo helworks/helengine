@@ -9,24 +9,14 @@ namespace helengine {
         const string RigidBody3DComponentTypeId = "helengine.RigidBody3DComponent";
 
         /// <summary>
-        /// Current rigid-body component payload version accepted during serialized scene analysis.
+        /// Current automatic component payload version accepted during serialized scene analysis.
         /// </summary>
-        const byte CurrentRigidBodyPayloadVersion = 2;
+        const byte CurrentPhysicsComponentPayloadVersion = 1;
 
         /// <summary>
-        /// Automatic reflected rigid-body payload member count used after built-in component persistence moved onto the shared reflected path.
+        /// Current automatic reflected rigid-body payload member count.
         /// </summary>
-        const int AutomaticRigidBodyMemberCount = 6;
-
-        /// <summary>
-        /// Legacy box-collider payload version that only serialized the collider size.
-        /// </summary>
-        const byte LegacyBoxColliderPayloadVersion = 1;
-
-        /// <summary>
-        /// Current box-collider payload version that also serializes layer, mask, and trigger state.
-        /// </summary>
-        const byte CurrentBoxColliderPayloadVersion = 2;
+        const int AutomaticRigidBodyMemberCount = 8;
 
         /// <summary>
         /// Stable serialized component id for 3D box colliders.
@@ -630,22 +620,13 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version == CurrentRigidBodyPayloadVersion) {
-                bodyKind = (BodyKind3D)reader.ReadByte();
-                return true;
-            }
-            if (version != 1) {
+            if (version != CurrentPhysicsComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported rigid body component payload version '{version}'.");
             }
 
-            if (HasPlausibleAutomaticMemberCount(payload, AutomaticRigidBodyMemberCount)) {
-                reader.ReadInt32();
-                reader.ReadFloat3();
-                bodyKind = (BodyKind3D)reader.ReadInt32();
-                return true;
-            }
-
-            bodyKind = (BodyKind3D)reader.ReadByte();
+            RequireCurrentAutomaticMemberCount(reader, AutomaticRigidBodyMemberCount, "rigid body");
+            reader.ReadFloat3();
+            bodyKind = (BodyKind3D)reader.ReadInt32();
             return true;
         }
 
@@ -682,25 +663,15 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version == CurrentBoxColliderPayloadVersion) {
-                reader.ReadFloat3();
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                return reader.ReadByte() != 0;
-            }
-            if (version == LegacyBoxColliderPayloadVersion && TryReadAutomaticMemberCount(payload, AutomaticBoxColliderMemberCount)) {
-                reader.ReadInt32();
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                reader.ReadDouble();
-                return reader.ReadByte() != 0;
-            }
-            if (version != LegacyBoxColliderPayloadVersion) {
+            if (version != CurrentPhysicsComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported box collider component payload version '{version}'.");
             }
 
-            reader.ReadFloat3();
-            return false;
+            RequireCurrentAutomaticMemberCount(reader, AutomaticBoxColliderMemberCount, "box collider");
+            reader.ReadUInt16();
+            reader.ReadUInt16();
+            reader.ReadDouble();
+            return reader.ReadByte() != 0;
         }
 
         /// <summary>
@@ -713,20 +684,15 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1) {
+            if (version != CurrentPhysicsComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported sphere collider component payload version '{version}'.");
             }
 
-            if (TryReadAutomaticMemberCount(payload, AutomaticSphereColliderMemberCount)) {
-                reader.ReadInt32();
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                reader.ReadDouble();
-                return reader.ReadByte() != 0;
-            }
-
-            reader.ReadSingle();
-            return false;
+            RequireCurrentAutomaticMemberCount(reader, AutomaticSphereColliderMemberCount, "sphere collider");
+            reader.ReadUInt16();
+            reader.ReadUInt16();
+            reader.ReadDouble();
+            return reader.ReadByte() != 0;
         }
 
         /// <summary>
@@ -739,67 +705,37 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1) {
+            if (version != CurrentPhysicsComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported capsule collider component payload version '{version}'.");
             }
 
-            if (TryReadAutomaticMemberCount(payload, AutomaticCapsuleColliderMemberCount)) {
-                reader.ReadInt32();
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                reader.ReadDouble();
-                reader.ReadSingle();
-                return reader.ReadByte() != 0;
-            }
-
+            RequireCurrentAutomaticMemberCount(reader, AutomaticCapsuleColliderMemberCount, "capsule collider");
+            reader.ReadUInt16();
+            reader.ReadUInt16();
+            reader.ReadDouble();
             reader.ReadSingle();
-            reader.ReadSingle();
-            return false;
+            return reader.ReadByte() != 0;
         }
 
         /// <summary>
-        /// Attempts to read the automatic reflected member-count header that follows one legacy-compatible version byte.
+        /// Requires the exact current automatic reflected member-count header.
         /// </summary>
-        /// <param name="payload">Serialized component payload whose leading member-count header should be inspected.</param>
-        /// <param name="expectedMemberCount">Expected reflected member count for the automatic payload layout.</param>
-        /// <returns>True when the payload uses the automatic reflected layout; otherwise false.</returns>
-        static bool TryReadAutomaticMemberCount(byte[] payload, int expectedMemberCount) {
-            if (payload == null) {
-                throw new ArgumentNullException(nameof(payload));
+        /// <param name="reader">Reader positioned immediately after the payload version.</param>
+        /// <param name="expectedMemberCount">Expected current reflected member count.</param>
+        /// <param name="componentLabel">Human-readable component label used in the failure message.</param>
+        static void RequireCurrentAutomaticMemberCount(EngineBinaryReader reader, int expectedMemberCount, string componentLabel) {
+            if (reader == null) {
+                throw new ArgumentNullException(nameof(reader));
             }
-            if (payload.Length < 5) {
-                return false;
-            }
-
-            int memberCount =
-                payload[1]
-                | (payload[2] << 8)
-                | (payload[3] << 16)
-                | (payload[4] << 24);
-            return memberCount == expectedMemberCount;
-        }
-
-        /// <summary>
-        /// Determines whether an automatic reflected payload contains the stable leading members plus zero or more append-only members.
-        /// </summary>
-        /// <param name="payload">Serialized component payload whose leading member-count header should be inspected.</param>
-        /// <param name="minimumMemberCount">Minimum stable member count required by the reader.</param>
-        /// <returns>True when the payload contains at least the stable leading members; otherwise false.</returns>
-        static bool HasPlausibleAutomaticMemberCount(byte[] payload, int minimumMemberCount) {
-            if (payload == null) {
-                throw new ArgumentNullException(nameof(payload));
-            }
-            if (payload.Length < 5) {
-                return false;
+            if (string.IsNullOrWhiteSpace(componentLabel)) {
+                throw new ArgumentException("Component label must be provided.", nameof(componentLabel));
             }
 
-            int memberCount =
-                payload[1]
-                | (payload[2] << 8)
-                | (payload[3] << 16)
-                | (payload[4] << 24);
-            int maximumMemberCount = payload.Length - 5;
-            return memberCount >= minimumMemberCount && memberCount <= maximumMemberCount;
+            int memberCount = reader.ReadInt32();
+            if (memberCount != expectedMemberCount) {
+                throw new InvalidOperationException(
+                    $"Unsupported {componentLabel} component payload member count '{memberCount}'; current count '{expectedMemberCount}' is required.");
+            }
         }
 
         /// <summary>
@@ -812,31 +748,17 @@ namespace helengine {
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             byte version = reader.ReadByte();
-            if (version != 1) {
+            if (version != CurrentPhysicsComponentPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported static mesh collider component payload version '{version}'.");
             }
 
-            if (TryReadAutomaticMemberCount(payload, AutomaticStaticMeshColliderMemberCount)) {
-                reader.ReadInt32();
-                SkipAutomaticStaticMeshCollisionData(reader);
-                reader.ReadUInt16();
-                reader.ReadUInt16();
-                SkipAutomaticStaticMeshCookedRuntimeData(reader);
-                reader.ReadDouble();
-                return reader.ReadByte() != 0;
-            }
-
-            int vertexCount = reader.ReadInt32();
-            for (int index = 0; index < vertexCount; index++) {
-                reader.ReadFloat3();
-            }
-
-            int indexCount = reader.ReadInt32();
-            for (int index = 0; index < indexCount; index++) {
-                reader.ReadInt32();
-            }
-
-            return false;
+            RequireCurrentAutomaticMemberCount(reader, AutomaticStaticMeshColliderMemberCount, "static mesh collider");
+            SkipAutomaticStaticMeshCollisionData(reader);
+            reader.ReadUInt16();
+            reader.ReadUInt16();
+            SkipAutomaticStaticMeshCookedRuntimeData(reader);
+            reader.ReadDouble();
+            return reader.ReadByte() != 0;
         }
 
         /// <summary>
@@ -969,7 +891,7 @@ namespace helengine {
                 throw new ArgumentException("Component type id must be provided.", nameof(componentTypeId));
             }
 
-            return string.Equals(record.ComponentTypeId, componentTypeId, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(record.ComponentTypeId, componentTypeId, StringComparison.Ordinal);
         }
     }
 }

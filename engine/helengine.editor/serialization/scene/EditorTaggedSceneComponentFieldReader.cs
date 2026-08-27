@@ -1,6 +1,6 @@
 namespace helengine.editor {
     /// <summary>
-    /// Reads named fields from one tolerant editor scene component payload.
+    /// Reads named fields from one current editor scene component payload.
     /// </summary>
     public sealed class EditorTaggedSceneComponentFieldReader {
         /// <summary>
@@ -41,6 +41,11 @@ namespace helengine.editor {
                 FieldPayloadsByName.Add(fieldName, reader.ReadByteArray() ?? Array.Empty<byte>());
             }
         }
+
+        /// <summary>
+        /// Gets the field names carried by the current tagged payload for exact schema validation.
+        /// </summary>
+        internal IReadOnlyCollection<string> FieldNames => FieldPayloadsByName.Keys;
 
         /// <summary>
         /// Attempts to open one named field payload for reading.

@@ -419,7 +419,7 @@ namespace helengine.editor.tests.managers.physics {
                 ContentStreamSource = new HostFileSystemContentStreamSource(buildRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
@@ -462,7 +462,7 @@ namespace helengine.editor.tests.managers.physics {
                 ContentStreamSource = new HostFileSystemContentStreamSource(buildRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
@@ -503,7 +503,7 @@ namespace helengine.editor.tests.managers.physics {
                 ContentStreamSource = new HostFileSystemContentStreamSource(buildRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
@@ -572,7 +572,7 @@ namespace helengine.editor.tests.managers.physics {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            Physics3DRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.Register(core);
 
             RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
@@ -763,13 +763,15 @@ namespace helengine.editor.tests.managers.physics {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
             writer.WriteByte(1);
-            writer.WriteInt32(6);
+            writer.WriteInt32(8);
             writer.WriteFloat3(float3.Zero);
             writer.WriteInt32((int)bodyKind);
             writer.WriteDouble(1d);
             writer.WriteFloat3(float3.Zero);
             writer.WriteDouble(1d);
             writer.WriteByte(useGravity ? (byte)1 : (byte)0);
+            writer.WriteDouble(0.5d);
+            writer.WriteInt32(10);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.RigidBody3DComponent",

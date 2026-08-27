@@ -347,13 +347,15 @@ public sealed class EditorPhysics3DCodegenFeatureSymbolServiceTests : IDisposabl
         using MemoryStream stream = new MemoryStream();
         using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
         writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
-        writer.WriteInt32(6);
+        writer.WriteInt32(8);
         writer.WriteFloat3(component.AngularVelocity);
         writer.WriteInt32((int)component.BodyKind);
         writer.WriteDouble(component.GravityScale);
         writer.WriteFloat3(component.LinearVelocity);
         writer.WriteDouble(component.Mass);
         writer.WriteByte(component.UseGravity ? (byte)1 : (byte)0);
+        writer.WriteDouble(component.SleepThreshold);
+        writer.WriteInt32(component.SleepTicks);
         return stream.ToArray();
     }
 
