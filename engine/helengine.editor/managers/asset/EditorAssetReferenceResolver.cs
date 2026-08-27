@@ -11,6 +11,7 @@ namespace helengine.editor {
         readonly bool OwnsIdentityIndex;
         readonly AssetIdentityMetadataService MetadataService;
         readonly EditorAssetPathClassifier PathClassifier;
+        readonly EditorAssetRepairReport RepairReport;
         IEditorAssetReadSynchronizer ReadSynchronizer;
         bool ResolutionScopeActive;
         HashSet<string> ResolutionScopeMissingMetadataPaths;
@@ -47,6 +48,16 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the repair report shared by this resolver and its identity index.
+        /// </summary>
+        internal EditorAssetRepairReport RepairReportValue {
+            get {
+                EnsureNotDisposed();
+                return RepairReport;
+            }
+        }
+
+        /// <summary>
         /// Initializes a project-scoped reference resolver.
         /// </summary>
         /// <param name="projectRootPath">Project root path.</param>
@@ -54,7 +65,13 @@ namespace helengine.editor {
         /// <param name="hashCache">Optional content hash cache.</param>
         /// <param name="metadataService">Optional identity metadata service.</param>
         /// <param name="pathClassifier">Optional path classifier.</param>
-        public EditorAssetReferenceResolver(string projectRootPath, EditorAssetIdentityIndex identityIndex = null, EditorAssetHashCache hashCache = null, AssetIdentityMetadataService metadataService = null, EditorAssetPathClassifier pathClassifier = null) {
+        public EditorAssetReferenceResolver(
+            string projectRootPath,
+            EditorAssetIdentityIndex identityIndex = null,
+            EditorAssetHashCache hashCache = null,
+            AssetIdentityMetadataService metadataService = null,
+            EditorAssetPathClassifier pathClassifier = null,
+            EditorAssetRepairReport repairReport = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -62,6 +79,7 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             MetadataService = metadataService ?? new AssetIdentityMetadataService();
             PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
+            RepairReport = repairReport ?? identityIndex?.RepairReportValue ?? new EditorAssetRepairReport();
             if (hashCache != null) {
                 HashCache = hashCache;
                 OwnsHashCache = false;
@@ -73,7 +91,7 @@ namespace helengine.editor {
                 OwnsHashCache = true;
             }
             OwnsIdentityIndex = identityIndex == null;
-            IdentityIndex = identityIndex ?? new EditorAssetIdentityIndex(ProjectRootPath, MetadataService, PathClassifier, HashCache);
+            IdentityIndex = identityIndex ?? new EditorAssetIdentityIndex(ProjectRootPath, MetadataService, PathClassifier, HashCache, RepairReport);
             IdentityIndex.Initialize();
         }
 
@@ -111,14 +129,24 @@ namespace helengine.editor {
                 metadataChanged = true;
                 savedIdWasAdopted = true;
                 IdentityIndex.RegisterOrUpdate(savedFullPath);
+                AppendRepair(
+                    EditorAssetRepairKind.SavedIdAdoption,
+                    savedPath,
+                    string.Empty,
+                    reference.AssetId,
+                    AssetReferenceResolutionTier.Path,
+                    "saved identity adopted by exact normalized path",
+                    "Adopted the saved identity for the existing authored source.");
             }
 
-            EditorAssetIdentityEntry winner = SelectByAssetId(reference.AssetId, expectedKind, savedPath);
+            EditorAssetResolutionCandidateScore candidateEvidence = null;
+            EditorAssetIdentityEntry winner = savedIdWasAdopted
+                ? null
+                : SelectByAssetId(reference.AssetId, expectedKind, savedPath, reference.ContentHash, out candidateEvidence);
             AssetReferenceResolutionTier tier = AssetReferenceResolutionTier.AssetId;
             if (savedIdWasAdopted) {
                 // The UUID was adopted from the saved path during this load, so report
                 // the path tier that actually supplied the recovery information.
-                winner = null;
                 tier = AssetReferenceResolutionTier.Path;
             }
             if (winner == null) {
@@ -126,17 +154,21 @@ namespace helengine.editor {
                 if (pathEntry != null && pathEntry.EntryKind == expectedKind) {
                     winner = pathEntry;
                     tier = AssetReferenceResolutionTier.Path;
+                    candidateEvidence = CreateCandidateScore(pathEntry, reference.AssetId, savedPath, false);
                 }
             }
             if (winner == null && IsValidContentHash(reference.ContentHash)) {
                 IReadOnlyList<EditorAssetIdentityEntry> candidates = IdentityIndex.EnumerateCompatible(expectedKind);
+                List<EditorAssetIdentityEntry> hashMatches = new List<EditorAssetIdentityEntry>();
                 for (int index = 0; index < candidates.Count; index++) {
                     ValidateNoReparseTraversal(candidates[index].FullPath);
                     if (string.Equals(HashCache.GetContentHash(candidates[index].FullPath), reference.ContentHash, StringComparison.Ordinal)) {
-                        winner = candidates[index];
-                        tier = AssetReferenceResolutionTier.ContentHash;
-                        break;
+                        hashMatches.Add(candidates[index]);
                     }
+                }
+                winner = SelectBestCandidate(hashMatches, reference.AssetId, savedPath, reference.ContentHash, true, out candidateEvidence);
+                if (winner != null) {
+                    tier = AssetReferenceResolutionTier.ContentHash;
                 }
             }
             if (winner == null) {
@@ -150,7 +182,19 @@ namespace helengine.editor {
             }
             SceneAssetReference canonicalReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(winner.AssetId, winner.RelativePath, contentHash);
             bool referenceChanged = !AreEquivalent(reference, canonicalReference);
-                return new AssetReferenceResolution(winner.FullPath, canonicalReference, tier, referenceChanged, metadataChanged);
+            if (referenceChanged) {
+                bool pathChanged = !string.Equals(reference.RelativePath, canonicalReference.RelativePath, StringComparison.Ordinal);
+                bool hashChanged = !string.Equals(reference.ContentHash, canonicalReference.ContentHash, StringComparison.Ordinal);
+                string evidence = candidateEvidence?.ToEvidenceString() ?? string.Empty;
+                if (pathChanged) {
+                    AppendRepair(EditorAssetRepairKind.PathHealing, winner.RelativePath, reference.AssetId, winner.AssetId, tier, evidence, "Healed the saved asset path to the selected authored source.");
+                }
+                if (hashChanged) {
+                    AppendRepair(EditorAssetRepairKind.HashHealing, winner.RelativePath, reference.AssetId, winner.AssetId, tier, evidence, "Healed the saved content hash to the selected authored source.");
+                }
+                AppendRepair(EditorAssetRepairKind.CanonicalReferenceRefresh, winner.RelativePath, reference.AssetId, winner.AssetId, tier, evidence, "Refreshed the saved asset reference to its canonical identity, path, and hash.");
+            }
+                return new AssetReferenceResolution(winner.FullPath, canonicalReference, tier, referenceChanged, metadataChanged, candidateEvidence);
             });
         }
 
@@ -231,18 +275,103 @@ namespace helengine.editor {
             return ReadSynchronizer == null ? read() : ReadSynchronizer.Execute(read);
         }
 
-        /// <summary>Selects a UUID match, preferring the saved path among duplicate candidates.</summary>
-        EditorAssetIdentityEntry SelectByAssetId(string assetId, AssetEntryKind expectedKind, string savedPath) {
+        /// <summary>Selects a UUID match using the explicit deterministic candidate score.</summary>
+        EditorAssetIdentityEntry SelectByAssetId(
+            string assetId,
+            AssetEntryKind expectedKind,
+            string savedPath,
+            string savedHash,
+            out EditorAssetResolutionCandidateScore candidateEvidence) {
+            candidateEvidence = null;
             if (!IsValidAssetId(assetId)) {
                 return null;
             }
             IReadOnlyList<EditorAssetIdentityEntry> candidates = IdentityIndex.FindByAssetId(assetId, expectedKind);
-            for (int index = 0; index < candidates.Count; index++) {
-                if (string.Equals(candidates[index].RelativePath, savedPath, PathComparison)) {
-                    return candidates[index];
-                }
+            return SelectBestCandidate(candidates, assetId, savedPath, savedHash, false, out candidateEvidence);
+        }
+
+        /// <summary>Scores and selects one candidate in winner-first deterministic order.</summary>
+        EditorAssetIdentityEntry SelectBestCandidate(
+            IReadOnlyList<EditorAssetIdentityEntry> candidates,
+            string savedAssetId,
+            string savedPath,
+            string savedHash,
+            bool hashAlreadyMatched,
+            out EditorAssetResolutionCandidateScore candidateEvidence) {
+            candidateEvidence = null;
+            if (candidates == null || candidates.Count == 0) {
+                return null;
             }
-            return candidates.Count == 0 ? null : candidates[0];
+
+            bool highestCurrentId = candidates.Any(candidate => string.Equals(candidate.AssetId, savedAssetId, StringComparison.Ordinal));
+            bool highestTierHasPath = candidates.Any(candidate =>
+                string.Equals(candidate.AssetId, savedAssetId, StringComparison.Ordinal) == highestCurrentId &&
+                string.Equals(candidate.RelativePath, savedPath, PathComparison));
+            bool evaluateHash = hashAlreadyMatched ||
+                (!highestTierHasPath && IsValidContentHash(savedHash) && candidates.Count(candidate =>
+                    string.Equals(candidate.AssetId, savedAssetId, StringComparison.Ordinal) == highestCurrentId) > 1);
+            List<ScoredCandidate> scoredCandidates = new List<ScoredCandidate>(candidates.Count);
+            for (int index = 0; index < candidates.Count; index++) {
+                EditorAssetIdentityEntry candidate = candidates[index];
+                ValidateNoReparseTraversal(candidate.FullPath);
+                bool matchesHash = hashAlreadyMatched;
+                bool candidateIsHighestIdentityTier = string.Equals(candidate.AssetId, savedAssetId, StringComparison.Ordinal) == highestCurrentId;
+                if (evaluateHash && !hashAlreadyMatched && candidateIsHighestIdentityTier) {
+                    matchesHash = string.Equals(HashCache.GetContentHash(candidate.FullPath), savedHash, StringComparison.Ordinal);
+                }
+                EditorAssetResolutionCandidateScore score = CreateCandidateScore(candidate, savedAssetId, savedPath, matchesHash);
+                scoredCandidates.Add(new ScoredCandidate(candidate, score));
+            }
+
+            scoredCandidates.Sort((left, right) => left.Score.CompareTo(right.Score));
+            candidateEvidence = scoredCandidates[0].Score;
+            return scoredCandidates[0].Entry;
+        }
+
+        /// <summary>Creates one immutable candidate score from indexed identity evidence.</summary>
+        EditorAssetResolutionCandidateScore CreateCandidateScore(
+            EditorAssetIdentityEntry candidate,
+            string savedAssetId,
+            string savedPath,
+            bool matchesSavedHash) {
+            return new EditorAssetResolutionCandidateScore(
+                string.Equals(candidate.AssetId, savedAssetId, StringComparison.Ordinal),
+                string.Equals(candidate.RelativePath, savedPath, PathComparison),
+                matchesSavedHash,
+                IdentityIndex.IsRecordedOwner(savedAssetId, candidate.RelativePath),
+                candidate.RelativePath);
+        }
+
+        /// <summary>Records one automatic reference repair in the shared session report.</summary>
+        void AppendRepair(
+            EditorAssetRepairKind kind,
+            string relativePath,
+            string previousAssetId,
+            string currentAssetId,
+            AssetReferenceResolutionTier? tier,
+            string evidence,
+            string diagnostic) {
+            RepairReport.Append(new EditorAssetRepairRecord(
+                kind,
+                NormalizeRelativePath(relativePath),
+                previousAssetId,
+                currentAssetId,
+                tier,
+                evidence,
+                string.Empty,
+                diagnostic));
+        }
+
+        /// <summary>Pairs one indexed entry with its immutable ordering score.</summary>
+        sealed class ScoredCandidate {
+            public ScoredCandidate(EditorAssetIdentityEntry entry, EditorAssetResolutionCandidateScore score) {
+                Entry = entry;
+                Score = score;
+            }
+
+            public EditorAssetIdentityEntry Entry { get; }
+
+            public EditorAssetResolutionCandidateScore Score { get; }
         }
 
         /// <summary>Compares every persisted reference field.</summary>

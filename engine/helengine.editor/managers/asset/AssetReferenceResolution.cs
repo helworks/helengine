@@ -11,12 +11,19 @@ namespace helengine.editor {
         /// <param name="tier">Identity tier that selected the source.</param>
         /// <param name="referenceChanged">Whether the serialized reference should be rewritten.</param>
         /// <param name="metadataChanged">Whether identity metadata was adopted or repaired.</param>
-        public AssetReferenceResolution(string fullPath, SceneAssetReference canonicalReference, AssetReferenceResolutionTier tier, bool referenceChanged, bool metadataChanged) {
+        public AssetReferenceResolution(
+            string fullPath,
+            SceneAssetReference canonicalReference,
+            AssetReferenceResolutionTier tier,
+            bool referenceChanged,
+            bool metadataChanged,
+            EditorAssetResolutionCandidateScore candidateEvidence = null) {
             FullPath = fullPath ?? string.Empty;
             CanonicalReference = canonicalReference ?? throw new ArgumentNullException(nameof(canonicalReference));
             Tier = tier;
             ReferenceChanged = referenceChanged;
             MetadataChanged = metadataChanged;
+            CandidateEvidence = candidateEvidence;
         }
 
         /// <summary>Gets the resolved absolute source path.</summary>
@@ -33,5 +40,8 @@ namespace helengine.editor {
 
         /// <summary>Gets a value indicating whether metadata was changed during recovery.</summary>
         public bool MetadataChanged { get; }
+
+        /// <summary>Gets the immutable deterministic evidence for the selected candidate.</summary>
+        public EditorAssetResolutionCandidateScore CandidateEvidence { get; }
     }
 }

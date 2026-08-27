@@ -100,10 +100,42 @@ namespace helengine.editor {
 
             try {
                 commandExecutionService.Execute(options.CommandId);
-                return EditorBuildExecutionResult.Success($"Editor command '{options.CommandId}' executed successfully.");
+                string repairSummary = authoring.RepairReport.CreateSummary();
+                if (!string.IsNullOrWhiteSpace(repairSummary)) {
+                    Console.WriteLine(repairSummary);
+                }
+                string completionMessage = AppendRepairSummary(
+                    $"Editor command '{options.CommandId}' executed successfully.",
+                    authoring.RepairReport);
+                return EditorBuildExecutionResult.Success(completionMessage);
             } catch (Exception exception) {
-                return EditorBuildExecutionResult.Failure($"Editor command '{options.CommandId}' failed: {exception}");
+                string repairSummary = authoring.RepairReport.CreateSummary();
+                if (!string.IsNullOrWhiteSpace(repairSummary)) {
+                    Console.WriteLine(repairSummary);
+                }
+                string failureMessage = AppendRepairSummary(
+                    $"Editor command '{options.CommandId}' failed: {exception}",
+                    authoring.RepairReport);
+                return EditorBuildExecutionResult.Failure(failureMessage);
             }
+        }
+
+        /// <summary>
+        /// Appends the current repair summary to one command completion message when repairs occurred.
+        /// </summary>
+        /// <param name="message">Base command completion message.</param>
+        /// <param name="repairReport">Session report to summarize.</param>
+        /// <returns>Completion message with an optional concise repair summary.</returns>
+        internal static string AppendRepairSummary(string message, EditorAssetRepairReport repairReport) {
+            if (message == null) {
+                throw new ArgumentNullException(nameof(message));
+            }
+            if (repairReport == null) {
+                throw new ArgumentNullException(nameof(repairReport));
+            }
+
+            string summary = repairReport.CreateSummary();
+            return string.IsNullOrWhiteSpace(summary) ? message : $"{message} {summary}";
         }
 
         /// <summary>

@@ -48,6 +48,43 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures startup identity creation is recorded in the session repair report.
+    /// </summary>
+    [Fact]
+    public void Initialize_WhenExternalMetadataIsMissing_ReportsMetadataCreation() {
+        CreateAsset("Models/MissingMetadata.fbx");
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        EditorAssetIdentityIndex index = CreateIndex(report);
+
+        index.Initialize();
+
+        EditorAssetRepairRecord repair = Assert.Single(report.Records);
+        Assert.Equal(EditorAssetRepairKind.MissingExternalMetadataCreation, repair.Kind);
+        Assert.Equal("Models/MissingMetadata.fbx", repair.RelativePath);
+        Assert.True(File.Exists(Path.Combine(TempRootPath, "assets", "Models", "MissingMetadata.fbx.hmeta")));
+    }
+
+    /// <summary>
+    /// Ensures copied sidecar identity repair records the replaced identity and selected owner evidence.
+    /// </summary>
+    [Fact]
+    public void Initialize_WhenDuplicateMetadataIsCopied_ReportsReassignmentEvidence() {
+        string firstPath = CreateAsset("Models/A.fbx");
+        string secondPath = CreateAsset("Models/B.fbx");
+        CopyMetadata(firstPath, secondPath, "00112233445566778899aabbccddeeff");
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        EditorAssetIdentityIndex index = CreateIndex(report);
+
+        index.Initialize();
+
+        EditorAssetRepairRecord repair = Assert.Single(report.Records.Where(item => item.Kind == EditorAssetRepairKind.DuplicateIdReassignment));
+        Assert.Equal("Models/B.fbx", repair.RelativePath);
+        Assert.Equal("00112233445566778899aabbccddeeff", repair.PreviousAssetId);
+        Assert.NotEqual(repair.PreviousAssetId, repair.CurrentAssetId);
+        Assert.Contains("owner", repair.Evidence, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Ensures a previously recorded owner wins future duplicate repairs even when path ordering changes.
     /// </summary>
     [Fact]
@@ -315,6 +352,15 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     /// <returns>Configured identity index.</returns>
     EditorAssetIdentityIndex CreateIndex(IEditorAssetFileCatalog catalog) {
         return new EditorAssetIdentityIndex(TempRootPath, null, null, null, catalog);
+    }
+
+    /// <summary>
+    /// Creates an identity index sharing an explicit repair report.
+    /// </summary>
+    /// <param name="report">Report receiving automatic repair records.</param>
+    /// <returns>Configured identity index.</returns>
+    EditorAssetIdentityIndex CreateIndex(EditorAssetRepairReport report) {
+        return new EditorAssetIdentityIndex(TempRootPath, null, null, null, report);
     }
 
     /// <summary>

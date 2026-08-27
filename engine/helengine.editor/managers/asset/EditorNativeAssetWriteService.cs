@@ -36,6 +36,11 @@ namespace helengine.editor {
         readonly AssetIdentityMetadataService MetadataService;
 
         /// <summary>
+        /// Session report shared by the authoring services.
+        /// </summary>
+        readonly EditorAssetRepairReport RepairReport;
+
+        /// <summary>
         /// Last project publication generation observed by this writer.
         /// </summary>
         readonly IEditorProjectWriteChangeLog ChangeLog;
@@ -59,7 +64,8 @@ namespace helengine.editor {
         public EditorNativeAssetWriteService(
             string projectRootPath,
             EditorAssetIdentityIndex identityIndex,
-            EditorAssetHashCache hashCache) {
+            EditorAssetHashCache hashCache,
+            EditorAssetRepairReport repairReport = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -68,6 +74,7 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            RepairReport = repairReport ?? identityIndex.RepairReportValue;
             ChangeLog = new FileEditorProjectWriteChangeLog(ProjectRootPath);
             MetadataService = new AssetIdentityMetadataService();
             InitializeObservedState();
@@ -80,7 +87,8 @@ namespace helengine.editor {
             string projectRootPath,
             EditorAssetIdentityIndex identityIndex,
             EditorAssetHashCache hashCache,
-            IEditorProjectWriteChangeLog changeLog) {
+            IEditorProjectWriteChangeLog changeLog,
+            EditorAssetRepairReport repairReport = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -89,6 +97,7 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            RepairReport = repairReport ?? identityIndex.RepairReportValue;
             ChangeLog = changeLog ?? throw new ArgumentNullException(nameof(changeLog));
             MetadataService = new AssetIdentityMetadataService();
             InitializeObservedState();

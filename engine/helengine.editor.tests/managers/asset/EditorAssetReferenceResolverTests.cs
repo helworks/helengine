@@ -55,6 +55,48 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures path, hash, and complete canonical reference repairs are all reported once.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenPathAndHashAreStale_ReportsEachCanonicalRepair() {
+        string assetPath = CreateAsset("Models/Reported.fbx", new byte[] { 1, 2, 3 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string assetId = "00112233445566778899aabbccddeeff";
+        metadata.Save(assetPath, new AssetIdentityMetadataDocument { AssetId = assetId });
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            assetId,
+            "Models/Missing.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.True(result.ReferenceChanged);
+        Assert.Contains(report.Records, item => item.Kind == EditorAssetRepairKind.PathHealing);
+        Assert.Contains(report.Records, item => item.Kind == EditorAssetRepairKind.HashHealing);
+        Assert.Contains(report.Records, item => item.Kind == EditorAssetRepairKind.CanonicalReferenceRefresh);
+        Assert.Equal(result.CandidateEvidence.ToEvidenceString(), report.Records[^1].Evidence);
+    }
+
+    /// <summary>
+    /// Ensures resolving an already canonical reference does not append a no-op repair.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenReferenceIsCanonical_DoesNotReportRepair() {
+        string assetPath = CreateAsset("Models/Canonical.fbx", new byte[] { 9, 8, 7 });
+        EditorAssetRepairReport setupReport = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: setupReport);
+        SceneAssetReference reference = setupResolver.CreateFileReference(assetPath, AssetEntryKind.Model);
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
+
+        resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Empty(report.Records);
+    }
+
+    /// <summary>
     /// Ensures a missing sidecar adopts an unclaimed saved UUID during path recovery.
     /// </summary>
     [Fact]
@@ -119,6 +161,95 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.Equal(AssetReferenceResolutionTier.ContentHash, result.Tier);
         Assert.Equal("Models/A.fbx", result.CanonicalReference.RelativePath);
         Assert.NotEqual(firstPath, secondPath);
+    }
+
+    /// <summary>
+    /// Ensures a current identity beats a copied former alias even when the former alias matches the saved path.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenCurrentAndFormerIdentityCandidatesCompete_PrefersCurrentIdentity() {
+        string firstPath = CreateAsset("Models/A.fbx", new byte[] { 1, 2, 3 });
+        string secondPath = CreateAsset("Models/B.fbx", new byte[] { 4, 5, 6 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string copiedAssetId = "00112233445566778899aabbccddeeff";
+        metadata.Save(firstPath, new AssetIdentityMetadataDocument { AssetId = copiedAssetId });
+        metadata.Save(secondPath, new AssetIdentityMetadataDocument { AssetId = copiedAssetId });
+
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            copiedAssetId,
+            "Models/B.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal(AssetReferenceResolutionTier.AssetId, result.Tier);
+        Assert.Equal("Models/A.fbx", result.CanonicalReference.RelativePath);
+        Assert.True(result.CandidateEvidence.IsCurrentId);
+    }
+
+    /// <summary>
+    /// Ensures a matching saved content hash breaks a duplicate current-identity tie.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenDuplicateCurrentIdsHaveDifferentHashes_PrefersSavedHash() {
+        CreateNativeAnimation("Animations/A.hanim", "aabbccddeeff00112233445566778899", 1f);
+        string secondPath = CreateNativeAnimation("Animations/B.hanim", "aabbccddeeff00112233445566778899", 2f);
+        using EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference secondReference = setupResolver.CreateFileReference(secondPath, AssetEntryKind.File);
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference unresolvedReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "aabbccddeeff00112233445566778899",
+            "Animations/Missing.hanim",
+            secondReference.ContentHash);
+
+        AssetReferenceResolution result = resolver.Resolve(unresolvedReference, AssetEntryKind.File);
+
+        Assert.Equal(AssetReferenceResolutionTier.AssetId, result.Tier);
+        Assert.Equal("Animations/B.hanim", result.CanonicalReference.RelativePath);
+        Assert.True(result.CandidateEvidence.MatchesSavedHash);
+    }
+
+    /// <summary>
+    /// Ensures a recorded owner beats lexical path order when all stronger identity evidence ties.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenRecordedOwnerAndLexicalPathCompete_PrefersRecordedOwner() {
+        string recordedOwnerPath = CreateNativeAnimation("Animations/Z.hanim", "aabbccddeeff00112233445566778899", 1f);
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(TempRootPath);
+        index.Initialize();
+        CreateNativeAnimation("Animations/A.hanim", "aabbccddeeff00112233445566778899", 1f);
+        index.ReconcileExternalChanges();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, index);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "aabbccddeeff00112233445566778899",
+            "Animations/Missing.hanim",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.File);
+
+        Assert.Equal(recordedOwnerPath, result.FullPath);
+        Assert.True(result.CandidateEvidence.IsRecordedOwner);
+    }
+
+    /// <summary>
+    /// Ensures the final duplicate tie-break is normalized relative path ordinal order.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenDuplicateCandidatesHaveEqualEvidence_UsesOrdinalPath() {
+        CreateNativeAnimation("Animations/A.hanim", "aabbccddeeff00112233445566778899", 1f);
+        string secondPath = CreateNativeAnimation("Animations/B.hanim", "aabbccddeeff00112233445566778899", 1f);
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "aabbccddeeff00112233445566778899",
+            "Animations/Missing.hanim",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.File);
+
+        Assert.NotEqual(secondPath, result.FullPath);
+        Assert.Equal("Animations/A.hanim", result.CanonicalReference.RelativePath);
+        Assert.Equal("Animations/A.hanim", result.CandidateEvidence.RelativePath);
     }
 
     /// <summary>
@@ -374,6 +505,27 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         document.Importer.AssetId = "Materials/Native";
         using FileStream stream = File.Create(assetPath);
         MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
+        return assetPath;
+    }
+
+    /// <summary>
+    /// Writes one current native animation fixture with an embedded identity.
+    /// </summary>
+    string CreateNativeAnimation(string relativePath, string assetId, float duration) {
+        string assetPath = Path.Combine(TempRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(assetPath));
+        using FileStream stream = File.Create(assetPath);
+        AssetSerializer.Serialize(stream, new AnimationClipAsset {
+            Id = relativePath,
+            AuthoringAssetId = assetId,
+            FormerAuthoringAssetIds = Array.Empty<string>(),
+            Duration = duration,
+            PositionTracks = Array.Empty<PositionKeyframeTrackAsset>(),
+            PositionOffsetTracks = Array.Empty<PositionOffsetKeyframeTrackAsset>(),
+            ScaleTracks = Array.Empty<ScaleKeyframeTrackAsset>(),
+            RotationTracks = Array.Empty<RotationKeyframeTrackAsset>(),
+            PlatformOverrides = Array.Empty<AnimationClipPlatformOverrideAsset>()
+        });
         return assetPath;
     }
 

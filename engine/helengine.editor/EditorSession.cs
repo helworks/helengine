@@ -300,6 +300,11 @@ namespace helengine.editor {
         /// Single project-scoped authoring session shared by editor commands for this host session.
         /// </summary>
         readonly IEditorProjectAuthoringSession AuthoringSession;
+
+        /// <summary>
+        /// Last repair-report summary sent to the editor log surface.
+        /// </summary>
+        string LastReportedRepairSummary;
         /// <summary>
         /// Explicitly registered shader backends available to this editor session.
         /// </summary>
@@ -694,6 +699,7 @@ namespace helengine.editor {
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
+            LogAuthoringRepairReport();
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
             meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
@@ -3367,6 +3373,7 @@ namespace helengine.editor {
                         AuthoringSession));
                 commandExecutionService.Execute(menuItem.CommandId);
                 Logger.WriteLine($"Executed project menu item '{menuItemId}'.");
+                LogAuthoringRepairReport();
             } catch (Exception ex) {
                 Logger.WriteError($"Project menu item '{menuItemId}' failed: {ex.Message}");
             }
@@ -3627,6 +3634,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Sends newly accumulated automatic repair evidence to the non-blocking editor log surface.
+        /// </summary>
+        void LogAuthoringRepairReport() {
+            if (AuthoringSession == null || AuthoringSession.RepairReport == null) {
+                return;
+            }
+
+            string summary = AuthoringSession.RepairReport.CreateSummary();
+            if (string.IsNullOrWhiteSpace(summary) || string.Equals(summary, LastReportedRepairSummary, StringComparison.Ordinal)) {
+                return;
+            }
+
+            LastReportedRepairSummary = summary;
+            Logger.WriteLine(summary);
+        }
+
+        /// <summary>
         /// Handles one confirmed scene path from the open-file dialog.
         /// </summary>
         /// <param name="fullPath">Absolute path to the selected scene file.</param>
@@ -3654,6 +3678,7 @@ namespace helengine.editor {
 
             try {
                 SceneSaveService.Save(fullPath, CurrentSceneSettings);
+                LogAuthoringRepairReport();
                 CurrentScenePath = Path.GetFullPath(fullPath);
                 sessionStateService?.SetLastScenePath(CurrentScenePath);
                 MarkSceneClean();

@@ -110,6 +110,7 @@ namespace helengine.editor {
             IdentityIndex = dependencies.IdentityIndex;
             ReferenceResolver = dependencies.ReferenceResolver;
             Lifetime = dependencies.Lifetime;
+            RepairReportValue = dependencies.RepairReport;
             AssetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath);
             string projectRootPath = Path.GetDirectoryName(AssetsRootPath);
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
@@ -117,10 +118,9 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            NativeAssetWriteService = new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache);
+            NativeAssetWriteService = new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache, RepairReportValue);
             ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService);
-            RepairReportValue = new EditorAssetRepairReport();
         }
 
         /// <summary>
@@ -507,13 +507,14 @@ namespace helengine.editor {
         /// <returns>Explicit project service composition.</returns>
         static SessionDependencies CreateDependencies(AssetImportManager assetImportManager) {
             string projectRootPath = ResolveProjectRootPath(assetImportManager);
+            EditorAssetRepairReport repairReport = new EditorAssetRepairReport();
             EditorAssetHashCache hashCache = new EditorAssetHashCache(projectRootPath);
-            EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache);
+            EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache, repairReport);
             identityIndex.Initialize();
-            EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, hashCache);
+            EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, hashCache, repairReport: repairReport);
             EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, hashCache);
             IEditorAuthoringSessionLifetime lifetime = new EditorAuthoringSessionLifetime(resources);
-            return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime);
+            return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, repairReport);
         }
 
         /// <summary>
@@ -525,18 +526,21 @@ namespace helengine.editor {
             public readonly EditorAssetIdentityIndex IdentityIndex;
             public readonly EditorAssetReferenceResolver ReferenceResolver;
             public readonly IEditorAuthoringSessionLifetime Lifetime;
+            public readonly EditorAssetRepairReport RepairReport;
 
             public SessionDependencies(
                 AssetImportManager assetImportManager,
                 EditorAssetHashCache hashCache,
                 EditorAssetIdentityIndex identityIndex,
                 EditorAssetReferenceResolver referenceResolver,
-                IEditorAuthoringSessionLifetime lifetime) {
+                IEditorAuthoringSessionLifetime lifetime,
+                EditorAssetRepairReport repairReport = null) {
                 AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
                 HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
                 IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
                 ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
                 Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+                RepairReport = repairReport ?? ReferenceResolver.RepairReportValue;
             }
         }
 

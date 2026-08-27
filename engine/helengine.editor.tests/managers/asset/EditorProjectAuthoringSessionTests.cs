@@ -67,6 +67,27 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the session creates its repair report before the initial identity index reconciliation.
+    /// </summary>
+    [Fact]
+    public void Session_InitialIdentityRepairs_AreAvailableThroughOneSharedReport() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        string sourcePath = Path.Combine(projectRootPath, "assets", "models", "reported.obj");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
+        File.WriteAllText(sourcePath, "o reported");
+        ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
+        EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
+            projectRootPath,
+            Array.Empty<IAssetImporterRegistration>(),
+            contentManager));
+
+        EditorAssetRepairRecord repair = Assert.Single(session.RepairReport.Records);
+
+        Assert.Equal(EditorAssetRepairKind.MissingExternalMetadataCreation, repair.Kind);
+        Assert.Equal("models/reported.obj", repair.RelativePath);
+    }
+
+    /// <summary>
     /// Ensures the session routes native writes through its stable writer.
     /// </summary>
     [Fact]
