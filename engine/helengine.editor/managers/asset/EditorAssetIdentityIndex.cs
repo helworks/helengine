@@ -95,11 +95,11 @@ namespace helengine.editor {
             HashCache = hashCache ?? new EditorAssetHashCache(ProjectRootPath);
             OwnsHashCache = hashCache == null;
             FileCatalog = new FileEditorAssetFileCatalog();
-            EntriesByPath = new Dictionary<string, EditorAssetIdentityEntry>(StringComparer.OrdinalIgnoreCase);
+            EntriesByPath = new Dictionary<string, EditorAssetIdentityEntry>(PathComparer);
             EntriesByAssetId = new Dictionary<string, List<EditorAssetIdentityEntry>>(StringComparer.Ordinal);
             EntriesByLookupIdentity = new Dictionary<string, List<EditorAssetIdentityEntry>>(StringComparer.Ordinal);
             PreviousOwners = new Dictionary<string, string>(StringComparer.Ordinal);
-            MissingMetadataPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            MissingMetadataPaths = new HashSet<string>(PathComparer);
         }
 
         /// <summary>
@@ -158,7 +158,7 @@ namespace helengine.editor {
         /// <returns>Independent set of paths with missing metadata.</returns>
         internal HashSet<string> CopyMissingMetadataPaths() {
             EnsureNotDisposed();
-            return new HashSet<string>(MissingMetadataPaths, StringComparer.OrdinalIgnoreCase);
+            return new HashSet<string>(MissingMetadataPaths, PathComparer);
         }
 
         /// <summary>
@@ -239,7 +239,7 @@ namespace helengine.editor {
                     usedIds.Add(replacementId);
                     MetadataService.Save(duplicate.FullPath, repairedDocument);
                     for (int loadedIndex = 0; loadedIndex < loadedEntries.Count; loadedIndex++) {
-                        if (string.Equals(loadedEntries[loadedIndex].FullPath, duplicate.FullPath, StringComparison.OrdinalIgnoreCase)) {
+                        if (string.Equals(loadedEntries[loadedIndex].FullPath, duplicate.FullPath, PathComparison)) {
                             loadedEntries[loadedIndex] = CreateEntry(duplicate.FullPath, repairedDocument);
                             break;
                         }
@@ -531,11 +531,25 @@ namespace helengine.editor {
 
             string normalizedFullPath = Path.GetFullPath(fullPath);
             string assetsPrefix = AssetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (!normalizedFullPath.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase)) {
+            if (!normalizedFullPath.StartsWith(assetsPrefix, PathComparison)) {
                 throw new InvalidOperationException($"Path '{fullPath}' must be inside the assets directory.");
             }
             return normalizedFullPath;
         }
+
+        /// <summary>
+        /// Gets the operating-system path comparison used for containment.
+        /// </summary>
+        static StringComparison PathComparison => OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        /// <summary>
+        /// Gets the operating-system path-key comparer used for indexed paths.
+        /// </summary>
+        static StringComparer PathComparer => OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
         /// <summary>
         /// Rejects operations after this index has released its owned resources.

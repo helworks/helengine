@@ -475,13 +475,13 @@ namespace helengine.editor.tests {
             SceneEntityAsset rootEntity = Assert.Single(deserialized.RootEntities);
             Assert.Collection(
                 rootEntity.PlatformExistenceOverrides,
-                windowsOverride => {
-                    Assert.Equal("Windows", windowsOverride.PlatformId);
-                    Assert.True(windowsOverride.Exists);
-                },
                 nintendo3DsOverride => {
                     Assert.Equal("Nintendo3DS", nintendo3DsOverride.PlatformId);
                     Assert.False(nintendo3DsOverride.Exists);
+                },
+                windowsOverride => {
+                    Assert.Equal("Windows", windowsOverride.PlatformId);
+                    Assert.True(windowsOverride.Exists);
                 });
         }
 

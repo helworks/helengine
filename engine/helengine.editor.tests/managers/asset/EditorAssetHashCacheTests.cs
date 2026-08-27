@@ -279,6 +279,27 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a rehashed path still carries its deletion tombstone when persistence fails.
+    /// </summary>
+    [Fact]
+    public void Flush_WhenRehashUpdateFails_RetainsDeletionTombstone() {
+        string assetPath = CreateAsset("Models/TombstoneRetry.obj", new byte[] { 1, 2, 3 });
+        using (EditorAssetHashCache seedCache = new EditorAssetHashCache(TempRootPath)) {
+            seedCache.GetContentHash(assetPath);
+        }
+
+        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore { FailNextUpdate = true };
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        cache.GetContentHash(assetPath);
+        File.WriteAllBytes(assetPath, new byte[] { 4, 5, 6 });
+        cache.InvalidateContentHash(assetPath);
+        cache.GetContentHash(assetPath);
+
+        Assert.Throws<IOException>(() => cache.Flush());
+        Assert.Contains("Models/TombstoneRetry.obj", store.LastRemovedPaths);
+    }
+
+    /// <summary>
     /// Writes a deterministic native scene fixture used to compare semantic hashes.
     /// </summary>
     static void WriteNativeScene(string path) {
@@ -323,6 +344,11 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         public EditorAssetHashCacheDocument LastSavedDocument { get; private set; }
 
         /// <summary>
+        /// Gets the most recent deletion tombstones supplied to the store.
+        /// </summary>
+        public IReadOnlyCollection<string> LastRemovedPaths { get; private set; } = Array.Empty<string>();
+
+        /// <summary>
         /// Loads the current cache document from the real cache store.
         /// </summary>
         /// <param name="cachePath">Absolute cache document path.</param>
@@ -347,14 +373,16 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         /// </summary>
         public EditorAssetHashCacheDocument Update(
             string cachePath,
-            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates) {
+            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates,
+            IReadOnlyCollection<string> removedPaths) {
+            LastRemovedPaths = removedPaths.ToArray();
             if (FailNextUpdate) {
                 FailNextUpdate = false;
                 throw new IOException("Test cache store failure.");
             }
 
             SaveCount++;
-            EditorAssetHashCacheDocument document = new FileEditorAssetHashCacheStore().Update(cachePath, updates);
+            EditorAssetHashCacheDocument document = new FileEditorAssetHashCacheStore().Update(cachePath, updates, removedPaths);
             LastSavedDocument = document;
             return document;
         }
@@ -387,9 +415,10 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         /// </summary>
         public EditorAssetHashCacheDocument Update(
             string cachePath,
-            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates) {
+            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates,
+            IReadOnlyCollection<string> removedPaths) {
             SaveBarrier.SignalAndWait(TimeSpan.FromSeconds(10));
-            return InnerStore.Update(cachePath, updates);
+            return InnerStore.Update(cachePath, updates, removedPaths);
         }
     }
 

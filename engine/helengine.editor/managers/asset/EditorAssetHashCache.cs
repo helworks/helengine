@@ -51,7 +51,12 @@ namespace helengine.editor {
         /// <summary>
         /// Relative paths changed by this cache since its last successful flush.
         /// </summary>
-        readonly HashSet<string> DirtyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        readonly HashSet<string> DirtyPaths;
+
+        /// <summary>
+        /// Tracks cached paths removed by invalidation until the next successful store merge.
+        /// </summary>
+        readonly HashSet<string> RemovedPaths;
 
         /// <summary>
         /// Tracks whether this session-owned cache has been released.
@@ -87,7 +92,9 @@ namespace helengine.editor {
             FileHasher = fileHasher ?? new AssetFileHasher();
             CacheStore = cacheStore ?? throw new ArgumentNullException(nameof(cacheStore));
             PathClassifier = new EditorAssetPathClassifier();
-            Entries = new Dictionary<string, EditorAssetHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
+            Entries = new Dictionary<string, EditorAssetHashCacheEntry>(PathComparer);
+            DirtyPaths = new HashSet<string>(PathComparer);
+            RemovedPaths = new HashSet<string>(PathComparer);
         }
 
         /// <summary>
@@ -121,7 +128,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Dictionary<string, EditorAssetHashCacheEntry> dirtyEntries = new Dictionary<string, EditorAssetHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, EditorAssetHashCacheEntry> dirtyEntries = new Dictionary<string, EditorAssetHashCacheEntry>(PathComparer);
             foreach (string dirtyPath in DirtyPaths) {
                 EditorAssetHashCacheEntry entry;
                 if (Entries.TryGetValue(dirtyPath, out entry)) {
@@ -129,8 +136,9 @@ namespace helengine.editor {
                 }
             }
 
-            CacheStore.Update(CacheFilePath, dirtyEntries);
+            CacheStore.Update(CacheFilePath, dirtyEntries, RemovedPaths.ToArray());
             DirtyPaths.Clear();
+            RemovedPaths.Clear();
             IsDirty = false;
         }
 
@@ -171,12 +179,27 @@ namespace helengine.editor {
         /// <param name="assetPath">Absolute authored asset path.</param>
         public void InvalidateContentHash(string assetPath) {
             EnsureNotDisposed();
-            string fullPath = NormalizeAndValidatePath(assetPath);
+            string fullPath = NormalizeAndValidatePath(assetPath, false);
             EnsureLoaded();
             string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, fullPath));
             Entries.Remove(relativePath);
             DirtyPaths.Remove(relativePath);
-            IsDirty = DirtyPaths.Count > 0;
+            RemovedPaths.Add(relativePath);
+            IsDirty = DirtyPaths.Count > 0 || RemovedPaths.Count > 0;
+        }
+
+        /// <summary>
+        /// Invalidates all loaded cached fingerprints after an explicit external refresh.
+        /// </summary>
+        public void InvalidateAllContentHashes() {
+            EnsureNotDisposed();
+            EnsureLoaded();
+            foreach (string relativePath in Entries.Keys.ToArray()) {
+                RemovedPaths.Add(relativePath);
+            }
+            Entries.Clear();
+            DirtyPaths.Clear();
+            IsDirty = RemovedPaths.Count > 0;
         }
 
         /// <summary>
@@ -238,17 +261,31 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetPath">Candidate asset path.</param>
         /// <returns>Normalized full path.</returns>
-        string NormalizeAndValidatePath(string assetPath) {
+        string NormalizeAndValidatePath(string assetPath, bool requireExisting = true) {
             if (string.IsNullOrWhiteSpace(assetPath)) {
                 throw new ArgumentException("Asset path must be provided.", nameof(assetPath));
             }
             string fullPath = Path.GetFullPath(assetPath);
             string assetsPrefix = AssetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (!fullPath.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {
+            if (!fullPath.StartsWith(assetsPrefix, PathComparison) || (requireExisting && !File.Exists(fullPath))) {
                 throw new InvalidOperationException($"Asset path '{assetPath}' is not an existing file inside the assets directory.");
             }
             return fullPath;
         }
+
+        /// <summary>
+        /// Gets the operating-system path comparison used for assets and cache keys.
+        /// </summary>
+        static StringComparison PathComparison => OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        /// <summary>
+        /// Gets the operating-system path-key comparer used for cache dictionaries.
+        /// </summary>
+        static StringComparer PathComparer => OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
         /// <summary>
         /// Normalizes one path to slash-separated relative form.

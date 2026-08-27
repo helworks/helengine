@@ -3,7 +3,7 @@ namespace helengine.editor {
     /// Coordinates one project-wide native authoring publication across sessions and processes.
     /// </summary>
     internal sealed class EditorProjectWriteLock : IDisposable {
-        const int MaximumAttempts = 200;
+        static readonly TimeSpan DefaultMaximumWait = TimeSpan.FromSeconds(60);
         const int RetryDelayMilliseconds = 10;
         readonly FileStream LockStream;
         bool IsDisposed;
@@ -18,8 +18,21 @@ namespace helengine.editor {
         /// <param name="projectRootPath">Project root to coordinate.</param>
         /// <returns>An exclusive project lock.</returns>
         public static EditorProjectWriteLock Acquire(string projectRootPath) {
+            return Acquire(projectRootPath, DefaultMaximumWait);
+        }
+
+        /// <summary>
+        /// Acquires the project lock using a bounded wait supplied by the caller.
+        /// </summary>
+        /// <param name="projectRootPath">Project root to coordinate.</param>
+        /// <param name="maximumWait">Maximum time to wait for another writer.</param>
+        /// <returns>An exclusive project lock.</returns>
+        internal static EditorProjectWriteLock Acquire(string projectRootPath, TimeSpan maximumWait) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (maximumWait <= TimeSpan.Zero) {
+                throw new ArgumentOutOfRangeException(nameof(maximumWait));
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
@@ -27,7 +40,8 @@ namespace helengine.editor {
             string lockDirectoryPath = Path.GetDirectoryName(lockPath);
             Directory.CreateDirectory(lockDirectoryPath);
             IOException lastIOException = null;
-            for (int attempt = 0; attempt < MaximumAttempts; attempt++) {
+            DateTime deadlineUtc = DateTime.UtcNow + maximumWait;
+            while (DateTime.UtcNow <= deadlineUtc) {
                 try {
                     FileStream lockStream = new FileStream(
                         lockPath,
@@ -60,49 +74,147 @@ namespace helengine.editor {
     }
 
     /// <summary>
-    /// Stores one generation marker for project-scoped authoring publication.
+    /// Describes one ordered, exact-path authoring publication.
+    /// </summary>
+    internal sealed class EditorProjectWriteChange {
+        public EditorProjectWriteChange(long generation, string relativePath) {
+            Generation = generation;
+            RelativePath = relativePath ?? throw new ArgumentNullException(nameof(relativePath));
+        }
+
+        public long Generation { get; }
+
+        public string RelativePath { get; }
+    }
+
+    /// <summary>
+    /// Publishes and reads project-scoped exact-path changes.
+    /// </summary>
+    internal interface IEditorProjectWriteChangeLog {
+        long CurrentGeneration { get; }
+
+        IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation);
+
+        long PublishChange(string relativePath);
+    }
+
+    /// <summary>
+    /// File-backed exact-path change log used by project authoring sessions.
+    /// </summary>
+    internal sealed class FileEditorProjectWriteChangeLog : IEditorProjectWriteChangeLog {
+        readonly string ProjectRootPath;
+
+        public FileEditorProjectWriteChangeLog(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+        }
+
+        public long CurrentGeneration => EditorProjectWriteGeneration.Read(ProjectRootPath);
+
+        public IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation) {
+            return EditorProjectWriteGeneration.ReadAfter(ProjectRootPath, generation);
+        }
+
+        public long PublishChange(string relativePath) {
+            return EditorProjectWriteGeneration.PublishChange(ProjectRootPath, relativePath);
+        }
+    }
+
+    /// <summary>
+    /// Stores ordered exact-path records for project-scoped authoring publication.
     /// </summary>
     internal static class EditorProjectWriteGeneration {
         /// <summary>
-        /// Reads the last published generation, or an empty value when none exists.
+        /// Reads the latest ordered generation, or zero when no record exists.
         /// </summary>
         /// <param name="projectRootPath">Project root to inspect.</param>
-        /// <returns>Current generation marker.</returns>
-        public static string Read(string projectRootPath) {
+        /// <returns>Current generation.</returns>
+        public static long Read(string projectRootPath) {
             string generationPath = GetPath(projectRootPath);
             if (!File.Exists(generationPath)) {
-                return string.Empty;
+                return 0;
             }
 
             try {
-                return File.ReadAllText(generationPath).Trim();
+                long generation = 0;
+                foreach (string line in File.ReadLines(generationPath)) {
+                    string[] fields = line.Split('\t', 2);
+                    long value;
+                    if (fields.Length == 2 && long.TryParse(fields[0], out value) && value > generation) {
+                        generation = value;
+                    }
+                }
+                return generation;
             } catch (FileNotFoundException) {
-                return string.Empty;
+                return 0;
             } catch (DirectoryNotFoundException) {
-                return string.Empty;
+                return 0;
             }
         }
 
         /// <summary>
-        /// Atomically publishes a new generation marker.
+        /// Reads exact path changes after one observed generation.
+        /// </summary>
+        /// <param name="projectRootPath">Project root to inspect.</param>
+        /// <param name="generation">Last observed generation.</param>
+        /// <returns>Ordered exact-path changes.</returns>
+        public static IReadOnlyList<EditorProjectWriteChange> ReadAfter(string projectRootPath, long generation) {
+            string generationPath = GetPath(projectRootPath);
+            if (!File.Exists(generationPath)) {
+                return Array.Empty<EditorProjectWriteChange>();
+            }
+
+            List<EditorProjectWriteChange> changes = new List<EditorProjectWriteChange>();
+            try {
+                foreach (string line in File.ReadLines(generationPath)) {
+                    string[] fields = line.Split('\t', 2);
+                    long value;
+                    if (fields.Length != 2 || !long.TryParse(fields[0], out value) || value <= generation) {
+                        continue;
+                    }
+
+                    string relativePath = fields[1].Replace('\\', '/').Trim('/');
+                    if (!string.IsNullOrWhiteSpace(relativePath)) {
+                        changes.Add(new EditorProjectWriteChange(value, relativePath));
+                    }
+                }
+            } catch (FileNotFoundException) {
+                return Array.Empty<EditorProjectWriteChange>();
+            } catch (DirectoryNotFoundException) {
+                return Array.Empty<EditorProjectWriteChange>();
+            }
+
+            return changes.OrderBy(change => change.Generation).ToList();
+        }
+
+        /// <summary>
+        /// Durably appends one exact normalized path and its next generation.
         /// </summary>
         /// <param name="projectRootPath">Project root to update.</param>
-        /// <returns>New generation marker.</returns>
-        public static string Advance(string projectRootPath) {
+        /// <param name="relativePath">Assets-relative changed path.</param>
+        /// <returns>New ordered generation.</returns>
+        public static long PublishChange(string projectRootPath, string relativePath) {
+            string normalizedRelativePath = NormalizeRelativePath(projectRootPath, relativePath);
             string generationPath = GetPath(projectRootPath);
             string generationDirectoryPath = Path.GetDirectoryName(generationPath);
             Directory.CreateDirectory(generationDirectoryPath);
-            string generation = Guid.NewGuid().ToString("N");
-            string temporaryPath = generationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                File.WriteAllText(temporaryPath, generation, new System.Text.UTF8Encoding(false));
-                File.Move(temporaryPath, generationPath, true);
-                return generation;
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    File.Delete(temporaryPath);
-                }
-            }
+
+            long generation = Read(projectRootPath) + 1;
+            byte[] record = new System.Text.UTF8Encoding(false).GetBytes(
+                generation.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\t" + normalizedRelativePath + Environment.NewLine);
+            using FileStream stream = new FileStream(
+                generationPath,
+                FileMode.Append,
+                FileAccess.Write,
+                FileShare.Read,
+                record.Length,
+                FileOptions.WriteThrough);
+            stream.Write(record, 0, record.Length);
+            stream.Flush(true);
+            return generation;
         }
 
         /// <summary>
@@ -116,6 +228,29 @@ namespace helengine.editor {
             }
 
             return Path.Combine(Path.GetFullPath(projectRootPath), "cache", "editor", "authoring-write.generation");
+        }
+
+        /// <summary>
+        /// Validates and normalizes one path beneath the project assets root.
+        /// </summary>
+        static string NormalizeRelativePath(string projectRootPath, string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath) ||
+                relativePath.IndexOfAny(new[] { '\t', '\r', '\n' }) >= 0) {
+                throw new ArgumentException("Changed path must be a non-rooted assets-relative file path.", nameof(relativePath));
+            }
+
+            string assetsRootPath = Path.GetFullPath(Path.Combine(Path.GetFullPath(projectRootPath), "assets"));
+            string fullPath = Path.GetFullPath(Path.Combine(assetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            string prefix = assetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!fullPath.StartsWith(prefix, comparison)) {
+                throw new InvalidOperationException("Changed path must remain beneath the project assets root.");
+            }
+
+            return Path.GetRelativePath(assetsRootPath, fullPath)
+                .Replace(Path.DirectorySeparatorChar, '/')
+                .Replace(Path.AltDirectorySeparatorChar, '/')
+                .Trim('/');
         }
     }
 }

@@ -200,6 +200,7 @@ namespace helengine.editor {
         public void RefreshExternalChanges() {
             EnsureNotDisposed();
             IdentityIndex.ReconcileExternalChanges();
+            HashCache.InvalidateAllContentHashes();
         }
 
         /// <summary>
@@ -329,7 +330,6 @@ namespace helengine.editor {
         public void WriteNativeAsset(string relativePath, Asset asset) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeAsset(relativePath, asset);
-            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -341,7 +341,6 @@ namespace helengine.editor {
         public void WriteNativeAsset(string relativePath, Asset asset, string authoringAssetId) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeAsset(relativePath, asset, authoringAssetId);
-            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -584,7 +583,10 @@ namespace helengine.editor {
 
             string fullPath = Path.GetFullPath(Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
             string assetsPrefix = AssetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (!fullPath.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase)) {
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (!fullPath.StartsWith(assetsPrefix, comparison)) {
                 throw new InvalidOperationException("Asset path must remain beneath the project assets root.");
             }
 
@@ -605,7 +607,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="relativePath">Assets-relative destination path.</param>
         void RegisterAuthoredWrite(string relativePath) {
-            IdentityIndex.RegisterOrUpdate(ResolveAssetsPath(relativePath));
+            string fullPath = ResolveAssetsPath(relativePath);
+            HashCache.InvalidateContentHash(fullPath);
+            IdentityIndex.RegisterOrUpdate(fullPath);
         }
 
         /// <summary>

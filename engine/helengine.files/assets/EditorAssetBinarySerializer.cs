@@ -975,9 +975,9 @@ namespace helengine.files {
             writer.WriteFloat3(asset.LocalScale);
             writer.WriteFloat4(asset.LocalOrientation);
             writer.WriteArray(asset.Components, WriteSceneComponentAssetRecordValue);
-            writer.WriteArray(asset.PlatformExistenceOverrides, WriteSceneEntityPlatformExistenceOverrideAsset);
-            writer.WriteArray(asset.PlatformTransformOverrides, WriteSceneEntityPlatformTransformOverrideAsset);
-            writer.WriteArray(asset.PlatformComponentOverrides, WriteSceneEntityPlatformComponentOverrideAsset);
+            writer.WriteArray(SortSceneEntityPlatformExistenceOverrides(asset.PlatformExistenceOverrides), WriteSceneEntityPlatformExistenceOverrideAsset);
+            writer.WriteArray(SortSceneEntityPlatformTransformOverrides(asset.PlatformTransformOverrides), WriteSceneEntityPlatformTransformOverrideAsset);
+            writer.WriteArray(SortSceneEntityPlatformComponentOverrides(asset.PlatformComponentOverrides), WriteSceneEntityPlatformComponentOverrideAsset);
             writer.WriteArray(asset.Children, WriteSceneEntityAsset);
         }
 
@@ -1024,6 +1024,77 @@ namespace helengine.files {
                 PlatformComponentOverrides = platformComponentOverrides,
                 Children = ReadSceneEntityAssetArray(reader) ?? Array.Empty<SceneEntityAsset>()
             };
+        }
+
+        /// <summary>
+        /// Orders entity existence overrides by scope and then by their serialized value.
+        /// </summary>
+        static SceneEntityPlatformExistenceOverrideAsset[] SortSceneEntityPlatformExistenceOverrides(SceneEntityPlatformExistenceOverrideAsset[] overrides) {
+            return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => item?.Exists == true ? 1 : 0)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Orders entity transform overrides by scope and then by their serialized value.
+        /// </summary>
+        static SceneEntityPlatformTransformOverrideAsset[] SortSceneEntityPlatformTransformOverrides(SceneEntityPlatformTransformOverrideAsset[] overrides) {
+            return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => item?.HasLocalPositionOverride == true ? 1 : 0)
+                .ThenBy(item => item?.LocalPosition.X ?? 0f)
+                .ThenBy(item => item?.LocalPosition.Y ?? 0f)
+                .ThenBy(item => item?.LocalPosition.Z ?? 0f)
+                .ThenBy(item => item?.HasLocalScaleOverride == true ? 1 : 0)
+                .ThenBy(item => item?.LocalScale.X ?? 0f)
+                .ThenBy(item => item?.LocalScale.Y ?? 0f)
+                .ThenBy(item => item?.LocalScale.Z ?? 0f)
+                .ThenBy(item => item?.HasLocalOrientationOverride == true ? 1 : 0)
+                .ThenBy(item => item?.LocalOrientation.X ?? 0f)
+                .ThenBy(item => item?.LocalOrientation.Y ?? 0f)
+                .ThenBy(item => item?.LocalOrientation.Z ?? 0f)
+                .ThenBy(item => item?.LocalOrientation.W ?? 0f)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Orders entity component overrides by scope and every serialized nested field.
+        /// </summary>
+        static SceneEntityPlatformComponentOverrideAsset[] SortSceneEntityPlatformComponentOverrides(SceneEntityPlatformComponentOverrideAsset[] overrides) {
+            return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => string.Join("\u001f", (item?.RemovedComponentKeys ?? Array.Empty<string>())
+                    .OrderBy(key => key ?? string.Empty, StringComparer.Ordinal)), StringComparer.Ordinal)
+                .ThenBy(item => string.Join("\u001f", SortSceneEntityPlatformAddedComponents(item?.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>())
+                    .Select(SerializeSceneComponentSortKey)), StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Orders platform-added component records by stable key and complete payload identity.
+        /// </summary>
+        static SceneEntityPlatformAddedComponentAsset[] SortSceneEntityPlatformAddedComponents(SceneEntityPlatformAddedComponentAsset[] components) {
+            return components?.OrderBy(item => item?.Component?.ComponentKey ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => item?.Component?.ComponentTypeId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(item => item?.Component?.ComponentIndex ?? 0)
+                .ThenBy(item => SerializeSceneComponentSortKey(item), StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Creates a total ordinal sort key for a platform-added component payload.
+        /// </summary>
+        static string SerializeSceneComponentSortKey(SceneEntityPlatformAddedComponentAsset item) {
+            SceneComponentAssetRecord component = item?.Component;
+            if (component == null) {
+                return string.Empty;
+            }
+
+            return (component.ComponentKey ?? string.Empty) + "\u001f"
+                + (component.ComponentTypeId ?? string.Empty) + "\u001f"
+                + component.ComponentIndex.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\u001f"
+                + Convert.ToBase64String(component.Payload ?? Array.Empty<byte>());
         }
 
         /// <summary>
@@ -1118,8 +1189,8 @@ namespace helengine.files {
 
             writer.WriteString(asset.PlatformId);
             writer.WriteString(asset.EnvironmentId ?? string.Empty);
-            writer.WriteArray(asset.RemovedComponentKeys, WriteStringValue);
-            writer.WriteArray(asset.AddedComponents, WriteSceneEntityPlatformAddedComponentAsset);
+            writer.WriteArray(asset.RemovedComponentKeys?.OrderBy(key => key ?? string.Empty, StringComparer.Ordinal).ToArray(), WriteStringValue);
+            writer.WriteArray(SortSceneEntityPlatformAddedComponents(asset.AddedComponents), WriteSceneEntityPlatformAddedComponentAsset);
         }
 
         /// <summary>

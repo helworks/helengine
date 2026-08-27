@@ -78,8 +78,14 @@ namespace helengine.editor.tests.serialization.blueprint {
                     }
                 },
                 AssetReferences = new[] {
-                    global::helengine.SceneAssetReferenceFactory.CreateFileSystemTexture("Textures/test.png"),
-                    global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial("Materials/test.hasset")
+                    global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                        "00112233445566778899aabbccddeeff",
+                        "Textures/test.png",
+                        "sha256:0000000000000000000000000000000000000000000000000000000000000000"),
+                    global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                        "ffeeddccbbaa99887766554433221100",
+                        "Materials/test.hasset",
+                        "sha256:1111111111111111111111111111111111111111111111111111111111111111")
                 }
             };
 
@@ -102,13 +108,13 @@ namespace helengine.editor.tests.serialization.blueprint {
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, deserialized.RootEntity.Components[0].Payload);
             Assert.Collection(
                 deserialized.RootEntity.PlatformExistenceOverrides,
-                windowsOverride => {
-                    Assert.Equal("windows", windowsOverride.PlatformId);
-                    Assert.True(windowsOverride.Exists);
-                },
                 dsOverride => {
                     Assert.Equal("nintendo_ds", dsOverride.PlatformId);
                     Assert.False(dsOverride.Exists);
+                },
+                windowsOverride => {
+                    Assert.Equal("windows", windowsOverride.PlatformId);
+                    Assert.True(windowsOverride.Exists);
                 });
             SceneEntityPlatformTransformOverrideAsset transformOverride = Assert.Single(deserialized.RootEntity.PlatformTransformOverrides);
             Assert.Equal("windows", transformOverride.PlatformId);
@@ -122,8 +128,8 @@ namespace helengine.editor.tests.serialization.blueprint {
             Assert.Equal("BlueprintChild", deserialized.RootEntity.Children[0].Name);
             Assert.Collection(
                 deserialized.AssetReferences,
-                textureReference => Assert.Equal("Textures/test.png", textureReference.RelativePath),
-                materialReference => Assert.Equal("Materials/test.hasset", materialReference.RelativePath));
+                materialReference => Assert.Equal("Materials/test.hasset", materialReference.RelativePath),
+                textureReference => Assert.Equal("Textures/test.png", textureReference.RelativePath));
         }
 
         /// <summary>

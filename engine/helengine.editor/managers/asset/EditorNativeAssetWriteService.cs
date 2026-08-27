@@ -31,7 +31,12 @@ namespace helengine.editor {
         /// <summary>
         /// Last project publication generation observed by this writer.
         /// </summary>
-        string LastObservedGeneration;
+        readonly IEditorProjectWriteChangeLog ChangeLog;
+
+        /// <summary>
+        /// Last project publication generation fully applied by this writer.
+        /// </summary>
+        long LastObservedGeneration;
 
         /// <summary>
         /// Initializes one native writer over the session-owned identity graph.
@@ -51,8 +56,30 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            ChangeLog = new FileEditorProjectWriteChangeLog(ProjectRootPath);
             MetadataService = new AssetIdentityMetadataService();
-            LastObservedGeneration = EditorProjectWriteGeneration.Read(ProjectRootPath);
+            LastObservedGeneration = ChangeLog.CurrentGeneration;
+        }
+
+        /// <summary>
+        /// Initializes one native writer with an instrumentable project change log.
+        /// </summary>
+        internal EditorNativeAssetWriteService(
+            string projectRootPath,
+            EditorAssetIdentityIndex identityIndex,
+            EditorAssetHashCache hashCache,
+            IEditorProjectWriteChangeLog changeLog) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
+            IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
+            HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            ChangeLog = changeLog ?? throw new ArgumentNullException(nameof(changeLog));
+            MetadataService = new AssetIdentityMetadataService();
+            LastObservedGeneration = ChangeLog.CurrentGeneration;
         }
 
         /// <summary>
@@ -89,20 +116,26 @@ namespace helengine.editor {
             EditorAssetWriteDisposition disposition = destinationExists
                 ? EditorAssetWriteDisposition.Changed
                 : EditorAssetWriteDisposition.Created;
-            bool replaced = false;
             if (destinationExists && File.ReadAllBytes(fullPath).AsSpan().SequenceEqual(serializedBytes)) {
                 disposition = EditorAssetWriteDisposition.Unchanged;
             } else {
+                long publishedGeneration = ChangeLog.PublishChange(normalizedRelativePath);
                 WriteAtomically(fullPath, serializedBytes);
-                replaced = true;
                 HashCache.InvalidateContentHash(fullPath);
+                IdentityIndex.RegisterOrUpdate(fullPath);
+                string replacedContentHash = HashCache.GetContentHash(fullPath);
+                LastObservedGeneration = publishedGeneration;
+                return new EditorAssetWriteResult(
+                    normalizedRelativePath,
+                    fullPath,
+                    asset.AuthoringAssetId,
+                    replacedContentHash,
+                    disposition,
+                    preservedExistingIdentity);
             }
 
             IdentityIndex.RegisterOrUpdate(fullPath);
             string contentHash = HashCache.GetContentHash(fullPath);
-            if (replaced) {
-                LastObservedGeneration = EditorProjectWriteGeneration.Advance(ProjectRootPath);
-            }
 
             return new EditorAssetWriteResult(
                 normalizedRelativePath,
@@ -212,13 +245,23 @@ namespace helengine.editor {
         /// Reconciles one publication generation observed from another authoring session.
         /// </summary>
         void ReconcileIfGenerationChanged() {
-            string currentGeneration = EditorProjectWriteGeneration.Read(ProjectRootPath);
-            if (string.Equals(currentGeneration, LastObservedGeneration, StringComparison.Ordinal)) {
+            IReadOnlyList<EditorProjectWriteChange> changes = ChangeLog.ReadAfter(LastObservedGeneration);
+            if (changes.Count == 0) {
                 return;
             }
 
-            IdentityIndex.ReconcileExternalChanges();
-            LastObservedGeneration = currentGeneration;
+            for (int index = 0; index < changes.Count; index++) {
+                EditorProjectWriteChange change = changes[index];
+                string fullPath = ResolveDestination(change.RelativePath, out _);
+                ValidateNoReparseTraversal(fullPath);
+                if (File.Exists(fullPath) && new EditorAssetPathClassifier().IsAuthoredAsset(fullPath)) {
+                    IdentityIndex.RegisterOrUpdate(fullPath);
+                } else {
+                    IdentityIndex.Remove(fullPath);
+                }
+                HashCache.InvalidateContentHash(fullPath);
+                LastObservedGeneration = change.Generation;
+            }
         }
 
         /// <summary>

@@ -25,6 +25,7 @@ namespace helengine.editor {
         /// <returns>The sorted document written by the store.</returns>
         EditorAssetHashCacheDocument Update(
             string cachePath,
-            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates);
+            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates,
+            IReadOnlyCollection<string> removedPaths);
     }
 }

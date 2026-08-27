@@ -351,6 +351,73 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a pre-opened writer replays every intervening path record without a full enumeration.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenSessionMissesMultiplePublications_ReplaysExactPathsWithoutEnumeration() {
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        using EditorAssetHashCache firstCache = new EditorAssetHashCache(ProjectRootPath);
+        using EditorAssetIdentityIndex firstIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, firstCache, catalog);
+        firstIndex.Initialize();
+        EditorNativeAssetWriteService firstWriter = new EditorNativeAssetWriteService(ProjectRootPath, firstIndex, firstCache);
+        using EditorAssetHashCache secondCache = new EditorAssetHashCache(ProjectRootPath);
+        using EditorAssetIdentityIndex secondIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, secondCache);
+        secondIndex.Initialize();
+        EditorNativeAssetWriteService secondWriter = new EditorNativeAssetWriteService(ProjectRootPath, secondIndex, secondCache);
+
+        firstWriter.WriteAsset("models/Initial.hasset", CreateModel());
+        string initialPath = Path.Combine(ProjectRootPath, "assets", "models", "Initial.hasset");
+        string oldHash = firstCache.GetContentHash(initialPath);
+        secondWriter.WriteAsset("models/InterveningA.hasset", CreateModel(new float3(1f, 0f, 0f)));
+        secondWriter.WriteAsset("models/InterveningB.hasset", CreateModel(new float3(2f, 0f, 0f)));
+        secondWriter.WriteAsset("models/Initial.hasset", CreateModel(new float3(3f, 0f, 0f)));
+
+        firstWriter.WriteAsset("models/Final.hasset", CreateModel(new float3(4f, 0f, 0f)));
+        string newHash = firstCache.GetContentHash(initialPath);
+
+        Assert.NotEqual(oldHash, newHash);
+        Assert.Equal(1, catalog.EnumerationCount);
+        Assert.NotNull(firstIndex.FindByPath("models/InterveningA.hasset"));
+        Assert.NotNull(firstIndex.FindByPath("models/InterveningB.hasset"));
+    }
+
+    /// <summary>
+    /// Ensures a pre-opened session invalidates a cached fingerprint after another session rewrites a file.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenOtherSessionRewritesWithRestoredTimestamp_RecomputesHash() {
+        using EditorProjectAuthoringSession firstSession = (EditorProjectAuthoringSession)CreateSession();
+        using EditorProjectAuthoringSession secondSession = (EditorProjectAuthoringSession)CreateSession();
+        EditorAssetWriteResult first = firstSession.WriteAsset("models/Shared.hasset", CreateModel());
+        DateTime timestamp = File.GetLastWriteTimeUtc(first.FullPath);
+
+        secondSession.WriteAsset("models/Shared.hasset", CreateModel(new float3(5f, 0f, 0f)));
+        File.SetLastWriteTimeUtc(first.FullPath, timestamp);
+        firstSession.WriteAsset("models/Observer.hasset", CreateModel(new float3(6f, 0f, 0f)));
+
+        string observedHash = firstSession.HashCacheValue.GetContentHash(first.FullPath);
+        Assert.NotEqual(first.ContentHash, observedHash);
+    }
+
+    /// <summary>
+    /// Ensures a failed exact-path publication leaves the destination untouched.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenChangePublicationFails_DoesNotReplaceDestination() {
+        ThrowingWriteChangeLog changeLog = new ThrowingWriteChangeLog();
+        using EditorAssetHashCache cache = new EditorAssetHashCache(ProjectRootPath);
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(ProjectRootPath, null, null, cache);
+        index.Initialize();
+        EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(ProjectRootPath, index, cache, changeLog);
+        string destinationPath = Path.Combine(ProjectRootPath, "assets", "models", "PublicationFailure.hasset");
+
+        Assert.Throws<IOException>(() => writer.WriteAsset("models/PublicationFailure.hasset", CreateModel()));
+
+        Assert.False(File.Exists(destinationPath));
+        Assert.Equal(1, changeLog.PublishCount);
+    }
+
+    /// <summary>
     /// Creates one session through the public host factory.
     /// </summary>
     /// <returns>Disposable project authoring session.</returns>
@@ -403,5 +470,35 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     static ModelAsset ReadModel(string path) {
         using FileStream stream = File.OpenRead(path);
         return Assert.IsType<ModelAsset>(AssetSerializer.Deserialize(stream));
+    }
+
+    /// <summary>
+    /// Counts explicit full authored-file enumerations while delegating to the real catalog.
+    /// </summary>
+    sealed class CountingAssetFileCatalog : IEditorAssetFileCatalog {
+        public int EnumerationCount { get; private set; }
+
+        public IEnumerable<string> EnumerateFiles(string assetsRootPath) {
+            EnumerationCount++;
+            return Directory.EnumerateFiles(assetsRootPath, "*", SearchOption.AllDirectories);
+        }
+    }
+
+    /// <summary>
+    /// Fails publication before a destination replacement is allowed.
+    /// </summary>
+    sealed class ThrowingWriteChangeLog : IEditorProjectWriteChangeLog {
+        public int PublishCount { get; private set; }
+
+        public long CurrentGeneration => 0;
+
+        public IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation) {
+            return Array.Empty<EditorProjectWriteChange>();
+        }
+
+        public long PublishChange(string relativePath) {
+            PublishCount++;
+            throw new IOException("Test publication failure.");
+        }
     }
 }

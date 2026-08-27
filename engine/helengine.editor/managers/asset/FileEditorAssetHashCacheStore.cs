@@ -70,13 +70,23 @@ namespace helengine.editor {
         /// <returns>The sorted document written by the store.</returns>
         public EditorAssetHashCacheDocument Update(
             string cachePath,
-            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates) {
+            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates,
+            IReadOnlyCollection<string> removedPaths) {
             if (updates == null) {
                 throw new ArgumentNullException(nameof(updates));
+            }
+            if (removedPaths == null) {
+                throw new ArgumentNullException(nameof(removedPaths));
             }
 
             return WithCachePathLock(cachePath, () => {
                 Dictionary<string, EditorAssetHashCacheEntry> entries = LoadEntriesCore(cachePath);
+                foreach (string removedPath in removedPaths) {
+                    string relativePath = NormalizeRelativePath(removedPath);
+                    if (!string.IsNullOrWhiteSpace(relativePath)) {
+                        entries.Remove(relativePath);
+                    }
+                }
                 foreach (KeyValuePair<string, EditorAssetHashCacheEntry> update in updates) {
                     string relativePath = NormalizeRelativePath(update.Key);
                     if (string.IsNullOrWhiteSpace(relativePath) || !IsValidContentHash(update.Value?.ContentHash)) {
@@ -103,7 +113,7 @@ namespace helengine.editor {
         /// Loads entries for an update without acquiring the lock a second time.
         /// </summary>
         Dictionary<string, EditorAssetHashCacheEntry> LoadEntriesCore(string cachePath) {
-            Dictionary<string, EditorAssetHashCacheEntry> entries = new Dictionary<string, EditorAssetHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, EditorAssetHashCacheEntry> entries = new Dictionary<string, EditorAssetHashCacheEntry>(PathComparer);
             EditorAssetHashCacheDocument storedDocument = Load(cachePath);
             if (storedDocument?.Entries == null) {
                 return entries;
@@ -190,6 +200,13 @@ namespace helengine.editor {
         static string NormalizeRelativePath(string value) {
             return (value ?? string.Empty).Replace('\\', '/').Trim('/');
         }
+
+        /// <summary>
+        /// Gets the operating-system path-key comparer used by cache documents.
+        /// </summary>
+        static StringComparer PathComparer => OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
         /// <summary>
         /// Checks one persisted SHA-256 value.
