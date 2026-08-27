@@ -47,6 +47,37 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a pre-opened session replays startup identity repairs through the exact-path publication marker.
+    /// </summary>
+    [Fact]
+    public void StartupIdentityRepair_IsVisibleToPreopenedWriterWithoutFullRefresh() {
+        string firstPath = CreateExternalAsset("Models/StartupOwner.fbx");
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string duplicateId = "00112233445566778899aabbccddeeff";
+        metadata.Save(firstPath, new AssetIdentityMetadataDocument { AssetId = duplicateId });
+        using EditorAssetHashCache preopenedCache = new EditorAssetHashCache(ProjectRootPath);
+        using EditorAssetIdentityIndex preopenedIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, preopenedCache);
+        preopenedIndex.Initialize();
+        EditorNativeAssetWriteService preopenedWriter = new EditorNativeAssetWriteService(ProjectRootPath, preopenedIndex, preopenedCache);
+
+        string duplicatePath = CreateExternalAsset("Models/StartupZCopy.fbx");
+        File.Copy(firstPath + ".hmeta", duplicatePath + ".hmeta", true);
+
+        using EditorAssetHashCache repairingCache = new EditorAssetHashCache(ProjectRootPath);
+        using EditorAssetIdentityIndex repairingIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, repairingCache);
+        repairingIndex.Initialize();
+        Assert.NotNull(repairingIndex.FindByPath("Models/StartupZCopy.fbx"));
+        Assert.Contains(EditorProjectWriteGeneration.ReadAfter(ProjectRootPath, 0), change => change.RelativePath == "Models/StartupZCopy.fbx");
+
+        EditorAssetIdentityEntry repaired = preopenedWriter.ExecuteSynchronizedRead(
+            () => preopenedIndex.FindByPath("Models/StartupZCopy.fbx"));
+
+        Assert.NotNull(repaired);
+        Assert.NotEqual(duplicateId, repaired.AssetId);
+        Assert.Contains(duplicateId, repaired.FormerAssetIds);
+    }
+
+    /// <summary>
     /// Ensures an equivalent fresh object preserves the destination identity and timestamp without replacement.
     /// </summary>
     [Fact]
@@ -562,6 +593,16 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
             Indices32 = Array.Empty<uint>(),
             Submeshes = Array.Empty<ModelSubmeshAsset>()
         };
+    }
+
+    /// <summary>
+    /// Writes one external authored source without creating an identity document.
+    /// </summary>
+    string CreateExternalAsset(string relativePath) {
+        string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+        File.WriteAllBytes(fullPath, new byte[] { 1, 2, 3 });
+        return fullPath;
     }
 
     /// <summary>

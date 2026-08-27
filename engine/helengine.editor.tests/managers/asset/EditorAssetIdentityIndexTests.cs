@@ -85,6 +85,65 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a failed identity publication leaves all staged metadata and report state untouched.
+    /// </summary>
+    [Fact]
+    public void Initialize_WhenRepairPublicationFails_DoesNotMutateDiskOrReport() {
+        string sourcePath = CreateAsset("Models/Source.fbx");
+        string duplicatePath = CreateAsset("Models/Duplicate.fbx");
+        CopyMetadata(sourcePath, duplicatePath, "00112233445566778899aabbccddeeff");
+        byte[] originalMetadata = File.ReadAllBytes(duplicatePath + ".hmeta");
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(
+            TempRootPath,
+            null,
+            null,
+            null,
+            new CountingAssetFileCatalog(),
+            report,
+            new ThrowingChangeLog());
+
+        Assert.Throws<IOException>(() => index.Initialize());
+
+        Assert.Equal(originalMetadata, File.ReadAllBytes(duplicatePath + ".hmeta"));
+        Assert.Empty(report.Records);
+    }
+
+    /// <summary>
+    /// Ensures a mid-batch repair failure rolls every applied identity mutation back before exposing the index.
+    /// </summary>
+    [Fact]
+    public void Initialize_WhenRepairMutationFailsAfterFirstReplacement_RollsBackTheWholeGroup() {
+        string sourcePath = CreateAsset("Models/Source.fbx");
+        string firstDuplicatePath = CreateAsset("Models/FirstDuplicate.fbx");
+        string secondDuplicatePath = CreateAsset("Models/SecondDuplicate.fbx");
+        CopyMetadata(sourcePath, firstDuplicatePath, "00112233445566778899aabbccddeeff");
+        File.Copy(sourcePath + ".hmeta", secondDuplicatePath + ".hmeta", true);
+        byte[] firstMetadata = File.ReadAllBytes(firstDuplicatePath + ".hmeta");
+        byte[] secondMetadata = File.ReadAllBytes(secondDuplicatePath + ".hmeta");
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(
+            TempRootPath,
+            null,
+            null,
+            null,
+            new CountingAssetFileCatalog(),
+            report,
+            new FixedChangeLog(),
+            mutationIndex => {
+                if (mutationIndex == 1) {
+                    throw new IOException("Injected identity repair failure.");
+                }
+            });
+
+        Assert.Throws<IOException>(() => index.Initialize());
+
+        Assert.Equal(firstMetadata, File.ReadAllBytes(firstDuplicatePath + ".hmeta"));
+        Assert.Equal(secondMetadata, File.ReadAllBytes(secondDuplicatePath + ".hmeta"));
+        Assert.Empty(report.Records);
+    }
+
+    /// <summary>
     /// Ensures a previously recorded owner wins future duplicate repairs even when path ordering changes.
     /// </summary>
     [Fact]
@@ -166,24 +225,61 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures deliberately duplicated native identities remain addressable and are selected deterministically by path.
+    /// Ensures duplicated native identities are repaired in place while remaining embedded and sidecar-free.
     /// </summary>
     [Fact]
-    public void Refresh_ForDuplicateNativeIdentities_PreservesBothEntriesForResolverSelection() {
+    public void Refresh_ForDuplicateNativeIdentities_RekeysNonOwnerWithoutSidecar() {
         string firstPath = CreateNativeAnimation("Animations/A.hanim", "aabbccddeeff00112233445566778899");
         string secondPath = CreateNativeAnimation("Animations/B.hanim", "aabbccddeeff00112233445566778899");
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        EditorAssetIdentityIndex index = CreateIndex(report);
+
+        index.Initialize();
+
+        EditorAssetIdentityEntry owner = index.FindByPath("Animations/A.hanim");
+        EditorAssetIdentityEntry copy = index.FindByPath("Animations/B.hanim");
+        Assert.Equal("aabbccddeeff00112233445566778899", owner.AssetId);
+        Assert.NotEqual(owner.AssetId, copy.AssetId);
+        Assert.Contains(owner.AssetId, copy.FormerAssetIds);
+        Assert.False(File.Exists(firstPath + ".hmeta"));
+        Assert.False(File.Exists(secondPath + ".hmeta"));
+        Assert.Contains(report.Records, repair =>
+            repair.Kind == EditorAssetRepairKind.DuplicateIdReassignment &&
+            repair.RelativePath == "Animations/B.hanim");
+    }
+
+    /// <summary>
+    /// Ensures changing only embedded duplicate identity does not change the canonical recovery hash.
+    /// </summary>
+    [Fact]
+    public void Refresh_ForDuplicateNativeIdentities_PreservesIdentityExcludedRecoveryHash() {
+        string firstPath = CreateNativeAnimation("Animations/A.hanim", "aabbccddeeff00112233445566778899");
+        string secondPath = CreateNativeAnimation("Animations/B.hanim", "aabbccddeeff00112233445566778899");
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath);
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(TempRootPath, null, null, cache);
+
+        index.Initialize();
+
+        Assert.Equal(cache.GetContentHash(firstPath), cache.GetContentHash(secondPath));
+        Assert.False(File.Exists(secondPath + ".hmeta"));
+    }
+
+    /// <summary>
+    /// Ensures native material settings duplicate repair remains embedded and retains the copied identity as an alias.
+    /// </summary>
+    [Fact]
+    public void Refresh_ForDuplicateNativeMaterialSettings_RekeysNonOwnerWithoutSidecar() {
+        string firstPath = CreateNativeMaterial("Materials/A.helmat", "aabbccddeeff00112233445566778899");
+        string secondPath = CreateNativeMaterial("Materials/B.helmat", "aabbccddeeff00112233445566778899");
         EditorAssetIdentityIndex index = CreateIndex();
 
         index.Initialize();
 
-        IReadOnlyList<EditorAssetIdentityEntry> matches = index.FindByAssetId(
-            "aabbccddeeff00112233445566778899",
-            AssetEntryKind.File);
-        Assert.Equal(2, matches.Count);
-        Assert.Equal("Animations/A.hanim", matches[0].RelativePath);
-        Assert.Equal("Animations/B.hanim", matches[1].RelativePath);
-        Assert.Equal("aabbccddeeff00112233445566778899", index.FindByPath("Animations/A.hanim").AssetId);
-        Assert.Equal("aabbccddeeff00112233445566778899", index.FindByPath("Animations/B.hanim").AssetId);
+        EditorAssetIdentityEntry owner = index.FindByPath("Materials/A.helmat");
+        EditorAssetIdentityEntry copy = index.FindByPath("Materials/B.helmat");
+        Assert.Equal("aabbccddeeff00112233445566778899", owner.AssetId);
+        Assert.NotEqual(owner.AssetId, copy.AssetId);
+        Assert.Contains(owner.AssetId, copy.FormerAssetIds);
         Assert.False(File.Exists(firstPath + ".hmeta"));
         Assert.False(File.Exists(secondPath + ".hmeta"));
     }
@@ -383,11 +479,54 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         Directory.CreateDirectory(Path.GetDirectoryName(assetPath));
         using FileStream stream = File.Create(assetPath);
         AssetSerializer.Serialize(stream, new AnimationClipAsset {
-            Id = relativePath,
+            Id = "Animations/Shared.hanim",
             AuthoringAssetId = assetId,
             FormerAuthoringAssetIds = Array.Empty<string>()
         });
         return assetPath;
+    }
+
+    /// <summary>
+    /// Writes one current native material common-settings payload with embedded identity.
+    /// </summary>
+    string CreateNativeMaterial(string relativePath, string assetId) {
+        string assetPath = Path.Combine(TempRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(assetPath));
+        using FileStream stream = File.Create(assetPath);
+        MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, new MaterialAssetCommonSettingsDocument {
+            AuthoringAssetId = assetId,
+            Importer = new AssetImporterSettings {
+                ImporterId = "helengine.material",
+                AssetId = "Materials/Native"
+            }
+        });
+        return assetPath;
+    }
+
+    /// <summary>
+    /// Change log that fails before any identity repair can mutate a destination.
+    /// </summary>
+    sealed class ThrowingChangeLog : IEditorProjectWriteChangeLog {
+        public long CurrentGeneration => 0;
+
+        public IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation) => Array.Empty<EditorProjectWriteChange>();
+
+        public long PublishChange(string relativePath) {
+            throw new IOException("Injected identity publication failure.");
+        }
+    }
+
+    /// <summary>
+    /// Change log used to exercise staged repair mutation hooks without replacing the real marker.
+    /// </summary>
+    sealed class FixedChangeLog : IEditorProjectWriteChangeLog {
+        public long CurrentGeneration => 0;
+
+        public IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation) => Array.Empty<EditorProjectWriteChange>();
+
+        public long PublishChange(string relativePath) {
+            return 1;
+        }
     }
 
     /// <summary>

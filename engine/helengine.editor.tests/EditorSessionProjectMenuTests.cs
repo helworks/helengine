@@ -80,6 +80,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures failed contributed commands still publish accumulated authoring repairs to the editor log.
+        /// </summary>
+        [Fact]
+        public void HandleProjectMenuItemRequested_WhenCommandFails_LogsAuthoringRepairs() {
+            TestEditorScriptAssemblyHost assemblyHost = CreateAssemblyHost();
+            EditorGameScriptHotReloadService scriptHotReloadService = CreateScriptHotReloadService(assemblyHost);
+            EditorSession session = CreateSession(scriptHotReloadService);
+            List<LogEntry> messages = new List<LogEntry>();
+            TestEditorCommand.ThrowOnExecute = true;
+            Logger.MessageLogged += messages.Add;
+            try {
+                InvokePrivate(session, "HandleProjectMenuItemRequested", "demo.regenerate-main-menu");
+            } finally {
+                Logger.MessageLogged -= messages.Add;
+            }
+
+            Assert.Contains(messages, message => message.Message.StartsWith("Asset repairs:", StringComparison.Ordinal));
+        }
+
+        /// <summary>
         /// Creates one minimally initialized editor session containing the collaborators required by the project-menu flow.
         /// </summary>
         /// <param name="scriptHotReloadService">Hot-reload service surfaced by the test session.</param>

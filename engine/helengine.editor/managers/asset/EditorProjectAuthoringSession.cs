@@ -118,7 +118,7 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            NativeAssetWriteService = new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache, RepairReportValue);
+            NativeAssetWriteService = new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache);
             ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService);
         }
@@ -201,7 +201,7 @@ namespace helengine.editor {
         public void RefreshExternalChanges() {
             EnsureNotDisposed();
             NativeAssetWriteService.ExecuteSynchronizedRead(() => {
-                IdentityIndex.ReconcileExternalChanges();
+                IdentityIndex.ReconcileExternalChangesUnderLock();
                 HashCache.InvalidateAllContentHashes();
                 return true;
             });

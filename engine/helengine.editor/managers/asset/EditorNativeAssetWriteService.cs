@@ -4,6 +4,10 @@ namespace helengine.editor {
     /// </summary>
     internal interface IEditorAssetReadSynchronizer {
         TResult Execute<TResult>(Func<TResult> read);
+
+        long PublishChange(string relativePath);
+
+        void MarkPublishedChangeApplied(long generation);
     }
 
     /// <summary>
@@ -36,11 +40,6 @@ namespace helengine.editor {
         readonly AssetIdentityMetadataService MetadataService;
 
         /// <summary>
-        /// Session report shared by the authoring services.
-        /// </summary>
-        readonly EditorAssetRepairReport RepairReport;
-
-        /// <summary>
         /// Last project publication generation observed by this writer.
         /// </summary>
         readonly IEditorProjectWriteChangeLog ChangeLog;
@@ -64,8 +63,7 @@ namespace helengine.editor {
         public EditorNativeAssetWriteService(
             string projectRootPath,
             EditorAssetIdentityIndex identityIndex,
-            EditorAssetHashCache hashCache,
-            EditorAssetRepairReport repairReport = null) {
+            EditorAssetHashCache hashCache) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -74,7 +72,6 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
-            RepairReport = repairReport ?? identityIndex.RepairReportValue;
             ChangeLog = new FileEditorProjectWriteChangeLog(ProjectRootPath);
             MetadataService = new AssetIdentityMetadataService();
             InitializeObservedState();
@@ -87,8 +84,7 @@ namespace helengine.editor {
             string projectRootPath,
             EditorAssetIdentityIndex identityIndex,
             EditorAssetHashCache hashCache,
-            IEditorProjectWriteChangeLog changeLog,
-            EditorAssetRepairReport repairReport = null) {
+            IEditorProjectWriteChangeLog changeLog) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -97,7 +93,6 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
-            RepairReport = repairReport ?? identityIndex.RepairReportValue;
             ChangeLog = changeLog ?? throw new ArgumentNullException(nameof(changeLog));
             MetadataService = new AssetIdentityMetadataService();
             InitializeObservedState();
@@ -143,6 +138,25 @@ namespace helengine.editor {
         /// </summary>
         TResult IEditorAssetReadSynchronizer.Execute<TResult>(Func<TResult> read) {
             return ExecuteSynchronizedRead(read);
+        }
+
+        /// <summary>
+        /// Publishes one metadata repair path while the current read boundary owns the project lock.
+        /// </summary>
+        public long PublishChange(string relativePath) {
+            if (!ReadBoundaryHeld.Value) {
+                throw new InvalidOperationException("Repair publication requires the project read boundary.");
+            }
+            return ChangeLog.PublishChange(relativePath);
+        }
+
+        /// <summary>
+        /// Advances this writer after local index and hash bookkeeping has completed.
+        /// </summary>
+        public void MarkPublishedChangeApplied(long generation) {
+            if (generation > LastObservedGeneration) {
+                LastObservedGeneration = generation;
+            }
         }
 
         /// <summary>
@@ -318,7 +332,11 @@ namespace helengine.editor {
                 string fullPath = ResolveDestination(change.RelativePath, out _);
                 ValidateNoReparseTraversal(fullPath);
                 if (File.Exists(fullPath) && new EditorAssetPathClassifier().IsAuthoredAsset(fullPath)) {
+                    bool metadataWasMissing = IdentityIndex.WasMetadataMissing(fullPath);
                     IdentityIndex.RegisterOrUpdate(fullPath);
+                    if (metadataWasMissing) {
+                        IdentityIndex.MarkMetadataMissing(fullPath);
+                    }
                 } else {
                     IdentityIndex.Remove(fullPath);
                 }

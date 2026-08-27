@@ -88,6 +88,32 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures saved-identity adoption is replayed to a session that was already open.
+    /// </summary>
+    [Fact]
+    public void SavedIdAdoption_IsVisibleToPreopenedSessionWithoutFullRefresh() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        EditorProjectAuthoringSession observer = CreateSession(projectRootPath);
+        string sourcePath = Path.Combine(projectRootPath, "assets", "models", "adopted.obj");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
+        File.WriteAllText(sourcePath, "o adopted");
+
+        EditorProjectAuthoringSession adopter = CreateSession(projectRootPath);
+        Assert.True(adopter.IdentityIndexValue.WasMetadataMissing(sourcePath));
+        const string adoptedAssetId = "00112233445566778899aabbccddeeff";
+        SceneAssetReference savedReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            adoptedAssetId,
+            "models/adopted.obj",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution resolution = adopter.ResolveReference(savedReference, AssetEntryKind.Model);
+        SceneAssetReference observedReference = observer.CreateReference("models/adopted.obj", AssetEntryKind.Model);
+
+        Assert.Equal(adoptedAssetId, resolution.CanonicalReference.AssetId);
+        Assert.Equal(adoptedAssetId, observedReference.AssetId);
+    }
+
+    /// <summary>
     /// Ensures the session routes native writes through its stable writer.
     /// </summary>
     [Fact]

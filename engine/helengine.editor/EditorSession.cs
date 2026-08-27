@@ -3376,6 +3376,7 @@ namespace helengine.editor {
                 LogAuthoringRepairReport();
             } catch (Exception ex) {
                 Logger.WriteError($"Project menu item '{menuItemId}' failed: {ex.Message}");
+                LogAuthoringRepairReport();
             }
         }
 
@@ -3762,6 +3763,7 @@ namespace helengine.editor {
                 for (int index = 0; index < assetBrowserPanels.Count; index++) {
                     assetBrowserPanels[index].RefreshEntries();
                 }
+                LogAuthoringRepairReport();
                 openFileDialog.Hide();
                 if (reparentEntityDialog != null) {
                     reparentEntityDialog.Hide();
@@ -3769,6 +3771,7 @@ namespace helengine.editor {
             } catch (Exception ex) {
                 Logger.WriteError($"Scene open failed: {ex.Message}");
                 openFileDialog.ShowError(ex.Message);
+                LogAuthoringRepairReport();
             }
         }
 

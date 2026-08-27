@@ -9,6 +9,11 @@ namespace helengine.editor.tests.testing {
         public static int ExecuteCount { get; private set; }
 
         /// <summary>
+        /// Gets or sets whether the next command execution should fail for host error-routing tests.
+        /// </summary>
+        public static bool ThrowOnExecute { get; set; }
+
+        /// <summary>
         /// Gets the stable test command identifier.
         /// </summary>
         public string CommandId => "menu.regenerate-demo-disc-main-menu";
@@ -24,6 +29,9 @@ namespace helengine.editor.tests.testing {
         /// <param name="context">Editor command context supplied by the command runner.</param>
         public void Execute(IEditorCommandContext context) {
             ExecuteCount++;
+            if (ThrowOnExecute) {
+                throw new InvalidOperationException("Injected editor command failure.");
+            }
         }
 
         /// <summary>
@@ -31,6 +39,7 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         public static void Reset() {
             ExecuteCount = 0;
+            ThrowOnExecute = false;
         }
     }
 }

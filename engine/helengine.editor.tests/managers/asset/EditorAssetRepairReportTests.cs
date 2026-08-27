@@ -58,7 +58,6 @@ public sealed class EditorAssetRepairReportTests {
             "Saved reference path was repaired.");
 
         report.Append(record);
-        report.Append(record);
 
         Assert.Single(report.Records);
         Assert.Equal(record, report.Records[0]);
@@ -66,6 +65,26 @@ public sealed class EditorAssetRepairReportTests {
         Assert.Contains("PathHealing", report.CreateSummary(), StringComparison.Ordinal);
         Assert.Contains("1", report.CreateSummary(), StringComparison.Ordinal);
         Assert.Throws<NotSupportedException>(() => ((IList<EditorAssetRepairRecord>)report.Records)[0] = record);
+    }
+
+    /// <summary>
+    /// Ensures two real mutation events remain visible even when their immutable evidence is equal.
+    /// </summary>
+    [Fact]
+    public void Report_AppendsEachMutationEventWithoutGlobalDeduplication() {
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        EditorAssetRepairRecord record = new EditorAssetRepairRecord(
+            EditorAssetRepairKind.PathHealing,
+            "Models/Moved.fbx",
+            "00112233445566778899aabbccddeeff",
+            "ffeeddccbbaa99887766554433221100");
+
+        report.Append(record);
+        report.Append(record);
+
+        Assert.Equal(2, report.Count);
+        Assert.Equal(record, report.Records[0]);
+        Assert.Equal(record, report.Records[1]);
     }
 
     /// <summary>

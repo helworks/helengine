@@ -121,22 +121,27 @@ namespace helengine.editor {
 
             bool metadataChanged = pathMetadataWasMissing;
             bool savedIdWasAdopted = false;
-            if (pathMetadataWasMissing && IsValidAssetId(reference.AssetId) && !IdentityIndex.IsCurrentAssetIdOwned(reference.AssetId)) {
+            if (pathMetadataWasMissing && IsValidAssetId(reference.AssetId) &&
+                IdentityIndex.FindByAssetId(reference.AssetId, expectedKind).Count == 0) {
                 string savedFullPath = ResolveInsideAssets(savedPath);
                 AssetIdentityMetadataDocument document = MetadataService.Load(savedFullPath);
+                string previousAssetId = document.AssetId;
                 document.AssetId = reference.AssetId;
+                long publishedGeneration = PublishAutomaticRepair(savedPath);
                 MetadataService.Save(savedFullPath, document);
                 metadataChanged = true;
                 savedIdWasAdopted = true;
                 IdentityIndex.RegisterOrUpdate(savedFullPath);
+                IdentityIndex.MarkMetadataPresent(savedFullPath);
+                MarkAutomaticRepairApplied(publishedGeneration);
                 AppendRepair(
                     EditorAssetRepairKind.SavedIdAdoption,
                     savedPath,
-                    string.Empty,
+                    previousAssetId,
                     reference.AssetId,
                     AssetReferenceResolutionTier.Path,
                     "saved identity adopted by exact normalized path",
-                    "Adopted the saved identity for the existing authored source.");
+                "Adopted the saved identity for the existing authored source.");
             }
 
             EditorAssetResolutionCandidateScore candidateEvidence = null;
@@ -358,8 +363,33 @@ namespace helengine.editor {
                 currentAssetId,
                 tier,
                 evidence,
-                string.Empty,
+                NormalizeOwningDocument(EngineBinaryReadContext.CurrentAssetPath),
                 diagnostic));
+        }
+
+        /// <summary>
+        /// Publishes a changed identity path before a metadata mutation when a session boundary is attached.
+        /// </summary>
+        long PublishAutomaticRepair(string relativePath) {
+            return ReadSynchronizer == null ? 0 : ReadSynchronizer.PublishChange(NormalizeRelativePath(relativePath));
+        }
+
+        /// <summary>
+        /// Marks a published identity repair applied after local index bookkeeping succeeds.
+        /// </summary>
+        void MarkAutomaticRepairApplied(long generation) {
+            if (generation > 0 && ReadSynchronizer != null) {
+                ReadSynchronizer.MarkPublishedChangeApplied(generation);
+            }
+        }
+
+        /// <summary>
+        /// Normalizes the active binary document path for repair diagnostics.
+        /// </summary>
+        static string NormalizeOwningDocument(string documentPath) {
+            return string.IsNullOrWhiteSpace(documentPath)
+                ? string.Empty
+                : Path.GetFullPath(documentPath);
         }
 
         /// <summary>Pairs one indexed entry with its immutable ordering score.</summary>

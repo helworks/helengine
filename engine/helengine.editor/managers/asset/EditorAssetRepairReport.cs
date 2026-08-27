@@ -28,7 +28,7 @@ namespace helengine.editor {
         /// </summary>
         public IReadOnlyList<EditorAssetRepairRecord> Snapshot => Records;
 
-        /// <summary>Gets the number of distinct records.</summary>
+        /// <summary>Gets the number of recorded mutation events.</summary>
         public int Count {
             get {
                 lock (SyncRoot) {
@@ -38,7 +38,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Appends one immutable repair record unless the exact record is already present.
+        /// Appends one immutable repair record for one mutation event.
         /// </summary>
         public void Append(EditorAssetRepairRecord record) {
             if (record == null) {
@@ -46,9 +46,7 @@ namespace helengine.editor {
             }
 
             lock (SyncRoot) {
-                if (!MutableRecords.Contains(record)) {
-                    MutableRecords.Add(record);
-                }
+                MutableRecords.Add(record);
             }
         }
 

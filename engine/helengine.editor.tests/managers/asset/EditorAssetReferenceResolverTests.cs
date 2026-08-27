@@ -102,7 +102,8 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     [Fact]
     public void Resolve_ExistingPathWithoutMetadata_AdoptsUnclaimedSavedAssetId() {
         string assetPath = CreateAsset("Models/Adopt.fbx", new byte[] { 4, 5, 6 });
-        EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
         SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
             "00112233445566778899aabbccddeeff",
             "Models/Adopt.fbx",
@@ -114,6 +115,89 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.Equal("00112233445566778899aabbccddeeff", result.CanonicalReference.AssetId);
         Assert.True(result.MetadataChanged);
         Assert.True(File.Exists(assetPath + ".hmeta"));
+        EditorAssetRepairRecord adoption = Assert.Single(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
+        Assert.NotEqual(string.Empty, adoption.PreviousAssetId);
+        Assert.Equal(result.CanonicalReference.AssetId, adoption.CurrentAssetId);
+    }
+
+    /// <summary>
+    /// Ensures a saved ID that is already a former alias is resolved through the ID tier instead of being adopted by a path.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenSavedIdMatchesFormerAlias_DoesNotAdoptItAtAnotherPath() {
+        string ownerPath = CreateAsset("Models/Owner.fbx", new byte[] { 1, 2, 3 });
+        string targetPath = CreateAsset("Models/Target.fbx", new byte[] { 4, 5, 6 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string currentId = "00112233445566778899aabbccddeeff";
+        const string formerId = "ffeeddccbbaa99887766554433221100";
+        metadata.Save(ownerPath, new AssetIdentityMetadataDocument {
+            AssetId = currentId,
+            FormerAssetIds = new List<string> { formerId }
+        });
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            formerId,
+            "Models/Target.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal(ownerPath, result.FullPath);
+        Assert.Equal(currentId, result.CanonicalReference.AssetId);
+        Assert.DoesNotContain(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
+        Assert.NotEqual(formerId, new AssetIdentityMetadataService().Load(targetPath).AssetId);
+    }
+
+    /// <summary>
+    /// Ensures one missing-metadata path can adopt only once within a resolver lifetime.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenTwoReferencesCompeteForMissingPath_AdoptsOnlyTheFirstSavedId() {
+        string targetPath = CreateAsset("Models/Competing.fbx", new byte[] { 4, 5, 6 });
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
+        const string firstId = "00112233445566778899aabbccddeeff";
+        const string secondId = "ffeeddccbbaa99887766554433221100";
+        SceneAssetReference first = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(firstId, "Models/Competing.fbx", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        SceneAssetReference second = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(secondId, "Models/Competing.fbx", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution firstResult = resolver.Resolve(first, AssetEntryKind.Model);
+        AssetReferenceResolution secondResult = resolver.Resolve(second, AssetEntryKind.Model);
+
+        Assert.Equal(firstId, firstResult.CanonicalReference.AssetId);
+        Assert.Equal(firstId, secondResult.CanonicalReference.AssetId);
+        Assert.Equal(firstId, new AssetIdentityMetadataService().Load(targetPath).AssetId);
+        Assert.Single(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
+    }
+
+    /// <summary>
+    /// Ensures reference repairs identify the active binary document when one is available.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenBinaryReadContextHasDocument_RecordsOwningDocument() {
+        string assetPath = CreateAsset("Models/Context.fbx", new byte[] { 1, 2, 3 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string assetId = "00112233445566778899aabbccddeeff";
+        metadata.Save(assetPath, new AssetIdentityMetadataDocument { AssetId = assetId });
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        string previousPath = EngineBinaryReadContext.CurrentAssetPath;
+        EngineBinaryReadContext.CurrentAssetPath = Path.Combine(TempRootPath, "assets", "Scenes", "Owning.helen");
+        try {
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
+            SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                assetId,
+                "Models/Missing.fbx",
+                "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+            resolver.Resolve(reference, AssetEntryKind.Model);
+
+            Assert.Contains(report.Records, repair =>
+                repair.Kind == EditorAssetRepairKind.PathHealing &&
+                string.Equals(repair.OwningDocument, EngineBinaryReadContext.CurrentAssetPath, StringComparison.Ordinal));
+        } finally {
+            EngineBinaryReadContext.CurrentAssetPath = previousPath;
+        }
     }
 
     /// <summary>
@@ -189,23 +273,23 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures a matching saved content hash breaks a duplicate current-identity tie.
+    /// Ensures a matching saved content hash selects a compatible native candidate.
     /// </summary>
     [Fact]
-    public void Resolve_WhenDuplicateCurrentIdsHaveDifferentHashes_PrefersSavedHash() {
+    public void Resolve_WhenHashMatchesNativeCandidate_PrefersSavedHash() {
         CreateNativeAnimation("Animations/A.hanim", "aabbccddeeff00112233445566778899", 1f);
         string secondPath = CreateNativeAnimation("Animations/B.hanim", "aabbccddeeff00112233445566778899", 2f);
         using EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath);
         SceneAssetReference secondReference = setupResolver.CreateFileReference(secondPath, AssetEntryKind.File);
         using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
         SceneAssetReference unresolvedReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
-            "aabbccddeeff00112233445566778899",
+            "ffeeddccbbaa99887766554433221100",
             "Animations/Missing.hanim",
             secondReference.ContentHash);
 
         AssetReferenceResolution result = resolver.Resolve(unresolvedReference, AssetEntryKind.File);
 
-        Assert.Equal(AssetReferenceResolutionTier.AssetId, result.Tier);
+        Assert.Equal(AssetReferenceResolutionTier.ContentHash, result.Tier);
         Assert.Equal("Animations/B.hanim", result.CanonicalReference.RelativePath);
         Assert.True(result.CandidateEvidence.MatchesSavedHash);
     }
