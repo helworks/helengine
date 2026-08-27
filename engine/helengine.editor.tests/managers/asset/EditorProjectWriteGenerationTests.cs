@@ -55,6 +55,28 @@ public sealed class EditorProjectWriteGenerationTests : IDisposable {
     }
 
     [Fact]
+    public void PublishRollbackChanges_WhenTokenIsRepeated_PublishesGenerationOnlyOnce() {
+        string transactionId = Guid.NewGuid().ToString("N");
+        long first;
+        long second;
+        using (EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            first = EditorProjectWriteGeneration.PublishRollbackChangesUnderLock(
+                ProjectRootPath,
+                transactionId,
+                new[] { "Models/Restored.hasset" });
+            second = EditorProjectWriteGeneration.PublishRollbackChangesUnderLock(
+                ProjectRootPath,
+                transactionId,
+                new[] { "Models/Restored.hasset" });
+        }
+
+        Assert.Equal(first, second);
+        IReadOnlyList<EditorProjectWriteChange> changes = EditorProjectWriteGeneration.ReadAfter(ProjectRootPath, 0);
+        Assert.Single(changes);
+        Assert.Equal(first, changes[0].Generation);
+    }
+
+    [Fact]
     public void Read_WhenSnapshotIsMalformed_RejectsItExplicitly() {
         string markerPath = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-write.generation");
         Directory.CreateDirectory(Path.GetDirectoryName(markerPath));

@@ -171,6 +171,40 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
 
         Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
         Assert.False(Directory.Exists(transactionDirectory));
+
+        long recoveredGeneration = EditorProjectWriteGeneration.Read(ProjectRootPath);
+        using EditorProjectAuthoringSession recoveredAgain = CreateSession(ProjectRootPath);
+        Assert.Equal(recoveredGeneration, EditorProjectWriteGeneration.Read(ProjectRootPath));
+    }
+
+    [Fact]
+    public void Commit_WhenRollbackOperationFails_RetainsJournalAndRecoveryBlocker() {
+        using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            AfterPublication = () => throw new IOException("injected post-generation failure"),
+            BeforeRollback = (_, _) => throw new IOException("injected rollback replacement failure")
+        };
+        EditorAuthoringTransaction transaction = author.BeginTransaction(hooks);
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+        string transactionDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId);
+        string markerPath = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions.pending");
+
+        Assert.Throws<AggregateException>(() => transaction.Commit());
+        Assert.True(Directory.Exists(transactionDirectory));
+        Assert.True(File.Exists(markerPath));
+        Assert.Equal(EditorAuthoringTransactionOutcome.Failed, transaction.Outcome);
+
+        transaction.Dispose();
+        using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
+
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
+        Assert.False(File.Exists(markerPath));
+        Assert.False(Directory.Exists(transactionDirectory));
     }
 
     [Fact]
@@ -214,6 +248,35 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         using EditorAuthoringTransaction transaction = session.BeginTransaction();
 
         Assert.Throws<InvalidOperationException>(() => session.BeginTransaction());
+    }
+
+    [Fact]
+    public void DisposeThenCommit_ThrowsAndDoesNotReportSuccess() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        EditorAuthoringTransaction transaction = session.BeginTransaction();
+
+        transaction.Dispose();
+
+        Assert.Equal(EditorAuthoringTransactionOutcome.Disposed, transaction.Outcome);
+        Assert.Throws<ObjectDisposedException>(() => transaction.Commit());
+    }
+
+    [Fact]
+    public void RolledBackTransaction_CannotBeCommittedAgain() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction(new EditorAuthoringTransactionHooks {
+            BeforeReplacement = (index, _) => {
+                if (index == 1) {
+                    throw new IOException("injected replacement failure");
+                }
+            }
+        });
+        transaction.WriteAsset("models/first.hasset", CreateModel("First"));
+        transaction.WriteAsset("models/second.hasset", CreateModel("Second"));
+
+        Assert.Throws<IOException>(() => transaction.Commit());
+        Assert.Equal(EditorAuthoringTransactionOutcome.RolledBack, transaction.Outcome);
+        Assert.Throws<InvalidOperationException>(() => transaction.Commit());
     }
 
     [Fact]
@@ -387,11 +450,51 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         document.State = EditorAuthoringTransactionState.Committing;
         entry.State = document.State;
         File.WriteAllText(manifestPath, System.Text.Json.JsonSerializer.Serialize(document, EditorAuthoringTransactionDocument.JsonOptions));
+        using (EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            EditorAuthoringTransactionPendingMarker.PublishUnderLock(
+                ProjectRootPath,
+                transaction.TransactionId,
+                new[] { entry.DestinationRelativePath });
+        }
         transaction.ReleaseLeaseForTesting();
 
         using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
 
         Assert.Equal(originalBytes, File.ReadAllBytes(original.FullPath));
+        Assert.False(Directory.Exists(transactionDirectory));
+    }
+
+    [Fact]
+    public void StartupRecovery_ApplyingBeforeReplacementRestoresNothingAndPublishesRollbackGeneration() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+        string transactionDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId);
+        string manifestPath = Path.Combine(transactionDirectory, "transaction.json");
+        EditorAuthoringTransactionDocument document = System.Text.Json.JsonSerializer.Deserialize<EditorAuthoringTransactionDocument>(
+            File.ReadAllText(manifestPath),
+            EditorAuthoringTransactionDocument.JsonOptions);
+        EditorAuthoringTransactionEntry entry = Assert.Single(document.Entries);
+        entry.Progress = EditorAuthoringTransactionEntryProgress.Applying;
+        document.State = EditorAuthoringTransactionState.Committing;
+        entry.State = document.State;
+        File.WriteAllText(manifestPath, System.Text.Json.JsonSerializer.Serialize(document, EditorAuthoringTransactionDocument.JsonOptions));
+        using (EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            EditorAuthoringTransactionPendingMarker.PublishUnderLock(
+                ProjectRootPath,
+                transaction.TransactionId,
+                new[] { entry.DestinationRelativePath });
+        }
+        transaction.ReleaseLeaseForTesting();
+
+        using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
+
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
         Assert.False(Directory.Exists(transactionDirectory));
     }
 
@@ -464,6 +567,54 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
 
         Assert.False(Directory.Exists(stagingDirectory));
+    }
+
+    [Fact]
+    public void StartupRecovery_RemovesPartialCreatingDirectoryWithoutManifestOrLease() {
+        string transactionRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions");
+        string creatingDirectory = Path.Combine(transactionRoot, ".creating-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(creatingDirectory, "staged"));
+        File.WriteAllBytes(Path.Combine(creatingDirectory, "staged", "partial.payload"), new byte[] { 1, 2, 3 });
+
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+
+        Assert.False(Directory.Exists(creatingDirectory));
+    }
+
+    [Fact]
+    public void StartupRecovery_FinishesPartialDeletingDirectoryWithoutManifestOrLease() {
+        string transactionRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions");
+        string deletingDirectory = Path.Combine(transactionRoot, ".deleting-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(deletingDirectory, "backups"));
+        File.WriteAllBytes(Path.Combine(deletingDirectory, "backups", "partial.payload"), new byte[] { 4, 5, 6 });
+
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+
+        Assert.False(Directory.Exists(deletingDirectory));
+    }
+
+    [Fact]
+    public void Session_WhenTransactionContainerIsReparsePoint_RejectsBeforeOutsideMutation() {
+        string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-authoring-transaction-outside-" + Guid.NewGuid().ToString("N"));
+        string cacheRoot = Path.Combine(ProjectRootPath, "cache");
+        Directory.CreateDirectory(outsideRoot);
+        try {
+            try {
+                Directory.CreateSymbolicLink(cacheRoot, outsideRoot);
+            } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is PlatformNotSupportedException) {
+                return;
+            }
+
+            Assert.ThrowsAny<Exception>(() => CreateSession(ProjectRootPath));
+            Assert.False(Directory.EnumerateFileSystemEntries(outsideRoot).Any());
+        } finally {
+            if (Directory.Exists(cacheRoot)) {
+                Directory.Delete(cacheRoot);
+            }
+            if (Directory.Exists(outsideRoot)) {
+                Directory.Delete(outsideRoot, true);
+            }
+        }
     }
 
     static void WriteEmptyDocument(string transactionDirectory, EditorAuthoringTransactionState state) {

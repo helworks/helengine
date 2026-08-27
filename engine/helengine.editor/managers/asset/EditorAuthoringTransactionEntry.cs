@@ -46,6 +46,17 @@ namespace helengine.editor {
     }
 
     /// <summary>
+    /// In-memory terminal outcome of one authoring transaction instance.
+    /// </summary>
+    public enum EditorAuthoringTransactionOutcome {
+        Active,
+        Committed,
+        Disposed,
+        RolledBack,
+        Failed
+    }
+
+    /// <summary>
     /// Durable replacement progress for one transaction entry.
     /// </summary>
     public enum EditorAuthoringTransactionEntryProgress {

@@ -217,7 +217,10 @@ namespace helengine.editor {
         internal EditorAuthoringTransaction BeginTransaction(EditorAuthoringTransactionHooks hooks) {
             EnsureNotDisposed();
             lock (TransactionGate) {
-                if (IsDisposing) {
+                // Recheck both terminal and in-progress disposal while holding
+                // the reservation gate. The public precheck may race a
+                // disposal that completes before this thread enters the gate.
+                if (IsDisposed || IsDisposing) {
                     throw new ObjectDisposedException(nameof(EditorProjectAuthoringSession));
                 }
                 if (ActiveTransaction != null) {

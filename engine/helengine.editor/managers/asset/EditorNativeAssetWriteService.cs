@@ -314,6 +314,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Publishes a transaction's restored paths through the idempotent
+        /// rollback generation boundary.
+        /// </summary>
+        internal long PublishRollbackChangesUnderLock(string transactionId, IReadOnlyList<string> relativePaths) {
+            EnsureNotDisposed();
+            return ChangeLog.PublishRollbackChanges(transactionId, relativePaths);
+        }
+
+        /// <summary>
         /// Updates this writer's observed publication generation after a transaction commit.
         /// </summary>
         internal void ObserveCurrentGenerationUnderLock() {

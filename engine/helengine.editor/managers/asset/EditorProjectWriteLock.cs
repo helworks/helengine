@@ -177,6 +177,10 @@ namespace helengine.editor {
             return generation;
         }
 
+        long PublishRollbackChanges(string transactionId, IReadOnlyList<string> relativePaths) {
+            return PublishChanges(relativePaths);
+        }
+
         long BeginRepairBatch(IReadOnlyList<string> relativePaths);
 
         void CommitRepairBatch(long batchId);
@@ -210,6 +214,10 @@ namespace helengine.editor {
 
         public long PublishChanges(IReadOnlyList<string> relativePaths) {
             return EditorProjectWriteGeneration.PublishChangesUnderLock(ProjectRootPath, relativePaths);
+        }
+
+        public long PublishRollbackChanges(string transactionId, IReadOnlyList<string> relativePaths) {
+            return EditorProjectWriteGeneration.PublishRollbackChangesUnderLock(ProjectRootPath, transactionId, relativePaths);
         }
 
         public long BeginRepairBatch(IReadOnlyList<string> relativePaths) {
@@ -354,10 +362,76 @@ namespace helengine.editor {
                 Changes = changes.Values
                     .OrderBy(change => change.Generation)
                     .ThenBy(change => change.RelativePath, PathComparer)
-                    .ToList()
+                    .ToList(),
+                RollbackTransactionIds = snapshot.RollbackTransactionIds
             };
             WriteSnapshotAtomically(generationPath, nextSnapshot);
             return generation;
+        }
+
+        /// <summary>
+        /// Publishes restored paths for a transaction exactly once. The token
+        /// and the path generation are committed in one atomic snapshot.
+        /// </summary>
+        internal static long PublishRollbackChangesUnderLock(
+            string projectRootPath,
+            string transactionId,
+            IReadOnlyList<string> relativePaths) {
+            if (string.IsNullOrWhiteSpace(transactionId) || !Guid.TryParseExact(transactionId, "N", out _)) {
+                throw new ArgumentException("A current transaction identifier is required.", nameof(transactionId));
+            }
+            if (relativePaths == null || relativePaths.Count == 0) {
+                throw new ArgumentException("At least one restored path is required.", nameof(relativePaths));
+            }
+
+            string generationPath = GetPath(projectRootPath);
+            ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            EnsureNoPendingRepair(snapshot, generationPath);
+            snapshot.RollbackTransactionIds ??= new List<string>();
+            if (snapshot.RollbackTransactionIds.Contains(transactionId, StringComparer.Ordinal)) {
+                return snapshot.CurrentGeneration;
+            }
+
+            List<string> normalizedPaths = relativePaths
+                .Select(relativePath => NormalizeRelativePath(projectRootPath, relativePath))
+                .Distinct(PathComparer)
+                .OrderBy(path => path, PathComparer)
+                .ThenBy(path => path, StringComparer.Ordinal)
+                .ToList();
+            if (normalizedPaths.Count == 0) {
+                throw new ArgumentException("At least one restored path is required.", nameof(relativePaths));
+            }
+
+            Dictionary<string, ProjectWriteGenerationChange> changes = snapshot.Changes
+                .ToDictionary(change => change.RelativePath, change => change, PathComparer);
+            long nextGeneration = snapshot.CurrentGeneration;
+            for (int index = 0; index < normalizedPaths.Count; index++) {
+                string relativePath = normalizedPaths[index];
+                changes[relativePath] = new ProjectWriteGenerationChange {
+                    Generation = checked(++nextGeneration),
+                    RelativePath = relativePath
+                };
+            }
+
+            snapshot.CurrentGeneration = nextGeneration;
+            snapshot.Changes = changes.Values
+                .OrderBy(change => change.Generation)
+                .ThenBy(change => change.RelativePath, PathComparer)
+                .ToList();
+            snapshot.RollbackTransactionIds.Add(transactionId);
+            WriteSnapshotAtomically(generationPath, snapshot);
+            return nextGeneration;
+        }
+
+        internal static bool HasRollbackPublicationUnderLock(string projectRootPath, string transactionId) {
+            if (string.IsNullOrWhiteSpace(transactionId) || !Guid.TryParseExact(transactionId, "N", out _)) {
+                throw new ArgumentException("A current transaction identifier is required.", nameof(transactionId));
+            }
+
+            ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            EnsureNoPendingRepair(snapshot, GetPath(projectRootPath));
+            return snapshot.RollbackTransactionIds != null &&
+                snapshot.RollbackTransactionIds.Contains(transactionId, StringComparer.Ordinal);
         }
 
         /// <summary>
@@ -492,6 +566,16 @@ namespace helengine.editor {
                 throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' has an unsupported version or shape.");
             }
 
+            HashSet<string> rollbackTransactions = new HashSet<string>(StringComparer.Ordinal);
+            if (snapshot.RollbackTransactionIds != null) {
+                for (int index = 0; index < snapshot.RollbackTransactionIds.Count; index++) {
+                    string transactionId = snapshot.RollbackTransactionIds[index];
+                    if (!Guid.TryParseExact(transactionId, "N", out _) || !rollbackTransactions.Add(transactionId)) {
+                        throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' contains an invalid rollback publication token.");
+                    }
+                }
+            }
+
             HashSet<string> paths = new HashSet<string>(PathComparer);
             HashSet<long> generations = new HashSet<long>();
             long maximumGeneration = 0;
@@ -622,6 +706,8 @@ namespace helengine.editor {
             public List<ProjectWriteGenerationChange> Changes { get; set; }
 
             public ProjectWriteGenerationPendingRepair PendingRepair { get; set; }
+
+            public List<string> RollbackTransactionIds { get; set; }
         }
 
         sealed class ProjectWriteGenerationChange {
