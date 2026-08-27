@@ -102,6 +102,9 @@ namespace helengine.editor {
             if (!string.Equals(marker.TransactionId, transactionId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException("The authoring transaction pending marker belongs to another transaction.");
             }
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                canonicalRoot,
+                Path.GetDirectoryName(markerPath));
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, canonicalRoot);
             File.Delete(markerPath);
         }
@@ -149,6 +152,9 @@ namespace helengine.editor {
 
         static void WriteAtomically(string projectRootPath, string path, PendingMarker marker) {
             string directory = Path.GetDirectoryName(path);
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                projectRootPath,
+                directory);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRootPath);
             Directory.CreateDirectory(directory);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRootPath);

@@ -18,6 +18,7 @@ namespace helengine.editor {
         EditorAuthoringTransactionDocument Document;
         EditorAuthoringTransactionOutcome OutcomeValue = EditorAuthoringTransactionOutcome.Active;
         bool IsDisposed;
+        bool RetiredDirectory;
 
         internal EditorAuthoringTransaction(
             string projectRootPath,
@@ -38,6 +39,9 @@ namespace helengine.editor {
             string transactionRoot = EditorAuthoringTransactionRecoveryService.GetTransactionRoot(ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                ProjectRootPath,
+                transactionRoot);
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(transactionRoot, ProjectRootPath);
             Directory.CreateDirectory(transactionRoot);
@@ -106,7 +110,18 @@ namespace helengine.editor {
                     string cleanupDirectory = publishedDirectory ? publishedDirectoryPath : creatingDirectoryPath;
                     if (Directory.Exists(cleanupDirectory)) {
                         EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(cleanupDirectory, transactionRoot);
-                        Directory.Delete(cleanupDirectory, true);
+                        if (publishedDirectory) {
+                            string deletingDirectory = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
+                                transactionRoot,
+                                ".deleting-" + transactionId,
+                                "construction retirement");
+                            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(deletingDirectory, transactionRoot);
+                            Directory.Move(cleanupDirectory, deletingDirectory);
+                            EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(deletingDirectory, transactionRoot);
+                            Directory.Delete(deletingDirectory, true);
+                        } else {
+                            Directory.Delete(cleanupDirectory, true);
+                        }
                     }
                 } catch (Exception cleanupException) {
                     throw new AggregateException("Authoring transaction construction and cleanup failed.", primaryException, cleanupException);
@@ -348,13 +363,16 @@ namespace helengine.editor {
                                 Document.Entries[index].State = Document.State;
                             }
                             WriteDocument();
-                            Hooks.BeforePendingMarkerClear?.Invoke();
-                            EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
                             Document.State = EditorAuthoringTransactionState.RolledBack;
                             for (int index = 0; index < Document.Entries.Count; index++) {
                                 Document.Entries[index].State = Document.State;
                             }
                             WriteDocument();
+                            Hooks.BeforePendingMarkerClear?.Invoke();
+                            EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
+                            if (generationPublished && changedEntries.Count > 0) {
+                                NativeWriter.PruneRollbackChangesUnderLock(Document.TransactionId);
+                            }
                             try {
                                 DeleteOwnDirectory();
                             } catch {
@@ -520,6 +538,9 @@ namespace helengine.editor {
                                     operation.BackupBytes,
                                     AssetsRootPath);
                             } else if (File.Exists(operation.Prepared.FullPath)) {
+                                using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                                    ProjectRootPath,
+                                    Path.GetDirectoryName(operation.Prepared.FullPath));
                                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(operation.Prepared.FullPath, AssetsRootPath);
                                 File.Delete(operation.Prepared.FullPath);
                             }
@@ -560,25 +581,55 @@ namespace helengine.editor {
         void DeleteOwnDirectory() {
             string transactionRoot = EditorAuthoringTransactionRecoveryService.GetTransactionRoot(ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ResolveContainedPath(transactionRoot, Document.TransactionId, "transaction");
+            // Retirement is a publication-root mutation even for an uncommitted
+            // staging transaction. Reentrant acquisition is borrowed during Commit.
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                ProjectRootPath,
+                transactionRoot);
+
+            if (RetiredDirectory) {
+                if (!Directory.Exists(TransactionDirectoryPath)) {
+                    return;
+                }
+
+                EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(TransactionDirectoryPath, transactionRoot);
+                Directory.Delete(TransactionDirectoryPath, true);
+                return;
+            }
+
             if (!Directory.Exists(TransactionDirectoryPath)) {
                 return;
             }
 
-            CloseLease();
             EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(TransactionDirectoryPath, transactionRoot);
-            if (Document.State == EditorAuthoringTransactionState.Committed ||
-                Document.State == EditorAuthoringTransactionState.RolledBack) {
-                string deletingDirectory = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
-                    transactionRoot,
-                    ".deleting-" + Document.TransactionId,
-                    "terminal deletion");
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(deletingDirectory, transactionRoot);
+            string deletingDirectory = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
+                transactionRoot,
+                ".deleting-" + Document.TransactionId,
+                "terminal deletion");
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(deletingDirectory, transactionRoot);
+            Hooks.BeforeRetireRename?.Invoke();
+            // Windows cannot move a directory containing an open non-shareable
+            // lease handle. The project lock excludes cooperating recovery
+            // while this brief close-and-rename sequence runs; if the rename
+            // itself fails, immediately reacquire the lease so this instance
+            // remains the sole owner and Dispose can retry deterministically.
+            CloseLease();
+            try {
                 Directory.Move(TransactionDirectoryPath, deletingDirectory);
-                EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(deletingDirectory, transactionRoot);
-                Directory.Delete(deletingDirectory, true);
-            } else {
-                Directory.Delete(TransactionDirectoryPath, true);
+            } catch (Exception renameException) {
+                try {
+                    OpenLease();
+                } catch (Exception leaseException) {
+                    throw new AggregateException("Authoring transaction retirement failed and its lease could not be reacquired.", renameException, leaseException);
+                }
+                throw;
             }
+            RetiredDirectory = true;
+            TransactionDirectoryPath = deletingDirectory;
+            Hooks.AfterRetireRename?.Invoke();
+            EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(TransactionDirectoryPath, transactionRoot);
+            Directory.Delete(TransactionDirectoryPath, true);
         }
 
         void CloseLease() {
@@ -588,6 +639,15 @@ namespace helengine.editor {
 
             LeaseStream.Dispose();
             LeaseStream = null;
+        }
+
+        void OpenLease() {
+            string leasePath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
+                TransactionDirectoryPath,
+                "lease",
+                "lease");
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(leasePath, TransactionDirectoryPath);
+            LeaseStream = new FileStream(leasePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
         }
 
         internal void ReleaseLeaseForTesting() {
@@ -606,6 +666,9 @@ namespace helengine.editor {
         }
 
         void WriteDocument() {
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                ProjectRootPath,
+                TransactionDirectoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
                 TransactionDirectoryPath,
@@ -631,9 +694,12 @@ namespace helengine.editor {
             }
         }
 
-        static void WriteBytesDurably(string path, byte[] bytes, string containingRoot) {
+        void WriteBytesDurably(string path, byte[] bytes, string containingRoot) {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, containingRoot);
             string directoryPath = Path.GetDirectoryName(path);
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                ProjectRootPath,
+                directoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directoryPath, containingRoot);
             Directory.CreateDirectory(directoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, containingRoot);
@@ -667,7 +733,7 @@ namespace helengine.editor {
 
         void EnsureStaging() {
             if (IsDisposed || OutcomeValue != EditorAuthoringTransactionOutcome.Active ||
-                Document.State != EditorAuthoringTransactionState.Staging) {
+                RetiredDirectory || Document.State != EditorAuthoringTransactionState.Staging) {
                 throw new ObjectDisposedException(nameof(EditorAuthoringTransaction));
             }
         }
@@ -694,5 +760,9 @@ namespace helengine.editor {
         public Action BeforePendingMarkerClear { get; init; }
 
         public Action BeforeCleanup { get; init; }
+
+        public Action BeforeRetireRename { get; init; }
+
+        public Action AfterRetireRename { get; init; }
     }
 }

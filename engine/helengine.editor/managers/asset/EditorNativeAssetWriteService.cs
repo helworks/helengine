@@ -180,7 +180,7 @@ namespace helengine.editor {
                 disposition = EditorAssetWriteDisposition.Unchanged;
             } else {
                 long publishedGeneration = ChangeLog.PublishChange(normalizedRelativePath);
-                WriteAtomically(fullPath, serializedBytes, AssetsRootPath);
+                WriteAtomically(fullPath, serializedBytes, AssetsRootPath, ProjectRootPath);
                 HashCache.InvalidateContentHash(fullPath);
                 IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
                 string replacedContentHash = HashCache.GetContentHash(fullPath);
@@ -320,6 +320,15 @@ namespace helengine.editor {
         internal long PublishRollbackChangesUnderLock(string transactionId, IReadOnlyList<string> relativePaths) {
             EnsureNotDisposed();
             return ChangeLog.PublishRollbackChanges(transactionId, relativePaths);
+        }
+
+        /// <summary>
+        /// Retires a completed rollback token without advancing the observed
+        /// path generation.
+        /// </summary>
+        internal long PruneRollbackChangesUnderLock(string transactionId) {
+            EnsureNotDisposed();
+            return ChangeLog.PruneRollbackChanges(transactionId);
         }
 
         /// <summary>
@@ -657,13 +666,16 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fullPath">Canonical destination path.</param>
         /// <param name="serializedBytes">Complete current-format bytes.</param>
-        static void WriteAtomically(string fullPath, byte[] serializedBytes, string containingRoot) {
+        static void WriteAtomically(string fullPath, byte[] serializedBytes, string containingRoot, string projectRootPath) {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
             string directoryPath = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException("Native asset destination does not include a writable directory.");
             }
 
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                projectRootPath,
+                directoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directoryPath, containingRoot);
             Directory.CreateDirectory(directoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);

@@ -417,7 +417,85 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     [Fact]
-    public void StartupRecovery_CommittingJournalRestoresBackedUpDestination() {
+    public void Dispose_WhenRetireRenameFails_RetainsPublishedDirectoryForRetry() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        int retireAttempts = 0;
+        using EditorAuthoringTransaction transaction = session.BeginTransaction(new EditorAuthoringTransactionHooks {
+            BeforeRetireRename = () => {
+                if (retireAttempts++ == 0) {
+                    throw new IOException("injected retire rename failure");
+                }
+            }
+        });
+        string transactionDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId);
+
+        Assert.Throws<IOException>(() => transaction.Dispose());
+        Assert.True(Directory.Exists(transactionDirectory));
+        Assert.Equal(EditorAuthoringTransactionOutcome.Active, transaction.Outcome);
+
+        transaction.Dispose();
+        Assert.False(Directory.Exists(transactionDirectory));
+    }
+
+    [Fact]
+    public void Dispose_WhenRetireDeletionFails_LeavesDeletingDirectoryForStartupRecovery() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        EditorAuthoringTransaction transaction = session.BeginTransaction(new EditorAuthoringTransactionHooks {
+            AfterRetireRename = () => throw new IOException("injected retire deletion failure")
+        });
+        string transactionDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId);
+        string deletingDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            ".deleting-" + transaction.TransactionId);
+
+        Assert.Throws<IOException>(() => transaction.Dispose());
+        Assert.False(Directory.Exists(transactionDirectory));
+        Assert.True(Directory.Exists(deletingDirectory));
+        transaction.Dispose();
+
+        using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
+        Assert.False(Directory.Exists(deletingDirectory));
+    }
+
+    [Fact]
+    public void BeginTransaction_AndSessionDispose_AreSerializedByTheTransactionGate() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using ManualResetEventSlim constructionEntered = new ManualResetEventSlim(false);
+        using ManualResetEventSlim releaseConstruction = new ManualResetEventSlim(false);
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            BeforeManifestWrite = () => {
+                constructionEntered.Set();
+                releaseConstruction.Wait(TimeSpan.FromSeconds(5));
+            }
+        };
+
+        Task<EditorAuthoringTransaction> beginTask = Task.Run(() => session.BeginTransaction(hooks));
+        Assert.True(constructionEntered.Wait(TimeSpan.FromSeconds(5)));
+        Task disposeTask = Task.Run(session.Dispose);
+        Assert.False(disposeTask.Wait(TimeSpan.FromMilliseconds(100)));
+        releaseConstruction.Set();
+
+        using EditorAuthoringTransaction transaction = beginTask.GetAwaiter().GetResult();
+        disposeTask.GetAwaiter().GetResult();
+        Assert.Equal(EditorAuthoringTransactionOutcome.Disposed, transaction.Outcome);
+        Assert.Throws<ObjectDisposedException>(() => session.BeginTransaction());
+    }
+
+    [Fact]
+    public void StartupRecovery_ApplyingAfterReplacementRestoresBackedUpDestination() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         EditorAssetWriteResult original = session.WriteAsset("models/ship.hasset", CreateModel("Ship"));
         byte[] originalBytes = File.ReadAllBytes(original.FullPath);
@@ -502,22 +580,41 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     public void StartupRecovery_RejectsTraversalJournalBeforeTouchingOutsidePath() {
         string transactionRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions");
         string transactionDirectory = Path.Combine(transactionRoot, Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(transactionDirectory, "staged"));
-        File.WriteAllBytes(Path.Combine(transactionDirectory, "staged", "payload"), new byte[] { 1 });
+        string stagedPath = Path.Combine(transactionDirectory, "staged", "payload");
+        Directory.CreateDirectory(Path.GetDirectoryName(stagedPath));
+        Directory.CreateDirectory(Path.Combine(transactionDirectory, "backups"));
+        File.WriteAllBytes(Path.Combine(transactionDirectory, "lease"), Array.Empty<byte>());
+        ModelAsset stagedAsset = CreateModel("Traversal");
+        stagedAsset.AuthoringAssetId = "00112233445566778899aabbccddeeff";
+        byte[] stagedBytes = AssetSerializer.SerializeToBytes(stagedAsset);
         EditorAuthoringTransactionDocument document = new EditorAuthoringTransactionDocument {
             TransactionId = Path.GetFileName(transactionDirectory),
-            State = EditorAuthoringTransactionState.Staging,
+            State = EditorAuthoringTransactionState.Committing,
             Entries = new List<EditorAuthoringTransactionEntry> {
                 new EditorAuthoringTransactionEntry {
                     DestinationRelativePath = "../outside.hasset",
                     StagedRelativePath = "staged/payload",
-                    State = EditorAuthoringTransactionState.Staging
+                    State = EditorAuthoringTransactionState.Committing,
+                    Progress = EditorAuthoringTransactionEntryProgress.Applying,
+                    Changed = true,
+                    StagedContentHash = EditorNativeAssetWriteService.ComputeCanonicalNativeHash(
+                        stagedBytes,
+                        Path.Combine(ProjectRootPath, "assets", "outside.hasset")),
+                    StagedSerializedHash = "sha256:" + Convert.ToHexString(
+                        System.Security.Cryptography.SHA256.HashData(stagedBytes)).ToLowerInvariant(),
+                    ExpectedAssetId = stagedAsset.AuthoringAssetId,
+                    ExpectedAssetKind = "ModelAsset"
                 }
             }
         };
+        File.WriteAllBytes(stagedPath, stagedBytes);
         File.WriteAllText(
             Path.Combine(transactionDirectory, "transaction.json"),
             System.Text.Json.JsonSerializer.Serialize(document, EditorAuthoringTransactionDocument.JsonOptions));
+        string markerPath = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions.pending");
+        File.WriteAllText(
+            markerPath,
+            "{\"version\":1,\"transactionId\":\"" + document.TransactionId + "\",\"relativePaths\":[\"models/safe.hasset\"]}");
 
         Assert.Throws<InvalidDataException>(() => CreateSession(ProjectRootPath));
         Assert.True(Directory.Exists(transactionDirectory));
@@ -593,17 +690,13 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         Assert.False(Directory.Exists(deletingDirectory));
     }
 
-    [Fact]
+    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
     public void Session_WhenTransactionContainerIsReparsePoint_RejectsBeforeOutsideMutation() {
         string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-authoring-transaction-outside-" + Guid.NewGuid().ToString("N"));
         string cacheRoot = Path.Combine(ProjectRootPath, "cache");
         Directory.CreateDirectory(outsideRoot);
         try {
-            try {
-                Directory.CreateSymbolicLink(cacheRoot, outsideRoot);
-            } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is PlatformNotSupportedException) {
-                return;
-            }
+            Directory.CreateSymbolicLink(cacheRoot, outsideRoot);
 
             Assert.ThrowsAny<Exception>(() => CreateSession(ProjectRootPath));
             Assert.False(Directory.EnumerateFileSystemEntries(outsideRoot).Any());

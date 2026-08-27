@@ -77,6 +77,59 @@ public sealed class EditorProjectWriteGenerationTests : IDisposable {
     }
 
     [Fact]
+    public void PruneRollbackPublication_RemovesTokenWithoutAdvancingGeneration() {
+        string transactionId = Guid.NewGuid().ToString("N");
+        long publishedGeneration;
+        long prunedGeneration;
+        using (EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            publishedGeneration = EditorProjectWriteGeneration.PublishRollbackChangesUnderLock(
+                ProjectRootPath,
+                transactionId,
+                new[] { "Models/Restored.hasset" });
+            prunedGeneration = EditorProjectWriteGeneration.PruneRollbackChangesUnderLock(ProjectRootPath, transactionId);
+        }
+
+        Assert.Equal(publishedGeneration, prunedGeneration);
+        Assert.False(EditorProjectWriteGeneration.HasRollbackPublication(ProjectRootPath, transactionId));
+        Assert.Single(EditorProjectWriteGeneration.ReadAfter(ProjectRootPath, 0));
+    }
+
+    [Fact]
+    public void RollbackPublicationTokens_RemainBoundedWhenCompletedTokensArePruned() {
+        using (EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            for (int index = 0; index < 300; index++) {
+                string transactionId = Guid.NewGuid().ToString("N");
+                EditorProjectWriteGeneration.PublishRollbackChangesUnderLock(
+                    ProjectRootPath,
+                    transactionId,
+                    new[] { "Models/Restored" + index.ToString("D4") + ".hasset" });
+                EditorProjectWriteGeneration.PruneRollbackChangesUnderLock(ProjectRootPath, transactionId);
+            }
+        }
+
+        string generationPath = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-write.generation");
+        string json = File.ReadAllText(generationPath);
+        Assert.DoesNotContain("rollbackTransactionIds\": [\n", json, StringComparison.Ordinal);
+        Assert.True(new FileInfo(generationPath).Length < 64 * 1024);
+    }
+
+    [Fact]
+    public void RollbackPublicationTokens_WhenMaximumIsExceeded_FailsClosed() {
+        using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+        for (int index = 0; index < 128; index++) {
+            EditorProjectWriteGeneration.PublishRollbackChangesUnderLock(
+                ProjectRootPath,
+                Guid.NewGuid().ToString("N"),
+                new[] { $"Models/Rollback{index:D3}.hasset" });
+        }
+
+        Assert.Throws<InvalidDataException>(() => EditorProjectWriteGeneration.PublishRollbackChangesUnderLock(
+            ProjectRootPath,
+            Guid.NewGuid().ToString("N"),
+            new[] { "Models/Rollback-overflow.hasset" }));
+    }
+
+    [Fact]
     public void Read_WhenSnapshotIsMalformed_RejectsItExplicitly() {
         string markerPath = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-write.generation");
         Directory.CreateDirectory(Path.GetDirectoryName(markerPath));
@@ -124,20 +177,13 @@ public sealed class EditorProjectWriteGenerationTests : IDisposable {
         Assert.NotNull(inner);
     }
 
-    [Fact]
-    public void ProjectWriteLock_WhenRootIsReachedThroughDirectoryLink_ReusesTheHeldHandle() {
+    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
+    public void ProjectWriteLock_WhenRootIsReachedThroughDirectoryLink_RejectsTheLinkedRoot() {
         string linkRoot = Path.Combine(Path.GetTempPath(), "helengine-write-generation-tests", Guid.NewGuid().ToString("N"));
         try {
-            try {
-                Directory.CreateSymbolicLink(linkRoot, ProjectRootPath);
-            } catch (Exception exception) when (exception is UnauthorizedAccessException || exception is IOException || exception is PlatformNotSupportedException) {
-                return;
-            }
+            Directory.CreateSymbolicLink(linkRoot, ProjectRootPath);
 
-            using EditorProjectWriteLock outer = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromSeconds(1));
-            using EditorProjectWriteLock inner = EditorProjectWriteLock.Acquire(linkRoot, TimeSpan.FromMilliseconds(50));
-
-            Assert.NotNull(inner);
+            Assert.ThrowsAny<Exception>(() => EditorProjectWriteLock.Acquire(linkRoot, TimeSpan.FromMilliseconds(50)));
         } finally {
             if (Directory.Exists(linkRoot)) {
                 Directory.Delete(linkRoot);

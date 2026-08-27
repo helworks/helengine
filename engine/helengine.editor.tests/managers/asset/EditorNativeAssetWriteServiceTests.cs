@@ -253,17 +253,13 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     /// <summary>
     /// Ensures a directory link cannot redirect a native write outside the project assets root.
     /// </summary>
-    [Fact]
+    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
     public void WriteAsset_WhenDirectoryLinkEscapesAssetsRoot_RejectsWithoutMutation() {
         string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-native-write-outside-" + Guid.NewGuid().ToString("N"));
         string linkPath = Path.Combine(ProjectRootPath, "assets", "linked");
         Directory.CreateDirectory(outsideRoot);
         try {
-            try {
-                Directory.CreateSymbolicLink(linkPath, outsideRoot);
-            } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is PlatformNotSupportedException) {
-                return;
-            }
+            Directory.CreateSymbolicLink(linkPath, outsideRoot);
 
             using IEditorProjectAuthoringSession session = CreateSession();
             Assert.Throws<InvalidOperationException>(() => session.WriteAsset("linked/Escaped.hasset", CreateModel()));

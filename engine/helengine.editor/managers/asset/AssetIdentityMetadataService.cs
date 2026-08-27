@@ -123,6 +123,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(document));
             }
 
+            string projectRootPath = FindProjectRoot(assetPath);
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                projectRootPath,
+                Path.GetDirectoryName(Path.GetFullPath(assetPath)));
+
             if (PathClassifier.UsesEmbeddedIdentity(assetPath)) {
                 ValidateDocument(document, assetPath);
                 SaveEmbedded(assetPath, document);
@@ -141,6 +146,19 @@ namespace helengine.editor {
                     File.Delete(temporaryPath);
                 }
             }
+        }
+
+        static string FindProjectRoot(string assetPath) {
+            DirectoryInfo current = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(assetPath)));
+            while (current != null) {
+                if (string.Equals(current.Name, "assets", OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal)) {
+                    return current.Parent?.FullName ?? current.FullName;
+                }
+                current = current.Parent;
+            }
+            return Path.GetDirectoryName(Path.GetFullPath(assetPath));
         }
 
         /// <summary>

@@ -121,7 +121,7 @@ namespace helengine.editor {
                 switch (document.State) {
                     case EditorAuthoringTransactionState.Staging:
                         if (TryAcquireAbandonedLease(transactionDirectory)) {
-                            DeleteTransactionDirectory(transactionDirectory, transactionRoot);
+                            DeleteTerminalTransactionDirectory(transactionDirectory, transactionRoot, transactionId);
                         }
                         break;
                     case EditorAuthoringTransactionState.Committing:
@@ -142,10 +142,19 @@ namespace helengine.editor {
                                         canonicalProjectRoot,
                                         transactionId,
                                         restoredPaths);
+                                    rollbackPublished = true;
                                 }
                             }
+                            document.State = EditorAuthoringTransactionState.RolledBack;
+                            for (int entryIndex = 0; entryIndex < document.Entries.Count; entryIndex++) {
+                                document.Entries[entryIndex].State = document.State;
+                            }
+                            WriteDocumentAtomically(manifestPath, transactionDirectory, document);
                             if (pendingMarker != null && string.Equals(pendingMarker.TransactionId, transactionId, StringComparison.Ordinal)) {
                                 EditorAuthoringTransactionPendingMarker.ClearUnderLock(canonicalProjectRoot, transactionId);
+                            }
+                            if (rollbackPublished || EditorProjectWriteGeneration.HasRollbackPublicationUnderLock(canonicalProjectRoot, transactionId)) {
+                                EditorProjectWriteGeneration.PruneRollbackChangesUnderLock(canonicalProjectRoot, transactionId);
                             }
                         }
                         DeleteTerminalTransactionDirectory(transactionDirectory, transactionRoot, transactionId);
@@ -161,6 +170,9 @@ namespace helengine.editor {
                     case EditorAuthoringTransactionState.RolledBack:
                         if (pendingMarker != null && string.Equals(pendingMarker.TransactionId, transactionId, StringComparison.Ordinal)) {
                             EditorAuthoringTransactionPendingMarker.ClearUnderLock(canonicalProjectRoot, transactionId);
+                        }
+                        if (EditorProjectWriteGeneration.HasRollbackPublicationUnderLock(canonicalProjectRoot, transactionId)) {
+                            EditorProjectWriteGeneration.PruneRollbackChangesUnderLock(canonicalProjectRoot, transactionId);
                         }
                         if (TryAcquireAbandonedLease(transactionDirectory)) {
                             DeleteTerminalTransactionDirectory(transactionDirectory, transactionRoot, transactionId);
@@ -242,6 +254,43 @@ namespace helengine.editor {
                 return document ?? throw new InvalidDataException($"The authoring transaction journal '{manifestPath}' is empty.");
             } catch (JsonException exception) {
                 throw new InvalidDataException($"The authoring transaction journal '{manifestPath}' is malformed.", exception);
+            }
+        }
+
+        static void WriteDocumentAtomically(
+            string manifestPath,
+            string transactionDirectory,
+            EditorAuthoringTransactionDocument document) {
+            string transactionRoot = Directory.GetParent(Path.GetFullPath(transactionDirectory))?.FullName;
+            if (string.IsNullOrWhiteSpace(transactionRoot)) {
+                throw new InvalidDataException("The authoring transaction has no transaction root.");
+            }
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                GetProjectRootFromTransactionRoot(transactionRoot),
+                transactionDirectory);
+            ValidateNoReparsePath(transactionDirectory, transactionDirectory);
+            ValidateNoReparsePath(manifestPath, transactionDirectory);
+            string temporaryPath = manifestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try {
+                ValidateNoReparsePath(temporaryPath, transactionDirectory);
+                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(document, EditorAuthoringTransactionDocument.JsonOptions);
+                using (FileStream stream = new FileStream(
+                    temporaryPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    4096,
+                    FileOptions.WriteThrough)) {
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush(true);
+                }
+                ValidateNoReparsePath(manifestPath, transactionDirectory);
+                File.Move(temporaryPath, manifestPath, true);
+            } finally {
+                if (File.Exists(temporaryPath)) {
+                    ValidateNoReparsePath(temporaryPath, transactionDirectory);
+                    File.Delete(temporaryPath);
+                }
             }
         }
 
@@ -410,6 +459,10 @@ namespace helengine.editor {
                     if (operation.Entry.PriorExists) {
                         ReplaceAtomically(operation.Destination, operation.BackupBytes, assetsRoot);
                     } else if (File.Exists(operation.Destination)) {
+                        string deletionProjectRoot = Directory.GetParent(Path.GetFullPath(assetsRoot))?.FullName;
+                        using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                            deletionProjectRoot,
+                            Path.GetDirectoryName(operation.Destination));
                         ValidateNoReparsePath(operation.Destination, assetsRoot);
                         File.Delete(operation.Destination);
                     }
@@ -498,6 +551,13 @@ namespace helengine.editor {
         internal static void ReplaceAtomically(string destinationPath, byte[] bytes, string containingRoot) {
             ValidateNoReparsePath(destinationPath, containingRoot);
             string directoryPath = Path.GetDirectoryName(destinationPath);
+            string projectRootPath = Directory.GetParent(Path.GetFullPath(containingRoot))?.FullName;
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new InvalidDataException("The authoring mutation root has no project parent.");
+            }
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                projectRootPath,
+                directoryPath);
             ValidateNoReparsePath(directoryPath, containingRoot);
             Directory.CreateDirectory(directoryPath);
             ValidateNoReparsePath(destinationPath, containingRoot);
@@ -519,6 +579,10 @@ namespace helengine.editor {
         }
 
         static void DeleteTransactionDirectory(string transactionDirectory, string transactionRoot) {
+            string projectRootPath = GetProjectRootFromTransactionRoot(transactionRoot);
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                projectRootPath,
+                transactionRoot);
             ValidateTreeHasNoReparsePoints(transactionDirectory, transactionRoot);
             Directory.Delete(transactionDirectory, true);
         }
@@ -528,6 +592,10 @@ namespace helengine.editor {
                 return;
             }
 
+            string projectRootPath = GetProjectRootFromTransactionRoot(transactionRoot);
+            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                projectRootPath,
+                transactionRoot);
             ValidateTreeHasNoReparsePoints(transactionDirectory, transactionRoot);
             string deletingDirectory = ResolveContainedPath(
                 transactionRoot,
@@ -537,6 +605,17 @@ namespace helengine.editor {
             Directory.Move(transactionDirectory, deletingDirectory);
             ValidateTreeHasNoReparsePoints(deletingDirectory, transactionRoot);
             Directory.Delete(deletingDirectory, true);
+        }
+
+        static string GetProjectRootFromTransactionRoot(string transactionRoot) {
+            DirectoryInfo transactionRootInfo = new DirectoryInfo(Path.GetFullPath(transactionRoot));
+            DirectoryInfo editorDirectory = transactionRootInfo.Parent;
+            DirectoryInfo cacheDirectory = editorDirectory?.Parent;
+            DirectoryInfo projectDirectory = cacheDirectory?.Parent;
+            if (projectDirectory == null) {
+                throw new InvalidDataException($"The authoring transaction root '{transactionRoot}' has no project parent.");
+            }
+            return projectDirectory.FullName;
         }
 
         static void ValidateTemporaryDirectoryName(string name, string prefix) {
