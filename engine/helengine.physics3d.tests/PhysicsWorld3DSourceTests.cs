@@ -4,6 +4,23 @@ namespace helengine {
     /// </summary>
     public sealed class PhysicsWorld3DSourceTests {
         /// <summary>
+        /// Ensures the removed compatibility runtime type and source file are no longer exposed by the physics assembly.
+        /// </summary>
+        [Fact]
+        public void Removed_compatibility_runtime_is_absent_from_physics_assembly() {
+            Type compatibilityType = typeof(PhysicsWorld3D).Assembly.GetType(
+                "helengine.PhysicsWorld3DCompatibilityRuntime",
+                false);
+
+            Assert.Null(compatibilityType);
+            Assert.False(File.Exists(Path.Combine(
+                ResolveRepositoryRootPath(),
+                "engine",
+                "helengine.physics3d",
+                "PhysicsWorld3DCompatibilityRuntime.cs")));
+        }
+
+        /// <summary>
         /// Ensures scene binding does not re-analyze authored physics features during runtime binding.
         /// </summary>
         [Fact]

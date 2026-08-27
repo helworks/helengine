@@ -16,7 +16,7 @@ namespace helengine.editor {
         /// <summary>
         /// Stable tagged field name used for mesh material-reference array persistence.
         /// </summary>
-        const string MeshMaterialReferencesFieldName = "Materials";
+        const string MeshMaterialsFieldName = "Materials";
 
         /// <summary>
         /// Stable tagged field name used for mesh render-order persistence.
@@ -975,7 +975,7 @@ namespace helengine.editor {
 
             EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
             writer.WriteField(MeshModelReferenceFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReference(fieldWriter, modelReference));
-            writer.WriteField(MeshMaterialReferencesFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(fieldWriter, new[] { materialReference }));
+            writer.WriteField(MeshMaterialsFieldName, fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(fieldWriter, new[] { materialReference }));
             writer.WriteField(MeshRenderOrder3DFieldName, fieldWriter => fieldWriter.WriteByte(DefaultMeshRenderOrder));
 
             return new SceneComponentAssetRecord {

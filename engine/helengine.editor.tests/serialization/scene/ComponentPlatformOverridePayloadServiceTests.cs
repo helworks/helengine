@@ -66,7 +66,7 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures older wrapped override payload versions are rejected instead of being normalized to the current schema.
+        /// Ensures the removed version-3 wrapped override payload is rejected instead of being normalized to the current schema.
         /// </summary>
         [Fact]
         public void ReadOverrideStates_WhenPayloadUsesOlderVersion_ThrowsUnsupportedPayloadVersion() {
@@ -87,17 +87,13 @@ namespace helengine.editor.tests.serialization.scene {
         /// <param name="relativePath">Relative asset path stored by the reference.</param>
         /// <returns>File-system scene asset reference.</returns>
         static SceneAssetReference CreateFileReference(string relativePath) {
-            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
-                SceneAssetReferenceSourceKind.FileSystem,
-                relativePath,
-                string.Empty,
-                string.Empty);
+            return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(relativePath);
         }
 
         /// <summary>
-        /// Writes one older wrapped override payload that uses the removed version-1 header.
+        /// Writes one removed version-3 wrapped override payload using its old no-environment entry shape.
         /// </summary>
-        /// <returns>Serialized older-version wrapped override payload.</returns>
+        /// <returns>Serialized version-3 wrapped override payload.</returns>
         static byte[] WriteOlderVersionWrappedPayload() {
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
@@ -105,7 +101,14 @@ namespace helengine.editor.tests.serialization.scene {
             writer.WriteByte((byte)'P');
             writer.WriteByte((byte)'O');
             writer.WriteByte((byte)'V');
+            writer.WriteInt32(3);
+            writer.WriteByteArray(new byte[] { 7, 8, 9 });
             writer.WriteInt32(1);
+            writer.WriteString("windows");
+            writer.WriteByteArray(new byte[] { 1, 2, 3, 4 });
+            writer.WriteInt32(0);
+            writer.WriteInt32(0);
+            writer.WriteInt32(0);
             return stream.ToArray();
         }
     }

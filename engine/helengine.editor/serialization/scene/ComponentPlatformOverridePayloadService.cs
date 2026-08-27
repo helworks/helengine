@@ -11,7 +11,6 @@ namespace helengine.editor {
         /// <summary>
         /// Current wrapped payload format version.
         /// </summary>
-        const int LegacyWrappedPayloadVersion = 3;
         const int WrappedPayloadVersion = 4;
 
         /// <summary>
@@ -219,7 +218,7 @@ namespace helengine.editor {
         IReadOnlyList<EntityComponentPlatformOverrideState> ReadWrappedOverrides(byte[] payload) {
             using MemoryStream stream = new MemoryStream(payload, writable: false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            int payloadVersion = ReadAndValidateHeader(reader);
+            ReadAndValidateHeader(reader);
             reader.ReadByteArray();
 
             int overrideCount = reader.ReadInt32();
@@ -230,7 +229,7 @@ namespace helengine.editor {
             List<EntityComponentPlatformOverrideState> overrides = new List<EntityComponentPlatformOverrideState>(overrideCount);
             HashSet<EditorOverrideScope> scopes = new HashSet<EditorOverrideScope>();
             for (int index = 0; index < overrideCount; index++) {
-                EntityComponentPlatformOverrideState overrideState = ReadOverrideState(reader, payloadVersion >= WrappedPayloadVersion);
+                EntityComponentPlatformOverrideState overrideState = ReadOverrideState(reader);
                 EditorOverrideScope scope = new EditorOverrideScope(overrideState.PlatformId, overrideState.EnvironmentId);
                 if (!scopes.Add(scope)) {
                     throw new InvalidOperationException($"Duplicate component override scope '{scope}'.");
@@ -246,7 +245,7 @@ namespace helengine.editor {
         /// Reads and validates the wrapped payload header.
         /// </summary>
         /// <param name="reader">Source reader positioned at the wrapped payload start.</param>
-        int ReadAndValidateHeader(EngineBinaryReader reader) {
+        void ReadAndValidateHeader(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -256,11 +255,9 @@ namespace helengine.editor {
             }
 
             int version = reader.ReadInt32();
-            if (version != LegacyWrappedPayloadVersion && version != WrappedPayloadVersion) {
+            if (version != WrappedPayloadVersion) {
                 throw new InvalidOperationException($"Unsupported component platform override payload version '{version}'.");
             }
-
-            return version;
         }
 
         /// <summary>
@@ -319,7 +316,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="reader">Source reader positioned at one override entry.</param>
         /// <returns>Decoded platform override payload metadata.</returns>
-        EntityComponentPlatformOverrideState ReadOverrideState(EngineBinaryReader reader, bool hasEnvironmentId) {
+        EntityComponentPlatformOverrideState ReadOverrideState(EngineBinaryReader reader) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
             }
@@ -331,7 +328,7 @@ namespace helengine.editor {
 
             EntityComponentPlatformOverrideState overrideState = new EntityComponentPlatformOverrideState {
                 PlatformId = platformId,
-                EnvironmentId = hasEnvironmentId ? reader.ReadString() : string.Empty,
+                EnvironmentId = reader.ReadString(),
                 Payload = reader.ReadByteArray() ?? Array.Empty<byte>()
             };
 

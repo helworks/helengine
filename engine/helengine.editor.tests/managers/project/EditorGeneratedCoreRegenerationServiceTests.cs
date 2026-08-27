@@ -1242,7 +1242,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "Foo.cpp"), "// foo");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "BepuRuntimeComponentRegistration.cpp"), "// keep");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "PhysicsWorld3D.cpp"), "// custom physics world");
-        File.WriteAllText(Path.Combine(generatedCoreRootPath, "PhysicsWorld3DCompatibilityRuntime.cpp"), "// compatibility runtime");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "PhysicsSceneFeatureAnalyzer3D.cpp"), "// custom analyzer");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "BodyState3D.cpp"), "// custom body state");
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "UniformGridBroadphase3D.cpp"), "// custom broadphase");
@@ -1254,7 +1253,6 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Contains("#include \"Foo.cpp\"", unitySource);
         Assert.Contains("#include \"BepuRuntimeComponentRegistration.cpp\"", unitySource);
         Assert.DoesNotContain("PhysicsWorld3D.cpp", unitySource, StringComparison.Ordinal);
-        Assert.DoesNotContain("PhysicsWorld3DCompatibilityRuntime.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("PhysicsSceneFeatureAnalyzer3D.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("BodyState3D.cpp", unitySource, StringComparison.Ordinal);
         Assert.DoesNotContain("UniformGridBroadphase3D.cpp", unitySource, StringComparison.Ordinal);

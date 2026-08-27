@@ -1845,7 +1845,6 @@ namespace helengine.editor {
             AddCustomPhysics3DTypeNamesFromFolder(Path.Combine(physics3DProjectRootPath, "collision"), typeNames);
             AddCustomPhysics3DTypeNamesFromFolder(Path.Combine(physics3DProjectRootPath, "runtime"), typeNames);
             AddCustomPhysics3DTypeNameFromFile(Path.Combine(physics3DProjectRootPath, "PhysicsWorld3D.cs"), typeNames);
-            AddCustomPhysics3DTypeNameFromFile(Path.Combine(physics3DProjectRootPath, "PhysicsWorld3DCompatibilityRuntime.cs"), typeNames);
             AddCustomPhysics3DTypeNameFromFile(Path.Combine(physics3DProjectRootPath, "PhysicsWorld3DProfile.cs"), typeNames);
             AddCustomPhysics3DTypeNameFromFile(Path.Combine(physics3DProjectRootPath, "PhysicsWorld3DSettings.cs"), typeNames);
             return typeNames;
@@ -1858,7 +1857,6 @@ namespace helengine.editor {
         static HashSet<string> BuildCustomPhysics3DReferenceTypeNameSet() {
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
                 "PhysicsWorld3D",
-                "PhysicsWorld3DCompatibilityRuntime",
                 "PhysicsWorld3DProfile",
                 "PhysicsWorld3DSettings",
                 "PhysicsSceneFeatureAnalyzer3D",

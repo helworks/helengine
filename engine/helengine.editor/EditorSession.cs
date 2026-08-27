@@ -3163,10 +3163,10 @@ namespace helengine.editor {
 
             RuntimeModel runtimeImportedModel = core.RenderManager3D.BuildModelFromRaw(importedModel.ModelAsset);
             RuntimeMaterial[] runtimeMaterials = ResolveImportedModelMaterials(entry, importedModel.GeneratedMaterials);
-            SceneAssetReference[] materialReferences = BuildImportedModelMaterialReferences(entry, importedModel.GeneratedMaterials);
+            SceneAssetReference[] materialSlots = BuildImportedModelMaterialSlots(entry, importedModel.GeneratedMaterials);
             if (runtimeMaterials.Length == 0) {
                 runtimeMaterials = new[] { EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) };
-                materialReferences = new[] { BuildGeneratedStandardMaterialReference() };
+                materialSlots = new[] { BuildGeneratedStandardMaterialReference() };
             }
 
             EditorEntity importedEntity = SceneCreationService.CreateModel(
@@ -3174,7 +3174,7 @@ namespace helengine.editor {
                 runtimeImportedModel,
                 runtimeMaterials,
                 modelReference,
-                materialReferences);
+                materialSlots);
             importedEntity.Position = ResolveAddToScenePlacementPosition();
             return importedEntity;
         }
@@ -3247,7 +3247,7 @@ namespace helengine.editor {
         /// <param name="entry">Model browser entry that owns the imported materials.</param>
         /// <param name="generatedMaterials">Generated material records returned by the importer.</param>
         /// <returns>Scene asset references ordered by imported submesh slot.</returns>
-        SceneAssetReference[] BuildImportedModelMaterialReferences(AssetBrowserEntry entry, ImportedModelMaterialAsset[] generatedMaterials) {
+        SceneAssetReference[] BuildImportedModelMaterialSlots(AssetBrowserEntry entry, ImportedModelMaterialAsset[] generatedMaterials) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }

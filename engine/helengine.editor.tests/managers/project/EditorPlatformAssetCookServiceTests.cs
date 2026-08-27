@@ -152,7 +152,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                 new SceneComponentAssetRecord {
                     ComponentTypeId = componentTypeId,
                     ComponentIndex = 0,
-                    Payload = Array.Empty<byte>()
+                    Payload = new EditorTaggedSceneComponentFieldWriter().BuildPayload()
                 }
             ],
             Array.Empty<SceneAssetReference>());
@@ -725,7 +725,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// <returns>Serialized mesh-component payload.</returns>
     static byte[] WriteMeshComponentPayload(string materialRelativePath) {
         EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
-        writer.WriteField("MaterialReferences", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(
+        writer.WriteField("Materials", fieldWriter => SceneComponentBinaryFieldEncoding.WriteOptionalReferenceArray(
             fieldWriter,
             [
                 global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath)

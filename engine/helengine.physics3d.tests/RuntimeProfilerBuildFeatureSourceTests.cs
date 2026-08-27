@@ -20,7 +20,6 @@ namespace helengine {
 
             AssertPhysicsProviderIsFeatureGuarded("helengine.bepu", "BepuPhysicsWorld3D.cs");
             AssertPhysicsProviderIsFeatureGuarded("helengine.physics3d", "PhysicsWorld3D.cs");
-            AssertPhysicsProviderIsFeatureGuarded("helengine.physics3d", "PhysicsWorld3DCompatibilityRuntime.cs");
         }
 
         /// <summary>
