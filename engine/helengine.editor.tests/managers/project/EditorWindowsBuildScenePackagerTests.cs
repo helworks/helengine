@@ -4788,14 +4788,66 @@ namespace helengine.editor.tests {
                 throw new ArgumentException("Expected relative path must be provided.", nameof(expectedRelativePath));
             }
 
-            EntitySaveComponent saveComponent = new EntitySaveComponent();
-            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(
-                new ScriptComponentReflectionSchemaBuilder());
-            Component component = descriptor.DeserializeComponent(packagedRecord, saveComponent, null);
+            Type componentType = PersistedComponentTypeResolver.TryResolve(packagedRecord.ComponentTypeId);
+            Assert.NotNull(componentType);
 
-            Assert.True(saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState));
-            Assert.True(saveState.TryGetAssetReference(referenceName, out SceneAssetReference reference));
-            Assert.Equal(expectedRelativePath, reference.RelativePath);
+            InitializeRuntimeCore(BuildRootPath);
+            RecordingHostFileSystemContentStreamSource contentSource = new RecordingHostFileSystemContentStreamSource(BuildRootPath);
+            ContentManager runtimeContentManager = new ContentManager(contentSource);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager);
+            using RuntimeSceneAssetReferenceResolver referenceResolver = new RuntimeSceneAssetReferenceResolver(runtimeContentManager);
+            referenceResolver.BeginOwnedAssetTracking();
+            try {
+                AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                    packagedRecord.ComponentTypeId,
+                    componentType);
+                Component component = deserializer.Deserialize(packagedRecord, referenceResolver);
+
+                object resolvedMemberValue = ReadRuntimeMemberValue(component, referenceName);
+                Assert.NotNull(resolvedMemberValue);
+                Assert.Contains(expectedRelativePath, contentSource.RequestedAssetPaths);
+            } finally {
+                referenceResolver.CancelOwnedAssetTracking();
+            }
+        }
+
+        /// <summary>
+        /// Reads one reflected runtime component member, including one indexed array element.
+        /// </summary>
+        /// <param name="component">Runtime component materialized by the production deserializer.</param>
+        /// <param name="referenceName">Member name or indexed member name to read.</param>
+        /// <returns>Resolved runtime member value.</returns>
+        static object ReadRuntimeMemberValue(Component component, string referenceName) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+
+            int openBracketIndex = referenceName.IndexOf('[', StringComparison.Ordinal);
+            string memberName = openBracketIndex < 0
+                ? referenceName
+                : referenceName.Substring(0, openBracketIndex);
+            PropertyInfo memberProperty = component.GetType().GetProperty(
+                memberName,
+                BindingFlags.Instance | BindingFlags.Public);
+            if (memberProperty == null) {
+                throw new InvalidOperationException($"Runtime component type '{component.GetType().FullName}' does not expose member '{memberName}'.");
+            }
+
+            object memberValue = memberProperty.GetValue(component);
+            if (openBracketIndex < 0) {
+                return memberValue;
+            }
+
+            int closeBracketIndex = referenceName.IndexOf(']', openBracketIndex + 1);
+            if (closeBracketIndex != referenceName.Length - 1
+                || !int.TryParse(
+                    referenceName.Substring(openBracketIndex + 1, closeBracketIndex - openBracketIndex - 1),
+                    out int elementIndex)
+                || elementIndex < 0) {
+                throw new ArgumentException($"Indexed runtime member reference '{referenceName}' is not valid.", nameof(referenceName));
+            }
+            Array memberArray = Assert.IsAssignableFrom<Array>(memberValue);
+            return memberArray.GetValue(elementIndex);
         }
 
         /// <summary>
@@ -5266,6 +5318,40 @@ namespace helengine.editor.tests {
             writer.WriteString("generated/editor/fonts/ui.hefont");
             writer.WriteString("editor");
             writer.WriteString("ui-font");
+        }
+
+        /// <summary>
+        /// Records runtime package paths while delegating stream access to the host filesystem.
+        /// </summary>
+        sealed class RecordingHostFileSystemContentStreamSource : IContentStreamSource {
+            /// <summary>
+            /// Host filesystem source that opens requested package files.
+            /// </summary>
+            readonly HostFileSystemContentStreamSource InnerSource;
+
+            /// <summary>
+            /// Initializes one path-recording host content source.
+            /// </summary>
+            /// <param name="rootPath">Package root used by the delegated host source.</param>
+            public RecordingHostFileSystemContentStreamSource(string rootPath) {
+                InnerSource = new HostFileSystemContentStreamSource(rootPath);
+                RequestedAssetPaths = new List<string>();
+            }
+
+            /// <summary>
+            /// Gets the ordered runtime asset paths requested by the content manager.
+            /// </summary>
+            public List<string> RequestedAssetPaths { get; }
+
+            /// <summary>
+            /// Records and opens one runtime package path.
+            /// </summary>
+            /// <param name="assetPath">Runtime package path requested by the content manager.</param>
+            /// <returns>Readable package stream.</returns>
+            public Stream OpenRead(string assetPath) {
+                RequestedAssetPaths.Add(assetPath);
+                return InnerSource.OpenRead(assetPath);
+            }
         }
 
         /// <summary>
