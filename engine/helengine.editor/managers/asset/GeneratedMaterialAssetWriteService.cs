@@ -39,12 +39,15 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Generated material assets must include a stable asset id.");
             }
 
+            string fullPath = Path.GetFullPath(Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            if (string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {
+                ReuseExistingEmbeddedIdentity(fullPath, definition.MaterialAsset);
+            }
             if (string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {
                 definition.MaterialAsset.AuthoringAssetId = Guid.NewGuid().ToString("N");
             }
             definition.MaterialAsset.FormerAuthoringAssetIds ??= Array.Empty<string>();
 
-            string fullPath = Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
             string directoryPath = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException($"Could not resolve a material directory for '{relativePath}'.");
@@ -57,6 +60,27 @@ namespace helengine.editor {
                 importSettings,
                 definition.MaterialAsset.AuthoringAssetId,
                 definition.MaterialAsset.FormerAuthoringAssetIds);
+        }
+
+        /// <summary>
+        /// Reuses the identity embedded in an existing current material document when the
+        /// caller supplies an otherwise fresh definition for the same path.
+        /// </summary>
+        /// <param name="fullPath">Absolute generated material path.</param>
+        /// <param name="material">Material definition receiving the existing identity.</param>
+        static void ReuseExistingEmbeddedIdentity(string fullPath, MaterialAsset material) {
+            if (!File.Exists(fullPath)) {
+                return;
+            }
+
+            try {
+                AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataService().Load(fullPath);
+                material.AuthoringAssetId = metadata.AssetId;
+                material.FormerAuthoringAssetIds = metadata.FormerAssetIds.ToArray();
+            } catch (InvalidOperationException) {
+                // Invalid/non-current output is replaced by the current writer; no legacy
+                // layout is interpreted here.
+            }
         }
 
         /// <summary>

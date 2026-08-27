@@ -144,6 +144,48 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a native material reference recovers after its file moves by the embedded authored identity.
+    /// </summary>
+    [Fact]
+    public void Resolve_NativeHelmatRecoversMovedMaterialByEmbeddedAssetId() {
+        string sourcePath = CreateNativeHelmat("Materials/Source.helmat", "00112233445566778899aabbccddeeff");
+        EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = setupResolver.CreateFileReference(sourcePath, AssetEntryKind.Material);
+        string destinationPath = Path.Combine(TempRootPath, "assets", "Materials", "Moved.helmat");
+        File.Move(sourcePath, destinationPath);
+        EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Material);
+
+        Assert.Equal(AssetReferenceResolutionTier.AssetId, result.Tier);
+        Assert.Equal(destinationPath, result.FullPath);
+        Assert.Equal("00112233445566778899aabbccddeeff", result.CanonicalReference.AssetId);
+        Assert.Equal("Materials/Moved.helmat", result.CanonicalReference.RelativePath);
+        Assert.False(File.Exists(destinationPath + ".hmeta"));
+    }
+
+    /// <summary>
+    /// Ensures a replacement native material with a different identity is recovered by its identity-excluded content hash.
+    /// </summary>
+    [Fact]
+    public void Resolve_NativeHelmatReplacementRecoversByContentHash() {
+        string sourcePath = CreateNativeHelmat("Materials/Source.helmat", "3344556677889900aabbccddeeff1122");
+        EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = setupResolver.CreateFileReference(sourcePath, AssetEntryKind.Material);
+        File.Delete(sourcePath);
+        string replacementPath = CreateNativeHelmat("Materials/Replacement.helmat", "44556677889900aabbccddeeff112233");
+        EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Material);
+
+        Assert.Equal(AssetReferenceResolutionTier.ContentHash, result.Tier);
+        Assert.Equal(replacementPath, result.FullPath);
+        Assert.Equal("44556677889900aabbccddeeff112233", result.CanonicalReference.AssetId);
+        Assert.Equal("Materials/Replacement.helmat", result.CanonicalReference.RelativePath);
+        Assert.False(File.Exists(replacementPath + ".hmeta"));
+    }
+
+    /// <summary>
     /// Creates one source file below the isolated assets root.
     /// </summary>
     /// <param name="relativePath">Path relative to assets.</param>
@@ -153,6 +195,22 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         string assetPath = Path.Combine(TempRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(assetPath));
         File.WriteAllBytes(assetPath, bytes);
+        return assetPath;
+    }
+
+    /// <summary>
+    /// Writes one current native material common-settings document with embedded authored identity.
+    /// </summary>
+    string CreateNativeHelmat(string relativePath, string assetId) {
+        string assetPath = Path.Combine(TempRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(assetPath));
+        MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument {
+            AuthoringAssetId = assetId
+        };
+        document.Importer.ImporterId = "helengine.material";
+        document.Importer.AssetId = "Materials/Native";
+        using FileStream stream = File.Create(assetPath);
+        MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
         return assetPath;
     }
 }

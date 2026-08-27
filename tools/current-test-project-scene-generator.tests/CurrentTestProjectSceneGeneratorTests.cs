@@ -99,6 +99,43 @@ namespace helengine.current_test_project_scene_generator.tests {
         }
 
         /// <summary>
+        /// Ensures rendering scene references use each native material's embedded identity rather than a hash-derived prefix.
+        /// </summary>
+        [Fact]
+        public void Generate_ReferencesUseEmbeddedMaterialIdentity() {
+            string projectRootPath = Path.Combine(Path.GetTempPath(), "helengine-current-rendering-material-identity", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(projectRootPath, "assets"));
+
+            try {
+                using Core core = new Core(new CoreInitializationOptions {
+                    ContentStreamSource = new HostFileSystemContentStreamSource(projectRootPath)
+                });
+                new RenderingSceneFixtureGenerator().Generate(projectRootPath);
+                string materialPath = Path.Combine(projectRootPath, "assets", "Materials", "rendering", "TransparentStandard.helmat");
+                MaterialAssetCommonSettingsDocument material;
+                using (FileStream stream = File.OpenRead(materialPath)) {
+                    material = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
+                }
+
+                string scenePath = Path.Combine(projectRootPath, "assets", "Scenes", "rendering", "transparency-order.helen");
+                SceneAsset scene;
+                using (FileStream stream = File.OpenRead(scenePath)) {
+                    scene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                }
+                SceneAssetReference reference = Assert.Single(
+                    scene.AssetReferences,
+                    candidate => candidate.RelativePath == "Materials/rendering/TransparentStandard.helmat");
+
+                Assert.Equal(material.AuthoringAssetId, reference.AssetId);
+                Assert.False(File.Exists(materialPath + ".hmeta"));
+            } finally {
+                if (Directory.Exists(projectRootPath)) {
+                    Directory.Delete(projectRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures the stale PS2 basis material documents and their platform overrides use current writers.
         /// </summary>
         [Fact]

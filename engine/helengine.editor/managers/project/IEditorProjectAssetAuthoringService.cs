@@ -87,6 +87,36 @@ namespace helengine.editor {
         EditorSceneAssetReferenceResolver CreateSceneAssetReferenceResolver();
 
         /// <summary>
+        /// Writes one current native asset beneath the active project's assets directory.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative native asset path.</param>
+        /// <param name="asset">Native asset payload to author.</param>
+        void WriteNativeAsset(string relativePath, Asset asset);
+
+        /// <summary>
+        /// Writes one current native material settings document beneath the active project.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative material path.</param>
+        /// <param name="definition">Native material definition to author.</param>
+        void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition);
+
+        /// <summary>
+        /// Creates a canonical reference for one existing assets-relative authored file.
+        /// </summary>
+        /// <param name="relativePath">Path relative to the active project's assets directory.</param>
+        /// <param name="expectedKind">Expected editor asset category.</param>
+        /// <returns>Canonical reference carrying the embedded or imported identity and hash.</returns>
+        SceneAssetReference CreateFileReference(string relativePath, AssetEntryKind expectedKind);
+
+        /// <summary>
+        /// Loads one current native asset through the host-owned asset reader.
+        /// </summary>
+        /// <typeparam name="TAsset">Expected native asset type.</typeparam>
+        /// <param name="relativePath">Assets-relative native asset path.</param>
+        /// <returns>Loaded native asset.</returns>
+        TAsset LoadNativeAsset<TAsset>(string relativePath) where TAsset : Asset;
+
+        /// <summary>
         /// Loads an imported texture by its authored asset identifier.
         /// </summary>
         /// <param name="assetId">Stable imported texture asset identifier.</param>

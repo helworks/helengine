@@ -210,6 +210,24 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures current native material common documents use their embedded identity without an identity sidecar.
+    /// </summary>
+    [Fact]
+    public void Load_ForNativeHelmat_UsesEmbeddedIdentityAndClassifiesAsMaterial() {
+        string materialPath = Path.Combine(TempRootPath, "assets", "Materials", "Native.helmat");
+        const string embeddedAssetId = "223344556677889900aabbccddeeff11";
+        WriteNativeHelmat(materialPath, embeddedAssetId);
+        EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
+
+        AssetIdentityMetadataDocument loaded = new AssetIdentityMetadataService().Load(materialPath);
+
+        Assert.True(classifier.UsesEmbeddedIdentity(materialPath));
+        Assert.Equal(AssetEntryKind.Material, classifier.Classify(materialPath));
+        Assert.Equal(embeddedAssetId, loaded.AssetId);
+        Assert.False(File.Exists(materialPath + ".hmeta"));
+    }
+
+    /// <summary>
     /// Writes one minimal native scene fixture without authored identity metadata.
     /// </summary>
     static void WriteNativeScene(string path) {
@@ -249,6 +267,20 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
             AuthoringAssetId = assetId,
             FormerAuthoringAssetIds = Array.Empty<string>()
         });
+    }
+
+    /// <summary>
+    /// Writes one current native material common-settings document with embedded authored identity.
+    /// </summary>
+    static void WriteNativeHelmat(string path, string assetId) {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument {
+            AuthoringAssetId = assetId
+        };
+        document.Importer.ImporterId = "helengine.material";
+        document.Importer.AssetId = "Materials/Native";
+        using FileStream stream = File.Create(path);
+        MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
     }
 
     /// <summary>

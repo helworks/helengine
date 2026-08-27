@@ -73,6 +73,42 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures rewriting an existing native material with a fresh semantic definition reuses identity and bytes.
+        /// </summary>
+        [Fact]
+        public void WriteMaterial_TwiceWithEquivalentFreshDefinitions_PreservesEmbeddedIdentityAndBytes() {
+            string tempDirectoryPath = Path.Combine(Path.GetTempPath(), "helengine-generated-material-idempotence-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDirectoryPath);
+            string materialPath = Path.Combine(tempDirectoryPath, "assets", "Materials", "TestMaterial.helmat");
+
+            try {
+                GeneratedMaterialAssetWriteService writeService = new GeneratedMaterialAssetWriteService();
+                writeService.WriteMaterial(tempDirectoryPath, "Materials/TestMaterial.helmat", CreateDefinition());
+                byte[] firstBytes = File.ReadAllBytes(materialPath);
+                string firstAssetId = ReadMaterialIdentity(materialPath);
+
+                writeService.WriteMaterial(tempDirectoryPath, "Materials/TestMaterial.helmat", CreateDefinition());
+                byte[] secondBytes = File.ReadAllBytes(materialPath);
+
+                Assert.Equal(firstAssetId, ReadMaterialIdentity(materialPath));
+                Assert.Equal(firstBytes, secondBytes);
+                Assert.False(File.Exists(materialPath + ".hmeta"));
+            } finally {
+                if (Directory.Exists(tempDirectoryPath)) {
+                    Directory.Delete(tempDirectoryPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Loads the embedded identity from one current native material document.
+        /// </summary>
+        static string ReadMaterialIdentity(string materialPath) {
+            using FileStream stream = File.OpenRead(materialPath);
+            return MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream).AuthoringAssetId;
+        }
+
+        /// <summary>
         /// Creates one representative generated material definition that mirrors the city material-generator contract.
         /// </summary>
         /// <returns>Representative generated material definition.</returns>

@@ -129,6 +129,49 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Writes one native asset through the current editor writer.
+        /// </summary>
+        public void WriteNativeAsset(string relativePath, Asset asset) {
+            ValidateRelativeAssetPath(relativePath);
+            new GeneratedAssetWriteService().WriteAsset(ResolveProjectRootPath(), relativePath, asset);
+        }
+
+        /// <summary>
+        /// Writes one native material through the current editor material writer.
+        /// </summary>
+        public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition) {
+            ValidateRelativeAssetPath(relativePath);
+            new GeneratedMaterialAssetWriteService().WriteMaterial(ResolveProjectRootPath(), relativePath, definition);
+        }
+
+        /// <summary>
+        /// Creates a canonical reference for one assets-relative authored file.
+        /// </summary>
+        public SceneAssetReference CreateFileReference(string relativePath, AssetEntryKind expectedKind) {
+            ValidateRelativeAssetPath(relativePath);
+            string fullPath = Path.Combine(AssetImportManagerValue.AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            return new EditorAssetReferenceResolver(ResolveProjectRootPath()).CreateFileReference(fullPath, expectedKind);
+        }
+
+        /// <summary>
+        /// Loads one current native asset through the current editor reader.
+        /// </summary>
+        public TAsset LoadNativeAsset<TAsset>(string relativePath) where TAsset : Asset {
+            ValidateRelativeAssetPath(relativePath);
+            string fullPath = Path.Combine(AssetImportManagerValue.AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(fullPath)) {
+                throw new FileNotFoundException($"Native asset '{relativePath}' was not found.", fullPath);
+            }
+
+            using FileStream stream = File.OpenRead(fullPath);
+            if (AssetSerializer.Deserialize(stream) is not TAsset asset) {
+                throw new InvalidOperationException($"Native asset '{relativePath}' is not a {typeof(TAsset).Name}.");
+            }
+
+            return asset;
+        }
+
+        /// <summary>
         /// Loads an imported texture by its stable asset identifier.
         /// </summary>
         /// <param name="assetId">Stable imported texture asset identifier.</param>
@@ -150,6 +193,17 @@ namespace helengine.editor {
             }
 
             return Path.GetFullPath(projectRootPath);
+        }
+
+        /// <summary>
+        /// Validates one assets-relative public authoring path.
+        /// </summary>
+        static void ValidateRelativeAssetPath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Asset relative path must be provided.", nameof(relativePath));
+            } else if (Path.IsPathRooted(relativePath)) {
+                throw new ArgumentException("Asset relative path must not be rooted.", nameof(relativePath));
+            }
         }
     }
 }

@@ -31,6 +31,9 @@ namespace helengine.editor {
             }
 
             if (string.IsNullOrWhiteSpace(asset.AuthoringAssetId)) {
+                ReuseExistingEmbeddedIdentity(fullPath, asset);
+            }
+            if (string.IsNullOrWhiteSpace(asset.AuthoringAssetId)) {
                 asset.AuthoringAssetId = Guid.NewGuid().ToString("N");
             }
             asset.FormerAuthoringAssetIds ??= Array.Empty<string>();
@@ -52,6 +55,34 @@ namespace helengine.editor {
                 if (File.Exists(temporaryPath)) {
                     File.Delete(temporaryPath);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Reuses identity from an existing current native asset when a fresh definition is
+        /// rewriting the same path. Invalid or non-current files are replaced by the current
+        /// writer and never interpreted as an older format.
+        /// </summary>
+        /// <param name="fullPath">Absolute generated asset path.</param>
+        /// <param name="asset">Fresh asset definition receiving the existing identity.</param>
+        static void ReuseExistingEmbeddedIdentity(string fullPath, Asset asset) {
+            if (!File.Exists(fullPath)) {
+                return;
+            }
+
+            try {
+                AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataService().Load(fullPath);
+                using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                Asset existing = AssetSerializer.Deserialize(stream);
+                if (existing == null || existing.GetType() != asset.GetType()) {
+                    return;
+                }
+
+                asset.AuthoringAssetId = metadata.AssetId;
+                asset.FormerAuthoringAssetIds = metadata.FormerAssetIds.ToArray();
+            } catch (InvalidOperationException) {
+                // The current writer owns replacement of invalid/non-current output. There is
+                // intentionally no legacy interpretation or migration fallback here.
             }
         }
     }

@@ -321,9 +321,14 @@ namespace helengine.editor {
                 return MaterialRelativePathsByAssetId;
             }
 
-            string[] materialPaths = Directory.GetFiles(AssetsRootPath, "*.hasset", SearchOption.AllDirectories);
+            string[] materialPaths = Directory.GetFiles(AssetsRootPath, "*", SearchOption.AllDirectories);
             for (int materialIndex = 0; materialIndex < materialPaths.Length; materialIndex++) {
                 string materialPath = materialPaths[materialIndex];
+                string extension = Path.GetExtension(materialPath);
+                if (!string.Equals(extension, ".hasset", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(extension, ".helmat", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
                 if (!MaterialAssetSettingsService.TryLoadMaterialAssetId(materialPath, out string assetId) ||
                     string.IsNullOrWhiteSpace(assetId)) {
                     continue;

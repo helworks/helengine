@@ -9,6 +9,11 @@ namespace helengine.editor {
         const string ImportSettingsExtension = ".hasset";
 
         /// <summary>
+        /// Extension used for native authored material common-settings documents.
+        /// </summary>
+        const string NativeMaterialExtension = ".helmat";
+
+        /// <summary>
         /// Extension used for authored identity metadata sidecars.
         /// </summary>
         const string IdentityMetadataExtension = ".hmeta";
@@ -36,6 +41,10 @@ namespace helengine.editor {
             if (string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase)) {
                 AssetEntryKind hassetKind;
                 return TryClassifyHassetFile(fullPath, out hassetKind) ? hassetKind : AssetEntryKind.File;
+            }
+            if (string.Equals(extension, NativeMaterialExtension, StringComparison.OrdinalIgnoreCase)) {
+                AssetEntryKind materialKind;
+                return TryClassifyHassetFile(fullPath, out materialKind) ? materialKind : AssetEntryKind.File;
             }
 
             if (new HashSet<string>(TextureImportFormatCatalog.AllTextureExtensions, StringComparer.OrdinalIgnoreCase).Contains(extension)) {
@@ -131,7 +140,8 @@ namespace helengine.editor {
             string extension = Path.GetExtension(fullPath);
             if (string.Equals(extension, SceneAsset.FileExtension, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(extension, BlueprintAsset.FileExtension, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(extension, AnimationClipExtension, StringComparison.OrdinalIgnoreCase)) {
+                string.Equals(extension, AnimationClipExtension, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(extension, NativeMaterialExtension, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
             if (!string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {

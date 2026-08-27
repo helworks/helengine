@@ -63,6 +63,33 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     }
 
     /// <summary>
+    /// Ensures project code can write a native asset and create its canonical reference without
+    /// constructing an editor writer, resolver, or project-path singleton.
+    /// </summary>
+    [Fact]
+    public void NativeAssetAuthoring_WritesAndReferencesThroughOnePublicCapability() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        IEditorProjectAssetAuthoringService capability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(projectRootPath);
+        ModelAsset model = new ModelAsset {
+            Id = "Models/PublicApiModel",
+            Positions = Array.Empty<float3>(),
+            Normals = Array.Empty<float3>(),
+            TexCoords = Array.Empty<float2>(),
+            Indices16 = Array.Empty<ushort>(),
+            Indices32 = Array.Empty<uint>(),
+            Submeshes = Array.Empty<ModelSubmeshAsset>()
+        };
+
+        capability.WriteNativeAsset("models/PublicApiModel.hasset", model);
+        SceneAssetReference reference = capability.CreateFileReference("models/PublicApiModel.hasset", AssetEntryKind.Model);
+
+        Assert.Equal(model.AuthoringAssetId, reference.AssetId);
+        Assert.Equal("models/PublicApiModel.hasset", reference.RelativePath);
+        Assert.StartsWith("sha256:", reference.ContentHash, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(projectRootPath, "assets", "models", "PublicApiModel.hasset.hmeta")));
+    }
+
+    /// <summary>
     /// Creates an isolated project root for a capability test.
     /// </summary>
     /// <returns>New temporary project root path.</returns>

@@ -450,10 +450,9 @@ namespace helengine.current_test_project_scene_generator {
 
         static SceneAssetReference FileReference(string projectRootPath, string relativePath) {
             string fullPath = Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
-            byte[] content = File.ReadAllBytes(fullPath);
-            byte[] digest = System.Security.Cryptography.SHA256.HashData(content);
-            string hex = Convert.ToHexString(digest).ToLowerInvariant();
-            return SceneAssetReferenceFactory.CreateFileSystemReference(hex.Substring(0, 32), relativePath, "sha256:" + hex);
+            AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataService().Load(fullPath);
+            string contentHash = new EditorAssetHashCache(projectRootPath).GetContentHash(fullPath);
+            return SceneAssetReferenceFactory.CreateFileSystemReference(metadata.AssetId, relativePath, contentHash);
         }
     }
 }
