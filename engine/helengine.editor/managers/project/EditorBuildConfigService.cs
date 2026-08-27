@@ -145,7 +145,7 @@ namespace helengine.editor {
                     } else {
                         platform.SelectedEnvironmentId = platform.SelectedEnvironmentId.Trim();
                     }
-                    changed |= NormalizePlatform(platform);
+                    changed |= NormalizeCurrentPlatform(platform);
                 }
 
                 for (int index = 0; index < document.QueueItems.Count; index++) {
@@ -173,7 +173,7 @@ namespace helengine.editor {
                     } else {
                         queueItem.SelectedEnvironmentId = queueItem.SelectedEnvironmentId.Trim();
                     }
-                    changed |= NormalizeQueueItem(queueItem);
+                    changed |= NormalizeCurrentQueueItem(queueItem);
                 }
 
                 if (changed) {
@@ -274,7 +274,7 @@ namespace helengine.editor {
             for (int index = 0; index < document.Platforms.Count; index++) {
                 EditorBuildPlatformConfigDocument platform = document.Platforms[index];
                 if (platform != null) {
-                NormalizePlatform(platform);
+                    NormalizeCurrentPlatform(platform);
                 }
             }
 
@@ -284,50 +284,42 @@ namespace helengine.editor {
                     queueItem.SelectedEnvironmentId = string.IsNullOrWhiteSpace(queueItem.SelectedEnvironmentId)
                         ? "release"
                         : queueItem.SelectedEnvironmentId.Trim();
-                    NormalizeQueueItem(queueItem);
+                    NormalizeCurrentQueueItem(queueItem);
                 }
             }
         }
 
         /// <summary>
-        /// Normalizes one persisted local platform configuration record.
+        /// Normalizes current environment metadata in one persisted local platform configuration record.
         /// </summary>
         /// <param name="platform">Platform configuration record to normalize.</param>
-        static bool NormalizePlatform(EditorBuildPlatformConfigDocument platform) {
+        static bool NormalizeCurrentPlatform(EditorBuildPlatformConfigDocument platform) {
             if (platform == null) {
                 throw new ArgumentNullException(nameof(platform));
             }
 
-            string normalizedBuildProfileId = EditorLegacyBuildProfileIdNormalizer.NormalizeLocalBuildProfileId(
-                platform.PlatformId,
-                platform.SelectedBuildProfileId,
-                platform.DebugBuild);
-            bool changed = !string.Equals(platform.SelectedBuildProfileId, normalizedBuildProfileId, StringComparison.Ordinal);
-            platform.SelectedBuildProfileId = normalizedBuildProfileId;
-            platform.SelectedEnvironmentId = string.IsNullOrWhiteSpace(platform.SelectedEnvironmentId)
+            string currentEnvironmentId = string.IsNullOrWhiteSpace(platform.SelectedEnvironmentId)
                 ? "release"
                 : platform.SelectedEnvironmentId.Trim();
+            bool changed = !string.Equals(platform.SelectedEnvironmentId, currentEnvironmentId, StringComparison.Ordinal);
+            platform.SelectedEnvironmentId = currentEnvironmentId;
             return changed;
         }
 
         /// <summary>
-        /// Normalizes one persisted queued build record.
+        /// Normalizes current environment metadata in one persisted queued build record.
         /// </summary>
         /// <param name="queueItem">Queued build record to normalize.</param>
-        static bool NormalizeQueueItem(EditorBuildQueueItemDocument queueItem) {
+        static bool NormalizeCurrentQueueItem(EditorBuildQueueItemDocument queueItem) {
             if (queueItem == null) {
                 throw new ArgumentNullException(nameof(queueItem));
             }
 
-            string normalizedBuildProfileId = EditorLegacyBuildProfileIdNormalizer.NormalizeLocalBuildProfileId(
-                queueItem.PlatformId,
-                queueItem.SelectedBuildProfileId,
-                queueItem.DebugBuild);
-            bool changed = !string.Equals(queueItem.SelectedBuildProfileId, normalizedBuildProfileId, StringComparison.Ordinal);
-            queueItem.SelectedBuildProfileId = normalizedBuildProfileId;
-            queueItem.SelectedEnvironmentId = string.IsNullOrWhiteSpace(queueItem.SelectedEnvironmentId)
+            string currentEnvironmentId = string.IsNullOrWhiteSpace(queueItem.SelectedEnvironmentId)
                 ? "release"
                 : queueItem.SelectedEnvironmentId.Trim();
+            bool changed = !string.Equals(queueItem.SelectedEnvironmentId, currentEnvironmentId, StringComparison.Ordinal);
+            queueItem.SelectedEnvironmentId = currentEnvironmentId;
             return changed;
         }
 

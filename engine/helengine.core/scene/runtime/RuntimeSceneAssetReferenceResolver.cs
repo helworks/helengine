@@ -96,18 +96,6 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Initializes a new packaged scene asset resolver while accepting the legacy third constructor argument kept only for compile-surface compatibility.
-        /// </summary>
-        /// <param name="assetContentManager">Content manager used to load packaged assets.</param>
-        /// <param name="legacyShaderTarget">Legacy shader-target argument ignored by the generic runtime resolver.</param>
-        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager, object legacyShaderTarget)
-            : this(assetContentManager) {
-            if (legacyShaderTarget == null) {
-                throw new ArgumentNullException(nameof(legacyShaderTarget));
-            }
-        }
-
-        /// <summary>
         /// Resolves one packaged model reference into a runtime model instance.
         /// </summary>
         /// <param name="reference">Packaged scene asset reference to resolve.</param>

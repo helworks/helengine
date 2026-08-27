@@ -109,7 +109,7 @@ public class IPlatformAssetBuilderMetadataTests {
         Assert.Single(materialAsset.ConstantBuffers);
         Assert.Equal("BaseColorBuffer", materialAsset.ConstantBuffers[0].Name);
         Assert.Equal(16, materialAsset.ConstantBuffers[0].Data.Length);
-        Assert.Equal(new[] { "ForwardStandardShader" }, result.ReferencedShaderAssetIds);
+        Assert.Equal(new[] { "ForwardStandardShader" }, result.ReferencedShaderDependencies.Select(dependency => dependency.ShaderAssetId));
     }
 }
 

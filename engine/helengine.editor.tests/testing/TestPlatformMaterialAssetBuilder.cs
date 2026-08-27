@@ -119,7 +119,7 @@ namespace helengine.editor.tests.testing {
 
             return new PlatformMaterialCookResult(
                 global::helengine.editor.AssetSerializer.SerializeToBytes(materialAsset),
-                [shaderAssetId]);
+                [new PlatformShaderDependency(shaderAssetId, vertexProgram, pixelProgram, variant)]);
         }
 
         /// <summary>

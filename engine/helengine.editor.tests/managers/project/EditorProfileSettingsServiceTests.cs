@@ -229,10 +229,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures Nintendo DS shared profile settings rewrite the legacy single-profile id to the canonical release profile.
+        /// Ensures current Nintendo DS shared profile settings preserve the authored build-profile identifier.
         /// </summary>
         [Fact]
-        public void Load_WhenNintendoDsProfileUsesLegacyBuildProfileId_RewritesToCanonicalReleaseProfile() {
+        public void Load_WhenNintendoDsProfileUsesAuthoredBuildProfileId_PreservesTheSelection() {
             Directory.CreateDirectory(Path.Combine(TempRootPath, "settings"));
             File.WriteAllText(
                 Path.Combine(TempRootPath, "settings", "platform.ds.json"),
@@ -268,10 +268,9 @@ namespace helengine.editor.tests {
             EditorProfileSettingsDocument document = service.Load(new List<string> { "ds" });
 
             EditorPlatformProfileSettingsDocument platform = Assert.Single(document.Platforms);
-            Assert.Equal("release", platform.Build.SelectedBuildProfileId);
+            Assert.Equal("ds-default", platform.Build.SelectedBuildProfileId);
             string json = File.ReadAllText(Path.Combine(TempRootPath, "settings", "platform.ds.json"));
-            Assert.Contains("\"selectedBuildProfileId\": \"release\"", json);
-            Assert.DoesNotContain("\"selectedBuildProfileId\": \"ds-default\"", json);
+            Assert.Contains("\"selectedBuildProfileId\": \"ds-default\"", json);
         }
 
         /// <summary>

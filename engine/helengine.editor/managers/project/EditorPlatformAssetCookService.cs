@@ -185,7 +185,7 @@ namespace helengine.editor {
                     resolvedSource.SourceText);
             }
 
-            PlatformShaderArtifactCookRequest shaderRequest = PlatformShaderArtifactCookRequest.CreateWithDependenciesAndSources(
+            PlatformShaderArtifactCookRequest shaderRequest = new PlatformShaderArtifactCookRequest(
                 cookRootPath,
                 ResolvePlatformName(platformDefinition, materialBuilder),
                 selectedBuildProfileId,

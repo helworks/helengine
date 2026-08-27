@@ -17,6 +17,8 @@ public class PlatformBuildRequestMultiTargetTests {
                 "project",
                 "1.0.0",
                 "1.0.0",
+                "windows",
+                "1.0.0",
                 "scene",
                 [
                     new PlatformBuildScene(

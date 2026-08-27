@@ -20,6 +20,8 @@ public class PlatformBuildRequestCodegenTests {
                 "project",
                 "1.0.0",
                 "1.0.0",
+                "windows",
+                "1.0.0",
                 [
                     new PlatformBuildScene(
                         "scene",

@@ -27,7 +27,7 @@ public sealed class PlatformShaderDependencyTests {
     }
 
     /// <summary>
-    /// Ensures platform material cooking exposes complete dependencies while retaining its existing shader-id compatibility view.
+    /// Ensures platform material cooking exposes complete typed dependencies.
     /// </summary>
     [Fact]
     public void MaterialCookResult_whenProgramDependencyIsProvided_preservesDependencyAndShaderId() {
@@ -37,10 +37,9 @@ public sealed class PlatformShaderDependencyTests {
             "ForwardStandardShader.ps",
             "Mesh");
 
-        PlatformMaterialCookResult result = PlatformMaterialCookResult.CreateWithDependencies([1, 2, 3], [dependency]);
+        PlatformMaterialCookResult result = new PlatformMaterialCookResult([1, 2, 3], [dependency]);
 
         Assert.Same(dependency, Assert.Single(result.ReferencedShaderDependencies));
-        Assert.Equal(["ForwardStandardShader"], result.ReferencedShaderAssetIds);
     }
 
     /// <summary>
@@ -54,7 +53,7 @@ public sealed class PlatformShaderDependencyTests {
             "ForwardStandardShader.ps",
             "Mesh");
 
-        PlatformShaderArtifactCookRequest request = PlatformShaderArtifactCookRequest.CreateWithDependencies(
+        PlatformShaderArtifactCookRequest request = new PlatformShaderArtifactCookRequest(
             Path.GetTempPath(),
             "psvita",
             "debug",
@@ -76,7 +75,7 @@ public sealed class PlatformShaderDependencyTests {
             "default");
         PlatformShaderArtifactCookSource source = new("Rendering.Custom.Water", "ABCDEF", "float4 VS() : POSITION { return 0; }");
 
-        PlatformShaderArtifactCookRequest request = PlatformShaderArtifactCookRequest.CreateWithDependenciesAndSources(
+        PlatformShaderArtifactCookRequest request = new PlatformShaderArtifactCookRequest(
             Path.GetTempPath(),
             "psvita",
             "debug",

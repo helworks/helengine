@@ -513,7 +513,7 @@ namespace helengine.editor.tests {
                 CreatePs2MaterialBuilderDefinition(),
                 request => new PlatformMaterialCookResult(
                     cookedBytes,
-                    Array.Empty<string>()));
+                    Array.Empty<PlatformShaderDependency>()));
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
@@ -558,7 +558,7 @@ namespace helengine.editor.tests {
                 CreatePs2MaterialBuilderDefinition(),
                 request => new PlatformMaterialCookResult(
                     [0x50, 0x53, 0x32, 0x54, 0x45, 0x58],
-                    Array.Empty<string>()));
+                    Array.Empty<PlatformShaderDependency>()));
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
@@ -602,7 +602,7 @@ namespace helengine.editor.tests {
                         BaseColorB = 255,
                         BaseColorA = 255
                     }),
-                    Array.Empty<string>()));
+                    Array.Empty<PlatformShaderDependency>()));
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
@@ -658,7 +658,7 @@ namespace helengine.editor.tests {
                         BaseColorB = 255,
                         BaseColorA = 255
                     }),
-                    Array.Empty<string>()));
+                    Array.Empty<PlatformShaderDependency>()));
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
@@ -720,7 +720,7 @@ namespace helengine.editor.tests {
                         BaseColorB = 255,
                         BaseColorA = 255
                     }),
-                    Array.Empty<string>()));
+                    Array.Empty<PlatformShaderDependency>()));
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
@@ -5230,7 +5230,7 @@ namespace helengine.editor.tests {
             public RecordingMaterialBuilder(PlatformDefinition definition)
                 : this(
                     definition,
-                    request => new PlatformMaterialCookResult(Array.Empty<byte>(), Array.Empty<string>())) {
+                    request => new PlatformMaterialCookResult(Array.Empty<byte>(), Array.Empty<PlatformShaderDependency>())) {
             }
 
             /// <summary>

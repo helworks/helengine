@@ -76,7 +76,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         Assert.Single(packagedMaterial.ConstantBuffers);
         Assert.Equal("BaseColorBuffer", packagedMaterial.ConstantBuffers[0].Name);
         Assert.Equal(16, packagedMaterial.ConstantBuffers[0].Data.Length);
-        Assert.Equal(new[] { "ForwardStandardShader", "CookedShader" }, result.ReferencedShaderAssetIds);
+        Assert.Equal(new[] { "ForwardStandardShader", "CookedShader" }, result.ReferencedShaderDependencies.Select(dependency => dependency.ShaderAssetId));
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
 
         Assert.Equal("material", materialOutput.ArtifactKind);
         Assert.Equal("engine:material:standard", materialOutput.LogicalArtifactId);
-        Assert.Equal(new[] { "ForwardStandardShader" }, result.ReferencedShaderAssetIds);
+        Assert.Equal(new[] { "ForwardStandardShader" }, result.ReferencedShaderDependencies.Select(dependency => dependency.ShaderAssetId));
         Assert.Equal("ForwardStandardShader", Assert.Single(result.ReferencedShaderDependencies).ShaderAssetId);
     }
 

@@ -16,11 +16,6 @@ namespace helengine.editor {
         public const string ModifierMemberNamePrefix = "MeshModifier";
 
         /// <summary>
-        /// Shared legacy tessellation settings service used for backward-compatible reads.
-        /// </summary>
-        readonly MeshComponentTessellationSettingsService TessellationSettingsService = new MeshComponentTessellationSettingsService();
-
-        /// <summary>
         /// Reads the modifier stack authored directly in one scope, without common-scope inheritance.
         /// </summary>
         /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
@@ -37,7 +32,7 @@ namespace helengine.editor {
 
         /// <summary>
         /// Resolves the effective modifier stack for one platform: the inherited common-scope stack followed by the
-        /// platform's own additions (or its legacy tessellation members when no platform stack is authored).
+        /// platform's own additions when no platform stack is authored.
         /// </summary>
         /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
         /// <param name="platformId">Target platform identifier.</param>
@@ -61,7 +56,7 @@ namespace helengine.editor {
 
         /// <summary>
         /// Returns the modifier entries directly editable in one scope: the authored common stack on the common scope,
-        /// and the platform's own additions (or its legacy tessellation members) on platform scopes.
+        /// and the platform's own additions on platform scopes.
         /// </summary>
         /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
         /// <param name="platformId">Scope identifier being edited.</param>
@@ -74,8 +69,7 @@ namespace helengine.editor {
                 return authoredStack;
             }
 
-            List<MeshComponentModifier> legacyStack = TryReadLegacyTessellationStack(saveState, platformId);
-            return legacyStack ?? new List<MeshComponentModifier>();
+            return new List<MeshComponentModifier>();
         }
 
         /// <summary>
@@ -91,7 +85,6 @@ namespace helengine.editor {
             }
 
             EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride(platformId);
-            SynchronizeLegacyTessellationMembers(saveState, platformId, modifiers);
             overrideState.SetMemberValue(ModifierCountMemberName, modifiers.Count.ToString(CultureInfo.InvariantCulture));
             for (int index = 0; index < modifiers.Count; index++) {
                 MeshComponentModifier modifier = modifiers[index];
@@ -118,11 +111,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the first tessellation modifier in the effective stack for one platform as legacy tessellation settings.
+        /// Resolves the first tessellation modifier in the effective stack for one platform as tessellation settings.
         /// </summary>
         /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
         /// <param name="platformId">Target platform identifier.</param>
-        /// <returns>Legacy-compatible tessellation settings when a tessellation modifier applies; otherwise <c>null</c>.</returns>
+        /// <returns>Tessellation settings when a tessellation modifier applies; otherwise <c>null</c>.</returns>
         public MeshComponentTessellationSettings TryResolveTessellationSettings(EntityComponentSaveState saveState, string platformId) {
             List<MeshComponentModifier> effectiveStack = ResolveEffectiveStack(saveState, platformId);
             for (int index = 0; index < effectiveStack.Count; index++) {
@@ -174,21 +167,11 @@ namespace helengine.editor {
                 if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwMode"), out string uvwModeText)) {
                     modifier.UvwMode = uvwModeText;
                 }
-                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwPlane"), out string legacyUvwPlaneText) && legacyUvwPlaneText.Length == 2) {
-                    modifier.UvwAxisX = legacyUvwPlaneText.Substring(0, 1);
-                    modifier.UvwAxisY = legacyUvwPlaneText.Substring(1, 1);
-                }
                 if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwAxisX"), out string uvwAxisXText)) {
                     modifier.UvwAxisX = uvwAxisXText;
                 }
                 if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwAxisY"), out string uvwAxisYText)) {
                     modifier.UvwAxisY = uvwAxisYText;
-                }
-                if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwScale"), out string legacyUvwScaleText)) {
-                    double legacyUvwScale = double.Parse(legacyUvwScaleText, NumberStyles.Float, CultureInfo.InvariantCulture);
-                    modifier.UvwScaleX = legacyUvwScale;
-                    modifier.UvwScaleY = legacyUvwScale;
-                    modifier.UvwScaleZ = legacyUvwScale;
                 }
                 if (overrideState.TryGetMemberValue(BuildMemberName(index, "UvwBoxWidth"), out string uvwBoxWidthText)) {
                     modifier.UvwBoxWidth = double.Parse(uvwBoxWidthText, NumberStyles.Float, CultureInfo.InvariantCulture);
@@ -219,61 +202,6 @@ namespace helengine.editor {
             }
 
             return modifiers;
-        }
-
-        /// <summary>
-        /// Maps legacy per-platform tessellation members onto one single-entry modifier stack.
-        /// </summary>
-        /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
-        /// <param name="platformId">Target platform identifier.</param>
-        /// <returns>Single-entry stack when legacy tessellation is enabled; otherwise <c>null</c>.</returns>
-        List<MeshComponentModifier> TryReadLegacyTessellationStack(EntityComponentSaveState saveState, string platformId) {
-            if (string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return null;
-            }
-
-            MeshComponentTessellationSettings settings = TessellationSettingsService.GetForPlatform(saveState, platformId);
-            if (!settings.Tessellate) {
-                return null;
-            }
-
-            return new List<MeshComponentModifier> {
-                new MeshComponentModifier(MeshComponentModifier.TessellateKind) {
-                    MaxEdgeLength = settings.TessellationMaxEdgeLength,
-                    AtCookTime = settings.TessellateAtCookTime
-                }
-            };
-        }
-
-        /// <summary>
-        /// Mirrors the stack's first tessellation modifier into the legacy per-platform tessellation members so
-        /// existing cook and load-time readers stay authoritative and never shadow newer stack edits.
-        /// </summary>
-        /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
-        /// <param name="platformId">Scope identifier receiving the stack.</param>
-        /// <param name="modifiers">Ordered modifier entries being persisted.</param>
-        void SynchronizeLegacyTessellationMembers(EntityComponentSaveState saveState, string platformId, IReadOnlyList<MeshComponentModifier> modifiers) {
-            if (string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return;
-            }
-
-            MeshComponentModifier tessellateModifier = null;
-            for (int index = 0; index < modifiers.Count; index++) {
-                if (modifiers[index] != null && string.Equals(modifiers[index].Kind, MeshComponentModifier.TessellateKind, StringComparison.Ordinal)) {
-                    tessellateModifier = modifiers[index];
-                    break;
-                }
-            }
-
-            MeshComponentTessellationSettings legacySettings = tessellateModifier == null
-                ? new MeshComponentTessellationSettings()
-                : new MeshComponentTessellationSettings(
-                    tessellate: true,
-                    tessellationMaxEdgeLength: tessellateModifier.MaxEdgeLength,
-                    bakeScale: false,
-                    tessellateAtCookTime: tessellateModifier.AtCookTime,
-                    bakeScaleAtCookTime: true);
-            TessellationSettingsService.SetForPlatform(saveState, platformId, legacySettings);
         }
 
         /// <summary>

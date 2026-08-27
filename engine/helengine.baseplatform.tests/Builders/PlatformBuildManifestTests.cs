@@ -80,6 +80,8 @@ public class PlatformBuildManifestTests {
             "game",
             "1.0.0",
             "1.0.0-engine",
+            "windows",
+            "1.0.0",
             "main-menu",
             [
                 new PlatformBuildScene(

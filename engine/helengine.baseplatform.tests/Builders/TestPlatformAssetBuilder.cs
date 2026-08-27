@@ -183,7 +183,9 @@ public sealed class TestPlatformAssetBuilder : IPlatformAssetBuilder {
             ]
         };
 
-        return new PlatformMaterialCookResult(global::helengine.editor.AssetSerializer.SerializeToBytes(materialAsset), [shaderAssetId]);
+        return new PlatformMaterialCookResult(
+            global::helengine.editor.AssetSerializer.SerializeToBytes(materialAsset),
+            [new PlatformShaderDependency(shaderAssetId, vertexProgram, pixelProgram, variant)]);
     }
 
     /// <summary>

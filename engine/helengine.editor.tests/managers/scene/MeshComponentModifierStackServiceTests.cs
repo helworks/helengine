@@ -1,6 +1,6 @@
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies MeshComponent modifier stacks round-trip, inherit from the common scope, and honor legacy tessellation members.
+    /// Verifies MeshComponent modifier stacks round-trip, inherit from the common scope, and resolve tessellation settings.
     /// </summary>
     public sealed class MeshComponentModifierStackServiceTests {
         /// <summary>
@@ -24,6 +24,23 @@ namespace helengine.editor.tests {
             Assert.Equal(MeshComponentModifier.TessellateKind, modifier.Kind);
             Assert.Equal(0.5, modifier.MaxEdgeLength);
             Assert.True(modifier.AtCookTime);
+        }
+
+        /// <summary>
+        /// Ensures writing a current modifier stack does not mirror entries into superseded tessellation members.
+        /// </summary>
+        [Fact]
+        public void SetStack_WithTessellateEntry_DoesNotWriteSupersededTessellationMembers() {
+            MeshComponentModifierStackService service = new MeshComponentModifierStackService();
+            MeshComponentTessellationSettingsService supersededService = new MeshComponentTessellationSettingsService();
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+
+            service.SetStack(saveState, "ps2", [
+                new MeshComponentModifier(MeshComponentModifier.TessellateKind) { MaxEdgeLength = 0.5 }
+            ]);
+
+            MeshComponentTessellationSettings supersededSettings = supersededService.GetForPlatform(saveState, "ps2");
+            Assert.False(supersededSettings.Tessellate);
         }
 
         /// <summary>
@@ -74,26 +91,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures legacy per-platform tessellation members read as one platform-authored tessellation modifier.
+        /// Ensures superseded per-platform tessellation members are not used as modifier-stack input.
         /// </summary>
         [Fact]
-        public void ResolveEffectiveStack_WithLegacyTessellationMembers_MapsToTessellateModifier() {
+        public void ResolveEffectiveStack_WithSupersededTessellationMembers_DoesNotCreateModifiers() {
             MeshComponentModifierStackService service = new MeshComponentModifierStackService();
-            MeshComponentTessellationSettingsService legacyService = new MeshComponentTessellationSettingsService();
+            MeshComponentTessellationSettingsService supersededService = new MeshComponentTessellationSettingsService();
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            legacyService.SetForPlatform(saveState, "ps2", new MeshComponentTessellationSettings(true, 0.75));
+            supersededService.SetForPlatform(saveState, "ps2", new MeshComponentTessellationSettings(true, 0.75));
 
             List<MeshComponentModifier> effectiveStack = service.ResolveEffectiveStack(saveState, "ps2");
-            MeshComponentModifier modifier = Assert.Single(effectiveStack);
-            Assert.Equal(MeshComponentModifier.TessellateKind, modifier.Kind);
-            Assert.Equal(0.75, modifier.MaxEdgeLength);
+            Assert.Empty(effectiveStack);
         }
 
         /// <summary>
-        /// Ensures a common-scope tessellation modifier lowers into legacy-compatible tessellation settings for cooking.
+        /// Ensures a common-scope tessellation modifier resolves into tessellation settings for cooking.
         /// </summary>
         [Fact]
-        public void TryResolveTessellationSettings_WithCommonStack_LowersToLegacySettings() {
+        public void TryResolveTessellationSettings_WithCommonStack_LowersToTessellationSettings() {
             MeshComponentModifierStackService service = new MeshComponentModifierStackService();
             EntityComponentSaveState saveState = new EntityComponentSaveState();
 

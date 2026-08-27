@@ -229,10 +229,10 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures Nintendo DS local build settings rewrite the legacy single-profile selection to the canonical debug flavor when debug builds are enabled.
+    /// Ensures current Nintendo DS local build settings preserve the authored build-profile selection when reloaded.
     /// </summary>
     [Fact]
-    public void TryLoadExisting_WhenNintendoDsPlatformUsesLegacyBuildProfileIdAndDebugBuild_RewritesToCanonicalDebugProfile() {
+    public void TryLoadExisting_WhenNintendoDsPlatformUsesAuthoredBuildProfileId_PreservesTheSelection() {
         EditorBuildConfigService service = CreateService();
         WriteBuildConfigFile(
             """
@@ -281,18 +281,17 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
 
         EditorBuildPlatformConfigDocument platform = Assert.Single(document.Platforms);
         EditorBuildQueueItemDocument queueItem = Assert.Single(document.QueueItems);
-        Assert.Equal("debug", platform.SelectedBuildProfileId);
-        Assert.Equal("debug", queueItem.SelectedBuildProfileId);
+        Assert.Equal("ds-default", platform.SelectedBuildProfileId);
+        Assert.Equal("ds-default", queueItem.SelectedBuildProfileId);
         string json = File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "build_config.json"));
-        Assert.Contains("\"selectedBuildProfileId\": \"debug\"", json);
-        Assert.DoesNotContain("\"selectedBuildProfileId\": \"ds-default\"", json);
+        Assert.Contains("\"selectedBuildProfileId\": \"ds-default\"", json);
     }
 
     /// <summary>
-    /// Ensures saving Nintendo DS local build settings writes canonical release profile ids instead of the legacy single-profile identifier.
+    /// Ensures saving Nintendo DS local build settings preserves the authored profile identifier.
     /// </summary>
     [Fact]
-    public void Save_WhenNintendoDsLocalBuildSettingsUseLegacyBuildProfileId_WritesCanonicalReleaseProfileIds() {
+    public void Save_WhenNintendoDsLocalBuildSettingsUseAuthoredBuildProfileId_PreservesTheSelection() {
         EditorBuildConfigService service = CreateService();
         EditorBuildConfigDocument document = new EditorBuildConfigDocument {
             Platforms = [
@@ -315,8 +314,7 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
         service.Save(document);
 
         string json = File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "build_config.json"));
-        Assert.Contains("\"selectedBuildProfileId\": \"release\"", json);
-        Assert.DoesNotContain("\"selectedBuildProfileId\": \"ds-default\"", json);
+        Assert.Contains("\"selectedBuildProfileId\": \"ds-default\"", json);
     }
 
     /// <summary>
