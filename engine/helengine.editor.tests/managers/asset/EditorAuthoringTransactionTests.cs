@@ -114,6 +114,101 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     [Fact]
+    public void Commit_ReplaysCommittedGenerationBeforeValidatingPreparedIdentityClaims() {
+        using EditorProjectAuthoringSession first = CreateSession(ProjectRootPath);
+        using EditorProjectAuthoringSession second = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction firstTransaction = first.BeginTransaction();
+        using EditorAuthoringTransaction secondTransaction = second.BeginTransaction();
+        ModelAsset firstAsset = CreateModel("First");
+        ModelAsset secondAsset = CreateModel("Second");
+        firstAsset.AuthoringAssetId = "00112233445566778899aabbccddeeff";
+        secondAsset.AuthoringAssetId = firstAsset.AuthoringAssetId;
+        firstTransaction.WriteAsset("models/first.hasset", firstAsset);
+        secondTransaction.WriteAsset("models/second.hasset", secondAsset);
+
+        firstTransaction.Commit();
+
+        Assert.Throws<InvalidOperationException>(() => secondTransaction.Commit());
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "second.hasset")));
+    }
+
+    [Fact]
+    public void Commit_WhenFailureFollowsGenerationPublication_ReplaysRestoredGeneration() {
+        using EditorProjectAuthoringSession observer = CreateSession(ProjectRootPath);
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            AfterPublication = () => throw new IOException("injected post-generation failure")
+        };
+        using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = author.BeginTransaction(hooks);
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+
+        Assert.Throws<IOException>(() => transaction.Commit());
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
+        Assert.ThrowsAny<Exception>(() => observer.CreateReference("models/ship.hasset", AssetEntryKind.Model));
+    }
+
+    [Fact]
+    public void Commit_WhenRollbackMarkerClearFails_RetainsAbortingJournalForRecovery() {
+        using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            AfterPublication = () => throw new IOException("injected post-generation failure"),
+            BeforePendingMarkerClear = () => throw new IOException("injected rollback marker clear failure")
+        };
+        EditorAuthoringTransaction transaction = author.BeginTransaction(hooks);
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+        string transactionDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId);
+
+        Assert.Throws<AggregateException>(() => transaction.Commit());
+        Assert.True(Directory.Exists(transactionDirectory));
+        transaction.Dispose();
+
+        using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
+
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
+        Assert.False(Directory.Exists(transactionDirectory));
+    }
+
+    [Fact]
+    public void BeginTransaction_HoldsProjectLockUntilManifestConstructionCompletes() {
+        using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
+        using ManualResetEventSlim constructionEntered = new ManualResetEventSlim(false);
+        using ManualResetEventSlim releaseConstruction = new ManualResetEventSlim(false);
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            BeforeManifestWrite = () => {
+                constructionEntered.Set();
+                releaseConstruction.Wait(TimeSpan.FromSeconds(5));
+            }
+        };
+
+        Task<EditorAuthoringTransaction> beginTask = Task.Run(() => author.BeginTransaction(hooks));
+        Assert.True(constructionEntered.Wait(TimeSpan.FromSeconds(5)));
+        Task<EditorProjectAuthoringSession> observerTask = Task.Run(() => CreateSession(ProjectRootPath));
+        Assert.False(observerTask.Wait(TimeSpan.FromMilliseconds(100)));
+        releaseConstruction.Set();
+
+        using EditorAuthoringTransaction transaction = beginTask.GetAwaiter().GetResult();
+        using EditorProjectAuthoringSession observer = observerTask.GetAwaiter().GetResult();
+        transaction.Dispose();
+    }
+
+    [Fact]
+    public void BeginTransaction_WhenManifestConstructionFails_CleansItsOwnDirectory() {
+        using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
+
+        Assert.Throws<IOException>(() => author.BeginTransaction(new EditorAuthoringTransactionHooks {
+            BeforeManifestWrite = () => throw new IOException("injected manifest failure")
+        }));
+
+        string transactionRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions");
+        Assert.True(!Directory.Exists(transactionRoot) || !Directory.EnumerateDirectories(transactionRoot).Any());
+    }
+
+    [Fact]
     public void BeginTransaction_AllowsOnlyOneActiveTransaction() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         using EditorAuthoringTransaction transaction = session.BeginTransaction();
@@ -156,6 +251,25 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         Assert.Equal(EditorAuthoringTransactionState.Committed, transaction.State);
         using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
         Assert.False(Directory.Exists(transactionDirectory));
+    }
+
+    [Fact]
+    public void Commit_WhenPendingMarkerClearFailsLeavesCommittedStateForRecovery() {
+        using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = author.BeginTransaction(new EditorAuthoringTransactionHooks {
+            BeforePendingMarkerClear = () => throw new IOException("injected marker clear failure")
+        });
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+        string markerPath = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions.pending");
+
+        Assert.Throws<InvalidOperationException>(() => transaction.Commit());
+        Assert.True(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
+        Assert.True(File.Exists(markerPath));
+        Assert.Equal(EditorAuthoringTransactionState.Committed, transaction.State);
+
+        using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
+
+        Assert.False(File.Exists(markerPath));
     }
 
     [Fact]
@@ -321,6 +435,35 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
 
         Assert.False(Directory.Exists(stagingDirectory));
         Assert.False(Directory.Exists(committedDirectory));
+    }
+
+    [Fact]
+    public void StartupRecovery_RemovesMarkerFreeStagingWithoutPayloadProof() {
+        string transactionRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions");
+        string stagingDirectory = Path.Combine(transactionRoot, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(stagingDirectory, "staged"));
+        Directory.CreateDirectory(Path.Combine(stagingDirectory, "backups"));
+        File.WriteAllBytes(Path.Combine(stagingDirectory, "lease"), Array.Empty<byte>());
+        EditorAuthoringTransactionDocument document = new EditorAuthoringTransactionDocument {
+            TransactionId = Path.GetFileName(stagingDirectory),
+            State = EditorAuthoringTransactionState.Staging,
+            Entries = new List<EditorAuthoringTransactionEntry> {
+                new EditorAuthoringTransactionEntry {
+                    DestinationRelativePath = "models/missing.hasset",
+                    StagedRelativePath = "staged/missing.payload",
+                    State = EditorAuthoringTransactionState.Staging,
+                    Progress = EditorAuthoringTransactionEntryProgress.Staged,
+                    Changed = true
+                }
+            }
+        };
+        File.WriteAllText(
+            Path.Combine(stagingDirectory, "transaction.json"),
+            System.Text.Json.JsonSerializer.Serialize(document, EditorAuthoringTransactionDocument.JsonOptions));
+
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+
+        Assert.False(Directory.Exists(stagingDirectory));
     }
 
     static void WriteEmptyDocument(string transactionDirectory, EditorAuthoringTransactionState state) {

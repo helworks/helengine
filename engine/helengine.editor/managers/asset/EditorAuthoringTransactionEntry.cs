@@ -40,7 +40,9 @@ namespace helengine.editor {
     public enum EditorAuthoringTransactionState {
         Staging,
         Committing,
-        Committed
+        Committed,
+        Aborting,
+        RolledBack
     }
 
     /// <summary>

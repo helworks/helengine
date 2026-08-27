@@ -17,6 +17,12 @@ namespace helengine.editor {
             string canonicalProjectRoot = Path.GetFullPath(projectRootPath);
             string transactionRoot = GetTransactionRoot(canonicalProjectRoot);
             ValidateTransactionContainer(canonicalProjectRoot);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(canonicalProjectRoot);
+            // A transaction constructor creates its directory, lease, and first
+            // manifest while holding this same lock. Recheck after acquiring it
+            // so recovery cannot observe an incomplete construction and return
+            // before the constructor has published its journal.
+            ValidateTransactionContainer(canonicalProjectRoot);
             if (!Directory.Exists(transactionRoot)) {
                 if (EditorAuthoringTransactionPendingMarker.ReadForRecovery(canonicalProjectRoot) != null) {
                     throw new InvalidOperationException("An authoring transaction pending marker has no transaction journal.");
@@ -25,7 +31,6 @@ namespace helengine.editor {
             }
 
             ValidateNoReparsePath(transactionRoot, transactionRoot);
-            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(canonicalProjectRoot);
             EditorAuthoringTransactionPendingMarker.PendingMarker pendingMarker = EditorAuthoringTransactionPendingMarker.ReadForRecovery(canonicalProjectRoot);
             string[] transactionDirectories = Directory.GetDirectories(transactionRoot, "*", SearchOption.TopDirectoryOnly);
             // Validate the complete current transaction set before mutating any one entry.
@@ -89,6 +94,7 @@ namespace helengine.editor {
                         }
                         break;
                     case EditorAuthoringTransactionState.Committing:
+                    case EditorAuthoringTransactionState.Aborting:
                         if (!TryAcquireAbandonedLease(transactionDirectory)) {
                             break;
                         }
@@ -113,6 +119,14 @@ namespace helengine.editor {
                             DeleteTransactionDirectory(transactionDirectory, transactionRoot);
                         }
                         break;
+                    case EditorAuthoringTransactionState.RolledBack:
+                        if (pendingMarker != null && string.Equals(pendingMarker.TransactionId, transactionId, StringComparison.Ordinal)) {
+                            EditorAuthoringTransactionPendingMarker.ClearUnderLock(canonicalProjectRoot, transactionId);
+                        }
+                        if (TryAcquireAbandonedLease(transactionDirectory)) {
+                            DeleteTransactionDirectory(transactionDirectory, transactionRoot);
+                        }
+                        break;
                     default:
                         throw new InvalidDataException($"The authoring transaction '{manifestPath}' has an unsupported state.");
                 }
@@ -128,10 +142,12 @@ namespace helengine.editor {
 
         internal static void ValidateTransactionContainer(string projectRootPath) {
             string projectRoot = Path.GetFullPath(projectRootPath);
+            string assetsRoot = Path.Combine(projectRoot, "assets");
             string cacheRoot = Path.Combine(projectRoot, "cache");
             string editorRoot = Path.Combine(cacheRoot, "editor");
             string transactionRoot = GetTransactionRoot(projectRoot);
             ValidateNoReparsePath(projectRoot, projectRoot);
+            ValidateNoReparsePath(assetsRoot, projectRoot);
             ValidateNoReparsePath(cacheRoot, projectRoot);
             ValidateNoReparsePath(editorRoot, projectRoot);
             ValidateNoReparsePath(transactionRoot, projectRoot);
@@ -225,6 +241,18 @@ namespace helengine.editor {
                 }
 
                 string stagedPath = ResolveContainedPath(transactionDirectory, entry.StagedRelativePath, "staged");
+                string backupPath = null;
+                if (!string.IsNullOrWhiteSpace(entry.BackupRelativePath)) {
+                    backupPath = ResolveContainedPath(transactionDirectory, entry.BackupRelativePath, "backup");
+                }
+
+                // A marker-free staging journal has not entered publication. Its
+                // contained tree may be discarded after path validation without
+                // trusting incomplete payload or backup proofs.
+                if (document.State == EditorAuthoringTransactionState.Staging) {
+                    continue;
+                }
+
                 if (!File.Exists(stagedPath)) {
                     if (document.State != EditorAuthoringTransactionState.Committed) {
                         throw new InvalidDataException($"The authoring transaction staged payload '{stagedPath}' is missing.");
@@ -243,9 +271,6 @@ namespace helengine.editor {
                         entry.ExpectedAssetId,
                         entry.ExpectedAssetKind);
                 }
-                if (!string.IsNullOrWhiteSpace(entry.BackupRelativePath)) {
-                    ResolveContainedPath(transactionDirectory, entry.BackupRelativePath, "backup");
-                }
 
                 if (entry.PriorExists) {
                     if (!IsValidHash(entry.PriorContentHash) || !IsValidHash(entry.PriorSerializedHash) ||
@@ -256,7 +281,6 @@ namespace helengine.editor {
                         if (string.IsNullOrWhiteSpace(entry.BackupRelativePath)) {
                             throw new InvalidDataException($"The authoring transaction journal '{transactionDirectory}' is missing prior destination data.");
                         }
-                        string backupPath = ResolveContainedPath(transactionDirectory, entry.BackupRelativePath, "backup");
                         if (document.State == EditorAuthoringTransactionState.Committing && !File.Exists(backupPath)) {
                             throw new InvalidDataException($"The authoring transaction backup '{backupPath}' is missing.");
                         }
@@ -308,14 +332,20 @@ namespace helengine.editor {
                     string destination = ResolveContainedPath(assetsRoot, entry.DestinationRelativePath, "destination");
                     bool replacementApplied = IsReplacementApplied(destination, entry);
                     if (!replacementApplied) {
+                        // The entry was durably marked as applying/applied. Include
+                        // it in the restored generation even when the destination
+                        // already contains its prior bytes, so observers replay
+                        // every path across a crash cut between restore and publish.
+                        restoredPaths.Add(entry.DestinationRelativePath);
                         continue;
                     }
                     if (entry.PriorExists) {
                         string backup = ResolveContainedPath(transactionDirectory, entry.BackupRelativePath, "backup");
                         byte[] backupBytes = File.ReadAllBytes(backup);
                         ValidateBackup(backupBytes, destination, entry);
-                        ReplaceAtomically(destination, backupBytes);
+                        ReplaceAtomically(destination, backupBytes, assetsRoot);
                     } else if (File.Exists(destination)) {
+                        ValidateNoReparsePath(destination, assetsRoot);
                         File.Delete(destination);
                     }
                     restoredPaths.Add(entry.DestinationRelativePath);
@@ -372,6 +402,7 @@ namespace helengine.editor {
                 throw new InvalidDataException($"The authoring transaction '{transactionDirectory}' has no lease.");
             }
             try {
+                ValidateNoReparsePath(leasePath, transactionDirectory);
                 using FileStream lease = new FileStream(leasePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
                 return true;
             } catch (IOException) {
@@ -381,18 +412,24 @@ namespace helengine.editor {
             }
         }
 
-        internal static void ReplaceAtomically(string destinationPath, byte[] bytes) {
+        internal static void ReplaceAtomically(string destinationPath, byte[] bytes, string containingRoot) {
+            ValidateNoReparsePath(destinationPath, containingRoot);
             string directoryPath = Path.GetDirectoryName(destinationPath);
+            ValidateNoReparsePath(directoryPath, containingRoot);
             Directory.CreateDirectory(directoryPath);
+            ValidateNoReparsePath(destinationPath, containingRoot);
             string temporaryPath = Path.Combine(directoryPath, "." + Path.GetFileName(destinationPath) + ".restore-" + Guid.NewGuid().ToString("N"));
             try {
+                ValidateNoReparsePath(temporaryPath, containingRoot);
                 using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
                     stream.Write(bytes, 0, bytes.Length);
                     stream.Flush(true);
                 }
+                ValidateNoReparsePath(destinationPath, containingRoot);
                 File.Move(temporaryPath, destinationPath, true);
             } finally {
                 if (File.Exists(temporaryPath)) {
+                    ValidateNoReparsePath(temporaryPath, containingRoot);
                     File.Delete(temporaryPath);
                 }
             }
@@ -431,7 +468,10 @@ namespace helengine.editor {
                 } catch (FileNotFoundException) {
                 } catch (DirectoryNotFoundException) {
                 }
-                if (string.Equals(current, canonicalRoot, comparison)) {
+                // Continue through the complete existing ancestor chain. A
+                // linked parent above the textual project root can redirect a
+                // seemingly contained path outside the project.
+                if (string.Equals(current, Path.GetPathRoot(canonicalRoot), comparison)) {
                     break;
                 }
                 string parent = Path.GetDirectoryName(current);

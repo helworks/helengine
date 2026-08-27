@@ -25,6 +25,7 @@ namespace helengine.editor {
             }
 
             string markerPath = GetPath(canonicalRoot);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, canonicalRoot);
             if (File.Exists(markerPath)) {
                 ReadAndValidate(markerPath, canonicalRoot);
                 throw new InvalidOperationException($"Authoring transaction recovery is required for pending transaction '{markerPath}'.");
@@ -58,6 +59,7 @@ namespace helengine.editor {
             }
 
             string markerPath = GetPath(canonicalRoot);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, canonicalRoot);
             if (File.Exists(markerPath)) {
                 PendingMarker current = ReadAndValidate(markerPath, canonicalRoot);
                 if (!string.Equals(current.TransactionId, transactionId, StringComparison.Ordinal)) {
@@ -73,7 +75,7 @@ namespace helengine.editor {
                 .OrderBy(path => path, PathComparer)
                 .ThenBy(path => path, StringComparer.Ordinal)
                 .ToList();
-            WriteAtomically(markerPath, new PendingMarker {
+            WriteAtomically(canonicalRoot, markerPath, new PendingMarker {
                 Version = CurrentVersion,
                 TransactionId = transactionId,
                 RelativePaths = paths
@@ -84,6 +86,7 @@ namespace helengine.editor {
             string canonicalRoot = Path.GetFullPath(projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(canonicalRoot);
             string markerPath = GetPath(canonicalRoot);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, canonicalRoot);
             return File.Exists(markerPath) ? ReadAndValidate(markerPath, canonicalRoot) : null;
         }
 
@@ -91,6 +94,7 @@ namespace helengine.editor {
             string canonicalRoot = Path.GetFullPath(projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(canonicalRoot);
             string markerPath = GetPath(canonicalRoot);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, canonicalRoot);
             if (!File.Exists(markerPath)) {
                 return;
             }
@@ -98,10 +102,12 @@ namespace helengine.editor {
             if (!string.Equals(marker.TransactionId, transactionId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException("The authoring transaction pending marker belongs to another transaction.");
             }
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, canonicalRoot);
             File.Delete(markerPath);
         }
 
         static PendingMarker ReadAndValidate(string markerPath, string projectRootPath) {
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, projectRootPath);
             PendingMarker marker;
             try {
                 marker = JsonSerializer.Deserialize<PendingMarker>(File.ReadAllText(markerPath), JsonOptions);
@@ -141,19 +147,25 @@ namespace helengine.editor {
             return Path.GetRelativePath(canonicalAssetsRoot, fullPath).Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
         }
 
-        static void WriteAtomically(string path, PendingMarker marker) {
+        static void WriteAtomically(string projectRootPath, string path, PendingMarker marker) {
             string directory = Path.GetDirectoryName(path);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRootPath);
             Directory.CreateDirectory(directory);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, projectRootPath);
             string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try {
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporary, projectRootPath);
                 byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(marker, JsonOptions);
                 using (FileStream stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
                     stream.Write(bytes, 0, bytes.Length);
                     stream.Flush(true);
                 }
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, projectRootPath);
                 File.Move(temporary, path, true);
             } finally {
                 if (File.Exists(temporary)) {
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporary, projectRootPath);
                     File.Delete(temporary);
                 }
             }

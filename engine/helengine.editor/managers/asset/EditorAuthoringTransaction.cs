@@ -37,22 +37,42 @@ namespace helengine.editor {
 
             string transactionRoot = EditorAuthoringTransactionRecoveryService.GetTransactionRoot(ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(transactionRoot, ProjectRootPath);
             Directory.CreateDirectory(transactionRoot);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(transactionRoot, ProjectRootPath);
             string transactionId = Guid.NewGuid().ToString("N");
             TransactionDirectoryPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(transactionRoot, transactionId, "transaction");
             ManifestPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "transaction.json", "manifest");
             try {
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(TransactionDirectoryPath, transactionRoot);
                 Directory.CreateDirectory(TransactionDirectoryPath);
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(TransactionDirectoryPath, transactionRoot);
                 EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "staged", "staged-root");
                 EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "backups", "backup-root");
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                    Path.Combine(TransactionDirectoryPath, "staged"),
+                    TransactionDirectoryPath);
                 Directory.CreateDirectory(Path.Combine(TransactionDirectoryPath, "staged"));
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                    Path.Combine(TransactionDirectoryPath, "staged"),
+                    TransactionDirectoryPath);
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                    Path.Combine(TransactionDirectoryPath, "backups"),
+                    TransactionDirectoryPath);
                 Directory.CreateDirectory(Path.Combine(TransactionDirectoryPath, "backups"));
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                    Path.Combine(TransactionDirectoryPath, "backups"),
+                    TransactionDirectoryPath);
                 string leasePath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "lease", "lease");
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(leasePath, TransactionDirectoryPath);
                 LeaseStream = new FileStream(leasePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
                 Document = new EditorAuthoringTransactionDocument {
                     TransactionId = transactionId,
                     State = EditorAuthoringTransactionState.Staging
                 };
+                Hooks.BeforeManifestWrite?.Invoke();
                 WriteDocument();
             } catch (Exception primaryException) {
                 try {
@@ -104,7 +124,7 @@ namespace helengine.editor {
                     TransactionDirectoryPath,
                     stagedRelativePath,
                     "staged");
-                WriteBytesDurably(stagedPath, prepared.SerializedBytes);
+                WriteBytesDurably(stagedPath, prepared.SerializedBytes, TransactionDirectoryPath);
 
                 EditorAuthoringTransactionEntry entry = existingEntry ?? new EditorAuthoringTransactionEntry {
                     DestinationRelativePath = prepared.RelativePath,
@@ -152,6 +172,8 @@ namespace helengine.editor {
                 }
                 EnsureStaging();
                 using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+                NativeWriter.ReconcileCommittedChangesUnderLock();
+                NativeWriter.ValidatePreparedIdentityClaimsUnderLock(PreparedByPath.Values.ToArray());
                 ValidateStagedEntriesUnderLock();
                 List<EditorAuthoringTransactionEntry> changedEntries = Document.Entries
                     .Where(entry => entry.Changed)
@@ -159,6 +181,7 @@ namespace helengine.editor {
                 List<EditorAuthoringTransactionEntry> appliedEntries = new List<EditorAuthoringTransactionEntry>();
                 IDisposable pendingOwner = null;
                 bool committedDurably = false;
+                bool generationPublished = false;
                 try {
                     for (int index = 0; index < changedEntries.Count; index++) {
                         EditorAuthoringTransactionEntry entry = changedEntries[index];
@@ -173,9 +196,10 @@ namespace helengine.editor {
                                 !string.Equals(NativeWriter.ComputeSerializedHash(priorBytes), entry.PriorSerializedHash, StringComparison.Ordinal)) {
                                 throw new IOException($"The authoring transaction destination '{prepared.FullPath}' changed after validation.");
                             }
-                            WriteBytesDurably(backupPath, priorBytes);
+                            WriteBytesDurably(backupPath, priorBytes, TransactionDirectoryPath);
                             entry.BackupContentHash = entry.PriorContentHash;
                             entry.BackupSerializedHash = NativeWriter.ComputeSerializedHash(priorBytes);
+                            WriteDocument();
                         }
                     }
 
@@ -208,7 +232,7 @@ namespace helengine.editor {
                             entry.ExpectedAssetId,
                             entry.ExpectedAssetKind);
                         appliedEntries.Add(entry);
-                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, stagedBytes);
+                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, stagedBytes, AssetsRootPath);
                         entry.Progress = EditorAuthoringTransactionEntryProgress.Applied;
                         WriteDocument();
                         Hooks.AfterReplacement?.Invoke(index, prepared.FullPath);
@@ -225,14 +249,17 @@ namespace helengine.editor {
                     NativeWriter.FlushHashCacheAtCommit();
                     if (changedEntries.Count > 0) {
                         NativeWriter.PublishChangesUnderLock(changedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
+                        generationPublished = true;
                     }
                     NativeWriter.ObserveCurrentGenerationUnderLock();
+                    Hooks.AfterPublication?.Invoke();
                     Document.State = EditorAuthoringTransactionState.Committed;
                     for (int index = 0; index < Document.Entries.Count; index++) {
                         Document.Entries[index].State = Document.State;
                     }
                     WriteDocument();
                     committedDurably = true;
+                    Hooks.BeforePendingMarkerClear?.Invoke();
                     EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
                     pendingOwner?.Dispose();
                     pendingOwner = null;
@@ -250,29 +277,57 @@ namespace helengine.editor {
                         Complete();
                         throw new InvalidOperationException("The authoring transaction committed but could not clear its pending marker.", primaryException);
                     }
-                    Exception rollbackException = committedDurably ? null : RollbackUnderLock(appliedEntries);
-                    if (rollbackException == null) {
-                        try {
-                            // Persist rollback tombstones before releasing the marker so
-                            // a newly opened observer cannot reuse a failed publication hash.
-                            NativeWriter.FlushHashCacheAtCommit();
-                        } catch (Exception cacheRollbackException) {
-                            rollbackException = cacheRollbackException;
+                    Exception rollbackException = null;
+                    try {
+                        rollbackException = RollbackUnderLock(appliedEntries);
+                        if (rollbackException == null) {
+                            try {
+                                // Persist rollback tombstones before releasing the marker so
+                                // a newly opened observer cannot reuse a failed publication hash.
+                                NativeWriter.FlushHashCacheAtCommit();
+                            } catch (Exception cacheRollbackException) {
+                                rollbackException = cacheRollbackException;
+                            }
+                        }
+                        if (rollbackException == null && generationPublished && changedEntries.Count > 0) {
+                            try {
+                                NativeWriter.PublishChangesUnderLock(changedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
+                                NativeWriter.ObserveCurrentGenerationUnderLock();
+                            } catch (Exception generationRollbackException) {
+                                rollbackException = generationRollbackException;
+                            }
                         }
                         if (rollbackException == null) {
-                            Document.State = EditorAuthoringTransactionState.Staging;
+                            // Aborting is a durable recovery state. It prevents a
+                            // pending marker from ever describing a staging journal.
+                            Document.State = EditorAuthoringTransactionState.Aborting;
+                            for (int index = 0; index < Document.Entries.Count; index++) {
+                                Document.Entries[index].State = Document.State;
+                            }
+                            WriteDocument();
+                            Hooks.BeforePendingMarkerClear?.Invoke();
+                            EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
+                            Document.State = EditorAuthoringTransactionState.RolledBack;
                             for (int index = 0; index < Document.Entries.Count; index++) {
                                 Document.Entries[index].State = Document.State;
                             }
                             WriteDocument();
                             try {
-                                EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
-                            } catch (Exception clearException) {
-                                rollbackException = clearException;
+                                DeleteOwnDirectory();
+                            } catch {
+                                CloseLease();
                             }
+                            Complete();
+                        }
+                    } catch (Exception rollbackFailure) {
+                        rollbackException ??= rollbackFailure;
+                    } finally {
+                        try {
+                            pendingOwner?.Dispose();
+                        } catch (Exception ownerFailure) {
+                            rollbackException ??= ownerFailure;
                         }
                     }
-                    pendingOwner?.Dispose();
 
                     if (rollbackException != null) {
                         throw new AggregateException("Authoring transaction publication and rollback failed; the journal remains for recovery.", primaryException, rollbackException);
@@ -292,6 +347,7 @@ namespace helengine.editor {
                 }
 
                 if (Document.State == EditorAuthoringTransactionState.Staging) {
+                    using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
                     DeleteOwnDirectory();
                 } else {
                     // A journal retained for recovery still owns a live lease until
@@ -369,8 +425,9 @@ namespace helengine.editor {
                             entry.BackupSerializedHash ?? entry.PriorSerializedHash,
                             entry.ExpectedAssetId,
                             entry.ExpectedAssetKind);
-                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, backupBytes);
+                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, backupBytes, AssetsRootPath);
                     } else if (File.Exists(prepared.FullPath)) {
+                        EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(prepared.FullPath, AssetsRootPath);
                         File.Delete(prepared.FullPath);
                     }
                     NativeWriter.RestorePublishedAssetUnderLock(prepared);
@@ -432,6 +489,7 @@ namespace helengine.editor {
             string temporaryPath = ManifestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(Document, EditorAuthoringTransactionDocument.JsonOptions);
             try {
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, TransactionDirectoryPath);
                 using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
                     stream.Write(bytes, 0, bytes.Length);
                     stream.Flush(true);
@@ -444,18 +502,24 @@ namespace helengine.editor {
             }
         }
 
-        static void WriteBytesDurably(string path, byte[] bytes) {
+        static void WriteBytesDurably(string path, byte[] bytes, string containingRoot) {
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, containingRoot);
             string directoryPath = Path.GetDirectoryName(path);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directoryPath, containingRoot);
             Directory.CreateDirectory(directoryPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, containingRoot);
             string temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try {
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, containingRoot);
                 using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
                     stream.Write(bytes, 0, bytes.Length);
                     stream.Flush(true);
                 }
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, containingRoot);
                 File.Move(temporaryPath, path, true);
             } finally {
                 if (File.Exists(temporaryPath)) {
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, containingRoot);
                     File.Delete(temporaryPath);
                 }
             }
@@ -483,6 +547,8 @@ namespace helengine.editor {
     /// Injectable publication seams used by deterministic transaction tests.
     /// </summary>
     internal sealed class EditorAuthoringTransactionHooks {
+        public Action BeforeManifestWrite { get; init; }
+
         public Action<int, string> BeforeReplacement { get; init; }
 
         public Action<int, string> AfterReplacement { get; init; }
@@ -490,6 +556,10 @@ namespace helengine.editor {
         public Action<int, string> BeforeGraphUpdate { get; init; }
 
         public Action<int, string> BeforePublication { get; init; }
+
+        public Action AfterPublication { get; init; }
+
+        public Action BeforePendingMarkerClear { get; init; }
 
         public Action BeforeCleanup { get; init; }
     }

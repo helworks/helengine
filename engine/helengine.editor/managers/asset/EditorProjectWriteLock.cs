@@ -44,9 +44,12 @@ namespace helengine.editor {
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullProjectRootPath, fullProjectRootPath);
             string lockPath = Path.Combine(fullProjectRootPath, "cache", "editor", "authoring-write.lock");
             string lockDirectoryPath = Path.GetDirectoryName(lockPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(lockDirectoryPath, fullProjectRootPath);
             Directory.CreateDirectory(lockDirectoryPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(lockDirectoryPath, fullProjectRootPath);
             string canonicalLockPath = CanonicalizeLockPath(lockPath);
             if (HeldLocks != null && HeldLocks.TryGetValue(canonicalLockPath, out EditorProjectWriteLock heldLock)) {
                 return new EditorProjectWriteLock(heldLock.LockStream, canonicalLockPath, false);
@@ -56,6 +59,7 @@ namespace helengine.editor {
             DateTime deadlineUtc = DateTime.UtcNow + maximumWait;
             while (DateTime.UtcNow <= deadlineUtc) {
                 try {
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(lockPath, fullProjectRootPath);
                     FileStream lockStream = new FileStream(
                         lockPath,
                         FileMode.OpenOrCreate,
@@ -325,7 +329,10 @@ namespace helengine.editor {
                 .ToList();
             string generationPath = GetPath(projectRootPath);
             string generationDirectoryPath = Path.GetDirectoryName(generationPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationDirectoryPath, projectRootPath);
             Directory.CreateDirectory(generationDirectoryPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationDirectoryPath, projectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
 
             ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
             EnsureNoPendingRepair(snapshot, generationPath);
@@ -363,7 +370,10 @@ namespace helengine.editor {
 
             string generationPath = GetPath(projectRootPath);
             string generationDirectoryPath = Path.GetDirectoryName(generationPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationDirectoryPath, projectRootPath);
             Directory.CreateDirectory(generationDirectoryPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationDirectoryPath, projectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
             ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
             EnsureNoPendingRepair(snapshot, generationPath);
             List<string> normalizedPaths = relativePaths
@@ -439,6 +449,7 @@ namespace helengine.editor {
 
         static ProjectWriteGenerationSnapshot ReadSnapshot(string projectRootPath) {
             string generationPath = GetPath(projectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
             EditorAuthoringTransactionPendingMarker.EnsureNoPending(projectRootPath);
             if (!File.Exists(generationPath)) {
                 return new ProjectWriteGenerationSnapshot {
@@ -534,8 +545,13 @@ namespace helengine.editor {
         }
 
         static void WriteSnapshotAtomically(string generationPath, ProjectWriteGenerationSnapshot snapshot) {
+            string projectRootPath = Path.GetDirectoryName(
+                Path.GetDirectoryName(
+                    Path.GetDirectoryName(generationPath)));
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
             string temporaryPath = generationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try {
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, projectRootPath);
                 byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions);
                 using (FileStream stream = new FileStream(
                     temporaryPath,
@@ -548,6 +564,7 @@ namespace helengine.editor {
                     stream.Flush(true);
                 }
 
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
                 if (File.Exists(generationPath)) {
                     File.Move(temporaryPath, generationPath, true);
                 } else {
@@ -555,6 +572,7 @@ namespace helengine.editor {
                 }
             } finally {
                 if (File.Exists(temporaryPath)) {
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, projectRootPath);
                     File.Delete(temporaryPath);
                 }
             }

@@ -180,7 +180,7 @@ namespace helengine.editor {
                 disposition = EditorAssetWriteDisposition.Unchanged;
             } else {
                 long publishedGeneration = ChangeLog.PublishChange(normalizedRelativePath);
-                WriteAtomically(fullPath, serializedBytes);
+                WriteAtomically(fullPath, serializedBytes, AssetsRootPath);
                 HashCache.InvalidateContentHash(fullPath);
                 IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
                 string replacedContentHash = HashCache.GetContentHash(fullPath);
@@ -266,6 +266,35 @@ namespace helengine.editor {
             HashCache.InvalidateContentHash(prepared.FullPath);
             IdentityIndex.RegisterOrUpdateUnderLock(prepared.FullPath);
             HashCache.GetContentHash(prepared.FullPath);
+        }
+
+        /// <summary>
+        /// Replays committed exact-path changes observed since this writer last
+        /// synchronized, without performing a full assets enumeration.
+        /// </summary>
+        internal void ReconcileCommittedChangesUnderLock() {
+            EnsureNotDisposed();
+            ReconcileIfGenerationChanged();
+        }
+
+        /// <summary>
+        /// Revalidates the complete transaction identity claim set after the
+        /// latest committed generation has been replayed.
+        /// </summary>
+        internal void ValidatePreparedIdentityClaimsUnderLock(IReadOnlyList<EditorPreparedAssetWrite> preparedWrites) {
+            EnsureNotDisposed();
+            if (preparedWrites == null) {
+                throw new ArgumentNullException(nameof(preparedWrites));
+            }
+
+            HashSet<string> claims = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < preparedWrites.Count; index++) {
+                EditorPreparedAssetWrite prepared = preparedWrites[index] ?? throw new InvalidDataException("A transaction prepared output is missing.");
+                if (string.IsNullOrWhiteSpace(prepared.AssetId) || !claims.Add(prepared.AssetId) ||
+                    IdentityIndex.IsAssetIdentityClaimedByOtherPathUnderLock(prepared.AssetId, prepared.RelativePath)) {
+                    throw new InvalidOperationException($"Native asset identity '{prepared.AssetId}' is claimed by another current transaction destination.");
+                }
+            }
         }
 
         /// <summary>
@@ -619,19 +648,28 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fullPath">Canonical destination path.</param>
         /// <param name="serializedBytes">Complete current-format bytes.</param>
-        static void WriteAtomically(string fullPath, byte[] serializedBytes) {
+        static void WriteAtomically(string fullPath, byte[] serializedBytes, string containingRoot) {
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
             string directoryPath = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException("Native asset destination does not include a writable directory.");
             }
 
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directoryPath, containingRoot);
             Directory.CreateDirectory(directoryPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
             string temporaryPath = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try {
-                File.WriteAllBytes(temporaryPath, serializedBytes);
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, containingRoot);
+                using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
+                    stream.Write(serializedBytes, 0, serializedBytes.Length);
+                    stream.Flush(true);
+                }
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
                 File.Move(temporaryPath, fullPath, true);
             } finally {
                 if (File.Exists(temporaryPath)) {
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, containingRoot);
                     File.Delete(temporaryPath);
                 }
             }

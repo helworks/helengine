@@ -538,6 +538,25 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Determines whether an identity is claimed by a path other than the
+        /// prepared destination currently being validated.
+        /// </summary>
+        internal bool IsAssetIdentityClaimedByOtherPathUnderLock(string assetId, string relativePath) {
+            EnsureNotDisposed();
+            EnsurePublicationAvailableUnderLock();
+            if (string.IsNullOrWhiteSpace(assetId)) {
+                return false;
+            }
+
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            if (!EntriesByLookupIdentity.TryGetValue(assetId, out List<EditorAssetIdentityEntry> entries)) {
+                return false;
+            }
+
+            return entries.Any(entry => !string.Equals(entry.RelativePath, normalizedRelativePath, PathComparison));
+        }
+
+        /// <summary>
         /// Adopts one saved identity through the same staged, publication-safe repair batch as startup repairs.
         /// </summary>
         /// <param name="fullPath">Absolute external authored asset path.</param>
