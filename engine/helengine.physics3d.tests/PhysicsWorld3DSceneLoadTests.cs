@@ -68,7 +68,7 @@ namespace helengine.physics3d.tests {
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => sceneLoadService.Load(sceneAsset));
 
-            Assert.Contains("members", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("member", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

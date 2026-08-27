@@ -16,30 +16,73 @@ namespace helengine {
                 return null;
             }
             if (componentTypeId.Contains(',', StringComparison.Ordinal)) {
-                try {
-                    Type assemblyQualifiedType = Type.GetType(componentTypeId, false);
-                    string assemblyName = assemblyQualifiedType?.Assembly.GetName().Name ?? string.Empty;
-                    if (assemblyQualifiedType == null
-                        || (string.Equals(assemblyQualifiedType.Namespace, "helengine", StringComparison.Ordinal)
-                            && assemblyName.StartsWith("helengine", StringComparison.Ordinal))) {
-                        return null;
-                    }
+                if (!TryParseCurrentAssemblyQualifiedId(componentTypeId, out string typeName, out string assemblyName)
+                    || string.Equals(typeName.Substring(0, typeName.LastIndexOf('.')), "helengine", StringComparison.Ordinal)) {
+                    return null;
+                }
 
-                    return assemblyQualifiedType;
+                try {
+                    Assembly assembly = Assembly.Load(new AssemblyName(assemblyName));
+                    Type componentType = assembly.GetType(typeName, false, false);
+                    return componentType != null && typeof(Component).IsAssignableFrom(componentType)
+                        ? componentType
+                        : null;
                 } catch (Exception) {
                     return null;
                 }
             }
 
-            Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            for (int index = 0; index < assemblies.Length; index++) {
-                Type componentType = assemblies[index].GetType(componentTypeId, false, false);
-                if (componentType != null) {
-                    return componentType;
+            Type coreComponentType = typeof(Component).Assembly.GetType(componentTypeId, false, false);
+            if (coreComponentType != null && typeof(Component).IsAssignableFrom(coreComponentType)) {
+                return coreComponentType;
+            }
+
+            if (componentTypeId.StartsWith("helengine.", StringComparison.Ordinal)) {
+                try {
+                    Assembly physicsAssembly = Assembly.Load(new AssemblyName("helengine.physics"));
+                    Type physicsComponentType = physicsAssembly.GetType(componentTypeId, false, false);
+                    if (physicsComponentType != null && typeof(Component).IsAssignableFrom(physicsComponentType)) {
+                        return physicsComponentType;
+                    }
+                } catch (Exception) {
+                    // The optional physics assembly is not present in every core-only host.
                 }
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Parses the current simple assembly-qualified component identifier shape without accepting runtime qualification metadata.
+        /// </summary>
+        /// <param name="componentTypeId">Stable component identifier to parse.</param>
+        /// <param name="typeName">Parsed component type name.</param>
+        /// <param name="assemblyName">Parsed simple assembly name.</param>
+        /// <returns>True when the identifier has exactly one simple assembly separator.</returns>
+        static bool TryParseCurrentAssemblyQualifiedId(string componentTypeId, out string typeName, out string assemblyName) {
+            typeName = null;
+            assemblyName = null;
+            int separatorIndex = componentTypeId.IndexOf(", ", StringComparison.Ordinal);
+            if (separatorIndex <= 0 || componentTypeId.IndexOf(',', separatorIndex + 1) >= 0) {
+                return false;
+            }
+
+            string parsedTypeName = componentTypeId.Substring(0, separatorIndex);
+            string parsedAssemblyName = componentTypeId.Substring(separatorIndex + 2);
+            if (string.IsNullOrWhiteSpace(parsedTypeName)
+                || string.IsNullOrWhiteSpace(parsedAssemblyName)
+                || parsedAssemblyName.IndexOf(' ') >= 0) {
+                return false;
+            }
+
+            int namespaceSeparatorIndex = parsedTypeName.LastIndexOf('.');
+            if (namespaceSeparatorIndex <= 0 || namespaceSeparatorIndex == parsedTypeName.Length - 1) {
+                return false;
+            }
+
+            typeName = parsedTypeName;
+            assemblyName = parsedAssemblyName;
+            return true;
         }
     }
 }

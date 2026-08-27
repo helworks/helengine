@@ -18,27 +18,48 @@ namespace helengine.editor {
             }
 
             FieldPayloadsByName = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-            using MemoryStream stream = new MemoryStream(payload, false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported editor tagged scene component payload version '{version}'.");
-            }
-
-            int fieldCount = reader.ReadInt32();
-            if (fieldCount < 0) {
-                throw new InvalidOperationException("Editor tagged scene component payload field counts cannot be negative.");
-            }
-
-            for (int index = 0; index < fieldCount; index++) {
-                string fieldName = reader.ReadString();
-                if (string.IsNullOrWhiteSpace(fieldName)) {
-                    throw new InvalidOperationException("Editor tagged scene component payload fields must define a name.");
-                } else if (FieldPayloadsByName.ContainsKey(fieldName)) {
-                    throw new InvalidOperationException($"Editor scene component payloads cannot contain duplicate field '{fieldName}'.");
+            byte? receivedVersion = null;
+            int? receivedFieldCount = null;
+            try {
+                using MemoryStream stream = new MemoryStream(payload, false);
+                using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+                receivedVersion = reader.ReadByte();
+                if (receivedVersion != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
+                    throw new InvalidOperationException(
+                        $"Unsupported editor tagged scene component payload received version '{receivedVersion}'; current version '{EditorTaggedSceneComponentPayloadFormat.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.");
                 }
 
-                FieldPayloadsByName.Add(fieldName, reader.ReadByteArray() ?? Array.Empty<byte>());
+                receivedFieldCount = reader.ReadInt32();
+                if (receivedFieldCount < 0) {
+                    throw new InvalidOperationException(
+                        $"Unsupported editor tagged scene component payload received field count '{receivedFieldCount}'; current field count must be non-negative. Regenerate/rebuild the asset in the current format.");
+                }
+
+                for (int index = 0; index < receivedFieldCount; index++) {
+                    string fieldName = reader.ReadString();
+                    if (string.IsNullOrWhiteSpace(fieldName)) {
+                        throw new InvalidOperationException("Editor scene component payload fields must define a name in the current format. Regenerate/rebuild the asset.");
+                    } else if (FieldPayloadsByName.ContainsKey(fieldName)) {
+                        throw new InvalidOperationException($"Editor scene component payloads cannot contain duplicate field '{fieldName}' in the current format. Regenerate/rebuild the asset.");
+                    }
+
+                    FieldPayloadsByName.Add(fieldName, reader.ReadByteArray() ?? Array.Empty<byte>());
+                }
+
+                if (stream.Position != stream.Length) {
+                    throw new InvalidOperationException(
+                        $"Editor tagged scene component payload contains trailing data after current field count '{receivedFieldCount}'. Regenerate/rebuild the asset in the current format.");
+                }
+            } catch (EndOfStreamException exception) {
+                string versionText = receivedVersion.HasValue
+                    ? $"received version '{receivedVersion.Value}', current version '{EditorTaggedSceneComponentPayloadFormat.CurrentVersion}'"
+                    : $"current version '{EditorTaggedSceneComponentPayloadFormat.CurrentVersion}' (received version unavailable)";
+                string countText = receivedFieldCount.HasValue
+                    ? $"received field count '{receivedFieldCount.Value}'"
+                    : "received field count unavailable";
+                throw new InvalidOperationException(
+                    $"Editor tagged scene component payload is truncated ({versionText}; {countText}). Regenerate/rebuild the asset in the current format.",
+                    exception);
             }
         }
 

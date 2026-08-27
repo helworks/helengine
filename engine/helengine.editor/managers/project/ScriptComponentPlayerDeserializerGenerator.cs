@@ -47,21 +47,28 @@ namespace helengine.editor {
             builder.AppendLine("    using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);");
             builder.AppendLine("    using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);");
             builder.AppendLine($"    {schema.ComponentType.FullName} component = new {schema.ComponentType.FullName}();");
-            builder.AppendLine("    byte version = reader.ReadByte();");
-            builder.AppendLine("    if (version != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {");
-            builder.AppendLine("        throw new InvalidOperationException($\"Unsupported automatic scripted component payload version '{version}'.\");");
-            builder.AppendLine("    }");
-            builder.AppendLine("    int memberCount = reader.ReadInt32();");
-            builder.AppendLine($"    if (memberCount != {schema.Members.Count}) {{");
-            builder.AppendLine($"        throw new InvalidOperationException($\"Expected exactly {schema.Members.Count} packaged scripted members but payload contained {{memberCount}}.\");");
-            builder.AppendLine("    }");
+            builder.AppendLine("    try {");
+            builder.AppendLine("        byte version = reader.ReadByte();");
+            builder.AppendLine("        if (version != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {");
+            builder.AppendLine("            throw new InvalidOperationException($\"Unsupported automatic scripted component payload received version '{version}'; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.\");");
+            builder.AppendLine("        }");
+            builder.AppendLine("        int memberCount = reader.ReadInt32();");
+            builder.AppendLine($"        if (memberCount != {schema.Members.Count}) {{");
+            builder.AppendLine($"            throw new InvalidOperationException($\"Unsupported automatic scripted component payload received member count '{{memberCount}}'; current member count '{schema.Members.Count}' is required. Regenerate/rebuild the asset in the current format.\");");
+            builder.AppendLine("        }");
 
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                builder.AppendLine("    " + BuildManagedAssignmentStatement(member, BuildReadExpression(member.ValueType)));
+                builder.AppendLine("        " + BuildManagedAssignmentStatement(member, BuildReadExpression(member.ValueType)));
             }
 
-            builder.AppendLine("    return component;");
+            builder.AppendLine("        if (stream.Position != stream.Length) {");
+            builder.AppendLine("            throw new InvalidOperationException(\"Automatic scripted component payload contains trailing data after the current schema. Regenerate/rebuild the asset in the current format.\");");
+            builder.AppendLine("        }");
+            builder.AppendLine("        return component;");
+            builder.AppendLine("    } catch (EndOfStreamException exception) {");
+            builder.AppendLine($"        throw new InvalidOperationException(\"Automatic scripted component payload is truncated; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' and current member count '{schema.Members.Count}' are required. Regenerate/rebuild the asset in the current format.\", exception);");
+            builder.AppendLine("    }");
             builder.AppendLine("}");
             return builder.ToString();
         }
@@ -230,19 +237,21 @@ namespace helengine.editor {
             builder.AppendLine("delete reader;");
             builder.AppendLine("}");
             builder.AppendLine("});");
+            builder.AppendLine("try");
+            builder.AppendLine("{");
             builder.AppendLine("const uint8_t version = reader->ReadByte();");
             builder.AppendLine("    if (version != CurrentVersion)");
             builder.AppendLine("    {");
             builder.AppendLine(UseCompactNativeExceptionMessages
                 ? "throw new InvalidOperationException();"
-                : "throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload version '\") + String::ToJoinString(version) + std::string(\"'.\"));");
+                : "throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload received version '\") + String::ToJoinString(version) + std::string(\"'; current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"' is required. Regenerate/rebuild the asset in the current format.\"));");
             builder.AppendLine("    }");
             builder.AppendLine("const int32_t memberCount = reader->ReadInt32();");
             builder.AppendLine("    if (memberCount != MemberCount)");
             builder.AppendLine("    {");
             builder.AppendLine(UseCompactNativeExceptionMessages
                 ? "throw new InvalidOperationException();"
-                : "throw new InvalidOperationException(std::string(\"Expected exactly \") + String::ToJoinString(MemberCount) + std::string(\" packaged scripted members but payload contained \") + String::ToJoinString(memberCount) + std::string(\".\"));");
+                : "throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload received member count '\") + String::ToJoinString(memberCount) + std::string(\"'; current member count '\") + String::ToJoinString(MemberCount) + std::string(\"' is required. Regenerate/rebuild the asset in the current format.\"));");
             builder.AppendLine("    }");
             builder.AppendLine($"::{schema.ComponentType.Name} *component = new ::{schema.ComponentType.Name}();");
             Dictionary<Type, string> nativeNestedHelperNames = BuildNativeNestedHelperMap(schema);
@@ -251,7 +260,20 @@ namespace helengine.editor {
                 builder.AppendLine(BuildNativeAssignmentStatement(member, BuildNativeReadExpression(member.ValueType, BuildNativeReaderVariableName(), nativeNestedHelperNames)));
             }
 
-            builder.AppendLine("return component;}");
+            builder.AppendLine("if (stream->get_Position() != stream->get_Length())");
+            builder.AppendLine("{");
+            builder.AppendLine(UseCompactNativeExceptionMessages
+                ? "throw new InvalidOperationException();"
+                : "throw new InvalidOperationException(\"Automatic scripted component payload contains trailing data after the current schema. Regenerate/rebuild the asset in the current format.\");");
+            builder.AppendLine("}");
+            builder.AppendLine("return component;");
+            builder.AppendLine("}");
+            builder.AppendLine("catch (const EndOfStreamException& exception)");
+            builder.AppendLine("{");
+            builder.AppendLine(UseCompactNativeExceptionMessages
+                ? "throw new InvalidOperationException();"
+                : "throw new InvalidOperationException(\"Automatic scripted component payload is truncated; current version and current member count are required. Regenerate/rebuild the asset in the current format.\", exception);");
+            builder.AppendLine("}");
             builder.AppendLine("}");
             builder.AppendLine("}");
             foreach (KeyValuePair<Type, string> helperEntry in nativeNestedHelperNames.OrderBy(entry => entry.Value, StringComparer.Ordinal)) {

@@ -223,20 +223,41 @@ namespace helengine.editor {
 
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported automatic scripted component payload version '{version}'.");
-            }
+            byte? receivedVersion = null;
+            int? receivedMemberCount = null;
+            try {
+                receivedVersion = reader.ReadByte();
+                if (receivedVersion != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {
+                    throw new InvalidOperationException(
+                        $"Unsupported automatic scripted component payload received version '{receivedVersion}'; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.");
+                }
 
-            int memberCount = reader.ReadInt32();
-            if (memberCount != schema.Members.Count) {
+                int memberCount = reader.ReadInt32();
+                receivedMemberCount = memberCount;
+                if (memberCount != schema.Members.Count) {
+                    throw new InvalidOperationException(
+                        $"Unsupported automatic scripted component payload received member count '{memberCount}'; current member count '{schema.Members.Count}' is required. Regenerate/rebuild the asset in the current format.");
+                }
+
+                for (int index = 0; index < memberCount; index++) {
+                    ScriptComponentReflectionMember member = schema.Members[index];
+                    member.SetValue(component, ReadSupportedMemberValue(reader, member, component, saveComponent, referenceResolver));
+                }
+
+                if (stream.Position != stream.Length) {
+                    throw new InvalidOperationException(
+                        $"Automatic scripted component payload contains trailing data after current member count '{schema.Members.Count}'. Regenerate/rebuild the asset in the current format.");
+                }
+            } catch (EndOfStreamException exception) {
+                string versionText = receivedVersion.HasValue
+                    ? $"received version '{receivedVersion.Value}', current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}'"
+                    : $"current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' (received version unavailable)";
+                string memberCountText = receivedMemberCount.HasValue
+                    ? $"received member count '{receivedMemberCount.Value}', current member count '{schema.Members.Count}'"
+                    : $"current member count '{schema.Members.Count}' (received member count unavailable)";
                 throw new InvalidOperationException(
-                    $"Automatic scripted component payload requires exactly {schema.Members.Count} members but contained {memberCount}.");
-            }
-
-            for (int index = 0; index < memberCount; index++) {
-                ScriptComponentReflectionMember member = schema.Members[index];
-                member.SetValue(component, ReadSupportedMemberValue(reader, member, component, saveComponent, referenceResolver));
+                    $"Automatic scripted component payload is truncated ({versionText}; {memberCountText}). Regenerate/rebuild the asset in the current format.",
+                    exception);
             }
         }
 

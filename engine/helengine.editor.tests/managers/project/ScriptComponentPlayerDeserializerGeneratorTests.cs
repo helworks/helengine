@@ -24,6 +24,30 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures generated managed and native ordinal readers identify current payload requirements when version, count, or member bytes are missing or invalid.
+        /// </summary>
+        [Fact]
+        public void Generate_WhenSchemaContainsSupportedMembers_EmitsCurrentPayloadDiagnostics() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TestScriptSerializableComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string managedSource = generator.Generate(schema);
+            string nativeSource = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("received version", managedSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("current version", managedSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("received member count", managedSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", managedSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", managedSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("EndOfStreamException", managedSource, StringComparison.Ordinal);
+            Assert.Contains("received version", nativeSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("current version", nativeSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("received member count", nativeSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", nativeSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", nativeSource, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures generated managed and native deserializers require the exact current rigid-body member count.
         /// </summary>
         [Fact]

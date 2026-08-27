@@ -477,6 +477,44 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures descriptor runtime payload errors identify the received and current versions with regeneration guidance.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenAutomaticScriptPayloadVersionIsWrong_ThrowsCurrentFormatError() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord record = CreateRuntimeHeaderRecord(typeof(TestScriptSerializableComponent), 2, 3);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Contains("received version", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("current version", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("1", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures descriptor runtime payload errors identify the received and current member counts with regeneration guidance.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenAutomaticScriptPayloadMemberCountIsWrong_ThrowsCurrentFormatError() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord record = CreateRuntimeHeaderRecord(typeof(TestScriptSerializableComponent), 1, 2);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Contains("received member count", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("current member count", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("3", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures the current tagged payload with an explicit zero member count round-trips for a component without persisted members.
         /// </summary>
         [Fact]
@@ -491,6 +529,31 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptComponentWithoutPersistedMembers)), record.ComponentTypeId);
             Assert.NotEmpty(record.Payload);
             Assert.NotNull(deserialized);
+        }
+
+        /// <summary>
+        /// Creates an ordinal runtime payload header for one reflected test component.
+        /// </summary>
+        /// <param name="componentType">Component type whose current persisted id should be used.</param>
+        /// <param name="version">Payload version to encode.</param>
+        /// <param name="memberCount">Payload member count to encode.</param>
+        /// <returns>Component record containing only an ordinal payload header.</returns>
+        static SceneComponentAssetRecord CreateRuntimeHeaderRecord(Type componentType, byte version, int memberCount) {
+            if (componentType == null) {
+                throw new ArgumentNullException(nameof(componentType));
+            }
+
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
+                writer.WriteByte(version);
+                writer.WriteInt32(memberCount);
+            }
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(componentType),
+                ComponentIndex = 0,
+                Payload = stream.ToArray()
+            };
         }
 
         /// <summary>
@@ -532,6 +595,186 @@ namespace helengine.editor.tests.serialization.scene {
                 () => registry.GetDeserializer("helengine.TextComponent, helengine.core"));
 
             Assert.Contains("helengine.TextComponent, helengine.core", exception.Message, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures an unqualified type name that happens to be loaded in the app domain is not accepted as a current persisted id.
+        /// </summary>
+        [Fact]
+        public void PersistedComponentTypeResolver_WhenArbitraryLoadedUnqualifiedIdIsUsed_ReturnsNull() {
+            Type resolvedType = PersistedComponentTypeResolver.TryResolve(typeof(TestScriptSerializableComponent).FullName);
+
+            Assert.Null(resolvedType);
+        }
+
+        /// <summary>
+        /// Ensures an assembly-qualified type name is not treated as a current stable persisted id without explicit registration.
+        /// </summary>
+        [Fact]
+        public void PersistedComponentTypeResolver_WhenAssemblyQualifiedProjectIdIsUsed_ReturnsNull() {
+            Type resolvedType = PersistedComponentTypeResolver.TryResolve(typeof(TestScriptSerializableComponent).AssemblyQualifiedName);
+
+            Assert.Null(resolvedType);
+        }
+
+        /// <summary>
+        /// Ensures the resolver still accepts the exact current simple-assembly persisted id for a project component.
+        /// </summary>
+        [Fact]
+        public void PersistedComponentTypeResolver_WhenExactCurrentProjectIdIsUsed_ResolvesType() {
+            string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptSerializableComponent));
+
+            Type resolvedType = PersistedComponentTypeResolver.TryResolve(componentTypeId);
+
+            Assert.Same(typeof(TestScriptSerializableComponent), resolvedType);
+        }
+
+        /// <summary>
+        /// Ensures one explicitly registered current deserializer remains resolvable by its exact stable id while id variants fail.
+        /// </summary>
+        [Fact]
+        public void RuntimeComponentRegistry_WhenCurrentDeserializerIsRegistered_ResolvesOnlyExactId() {
+            const string componentTypeId = "helengine.editor.tests.testing.TestScriptSerializableComponent, helengine.editor.tests";
+            RuntimeComponentRegistry registry = new RuntimeComponentRegistry();
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                componentTypeId,
+                typeof(TestScriptSerializableComponent));
+            registry.Register(deserializer);
+
+            Assert.Same(deserializer, registry.GetDeserializer(componentTypeId));
+            Assert.Throws<InvalidOperationException>(() => registry.GetDeserializer(componentTypeId + ", Version=1.0.0.0"));
+        }
+
+        /// <summary>
+        /// Ensures an empty ordinal runtime payload reports current-format requirements instead of exposing raw end-of-stream failure.
+        /// </summary>
+        [Fact]
+        public void RuntimeDeserializer_WhenPayloadIsEmpty_ThrowsCurrentFormatError() {
+            const string componentTypeId = "helengine.editor.tests.testing.TestScriptSerializableComponent, helengine.editor.tests";
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                componentTypeId,
+                typeof(TestScriptSerializableComponent));
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => deserializer.Deserialize(
+                new SceneComponentAssetRecord {
+                    ComponentTypeId = componentTypeId,
+                    Payload = Array.Empty<byte>()
+                },
+                null));
+
+            Assert.Contains("current version", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("member count", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures an ordinal runtime payload truncated before its version and count fails with regeneration guidance.
+        /// </summary>
+        [Fact]
+        public void RuntimeDeserializer_WhenPayloadIsTruncatedBeforeVersionAndCount_ThrowsCurrentFormatError() {
+            const string componentTypeId = "helengine.editor.tests.testing.TestScriptSerializableComponent, helengine.editor.tests";
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                componentTypeId,
+                typeof(TestScriptSerializableComponent));
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => deserializer.Deserialize(
+                new SceneComponentAssetRecord {
+                    ComponentTypeId = componentTypeId,
+                    Payload = [1]
+                },
+                null));
+
+            Assert.Contains("current version", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures an ordinal runtime payload truncated after its member count fails before attempting to materialize missing values.
+        /// </summary>
+        [Fact]
+        public void RuntimeDeserializer_WhenPayloadBodyIsTruncated_ThrowsCurrentFormatError() {
+            const string componentTypeId = "helengine.editor.tests.testing.TestScriptSerializableComponent, helengine.editor.tests";
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
+                writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                writer.WriteInt32(3);
+            }
+
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                componentTypeId,
+                typeof(TestScriptSerializableComponent));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => deserializer.Deserialize(
+                new SceneComponentAssetRecord {
+                    ComponentTypeId = componentTypeId,
+                    Payload = stream.ToArray()
+                },
+                null));
+
+            Assert.Contains("member count", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("3", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures an ordinal runtime payload with a wrong version identifies both received and current versions with regeneration guidance.
+        /// </summary>
+        [Fact]
+        public void RuntimeDeserializer_WhenPayloadVersionIsWrong_ThrowsCurrentFormatError() {
+            const string componentTypeId = "helengine.editor.tests.testing.TestScriptSerializableComponent, helengine.editor.tests";
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
+                writer.WriteByte(2);
+            }
+
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                componentTypeId,
+                typeof(TestScriptSerializableComponent));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => deserializer.Deserialize(
+                new SceneComponentAssetRecord {
+                    ComponentTypeId = componentTypeId,
+                    Payload = stream.ToArray()
+                },
+                null));
+
+            Assert.Contains("received", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("1", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures an ordinal runtime payload with a wrong member count identifies both received and current counts with regeneration guidance.
+        /// </summary>
+        [Fact]
+        public void RuntimeDeserializer_WhenMemberCountIsWrong_ThrowsCurrentFormatError() {
+            const string componentTypeId = "helengine.editor.tests.testing.TestScriptSerializableComponent, helengine.editor.tests";
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
+                writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                writer.WriteInt32(2);
+            }
+
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                componentTypeId,
+                typeof(TestScriptSerializableComponent));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => deserializer.Deserialize(
+                new SceneComponentAssetRecord {
+                    ComponentTypeId = componentTypeId,
+                    Payload = stream.ToArray()
+                },
+                null));
+
+            Assert.Contains("received", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("2", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("3", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("rebuild", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

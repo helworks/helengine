@@ -619,15 +619,33 @@ namespace helengine {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != CurrentPhysicsComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported rigid body component payload version '{version}'.");
-            }
+            try {
+                byte version = reader.ReadByte();
+                if (version != CurrentPhysicsComponentPayloadVersion) {
+                    throw new InvalidOperationException(
+                        $"Unsupported rigid body component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
+                }
 
-            RequireCurrentAutomaticMemberCount(reader, AutomaticRigidBodyMemberCount, "rigid body");
-            reader.ReadFloat3();
-            bodyKind = (BodyKind3D)reader.ReadInt32();
-            return true;
+                RequireCurrentAutomaticMemberCount(reader, AutomaticRigidBodyMemberCount, "rigid body");
+                reader.ReadFloat3();
+                int serializedBodyKind = reader.ReadInt32();
+                if (!Enum.IsDefined(typeof(BodyKind3D), serializedBodyKind)) {
+                    throw new InvalidOperationException(
+                        $"Unsupported rigid body component payload body kind '{serializedBodyKind}'; the current body-kind values are required. Regenerate/rebuild the asset in the current format.");
+                }
+
+                bodyKind = (BodyKind3D)serializedBodyKind;
+                reader.ReadDouble();
+                reader.ReadFloat3();
+                reader.ReadDouble();
+                reader.ReadByte();
+                reader.ReadDouble();
+                reader.ReadInt32();
+                RequireCurrentPayloadEnd(stream, "rigid body");
+                return true;
+            } catch (EndOfStreamException exception) {
+                throw CreateTruncatedPayloadException("rigid body", exception);
+            }
         }
 
         /// <summary>
@@ -662,16 +680,26 @@ namespace helengine {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != CurrentPhysicsComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported box collider component payload version '{version}'.");
-            }
+            try {
+                byte version = reader.ReadByte();
+                if (version != CurrentPhysicsComponentPayloadVersion) {
+                    throw new InvalidOperationException(
+                        $"Unsupported box collider component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
+                }
 
-            RequireCurrentAutomaticMemberCount(reader, AutomaticBoxColliderMemberCount, "box collider");
-            reader.ReadUInt16();
-            reader.ReadUInt16();
-            reader.ReadDouble();
-            return reader.ReadByte() != 0;
+                RequireCurrentAutomaticMemberCount(reader, AutomaticBoxColliderMemberCount, "box collider");
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                reader.ReadDouble();
+                bool isTrigger = reader.ReadByte() != 0;
+                reader.ReadDouble();
+                reader.ReadFloat3();
+                reader.ReadDouble();
+                RequireCurrentPayloadEnd(stream, "box collider");
+                return isTrigger;
+            } catch (EndOfStreamException exception) {
+                throw CreateTruncatedPayloadException("box collider", exception);
+            }
         }
 
         /// <summary>
@@ -683,16 +711,26 @@ namespace helengine {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != CurrentPhysicsComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported sphere collider component payload version '{version}'.");
-            }
+            try {
+                byte version = reader.ReadByte();
+                if (version != CurrentPhysicsComponentPayloadVersion) {
+                    throw new InvalidOperationException(
+                        $"Unsupported sphere collider component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
+                }
 
-            RequireCurrentAutomaticMemberCount(reader, AutomaticSphereColliderMemberCount, "sphere collider");
-            reader.ReadUInt16();
-            reader.ReadUInt16();
-            reader.ReadDouble();
-            return reader.ReadByte() != 0;
+                RequireCurrentAutomaticMemberCount(reader, AutomaticSphereColliderMemberCount, "sphere collider");
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                reader.ReadDouble();
+                bool isTrigger = reader.ReadByte() != 0;
+                reader.ReadSingle();
+                reader.ReadDouble();
+                reader.ReadDouble();
+                RequireCurrentPayloadEnd(stream, "sphere collider");
+                return isTrigger;
+            } catch (EndOfStreamException exception) {
+                throw CreateTruncatedPayloadException("sphere collider", exception);
+            }
         }
 
         /// <summary>
@@ -704,17 +742,27 @@ namespace helengine {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != CurrentPhysicsComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported capsule collider component payload version '{version}'.");
-            }
+            try {
+                byte version = reader.ReadByte();
+                if (version != CurrentPhysicsComponentPayloadVersion) {
+                    throw new InvalidOperationException(
+                        $"Unsupported capsule collider component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
+                }
 
-            RequireCurrentAutomaticMemberCount(reader, AutomaticCapsuleColliderMemberCount, "capsule collider");
-            reader.ReadUInt16();
-            reader.ReadUInt16();
-            reader.ReadDouble();
-            reader.ReadSingle();
-            return reader.ReadByte() != 0;
+                RequireCurrentAutomaticMemberCount(reader, AutomaticCapsuleColliderMemberCount, "capsule collider");
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                reader.ReadDouble();
+                reader.ReadSingle();
+                bool isTrigger = reader.ReadByte() != 0;
+                reader.ReadSingle();
+                reader.ReadDouble();
+                reader.ReadDouble();
+                RequireCurrentPayloadEnd(stream, "capsule collider");
+                return isTrigger;
+            } catch (EndOfStreamException exception) {
+                throw CreateTruncatedPayloadException("capsule collider", exception);
+            }
         }
 
         /// <summary>
@@ -734,7 +782,7 @@ namespace helengine {
             int memberCount = reader.ReadInt32();
             if (memberCount != expectedMemberCount) {
                 throw new InvalidOperationException(
-                    $"Unsupported {componentLabel} component payload member count '{memberCount}'; current count '{expectedMemberCount}' is required.");
+                    $"Unsupported {componentLabel} component payload received member count '{memberCount}'; current member count '{expectedMemberCount}' is required. Regenerate/rebuild the asset in the current format.");
             }
         }
 
@@ -747,18 +795,64 @@ namespace helengine {
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             using MemoryStream stream = new MemoryStream(payload, false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != CurrentPhysicsComponentPayloadVersion) {
-                throw new InvalidOperationException($"Unsupported static mesh collider component payload version '{version}'.");
+            try {
+                byte version = reader.ReadByte();
+                if (version != CurrentPhysicsComponentPayloadVersion) {
+                    throw new InvalidOperationException(
+                        $"Unsupported static mesh collider component payload received version '{version}'; current version '{CurrentPhysicsComponentPayloadVersion}' is required. Regenerate/rebuild the asset in the current format.");
+                }
+
+                RequireCurrentAutomaticMemberCount(reader, AutomaticStaticMeshColliderMemberCount, "static mesh collider");
+                SkipAutomaticStaticMeshCollisionData(reader);
+                reader.ReadUInt16();
+                reader.ReadUInt16();
+                SkipAutomaticStaticMeshCookedRuntimeData(reader);
+                reader.ReadDouble();
+                bool isTrigger = reader.ReadByte() != 0;
+                reader.ReadDouble();
+                reader.ReadDouble();
+                RequireCurrentPayloadEnd(stream, "static mesh collider");
+                return isTrigger;
+            } catch (EndOfStreamException exception) {
+                throw CreateTruncatedPayloadException("static mesh collider", exception);
+            }
+        }
+
+        /// <summary>
+        /// Requires one current physics payload to end immediately after its exact schema.
+        /// </summary>
+        /// <param name="stream">Payload stream being validated.</param>
+        /// <param name="componentLabel">Human-readable component label used in the failure message.</param>
+        static void RequireCurrentPayloadEnd(MemoryStream stream, string componentLabel) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+            if (string.IsNullOrWhiteSpace(componentLabel)) {
+                throw new ArgumentException("Component label must be provided.", nameof(componentLabel));
+            }
+            if (stream.Position != stream.Length) {
+                throw new InvalidOperationException(
+                    $"Unsupported {componentLabel} component payload contains trailing data after the current schema. Regenerate/rebuild the asset in the current format.");
+            }
+        }
+
+        /// <summary>
+        /// Builds one current-format diagnostic for a truncated physics payload.
+        /// </summary>
+        /// <param name="componentLabel">Human-readable component label used in the failure message.</param>
+        /// <param name="innerException">Underlying end-of-stream failure.</param>
+        /// <returns>Current-format payload exception.</returns>
+        static InvalidOperationException CreateTruncatedPayloadException(string componentLabel, EndOfStreamException innerException) {
+            if (string.IsNullOrWhiteSpace(componentLabel)) {
+                throw new ArgumentException("Component label must be provided.", nameof(componentLabel));
+            }
+            if (innerException == null) {
+                throw new ArgumentNullException(nameof(innerException));
             }
 
-            RequireCurrentAutomaticMemberCount(reader, AutomaticStaticMeshColliderMemberCount, "static mesh collider");
-            SkipAutomaticStaticMeshCollisionData(reader);
-            reader.ReadUInt16();
-            reader.ReadUInt16();
-            SkipAutomaticStaticMeshCookedRuntimeData(reader);
-            reader.ReadDouble();
-            return reader.ReadByte() != 0;
+            return new InvalidOperationException(
+                $"The {componentLabel} component payload is truncated; current version '{CurrentPhysicsComponentPayloadVersion}' and its exact current member schema are required. Regenerate/rebuild the asset in the current format.",
+                innerException);
         }
 
         /// <summary>
@@ -825,7 +919,7 @@ namespace helengine {
                 return;
             }
             if (length < -1) {
-                throw new InvalidOperationException("Array length cannot be negative.");
+                throw new InvalidOperationException("Array length cannot be negative in the current static-mesh payload. Regenerate/rebuild the asset in the current format.");
             }
 
             for (int index = 0; index < length; index++) {
@@ -847,7 +941,7 @@ namespace helengine {
                 return;
             }
             if (length < -1) {
-                throw new InvalidOperationException("Array length cannot be negative.");
+                throw new InvalidOperationException("Array length cannot be negative in the current static-mesh payload. Regenerate/rebuild the asset in the current format.");
             }
 
             for (int index = 0; index < length; index++) {
@@ -869,7 +963,7 @@ namespace helengine {
                 return;
             }
             if (length < -1) {
-                throw new InvalidOperationException("Array length cannot be negative.");
+                throw new InvalidOperationException("Array length cannot be negative in the current static-mesh payload. Regenerate/rebuild the asset in the current format.");
             }
 
             for (int index = 0; index < length; index++) {

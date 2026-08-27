@@ -80,19 +80,40 @@ namespace helengine {
             Component component = CreateComponent(ComponentTypeValue);
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            byte version = reader.ReadByte();
-            if (version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported automatic scripted component payload version '{version}'.");
-            }
+            byte? receivedVersion = null;
+            int? receivedMemberCount = null;
+            try {
+                receivedVersion = reader.ReadByte();
+                if (receivedVersion != CurrentVersion) {
+                    throw new InvalidOperationException(
+                        $"Unsupported automatic scripted component payload received version '{receivedVersion}'; current version '{CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.");
+                }
 
-            int memberCount = reader.ReadInt32();
-            if (memberCount != MemberCount) {
+                int memberCount = reader.ReadInt32();
+                receivedMemberCount = memberCount;
+                if (memberCount != MemberCount) {
+                    throw new InvalidOperationException(
+                        $"Unsupported automatic scripted component payload received member count '{memberCount}'; current member count '{MemberCount}' is required. Regenerate/rebuild the asset in the current format.");
+                }
+
+                for (int index = 0; index < memberCount; index++) {
+                    SetMemberValue(component, Members[index], ReadSupportedValue(reader, MemberTypes[index], referenceResolver));
+                }
+
+                if (stream.Position != stream.Length) {
+                    throw new InvalidOperationException(
+                        $"Automatic scripted component payload contains trailing data after current member count '{MemberCount}'. Regenerate/rebuild the asset in the current format.");
+                }
+            } catch (EndOfStreamException exception) {
+                string versionText = receivedVersion.HasValue
+                    ? $"received version '{receivedVersion.Value}', current version '{CurrentVersion}'"
+                    : $"current version '{CurrentVersion}' (received version unavailable)";
+                string memberCountText = receivedMemberCount.HasValue
+                    ? $"received member count '{receivedMemberCount.Value}', current member count '{MemberCount}'"
+                    : $"current member count '{MemberCount}' (received member count unavailable)";
                 throw new InvalidOperationException(
-                    $"Packaged scripted component '{ComponentTypeIdValue}' requires exactly {MemberCount} members but payload contained {memberCount}.");
-            }
-
-            for (int index = 0; index < memberCount; index++) {
-                SetMemberValue(component, Members[index], ReadSupportedValue(reader, MemberTypes[index], referenceResolver));
+                    $"Automatic scripted component payload is truncated ({versionText}; {memberCountText}). Regenerate/rebuild the asset in the current format.",
+                    exception);
             }
 
             return component;

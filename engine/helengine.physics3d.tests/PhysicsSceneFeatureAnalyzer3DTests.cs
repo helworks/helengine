@@ -336,6 +336,81 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Ensures a current rigid-body payload missing its trailing sleep fields is rejected rather than analyzed from a prefix.
+        /// </summary>
+        [Fact]
+        public void Analyze_WithTruncatedCurrentRigidBodyPayload_ThrowsCurrentFormatError() {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => PhysicsSceneFeatureAnalyzer3D.Analyze(CreateSingleComponentScene(CreateCurrentRigidBodyRecordWithoutSleepFields())));
+
+            Assert.Contains("truncated", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures a current box-collider payload missing its trailing physical fields is rejected rather than analyzed from a prefix.
+        /// </summary>
+        [Fact]
+        public void Analyze_WithTruncatedCurrentBoxColliderPayload_ThrowsCurrentFormatError() {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => PhysicsSceneFeatureAnalyzer3D.Analyze(CreateSingleComponentScene(CreateCurrentBoxColliderRecordWithoutTrailingFields())));
+
+            Assert.Contains("truncated", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures a current sphere-collider payload missing its trailing physical fields is rejected rather than analyzed from a prefix.
+        /// </summary>
+        [Fact]
+        public void Analyze_WithTruncatedCurrentSphereColliderPayload_ThrowsCurrentFormatError() {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => PhysicsSceneFeatureAnalyzer3D.Analyze(CreateSingleComponentScene(CreateCurrentSphereColliderRecordWithoutTrailingFields())));
+
+            Assert.Contains("truncated", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures a current capsule-collider payload missing its trailing physical fields is rejected rather than analyzed from a prefix.
+        /// </summary>
+        [Fact]
+        public void Analyze_WithTruncatedCurrentCapsuleColliderPayload_ThrowsCurrentFormatError() {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => PhysicsSceneFeatureAnalyzer3D.Analyze(CreateSingleComponentScene(CreateCurrentCapsuleColliderRecordWithoutTrailingFields())));
+
+            Assert.Contains("truncated", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures a current static-mesh collider payload missing its trailing physical fields is rejected rather than analyzed from a prefix.
+        /// </summary>
+        [Fact]
+        public void Analyze_WithTruncatedCurrentStaticMeshColliderPayload_ThrowsCurrentFormatError() {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => PhysicsSceneFeatureAnalyzer3D.Analyze(CreateSingleComponentScene(CreateCurrentStaticMeshColliderRecordWithoutTrailingFields())));
+
+            Assert.Contains("truncated", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures a current payload with bytes beyond the exact schema is rejected instead of silently accepting trailing data.
+        /// </summary>
+        [Fact]
+        public void Analyze_WithTrailingCurrentColliderPayloadBytes_ThrowsCurrentFormatError() {
+            SceneComponentAssetRecord record = CreateBoxColliderRecord(float3.One, false);
+            record.Payload = AppendPayloadByte(record.Payload, 0x7f);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => PhysicsSceneFeatureAnalyzer3D.Analyze(CreateSingleComponentScene(record)));
+
+            Assert.Contains("trailing", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures the analyzer no longer contains the removed legacy box-collider payload version marker.
         /// </summary>
         [Fact]
@@ -444,6 +519,29 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Creates a current rigid-body payload that stops after the pre-sleep reflected members.
+        /// </summary>
+        /// <returns>Truncated rigid-body scene record.</returns>
+        static SceneComponentAssetRecord CreateCurrentRigidBodyRecordWithoutSleepFields() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(8);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteInt32((int)BodyKind3D.Static);
+            writer.WriteDouble(1d);
+            writer.WriteFloat3(float3.Zero);
+            writer.WriteDouble(1d);
+            writer.WriteByte(0);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.RigidBody3DComponent",
+                ComponentIndex = 0,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
         /// Creates one serialized box-collider component record.
         /// </summary>
         /// <param name="size">Full collider size to encode.</param>
@@ -486,6 +584,27 @@ namespace helengine.physics3d.tests {
                 writer.WriteUInt16(ushort.MaxValue);
                 writer.WriteByte(isTrigger ? (byte)1 : (byte)0);
             }
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.BoxCollider3DComponent",
+                ComponentIndex = 1,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates a current box-collider payload that stops after the trigger member.
+        /// </summary>
+        /// <returns>Truncated box-collider scene record.</returns>
+        static SceneComponentAssetRecord CreateCurrentBoxColliderRecordWithoutTrailingFields() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(7);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteDouble(0.4d);
+            writer.WriteByte(0);
 
             return new SceneComponentAssetRecord {
                 ComponentTypeId = "helengine.BoxCollider3DComponent",
@@ -545,6 +664,27 @@ namespace helengine.physics3d.tests {
         }
 
         /// <summary>
+        /// Creates a current sphere-collider payload that stops after the trigger member.
+        /// </summary>
+        /// <returns>Truncated sphere-collider scene record.</returns>
+        static SceneComponentAssetRecord CreateCurrentSphereColliderRecordWithoutTrailingFields() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(7);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteDouble(0.4d);
+            writer.WriteByte(0);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.SphereCollider3DComponent",
+                ComponentIndex = 1,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
         /// Creates one serialized capsule-collider component record.
         /// </summary>
         /// <param name="radius">Capsule collider radius to encode.</param>
@@ -569,6 +709,94 @@ namespace helengine.physics3d.tests {
                 ComponentIndex = 1,
                 Payload = stream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Creates a current capsule-collider payload that stops after the trigger member.
+        /// </summary>
+        /// <returns>Truncated capsule-collider scene record.</returns>
+        static SceneComponentAssetRecord CreateCurrentCapsuleColliderRecordWithoutTrailingFields() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(8);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteDouble(0.4d);
+            writer.WriteSingle(2f);
+            writer.WriteByte(0);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.CapsuleCollider3DComponent",
+                ComponentIndex = 1,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates a current static-mesh collider payload with optional reference fields omitted and trailing friction fields absent.
+        /// </summary>
+        /// <returns>Truncated static-mesh collider scene record.</returns>
+        static SceneComponentAssetRecord CreateCurrentStaticMeshColliderRecordWithoutTrailingFields() {
+            using MemoryStream stream = new MemoryStream();
+            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
+            writer.WriteByte(1);
+            writer.WriteInt32(8);
+            writer.WriteByte(0);
+            writer.WriteUInt16(1);
+            writer.WriteUInt16(ushort.MaxValue);
+            writer.WriteByte(0);
+            writer.WriteDouble(0.4d);
+            writer.WriteByte(0);
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.StaticMeshCollider3DComponent",
+                ComponentIndex = 1,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates one scene asset containing one serialized component record.
+        /// </summary>
+        /// <param name="record">Serialized component record.</param>
+        /// <returns>Single-record scene asset.</returns>
+        static SceneAsset CreateSingleComponentScene(SceneComponentAssetRecord record) {
+            if (record == null) {
+                throw new ArgumentNullException(nameof(record));
+            }
+
+            return new SceneAsset {
+                Id = "Scenes/PhysicsTruncatedPayload.helen",
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1,
+                        Name = "Payload",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = new[] { record },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            };
+        }
+
+        /// <summary>
+        /// Appends one byte to a serialized component payload.
+        /// </summary>
+        /// <param name="payload">Current component payload.</param>
+        /// <param name="value">Trailing byte to append.</param>
+        /// <returns>Payload with one appended byte.</returns>
+        static byte[] AppendPayloadByte(byte[] payload, byte value) {
+            if (payload == null) {
+                throw new ArgumentNullException(nameof(payload));
+            }
+
+            byte[] result = new byte[payload.Length + 1];
+            Buffer.BlockCopy(payload, 0, result, 0, payload.Length);
+            result[^1] = value;
+            return result;
         }
 
         /// <summary>
