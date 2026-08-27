@@ -15,6 +15,11 @@ namespace helengine.editor.tests {
         readonly string TempProjectRootPath;
 
         /// <summary>
+        /// Authoring session injected into the uninitialized editor-session fixture.
+        /// </summary>
+        EditorProjectAuthoringSession AuthoringSession;
+
+        /// <summary>
         /// Initializes the temporary project tree required by the editor-session project menu tests.
         /// </summary>
         public EditorSessionProjectMenuTests() {
@@ -33,6 +38,9 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             TestEditorCommand.Reset();
+            if (AuthoringSession != null) {
+                AuthoringSession.Dispose();
+            }
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -83,7 +91,8 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
-            SetPrivateField(session, "AuthoringSession", new EditorProjectAuthoringSession(assetImportManager));
+            AuthoringSession = new EditorProjectAuthoringSession(assetImportManager);
+            SetPrivateField(session, "AuthoringSession", AuthoringSession);
             return session;
         }
 

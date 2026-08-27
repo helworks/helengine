@@ -12,10 +12,44 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     [Fact]
     public void EditorCommandContext_WhenCapabilityIsInjected_ExposesTheSameCapability() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        IEditorProjectAssetAuthoringService capability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(projectRootPath);
-        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), capability);
+        IEditorProjectAuthoringSession session = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(projectRootPath);
+        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), session);
 
-        Assert.Same(capability, context.AssetAuthoring);
+        Assert.Same(session, context.Authoring);
+        session.Dispose();
+    }
+
+    /// <summary>
+    /// Ensures the transitional factory path returns only the legacy capability and does not erase a session lifetime.
+    /// </summary>
+    [Fact]
+    public void Factory_Create_ReturnsNonDisposableLegacyCapability() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        try {
+            IEditorProjectAssetAuthoringService capability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(projectRootPath);
+
+            Assert.IsNotType<EditorProjectAuthoringSession>(capability);
+            Assert.False(capability is IDisposable);
+        } finally {
+            DeleteTemporaryProjectRoot(projectRootPath);
+        }
+    }
+
+    /// <summary>
+    /// Ensures the explicit session factory path returns the disposable current project session.
+    /// </summary>
+    [Fact]
+    public void Factory_CreateSession_ReturnsDisposableProjectSession() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        try {
+            IEditorProjectAuthoringSession session = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(projectRootPath);
+
+            Assert.IsType<EditorProjectAuthoringSession>(session);
+            Assert.IsAssignableFrom<IDisposable>(session);
+            session.Dispose();
+        } finally {
+            DeleteTemporaryProjectRoot(projectRootPath);
+        }
     }
 
     /// <summary>
@@ -170,6 +204,16 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
         string projectRootPath = Path.Combine(Path.GetTempPath(), "helengine-authoring-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(projectRootPath);
         return projectRootPath;
+    }
+
+    /// <summary>
+    /// Deletes one temporary project root created by a factory test.
+    /// </summary>
+    /// <param name="projectRootPath">Temporary project root path.</param>
+    static void DeleteTemporaryProjectRoot(string projectRootPath) {
+        if (Directory.Exists(projectRootPath)) {
+            Directory.Delete(projectRootPath, true);
+        }
     }
 
     /// <summary>

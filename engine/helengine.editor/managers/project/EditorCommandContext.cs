@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorCommandContext : IEditorCommandContext {
         /// <summary>
+        /// Transitional capability for callers that still use the older asset-authoring surface.
+        /// </summary>
+        readonly IEditorProjectAssetAuthoringService AssetAuthoringValue;
+
+        /// <summary>
         /// Initializes one editor command context.
         /// </summary>
         /// <param name="projectRootPath">Absolute project root path for the active editor session.</param>
@@ -12,22 +17,7 @@ namespace helengine.editor {
         public EditorCommandContext(
             string projectRootPath,
             IScriptTypeResolver scriptTypeResolver,
-            IEditorProjectAuthoringSession authoring)
-            : this(projectRootPath, scriptTypeResolver, authoring, authoring as IEditorProjectAssetAuthoringService) {
-        }
-
-        /// <summary>
-        /// Initializes one editor command context over an authoring session and its transitional capability.
-        /// </summary>
-        /// <param name="projectRootPath">Absolute project root path for the active editor session.</param>
-        /// <param name="scriptTypeResolver">Resolver backed by the currently loaded project assemblies.</param>
-        /// <param name="authoring">Host-owned project authoring session for the active project.</param>
-        /// <param name="assetAuthoring">Transitional asset-authoring capability backed by the same host session.</param>
-        public EditorCommandContext(
-            string projectRootPath,
-            IScriptTypeResolver scriptTypeResolver,
-            IEditorProjectAuthoringSession authoring,
-            IEditorProjectAssetAuthoringService assetAuthoring) {
+            IEditorProjectAuthoringSession authoring) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -36,32 +26,12 @@ namespace helengine.editor {
             }
             if (authoring == null) {
                 throw new ArgumentNullException(nameof(authoring));
-            } else if (assetAuthoring == null) {
-                throw new ArgumentNullException(nameof(assetAuthoring));
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             ScriptTypeResolver = scriptTypeResolver;
-            AssetAuthoring = assetAuthoring;
+            AssetAuthoringValue = authoring as IEditorProjectAssetAuthoringService;
             Authoring = authoring;
-        }
-
-        /// <summary>
-        /// Initializes a context from the transitional asset-authoring capability when it is backed by a project session.
-        /// </summary>
-        /// <param name="projectRootPath">Absolute project root path for the active editor session.</param>
-        /// <param name="scriptTypeResolver">Resolver backed by the currently loaded project assemblies.</param>
-        /// <param name="assetAuthoring">Host-owned capability backed by the active project session.</param>
-        public EditorCommandContext(
-            string projectRootPath,
-            IScriptTypeResolver scriptTypeResolver,
-            IEditorProjectAssetAuthoringService assetAuthoring)
-            : this(
-                projectRootPath,
-                scriptTypeResolver,
-                assetAuthoring as IEditorProjectAuthoringSession
-                    ?? throw new ArgumentException("Asset authoring must be backed by a project authoring session.", nameof(assetAuthoring)),
-                assetAuthoring) {
         }
 
         /// <summary>
@@ -75,9 +45,17 @@ namespace helengine.editor {
         public IScriptTypeResolver ScriptTypeResolver { get; }
 
         /// <summary>
-        /// Gets the host-owned asset-authoring capability for the active project.
+        /// Gets the transitional asset-authoring capability for callers that still use that surface.
         /// </summary>
-        public IEditorProjectAssetAuthoringService AssetAuthoring { get; }
+        public IEditorProjectAssetAuthoringService AssetAuthoring {
+            get {
+                if (AssetAuthoringValue == null) {
+                    throw new InvalidOperationException("The active authoring session does not expose the transitional asset-authoring capability.");
+                }
+
+                return AssetAuthoringValue;
+            }
+        }
 
         /// <summary>
         /// Gets the host-owned project authoring session for this command context.

@@ -5,22 +5,44 @@ namespace helengine.editor.tests.managers.asset;
 /// <summary>
 /// Verifies project-scoped authoring sessions expose one stable public composition boundary.
 /// </summary>
-public sealed class EditorProjectAuthoringSessionTests {
+public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     /// <summary>
-    /// Ensures an injected host-owned session is returned unchanged by every command-context authoring property.
+    /// Temporary roots created by this test fixture.
+    /// </summary>
+    readonly List<string> TemporaryProjectRoots = new List<string>();
+
+    /// <summary>
+    /// Real sessions created by this test fixture.
+    /// </summary>
+    readonly List<IDisposable> Sessions = new List<IDisposable>();
+
+    /// <summary>
+    /// Ensures an injected new-only session is returned unchanged by the command context.
     /// </summary>
     [Fact]
     public void Authoring_WhenSessionIsInjected_ReturnsTheHostOwnedInstance() {
         string projectRootPath = CreateTemporaryProjectRoot();
         FakeEditorProjectAuthoringSession authoring = new FakeEditorProjectAuthoringSession();
-        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), (IEditorProjectAuthoringSession)authoring);
+        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), authoring);
 
         Assert.Same(authoring, context.Authoring);
-        Assert.Same(authoring, context.AssetAuthoring);
     }
 
     /// <summary>
-    /// Ensures a session normalizes its project and assets roots before resolving references and rejects use after idempotent disposal.
+    /// Ensures a concrete session can be passed to the command context without overload ambiguity or casts.
+    /// </summary>
+    [Fact]
+    public void Authoring_WhenConcreteSessionIsPassed_IsUnambiguous() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        EditorProjectAuthoringSession authoring = TrackSession(new EditorProjectAuthoringSession(CreateAssetImportManager(projectRootPath)));
+
+        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), authoring);
+
+        Assert.Same(authoring, context.Authoring);
+    }
+
+    /// <summary>
+    /// Ensures a session normalizes its project and assets roots before resolving references and rejects use after disposal.
     /// </summary>
     [Fact]
     public void Session_CanonicalizesRoots_AndDisposeIsIdempotent() {
@@ -31,10 +53,10 @@ public sealed class EditorProjectAuthoringSessionTests {
         File.WriteAllText(sourcePath + ".hmeta", "{\"version\":1,\"assetId\":\"00112233445566778899aabbccddeeff\",\"formerAssetIds\":[]}");
         ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
 
-        EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(
+        EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
             Path.Combine(projectRootPath, "."),
             Array.Empty<IAssetImporterRegistration>(),
-            contentManager);
+            contentManager));
 
         SceneAssetReference reference = session.CreateReference("models/../models/ship.obj", AssetEntryKind.Model);
 
@@ -50,10 +72,7 @@ public sealed class EditorProjectAuthoringSessionTests {
     [Fact]
     public void WriteAsset_BeforeStableWriteService_ThrowsTaskBoundaryException() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        AssetImportManager assetImportManager = new AssetImportManager(
-            projectRootPath,
-            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
-        EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(assetImportManager);
+        EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(CreateAssetImportManager(projectRootPath)));
 
         Assert.Throws<NotSupportedException>(() => session.WriteAsset("models/test.hasset", new ModelAsset {
             Id = "Models/Test",
@@ -72,10 +91,7 @@ public sealed class EditorProjectAuthoringSessionTests {
     [Fact]
     public void BeginTransaction_BeforeRecoverableTransactionService_ThrowsTaskBoundaryException() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        AssetImportManager assetImportManager = new AssetImportManager(
-            projectRootPath,
-            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
-        EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(assetImportManager);
+        EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(CreateAssetImportManager(projectRootPath)));
 
         Assert.Throws<NotSupportedException>(() => session.BeginTransaction());
     }
@@ -86,14 +102,11 @@ public sealed class EditorProjectAuthoringSessionTests {
     [Fact]
     public void Dispose_ReleasesOwnedLifetimeExactlyOnce() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        AssetImportManager assetImportManager = new AssetImportManager(
-            projectRootPath,
-            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
         CountingSessionLifetime lifetime = new CountingSessionLifetime();
-        EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(
-            assetImportManager,
+        EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
+            CreateAssetImportManager(projectRootPath),
             new EditorAssetHashCache(projectRootPath),
-            lifetime);
+            lifetime));
 
         session.Dispose();
         session.Dispose();
@@ -117,19 +130,57 @@ public sealed class EditorProjectAuthoringSessionTests {
     }
 
     /// <summary>
-    /// Creates one isolated project root for the session contract tests.
+    /// Disposes every real session and removes every temporary root created by this fixture.
     /// </summary>
-    /// <returns>Absolute temporary project root path.</returns>
-    static string CreateTemporaryProjectRoot() {
+    public void Dispose() {
+        for (int index = 0; index < Sessions.Count; index++) {
+            Sessions[index].Dispose();
+        }
+
+        for (int index = 0; index < TemporaryProjectRoots.Count; index++) {
+            string projectRootPath = TemporaryProjectRoots[index];
+            if (Directory.Exists(projectRootPath)) {
+                Directory.Delete(projectRootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Creates and tracks one isolated project root for the session contract tests.
+    /// </summary>
+    /// <returns>New temporary project root path.</returns>
+    string CreateTemporaryProjectRoot() {
         string projectRootPath = Path.Combine(Path.GetTempPath(), "helengine-authoring-session-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(projectRootPath);
+        TemporaryProjectRoots.Add(projectRootPath);
         return projectRootPath;
     }
 
     /// <summary>
-    /// Supplies the complete public session contract without constructing any editor internals.
+    /// Tracks one real session for fixture cleanup.
     /// </summary>
-    sealed class FakeEditorProjectAuthoringSession : IEditorProjectAuthoringSession, IEditorProjectAssetAuthoringService {
+    /// <param name="session">Session to track.</param>
+    /// <returns>The same session for inline construction.</returns>
+    EditorProjectAuthoringSession TrackSession(EditorProjectAuthoringSession session) {
+        Sessions.Add(session);
+        return session;
+    }
+
+    /// <summary>
+    /// Creates one host import manager for a session test.
+    /// </summary>
+    /// <param name="projectRootPath">Project root path.</param>
+    /// <returns>Host import manager.</returns>
+    static AssetImportManager CreateAssetImportManager(string projectRootPath) {
+        return new AssetImportManager(
+            projectRootPath,
+            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
+    }
+
+    /// <summary>
+    /// Supplies only the current public session contract to test command-context overload resolution.
+    /// </summary>
+    sealed class FakeEditorProjectAuthoringSession : IEditorProjectAuthoringSession {
         /// <summary>
         /// Creates an empty fake session for command-context identity assertions.
         /// </summary>
@@ -184,185 +235,9 @@ public sealed class EditorProjectAuthoringSessionTests {
         }
 
         /// <summary>
-        /// Releases no owned resources because this fake only tests object identity.
+        /// Releases no resources because this fake only tests object identity.
         /// </summary>
         public void Dispose() {
-        }
-
-        /// <summary>
-        /// Loads no typed texture settings because this fake only implements the transitional service surface.
-        /// </summary>
-        public TextureAssetImportSettings LoadOrCreateTextureImportSettings(string sourcePath) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Saves no typed texture settings because this fake only implements the transitional service surface.
-        /// </summary>
-        public void SaveTextureImportSettings(string sourcePath, TextureAssetImportSettings settings) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Loads no typed model settings because this fake only implements the transitional service surface.
-        /// </summary>
-        public ModelAssetImportSettings LoadOrCreateModelImportSettings(string sourcePath) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Loads no typed audio settings because this fake only implements the transitional service surface.
-        /// </summary>
-        public AudioAssetImportSettings LoadOrCreateAudioImportSettings(string sourcePath) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Loads no sectioned settings because this fake only implements the transitional service surface.
-        /// </summary>
-        public AssetImportSettings LoadOrCreateSectionedImportSettings(string sourcePath) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Saves no typed model settings because this fake only implements the transitional service surface.
-        /// </summary>
-        public void SaveModelImportSettings(string sourcePath, ModelAssetImportSettings settings) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Saves no typed audio settings because this fake only implements the transitional service surface.
-        /// </summary>
-        public void SaveAudioImportSettings(string sourcePath, AudioAssetImportSettings settings) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Saves no sectioned settings because this fake only implements the transitional service surface.
-        /// </summary>
-        public void SaveSectionedImportSettings(string sourcePath, AssetImportSettings settings) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Resolves no runtime model because this fake only implements the transitional service surface.
-        /// </summary>
-        public RuntimeModel ResolveRuntimeModel(string sourcePath) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Resolves no font because this fake only implements the transitional service surface.
-        /// </summary>
-        public FontAsset ResolveFontAsset(string sourcePath) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Resolves no texture because this fake only implements the transitional service surface.
-        /// </summary>
-        public TextureAsset ResolveTextureAsset(string sourcePath) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Creates no scene resolver because this fake only implements the transitional service surface.
-        /// </summary>
-        public ISceneAssetReferenceResolver CreateSceneAssetReferenceResolver() {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Writes no native asset because this fake only implements the transitional service surface.
-        /// </summary>
-        public void WriteNativeAsset(string relativePath, Asset asset) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Writes no explicitly identified native asset because this fake only implements the transitional service surface.
-        /// </summary>
-        public void WriteNativeAsset(string relativePath, Asset asset, string authoringAssetId) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Writes no native scene because this fake only implements the transitional service surface.
-        /// </summary>
-        public void WriteNativeScene(string relativePath, SceneSettingsAsset sceneSettings, Entity[] roots, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Canonicalizes no component state because this fake only implements the transitional service surface.
-        /// </summary>
-        public bool CanonicalizeAssetReferences(Component component, EntityComponentSaveState saveState) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Writes no native blueprint because this fake only implements the transitional service surface.
-        /// </summary>
-        public void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Writes no explicitly identified native blueprint because this fake only implements the transitional service surface.
-        /// </summary>
-        public void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Writes no generated cache asset because this fake only implements the transitional service surface.
-        /// </summary>
-        public void WriteGeneratedCacheAsset(string relativePath, Asset asset) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Writes no native material because this fake only implements the transitional service surface.
-        /// </summary>
-        public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Writes no explicitly identified native material because this fake only implements the transitional service surface.
-        /// </summary>
-        public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition, string authoringAssetId) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Creates no file reference because this fake only implements the transitional service surface.
-        /// </summary>
-        public SceneAssetReference CreateFileReference(string relativePath, AssetEntryKind expectedKind) {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Loads no native asset because this fake only implements the transitional service surface.
-        /// </summary>
-        public TAsset LoadNativeAsset<TAsset>(string relativePath) where TAsset : Asset {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Loads no imported texture because this fake only implements the transitional service surface.
-        /// </summary>
-        public bool TryLoadImportedTextureAsset(string assetId, out TextureAsset textureAsset) {
-            textureAsset = null;
-            return false;
-        }
-
-        /// <summary>
-        /// Returns no project platform identifiers because this fake only implements the transitional service surface.
-        /// </summary>
-        public IReadOnlyList<string> GetSupportedPlatformIds() {
-            return Array.Empty<string>();
         }
     }
 

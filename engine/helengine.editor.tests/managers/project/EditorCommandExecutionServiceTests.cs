@@ -93,8 +93,7 @@ public sealed class EditorCommandExecutionServiceTests {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             ScriptTypeResolver = scriptTypeResolver ?? throw new ArgumentNullException(nameof(scriptTypeResolver));
             AssetAuthoring = assetAuthoring ?? new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(ProjectRootPath);
-            Authoring = AssetAuthoring as IEditorProjectAuthoringSession
-                ?? throw new InvalidOperationException("The test asset-authoring capability must be backed by a project authoring session.");
+            Authoring = new TestEditorCommandAuthoringSession();
         }
 
         /// <summary>
@@ -116,6 +115,70 @@ public sealed class EditorCommandExecutionServiceTests {
         /// Gets the project authoring session surfaced by the fake context.
         /// </summary>
         public IEditorProjectAuthoringSession Authoring { get; }
+    }
+
+    /// <summary>
+    /// Supplies only the current authoring-session contract to command execution tests.
+    /// </summary>
+    sealed class TestEditorCommandAuthoringSession : IEditorProjectAuthoringSession {
+        /// <summary>
+        /// Creates an empty authoring-session test double.
+        /// </summary>
+        public TestEditorCommandAuthoringSession() {
+            RepairReport = new EditorAssetRepairReport();
+        }
+
+        /// <summary>
+        /// Gets the empty repair report used by the test double.
+        /// </summary>
+        public EditorAssetRepairReport RepairReport { get; }
+
+        /// <summary>
+        /// Rejects unsupported reference creation in this command-execution test double.
+        /// </summary>
+        public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) {
+            throw new NotSupportedException();
+        }
+
+        /// <summary>
+        /// Rejects unsupported reference resolution in this command-execution test double.
+        /// </summary>
+        public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) {
+            throw new NotSupportedException();
+        }
+
+        /// <summary>
+        /// Rejects unsupported model loading in this command-execution test double.
+        /// </summary>
+        public RuntimeModel LoadImportedRuntimeModel(string relativePath) {
+            throw new NotSupportedException();
+        }
+
+        /// <summary>
+        /// Rejects unsupported native writes in this command-execution test double.
+        /// </summary>
+        public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
+            throw new NotSupportedException();
+        }
+
+        /// <summary>
+        /// Rejects unsupported transactions in this command-execution test double.
+        /// </summary>
+        public EditorAuthoringTransaction BeginTransaction() {
+            throw new NotSupportedException();
+        }
+
+        /// <summary>
+        /// Performs no refresh in this command-execution test double.
+        /// </summary>
+        public void RefreshExternalChanges() {
+        }
+
+        /// <summary>
+        /// Releases no resources in this command-execution test double.
+        /// </summary>
+        public void Dispose() {
+        }
     }
 
     /// <summary>
