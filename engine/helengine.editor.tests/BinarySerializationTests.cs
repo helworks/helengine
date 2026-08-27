@@ -531,6 +531,22 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the dedicated shader reader rejects a payload whose header record kind is not shader-owned.
+        /// </summary>
+        [Fact]
+        public void ShaderAssetBinarySerializer_WhenHeaderRecordKindIsNotShader_ThrowsFormatError() {
+            byte[] data = global::helengine.files.AssetSerializer.SerializeToBytes(CreateShaderAsset());
+            data[8] = 0;
+            data[9] = 0;
+            using MemoryStream stream = new MemoryStream(data, writable: false);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => ShaderAssetBinarySerializer.Deserialize(stream));
+
+            Assert.Contains("record kind", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures the packaged runtime asset serializer rejects editor-only blueprint payloads instead of deserializing them at runtime.
         /// </summary>
         [Fact]

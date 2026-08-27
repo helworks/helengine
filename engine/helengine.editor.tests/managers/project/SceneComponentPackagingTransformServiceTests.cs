@@ -326,7 +326,7 @@ namespace helengine.editor.tests {
             bool transformed = service.TryTransform(record, BuildRootPath, context, out SceneComponentAssetRecord output);
 
             Assert.True(transformed);
-            SceneAssetReference modelReference = ReadAutomaticComponentAssetReference<MeshComponent>(output, nameof(MeshComponent.Model));
+            SceneAssetReference modelReference = ReadAutomaticComponentAssetReference<MeshComponent>(output, nameof(MeshComponent.Model), true);
             Assert.StartsWith("/cooked/generated/models/tessellation/", modelReference.RelativePath, StringComparison.Ordinal);
             Assert.True(File.Exists(Path.Combine(BuildRootPath, modelReference.RelativePath.TrimStart('/', '\\'))));
         }
@@ -1009,13 +1009,13 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Reads one automatic-component asset reference from the serialized payload without requiring one runtime asset resolver.
+        /// Reads one automatic-component asset reference through the production runtime decoder.
         /// </summary>
         /// <typeparam name="TComponent">Automatic component type represented by the payload.</typeparam>
         /// <param name="record">Packaged component record being decoded.</param>
         /// <param name="memberName">Stable reflected member name whose scene reference should be restored.</param>
         /// <returns>Restored scene asset reference stored for the requested member.</returns>
-        static SceneAssetReference ReadAutomaticComponentAssetReference<TComponent>(SceneComponentAssetRecord record, string memberName) where TComponent : Component, new() {
+        SceneAssetReference ReadAutomaticComponentAssetReference<TComponent>(SceneComponentAssetRecord record, string memberName, bool allowRootedPackagedPath = false) where TComponent : Component, new() {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
@@ -1023,8 +1023,44 @@ namespace helengine.editor.tests {
                 throw new ArgumentException("Member name must be provided.", nameof(memberName));
             }
 
-            ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
-            ScriptComponentReflectionSchema schema = schemaBuilder.Build(typeof(TComponent));
+            if (allowRootedPackagedPath) {
+                return ReadRootedPackagedAssetReference<TComponent>(record, memberName);
+            }
+
+            RecordingHostFileSystemContentStreamSource contentSource = new RecordingHostFileSystemContentStreamSource(BuildRootPath);
+            using TestClockDrivenCore core = new TestClockDrivenCore(new CoreInitializationOptions {
+                ContentStreamSource = contentSource
+            });
+            core.Initialize(
+                new TestRenderManager3D(),
+                new TestRenderManager2D(),
+                new TestInputBackend(),
+                new PlatformInfo("test", "test-version"));
+
+            RuntimeSceneAssetReferenceResolver referenceResolver = core.SceneAssetReferenceResolver;
+            referenceResolver.BeginOwnedAssetTracking();
+            try {
+                AutomaticScriptComponentRuntimeDeserializer runtimeDeserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                    record.ComponentTypeId,
+                    typeof(TComponent));
+                Assert.IsType<TComponent>(runtimeDeserializer.Deserialize(record, referenceResolver));
+            } finally {
+                referenceResolver.CancelOwnedAssetTracking();
+            }
+
+            string requestedAssetPath = Assert.Single(contentSource.RequestedAssetPaths);
+            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemTexture(requestedAssetPath);
+        }
+
+        /// <summary>
+        /// Reads one rooted packaged reference using the production field readers when the desktop runtime build intentionally rejects rooted paths.
+        /// </summary>
+        /// <typeparam name="TComponent">Automatic component type represented by the payload.</typeparam>
+        /// <param name="record">Packaged component record being decoded.</param>
+        /// <param name="memberName">Stable reflected member name whose reference should be returned.</param>
+        /// <returns>Rooted packaged reference restored from the current ordinal payload.</returns>
+        static SceneAssetReference ReadRootedPackagedAssetReference<TComponent>(SceneComponentAssetRecord record, string memberName) where TComponent : Component, new() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(TComponent));
             TComponent component = new TComponent();
             EntitySaveComponent saveComponent = new EntitySaveComponent();
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
@@ -1033,12 +1069,38 @@ namespace helengine.editor.tests {
             Assert.Equal(schema.Members.Count, reader.ReadInt32());
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                member.SetValue(component, ReadPackagedMemberValue(reader, member, component, saveComponent, null));
+                object value;
+                if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                    SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+                    if (reference != null) {
+                        saveComponent.SetAssetReference(component, member.Name, reference);
+                    }
+                    value = null;
+                } else if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
+                    int referenceCount = reader.ReadInt32();
+                    Assert.True(referenceCount >= -1);
+                    if (referenceCount < 0) {
+                        value = null;
+                    } else {
+                        Type elementType = member.ValueType.GetElementType();
+                        Array references = Array.CreateInstance(elementType, referenceCount);
+                        for (int referenceIndex = 0; referenceIndex < referenceCount; referenceIndex++) {
+                            SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+                            if (reference != null) {
+                                saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(member.Name, referenceIndex), reference);
+                            }
+                        }
+                        value = references;
+                    }
+                } else {
+                    value = AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, saveComponent, null);
+                }
+                member.SetValue(component, value);
             }
 
             Assert.True(saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState));
-            Assert.True(saveState.TryGetAssetReference(memberName, out SceneAssetReference reference));
-            return Assert.IsType<SceneAssetReference>(reference);
+            Assert.True(saveState.TryGetAssetReference(memberName, out SceneAssetReference result));
+            return Assert.IsType<SceneAssetReference>(result);
         }
 
         /// <summary>
@@ -1063,6 +1125,40 @@ namespace helengine.editor.tests {
         static TComponent DeserializeAutomaticComponent<TComponent>(SceneComponentAssetRecord record) where TComponent : Component {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             return Assert.IsType<TComponent>(descriptor.DeserializeComponent(record, new EntitySaveComponent(), new TestSceneAssetReferenceResolver()));
+        }
+
+        /// <summary>
+        /// Records runtime content paths while delegating stream opening to the host filesystem source.
+        /// </summary>
+        sealed class RecordingHostFileSystemContentStreamSource : IContentStreamSource {
+            /// <summary>
+            /// Host filesystem source that opens the requested package files.
+            /// </summary>
+            readonly HostFileSystemContentStreamSource InnerSource;
+
+            /// <summary>
+            /// Initializes one path-recording host content source.
+            /// </summary>
+            /// <param name="rootPath">Package root used by the delegated host source.</param>
+            public RecordingHostFileSystemContentStreamSource(string rootPath) {
+                InnerSource = new HostFileSystemContentStreamSource(rootPath);
+                RequestedAssetPaths = new List<string>();
+            }
+
+            /// <summary>
+            /// Gets the ordered runtime asset paths requested by the decoder.
+            /// </summary>
+            public List<string> RequestedAssetPaths { get; }
+
+            /// <summary>
+            /// Records and opens one runtime package path.
+            /// </summary>
+            /// <param name="assetPath">Runtime package path requested by the content manager.</param>
+            /// <returns>Readable package stream.</returns>
+            public Stream OpenRead(string assetPath) {
+                RequestedAssetPaths.Add(assetPath);
+                return InnerSource.OpenRead(assetPath);
+            }
         }
 
         /// <summary>
@@ -1097,83 +1193,20 @@ namespace helengine.editor.tests {
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
             Assert.Equal(schema.Members.Count, reader.ReadInt32());
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                member.SetValue(component, ReadPackagedMemberValue(reader, member, component, new EntitySaveComponent(), referenceResolver));
+                object value;
+                if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                    SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+                    value = reference == null ? null : referenceResolver.ResolveFont(reference);
+                } else {
+                    value = AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, saveComponent, referenceResolver);
+                }
+                member.SetValue(component, value);
             }
 
             return component;
-        }
-
-        /// <summary>
-        /// Reads one packaged automatic-component member while preserving the runtime payload's path-only file-reference contract.
-        /// </summary>
-        static object ReadPackagedMemberValue(
-            EngineBinaryReader reader,
-            ScriptComponentReflectionMember member,
-            Component component,
-            EntitySaveComponent saveComponent,
-            ISceneAssetReferenceResolver referenceResolver) {
-            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
-                SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
-                if (saveComponent != null && reference != null) {
-                    saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildReferenceName(member.Name), reference);
-                }
-                if (reference == null || referenceResolver == null) {
-                    return null;
-                }
-
-                return ResolvePackagedAssetReference(member.ValueType, referenceResolver, reference);
-            }
-
-            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
-                int referenceCount = reader.ReadInt32();
-                if (referenceCount < 0) {
-                    throw new InvalidOperationException("Scene asset reference array counts must be non-negative.");
-                }
-
-                Type elementType = member.ValueType.GetElementType() ?? throw new InvalidOperationException("Asset-backed arrays must expose an element type.");
-                Array resolvedValues = Array.CreateInstance(elementType, referenceCount);
-                for (int index = 0; index < referenceCount; index++) {
-                    SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
-                    if (saveComponent != null && reference != null) {
-                        saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(member.Name, index), reference);
-                    }
-                    if (reference != null && referenceResolver != null) {
-                        resolvedValues.SetValue(ResolvePackagedAssetReference(elementType, referenceResolver, reference), index);
-                    }
-                }
-
-                return resolvedValues;
-            }
-
-            return AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, saveComponent, referenceResolver);
-        }
-
-        /// <summary>
-        /// Resolves one packaged reference through the test resolver for the reflected asset member type.
-        /// </summary>
-        static object ResolvePackagedAssetReference(Type valueType, ISceneAssetReferenceResolver referenceResolver, SceneAssetReference reference) {
-            if (valueType == typeof(FontAsset)) {
-                return referenceResolver.ResolveFont(reference);
-            }
-            if (valueType == typeof(RuntimeTexture)) {
-                return referenceResolver.ResolveTexture(reference);
-            }
-            if (valueType == typeof(RuntimeModel)) {
-                return referenceResolver.ResolveModel(reference);
-            }
-            if (valueType == typeof(RuntimeMaterial)) {
-                return referenceResolver.ResolveMaterial(reference);
-            }
-            if (valueType == typeof(AnimationClipAsset)) {
-                return referenceResolver.ResolveAnimationClip(reference);
-            }
-            if (valueType == typeof(AudioAsset)) {
-                return referenceResolver.ResolveAudio(reference);
-            }
-
-            throw new InvalidOperationException($"Unsupported packaged asset reference type '{valueType.FullName}'.");
         }
 
         /// <summary>

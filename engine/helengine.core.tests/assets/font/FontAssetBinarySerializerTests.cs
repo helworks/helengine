@@ -24,18 +24,37 @@ namespace helengine.core.tests.assets.font {
         }
 
         /// <summary>
+        /// Ensures a packaged font header with a different value kind is rejected before any renderer state is required.
+        /// </summary>
+        [Fact]
+        public void Deserialize_WhenHeaderValueKindIsNotFontAsset_ThrowsFormatError() {
+            using MemoryStream stream = CreateHeaderOnlyStream(
+                FontAssetBinarySerializer.CurrentVersion,
+                (ushort)FontAssetBinarySerializer.RecordKind,
+                0);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => FontAssetBinarySerializer.Deserialize(stream));
+
+            Assert.Contains("value kind", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Creates a stream containing a valid packaged font header and no payload bytes.
         /// </summary>
         /// <param name="version">Version encoded in the header.</param>
         /// <returns>Stream positioned at the beginning of the header.</returns>
-        static MemoryStream CreateHeaderOnlyStream(byte version) {
+        static MemoryStream CreateHeaderOnlyStream(
+            byte version,
+            ushort recordKind = (ushort)FontAssetBinarySerializer.RecordKind,
+            ushort valueKind = FontAssetBinarySerializer.ValueKind) {
             MemoryStream stream = new MemoryStream();
             EngineBinaryHeader header = new EngineBinaryHeader(
                 EngineBinaryEndianness.LittleEndian,
                 version,
                 FontAssetBinarySerializer.FormatId,
-                (ushort)FontAssetBinarySerializer.RecordKind,
-                1);
+                recordKind,
+                valueKind);
             EngineBinaryHeaderSerializer.Write(stream, header);
             stream.Position = 0;
             return stream;

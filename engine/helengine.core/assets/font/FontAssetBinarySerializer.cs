@@ -19,6 +19,11 @@ namespace helengine {
         public const byte CurrentVersion = 5;
 
         /// <summary>
+        /// Value kind used for serialized packaged font payloads.
+        /// </summary>
+        public const ushort ValueKind = 1;
+
+        /// <summary>
         /// Gets the most recent font-deserialization stage reached by the packaged runtime loader.
         /// </summary>
         public static string LastDeserializeStage { get; private set; } = string.Empty;
@@ -139,6 +144,9 @@ namespace helengine {
             }
             if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected font record kind '{header.RecordKind}'.");
+            }
+            if (header.ValueKind != ValueKind) {
+                throw new InvalidOperationException($"Unexpected font value kind '{header.ValueKind}'.");
             }
             if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException(

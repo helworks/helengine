@@ -39,7 +39,7 @@ public sealed class AvailablePlatformProviderResolver {
     }
 
     /// <summary>
-    /// Adds or upgrades platform descriptors in the supplied collection while preserving first-seen order.
+    /// Adds or refreshes platform descriptors in the supplied collection while preserving first-seen order.
     /// </summary>
     /// <param name="platforms">Collection that accumulates merged platform descriptors.</param>
     /// <param name="platformIndexes">Indexes of platform ids already added to the collection.</param>

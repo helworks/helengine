@@ -4789,83 +4789,13 @@ namespace helengine.editor.tests {
             }
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
-            Component component = DeserializePackagedAutomaticComponent(packagedRecord, saveComponent);
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(
+                new ScriptComponentReflectionSchemaBuilder());
+            Component component = descriptor.DeserializeComponent(packagedRecord, saveComponent, null);
 
             Assert.True(saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState));
             Assert.True(saveState.TryGetAssetReference(referenceName, out SceneAssetReference reference));
             Assert.Equal(expectedRelativePath, reference.RelativePath);
-        }
-
-        /// <summary>
-        /// Deserializes one current ordinal packaged component payload while preserving its path-only asset references in save state.
-        /// </summary>
-        /// <param name="packagedRecord">Packaged component record to read.</param>
-        /// <param name="saveComponent">Save-state component that receives decoded references.</param>
-        /// <returns>Component instance populated from the current ordinal payload.</returns>
-        static Component DeserializePackagedAutomaticComponent(SceneComponentAssetRecord packagedRecord, EntitySaveComponent saveComponent) {
-            Type componentType = global::helengine.PersistedComponentTypeResolver.TryResolve(packagedRecord.ComponentTypeId);
-            if (componentType == null) {
-                throw new InvalidOperationException($"Packaged component type '{packagedRecord.ComponentTypeId}' could not be resolved.");
-            }
-
-            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(componentType);
-            Component component = Assert.IsAssignableFrom<Component>(Activator.CreateInstance(componentType));
-            using MemoryStream stream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            Assert.Equal(schema.Members.Count, reader.ReadInt32());
-            for (int index = 0; index < schema.Members.Count; index++) {
-                ScriptComponentReflectionMember member = schema.Members[index];
-                member.SetValue(component, ReadPackagedMemberValue(reader, member, component, saveComponent));
-            }
-
-            Assert.Equal(stream.Length, stream.Position);
-            return component;
-        }
-
-        /// <summary>
-        /// Reads one current packaged automatic-component member and stores any path-only reference metadata.
-        /// </summary>
-        /// <param name="reader">Reader positioned at the member payload.</param>
-        /// <param name="member">Reflected member that owns the payload.</param>
-        /// <param name="component">Component that owns the member.</param>
-        /// <param name="saveComponent">Save-state component receiving decoded references.</param>
-        /// <returns>Decoded non-reference value, or null for asset-backed members inspected through save state.</returns>
-        static object ReadPackagedMemberValue(
-            EngineBinaryReader reader,
-            ScriptComponentReflectionMember member,
-            Component component,
-            EntitySaveComponent saveComponent) {
-            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
-                SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
-                if (reference != null) {
-                    saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildReferenceName(member.Name), reference);
-                }
-                return null;
-            }
-
-            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
-                int referenceCount = reader.ReadInt32();
-                if (referenceCount < -1) {
-                    throw new InvalidOperationException("Packaged asset-reference array counts must be -1 or non-negative.");
-                }
-                if (referenceCount == -1) {
-                    return null;
-                }
-                Type elementType = member.ValueType.GetElementType()
-                    ?? throw new InvalidOperationException($"Asset-reference array member '{member.Name}' must expose an element type.");
-                Array values = Array.CreateInstance(elementType, referenceCount);
-                for (int index = 0; index < referenceCount; index++) {
-                    SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
-                    if (reference != null) {
-                        saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(member.Name, index), reference);
-                    }
-                }
-                return values;
-            }
-
-            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            return AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, saveComponent, null);
         }
 
         /// <summary>

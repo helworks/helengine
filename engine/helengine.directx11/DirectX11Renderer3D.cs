@@ -18,7 +18,7 @@ namespace helengine.directx11 {
     /// </summary>
     [NativeMigrationRequired(
         "windows.native_directx_renderer",
-        "Changes to this managed DirectX11 renderer must be migrated to the Windows native DirectX renderer implementation as well.")]
+        "Changes to this managed DirectX11 renderer must also be applied to the Windows native DirectX renderer implementation.")]
     public class DirectX11Renderer3D : RenderManager3D, IShaderRenderManager3D, IRenderVisitor3D, IDirectX11RenderPassExecutor {
         /// <summary>
         /// Number of buffers used by each swap chain.
@@ -994,7 +994,7 @@ namespace helengine.directx11 {
         /// </summary>
         [NativeMigrationRequired(
             "windows.native_directx_renderer",
-            "Changes to DirectX11 render-target transition cleanup must be migrated to the Windows native DirectX renderer implementation as well.")]
+            "Changes to DirectX11 render-target transition cleanup must also be applied to the Windows native DirectX renderer implementation.")]
         void ClearShaderResourceBindingsForRenderTargetChange() {
             renderer2D.ClearActiveTextureBindings();
             ClearActiveMaterialTextureBindings();
@@ -2208,7 +2208,7 @@ namespace helengine.directx11 {
         /// <returns>Native DirectX11 register slot used when binding the resource.</returns>
         [NativeMigrationRequired(
             "windows.native_directx_renderer",
-            "Changes to managed DirectX11 material-slot remapping must be migrated to the Windows native DirectX renderer implementation as well.")]
+            "Changes to managed DirectX11 material-slot remapping must also be applied to the Windows native DirectX renderer implementation.")]
         static int ResolveDirectX11BindingSlot(MaterialLayoutBinding binding) {
             if (binding == null) {
                 throw new ArgumentNullException(nameof(binding));

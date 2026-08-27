@@ -33,7 +33,7 @@ namespace helengine.directx11 {
     /// </summary>
     [NativeMigrationRequired(
         "windows.native_directx_renderer",
-        "Changes to this managed DirectX11 renderer must be migrated to the Windows native DirectX renderer implementation as well.")]
+        "Changes to this managed DirectX11 renderer must also be applied to the Windows native DirectX renderer implementation.")]
     internal class DirectX11Renderer2D : RenderManager2D, IRenderVisitor2D {
         const int InitialGeometryVertexCapacity = 1024;
 
@@ -597,7 +597,7 @@ namespace helengine.directx11 {
         /// </summary>
         [NativeMigrationRequired(
             "windows.native_directx_renderer",
-            "Changes to DirectX11 2D texture-slot cleanup must be migrated to the Windows native DirectX renderer implementation as well.")]
+            "Changes to DirectX11 2D texture-slot cleanup must also be applied to the Windows native DirectX renderer implementation.")]
         internal void ClearActiveTextureBindings() {
             var context = Device.ImmediateContext;
             for (int bindingIndex = 0; bindingIndex < ActiveTextureSlots.Count; bindingIndex++) {

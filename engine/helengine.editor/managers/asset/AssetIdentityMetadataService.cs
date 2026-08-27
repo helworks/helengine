@@ -145,7 +145,7 @@ namespace helengine.editor {
 
         /// <summary>
         /// Loads identity metadata from one current engine-native authored payload.
-        /// Missing identity is rejected and never upgraded.
+        /// Missing identity is rejected and never repaired.
         /// </summary>
         /// <param name="assetPath">Absolute native authored asset path.</param>
         /// <returns>Validated embedded identity metadata.</returns>

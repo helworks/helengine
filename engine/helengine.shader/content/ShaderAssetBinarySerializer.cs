@@ -18,6 +18,9 @@ namespace helengine {
                 if (header.FormatId != PackagedAssetBinarySerializer.FormatId) {
                     throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
                 }
+                if (header.RecordKind != (ushort)PackagedAssetBinarySerializer.RecordKind) {
+                    throw new InvalidOperationException($"Unexpected shader asset record kind '{header.RecordKind}'.");
+                }
                 if ((EditorAssetBinaryValueKind)header.ValueKind != EditorAssetBinaryValueKind.ShaderAsset) {
                     throw new InvalidOperationException($"Serialized asset value kind '{header.ValueKind}' is not a shader asset.");
                 }

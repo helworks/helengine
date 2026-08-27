@@ -21,6 +21,11 @@ namespace helengine.files {
         public const byte CurrentVersion = 5;
 
         /// <summary>
+        /// Value kind used for serialized packaged font payloads.
+        /// </summary>
+        public const ushort ValueKind = 1;
+
+        /// <summary>
         /// Payload endianness used by packaged font assets.
         /// </summary>
         static readonly EngineBinaryEndianness PayloadEndianness = EngineBinaryEndianness.LittleEndian;
@@ -49,7 +54,7 @@ namespace helengine.files {
                 CurrentVersion,
                 FormatId,
                 (ushort)RecordKind,
-                1);
+                ValueKind);
 
             EngineBinaryHeaderSerializer.Write(stream, header);
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
