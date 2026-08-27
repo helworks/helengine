@@ -90,6 +90,23 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     }
 
     /// <summary>
+    /// Ensures blueprint authoring is exposed by the same public capability instead of requiring
+    /// project code to construct the editor blueprint save pipeline.
+    /// </summary>
+    [Fact]
+    public void NativeBlueprintAuthoring_IsExposedByThePublicCapability() {
+        Assert.NotNull(typeof(IEditorProjectAssetAuthoringService).GetMethod(nameof(IEditorProjectAssetAuthoringService.WriteNativeBlueprint)));
+    }
+
+    /// <summary>
+    /// Ensures generated runtime cache output is also available through the public capability.
+    /// </summary>
+    [Fact]
+    public void GeneratedCacheAuthoring_IsExposedByThePublicCapability() {
+        Assert.NotNull(typeof(IEditorProjectAssetAuthoringService).GetMethod(nameof(IEditorProjectAssetAuthoringService.WriteGeneratedCacheAsset)));
+    }
+
+    /// <summary>
     /// Creates an isolated project root for a capability test.
     /// </summary>
     /// <returns>New temporary project root path.</returns>

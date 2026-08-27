@@ -137,6 +137,47 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Writes the current editor blueprint authoring state through the host-owned save pipeline.
+        /// </summary>
+        public void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry) {
+            ValidateRelativeAssetPath(relativePath);
+            if (persistenceRegistry == null) {
+                throw new ArgumentNullException(nameof(persistenceRegistry));
+            }
+
+            string fullPath = Path.Combine(
+                AssetImportManagerValue.AssetsRootPath,
+                relativePath.Replace('/', Path.DirectorySeparatorChar));
+            new BlueprintSaveService(
+                ResolveProjectRootPath(),
+                persistenceRegistry).Save(fullPath);
+        }
+
+        /// <summary>
+        /// Writes one generated runtime cache asset through the host-owned current serializer.
+        /// </summary>
+        public void WriteGeneratedCacheAsset(string relativePath, Asset asset) {
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Cache-relative path must be provided.", nameof(relativePath));
+            } else if (Path.IsPathRooted(relativePath)) {
+                throw new ArgumentException("Cache-relative path must not be rooted.", nameof(relativePath));
+            } else if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            string projectRootPath = ResolveProjectRootPath();
+            string fullPath = Path.Combine(projectRootPath, "cache", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                throw new InvalidOperationException("Generated cache path does not include a writable directory.");
+            }
+
+            Directory.CreateDirectory(directoryPath);
+            using FileStream stream = File.Create(fullPath);
+            AssetSerializer.Serialize(stream, asset);
+        }
+
+        /// <summary>
         /// Writes one native material through the current editor material writer.
         /// </summary>
         public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition) {

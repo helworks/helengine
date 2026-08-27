@@ -94,6 +94,20 @@ namespace helengine.editor {
         void WriteNativeAsset(string relativePath, Asset asset);
 
         /// <summary>
+        /// Writes the current editor blueprint authoring state through the host-owned save pipeline.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative native blueprint path.</param>
+        /// <param name="persistenceRegistry">Current component persistence registry for the active project.</param>
+        void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry);
+
+        /// <summary>
+        /// Writes one generated runtime cache asset through the host-owned current serializer.
+        /// </summary>
+        /// <param name="relativePath">Path relative to the active project cache directory.</param>
+        /// <param name="asset">Generated runtime cache payload to persist.</param>
+        void WriteGeneratedCacheAsset(string relativePath, Asset asset);
+
+        /// <summary>
         /// Writes one current native material settings document beneath the active project.
         /// </summary>
         /// <param name="relativePath">Assets-relative material path.</param>
