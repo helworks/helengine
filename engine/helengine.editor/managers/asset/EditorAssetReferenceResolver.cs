@@ -95,14 +95,14 @@ namespace helengine.editor {
             bool pathMetadataWasMissing = false;
             string savedPath = NormalizeRelativePath(reference.RelativePath);
             if (!string.IsNullOrWhiteSpace(savedPath)) {
-                string savedFullPath = Path.Combine(AssetsRootPath, savedPath.Replace('/', Path.DirectorySeparatorChar));
+                string savedFullPath = ResolveInsideAssets(savedPath);
                 pathMetadataWasMissing = IsMetadataMissing(savedFullPath);
             }
 
             bool metadataChanged = pathMetadataWasMissing;
             bool savedIdWasAdopted = false;
             if (pathMetadataWasMissing && IsValidAssetId(reference.AssetId) && !IdentityIndex.IsCurrentAssetIdOwned(reference.AssetId)) {
-                string savedFullPath = Path.Combine(AssetsRootPath, savedPath.Replace('/', Path.DirectorySeparatorChar));
+                string savedFullPath = ResolveInsideAssets(savedPath);
                 AssetIdentityMetadataDocument document = MetadataService.Load(savedFullPath);
                 document.AssetId = reference.AssetId;
                 MetadataService.Save(savedFullPath, document);
@@ -181,11 +181,7 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
             }
-            string normalizedPath = Path.GetFullPath(fullPath);
-            string assetsPrefix = AssetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (!normalizedPath.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException($"Path '{fullPath}' must be inside the assets directory.");
-            }
+            string normalizedPath = ResolveInsideAssets(fullPath);
             if (!PathClassifier.IsAuthoredAsset(normalizedPath) || PathClassifier.Classify(normalizedPath) != expectedKind) {
                 throw new InvalidOperationException($"Path '{fullPath}' is not an authored {expectedKind} asset.");
             }
@@ -244,6 +240,61 @@ namespace helengine.editor {
         /// <summary>Normalizes an assets-relative path.</summary>
         static string NormalizeRelativePath(string value) {
             return (value ?? string.Empty).Replace('\\', '/').Trim('/');
+        }
+
+        /// <summary>
+        /// Resolves a relative or absolute candidate and requires real containment beneath assets.
+        /// </summary>
+        string ResolveInsideAssets(string candidate) {
+            if (string.IsNullOrWhiteSpace(candidate)) {
+                throw new ArgumentException("Asset path must be provided.", nameof(candidate));
+            }
+
+            string normalizedPath = Path.IsPathRooted(candidate)
+                ? Path.GetFullPath(candidate)
+                : Path.GetFullPath(Path.Combine(AssetsRootPath, candidate.Replace('/', Path.DirectorySeparatorChar)));
+            string assetsRoot = Path.GetFullPath(AssetsRootPath);
+            string assetsPrefix = assetsRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (!normalizedPath.StartsWith(assetsPrefix, comparison)) {
+                throw new InvalidOperationException($"Path '{candidate}' must be inside the assets directory.");
+            }
+
+            ValidateNoReparseTraversal(normalizedPath);
+            return normalizedPath;
+        }
+
+        /// <summary>Rejects links or junctions anywhere between assets and an authored candidate.</summary>
+        void ValidateNoReparseTraversal(string fullPath) {
+            string rootPath = Path.GetFullPath(AssetsRootPath);
+            string currentPath = fullPath;
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            while (true) {
+                try {
+                    FileAttributes attributes = File.GetAttributes(currentPath);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
+                        throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
+                    }
+                } catch (FileNotFoundException) {
+                } catch (DirectoryNotFoundException) {
+                }
+
+                if (string.Equals(currentPath, rootPath, comparison)) {
+                    return;
+                }
+
+                string parentPath = Path.GetDirectoryName(currentPath);
+                string rootPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                if (string.IsNullOrWhiteSpace(parentPath) ||
+                    (!string.Equals(parentPath, rootPath, comparison) && !parentPath.StartsWith(rootPrefix, comparison))) {
+                    throw new InvalidOperationException($"Path '{fullPath}' must be inside the assets directory.");
+                }
+                currentPath = parentPath;
+            }
         }
 
         /// <summary>

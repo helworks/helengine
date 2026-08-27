@@ -257,6 +257,54 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a link beneath assets cannot redirect reference creation outside the project.
+    /// </summary>
+    [Fact]
+    public void CreateFileReference_WhenPathTraversesReparsePoint_RejectsWithoutCreatingMetadata() {
+        string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-resolver-outside-" + Guid.NewGuid().ToString("N"));
+        string linkPath = Path.Combine(TempRootPath, "assets", "Linked");
+        Directory.CreateDirectory(outsideRoot);
+        string outsideAsset = Path.Combine(outsideRoot, "Escaped.fbx");
+        File.WriteAllBytes(outsideAsset, new byte[] { 1, 2, 3 });
+        try {
+            try {
+                Directory.CreateSymbolicLink(linkPath, outsideRoot);
+            } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is PlatformNotSupportedException) {
+                return;
+            }
+
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+            Assert.Throws<InvalidOperationException>(() => resolver.CreateFileReference(
+                Path.Combine(linkPath, "Escaped.fbx"), AssetEntryKind.Model));
+            Assert.False(File.Exists(outsideAsset + ".hmeta"));
+        } finally {
+            if (Directory.Exists(TempRootPath)) {
+                Directory.Delete(TempRootPath, true);
+            }
+            if (Directory.Exists(outsideRoot)) {
+                Directory.Delete(outsideRoot, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ensures a saved reference path cannot escape assets during recovery.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenSavedPathEscapesAssetsRoot_RejectsBeforeMetadataAccess() {
+        string outsidePath = Path.Combine(TempRootPath, "outside.fbx");
+        File.WriteAllBytes(outsidePath, new byte[] { 1, 2, 3 });
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "00112233445566778899aabbccddeeff",
+            "../outside.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        Assert.Throws<InvalidOperationException>(() => resolver.Resolve(reference, AssetEntryKind.Model));
+        Assert.False(File.Exists(outsidePath + ".hmeta"));
+    }
+
+    /// <summary>
     /// Ensures a disposed resolver rejects every resolution-scope and reference operation.
     /// </summary>
     [Fact]

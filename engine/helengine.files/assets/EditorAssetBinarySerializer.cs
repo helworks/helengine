@@ -42,6 +42,7 @@ namespace helengine.files {
                 throw new ArgumentNullException(nameof(asset));
             }
 
+            ValidateDeterministicSceneOverrides(asset);
             EditorAssetBinaryValueKind valueKind = GetValueKind(asset);
             EngineBinaryHeader header = new EngineBinaryHeader(
                 PayloadEndianness,
@@ -172,6 +173,38 @@ namespace helengine.files {
             }
 
             throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not supported by the editor binary serializer.");
+        }
+
+        /// <summary>
+        /// Validates scene and blueprint override scopes before emitting any bytes.
+        /// </summary>
+        static void ValidateDeterministicSceneOverrides(Asset asset) {
+            SceneAsset sceneAsset = asset as SceneAsset;
+            if (sceneAsset != null) {
+                for (int index = 0; index < (sceneAsset.RootEntities?.Length ?? 0); index++) {
+                    ValidateDeterministicSceneEntityOverrides(sceneAsset.RootEntities[index]);
+                }
+                return;
+            }
+
+            BlueprintAsset blueprintAsset = asset as BlueprintAsset;
+            if (blueprintAsset != null) {
+                ValidateDeterministicSceneEntityOverrides(blueprintAsset.RootEntity);
+            }
+        }
+
+        /// <summary>Validates one scene entity and all nested entities.</summary>
+        static void ValidateDeterministicSceneEntityOverrides(SceneEntityAsset entity) {
+            if (entity == null) {
+                return;
+            }
+
+            EnsureUniquePlatformOverrideScopes(entity.PlatformExistenceOverrides, item => item?.PlatformId, item => item?.EnvironmentId);
+            EnsureUniquePlatformOverrideScopes(entity.PlatformTransformOverrides, item => item?.PlatformId, item => item?.EnvironmentId);
+            EnsureUniquePlatformOverrideScopes(entity.PlatformComponentOverrides, item => item?.PlatformId, item => item?.EnvironmentId);
+            for (int index = 0; index < (entity.Children?.Length ?? 0); index++) {
+                ValidateDeterministicSceneEntityOverrides(entity.Children[index]);
+            }
         }
 
         /// <summary>
@@ -1030,6 +1063,7 @@ namespace helengine.files {
         /// Orders entity existence overrides by scope and then by their serialized value.
         /// </summary>
         static SceneEntityPlatformExistenceOverrideAsset[] SortSceneEntityPlatformExistenceOverrides(SceneEntityPlatformExistenceOverrideAsset[] overrides) {
+            EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
             return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
                 .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
                 .ThenBy(item => item?.Exists == true ? 1 : 0)
@@ -1040,6 +1074,7 @@ namespace helengine.files {
         /// Orders entity transform overrides by scope and then by their serialized value.
         /// </summary>
         static SceneEntityPlatformTransformOverrideAsset[] SortSceneEntityPlatformTransformOverrides(SceneEntityPlatformTransformOverrideAsset[] overrides) {
+            EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
             return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
                 .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
                 .ThenBy(item => item?.HasLocalPositionOverride == true ? 1 : 0)
@@ -1062,6 +1097,7 @@ namespace helengine.files {
         /// Orders entity component overrides by scope and every serialized nested field.
         /// </summary>
         static SceneEntityPlatformComponentOverrideAsset[] SortSceneEntityPlatformComponentOverrides(SceneEntityPlatformComponentOverrideAsset[] overrides) {
+            EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
             return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
                 .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
                 .ThenBy(item => string.Join("\u001f", (item?.RemovedComponentKeys ?? Array.Empty<string>())
@@ -1069,6 +1105,32 @@ namespace helengine.files {
                 .ThenBy(item => string.Join("\u001f", SortSceneEntityPlatformAddedComponents(item?.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>())
                     .Select(SerializeSceneComponentSortKey)), StringComparer.Ordinal)
                 .ToArray();
+        }
+
+        /// <summary>
+        /// Rejects multiple override records for one exact platform/environment scope before bytes are emitted.
+        /// </summary>
+        static void EnsureUniquePlatformOverrideScopes<T>(
+            T[] overrides,
+            Func<T, string> platformSelector,
+            Func<T, string> environmentSelector) {
+            if (overrides == null) {
+                return;
+            }
+
+            Dictionary<string, HashSet<string>> environmentsByPlatform = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            for (int index = 0; index < overrides.Length; index++) {
+                string platformId = platformSelector(overrides[index]) ?? string.Empty;
+                string environmentId = environmentSelector(overrides[index]) ?? string.Empty;
+                if (!environmentsByPlatform.TryGetValue(platformId, out HashSet<string> environments)) {
+                    environments = new HashSet<string>(StringComparer.Ordinal);
+                    environmentsByPlatform.Add(platformId, environments);
+                }
+
+                if (!environments.Add(environmentId)) {
+                    throw new InvalidOperationException($"Duplicate platform override scope '{platformId}/{environmentId}'.");
+                }
+            }
         }
 
         /// <summary>

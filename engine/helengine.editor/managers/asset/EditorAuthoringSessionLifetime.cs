@@ -28,8 +28,8 @@ namespace helengine.editor {
                 return;
             }
 
-            IsDisposed = true;
             OwnedService.Dispose();
+            IsDisposed = true;
         }
     }
 }

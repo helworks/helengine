@@ -300,6 +300,37 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures session disposal remains retryable when the owned cache store fails once.
+    /// </summary>
+    [Fact]
+    public void SessionDispose_WhenCacheFlushFailsOnce_RetriesOnSecondDispose() {
+        CreateAsset("Models/SessionRetry.obj", new byte[] { 1, 2, 3 });
+        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore { FailNextUpdate = true };
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempRootPath, null, null, cache);
+        identityIndex.Initialize();
+        EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempRootPath, identityIndex, cache);
+        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache);
+        AssetImportManager manager = new AssetImportManager(
+            TempRootPath,
+            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempRootPath, "assets"))));
+        EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(
+            manager,
+            cache,
+            identityIndex,
+            referenceResolver,
+            new EditorAuthoringSessionLifetime(resources));
+
+        session.CreateReference("Models/SessionRetry.obj", AssetEntryKind.Model);
+
+        Assert.Throws<IOException>(() => session.Dispose());
+        session.Dispose();
+
+        Assert.Equal(1, store.SaveCount);
+        Assert.NotNull(store.LastSavedDocument);
+    }
+
+    /// <summary>
     /// Writes a deterministic native scene fixture used to compare semantic hashes.
     /// </summary>
     static void WriteNativeScene(string path) {

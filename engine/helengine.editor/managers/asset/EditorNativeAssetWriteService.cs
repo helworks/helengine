@@ -58,7 +58,7 @@ namespace helengine.editor {
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
             ChangeLog = new FileEditorProjectWriteChangeLog(ProjectRootPath);
             MetadataService = new AssetIdentityMetadataService();
-            LastObservedGeneration = ChangeLog.CurrentGeneration;
+            InitializeObservedState();
         }
 
         /// <summary>
@@ -79,7 +79,33 @@ namespace helengine.editor {
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
             ChangeLog = changeLog ?? throw new ArgumentNullException(nameof(changeLog));
             MetadataService = new AssetIdentityMetadataService();
-            LastObservedGeneration = ChangeLog.CurrentGeneration;
+            InitializeObservedState();
+        }
+
+        /// <summary>
+        /// Replays exact-path publications that may have occurred during index initialization.
+        /// </summary>
+        void InitializeObservedState() {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            LastObservedGeneration = 0;
+            ReconcileIfGenerationChanged();
+            long currentGeneration = ChangeLog.CurrentGeneration;
+            if (currentGeneration > LastObservedGeneration) {
+                LastObservedGeneration = currentGeneration;
+            }
+        }
+
+        /// <summary>
+        /// Runs a reference or hash read at the same publication boundary as writes.
+        /// </summary>
+        internal TResult ExecuteSynchronizedRead<TResult>(Func<TResult> read) {
+            if (read == null) {
+                throw new ArgumentNullException(nameof(read));
+            }
+
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            ReconcileIfGenerationChanged();
+            return read();
         }
 
         /// <summary>

@@ -128,6 +128,51 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
         Assert.False(File.Exists(destinationPath + ".hmeta"));
     }
 
+    /// <summary>
+    /// Ensures a destination directory link cannot redirect a move outside the assets root.
+    /// </summary>
+    [Fact]
+    public void Move_WhenDestinationDirectoryIsReparsePoint_RejectsWithoutExternalMutation() {
+        if (!TryCreateDirectoryLink(Path.Combine(TempRootPath, "outside"), out string outsideRoot)) {
+            return;
+        }
+
+        string sourcePath = CreateSource("Models/LinkedSource.fbx");
+        try {
+            Assert.Throws<InvalidOperationException>(() => new EditorAssetFileOperationService(TempRootPath)
+                .Move(sourcePath, Path.Combine(TempRootPath, "outside", "Moved.fbx")));
+
+            Assert.True(File.Exists(sourcePath));
+            Assert.False(File.Exists(Path.Combine(outsideRoot, "Moved.fbx")));
+        } finally {
+            if (Directory.Exists(TempRootPath)) {
+                Directory.Delete(TempRootPath, true);
+            }
+            if (Directory.Exists(outsideRoot)) {
+                Directory.Delete(outsideRoot, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ensures a case-distinct sibling is rejected on case-sensitive filesystems.
+    /// </summary>
+    [Fact]
+    public void Duplicate_WhenCaseDistinctAssetsSiblingIsRequested_Rejects() {
+        if (OperatingSystem.IsWindows()) {
+            return;
+        }
+
+        string siblingRoot = Path.Combine(TempRootPath, "ASSETS");
+        Directory.CreateDirectory(siblingRoot);
+        string sourcePath = CreateSource("Models/CaseSource.fbx");
+
+        Assert.Throws<InvalidOperationException>(() => new EditorAssetFileOperationService(TempRootPath)
+            .Duplicate(sourcePath, Path.Combine(TempRootPath, "ASSETS", "Copied.fbx")));
+
+        Assert.False(File.Exists(Path.Combine(siblingRoot, "Copied.fbx")));
+    }
+
     /// <summary>Creates one current native material fixture.</summary>
     string CreateNativeMaterial(string fileName, bool useCommonSettingsContainer) {
         string path = Path.Combine(TempRootPath, "assets", fileName);
@@ -159,5 +204,18 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
         Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
         File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3 });
         return sourcePath;
+    }
+
+    static bool TryCreateDirectoryLink(string requestedPath, out string outsideRoot) {
+        outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-file-operation-outside-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(outsideRoot);
+        try {
+            Directory.CreateSymbolicLink(requestedPath, outsideRoot);
+            return true;
+        } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is PlatformNotSupportedException) {
+            Directory.Delete(outsideRoot, true);
+            outsideRoot = null;
+            return false;
+        }
     }
 }

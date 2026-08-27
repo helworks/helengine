@@ -119,10 +119,44 @@ namespace helengine.editor {
             }
             string fullPath = Path.GetFullPath(path);
             string prefix = AssetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
+            if (!fullPath.StartsWith(prefix, PathComparison)) {
                 throw new InvalidOperationException($"Asset path '{path}' must be inside the project assets directory.");
             }
+            ValidateNoReparseTraversal(fullPath);
             return fullPath;
+        }
+
+        /// <summary>Gets the platform-aware lexical comparison for path containment.</summary>
+        static StringComparison PathComparison => OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        /// <summary>Rejects links or junctions anywhere between assets and the candidate path.</summary>
+        void ValidateNoReparseTraversal(string fullPath) {
+            string rootPath = Path.GetFullPath(AssetsRootPath);
+            string currentPath = fullPath;
+            while (true) {
+                try {
+                    FileAttributes attributes = File.GetAttributes(currentPath);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
+                        throw new InvalidOperationException($"Asset path '{fullPath}' traverses a reparse point.");
+                    }
+                } catch (FileNotFoundException) {
+                } catch (DirectoryNotFoundException) {
+                }
+
+                if (string.Equals(currentPath, rootPath, PathComparison)) {
+                    return;
+                }
+
+                string parentPath = Path.GetDirectoryName(currentPath);
+                string rootPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                if (string.IsNullOrWhiteSpace(parentPath) ||
+                    (!string.Equals(parentPath, rootPath, PathComparison) && !parentPath.StartsWith(rootPrefix, PathComparison))) {
+                    throw new InvalidOperationException($"Asset path '{fullPath}' must be inside the project assets directory.");
+                }
+                currentPath = parentPath;
+            }
         }
 
         /// <summary>Deletes one file if present.</summary>

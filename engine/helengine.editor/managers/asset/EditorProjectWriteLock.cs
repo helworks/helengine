@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace helengine.editor {
     /// <summary>
     /// Coordinates one project-wide native authoring publication across sessions and processes.
@@ -119,7 +121,7 @@ namespace helengine.editor {
         }
 
         public long PublishChange(string relativePath) {
-            return EditorProjectWriteGeneration.PublishChange(ProjectRootPath, relativePath);
+            return EditorProjectWriteGeneration.PublishChangeUnderLock(ProjectRootPath, relativePath);
         }
     }
 
@@ -127,94 +129,175 @@ namespace helengine.editor {
     /// Stores ordered exact-path records for project-scoped authoring publication.
     /// </summary>
     internal static class EditorProjectWriteGeneration {
+        const int CurrentVersion = 1;
+        static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = true
+        };
+        static readonly StringComparer PathComparer = OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
         /// <summary>
-        /// Reads the latest ordered generation, or zero when no record exists.
+        /// Reads the current generation from the strict project snapshot, or zero when no snapshot exists.
         /// </summary>
-        /// <param name="projectRootPath">Project root to inspect.</param>
-        /// <returns>Current generation.</returns>
         public static long Read(string projectRootPath) {
-            string generationPath = GetPath(projectRootPath);
-            if (!File.Exists(generationPath)) {
-                return 0;
-            }
-
-            try {
-                long generation = 0;
-                foreach (string line in File.ReadLines(generationPath)) {
-                    string[] fields = line.Split('\t', 2);
-                    long value;
-                    if (fields.Length == 2 && long.TryParse(fields[0], out value) && value > generation) {
-                        generation = value;
-                    }
-                }
-                return generation;
-            } catch (FileNotFoundException) {
-                return 0;
-            } catch (DirectoryNotFoundException) {
-                return 0;
-            }
+            return ReadSnapshot(projectRootPath).CurrentGeneration;
         }
 
         /// <summary>
-        /// Reads exact path changes after one observed generation.
+        /// Reads latest-per-path changes after one observed generation.
         /// </summary>
-        /// <param name="projectRootPath">Project root to inspect.</param>
-        /// <param name="generation">Last observed generation.</param>
-        /// <returns>Ordered exact-path changes.</returns>
         public static IReadOnlyList<EditorProjectWriteChange> ReadAfter(string projectRootPath, long generation) {
-            string generationPath = GetPath(projectRootPath);
-            if (!File.Exists(generationPath)) {
-                return Array.Empty<EditorProjectWriteChange>();
+            if (generation < 0) {
+                throw new ArgumentOutOfRangeException(nameof(generation));
             }
 
-            List<EditorProjectWriteChange> changes = new List<EditorProjectWriteChange>();
-            try {
-                foreach (string line in File.ReadLines(generationPath)) {
-                    string[] fields = line.Split('\t', 2);
-                    long value;
-                    if (fields.Length != 2 || !long.TryParse(fields[0], out value) || value <= generation) {
-                        continue;
-                    }
-
-                    string relativePath = fields[1].Replace('\\', '/').Trim('/');
-                    if (!string.IsNullOrWhiteSpace(relativePath)) {
-                        changes.Add(new EditorProjectWriteChange(value, relativePath));
-                    }
-                }
-            } catch (FileNotFoundException) {
-                return Array.Empty<EditorProjectWriteChange>();
-            } catch (DirectoryNotFoundException) {
-                return Array.Empty<EditorProjectWriteChange>();
-            }
-
-            return changes.OrderBy(change => change.Generation).ToList();
+            ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            return snapshot.Changes
+                .Where(change => change.Generation > generation)
+                .OrderBy(change => change.Generation)
+                .ThenBy(change => change.RelativePath, PathComparer)
+                .Select(change => new EditorProjectWriteChange(change.Generation, change.RelativePath))
+                .ToArray();
         }
 
         /// <summary>
-        /// Durably appends one exact normalized path and its next generation.
+        /// Durably publishes one exact normalized path by atomically replacing the generation snapshot.
+        /// The caller holds the project write lock for the full read-modify-write boundary.
         /// </summary>
-        /// <param name="projectRootPath">Project root to update.</param>
-        /// <param name="relativePath">Assets-relative changed path.</param>
-        /// <returns>New ordered generation.</returns>
         public static long PublishChange(string projectRootPath, string relativePath) {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            return PublishChangeUnderLock(projectRootPath, relativePath);
+        }
+
+        /// <summary>
+        /// Publishes one exact path while the caller owns the project publication lock.
+        /// </summary>
+        internal static long PublishChangeUnderLock(string projectRootPath, string relativePath) {
             string normalizedRelativePath = NormalizeRelativePath(projectRootPath, relativePath);
             string generationPath = GetPath(projectRootPath);
             string generationDirectoryPath = Path.GetDirectoryName(generationPath);
             Directory.CreateDirectory(generationDirectoryPath);
 
-            long generation = Read(projectRootPath) + 1;
-            byte[] record = new System.Text.UTF8Encoding(false).GetBytes(
-                generation.ToString(System.Globalization.CultureInfo.InvariantCulture) + "\t" + normalizedRelativePath + Environment.NewLine);
-            using FileStream stream = new FileStream(
-                generationPath,
-                FileMode.Append,
-                FileAccess.Write,
-                FileShare.Read,
-                record.Length,
-                FileOptions.WriteThrough);
-            stream.Write(record, 0, record.Length);
-            stream.Flush(true);
+            ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            long generation = checked(snapshot.CurrentGeneration + 1);
+            Dictionary<string, ProjectWriteGenerationChange> changes = snapshot.Changes
+                .ToDictionary(change => change.RelativePath, change => change, PathComparer);
+            changes[normalizedRelativePath] = new ProjectWriteGenerationChange {
+                Generation = generation,
+                RelativePath = normalizedRelativePath
+            };
+
+            ProjectWriteGenerationSnapshot nextSnapshot = new ProjectWriteGenerationSnapshot {
+                Version = CurrentVersion,
+                CurrentGeneration = generation,
+                Changes = changes.Values
+                    .OrderBy(change => change.Generation)
+                    .ThenBy(change => change.RelativePath, PathComparer)
+                    .ToList()
+            };
+            WriteSnapshotAtomically(generationPath, nextSnapshot);
             return generation;
+        }
+
+        static ProjectWriteGenerationSnapshot ReadSnapshot(string projectRootPath) {
+            string generationPath = GetPath(projectRootPath);
+            if (!File.Exists(generationPath)) {
+                return new ProjectWriteGenerationSnapshot {
+                    Version = CurrentVersion,
+                    CurrentGeneration = 0,
+                    Changes = new List<ProjectWriteGenerationChange>()
+                };
+            }
+
+            string json;
+            try {
+                json = File.ReadAllText(generationPath);
+            } catch (FileNotFoundException) {
+                return new ProjectWriteGenerationSnapshot {
+                    Version = CurrentVersion,
+                    CurrentGeneration = 0,
+                    Changes = new List<ProjectWriteGenerationChange>()
+                };
+            } catch (DirectoryNotFoundException) {
+                return new ProjectWriteGenerationSnapshot {
+                    Version = CurrentVersion,
+                    CurrentGeneration = 0,
+                    Changes = new List<ProjectWriteGenerationChange>()
+                };
+            }
+
+            ProjectWriteGenerationSnapshot snapshot;
+            try {
+                snapshot = JsonSerializer.Deserialize<ProjectWriteGenerationSnapshot>(json, JsonOptions);
+            } catch (JsonException exception) {
+                throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' is malformed.", exception);
+            }
+
+            ValidateSnapshot(snapshot, generationPath, Path.GetFullPath(projectRootPath));
+            return snapshot;
+        }
+
+        static void ValidateSnapshot(ProjectWriteGenerationSnapshot snapshot, string generationPath, string projectRootPath) {
+            if (snapshot == null || snapshot.Version != CurrentVersion || snapshot.CurrentGeneration < 0 || snapshot.Changes == null) {
+                throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' has an unsupported version or shape.");
+            }
+
+            HashSet<string> paths = new HashSet<string>(PathComparer);
+            HashSet<long> generations = new HashSet<long>();
+            long maximumGeneration = 0;
+            for (int index = 0; index < snapshot.Changes.Count; index++) {
+                ProjectWriteGenerationChange change = snapshot.Changes[index];
+                if (change == null || string.IsNullOrWhiteSpace(change.RelativePath) || change.Generation <= 0 || change.Generation > snapshot.CurrentGeneration ||
+                    !generations.Add(change.Generation) || !paths.Add(change.RelativePath)) {
+                    throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' contains an invalid or duplicate change.");
+                }
+
+                string normalizedPath;
+                try {
+                    normalizedPath = NormalizeRelativePath(projectRootPath, change.RelativePath);
+                } catch (Exception exception) when (exception is ArgumentException || exception is InvalidOperationException) {
+                    throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' contains an invalid path.", exception);
+                }
+                if (!string.Equals(normalizedPath, change.RelativePath, StringComparison.Ordinal)) {
+                    throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' contains a non-canonical path.");
+                }
+
+                maximumGeneration = Math.Max(maximumGeneration, change.Generation);
+            }
+
+            if ((snapshot.CurrentGeneration == 0 && snapshot.Changes.Count != 0) ||
+                (snapshot.CurrentGeneration > 0 && maximumGeneration != snapshot.CurrentGeneration)) {
+                throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' has inconsistent generation bounds.");
+            }
+        }
+
+        static void WriteSnapshotAtomically(string generationPath, ProjectWriteGenerationSnapshot snapshot) {
+            string temporaryPath = generationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try {
+                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions);
+                using (FileStream stream = new FileStream(
+                    temporaryPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    4096,
+                    FileOptions.WriteThrough)) {
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush(true);
+                }
+
+                if (File.Exists(generationPath)) {
+                    File.Move(temporaryPath, generationPath, true);
+                } else {
+                    File.Move(temporaryPath, generationPath);
+                }
+            } finally {
+                if (File.Exists(temporaryPath)) {
+                    File.Delete(temporaryPath);
+                }
+            }
         }
 
         /// <summary>
@@ -251,6 +334,20 @@ namespace helengine.editor {
                 .Replace(Path.DirectorySeparatorChar, '/')
                 .Replace(Path.AltDirectorySeparatorChar, '/')
                 .Trim('/');
+        }
+
+        sealed class ProjectWriteGenerationSnapshot {
+            public int Version { get; set; }
+
+            public long CurrentGeneration { get; set; }
+
+            public List<ProjectWriteGenerationChange> Changes { get; set; }
+        }
+
+        sealed class ProjectWriteGenerationChange {
+            public long Generation { get; set; }
+
+            public string RelativePath { get; set; }
         }
     }
 }

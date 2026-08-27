@@ -37,6 +37,64 @@ public sealed class DeterministicScenePlatformSerializationTests {
         Assert.Equal(AssetSerializer.SerializeToBytes(first), AssetSerializer.SerializeToBytes(second));
     }
 
+    [Fact]
+    public void AssetSerializer_ScenePlatformExistenceOverrides_WhenScopeIsDuplicated_RejectsBeforeWriting() {
+        SceneAsset scene = CreateScene(new[] {
+            new SceneEntityPlatformExistenceOverrideAsset { PlatformId = "windows", EnvironmentId = "shipping", Exists = true },
+            new SceneEntityPlatformExistenceOverrideAsset { PlatformId = "windows", EnvironmentId = "shipping", Exists = false }
+        });
+
+        Assert.Throws<InvalidOperationException>(() => AssetSerializer.SerializeToBytes(scene));
+    }
+
+    [Fact]
+    public void AssetSerializer_BlueprintPlatformExistenceOverrides_WhenScopeIsDuplicated_LeavesOutputUntouched() {
+        BlueprintAsset blueprint = new BlueprintAsset {
+            Id = "Blueprints/Duplicate.hblueprint",
+            RootEntity = new SceneEntityAsset {
+                Id = 1,
+                PlatformExistenceOverrides = new[] {
+                    new SceneEntityPlatformExistenceOverrideAsset { PlatformId = "p", EnvironmentId = "e", Exists = true },
+                    new SceneEntityPlatformExistenceOverrideAsset { PlatformId = "p", EnvironmentId = "e", Exists = false }
+                },
+                Children = Array.Empty<SceneEntityAsset>()
+            },
+            AssetReferences = Array.Empty<SceneAssetReference>()
+        };
+        using MemoryStream stream = new MemoryStream();
+
+        Assert.Throws<InvalidOperationException>(() => AssetSerializer.Serialize(stream, blueprint));
+        Assert.Equal(0, stream.Length);
+    }
+
+    [Fact]
+    public void AssetSerializer_BlueprintPlatformTransformOverrides_WhenSignedZeroScopeIsDuplicated_RejectsBeforeWriting() {
+        BlueprintAsset blueprint = CreateBlueprintWithTransforms(new[] {
+            new SceneEntityPlatformTransformOverrideAsset {
+                PlatformId = "windows", EnvironmentId = "shipping", LocalPosition = new float3(+0f, 1f, 2f)
+            },
+            new SceneEntityPlatformTransformOverrideAsset {
+                PlatformId = "windows", EnvironmentId = "shipping", LocalPosition = new float3(-0f, 1f, 2f)
+            }
+        });
+
+        Assert.Throws<InvalidOperationException>(() => AssetSerializer.SerializeToBytes(blueprint));
+    }
+
+    [Fact]
+    public void AssetSerializer_ScenePlatformComponentOverrides_WhenScopeIsDuplicated_RejectsBeforeWriting() {
+        SceneAsset scene = CreateSceneWithComponents(new[] {
+            new SceneEntityPlatformComponentOverrideAsset {
+                PlatformId = "platform\u001fenvironment", EnvironmentId = "scope", RemovedComponentKeys = new[] { "a\u001fb" }
+            },
+            new SceneEntityPlatformComponentOverrideAsset {
+                PlatformId = "platform\u001fenvironment", EnvironmentId = "scope", RemovedComponentKeys = new[] { "other" }
+            }
+        });
+
+        Assert.Throws<InvalidOperationException>(() => AssetSerializer.SerializeToBytes(scene));
+    }
+
     static SceneAsset CreateScene(SceneEntityPlatformExistenceOverrideAsset[] overrides) {
         return new SceneAsset {
             Id = "Scenes/Deterministic.hscene",
@@ -62,6 +120,36 @@ public sealed class DeterministicScenePlatformSerializationTests {
                 PlatformTransformOverrides = Array.Empty<SceneEntityPlatformTransformOverrideAsset>(),
                 PlatformComponentOverrides = overrides,
                 Children = Array.Empty<SceneEntityAsset>()
+            },
+            AssetReferences = Array.Empty<SceneAssetReference>()
+        };
+    }
+
+    static BlueprintAsset CreateBlueprintWithTransforms(SceneEntityPlatformTransformOverrideAsset[] overrides) {
+        return new BlueprintAsset {
+            Id = "Blueprints/Deterministic.hblueprint",
+            RootEntity = new SceneEntityAsset {
+                Id = 1,
+                PlatformExistenceOverrides = Array.Empty<SceneEntityPlatformExistenceOverrideAsset>(),
+                PlatformTransformOverrides = overrides,
+                PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>(),
+                Children = Array.Empty<SceneEntityAsset>()
+            },
+            AssetReferences = Array.Empty<SceneAssetReference>()
+        };
+    }
+
+    static SceneAsset CreateSceneWithComponents(SceneEntityPlatformComponentOverrideAsset[] overrides) {
+        return new SceneAsset {
+            Id = "Scenes/Deterministic.hscene",
+            RootEntities = new[] {
+                new SceneEntityAsset {
+                    Id = 1,
+                    PlatformExistenceOverrides = Array.Empty<SceneEntityPlatformExistenceOverrideAsset>(),
+                    PlatformTransformOverrides = Array.Empty<SceneEntityPlatformTransformOverrideAsset>(),
+                    PlatformComponentOverrides = overrides,
+                    Children = Array.Empty<SceneEntityAsset>()
+                }
             },
             AssetReferences = Array.Empty<SceneAssetReference>()
         };

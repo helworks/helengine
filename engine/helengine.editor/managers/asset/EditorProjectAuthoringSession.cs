@@ -150,7 +150,8 @@ namespace helengine.editor {
         /// <returns>Canonical asset reference.</returns>
         public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
-            return ReferenceResolver.CreateFileReference(ResolveAssetsPath(relativePath), expectedKind);
+            return NativeAssetWriteService.ExecuteSynchronizedRead(
+                () => ReferenceResolver.CreateFileReference(ResolveAssetsPath(relativePath), expectedKind));
         }
 
         /// <summary>
@@ -161,7 +162,8 @@ namespace helengine.editor {
         /// <returns>Resolved and canonicalized asset reference data.</returns>
         public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
-            return ReferenceResolver.Resolve(reference, expectedKind);
+            return NativeAssetWriteService.ExecuteSynchronizedRead(
+                () => ReferenceResolver.Resolve(reference, expectedKind));
         }
 
         /// <summary>
@@ -199,8 +201,11 @@ namespace helengine.editor {
         /// </summary>
         public void RefreshExternalChanges() {
             EnsureNotDisposed();
-            IdentityIndex.ReconcileExternalChanges();
-            HashCache.InvalidateAllContentHashes();
+            NativeAssetWriteService.ExecuteSynchronizedRead(() => {
+                IdentityIndex.ReconcileExternalChanges();
+                HashCache.InvalidateAllContentHashes();
+                return true;
+            });
         }
 
         /// <summary>
@@ -365,7 +370,8 @@ namespace helengine.editor {
         /// <returns>True when one or more references changed.</returns>
         public bool CanonicalizeAssetReferences(Component component, EntityComponentSaveState saveState) {
             EnsureNotDisposed();
-            return AssetAuthoringService.CanonicalizeAssetReferences(component, saveState);
+            return NativeAssetWriteService.ExecuteSynchronizedRead(
+                () => AssetAuthoringService.CanonicalizeAssetReferences(component, saveState));
         }
 
         /// <summary>
@@ -473,8 +479,8 @@ namespace helengine.editor {
                 return;
             }
 
-            IsDisposed = true;
             Lifetime.Dispose();
+            IsDisposed = true;
         }
 
         /// <summary>
@@ -589,8 +595,40 @@ namespace helengine.editor {
             if (!fullPath.StartsWith(assetsPrefix, comparison)) {
                 throw new InvalidOperationException("Asset path must remain beneath the project assets root.");
             }
+            ValidateNoReparseTraversal(fullPath);
 
             return fullPath;
+        }
+
+        /// <summary>Rejects links or junctions between the assets root and a public authoring path.</summary>
+        void ValidateNoReparseTraversal(string fullPath) {
+            string rootPath = Path.GetFullPath(AssetsRootPath);
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            string currentPath = fullPath;
+            while (true) {
+                try {
+                    FileAttributes attributes = File.GetAttributes(currentPath);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
+                        throw new InvalidOperationException($"Asset path '{fullPath}' traverses a reparse point.");
+                    }
+                } catch (FileNotFoundException) {
+                } catch (DirectoryNotFoundException) {
+                }
+
+                if (string.Equals(currentPath, rootPath, comparison)) {
+                    return;
+                }
+
+                string parentPath = Path.GetDirectoryName(currentPath);
+                string rootPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                if (string.IsNullOrWhiteSpace(parentPath) ||
+                    (!string.Equals(parentPath, rootPath, comparison) && !parentPath.StartsWith(rootPrefix, comparison))) {
+                    throw new InvalidOperationException("Asset path must remain beneath the project assets root.");
+                }
+                currentPath = parentPath;
+            }
         }
 
         /// <summary>
@@ -645,10 +683,10 @@ namespace helengine.editor {
                 return;
             }
 
-            IsDisposed = true;
             ReferenceResolver.Dispose();
             IdentityIndex.Dispose();
             HashCache.Dispose();
+            IsDisposed = true;
         }
     }
 }

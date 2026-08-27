@@ -400,6 +400,77 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures writer construction replays a publication made after the index scan but before writer creation.
+    /// </summary>
+    [Fact]
+    public void WriterConstruction_ReplaysPublishedPathAfterIndexInitialization() {
+        string relativePath = "models/ConstructionRace.hasset";
+        string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        using EditorAssetHashCache cache = new EditorAssetHashCache(ProjectRootPath);
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(ProjectRootPath, null, null, cache);
+        index.Initialize();
+        Assert.Null(index.FindByPath(relativePath));
+
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
+        File.WriteAllBytes(fullPath, AssetSerializer.SerializeToBytes(CreateModel(authoringAssetId: "00112233445566778899aabbccddeeff")));
+        EditorProjectWriteGeneration.PublishChange(ProjectRootPath, relativePath);
+
+        _ = new EditorNativeAssetWriteService(ProjectRootPath, index, cache);
+
+        Assert.NotNull(index.FindByPath(relativePath));
+        Assert.Equal(relativePath, index.FindByPath(relativePath).RelativePath);
+    }
+
+    /// <summary>
+    /// Ensures a direct session reference read replays a same-length external publication before hashing.
+    /// </summary>
+    [Fact]
+    public void CreateReference_WhenOtherSessionRewritesWithRestoredTimestamp_ReplaysBeforeRead() {
+        using EditorProjectAuthoringSession firstSession = (EditorProjectAuthoringSession)CreateSession();
+        using EditorProjectAuthoringSession secondSession = (EditorProjectAuthoringSession)CreateSession();
+        EditorAssetWriteResult first = firstSession.WriteAsset("models/ReadBoundary.hasset", CreateModel());
+        DateTime timestamp = File.GetLastWriteTimeUtc(first.FullPath);
+        SceneAssetReference initialReference = firstSession.CreateReference("models/ReadBoundary.hasset", AssetEntryKind.Model);
+
+        secondSession.WriteAsset("models/ReadBoundary.hasset", CreateModel(new float3(7f, 0f, 0f)));
+        File.SetLastWriteTimeUtc(first.FullPath, timestamp);
+
+        SceneAssetReference observedReference = firstSession.CreateReference("models/ReadBoundary.hasset", AssetEntryKind.Model);
+
+        Assert.NotEqual(initialReference.ContentHash, observedReference.ContentHash);
+    }
+
+    /// <summary>
+    /// Ensures a post-replacement bookkeeping failure is healed by a newly opened session.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenHashBookkeepingFailsAfterReplacement_NewSessionReplaysAndRehashes() {
+        const string relativePath = "models/PostReplacementFailure.hasset";
+        using (EditorProjectAuthoringSession seedSession = (EditorProjectAuthoringSession)CreateSession()) {
+            seedSession.WriteAsset(relativePath, CreateModel());
+        }
+
+        using EditorAssetHashCache failingCache = new EditorAssetHashCache(ProjectRootPath);
+        using EditorAssetIdentityIndex failingIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, failingCache);
+        failingIndex.Initialize();
+        EditorNativeAssetWriteService failingWriter = new EditorNativeAssetWriteService(
+            ProjectRootPath,
+            failingIndex,
+            failingCache,
+            new FixedBaselineWriteChangeLog(ProjectRootPath));
+        string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        string oldHash = failingCache.GetContentHash(fullPath);
+        failingCache.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => failingWriter.WriteAsset(relativePath, CreateModel(new float3(8f, 0f, 0f))));
+
+        using EditorProjectAuthoringSession healedSession = (EditorProjectAuthoringSession)CreateSession();
+        SceneAssetReference healedReference = healedSession.CreateReference(relativePath, AssetEntryKind.Model);
+
+        Assert.NotEqual(oldHash, healedReference.ContentHash);
+    }
+
+    /// <summary>
     /// Ensures a failed exact-path publication leaves the destination untouched.
     /// </summary>
     [Fact]
@@ -499,6 +570,27 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
         public long PublishChange(string relativePath) {
             PublishCount++;
             throw new IOException("Test publication failure.");
+        }
+    }
+
+    /// <summary>
+    /// Keeps startup replay at a known baseline while publishing through the real locked snapshot.
+    /// </summary>
+    sealed class FixedBaselineWriteChangeLog : IEditorProjectWriteChangeLog {
+        readonly string ProjectRootPath;
+
+        public FixedBaselineWriteChangeLog(string projectRootPath) {
+            ProjectRootPath = projectRootPath;
+        }
+
+        public long CurrentGeneration => 0;
+
+        public IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation) {
+            return Array.Empty<EditorProjectWriteChange>();
+        }
+
+        public long PublishChange(string relativePath) {
+            return EditorProjectWriteGeneration.PublishChangeUnderLock(ProjectRootPath, relativePath);
         }
     }
 }
