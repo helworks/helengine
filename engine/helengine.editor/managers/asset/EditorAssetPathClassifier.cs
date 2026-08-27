@@ -14,6 +14,11 @@ namespace helengine.editor {
         const string IdentityMetadataExtension = ".hmeta";
 
         /// <summary>
+        /// Extension used for native animation clip assets whose identity is embedded in the payload.
+        /// </summary>
+        const string AnimationClipExtension = ".hanim";
+
+        /// <summary>
         /// Classifies one file path into the shared editor asset category.
         /// </summary>
         /// <param name="fullPath">Absolute or project-relative file path.</param>
@@ -125,7 +130,8 @@ namespace helengine.editor {
 
             string extension = Path.GetExtension(fullPath);
             if (string.Equals(extension, SceneAsset.FileExtension, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(extension, BlueprintAsset.FileExtension, StringComparison.OrdinalIgnoreCase)) {
+                string.Equals(extension, BlueprintAsset.FileExtension, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(extension, AnimationClipExtension, StringComparison.OrdinalIgnoreCase)) {
                 return true;
             }
             if (!string.Equals(extension, ImportSettingsExtension, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {

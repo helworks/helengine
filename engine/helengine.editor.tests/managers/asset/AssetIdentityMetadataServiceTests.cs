@@ -171,6 +171,45 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures current native animation clips read identity from their embedded payload even when a stale sidecar exists.
+    /// </summary>
+    [Fact]
+    public void Load_ForNativeAnimationClip_UsesEmbeddedIdentityAndIgnoresSidecar() {
+        string animationPath = Path.Combine(TempRootPath, "assets", "Animations", "Native.hanim");
+        const string embeddedAssetId = "00112233445566778899aabbccddeeff";
+        const string sidecarAssetId = "ffeeddccbbaa99887766554433221100";
+        WriteNativeAnimation(animationPath, embeddedAssetId);
+        string sidecarPath = animationPath + ".hmeta";
+        File.WriteAllText(sidecarPath, $"{{\"version\":1,\"assetId\":\"{sidecarAssetId}\",\"formerAssetIds\":[]}}");
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
+
+        Assert.True(classifier.UsesEmbeddedIdentity(animationPath));
+        Assert.True(classifier.IsAuthoredAsset(animationPath));
+        Assert.Equal(AssetEntryKind.File, classifier.Classify(animationPath));
+        Assert.Equal(embeddedAssetId, service.Load(animationPath).AssetId);
+        Assert.Throws<InvalidOperationException>(() => service.GetMetadataPath(animationPath));
+        Assert.Equal(embeddedAssetId, service.LoadOrCreate(animationPath, string.Empty).AssetId);
+        Assert.Contains(sidecarAssetId, File.ReadAllText(sidecarPath), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures first identity indexing of a native animation clip never creates an adjacent sidecar.
+    /// </summary>
+    [Fact]
+    public void LoadOrCreate_ForNativeAnimationClip_DoesNotCreateSidecar() {
+        string animationPath = Path.Combine(TempRootPath, "assets", "Animations", "Generated.hanim");
+        const string embeddedAssetId = "11223344556677889900aabbccddeeff";
+        WriteNativeAnimation(animationPath, embeddedAssetId);
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+
+        AssetIdentityMetadataDocument loaded = service.LoadOrCreate(animationPath, string.Empty);
+
+        Assert.Equal(embeddedAssetId, loaded.AssetId);
+        Assert.False(File.Exists(animationPath + ".hmeta"));
+    }
+
+    /// <summary>
     /// Writes one minimal native scene fixture without authored identity metadata.
     /// </summary>
     static void WriteNativeScene(string path) {
@@ -196,6 +235,19 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
                 Children = Array.Empty<SceneEntityAsset>()
             },
             AssetReferences = Array.Empty<SceneAssetReference>()
+        });
+    }
+
+    /// <summary>
+    /// Writes one current native animation clip fixture with embedded authored identity.
+    /// </summary>
+    static void WriteNativeAnimation(string path, string assetId) {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using FileStream stream = File.Create(path);
+        AssetSerializer.Serialize(stream, new AnimationClipAsset {
+            Id = "Animations/Native.hanim",
+            AuthoringAssetId = assetId,
+            FormerAuthoringAssetIds = Array.Empty<string>()
         });
     }
 

@@ -111,6 +111,24 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures native animation identity is indexed from the embedded payload without creating a sidecar.
+    /// </summary>
+    [Fact]
+    public void Refresh_ForNativeAnimationClip_IndexesEmbeddedIdentityWithoutSidecar() {
+        string assetPath = CreateNativeAnimation("Animations/Indexed.hanim", "aabbccddeeff00112233445566778899");
+        EditorAssetIdentityIndex index = CreateIndex();
+
+        index.Refresh();
+
+        EditorAssetIdentityEntry entry = index.FindByPath("Animations/Indexed.hanim");
+        Assert.NotNull(entry);
+        Assert.Equal("aabbccddeeff00112233445566778899", entry.AssetId);
+        Assert.Equal(AssetEntryKind.File, entry.EntryKind);
+        Assert.Single(index.FindByAssetId(entry.AssetId, AssetEntryKind.File));
+        Assert.False(File.Exists(assetPath + ".hmeta"));
+    }
+
+    /// <summary>
     /// Creates the identity index with its project-scoped dependencies.
     /// </summary>
     /// <returns>Configured identity index.</returns>
@@ -127,6 +145,21 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         string assetPath = Path.Combine(TempRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(assetPath));
         File.WriteAllBytes(assetPath, new byte[] { 1, 2, 3 });
+        return assetPath;
+    }
+
+    /// <summary>
+    /// Writes one current native animation clip fixture with embedded authored identity.
+    /// </summary>
+    string CreateNativeAnimation(string relativePath, string assetId) {
+        string assetPath = Path.Combine(TempRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(assetPath));
+        using FileStream stream = File.Create(assetPath);
+        AssetSerializer.Serialize(stream, new AnimationClipAsset {
+            Id = relativePath,
+            AuthoringAssetId = assetId,
+            FormerAuthoringAssetIds = Array.Empty<string>()
+        });
         return assetPath;
     }
 
