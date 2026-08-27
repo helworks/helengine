@@ -34,7 +34,6 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     }
 
     /// <summary>
-    /// <summary>
     /// Deletes the temporary directory used by the current test.
     /// </summary>
     public void Dispose() {

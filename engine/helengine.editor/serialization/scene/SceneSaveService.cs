@@ -375,7 +375,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// <summary>
         /// Clones the entity existence overrides stored on one hidden save component into serializable scene asset payloads.
         /// </summary>
         /// <param name="saveComponent">Hidden save component that owns the entity existence override metadata.</param>

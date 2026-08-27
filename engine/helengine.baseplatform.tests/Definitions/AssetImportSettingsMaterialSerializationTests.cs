@@ -83,7 +83,12 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             Variant = "Mesh"
         };
         string materialAssetPath = Path.Combine(TempRootPath, "Test.helmat");
-        File.WriteAllBytes(materialAssetPath, Array.Empty<byte>());
+        MaterialAssetCommonSettingsDocument commonDocument = new MaterialAssetCommonSettingsDocument();
+        commonDocument.Importer.ImporterId = "helengine.material";
+        commonDocument.Importer.AssetId = materialAsset.Id;
+        using (FileStream stream = File.Create(materialAssetPath)) {
+            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, commonDocument);
+        }
 
         PlatformDefinition definition = new(
             "windows",

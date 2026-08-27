@@ -69,7 +69,7 @@ public sealed class EditorWindowsBuildScenePackagerAudioTests : IDisposable {
 
         string packagedScenePath = Path.Combine(BuildRootPath, PackagedScenePathResolver.BuildRelativePath(scenePath, 0).Replace('/', Path.DirectorySeparatorChar));
         using FileStream sceneStream = File.OpenRead(packagedScenePath);
-        SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(sceneStream));
+        SceneAsset packagedScene = Assert.IsType<SceneAsset>(PackagedAssetBinarySerializer.Deserialize(sceneStream));
         SceneAssetReference packagedAudioReference = Assert.Single(packagedScene.AssetReferences);
         Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, packagedAudioReference.SourceKind);
         Assert.Equal("cooked/audio/menu/theme.hasset", packagedAudioReference.RelativePath);

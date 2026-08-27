@@ -76,6 +76,35 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a stale imported texture path fails instead of being rewritten while preparing a builder cook request.
+        /// </summary>
+        [Fact]
+        public void ValidateImportedTextureCookField_WhenPathIsStale_RejectsCurrentSettings() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+            string staleTextureRelativePath = "cooked/imported/obsolete.hetex";
+            Dictionary<string, string> fieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+                ["texture-relative-path"] = staleTextureRelativePath
+            };
+            ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
+                DiffuseTextureAssetId = textureAssetId
+            };
+
+            MethodInfo normalizeMethod = typeof(SceneComponentPackagingTransformService).GetMethod(
+                "ValidateImportedTextureCookField",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(normalizeMethod);
+
+            TargetInvocationException invocation = Assert.Throws<TargetInvocationException>(() => normalizeMethod.Invoke(
+                service,
+                [fieldValues, materialAsset, staleTextureRelativePath]));
+            InvalidOperationException exception = Assert.IsType<InvalidOperationException>(invocation.InnerException);
+            Assert.Contains("noncanonical imported texture path", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Regenerate the material settings", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(staleTextureRelativePath, fieldValues["texture-relative-path"]);
+        }
+
+        /// <summary>
         /// Ensures platform-extended text metadata stored in detached DS overrides is emitted into the packaged ordinal runtime payload.
         /// </summary>
         [Fact]
@@ -1004,7 +1033,7 @@ namespace helengine.editor.tests {
             Assert.Equal(schema.Members.Count, reader.ReadInt32());
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                member.SetValue(component, AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, saveComponent, null));
+                member.SetValue(component, ReadPackagedMemberValue(reader, member, component, saveComponent, null));
             }
 
             Assert.True(saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState));
@@ -1021,7 +1050,7 @@ namespace helengine.editor.tests {
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
             Assert.Equal(1, reader.ReadByte());
-            SceneAssetReference reference = SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
+            SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
             return Assert.IsType<SceneAssetReference>(reference);
         }
 
@@ -1058,7 +1087,11 @@ namespace helengine.editor.tests {
             TComponent component = new TComponent();
             TestSceneAssetReferenceResolver referenceResolver = new TestSceneAssetReferenceResolver();
             referenceResolver.RegisterFont(
-                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("cooked/fonts/default.hefont"),
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
+                    SceneAssetReferenceSourceKind.FileSystem,
+                    "cooked/fonts/default.hefont",
+                    string.Empty,
+                    string.Empty),
                 CreatePackagedFontAsset());
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
@@ -1066,10 +1099,81 @@ namespace helengine.editor.tests {
             Assert.Equal(schema.Members.Count, reader.ReadInt32());
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
-                member.SetValue(component, AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, new EntitySaveComponent(), referenceResolver));
+                member.SetValue(component, ReadPackagedMemberValue(reader, member, component, new EntitySaveComponent(), referenceResolver));
             }
 
             return component;
+        }
+
+        /// <summary>
+        /// Reads one packaged automatic-component member while preserving the runtime payload's path-only file-reference contract.
+        /// </summary>
+        static object ReadPackagedMemberValue(
+            EngineBinaryReader reader,
+            ScriptComponentReflectionMember member,
+            Component component,
+            EntitySaveComponent saveComponent,
+            ISceneAssetReferenceResolver referenceResolver) {
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+                if (saveComponent != null && reference != null) {
+                    saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildReferenceName(member.Name), reference);
+                }
+                if (reference == null || referenceResolver == null) {
+                    return null;
+                }
+
+                return ResolvePackagedAssetReference(member.ValueType, referenceResolver, reference);
+            }
+
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
+                int referenceCount = reader.ReadInt32();
+                if (referenceCount < 0) {
+                    throw new InvalidOperationException("Scene asset reference array counts must be non-negative.");
+                }
+
+                Type elementType = member.ValueType.GetElementType() ?? throw new InvalidOperationException("Asset-backed arrays must expose an element type.");
+                Array resolvedValues = Array.CreateInstance(elementType, referenceCount);
+                for (int index = 0; index < referenceCount; index++) {
+                    SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+                    if (saveComponent != null && reference != null) {
+                        saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(member.Name, index), reference);
+                    }
+                    if (reference != null && referenceResolver != null) {
+                        resolvedValues.SetValue(ResolvePackagedAssetReference(elementType, referenceResolver, reference), index);
+                    }
+                }
+
+                return resolvedValues;
+            }
+
+            return AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, saveComponent, referenceResolver);
+        }
+
+        /// <summary>
+        /// Resolves one packaged reference through the test resolver for the reflected asset member type.
+        /// </summary>
+        static object ResolvePackagedAssetReference(Type valueType, ISceneAssetReferenceResolver referenceResolver, SceneAssetReference reference) {
+            if (valueType == typeof(FontAsset)) {
+                return referenceResolver.ResolveFont(reference);
+            }
+            if (valueType == typeof(RuntimeTexture)) {
+                return referenceResolver.ResolveTexture(reference);
+            }
+            if (valueType == typeof(RuntimeModel)) {
+                return referenceResolver.ResolveModel(reference);
+            }
+            if (valueType == typeof(RuntimeMaterial)) {
+                return referenceResolver.ResolveMaterial(reference);
+            }
+            if (valueType == typeof(AnimationClipAsset)) {
+                return referenceResolver.ResolveAnimationClip(reference);
+            }
+            if (valueType == typeof(AudioAsset)) {
+                return referenceResolver.ResolveAudio(reference);
+            }
+
+            throw new InvalidOperationException($"Unsupported packaged asset reference type '{valueType.FullName}'.");
         }
 
         /// <summary>

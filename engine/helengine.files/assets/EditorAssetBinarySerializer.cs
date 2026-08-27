@@ -1022,7 +1022,6 @@ namespace helengine.files {
         }
 
         /// <summary>
-        /// <summary>
         /// Writes one serialized scene entity existence override payload.
         /// </summary>
         /// <param name="writer">Destination writer for the payload.</param>

@@ -497,6 +497,7 @@ namespace helengine.editor {
                     changed |= ApplyCustomShaderMirroredField(fieldValues, ShaderAssetIdFieldId, shaderMaterialAsset.ShaderAssetId, StandardShaderAssetId, value => shaderMaterialAsset.ShaderAssetId = value);
                     changed |= ApplyCustomShaderMirroredField(fieldValues, VertexProgramFieldId, shaderMaterialAsset.VertexProgram, StandardVertexProgramName, value => shaderMaterialAsset.VertexProgram = value);
                     changed |= ApplyCustomShaderMirroredField(fieldValues, PixelProgramFieldId, shaderMaterialAsset.PixelProgram, StandardPixelProgramName, value => shaderMaterialAsset.PixelProgram = value);
+                    changed |= ApplyMaterialVariant(shaderMaterialAsset, StandardShaderVariantName);
                 } else {
                     changed |= ApplyStandardShaderMirroredFields(shaderMaterialAsset);
                     changed |= ApplyMaterialVariant(shaderMaterialAsset, StandardShaderVariantName);

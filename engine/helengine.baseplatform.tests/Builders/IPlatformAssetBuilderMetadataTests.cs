@@ -104,7 +104,7 @@ public class IPlatformAssetBuilderMetadataTests {
                 ["base-color"] = "#336699"
             }));
 
-        ShaderMaterialAsset materialAsset = Assert.IsType<ShaderMaterialAsset>(AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes));
+        ShaderMaterialAsset materialAsset = Assert.IsType<ShaderMaterialAsset>(global::helengine.editor.AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes));
         Assert.Equal("ForwardStandardShader", materialAsset.ShaderAssetId);
         Assert.Single(materialAsset.ConstantBuffers);
         Assert.Equal("BaseColorBuffer", materialAsset.ConstantBuffers[0].Name);

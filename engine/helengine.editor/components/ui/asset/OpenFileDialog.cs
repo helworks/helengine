@@ -48,7 +48,6 @@ namespace helengine.editor {
         /// </summary>
         const int FallbackHostHeight = 720;
         /// <summary>
-        /// <summary>
         /// Maximum time in milliseconds between row activations that counts as a double-click.
         /// </summary>
         const int RowDoubleClickMs = 350;

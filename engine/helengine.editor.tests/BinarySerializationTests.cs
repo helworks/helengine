@@ -511,6 +511,26 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the dedicated shader reader rejects both adjacent header versions instead of interpreting another payload layout.
+        /// </summary>
+        [Fact]
+        public void ShaderAssetBinarySerializer_WhenHeaderVersionIsNotCurrent_ThrowsRegenerationGuidance() {
+            foreach (byte version in new[] {
+                (byte)(PackagedAssetBinarySerializer.CurrentVersion - 1),
+                (byte)(PackagedAssetBinarySerializer.CurrentVersion + 1)
+            }) {
+                byte[] data = global::helengine.files.AssetSerializer.SerializeToBytes(CreateShaderAsset());
+                data[5] = version;
+                using MemoryStream stream = new MemoryStream(data, writable: false);
+
+                InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ShaderAssetBinarySerializer.Deserialize(stream));
+                Assert.Contains(version.ToString(), exception.Message, StringComparison.Ordinal);
+                Assert.Contains(PackagedAssetBinarySerializer.CurrentVersion.ToString(), exception.Message, StringComparison.Ordinal);
+                Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>
         /// Ensures the packaged runtime asset serializer rejects editor-only blueprint payloads instead of deserializing them at runtime.
         /// </summary>
         [Fact]

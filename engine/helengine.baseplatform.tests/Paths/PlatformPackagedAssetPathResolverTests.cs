@@ -21,7 +21,7 @@ public class PlatformPackagedAssetPathResolverTests {
         string resolvedPath = PlatformPackagedAssetPathResolver.ResolveRuntimeReferencePath(
             "windows",
             contract,
-            "cooked\\fonts\\default.hefont");
+            "cooked/fonts/default.hefont");
 
         Assert.Equal("cooked/fonts/default.hefont", resolvedPath);
     }

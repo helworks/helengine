@@ -65,7 +65,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             "directx11");
         EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
-        string packagedMaterialPath = Path.Combine(BuildRootPath, materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string packagedMaterialPath = Path.Combine(BuildRootPath, "cooked", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
         using FileStream stream = new FileStream(packagedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         ShaderMaterialAsset packagedMaterial = Assert.IsType<ShaderMaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(stream));
 
@@ -125,21 +125,18 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             "debug",
             "directx11");
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        ShaderMaterialAsset materialAsset;
-        using (FileStream stream = new FileStream(materialPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
-            materialAsset = Assert.IsType<ShaderMaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(stream));
-        }
+        ShaderMaterialAsset materialAsset = new MaterialAssetSettingsService().LoadMaterialAsset(materialPath, "windows");
         MethodInfo loadMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
             "LoadMaterialSettingsForCook",
             BindingFlags.Instance | BindingFlags.NonPublic);
-        AssetImportSettings settings = Assert.IsType<AssetImportSettings>(loadMethod.Invoke(packager, [materialPath, materialRelativePath, materialAsset]));
+        MaterialAssetImportSettings settings = Assert.IsType<MaterialAssetImportSettings>(loadMethod.Invoke(packager, [materialPath, materialRelativePath, materialAsset]));
 
-        Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].Material.SchemaId);
-        Assert.Equal("false", settings.Processor.Platforms["windows"].Material.FieldValues["use-custom-shader"]);
-        Assert.Equal("StaleShader", settings.Processor.Platforms["windows"].Material.FieldValues["shader-asset-id"]);
-        Assert.Equal("StaleShader.vs", settings.Processor.Platforms["windows"].Material.FieldValues["vertex-program"]);
-        Assert.Equal("StaleShader.ps", settings.Processor.Platforms["windows"].Material.FieldValues["pixel-program"]);
-        Assert.True(File.Exists(materialPath + ".hasset"));
+        Assert.Equal("standard-shader", settings.Processor.Platforms["windows"].SchemaId);
+        Assert.Equal("false", settings.Processor.Platforms["windows"].FieldValues["use-custom-shader"]);
+        Assert.Equal("StaleShader", settings.Processor.Platforms["windows"].FieldValues["shader-asset-id"]);
+        Assert.Equal("StaleShader.vs", settings.Processor.Platforms["windows"].FieldValues["vertex-program"]);
+        Assert.Equal("StaleShader.ps", settings.Processor.Platforms["windows"].FieldValues["pixel-program"]);
+        Assert.False(File.Exists(materialPath + ".hasset"));
     }
 
     /// <summary>
@@ -164,13 +161,13 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             "directx11");
         packager.Package(new[] { sceneId }, BuildRootPath);
 
-        string packagedScenePath = Path.Combine(BuildRootPath, sceneId.Replace('/', Path.DirectorySeparatorChar));
+        string packagedScenePath = Path.Combine(BuildRootPath, "cooked", "scenes", "TestScene.hasset");
         using FileStream sceneStream = new FileStream(packagedScenePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        SceneAsset packagedSceneAsset = Assert.IsType<SceneAsset>(global::helengine.editor.AssetSerializer.Deserialize(sceneStream));
+        SceneAsset packagedSceneAsset = Assert.IsType<SceneAsset>(global::helengine.PackagedAssetBinarySerializer.Deserialize(sceneStream));
         SceneAssetReference packagedReference = Assert.Single(packagedSceneAsset.AssetReferences);
-        Assert.Equal("cooked/Materials/TestMaterial.hasset", packagedReference.RelativePath);
+        Assert.Equal("cooked/materials/testmaterial.helmat", packagedReference.RelativePath);
 
-        string packagedMaterialPath = Path.Combine(BuildRootPath, "cooked", "Materials", "TestMaterial.hasset");
+        string packagedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "testmaterial.helmat");
         using FileStream materialStream = new FileStream(packagedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         ShaderMaterialAsset packagedMaterial = Assert.IsType<ShaderMaterialAsset>(global::helengine.editor.AssetSerializer.Deserialize(materialStream));
         Assert.Equal("CookedShader", packagedMaterial.ShaderAssetId);
@@ -239,7 +236,10 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         SceneAsset sceneAsset = new SceneAsset {
             Id = sceneId,
             AssetReferences = [
-                global::helengine.SceneAssetReferenceFactory.CreateFileSystemMaterial(materialRelativePath)
+                global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                    "00112233445566778899aabbccddeeff",
+                    materialRelativePath,
+                    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
             ],
             RootEntities = Array.Empty<SceneEntityAsset>()
         };
@@ -249,50 +249,46 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     }
 
     /// <summary>
-    /// Writes one serialized material asset that still points at stale top-level mirrored material fields.
+    /// Writes one current material common-settings document whose shared fields represent the authored material defaults.
     /// </summary>
     /// <param name="materialRelativePath">Project-relative material path to write.</param>
-    /// <param name="shaderAssetId">Stale top-level shader asset id referenced by the material.</param>
+    /// <param name="shaderAssetId">Shader asset id referenced by the material defaults.</param>
     void WriteMaterialAsset(string materialRelativePath, string shaderAssetId) {
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
-        ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
-            Id = materialRelativePath,
-            ShaderAssetId = shaderAssetId,
-            VertexProgram = string.Concat(shaderAssetId, ".vs"),
-            PixelProgram = string.Concat(shaderAssetId, ".ps"),
-            Variant = "Mesh",
-            RenderState = new MaterialRenderState(),
-            ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
-        };
+        MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument();
+        document.Importer.ImporterId = "helengine.material";
+        document.Importer.AssetId = materialRelativePath;
+        document.Processor.SchemaId = "standard-shader";
+        document.Processor.FieldValues["use-custom-shader"] = "false";
+        document.Processor.FieldValues["shader-asset-id"] = shaderAssetId;
+        document.Processor.FieldValues["vertex-program"] = string.Concat(shaderAssetId, ".vs");
+        document.Processor.FieldValues["pixel-program"] = string.Concat(shaderAssetId, ".ps");
+        document.Processor.FieldValues["variant"] = "Mesh";
+        document.Processor.FieldValues["base-color"] = "#336699";
 
         using FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        global::helengine.editor.AssetSerializer.Serialize(stream, materialAsset);
+        MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
     }
 
     /// <summary>
-    /// Writes one per-platform material settings sidecar whose builder-owned field values point at the cooked shader.
+    /// Writes one current per-platform material override document whose builder-owned field values point at the cooked shader.
     /// </summary>
     /// <param name="materialRelativePath">Project-relative material path whose sidecar should be written.</param>
     void WriteMaterialSettings(string materialRelativePath) {
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        AssetImportSettings settings = new AssetImportSettings();
-        settings.Importer.ImporterId = "helengine.material";
-        settings.Importer.SourceChecksum = string.Empty;
-        settings.Importer.AssetId = materialRelativePath;
+        MaterialAssetPlatformOverrideDocument document = new MaterialAssetPlatformOverrideDocument();
+        document.PlatformId = "windows";
+        document.Processor.SchemaId = "standard-shader";
+        document.Processor.FieldValues["use-custom-shader"] = "true";
+        document.Processor.FieldValues["shader-asset-id"] = "CookedShader";
+        document.Processor.FieldValues["vertex-program"] = "CookedShader.vs";
+        document.Processor.FieldValues["pixel-program"] = "CookedShader.ps";
+        document.Processor.FieldValues["base-color"] = "#336699";
 
-        AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings();
-        platformSettings.Material.SchemaId = "standard-shader";
-        platformSettings.Material.FieldValues["use-custom-shader"] = "true";
-        platformSettings.Material.FieldValues["shader-asset-id"] = "CookedShader";
-        platformSettings.Material.FieldValues["vertex-program"] = "CookedShader.vs";
-        platformSettings.Material.FieldValues["pixel-program"] = "CookedShader.ps";
-        platformSettings.Material.FieldValues["base-color"] = "#336699";
-        settings.Processor.Platforms["windows"] = platformSettings;
-
-        using FileStream stream = new FileStream(materialPath + ".hasset", FileMode.Create, FileAccess.Write, FileShare.None);
-            SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+        using FileStream stream = new FileStream(materialPath + ".windows.hasset", FileMode.Create, FileAccess.Write, FileShare.None);
+        MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(stream, document);
     }
 
     /// <summary>
@@ -344,17 +340,18 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     /// <param name="materialRelativePath">Project-relative material path to encode.</param>
     /// <returns>Serialized mesh component payload.</returns>
     byte[] WriteMeshComponentPayload(string materialRelativePath) {
-        using MemoryStream stream = new MemoryStream();
-        using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
-        writer.WriteByte(1);
-        writer.WriteByte(0);
-        writer.WriteByte(1);
-        writer.WriteInt32((int)SceneAssetReferenceSourceKind.FileSystem);
-        writer.WriteString(materialRelativePath);
-        writer.WriteString(string.Empty);
-        writer.WriteString(string.Empty);
-        writer.WriteByte(0);
-        return stream.ToArray();
+        AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+        MeshComponent meshComponent = new MeshComponent {
+            Materials = [new RuntimeMaterial()]
+        };
+        EntityComponentSaveState saveState = new EntityComponentSaveState();
+        saveState.SetAssetReference(
+            "Materials[0]",
+            global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "00112233445566778899aabbccddeeff",
+                materialRelativePath,
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+        return descriptor.SerializeComponent(meshComponent, 0, saveState).Payload;
     }
 }
 

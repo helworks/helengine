@@ -2097,7 +2097,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// <summary>
         /// Resolves one imported texture asset id to the serialized cache file produced by the project asset importer.
         /// </summary>
         /// <param name="assetId">Imported texture asset identifier stored on the material asset.</param>
@@ -2460,7 +2459,7 @@ namespace helengine.editor {
 
             if (fieldValues.TryGetValue("texture-relative-path", out string textureRelativePath) &&
                 !string.IsNullOrWhiteSpace(textureRelativePath)) {
-                NormalizeImportedTextureCookField(fieldValues, materialAsset, textureRelativePath);
+                ValidateImportedTextureCookField(fieldValues, materialAsset, textureRelativePath);
                 return;
             }
 
@@ -2473,12 +2472,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Rewrites one pre-existing imported texture path when it still targets the same authored asset id but no longer matches the active platform runtime path convention.
+        /// Validates one pre-existing imported texture path against the current platform runtime path convention.
         /// </summary>
         /// <param name="fieldValues">Cook field-value map being prepared for the platform builder.</param>
         /// <param name="materialAsset">Source material asset used to resolve the imported texture asset id.</param>
         /// <param name="textureRelativePath">Current cooked texture-relative path already present on the field map.</param>
-        void NormalizeImportedTextureCookField(Dictionary<string, string> fieldValues, ShaderMaterialAsset materialAsset, string textureRelativePath) {
+        void ValidateImportedTextureCookField(Dictionary<string, string> fieldValues, ShaderMaterialAsset materialAsset, string textureRelativePath) {
             if (fieldValues == null) {
                 throw new ArgumentNullException(nameof(fieldValues));
             } else if (materialAsset == null) {
@@ -2489,19 +2488,15 @@ namespace helengine.editor {
 
             string diffuseTextureAssetId = ResolveReferencedDiffuseTextureAssetId(materialAsset, fieldValues);
             if (string.IsNullOrWhiteSpace(diffuseTextureAssetId)) {
-                return;
+                throw new InvalidOperationException(
+                    $"Material settings contain imported texture path '{textureRelativePath}' without a current texture asset id. Regenerate the material settings for the current format.");
             }
 
-            string normalizedTextureRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
-            if (string.Equals(textureRelativePath, normalizedTextureRelativePath, StringComparison.OrdinalIgnoreCase)) {
-                return;
+            string canonicalTextureRelativePath = BuildImportedTextureCookedRelativePath(diffuseTextureAssetId);
+            if (!string.Equals(textureRelativePath, canonicalTextureRelativePath, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException(
+                    $"Material settings contain noncanonical imported texture path '{textureRelativePath}' for texture asset '{diffuseTextureAssetId}'. The current path is '{canonicalTextureRelativePath}'. Regenerate the material settings for the current format.");
             }
-
-            if (!ImportedTextureRuntimePathResolver.PathMatchesAssetId(TargetPlatformId, textureRelativePath, diffuseTextureAssetId)) {
-                return;
-            }
-
-            fieldValues["texture-relative-path"] = normalizedTextureRelativePath;
         }
 
         /// <summary>

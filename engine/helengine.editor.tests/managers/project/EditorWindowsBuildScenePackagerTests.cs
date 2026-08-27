@@ -72,7 +72,7 @@ namespace helengine.editor.tests {
             SceneComponentAssetRecord returnToMenuRecord = new SceneComponentAssetRecord {
                 ComponentTypeId = "project.menu.SceneReturnComponent, gameplay",
                 ComponentIndex = 0,
-                Payload = Array.Empty<byte>()
+                Payload = automaticDescriptor.SerializeComponent(new TestSceneReturnComponent(), 0, null).Payload
             };
             SceneComponentAssetRecord towerSpinRecord = automaticDescriptor.SerializeComponent(
                 new TestDirectionalShadowTowerSpinComponent {
@@ -117,7 +117,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
@@ -176,7 +176,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
@@ -232,7 +232,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
@@ -385,7 +385,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedSceneAsset;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedSceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedSceneAsset = DeserializePackagedScene(stream);
             }
 
             SceneEntityAsset packagedRoot = Assert.Single(packagedSceneAsset.RootEntities);
@@ -573,9 +573,7 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             Assert.True(materialSettingsService.TryLoadPlatformSettings(materialPath, "ps2", out MaterialAssetProcessorSettings ps2Settings));
-            Assert.Equal(
-                "cooked/imported/" + textureAssetId,
-                ps2Settings.FieldValues["texture-relative-path"]);
+            Assert.False(ps2Settings.FieldValues.ContainsKey("texture-relative-path"));
             PlatformMaterialCookRequest ps2CookRequest = materialBuilder.MaterialCookRequests.First(request => string.Equals(request.MaterialRelativePath, materialRelativePath, StringComparison.Ordinal));
             Assert.Equal(
                 "cooked/imported/" + textureAssetId,
@@ -683,6 +681,63 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a stale imported texture path fails instead of being rewritten while preparing a builder cook request.
+        /// </summary>
+        [Fact]
+        public void Package_WhenDsBuilderMaterialSettingsContainStaleImportedTexturePath_RejectsCurrentSettings() {
+            string sceneId = "Scenes/TexturedMaterialScene.helen";
+            string materialRelativePath = "Materials/rendering/textured_cube_grid/Cube00.hasset";
+            string textureAssetId = "ff8a0f1fafe1f1c4989f73f39db8b800512e09e26439b011cb7afb0fed44dd5a";
+
+            WriteCachedTextureAsset(textureAssetId);
+            WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService();
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            Assert.True(materialSettingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings windowsSettings));
+            MaterialAssetImportSettings savedSettings = new MaterialAssetImportSettings();
+            savedSettings.Importer.ImporterId = "helengine.material";
+            savedSettings.Importer.AssetId = materialRelativePath;
+            savedSettings.Processor.Platforms["windows"] = windowsSettings;
+            savedSettings.Processor.Platforms["ds"] = new MaterialAssetProcessorSettings {
+                SchemaId = "ds-standard-textured",
+                FieldValues = new Dictionary<string, string>(windowsSettings.FieldValues, StringComparer.OrdinalIgnoreCase) {
+                    ["texture-relative-path"] = "cooked/imported/" + textureAssetId
+                }
+            };
+            materialSettingsService.Save(materialPath, savedSettings);
+
+            RecordingMaterialBuilder materialBuilder = new RecordingMaterialBuilder(
+                CreateDsMaterialBuilderDefinition(),
+                request => new PlatformMaterialCookResult(
+                    AssetSerializer.SerializeToBytes(new PlatformMaterialAsset {
+                        RendererFamilyId = "ds-main-2d",
+                        TextureRelativePath = request.FieldValues["texture-relative-path"],
+                        DoubleSided = false,
+                        UseVertexColor = true,
+                        Lit = true,
+                        BaseColorR = 255,
+                        BaseColorG = 255,
+                        BaseColorB = 255,
+                        BaseColorA = 255
+                    }),
+                    Array.Empty<PlatformShaderDependency>()));
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                "ds",
+                materialBuilder,
+                "ds-default",
+                "ds-main-2d");
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
+            Assert.Contains("noncanonical imported texture path", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Regenerate the material settings", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures DS builder-owned imported textures use one DS-safe cooked runtime path while preserving the full source asset id in work-item metadata.
         /// </summary>
         [Fact]
@@ -732,7 +787,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneComponentAssetRecord packagedRecord = packagedScene.RootEntities[0].Components[0];
@@ -760,7 +815,9 @@ namespace helengine.editor.tests {
                 defaultFont);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
-            Assert.Contains("Unsupported automatic scripted component payload version", exception.Message);
+            Assert.Contains("received version '2'", exception.ToString(), StringComparison.Ordinal);
+            Assert.Contains("current version '1'", exception.ToString(), StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.ToString(), StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -782,7 +839,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneComponentAssetRecord componentRecord = packagedScene.RootEntities[0].Components[0];
@@ -828,7 +885,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneComponentAssetRecord packagedTextRecord = packagedScene.RootEntities[0].Components[0];
@@ -877,7 +934,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             Assert.Equal("helengine.TextComponent", packagedScene.RootEntities[0].Components[0].ComponentTypeId);
@@ -901,7 +958,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneComponentAssetRecord textRecord = packagedScene.RootEntities[0].Components[0];
@@ -933,7 +990,7 @@ namespace helengine.editor.tests {
                 platformDefinition.RuntimeGenerationContract,
                 "cooked/fonts/default.hefont");
             using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset packagedScene = DeserializePackagedScene(stream);
 
             Assert.Equal(expectedFontRuntimePath, Assert.Single(packagedScene.AssetReferences).RelativePath);
 
@@ -972,7 +1029,7 @@ namespace helengine.editor.tests {
                 platformDefinition.RuntimeGenerationContract,
                 "cooked/engine/models/cube.hasset");
             using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset packagedScene = DeserializePackagedScene(stream);
             for (int entityIndex = 0; entityIndex < packagedScene.RootEntities.Length; entityIndex++) {
                 SceneComponentAssetRecord packagedMeshRecord = Assert.Single(
                     packagedScene.RootEntities[entityIndex].Components,
@@ -1016,7 +1073,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -1056,7 +1113,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -1086,6 +1143,7 @@ namespace helengine.editor.tests {
             string sceneId = "Scenes/CameraMeshScene.helen";
             string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+            InitializeRuntimeCore(BuildRootPath);
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
@@ -1104,6 +1162,7 @@ namespace helengine.editor.tests {
                     new SceneEntityAsset {
                         Id = 2u,
                         Name = "MeshRoot",
+                        LayerMask = EditorLayerMasks.SceneObjects,
                         LocalPosition = float3.Zero,
                         LocalScale = float3.One,
                         LocalOrientation = float4.Identity,
@@ -1135,7 +1194,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -1217,7 +1276,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             Assert.All(packagedScene.RootEntities, entityAsset => Assert.Equal((ushort)1, entityAsset.LayerMask));
@@ -1278,7 +1337,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
@@ -1351,7 +1410,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -1402,7 +1461,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -1455,7 +1514,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -1507,7 +1566,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -1631,7 +1690,7 @@ namespace helengine.editor.tests {
                 platformDefinition.RuntimeGenerationContract,
                 "cooked/fonts/demodisctitle.hefont");
             using FileStream sceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(sceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(sceneStream);
             Assert.Equal(expectedFontRuntimePath, Assert.Single(packagedScene.AssetReferences).RelativePath);
 
             string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "demodisctitle.hefont");
@@ -1710,7 +1769,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             Assert.Contains(packagedScene.AssetReferences, reference =>
@@ -1759,7 +1818,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -1821,7 +1880,7 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset packagedScene = DeserializePackagedScene(stream);
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
 
             using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
@@ -1934,7 +1993,7 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            SceneAsset packagedScene = DeserializePackagedScene(stream);
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
 
             using (MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false))
@@ -2060,7 +2119,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             Assert.Collection(
@@ -2089,22 +2148,22 @@ namespace helengine.editor.tests {
             Assert.Collection(
                 loadedRoots,
                 cameraRoot => {
-                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(cameraRoot.Components));
+                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(cameraRoot.Components, component => component is TestDirectionalShadowMotionScriptComponent));
                     Assert.Equal(component.OrbitCenter, loadedComponent.OrbitCenter);
                     Assert.Equal(component.LookDownPitchRadians, loadedComponent.LookDownPitchRadians);
                 },
                 orbitRoot => {
-                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(orbitRoot.Components));
+                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(orbitRoot.Components, component => component is TestDirectionalShadowMotionScriptComponent));
                     Assert.Equal(component.OrbitRadius, loadedComponent.OrbitRadius);
                     Assert.Equal(component.AngularSpeedRadians, loadedComponent.AngularSpeedRadians);
                 },
                 sunRoot => {
-                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(sunRoot.Components));
+                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(sunRoot.Components, component => component is TestDirectionalShadowMotionScriptComponent));
                     Assert.Equal(component.MinYawRadians, loadedComponent.MinYawRadians);
                     Assert.Equal(component.PitchRadians, loadedComponent.PitchRadians);
                 },
                 towerRoot => {
-                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(towerRoot.Components));
+                    TestDirectionalShadowMotionScriptComponent loadedComponent = Assert.IsType<TestDirectionalShadowMotionScriptComponent>(Assert.Single(towerRoot.Components, component => component is TestDirectionalShadowMotionScriptComponent));
                     Assert.Equal(component.BaseYawRadians, loadedComponent.BaseYawRadians);
                     Assert.Equal(component.AngularSpeedRadians, loadedComponent.AngularSpeedRadians);
                 });
@@ -2155,7 +2214,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
@@ -2238,7 +2297,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -2275,7 +2334,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneComponentAssetRecord packagedDirectionalLightRecord = Assert.Single(packagedScene.RootEntities[0].Components);
@@ -2346,7 +2405,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneComponentAssetRecord packagedSpriteRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
@@ -2410,7 +2469,7 @@ namespace helengine.editor.tests {
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(packagedScenePath)) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             InitializeRuntimeCore(BuildRootPath);
@@ -2488,7 +2547,7 @@ namespace helengine.editor.tests {
             Assert.False(File.Exists(Path.Combine(BuildRootPath, "Models", "Sponza.obj")));
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
             Assert.Single(packagedScene.AssetReferences);
             Assert.Equal(SceneAssetReferenceSourceKind.FileSystem, packagedScene.AssetReferences[0].SourceKind);
             Assert.Equal("cooked/imported/models/sponza.hasset", packagedScene.AssetReferences[0].RelativePath);
@@ -2529,7 +2588,7 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
 
             Assert.Equal(new float3(10f, 20f, 30f), packagedRoot.LocalPosition);
@@ -2596,7 +2655,7 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
 
             Assert.Empty(packagedRoot.PlatformExistenceOverrides);
@@ -2647,7 +2706,7 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
 
             Assert.Empty(packagedScene.RootEntities);
         }
@@ -2694,7 +2753,7 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
             SceneComponentAssetRecord packagedCameraRecord = Assert.Single(
                 packagedRoot.Components,
@@ -2741,7 +2800,7 @@ namespace helengine.editor.tests {
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
             SceneComponentAssetRecord packagedCameraRecord = Assert.Single(
                 packagedRoot.Components,
@@ -2876,7 +2935,7 @@ namespace helengine.editor.tests {
 
             SceneAsset packagedScene;
             using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+                packagedScene = DeserializePackagedScene(stream);
             }
 
             SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
@@ -3040,7 +3099,7 @@ namespace helengine.editor.tests {
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
 
             SceneEntityAsset packagedGround = packagedScene.RootEntities[0];
             SceneEntityAsset packagedBox = packagedScene.RootEntities[1];
@@ -3105,7 +3164,7 @@ namespace helengine.editor.tests {
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
             SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
 
             SceneComponentAssetRecord packagedRigidBody = Assert.Single(packagedRoot.Components, component => string.Equals(component.ComponentTypeId, "helengine.RigidBody3DComponent", StringComparison.Ordinal));
@@ -3182,7 +3241,7 @@ namespace helengine.editor.tests {
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
 
             InitializeRuntimeCore(BuildRootPath);
             ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(BuildRootPath));
@@ -3267,7 +3326,7 @@ namespace helengine.editor.tests {
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
             using FileStream packagedSceneStream = File.OpenRead(packagedScenePath);
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
 
             Assert.Equal((uint)PhysicsSceneFeatureFlags3D.TriggerEvents, packagedScene.Physics3DSceneFeatureFlags);
         }
@@ -3640,6 +3699,15 @@ namespace helengine.editor.tests {
         /// <returns>File-backed scene reference.</returns>
         static SceneAssetReference CreateFileTextureReference(string relativePath) {
             return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture(relativePath);
+        }
+
+        /// <summary>
+        /// Reads one packaged scene through the runtime serializer so path-only cooked references remain valid.
+        /// </summary>
+        /// <param name="stream">Packaged scene stream positioned at its HELE header.</param>
+        /// <returns>Deserialized packaged scene.</returns>
+        static SceneAsset DeserializePackagedScene(Stream stream) {
+            return PackagedAssetBinarySerializer.DeserializeSceneAsset(stream);
         }
 
         /// <summary>
@@ -4021,6 +4089,7 @@ namespace helengine.editor.tests {
                     ["emissive-texture-id"] = emissiveTextureAssetId ?? string.Empty,
                     ["casts-shadow"] = "true",
                     ["receives-shadow"] = "true",
+                    ["variant"] = "default",
                     ["base-color"] = baseColor ?? "#FFFFFFFF"
                 }
             };
@@ -4314,10 +4383,53 @@ namespace helengine.editor.tests {
                 RenderOrder2D = 250
             };
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            saveState.SetAssetReference("Font", fontReference ?? CreateEditorFontReference());
+            SceneAssetReference resolvedFontReference = fontReference ?? CreateEditorFontReference();
+            saveState.SetAssetReference(
+                "Font",
+                string.Equals(resolvedFontReference.AssetId, "ds-debug-font", StringComparison.Ordinal)
+                    ? CreateEditorFontReference()
+                    : resolvedFontReference);
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(debugComponent, 0, saveState);
+            if (string.Equals(resolvedFontReference.AssetId, "ds-debug-font", StringComparison.Ordinal)) {
+                return ReplaceCurrentTaggedReference(record.Payload, "Font", resolvedFontReference);
+            }
+
             return record.Payload;
+        }
+
+        /// <summary>
+        /// Rebuilds one current tagged payload with an intentionally unsupported generated reference for boundary-rejection coverage.
+        /// </summary>
+        /// <param name="payload">Current tagged payload emitted by the public component writer.</param>
+        /// <param name="fieldName">Current asset-backed field whose reference should be replaced.</param>
+        /// <param name="replacementReference">Reference value to encode without editor semantic validation.</param>
+        /// <returns>Current tagged payload containing the supplied invalid reference.</returns>
+        static byte[] ReplaceCurrentTaggedReference(byte[] payload, string fieldName, SceneAssetReference replacementReference) {
+            using MemoryStream inputStream = new MemoryStream(payload, false);
+            using EngineBinaryReader inputReader = EngineBinaryReader.Create(inputStream, EngineBinaryEndianness.LittleEndian);
+            byte version = inputReader.ReadByte();
+            int fieldCount = inputReader.ReadInt32();
+
+            using MemoryStream outputStream = new MemoryStream();
+            using EngineBinaryWriter outputWriter = EngineBinaryWriter.Create(outputStream, EngineBinaryEndianness.LittleEndian);
+            outputWriter.WriteByte(version);
+            outputWriter.WriteInt32(fieldCount);
+            for (int index = 0; index < fieldCount; index++) {
+                string currentFieldName = inputReader.ReadString();
+                byte[] fieldPayload = inputReader.ReadByteArray() ?? Array.Empty<byte>();
+                if (string.Equals(currentFieldName, fieldName, StringComparison.Ordinal)) {
+                    using MemoryStream referenceStream = new MemoryStream();
+                    using EngineBinaryWriter referenceWriter = EngineBinaryWriter.Create(referenceStream, EngineBinaryEndianness.LittleEndian);
+                    SceneComponentBinaryFieldEncoding.WriteOptionalReference(referenceWriter, replacementReference);
+                    fieldPayload = referenceStream.ToArray();
+                }
+
+                outputWriter.WriteString(currentFieldName);
+                outputWriter.WriteByteArray(fieldPayload);
+            }
+
+            return outputStream.ToArray();
         }
 
         /// <summary>
@@ -4676,13 +4788,84 @@ namespace helengine.editor.tests {
                 throw new ArgumentException("Expected relative path must be provided.", nameof(expectedRelativePath));
             }
 
-            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             EntitySaveComponent saveComponent = new EntitySaveComponent();
-            Component component = descriptor.DeserializeComponent(packagedRecord, saveComponent, null);
+            Component component = DeserializePackagedAutomaticComponent(packagedRecord, saveComponent);
 
             Assert.True(saveComponent.TryGetComponentState(component, out EntityComponentSaveState saveState));
             Assert.True(saveState.TryGetAssetReference(referenceName, out SceneAssetReference reference));
             Assert.Equal(expectedRelativePath, reference.RelativePath);
+        }
+
+        /// <summary>
+        /// Deserializes one current ordinal packaged component payload while preserving its path-only asset references in save state.
+        /// </summary>
+        /// <param name="packagedRecord">Packaged component record to read.</param>
+        /// <param name="saveComponent">Save-state component that receives decoded references.</param>
+        /// <returns>Component instance populated from the current ordinal payload.</returns>
+        static Component DeserializePackagedAutomaticComponent(SceneComponentAssetRecord packagedRecord, EntitySaveComponent saveComponent) {
+            Type componentType = global::helengine.PersistedComponentTypeResolver.TryResolve(packagedRecord.ComponentTypeId);
+            if (componentType == null) {
+                throw new InvalidOperationException($"Packaged component type '{packagedRecord.ComponentTypeId}' could not be resolved.");
+            }
+
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(componentType);
+            Component component = Assert.IsAssignableFrom<Component>(Activator.CreateInstance(componentType));
+            using MemoryStream stream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(schema.Members.Count, reader.ReadInt32());
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                member.SetValue(component, ReadPackagedMemberValue(reader, member, component, saveComponent));
+            }
+
+            Assert.Equal(stream.Length, stream.Position);
+            return component;
+        }
+
+        /// <summary>
+        /// Reads one current packaged automatic-component member and stores any path-only reference metadata.
+        /// </summary>
+        /// <param name="reader">Reader positioned at the member payload.</param>
+        /// <param name="member">Reflected member that owns the payload.</param>
+        /// <param name="component">Component that owns the member.</param>
+        /// <param name="saveComponent">Save-state component receiving decoded references.</param>
+        /// <returns>Decoded non-reference value, or null for asset-backed members inspected through save state.</returns>
+        static object ReadPackagedMemberValue(
+            EngineBinaryReader reader,
+            ScriptComponentReflectionMember member,
+            Component component,
+            EntitySaveComponent saveComponent) {
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(member.ValueType)) {
+                SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+                if (reference != null) {
+                    saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildReferenceName(member.Name), reference);
+                }
+                return null;
+            }
+
+            if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceArrayType(member.ValueType)) {
+                int referenceCount = reader.ReadInt32();
+                if (referenceCount < -1) {
+                    throw new InvalidOperationException("Packaged asset-reference array counts must be -1 or non-negative.");
+                }
+                if (referenceCount == -1) {
+                    return null;
+                }
+                Type elementType = member.ValueType.GetElementType()
+                    ?? throw new InvalidOperationException($"Asset-reference array member '{member.Name}' must expose an element type.");
+                Array values = Array.CreateInstance(elementType, referenceCount);
+                for (int index = 0; index < referenceCount; index++) {
+                    SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader);
+                    if (reference != null) {
+                        saveComponent.SetAssetReference(component, AutomaticComponentAssetReferenceSupport.BuildIndexedReferenceName(member.Name, index), reference);
+                    }
+                }
+                return values;
+            }
+
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return AutomaticScriptComponentPersistenceDescriptor.ReadSupportedMemberValue(reader, member, component, saveComponent, null);
         }
 
         /// <summary>
