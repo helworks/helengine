@@ -48,6 +48,16 @@ public sealed class DeterministicScenePlatformSerializationTests {
     }
 
     [Fact]
+    public void AssetSerializer_ScenePlatformExistenceOverrides_WhenTrimmedCaseInsensitiveScopeIsDuplicated_RejectsBeforeWriting() {
+        SceneAsset scene = CreateScene(new[] {
+            new SceneEntityPlatformExistenceOverrideAsset { PlatformId = " Windows ", EnvironmentId = " SHIPPING ", Exists = true },
+            new SceneEntityPlatformExistenceOverrideAsset { PlatformId = "windows", EnvironmentId = "shipping", Exists = false }
+        });
+
+        Assert.Throws<InvalidOperationException>(() => AssetSerializer.SerializeToBytes(scene));
+    }
+
+    [Fact]
     public void AssetSerializer_BlueprintPlatformExistenceOverrides_WhenScopeIsDuplicated_LeavesOutputUntouched() {
         BlueprintAsset blueprint = new BlueprintAsset {
             Id = "Blueprints/Duplicate.hblueprint",
@@ -82,6 +92,16 @@ public sealed class DeterministicScenePlatformSerializationTests {
     }
 
     [Fact]
+    public void AssetSerializer_BlueprintPlatformTransformOverrides_WhenTrimmedCaseInsensitiveScopeIsDuplicated_RejectsBeforeWriting() {
+        BlueprintAsset blueprint = CreateBlueprintWithTransforms(new[] {
+            new SceneEntityPlatformTransformOverrideAsset { PlatformId = " Windows ", EnvironmentId = " SHIPPING ", LocalPosition = new float3(1f, 2f, 3f) },
+            new SceneEntityPlatformTransformOverrideAsset { PlatformId = "windows", EnvironmentId = "shipping", LocalPosition = new float3(4f, 5f, 6f) }
+        });
+
+        Assert.Throws<InvalidOperationException>(() => AssetSerializer.SerializeToBytes(blueprint));
+    }
+
+    [Fact]
     public void AssetSerializer_ScenePlatformComponentOverrides_WhenScopeIsDuplicated_RejectsBeforeWriting() {
         SceneAsset scene = CreateSceneWithComponents(new[] {
             new SceneEntityPlatformComponentOverrideAsset {
@@ -93,6 +113,16 @@ public sealed class DeterministicScenePlatformSerializationTests {
         });
 
         Assert.Throws<InvalidOperationException>(() => AssetSerializer.SerializeToBytes(scene));
+    }
+
+    [Fact]
+    public void AssetSerializer_BlueprintPlatformComponentOverrides_WhenTrimmedCaseInsensitiveScopeIsDuplicated_RejectsBeforeWriting() {
+        BlueprintAsset blueprint = CreateBlueprint(new[] {
+            new SceneEntityPlatformComponentOverrideAsset { PlatformId = " p ", EnvironmentId = " E ", RemovedComponentKeys = new[] { "one" } },
+            new SceneEntityPlatformComponentOverrideAsset { PlatformId = "P", EnvironmentId = "e", RemovedComponentKeys = new[] { "two" } }
+        });
+
+        Assert.Throws<InvalidOperationException>(() => AssetSerializer.SerializeToBytes(blueprint));
     }
 
     static SceneAsset CreateScene(SceneEntityPlatformExistenceOverrideAsset[] overrides) {

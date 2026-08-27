@@ -118,6 +118,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             NativeAssetWriteService = new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache);
+            ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService);
             RepairReportValue = new EditorAssetRepairReport();
         }
@@ -150,8 +151,7 @@ namespace helengine.editor {
         /// <returns>Canonical asset reference.</returns>
         public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
-            return NativeAssetWriteService.ExecuteSynchronizedRead(
-                () => ReferenceResolver.CreateFileReference(ResolveAssetsPath(relativePath), expectedKind));
+            return ReferenceResolver.CreateFileReference(ResolveAssetsPath(relativePath), expectedKind);
         }
 
         /// <summary>
@@ -162,8 +162,7 @@ namespace helengine.editor {
         /// <returns>Resolved and canonicalized asset reference data.</returns>
         public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
-            return NativeAssetWriteService.ExecuteSynchronizedRead(
-                () => ReferenceResolver.Resolve(reference, expectedKind));
+            return ReferenceResolver.Resolve(reference, expectedKind);
         }
 
         /// <summary>
@@ -370,8 +369,7 @@ namespace helengine.editor {
         /// <returns>True when one or more references changed.</returns>
         public bool CanonicalizeAssetReferences(Component component, EntityComponentSaveState saveState) {
             EnsureNotDisposed();
-            return NativeAssetWriteService.ExecuteSynchronizedRead(
-                () => AssetAuthoringService.CanonicalizeAssetReferences(component, saveState));
+            return AssetAuthoringService.CanonicalizeAssetReferences(component, saveState);
         }
 
         /// <summary>

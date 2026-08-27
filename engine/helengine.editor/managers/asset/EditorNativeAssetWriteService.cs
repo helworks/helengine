@@ -1,8 +1,15 @@
 namespace helengine.editor {
     /// <summary>
+    /// Provides the project publication boundary used by readers of the shared identity graph.
+    /// </summary>
+    internal interface IEditorAssetReadSynchronizer {
+        TResult Execute<TResult>(Func<TResult> read);
+    }
+
+    /// <summary>
     /// Writes current native asset payloads with stable embedded identity and byte-level idempotence.
     /// </summary>
-    internal sealed class EditorNativeAssetWriteService {
+    internal sealed class EditorNativeAssetWriteService : IEditorAssetReadSynchronizer {
         /// <summary>
         /// Canonical assets root owned by this writer.
         /// </summary>
@@ -106,6 +113,13 @@ namespace helengine.editor {
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
             ReconcileIfGenerationChanged();
             return read();
+        }
+
+        /// <summary>
+        /// Executes one shared identity read at the project publication boundary.
+        /// </summary>
+        TResult IEditorAssetReadSynchronizer.Execute<TResult>(Func<TResult> read) {
+            return ExecuteSynchronizedRead(read);
         }
 
         /// <summary>

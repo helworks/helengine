@@ -11,6 +11,7 @@ namespace helengine.editor {
         readonly bool OwnsIdentityIndex;
         readonly AssetIdentityMetadataService MetadataService;
         readonly EditorAssetPathClassifier PathClassifier;
+        IEditorAssetReadSynchronizer ReadSynchronizer;
         bool ResolutionScopeActive;
         HashSet<string> ResolutionScopeMissingMetadataPaths;
         bool IsDisposed;
@@ -84,12 +85,13 @@ namespace helengine.editor {
         /// <returns>Resolved and canonicalized reference.</returns>
         public AssetReferenceResolution Resolve(SceneAssetReference reference, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
-            if (reference == null) {
-                throw new ArgumentNullException(nameof(reference));
-            }
-            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
-                throw new InvalidOperationException("Only filesystem-backed asset references can be resolved by the editor resolver.");
-            }
+            return ExecuteSynchronizedRead(() => {
+                if (reference == null) {
+                    throw new ArgumentNullException(nameof(reference));
+                }
+                if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                    throw new InvalidOperationException("Only filesystem-backed asset references can be resolved by the editor resolver.");
+                }
 
             EnsureIdentityIndexInitialized();
             bool pathMetadataWasMissing = false;
@@ -129,6 +131,7 @@ namespace helengine.editor {
             if (winner == null && IsValidContentHash(reference.ContentHash)) {
                 IReadOnlyList<EditorAssetIdentityEntry> candidates = IdentityIndex.EnumerateCompatible(expectedKind);
                 for (int index = 0; index < candidates.Count; index++) {
+                    ValidateNoReparseTraversal(candidates[index].FullPath);
                     if (string.Equals(HashCache.GetContentHash(candidates[index].FullPath), reference.ContentHash, StringComparison.Ordinal)) {
                         winner = candidates[index];
                         tier = AssetReferenceResolutionTier.ContentHash;
@@ -140,34 +143,42 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unable to resolve {expectedKind} asset reference. Tried AssetId='{reference.AssetId}', Path='{reference.RelativePath}', ContentHash='{reference.ContentHash}'.");
             }
 
+            ValidateNoReparseTraversal(winner.FullPath);
             string contentHash = HashCache.GetContentHash(winner.FullPath);
             if (IsMetadataMissing(winner.FullPath)) {
                 metadataChanged = true;
             }
             SceneAssetReference canonicalReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(winner.AssetId, winner.RelativePath, contentHash);
             bool referenceChanged = !AreEquivalent(reference, canonicalReference);
-            return new AssetReferenceResolution(winner.FullPath, canonicalReference, tier, referenceChanged, metadataChanged);
+                return new AssetReferenceResolution(winner.FullPath, canonicalReference, tier, referenceChanged, metadataChanged);
+            });
         }
 
         /// <summary>Refreshes the identity index once for a multi-reference load or build scope.</summary>
         public void BeginResolutionScope() {
             EnsureNotDisposed();
-            if (ResolutionScopeActive) {
-                throw new InvalidOperationException("An asset reference resolution scope is already active.");
-            }
-            EnsureIdentityIndexInitialized();
-            ResolutionScopeMissingMetadataPaths = IdentityIndex.CopyMissingMetadataPaths();
-            ResolutionScopeActive = true;
+            ExecuteSynchronizedRead(() => {
+                if (ResolutionScopeActive) {
+                    throw new InvalidOperationException("An asset reference resolution scope is already active.");
+                }
+                EnsureIdentityIndexInitialized();
+                ResolutionScopeMissingMetadataPaths = IdentityIndex.CopyMissingMetadataPaths();
+                ResolutionScopeActive = true;
+                return true;
+            });
         }
 
         /// <summary>Ends the active multi-reference resolution scope.</summary>
         public void EndResolutionScope() {
             EnsureNotDisposed();
-            if (!ResolutionScopeActive) {
-                throw new InvalidOperationException("No asset reference resolution scope is active.");
-            }
-            ResolutionScopeActive = false;
-            ResolutionScopeMissingMetadataPaths = null;
+            ExecuteSynchronizedRead(() => {
+                if (!ResolutionScopeActive) {
+                    throw new InvalidOperationException("No asset reference resolution scope is active.");
+                }
+                ResolutionScopeActive = false;
+                ResolutionScopeMissingMetadataPaths = null;
+                return true;
+            });
         }
 
         /// <summary>
@@ -178,19 +189,46 @@ namespace helengine.editor {
         /// <returns>Canonical stable reference.</returns>
         public SceneAssetReference CreateFileReference(string fullPath, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
-            if (string.IsNullOrWhiteSpace(fullPath)) {
-                throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
+            return ExecuteSynchronizedRead(() => {
+                if (string.IsNullOrWhiteSpace(fullPath)) {
+                    throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
+                }
+                string normalizedPath = ResolveInsideAssets(fullPath);
+                if (!PathClassifier.IsAuthoredAsset(normalizedPath) || PathClassifier.Classify(normalizedPath) != expectedKind) {
+                    throw new InvalidOperationException($"Path '{fullPath}' is not an authored {expectedKind} asset.");
+                }
+                EnsureIdentityIndexInitialized();
+                string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedPath));
+                EditorAssetIdentityEntry entry = IdentityIndex.FindByPath(relativePath);
+                entry ??= IdentityIndex.RegisterOrUpdate(normalizedPath);
+                string contentHash = HashCache.GetContentHash(normalizedPath);
+                return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(entry.AssetId, entry.RelativePath, contentHash);
+            });
+        }
+
+        /// <summary>
+        /// Attaches the one project publication boundary shared by this resolver and its owning session.
+        /// </summary>
+        internal void AttachReadSynchronizer(IEditorAssetReadSynchronizer synchronizer) {
+            EnsureNotDisposed();
+            if (synchronizer == null) {
+                throw new ArgumentNullException(nameof(synchronizer));
             }
-            string normalizedPath = ResolveInsideAssets(fullPath);
-            if (!PathClassifier.IsAuthoredAsset(normalizedPath) || PathClassifier.Classify(normalizedPath) != expectedKind) {
-                throw new InvalidOperationException($"Path '{fullPath}' is not an authored {expectedKind} asset.");
+            if (ReadSynchronizer != null && !ReferenceEquals(ReadSynchronizer, synchronizer)) {
+                throw new InvalidOperationException("An asset reference resolver can only use one project read boundary.");
             }
-            EnsureIdentityIndexInitialized();
-            string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedPath));
-            EditorAssetIdentityEntry entry = IdentityIndex.FindByPath(relativePath);
-            entry ??= IdentityIndex.RegisterOrUpdate(normalizedPath);
-            string contentHash = HashCache.GetContentHash(normalizedPath);
-            return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(entry.AssetId, entry.RelativePath, contentHash);
+            ReadSynchronizer = synchronizer;
+        }
+
+        /// <summary>
+        /// Executes a read through the owning publication boundary when one is attached.
+        /// </summary>
+        internal TResult ExecuteSynchronizedRead<TResult>(Func<TResult> read) {
+            EnsureNotDisposed();
+            if (read == null) {
+                throw new ArgumentNullException(nameof(read));
+            }
+            return ReadSynchronizer == null ? read() : ReadSynchronizer.Execute(read);
         }
 
         /// <summary>Selects a UUID match, preferring the saved path among duplicate candidates.</summary>
@@ -200,7 +238,7 @@ namespace helengine.editor {
             }
             IReadOnlyList<EditorAssetIdentityEntry> candidates = IdentityIndex.FindByAssetId(assetId, expectedKind);
             for (int index = 0; index < candidates.Count; index++) {
-                if (string.Equals(candidates[index].RelativePath, savedPath, StringComparison.Ordinal)) {
+                if (string.Equals(candidates[index].RelativePath, savedPath, PathComparison)) {
                     return candidates[index];
                 }
             }
@@ -241,6 +279,13 @@ namespace helengine.editor {
         static string NormalizeRelativePath(string value) {
             return (value ?? string.Empty).Replace('\\', '/').Trim('/');
         }
+
+        /// <summary>
+        /// Gets the operating-system path comparison used for saved-path winner selection.
+        /// </summary>
+        static StringComparison PathComparison => OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
 
         /// <summary>
         /// Resolves a relative or absolute candidate and requires real containment beneath assets.

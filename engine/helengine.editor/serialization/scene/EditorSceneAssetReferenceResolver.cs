@@ -847,20 +847,16 @@ namespace helengine.editor {
                 throw new InvalidOperationException("File-backed asset references must include a relative path.");
             }
 
-            string fullPath = Path.GetFullPath(Path.Combine(AssetsRootPath, reference.RelativePath));
+            string fullPath = Path.GetFullPath(Path.Combine(AssetsRootPath, reference.RelativePath.Replace('/', Path.DirectorySeparatorChar)));
             if (!IsPathInsideAssetsRoot(fullPath)) {
                 throw new InvalidOperationException("File-backed asset references must stay inside the project assets folder.");
             }
 
-            if (!string.IsNullOrWhiteSpace(reference.AssetId) || !string.IsNullOrWhiteSpace(reference.ContentHash)) {
-                AssetReferenceResolution resolution = IdentityReferenceResolver.Resolve(reference, expectedKind);
-                if (ReferenceHealingReplacements != null && resolution.ReferenceChanged) {
-                    ReferenceHealingReplacements[reference] = resolution.CanonicalReference;
-                }
-                return resolution.FullPath;
+            AssetReferenceResolution resolution = IdentityReferenceResolver.Resolve(reference, expectedKind);
+            if (ReferenceHealingReplacements != null && resolution.ReferenceChanged) {
+                ReferenceHealingReplacements[reference] = resolution.CanonicalReference;
             }
-
-            return fullPath;
+            return resolution.FullPath;
         }
 
         /// <summary>
@@ -873,7 +869,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (string.Equals(fullPath, AssetsRootPath, StringComparison.OrdinalIgnoreCase)) {
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (string.Equals(fullPath, AssetsRootPath, comparison)) {
                 return true;
             }
 
@@ -884,7 +881,7 @@ namespace helengine.editor {
                 rootWithSeparator = AssetsRootPath + Path.DirectorySeparatorChar;
             }
 
-            return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+            return fullPath.StartsWith(rootWithSeparator, comparison);
         }
 
         /// <summary>

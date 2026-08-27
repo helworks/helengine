@@ -164,6 +164,33 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures a scene resolver retaining a session resolver synchronizes before consuming a native reference.
+        /// </summary>
+        [Fact]
+        public void ResolveAnimationClip_WhenAnotherSessionRewritesWithRestoredTimestamp_SeesNewHash() {
+            ContentManager firstContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
+            ContentManager secondContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(firstContentManager);
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(secondContentManager);
+            using EditorProjectAuthoringSession firstSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), firstContentManager);
+            using EditorProjectAuthoringSession secondSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), secondContentManager);
+            EditorAssetWriteResult firstWrite = firstSession.WriteAsset("animations/Shared.hanim", CreateAnimationClip(1f));
+            SceneAssetReference reference = firstSession.CreateReference("animations/Shared.hanim", AssetEntryKind.File);
+            DateTime timestamp = File.GetLastWriteTimeUtc(firstWrite.FullPath);
+            EditorSceneAssetReferenceResolver sceneResolver = Assert.IsType<EditorSceneAssetReferenceResolver>(firstSession.CreateSceneAssetReferenceResolver());
+
+            sceneResolver.BeginReferenceHealing();
+            secondSession.WriteAsset("animations/Shared.hanim", CreateAnimationClip(2f));
+            File.SetLastWriteTimeUtc(firstWrite.FullPath, timestamp);
+            sceneResolver.ResolveAnimationClip(reference);
+            IReadOnlyDictionary<SceneAssetReference, SceneAssetReference> replacements = sceneResolver.CompleteReferenceHealing();
+
+            Assert.Equal(2f, Assert.IsType<AnimationClipAsset>(firstSession.LoadNativeAsset<AnimationClipAsset>("animations/Shared.hanim")).Duration);
+            KeyValuePair<SceneAssetReference, SceneAssetReference> replacement = Assert.Single(replacements);
+            Assert.NotEqual(reference.ContentHash, replacement.Value.ContentHash);
+        }
+
+        /// <summary>
         /// Ensures file-backed materials that point at built-in shaders can still resolve in the editor when no cached shader package exists yet.
         /// </summary>
         [Fact]
@@ -421,6 +448,21 @@ namespace helengine.editor.tests.serialization.scene {
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
             return assetImportManager;
+        }
+
+        /// <summary>
+        /// Creates a minimal native animation payload with a deterministic content difference.
+        /// </summary>
+        static AnimationClipAsset CreateAnimationClip(float duration) {
+            return new AnimationClipAsset {
+                Id = "Animations/Shared",
+                Duration = duration,
+                PositionTracks = Array.Empty<PositionKeyframeTrackAsset>(),
+                PositionOffsetTracks = Array.Empty<PositionOffsetKeyframeTrackAsset>(),
+                ScaleTracks = Array.Empty<ScaleKeyframeTrackAsset>(),
+                RotationTracks = Array.Empty<RotationKeyframeTrackAsset>(),
+                PlatformOverrides = Array.Empty<AnimationClipPlatformOverrideAsset>()
+            };
         }
 
         /// <summary>

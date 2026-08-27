@@ -192,16 +192,21 @@ namespace helengine.editor {
             if (!Directory.Exists(AssetsRootPath)) {
                 Directory.CreateDirectory(AssetsRootPath);
             }
+            ValidateNoReparseTraversal(AssetsRootPath);
 
             MissingMetadataPaths.Clear();
             List<string> sourcePaths = FileCatalog.EnumerateFiles(AssetsRootPath)
-                .Where(path => PathClassifier.IsAuthoredAsset(path))
                 .Select(Path.GetFullPath)
-                .OrderBy(path => NormalizeRelativePath(path), StringComparer.Ordinal)
+                .OrderBy(path => NormalizeRelativePath(path), PathComparer)
+                .ThenBy(path => NormalizeRelativePath(path), StringComparer.Ordinal)
                 .ToList();
             List<EditorAssetIdentityEntry> loadedEntries = new List<EditorAssetIdentityEntry>();
             for (int index = 0; index < sourcePaths.Count; index++) {
                 string fullPath = sourcePaths[index];
+                ValidateNoReparseTraversal(fullPath);
+                if (!PathClassifier.IsAuthoredAsset(fullPath)) {
+                    continue;
+                }
                 if (!PathClassifier.UsesEmbeddedIdentity(fullPath) && !File.Exists(fullPath + ".hmeta")) {
                     MissingMetadataPaths.Add(fullPath);
                 }
@@ -298,7 +303,7 @@ namespace helengine.editor {
                     matches.Add(entry);
                 }
             }
-            matches.Sort((left, right) => string.Compare(left.RelativePath, right.RelativePath, StringComparison.Ordinal));
+            matches.Sort((left, right) => PathComparer.Compare(left.RelativePath, right.RelativePath));
             return matches;
         }
 
@@ -311,7 +316,7 @@ namespace helengine.editor {
             EnsureNotDisposed();
             return EntriesByPath.Values
                 .Where(entry => entry.EntryKind == expectedKind)
-                .OrderBy(entry => entry.RelativePath, StringComparer.Ordinal)
+                .OrderBy(entry => entry.RelativePath, PathComparer)
                 .ToList();
         }
 
@@ -334,6 +339,7 @@ namespace helengine.editor {
             EnsureNotDisposed();
             string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
             EnsureInitialized();
+            ValidateNoReparseTraversal(normalizedFullPath);
             if (!PathClassifier.IsAuthoredAsset(normalizedFullPath)) {
                 throw new InvalidOperationException($"Path '{fullPath}' is not an authored asset.");
             }
@@ -365,6 +371,7 @@ namespace helengine.editor {
             EnsureNotDisposed();
             string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
             EnsureInitialized();
+            ValidateNoReparseTraversal(normalizedFullPath);
             string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedFullPath));
             EditorAssetIdentityEntry existingEntry;
             if (EntriesByPath.TryGetValue(relativePath, out existingEntry)) {
@@ -482,12 +489,12 @@ namespace helengine.editor {
             string previousOwnerPath;
             if (PreviousOwners.TryGetValue(assetId, out previousOwnerPath)) {
                 for (int index = 0; index < candidates.Count; index++) {
-                    if (string.Equals(candidates[index].RelativePath, previousOwnerPath, StringComparison.Ordinal)) {
+                    if (string.Equals(candidates[index].RelativePath, previousOwnerPath, PathComparison)) {
                         return candidates[index];
                     }
                 }
             }
-            return candidates.OrderBy(entry => entry.RelativePath, StringComparer.Ordinal).First();
+            return candidates.OrderBy(entry => entry.RelativePath, PathComparer).First();
         }
 
         /// <summary>
@@ -550,6 +557,36 @@ namespace helengine.editor {
         static StringComparer PathComparer => OperatingSystem.IsWindows()
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal;
+
+        /// <summary>
+        /// Rejects a linked or junctioned path before any classifier, metadata, or index access.
+        /// </summary>
+        void ValidateNoReparseTraversal(string fullPath) {
+            string rootPath = Path.GetFullPath(AssetsRootPath);
+            string currentPath = Path.GetFullPath(fullPath);
+            while (true) {
+                try {
+                    FileAttributes attributes = File.GetAttributes(currentPath);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
+                        throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
+                    }
+                } catch (FileNotFoundException) {
+                } catch (DirectoryNotFoundException) {
+                }
+
+                if (string.Equals(currentPath, rootPath, PathComparison)) {
+                    return;
+                }
+
+                string parentPath = Path.GetDirectoryName(currentPath);
+                string rootPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                if (string.IsNullOrWhiteSpace(parentPath) ||
+                    (!string.Equals(parentPath, rootPath, PathComparison) && !parentPath.StartsWith(rootPrefix, PathComparison))) {
+                    throw new InvalidOperationException($"Path '{fullPath}' must be inside the assets directory.");
+                }
+                currentPath = parentPath;
+            }
+        }
 
         /// <summary>
         /// Rejects operations after this index has released its owned resources.

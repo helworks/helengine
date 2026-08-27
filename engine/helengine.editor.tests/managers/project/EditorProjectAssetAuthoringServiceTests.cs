@@ -133,7 +133,11 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         using EditorProjectAuthoringSession capability = CreateCapability(projectRootPath, new[] { registration });
 
         Assert.True(File.Exists(sourcePath + ".hasset"));
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(projectRootPath, "cache"), "*", SearchOption.AllDirectories));
+        string[] coordinationFiles = Directory.Exists(Path.Combine(projectRootPath, "cache"))
+            ? Directory.EnumerateFiles(Path.Combine(projectRootPath, "cache"), "*", SearchOption.AllDirectories).ToArray()
+            : Array.Empty<string>();
+        string[] allowedCoordinationFileNames = { "authoring-write.lock", "authoring-write.generation" };
+        Assert.All(coordinationFiles, file => Assert.Contains(Path.GetFileName(file), allowedCoordinationFileNames));
     }
 
     /// <summary>

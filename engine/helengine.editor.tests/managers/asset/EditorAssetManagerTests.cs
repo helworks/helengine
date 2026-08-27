@@ -65,6 +65,26 @@ public sealed class EditorAssetManagerTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a failed owned-cache flush leaves the manager retryable instead of losing ownership state.
+    /// </summary>
+    [Fact]
+    public void Dispose_WhenOwnedCacheFlushFails_RetriesOnNextDispose() {
+        string assetPath = Path.Combine(TempRootPath, "assets", "Retry.png");
+        File.WriteAllBytes(assetPath, new byte[] { 1, 2, 3 });
+        FailOnceAssetHashCacheStore store = new FailOnceAssetHashCacheStore();
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        EditorAssetManager manager = new EditorAssetManager(TempRootPath, cache, true);
+        List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
+
+        manager.LoadEntries(entries);
+
+        Assert.Throws<IOException>(() => manager.Dispose());
+        manager.Dispose();
+
+        Assert.Equal(2, store.UpdateAttempts);
+    }
+
+    /// <summary>
     /// Ensures one malformed sidecar is preserved and reported without hiding later valid assets.
     /// </summary>
     [Fact]
@@ -127,5 +147,33 @@ public sealed class EditorAssetManagerTests : IDisposable {
         Assert.True(classifier.ShouldHide(importerPath));
         Assert.False(classifier.ShouldHide(materialPath));
         Assert.True(classifier.ShouldHide(importedMaterialPath));
+    }
+
+    /// <summary>
+    /// Fails the first cache update while delegating all subsequent updates to the file store.
+    /// </summary>
+    sealed class FailOnceAssetHashCacheStore : IEditorAssetHashCacheStore {
+        readonly FileEditorAssetHashCacheStore innerStore = new FileEditorAssetHashCacheStore();
+
+        public int UpdateAttempts { get; private set; }
+
+        public EditorAssetHashCacheDocument Load(string cachePath) {
+            return innerStore.Load(cachePath);
+        }
+
+        public void Save(string cachePath, EditorAssetHashCacheDocument document) {
+            innerStore.Save(cachePath, document);
+        }
+
+        public EditorAssetHashCacheDocument Update(
+            string cachePath,
+            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates,
+            IReadOnlyCollection<string> removedPaths) {
+            UpdateAttempts++;
+            if (UpdateAttempts == 1) {
+                throw new IOException("Test cache flush failure.");
+            }
+            return innerStore.Update(cachePath, updates, removedPaths);
+        }
     }
 }

@@ -1064,8 +1064,8 @@ namespace helengine.files {
         /// </summary>
         static SceneEntityPlatformExistenceOverrideAsset[] SortSceneEntityPlatformExistenceOverrides(SceneEntityPlatformExistenceOverrideAsset[] overrides) {
             EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
-            return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
-                .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+            return overrides?.OrderBy(item => NormalizeOverrideScopeIdentifier(item?.PlatformId), StringComparer.Ordinal)
+                .ThenBy(item => NormalizeOverrideScopeIdentifier(item?.EnvironmentId), StringComparer.Ordinal)
                 .ThenBy(item => item?.Exists == true ? 1 : 0)
                 .ToArray();
         }
@@ -1075,8 +1075,8 @@ namespace helengine.files {
         /// </summary>
         static SceneEntityPlatformTransformOverrideAsset[] SortSceneEntityPlatformTransformOverrides(SceneEntityPlatformTransformOverrideAsset[] overrides) {
             EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
-            return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
-                .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+            return overrides?.OrderBy(item => NormalizeOverrideScopeIdentifier(item?.PlatformId), StringComparer.Ordinal)
+                .ThenBy(item => NormalizeOverrideScopeIdentifier(item?.EnvironmentId), StringComparer.Ordinal)
                 .ThenBy(item => item?.HasLocalPositionOverride == true ? 1 : 0)
                 .ThenBy(item => item?.LocalPosition.X ?? 0f)
                 .ThenBy(item => item?.LocalPosition.Y ?? 0f)
@@ -1098,8 +1098,8 @@ namespace helengine.files {
         /// </summary>
         static SceneEntityPlatformComponentOverrideAsset[] SortSceneEntityPlatformComponentOverrides(SceneEntityPlatformComponentOverrideAsset[] overrides) {
             EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
-            return overrides?.OrderBy(item => item?.PlatformId ?? string.Empty, StringComparer.Ordinal)
-                .ThenBy(item => item?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+            return overrides?.OrderBy(item => NormalizeOverrideScopeIdentifier(item?.PlatformId), StringComparer.Ordinal)
+                .ThenBy(item => NormalizeOverrideScopeIdentifier(item?.EnvironmentId), StringComparer.Ordinal)
                 .ThenBy(item => string.Join("\u001f", (item?.RemovedComponentKeys ?? Array.Empty<string>())
                     .OrderBy(key => key ?? string.Empty, StringComparer.Ordinal)), StringComparer.Ordinal)
                 .ThenBy(item => string.Join("\u001f", SortSceneEntityPlatformAddedComponents(item?.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>())
@@ -1118,12 +1118,12 @@ namespace helengine.files {
                 return;
             }
 
-            Dictionary<string, HashSet<string>> environmentsByPlatform = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            Dictionary<string, HashSet<string>> environmentsByPlatform = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
             for (int index = 0; index < overrides.Length; index++) {
-                string platformId = platformSelector(overrides[index]) ?? string.Empty;
-                string environmentId = environmentSelector(overrides[index]) ?? string.Empty;
+                string platformId = NormalizeOverrideScopeIdentifier(platformSelector(overrides[index]));
+                string environmentId = NormalizeOverrideScopeIdentifier(environmentSelector(overrides[index]));
                 if (!environmentsByPlatform.TryGetValue(platformId, out HashSet<string> environments)) {
-                    environments = new HashSet<string>(StringComparer.Ordinal);
+                    environments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     environmentsByPlatform.Add(platformId, environments);
                 }
 
@@ -1131,6 +1131,13 @@ namespace helengine.files {
                     throw new InvalidOperationException($"Duplicate platform override scope '{platformId}/{environmentId}'.");
                 }
             }
+        }
+
+        /// <summary>
+        /// Normalizes one serialized override scope identifier using the public scope identity rules.
+        /// </summary>
+        static string NormalizeOverrideScopeIdentifier(string value) {
+            return (value ?? string.Empty).Trim();
         }
 
         /// <summary>

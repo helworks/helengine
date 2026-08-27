@@ -70,8 +70,8 @@ namespace helengine.editor {
                 return;
             }
 
-            IsDisposed = true;
             LockStream.Dispose();
+            IsDisposed = true;
         }
     }
 

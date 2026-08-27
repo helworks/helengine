@@ -288,6 +288,35 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures initial indexing rejects a linked authored path before consuming or creating external metadata.
+    /// </summary>
+    [Fact]
+    public void Initialize_WhenCatalogContainsReparsePath_RejectsWithoutExternalMetadataMutation() {
+        string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-index-outside-" + Guid.NewGuid().ToString("N"));
+        string linkPath = Path.Combine(TempRootPath, "assets", "Linked");
+        Directory.CreateDirectory(outsideRoot);
+        string outsideAsset = Path.Combine(outsideRoot, "Escaped.fbx");
+        File.WriteAllBytes(outsideAsset, new byte[] { 1, 2, 3 });
+        try {
+            try {
+                Directory.CreateSymbolicLink(linkPath, outsideRoot);
+            } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is PlatformNotSupportedException) {
+                return;
+            }
+
+            Assert.Throws<InvalidOperationException>(() => new EditorAssetIdentityIndex(TempRootPath).Initialize());
+            Assert.False(File.Exists(outsideAsset + ".hmeta"));
+        } finally {
+            if (Directory.Exists(TempRootPath)) {
+                Directory.Delete(TempRootPath, true);
+            }
+            if (Directory.Exists(outsideRoot)) {
+                Directory.Delete(outsideRoot, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Ensures a saved reference path cannot escape assets during recovery.
     /// </summary>
     [Fact]

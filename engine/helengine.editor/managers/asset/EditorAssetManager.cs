@@ -33,6 +33,11 @@ namespace helengine.editor {
         EditorAssetIdentityIndex identityIndex;
 
         /// <summary>
+        /// Optional session resolver providing the publication boundary for borrowed reads.
+        /// </summary>
+        EditorAssetReferenceResolver publicationResolver;
+
+        /// <summary>
         /// Indicates whether this manager created its cache and therefore releases it.
         /// </summary>
         bool ownsIdentityHashCache;
@@ -126,7 +131,23 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(referenceResolver));
             }
 
+            publicationResolver = referenceResolver;
             Initialize(projectPath, referenceResolver.HashCacheValue, referenceResolver.IdentityIndexValue);
+        }
+
+        /// <summary>
+        /// Initializes a manager over an explicitly owned cache for disposal-boundary tests.
+        /// </summary>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="hashCache">Cache owned by this manager.</param>
+        /// <param name="ownsHashCache">Whether this manager releases the supplied cache.</param>
+        internal EditorAssetManager(string projectPath, EditorAssetHashCache hashCache, bool ownsHashCache) {
+            if (hashCache == null) {
+                throw new ArgumentNullException(nameof(hashCache));
+            }
+
+            Initialize(projectPath, hashCache, null);
+            ownsIdentityHashCache = ownsHashCache;
         }
 
         /// <summary>
@@ -178,6 +199,26 @@ namespace helengine.editor {
         /// <param name="entries">List to populate with asset entries.</param>
         /// <exception cref="ArgumentNullException">Thrown when the entries list is null.</exception>
         public void LoadEntries(List<AssetBrowserEntry> entries) {
+            if (entries == null) {
+                throw new ArgumentNullException(nameof(entries));
+            }
+
+            if (publicationResolver != null) {
+                publicationResolver.ExecuteSynchronizedRead(() => {
+                    LoadEntriesCore(entries);
+                    return true;
+                });
+                return;
+            }
+
+            LoadEntriesCore(entries);
+        }
+
+        /// <summary>
+        /// Populates browser entries after the caller has selected the appropriate read boundary.
+        /// </summary>
+        /// <param name="entries">List to populate with asset entries.</param>
+        void LoadEntriesCore(List<AssetBrowserEntry> entries) {
             if (entries == null) {
                 throw new ArgumentNullException(nameof(entries));
             }
@@ -241,10 +282,10 @@ namespace helengine.editor {
                 return;
             }
 
-            isDisposed = true;
             if (ownsIdentityHashCache) {
                 identityHashCache.Dispose();
             }
+            isDisposed = true;
         }
 
         /// <summary>

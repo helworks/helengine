@@ -400,6 +400,50 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures direct use of the session resolver observes another session's publication before hashing.
+    /// </summary>
+    [Fact]
+    public void DirectResolver_WhenOtherSessionRewritesWithRestoredTimestamp_RecomputesHash() {
+        using EditorProjectAuthoringSession firstSession = (EditorProjectAuthoringSession)CreateSession();
+        using EditorProjectAuthoringSession secondSession = (EditorProjectAuthoringSession)CreateSession();
+        EditorAssetWriteResult first = firstSession.WriteAsset("models/DirectResolver.hasset", CreateModel());
+        DateTime timestamp = File.GetLastWriteTimeUtc(first.FullPath);
+        SceneAssetReference initial = firstSession.ReferenceResolverValue.CreateFileReference(first.FullPath, AssetEntryKind.Model);
+
+        secondSession.WriteAsset("models/DirectResolver.hasset", CreateModel(new float3(7f, 0f, 0f)));
+        File.SetLastWriteTimeUtc(first.FullPath, timestamp);
+
+        SceneAssetReference observed = firstSession.ReferenceResolverValue.CreateFileReference(first.FullPath, AssetEntryKind.Model);
+
+        Assert.NotEqual(initial.ContentHash, observed.ContentHash);
+    }
+
+    /// <summary>
+    /// Ensures a browser manager borrowing a session graph observes exact-path publications before hashing.
+    /// </summary>
+    [Fact]
+    public void BorrowedBrowser_WhenOtherSessionRewritesWithRestoredTimestamp_RecomputesHash() {
+        using EditorProjectAuthoringSession firstSession = (EditorProjectAuthoringSession)CreateSession();
+        using EditorProjectAuthoringSession secondSession = (EditorProjectAuthoringSession)CreateSession();
+        EditorAssetWriteResult first = firstSession.WriteAsset("models/BorrowedBrowser.hasset", CreateModel());
+        DateTime timestamp = File.GetLastWriteTimeUtc(first.FullPath);
+        using EditorAssetManager browser = new EditorAssetManager(ProjectRootPath, firstSession.ReferenceResolverValue);
+        List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
+
+        Assert.True(browser.TryNavigateTo("models"));
+        browser.LoadEntries(entries);
+        string initialHash = Assert.Single(entries, entry => entry.RelativePath == "models/BorrowedBrowser.hasset").ContentHash;
+        secondSession.WriteAsset("models/BorrowedBrowser.hasset", CreateModel(new float3(8f, 0f, 0f)));
+        File.SetLastWriteTimeUtc(first.FullPath, timestamp);
+
+        browser.LoadEntries(entries);
+
+        string observedHash = Assert.Single(entries, entry => entry.RelativePath == "models/BorrowedBrowser.hasset").ContentHash;
+        Assert.NotEqual(initialHash, observedHash);
+        Assert.NotNull(firstSession.ReferenceResolverValue.CreateFileReference(first.FullPath, AssetEntryKind.Model));
+    }
+
+    /// <summary>
     /// Ensures writer construction replays a publication made after the index scan but before writer creation.
     /// </summary>
     [Fact]
