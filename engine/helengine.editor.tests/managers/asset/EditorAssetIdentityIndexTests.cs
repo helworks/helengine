@@ -129,6 +129,29 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures deliberately duplicated native identities remain addressable and are selected deterministically by path.
+    /// </summary>
+    [Fact]
+    public void Refresh_ForDuplicateNativeIdentities_PreservesBothEntriesForResolverSelection() {
+        string firstPath = CreateNativeAnimation("Animations/A.hanim", "aabbccddeeff00112233445566778899");
+        string secondPath = CreateNativeAnimation("Animations/B.hanim", "aabbccddeeff00112233445566778899");
+        EditorAssetIdentityIndex index = CreateIndex();
+
+        index.Refresh();
+
+        IReadOnlyList<EditorAssetIdentityEntry> matches = index.FindByAssetId(
+            "aabbccddeeff00112233445566778899",
+            AssetEntryKind.File);
+        Assert.Equal(2, matches.Count);
+        Assert.Equal("Animations/A.hanim", matches[0].RelativePath);
+        Assert.Equal("Animations/B.hanim", matches[1].RelativePath);
+        Assert.Equal("aabbccddeeff00112233445566778899", index.FindByPath("Animations/A.hanim").AssetId);
+        Assert.Equal("aabbccddeeff00112233445566778899", index.FindByPath("Animations/B.hanim").AssetId);
+        Assert.False(File.Exists(firstPath + ".hmeta"));
+        Assert.False(File.Exists(secondPath + ".hmeta"));
+    }
+
+    /// <summary>
     /// Creates the identity index with its project-scoped dependencies.
     /// </summary>
     /// <returns>Configured identity index.</returns>

@@ -181,7 +181,8 @@ namespace helengine.editor {
             string projectRootPath,
             EditorFileSystemModelResolver fileSystemModelResolver,
             EditorFileSystemFontResolver fileSystemFontResolver,
-            EditorFileSystemTextureResolver fileSystemTextureResolver) {
+            EditorFileSystemTextureResolver fileSystemTextureResolver,
+            EditorAssetReferenceResolver identityReferenceResolver = null) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -207,7 +208,7 @@ namespace helengine.editor {
             FileSystemFontResolver = fileSystemFontResolver;
             FileSystemTextureResolver = fileSystemTextureResolver;
             MaterialSettingsService = new MaterialAssetSettingsService();
-            IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
+            IdentityReferenceResolver = identityReferenceResolver ?? new EditorAssetReferenceResolver(fullProjectRootPath);
         }
 
         /// <summary>

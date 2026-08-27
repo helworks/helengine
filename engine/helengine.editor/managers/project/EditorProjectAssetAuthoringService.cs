@@ -9,11 +9,36 @@ namespace helengine.editor {
         readonly AssetImportManager AssetImportManagerValue;
 
         /// <summary>
+        /// Command-scoped authored identity resolver reused by references and scene loads.
+        /// </summary>
+        readonly EditorAssetReferenceResolver AssetReferenceResolver;
+
+        /// <summary>
+        /// Command-scoped scene resolver backed by the shared authored identity index.
+        /// </summary>
+        readonly EditorSceneAssetReferenceResolver SceneAssetReferenceResolver;
+
+        /// <summary>
+        /// Command-scoped canonicalizer backed by the shared identity resolver.
+        /// </summary>
+        readonly EditorAssetReferenceCanonicalizationService AssetReferenceCanonicalizationService;
+
+        /// <summary>
         /// Initializes one project asset-authoring capability.
         /// </summary>
         /// <param name="assetImportManager">Host-owned import manager backing the capability.</param>
         internal EditorProjectAssetAuthoringService(AssetImportManager assetImportManager) {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+            string projectRootPath = ResolveProjectRootPath();
+            AssetReferenceResolver = new EditorAssetReferenceResolver(projectRootPath);
+            SceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(
+                AssetImportManagerValue.ContentManager,
+                projectRootPath,
+                new EditorFileSystemModelResolver(AssetImportManagerValue),
+                new EditorFileSystemFontResolver(AssetImportManagerValue),
+                new EditorFileSystemTextureResolver(AssetImportManagerValue),
+                AssetReferenceResolver);
+            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AssetReferenceResolver);
         }
 
         /// <summary>
@@ -120,12 +145,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Resolver for file-backed scene asset references.</returns>
         public EditorSceneAssetReferenceResolver CreateSceneAssetReferenceResolver() {
-            return new EditorSceneAssetReferenceResolver(
-                AssetImportManagerValue.ContentManager,
-                ResolveProjectRootPath(),
-                new EditorFileSystemModelResolver(AssetImportManagerValue),
-                new EditorFileSystemFontResolver(AssetImportManagerValue),
-                new EditorFileSystemTextureResolver(AssetImportManagerValue));
+            return SceneAssetReferenceResolver;
         }
 
         /// <summary>
@@ -134,6 +154,61 @@ namespace helengine.editor {
         public void WriteNativeAsset(string relativePath, Asset asset) {
             ValidateRelativeAssetPath(relativePath);
             new GeneratedAssetWriteService().WriteAsset(ResolveProjectRootPath(), relativePath, asset);
+        }
+
+        /// <summary>
+        /// Writes one project-authored native asset with an explicit stable identity.
+        /// </summary>
+        public void WriteNativeAsset(string relativePath, Asset asset, string authoringAssetId) {
+            ValidateRelativeAssetPath(relativePath);
+            ValidateAuthoringAssetId(authoringAssetId);
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            asset.AuthoringAssetId = authoringAssetId;
+            asset.FormerAuthoringAssetIds ??= Array.Empty<string>();
+            new GeneratedAssetWriteService().WriteAsset(ResolveProjectRootPath(), relativePath, asset);
+        }
+
+        /// <summary>
+        /// Writes one live scene through the host-owned current scene save pipeline.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative native scene path.</param>
+        /// <param name="sceneSettings">Scene-level settings to persist.</param>
+        /// <param name="roots">Live editor roots to serialize.</param>
+        /// <param name="persistenceRegistry">Current component persistence registry.</param>
+        /// <param name="authoringAssetId">Explicit stable embedded scene identity.</param>
+        public void WriteNativeScene(
+            string relativePath,
+            SceneSettingsAsset sceneSettings,
+            Entity[] roots,
+            ComponentPersistenceRegistry persistenceRegistry,
+            string authoringAssetId) {
+            ValidateRelativeAssetPath(relativePath);
+            if (sceneSettings == null) {
+                throw new ArgumentNullException(nameof(sceneSettings));
+            } else if (roots == null) {
+                throw new ArgumentNullException(nameof(roots));
+            } else if (persistenceRegistry == null) {
+                throw new ArgumentNullException(nameof(persistenceRegistry));
+            } else if (string.IsNullOrWhiteSpace(authoringAssetId)) {
+                throw new ArgumentException("Native scene authoring asset id must be provided.", nameof(authoringAssetId));
+            }
+
+            string fullPath = Path.Combine(
+                AssetImportManagerValue.AssetsRootPath,
+                relativePath.Replace('/', Path.DirectorySeparatorChar));
+            new SceneSaveService(
+                ResolveProjectRootPath(),
+                persistenceRegistry).Save(fullPath, sceneSettings, roots, authoringAssetId);
+        }
+
+        /// <summary>
+        /// Canonicalizes current component references through the command-scoped identity index.
+        /// </summary>
+        public bool CanonicalizeAssetReferences(Component component, EntityComponentSaveState saveState) {
+            return AssetReferenceCanonicalizationService.Canonicalize(component, saveState);
         }
 
         /// <summary>
@@ -151,6 +226,24 @@ namespace helengine.editor {
             new BlueprintSaveService(
                 ResolveProjectRootPath(),
                 persistenceRegistry).Save(fullPath);
+        }
+
+        /// <summary>
+        /// Writes one project-authored Blueprint with an explicit stable identity.
+        /// </summary>
+        public void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId) {
+            ValidateRelativeAssetPath(relativePath);
+            if (persistenceRegistry == null) {
+                throw new ArgumentNullException(nameof(persistenceRegistry));
+            }
+            ValidateAuthoringAssetId(authoringAssetId);
+
+            string fullPath = Path.Combine(
+                AssetImportManagerValue.AssetsRootPath,
+                relativePath.Replace('/', Path.DirectorySeparatorChar));
+            new BlueprintSaveService(
+                ResolveProjectRootPath(),
+                persistenceRegistry).Save(fullPath, authoringAssetId);
         }
 
         /// <summary>
@@ -186,12 +279,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Writes one project-authored material with an explicit stable identity.
+        /// </summary>
+        public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition, string authoringAssetId) {
+            ValidateRelativeAssetPath(relativePath);
+            ValidateAuthoringAssetId(authoringAssetId);
+            if (definition == null || definition.MaterialAsset == null) {
+                throw new ArgumentException("Native material definitions must include a material asset.", nameof(definition));
+            }
+
+            definition.MaterialAsset.AuthoringAssetId = authoringAssetId;
+            definition.MaterialAsset.FormerAuthoringAssetIds ??= Array.Empty<string>();
+            new GeneratedMaterialAssetWriteService().WriteMaterial(ResolveProjectRootPath(), relativePath, definition);
+        }
+
+        /// <summary>
         /// Creates a canonical reference for one assets-relative authored file.
         /// </summary>
         public SceneAssetReference CreateFileReference(string relativePath, AssetEntryKind expectedKind) {
             ValidateRelativeAssetPath(relativePath);
             string fullPath = Path.Combine(AssetImportManagerValue.AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-            return new EditorAssetReferenceResolver(ResolveProjectRootPath()).CreateFileReference(fullPath, expectedKind);
+            return AssetReferenceResolver.CreateFileReference(fullPath, expectedKind);
         }
 
         /// <summary>
@@ -244,6 +352,17 @@ namespace helengine.editor {
                 throw new ArgumentException("Asset relative path must be provided.", nameof(relativePath));
             } else if (Path.IsPathRooted(relativePath)) {
                 throw new ArgumentException("Asset relative path must not be rooted.", nameof(relativePath));
+            }
+        }
+
+        /// <summary>
+        /// Validates an explicit stable native asset identity.
+        /// </summary>
+        static void ValidateAuthoringAssetId(string authoringAssetId) {
+            if (string.IsNullOrWhiteSpace(authoringAssetId)
+                || authoringAssetId.Length != 32
+                || authoringAssetId.Any(character => character is < '0' or > '9' and < 'a' or > 'f')) {
+                throw new ArgumentException("Native authoring asset ids must be lowercase 32-character hexadecimal values.", nameof(authoringAssetId));
             }
         }
     }

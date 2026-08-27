@@ -39,6 +39,11 @@ namespace helengine.editor {
         readonly Dictionary<string, List<EditorAssetIdentityEntry>> EntriesByAssetId;
 
         /// <summary>
+        /// Current and former identities mapped to their indexed entries for constant-time reference recovery.
+        /// </summary>
+        readonly Dictionary<string, List<EditorAssetIdentityEntry>> EntriesByLookupIdentity;
+
+        /// <summary>
         /// Previous owner path by UUID for stable duplicate repair.
         /// </summary>
         readonly Dictionary<string, string> PreviousOwners;
@@ -66,6 +71,7 @@ namespace helengine.editor {
             HashCache = hashCache ?? new EditorAssetHashCache(ProjectRootPath);
             EntriesByPath = new Dictionary<string, EditorAssetIdentityEntry>(StringComparer.OrdinalIgnoreCase);
             EntriesByAssetId = new Dictionary<string, List<EditorAssetIdentityEntry>>(StringComparer.Ordinal);
+            EntriesByLookupIdentity = new Dictionary<string, List<EditorAssetIdentityEntry>>(StringComparer.Ordinal);
             PreviousOwners = new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
@@ -103,6 +109,13 @@ namespace helengine.editor {
                         continue;
                     }
 
+                    // Native authored payloads intentionally retain their embedded identity. Multiple
+                    // authored files may share an explicit identity, and the resolver selects the
+                    // saved path (or ordinal path) without rewriting either payload.
+                    if (PathClassifier.UsesEmbeddedIdentity(duplicate.FullPath)) {
+                        continue;
+                    }
+
                     AssetIdentityMetadataDocument repairedDocument = MetadataService.Load(duplicate.FullPath);
                     if (!repairedDocument.FormerAssetIds.Contains(group.Key, StringComparer.Ordinal)) {
                         repairedDocument.FormerAssetIds.Add(group.Key);
@@ -123,15 +136,10 @@ namespace helengine.editor {
 
             EntriesByPath.Clear();
             EntriesByAssetId.Clear();
+            EntriesByLookupIdentity.Clear();
             for (int index = 0; index < loadedEntries.Count; index++) {
                 EditorAssetIdentityEntry entry = loadedEntries[index];
-                EntriesByPath[entry.RelativePath] = entry;
-                List<EditorAssetIdentityEntry> assetEntries;
-                if (!EntriesByAssetId.TryGetValue(entry.AssetId, out assetEntries)) {
-                    assetEntries = new List<EditorAssetIdentityEntry>();
-                    EntriesByAssetId[entry.AssetId] = assetEntries;
-                }
-                assetEntries.Add(entry);
+                AddEntry(entry);
                 if (!PreviousOwners.ContainsKey(entry.AssetId)) {
                     PreviousOwners[entry.AssetId] = entry.RelativePath;
                 }
@@ -163,8 +171,14 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 return matches;
             }
-            foreach (EditorAssetIdentityEntry entry in EntriesByPath.Values) {
-                if (entry.EntryKind == expectedKind && (string.Equals(entry.AssetId, assetId, StringComparison.Ordinal) || entry.FormerAssetIds.Contains(assetId, StringComparer.Ordinal))) {
+            List<EditorAssetIdentityEntry> indexedEntries;
+            if (!EntriesByLookupIdentity.TryGetValue(assetId, out indexedEntries)) {
+                return matches;
+            }
+
+            for (int index = 0; index < indexedEntries.Count; index++) {
+                EditorAssetIdentityEntry entry = indexedEntries[index];
+                if (entry.EntryKind == expectedKind) {
                     matches.Add(entry);
                 }
             }
@@ -205,8 +219,74 @@ namespace helengine.editor {
             if (!PathClassifier.IsAuthoredAsset(fullPath)) {
                 throw new InvalidOperationException($"Path '{fullPath}' is not an authored asset.");
             }
-            Refresh();
-            return FindByPath(Path.GetRelativePath(AssetsRootPath, Path.GetFullPath(fullPath)));
+            string normalizedFullPath = Path.GetFullPath(fullPath);
+            string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedFullPath));
+            EditorAssetIdentityEntry existingEntry;
+            if (EntriesByPath.TryGetValue(relativePath, out existingEntry)) {
+                RemoveEntry(existingEntry);
+            }
+
+            EditorAssetIdentityEntry entry = CreateEntry(normalizedFullPath, LoadIdentityMetadata(normalizedFullPath));
+            AddEntry(entry);
+            if (!PreviousOwners.ContainsKey(entry.AssetId)) {
+                PreviousOwners[entry.AssetId] = entry.RelativePath;
+            }
+
+            return entry;
+        }
+
+        /// <summary>
+        /// Adds one entry to all maintained lookup maps.
+        /// </summary>
+        /// <param name="entry">Entry to index.</param>
+        void AddEntry(EditorAssetIdentityEntry entry) {
+            EntriesByPath[entry.RelativePath] = entry;
+            AddToLookup(EntriesByAssetId, entry.AssetId, entry);
+            AddToLookup(EntriesByLookupIdentity, entry.AssetId, entry);
+            for (int index = 0; index < entry.FormerAssetIds.Count; index++) {
+                AddToLookup(EntriesByLookupIdentity, entry.FormerAssetIds[index], entry);
+            }
+        }
+
+        /// <summary>
+        /// Removes one entry from all maintained lookup maps.
+        /// </summary>
+        /// <param name="entry">Entry to remove.</param>
+        void RemoveEntry(EditorAssetIdentityEntry entry) {
+            EntriesByPath.Remove(entry.RelativePath);
+            RemoveFromLookup(EntriesByAssetId, entry.AssetId, entry);
+            RemoveFromLookup(EntriesByLookupIdentity, entry.AssetId, entry);
+            for (int index = 0; index < entry.FormerAssetIds.Count; index++) {
+                RemoveFromLookup(EntriesByLookupIdentity, entry.FormerAssetIds[index], entry);
+            }
+        }
+
+        /// <summary>
+        /// Adds one entry to a lookup map without creating duplicate list members.
+        /// </summary>
+        static void AddToLookup(Dictionary<string, List<EditorAssetIdentityEntry>> lookup, string identity, EditorAssetIdentityEntry entry) {
+            List<EditorAssetIdentityEntry> entries;
+            if (!lookup.TryGetValue(identity, out entries)) {
+                entries = new List<EditorAssetIdentityEntry>();
+                lookup[identity] = entries;
+            }
+            if (!entries.Contains(entry)) {
+                entries.Add(entry);
+            }
+        }
+
+        /// <summary>
+        /// Removes one entry from a lookup map.
+        /// </summary>
+        static void RemoveFromLookup(Dictionary<string, List<EditorAssetIdentityEntry>> lookup, string identity, EditorAssetIdentityEntry entry) {
+            List<EditorAssetIdentityEntry> entries;
+            if (!lookup.TryGetValue(identity, out entries)) {
+                return;
+            }
+            entries.Remove(entry);
+            if (entries.Count == 0) {
+                lookup.Remove(identity);
+            }
         }
 
         /// <summary>

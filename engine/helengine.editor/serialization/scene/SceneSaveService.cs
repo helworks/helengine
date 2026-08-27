@@ -82,6 +82,21 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute path where the scene file should be written.</param>
         /// <param name="sceneSettings">Scene-level settings that should be persisted with the scene.</param>
         public void Save(string fullPath, SceneSettingsAsset sceneSettings) {
+            Save(fullPath, sceneSettings, null, null);
+        }
+
+        /// <summary>
+        /// Saves the supplied live scene roots using an explicit current native identity.
+        /// </summary>
+        /// <param name="fullPath">Absolute path where the scene file should be written.</param>
+        /// <param name="sceneSettings">Scene-level settings that should be persisted with the scene.</param>
+        /// <param name="roots">Live editor roots to serialize, or null to use the active editor scene.</param>
+        /// <param name="authoringAssetId">Explicit stable lowercase 32-character identity for the native scene.</param>
+        public void Save(
+            string fullPath,
+            SceneSettingsAsset sceneSettings,
+            Entity[] roots,
+            string authoringAssetId) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
             }
@@ -91,12 +106,18 @@ namespace helengine.editor {
             if (sceneSettings.CanvasProfile == null) {
                 throw new InvalidOperationException("Scene settings must include a canvas profile.");
             }
+            if (!string.IsNullOrWhiteSpace(authoringAssetId) &&
+                (authoringAssetId.Length != 32 || authoringAssetId.Any(character => !IsLowerHex(character)))) {
+                throw new ArgumentException("Scene authoring asset id must be a lowercase 32-character hexadecimal value.", nameof(authoringAssetId));
+            }
 
             EntityReferenceTable.Clear();
-            SceneAsset asset = BuildSceneAsset(fullPath, sceneSettings);
-            AssetIdentityMetadataDocument identity = File.Exists(fullPath)
-                ? new AssetIdentityMetadataService().Load(fullPath)
-                : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
+            SceneAsset asset = BuildSceneAsset(fullPath, sceneSettings, roots);
+            AssetIdentityMetadataDocument identity = !string.IsNullOrWhiteSpace(authoringAssetId)
+                ? new AssetIdentityMetadataDocument { AssetId = authoringAssetId }
+                : File.Exists(fullPath)
+                    ? new AssetIdentityMetadataService().Load(fullPath)
+                    : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
             asset.AuthoringAssetId = identity.AssetId;
             asset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
             string directoryPath = Path.GetDirectoryName(fullPath);
@@ -163,12 +184,14 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute path where the scene will be stored.</param>
         /// <param name="sceneSettings">Scene-level settings that should be persisted with the scene.</param>
         /// <returns>Serialized scene asset payload.</returns>
-        SceneAsset BuildSceneAsset(string fullPath, SceneSettingsAsset sceneSettings) {
+        SceneAsset BuildSceneAsset(string fullPath, SceneSettingsAsset sceneSettings, Entity[] roots) {
             string sceneId = BuildSceneId(fullPath);
             List<SceneEntityAsset> rootEntities = new List<SceneEntityAsset>();
             List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
             HashSet<string> assetReferenceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = roots == null
+                ? Core.Instance.ObjectManager.Entities
+                : new List<Entity>(roots);
             for (int i = 0; i < entities.Count; i++) {
                 if (entities[i] is not EditorEntity editorEntity) {
                     continue;
@@ -192,6 +215,15 @@ namespace helengine.editor {
                 AssetReferences = assetReferences.ToArray(),
                 SceneSettings = CloneSceneSettings(sceneSettings)
             };
+        }
+
+        /// <summary>
+        /// Determines whether one identity character is lowercase hexadecimal.
+        /// </summary>
+        /// <param name="character">Character to validate.</param>
+        /// <returns>True for a lowercase hexadecimal character.</returns>
+        static bool IsLowerHex(char character) {
+            return (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f');
         }
 
         /// <summary>

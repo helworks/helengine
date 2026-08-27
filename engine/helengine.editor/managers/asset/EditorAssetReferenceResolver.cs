@@ -10,7 +10,13 @@ namespace helengine.editor {
         readonly AssetIdentityMetadataService MetadataService;
         readonly EditorAssetPathClassifier PathClassifier;
         bool ResolutionScopeActive;
+        bool IdentityIndexInitialized;
         HashSet<string> ResolutionScopeMissingMetadataPaths;
+
+        /// <summary>
+        /// Project root exposed only to other editor-owned services sharing this resolver.
+        /// </summary>
+        internal string ProjectRootPathValue => ProjectRootPath;
 
         /// <summary>
         /// Initializes a project-scoped reference resolver.
@@ -46,19 +52,17 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Only filesystem-backed asset references can be resolved by the editor resolver.");
             }
 
-            bool pathMetadataWasMissing = false;
             HashSet<string> missingMetadataPaths = ResolutionScopeActive
                 ? ResolutionScopeMissingMetadataPaths
                 : FindMissingMetadataPaths();
+            EnsureIdentityIndexInitialized();
+            bool pathMetadataWasMissing = false;
             string savedPath = NormalizeRelativePath(reference.RelativePath);
             if (!string.IsNullOrWhiteSpace(savedPath)) {
                 string savedFullPath = Path.Combine(AssetsRootPath, savedPath.Replace('/', Path.DirectorySeparatorChar));
                 pathMetadataWasMissing = missingMetadataPaths.Contains(Path.GetFullPath(savedFullPath));
             }
 
-            if (!ResolutionScopeActive) {
-                IdentityIndex.Refresh();
-            }
             bool metadataChanged = pathMetadataWasMissing;
             bool savedIdWasAdopted = false;
             if (pathMetadataWasMissing && IsValidAssetId(reference.AssetId) && !IdentityIndex.IsCurrentAssetIdOwned(reference.AssetId)) {
@@ -68,7 +72,7 @@ namespace helengine.editor {
                 MetadataService.Save(savedFullPath, document);
                 metadataChanged = true;
                 savedIdWasAdopted = true;
-                IdentityIndex.Refresh();
+                IdentityIndex.RegisterOrRefresh(savedFullPath);
             }
 
             EditorAssetIdentityEntry winner = SelectByAssetId(reference.AssetId, expectedKind, savedPath);
@@ -110,12 +114,12 @@ namespace helengine.editor {
         }
 
         /// <summary>Refreshes the identity index once for a multi-reference load or build scope.</summary>
-        public void BeginResolutionScope() {
+    public void BeginResolutionScope() {
             if (ResolutionScopeActive) {
                 throw new InvalidOperationException("An asset reference resolution scope is already active.");
             }
             ResolutionScopeMissingMetadataPaths = FindMissingMetadataPaths();
-            IdentityIndex.Refresh();
+            EnsureIdentityIndexInitialized();
             ResolutionScopeActive = true;
         }
 
@@ -134,7 +138,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute authored source path.</param>
         /// <param name="expectedKind">Required asset category.</param>
         /// <returns>Canonical stable reference.</returns>
-        public SceneAssetReference CreateFileReference(string fullPath, AssetEntryKind expectedKind) {
+    public SceneAssetReference CreateFileReference(string fullPath, AssetEntryKind expectedKind) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
             }
@@ -142,10 +146,9 @@ namespace helengine.editor {
             if (!PathClassifier.IsAuthoredAsset(normalizedPath) || PathClassifier.Classify(normalizedPath) != expectedKind) {
                 throw new InvalidOperationException($"Path '{fullPath}' is not an authored {expectedKind} asset.");
             }
+            EnsureIdentityIndexInitialized();
             string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedPath));
-            EditorAssetIdentityEntry entry = ResolutionScopeActive
-                ? IdentityIndex.FindByPath(relativePath)
-                : null;
+            EditorAssetIdentityEntry entry = IdentityIndex.FindByPath(relativePath);
             entry ??= IdentityIndex.RegisterOrRefresh(normalizedPath);
             string contentHash = HashCache.GetContentHash(normalizedPath);
             return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(entry.AssetId, entry.RelativePath, contentHash);
@@ -215,6 +218,18 @@ namespace helengine.editor {
                 }
             }
             return paths;
+        }
+
+        /// <summary>
+        /// Initializes the project identity index once for this resolver lifetime.
+        /// </summary>
+        void EnsureIdentityIndexInitialized() {
+            if (IdentityIndexInitialized) {
+                return;
+            }
+
+            IdentityIndex.Refresh();
+            IdentityIndexInitialized = true;
         }
     }
 }

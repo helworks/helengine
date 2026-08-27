@@ -41,8 +41,21 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fullPath">Absolute path where the blueprint file should be written.</param>
         public void Save(string fullPath) {
+            Save(fullPath, null);
+        }
+
+        /// <summary>
+        /// Saves the current Blueprint authoring state with an explicit stable embedded identity.
+        /// </summary>
+        /// <param name="fullPath">Absolute path where the Blueprint file should be written.</param>
+        /// <param name="authoringAssetId">Stable lowercase 32-character identity, or null for ordinary editor saves.</param>
+        public void Save(string fullPath, string authoringAssetId) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Blueprint path must be provided.", nameof(fullPath));
+            }
+            if (!string.IsNullOrWhiteSpace(authoringAssetId)
+                && (authoringAssetId.Length != 32 || authoringAssetId.Any(character => character is < '0' or > '9' and < 'a' or > 'f'))) {
+                throw new ArgumentException("Blueprint authoring asset ids must be lowercase 32-character hexadecimal values.", nameof(authoringAssetId));
             }
 
             EditorEntity rootEntity = BlueprintValidationService.ResolveSingleEditableRoot(Core.Instance.ObjectManager.Entities);
@@ -89,9 +102,11 @@ namespace helengine.editor {
                     RootEntity = rootEntities[0],
                     AssetReferences = sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>()
                 };
-                AssetIdentityMetadataDocument identity = File.Exists(normalizedPath)
-                    ? new AssetIdentityMetadataService().Load(normalizedPath)
-                    : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
+                AssetIdentityMetadataDocument identity = !string.IsNullOrWhiteSpace(authoringAssetId)
+                    ? new AssetIdentityMetadataDocument { AssetId = authoringAssetId }
+                    : File.Exists(normalizedPath)
+                        ? new AssetIdentityMetadataService().Load(normalizedPath)
+                        : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
                 blueprintAsset.AuthoringAssetId = identity.AssetId;
                 blueprintAsset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
 

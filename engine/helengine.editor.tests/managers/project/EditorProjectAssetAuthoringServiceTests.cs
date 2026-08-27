@@ -90,12 +90,35 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     }
 
     /// <summary>
+    /// Ensures live scene definitions are persisted through the same public native authoring boundary as detached assets.
+    /// </summary>
+    [Fact]
+    public void NativeSceneAuthoring_WritesCurrentSceneWithExplicitIdentity() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        IEditorProjectAssetAuthoringService capability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(projectRootPath);
+        SceneAsset scene = new SceneAsset {
+            Id = "scenes/PublicApiScene.helen",
+            RootEntities = Array.Empty<SceneEntityAsset>(),
+            AssetReferences = Array.Empty<SceneAssetReference>()
+        };
+        ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+
+        capability.WriteNativeScene("scenes/PublicApiScene.helen", new SceneSettingsAsset(), Array.Empty<Entity>(), registry, "00112233445566778899aabbccddeeff");
+        SceneAsset restored = capability.LoadNativeAsset<SceneAsset>("scenes/PublicApiScene.helen");
+
+        Assert.Equal("00112233445566778899aabbccddeeff", restored.AuthoringAssetId);
+        Assert.Equal("scenes/PublicApiScene.helen", restored.Id);
+    }
+
+    /// <summary>
     /// Ensures blueprint authoring is exposed by the same public capability instead of requiring
     /// project code to construct the editor blueprint save pipeline.
     /// </summary>
     [Fact]
     public void NativeBlueprintAuthoring_IsExposedByThePublicCapability() {
-        Assert.NotNull(typeof(IEditorProjectAssetAuthoringService).GetMethod(nameof(IEditorProjectAssetAuthoringService.WriteNativeBlueprint)));
+        Assert.Contains(
+            typeof(IEditorProjectAssetAuthoringService).GetMethods(),
+            method => method.Name == nameof(IEditorProjectAssetAuthoringService.WriteNativeBlueprint));
     }
 
     /// <summary>
@@ -104,6 +127,14 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     [Fact]
     public void GeneratedCacheAuthoring_IsExposedByThePublicCapability() {
         Assert.NotNull(typeof(IEditorProjectAssetAuthoringService).GetMethod(nameof(IEditorProjectAssetAuthoringService.WriteGeneratedCacheAsset)));
+    }
+
+    /// <summary>
+    /// Ensures project tools can canonicalize component references without constructing editor services.
+    /// </summary>
+    [Fact]
+    public void ReferenceCanonicalization_IsExposedByThePublicCapability() {
+        Assert.NotNull(typeof(IEditorProjectAssetAuthoringService).GetMethod(nameof(IEditorProjectAssetAuthoringService.CanonicalizeAssetReferences)));
     }
 
     /// <summary>

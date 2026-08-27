@@ -94,11 +94,50 @@ namespace helengine.editor {
         void WriteNativeAsset(string relativePath, Asset asset);
 
         /// <summary>
+        /// Writes one project-authored native asset with an explicit stable embedded identity.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative native asset path.</param>
+        /// <param name="asset">Native asset payload to author.</param>
+        /// <param name="authoringAssetId">Stable identity assigned by the project generator.</param>
+        void WriteNativeAsset(string relativePath, Asset asset, string authoringAssetId);
+
+        /// <summary>
+        /// Writes one current live-authored scene through the host-owned scene save pipeline.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative native scene path.</param>
+        /// <param name="sceneSettings">Scene-level settings to persist.</param>
+        /// <param name="roots">Live scene roots to serialize.</param>
+        /// <param name="persistenceRegistry">Current component persistence registry for project-authored components.</param>
+        /// <param name="authoringAssetId">Explicit stable embedded identity for clean project generation.</param>
+        void WriteNativeScene(
+            string relativePath,
+            SceneSettingsAsset sceneSettings,
+            Entity[] roots,
+            ComponentPersistenceRegistry persistenceRegistry,
+            string authoringAssetId);
+
+        /// <summary>
+        /// Canonicalizes the file-backed references in one current component save state through the host-owned identity index.
+        /// </summary>
+        /// <param name="component">Component owning the save state.</param>
+        /// <param name="saveState">Current save state whose references should be canonicalized.</param>
+        /// <returns>True when one or more references changed.</returns>
+        bool CanonicalizeAssetReferences(Component component, EntityComponentSaveState saveState);
+
+        /// <summary>
         /// Writes the current editor blueprint authoring state through the host-owned save pipeline.
         /// </summary>
         /// <param name="relativePath">Assets-relative native blueprint path.</param>
         /// <param name="persistenceRegistry">Current component persistence registry for the active project.</param>
         void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry);
+
+        /// <summary>
+        /// Writes one project-authored native Blueprint with an explicit stable embedded identity.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative native Blueprint path.</param>
+        /// <param name="persistenceRegistry">Current component persistence registry.</param>
+        /// <param name="authoringAssetId">Stable identity assigned by the project generator.</param>
+        void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId);
 
         /// <summary>
         /// Writes one generated runtime cache asset through the host-owned current serializer.
@@ -113,6 +152,14 @@ namespace helengine.editor {
         /// <param name="relativePath">Assets-relative material path.</param>
         /// <param name="definition">Native material definition to author.</param>
         void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition);
+
+        /// <summary>
+        /// Writes one project-authored native material with an explicit stable embedded identity.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative material path.</param>
+        /// <param name="definition">Native material definition to author.</param>
+        /// <param name="authoringAssetId">Stable identity assigned by the project generator.</param>
+        void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition, string authoringAssetId);
 
         /// <summary>
         /// Creates a canonical reference for one existing assets-relative authored file.

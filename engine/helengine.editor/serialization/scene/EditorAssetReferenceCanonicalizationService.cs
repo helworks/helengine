@@ -9,6 +9,11 @@ namespace helengine.editor {
         readonly string ProjectRootPath;
 
         /// <summary>
+        /// Shared command-scoped resolver used for every reference in this service.
+        /// </summary>
+        readonly EditorAssetReferenceResolver ReferenceResolver;
+
+        /// <summary>
         /// Initializes a project-scoped canonicalization service.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns authored assets.</param>
@@ -18,6 +23,16 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
+            ReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
+        }
+
+        /// <summary>
+        /// Initializes one canonicalization service over a shared command-scoped resolver.
+        /// </summary>
+        /// <param name="referenceResolver">Resolver whose identity index is reused for all references.</param>
+        public EditorAssetReferenceCanonicalizationService(EditorAssetReferenceResolver referenceResolver) {
+            ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
+            ProjectRootPath = referenceResolver.ProjectRootPathValue;
         }
 
         /// <summary>
@@ -108,8 +123,15 @@ namespace helengine.editor {
                 return false;
             }
 
-            canonical = EditorAssetReferenceFactory.CanonicalizeFileReference(ProjectRootPath, reference, expectedKind);
-            return canonical != null;
+            try {
+                canonical = ReferenceResolver.Resolve(reference, expectedKind).CanonicalReference;
+                return canonical != null;
+            } catch (InvalidOperationException) {
+                // Unresolvable references remain untouched; the current resolver heals them
+                // when the target is present and must not make unrelated scene saves fail.
+                canonical = reference;
+                return false;
+            }
         }
     }
 }
