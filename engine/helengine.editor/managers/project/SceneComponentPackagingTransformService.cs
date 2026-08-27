@@ -195,15 +195,6 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorFileSystemTextureResolver FileSystemTextureResolver;
         /// <summary>
-        /// Deduplicated shader asset ids referenced while packaging the current scene set.
-        /// </summary>
-        readonly List<string> ReferencedShaderAssetIds;
-
-        /// <summary>
-        /// Fast lookup used to deduplicate referenced shader asset ids while preserving discovery order.
-        /// </summary>
-        readonly HashSet<string> ReferencedShaderAssetIdsSet;
-        /// <summary>
         /// Optional callback that records complete material shader dependencies in the owning scene packager.
         /// </summary>
         readonly Action<PlatformShaderDependency> ShaderDependencySink;
@@ -288,11 +279,6 @@ namespace helengine.editor {
         readonly StaticMeshCollisionCookProcessorRegistry StaticMeshCookProcessorRegistry;
 
         /// <summary>
-        /// Resolves editor-only per-platform MeshComponent tessellation metadata during packaging.
-        /// </summary>
-        readonly MeshComponentTessellationSettingsService MeshComponentTessellationSettingsService;
-
-        /// <summary>
         /// Resolves editor-only MeshComponent modifier stacks so common-scope modifiers reach platform packaging.
         /// </summary>
         readonly MeshComponentModifierStackService MeshComponentModifierStackService = new MeshComponentModifierStackService();
@@ -309,8 +295,6 @@ namespace helengine.editor {
         /// <param name="projectContentManager">Project content manager used to load serialized assets.</param>
         /// <param name="assetImportManager">Asset import manager used for file-backed model assets.</param>
         /// <param name="fileSystemModelResolver">Resolver used to obtain processed model assets for file-backed source references.</param>
-        /// <param name="referencedShaderAssetIds">Deduplicated shader ids collected during packaging.</param>
-        /// <param name="referencedShaderAssetIdsSet">Fast lookup set used to deduplicate shader ids.</param>
         /// <param name="targetPlatformId">Target platform id whose material settings should be used during packaging.</param>
         /// <param name="materialBuilder">Optional builder used to translate schema-driven material settings.</param>
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
@@ -327,8 +311,6 @@ namespace helengine.editor {
             ContentManager projectContentManager,
             AssetImportManager assetImportManager,
             EditorFileSystemModelResolver fileSystemModelResolver,
-            List<string> referencedShaderAssetIds,
-            HashSet<string> referencedShaderAssetIdsSet,
             string targetPlatformId = "",
             IPlatformAssetBuilder materialBuilder = null,
             string selectedBuildProfileId = "",
@@ -349,8 +331,6 @@ namespace helengine.editor {
             FileSystemModelResolver = fileSystemModelResolver ?? throw new ArgumentNullException(nameof(fileSystemModelResolver));
             FileSystemFontResolver = new EditorFileSystemFontResolver(AssetImportManager);
             FileSystemTextureResolver = new EditorFileSystemTextureResolver(AssetImportManager);
-            ReferencedShaderAssetIds = referencedShaderAssetIds ?? throw new ArgumentNullException(nameof(referencedShaderAssetIds));
-            ReferencedShaderAssetIdsSet = referencedShaderAssetIdsSet ?? throw new ArgumentNullException(nameof(referencedShaderAssetIdsSet));
             MaterialAssetSettingsService = new MaterialAssetSettingsService();
             string effectiveTargetPlatformId = targetPlatformId;
             if (string.IsNullOrWhiteSpace(effectiveTargetPlatformId) && !string.IsNullOrWhiteSpace(platformDefinition?.PlatformId)) {
@@ -374,7 +354,6 @@ namespace helengine.editor {
             FileHasher = new AssetFileHasher();
             TextComponentSpriteBakeService = textComponentSpriteBakeService;
             StaticMeshCookProcessorRegistry = staticMeshCookProcessorRegistry ?? StaticMeshCollisionCookProcessorRegistry.Shared;
-            MeshComponentTessellationSettingsService = new MeshComponentTessellationSettingsService();
             MeshTessellationVariantReferencesByIdentity = new Dictionary<string, SceneAssetReference>(StringComparer.Ordinal);
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
@@ -834,8 +813,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves editor-only MeshComponent tessellation metadata from the target-platform override payload,
-        /// falling back to a common-scope modifier stack when the target platform does not author tessellation itself.
+        /// Resolves MeshComponent tessellation settings from the current modifier stack.
         /// </summary>
         /// <param name="targetPlatformOverride">Selected target-platform override payload, or null when no override exists.</param>
         /// <param name="commonScopeOverride">Common-scope override payload that may carry a modifier stack, or null.</param>
@@ -855,15 +833,42 @@ namespace helengine.editor {
                 saveState.SetPlatformOverride(ComponentPlatformEditingService.CommonPlatformId, commonScopeOverride);
             }
 
-            MeshComponentTessellationSettings platformSettings = targetPlatformOverride != null
-                ? MeshComponentTessellationSettingsService.GetForPlatform(saveState, TargetPlatformId)
-                : new MeshComponentTessellationSettings();
-            if (platformSettings.Tessellate) {
-                return platformSettings;
+            MeshComponentTessellationSettings stackSettings = MeshComponentModifierStackService.TryResolveTessellationSettings(saveState, TargetPlatformId);
+            return stackSettings ?? new MeshComponentTessellationSettings();
+        }
+
+        static string BuildMeshComponentTessellationVariantIdentity(
+            string sourceModelReference,
+            string platformId,
+            MeshComponentTessellationSettings settings,
+            float3 worldScale) {
+            if (string.IsNullOrWhiteSpace(sourceModelReference)) {
+                throw new ArgumentException("Source model reference must be provided.", nameof(sourceModelReference));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+            if (!float.IsFinite(worldScale.X) || worldScale.X == 0f
+                || !float.IsFinite(worldScale.Y) || worldScale.Y == 0f
+                || !float.IsFinite(worldScale.Z) || worldScale.Z == 0f) {
+                throw new ArgumentException("World scale must be finite and non-zero on every axis.", nameof(worldScale));
             }
 
-            MeshComponentTessellationSettings stackSettings = MeshComponentModifierStackService.TryResolveTessellationSettings(saveState, TargetPlatformId);
-            return stackSettings ?? platformSettings;
+            return string.Join(
+                "\n",
+                "SourceModelReference=" + sourceModelReference,
+                "PlatformId=" + platformId,
+                "Tessellate=" + settings.Tessellate.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "TessellationMaxEdgeLength=" + settings.TessellationMaxEdgeLength.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                "BakeScale=" + settings.BakeScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "TessellateAtCookTime=" + settings.TessellateAtCookTime.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "BakeScaleAtCookTime=" + settings.BakeScaleAtCookTime.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "WorldScaleX=" + worldScale.X.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                "WorldScaleY=" + worldScale.Y.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+                "WorldScaleZ=" + worldScale.Z.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
         }
 
         /// <summary>
@@ -917,7 +922,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Enabled MeshComponent tessellation requires model reference '{nameof(MeshComponent.Model)}'. Component='{sourceRecord.ComponentKey}'.");
             }
 
-            string identity = MeshComponentTessellationSettingsService.BuildVariantIdentity(
+            string identity = BuildMeshComponentTessellationVariantIdentity(
                 sourceModelReference.RelativePath,
                 TargetPlatformId,
                 settings,
@@ -2517,10 +2522,6 @@ namespace helengine.editor {
                 variantId));
         }
 
-        void RememberReferencedShaderAssetId(string shaderAssetId) {
-            RememberReferencedShaderDependency(new PlatformShaderDependency(shaderAssetId, string.Empty, string.Empty, string.Empty));
-        }
-
         /// <summary>
         /// Records one complete material shader dependency locally and forwards it to the owning scene packager when present.
         /// </summary>
@@ -2535,25 +2536,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material assets used by packaged scenes must include a shader asset id.");
             }
 
-            if (ReferencedShaderAssetIdsSet.Add(shaderAssetId)) {
-                ReferencedShaderAssetIds.Add(shaderAssetId);
-            }
-
             ShaderDependencySink?.Invoke(dependency);
-        }
-
-        /// <summary>
-        /// Tracks referenced shader asset ids returned by one builder-owned material cook result.
-        /// </summary>
-        /// <param name="shaderAssetIds">Referenced shader asset ids to record.</param>
-        void RememberReferencedShaderAssetIds(IReadOnlyList<string> shaderAssetIds) {
-            if (shaderAssetIds == null) {
-                throw new ArgumentNullException(nameof(shaderAssetIds));
-            }
-
-            for (int index = 0; index < shaderAssetIds.Count; index++) {
-                RememberReferencedShaderAssetId(shaderAssetIds[index]);
-            }
         }
 
         SceneAssetReference CreateFileSystemReference(string relativePath) {

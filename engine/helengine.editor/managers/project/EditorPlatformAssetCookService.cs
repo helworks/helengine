@@ -142,7 +142,8 @@ namespace helengine.editor {
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
                 new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
-                platformCookWorkItems);
+                platformCookWorkItems,
+                PlatformBuildRuntimeFeatureManifest.Empty);
             manifest.StandardPlatformInputConfiguration = ResolveStandardPlatformInputConfiguration(manifest.PlatformName);
             return manifest;
         }
@@ -175,7 +176,11 @@ namespace helengine.editor {
             }
 
             EditorProjectShaderSourceResolver sourceResolver = new(Path.Combine(ProjectRootPath, "assets"));
-            IReadOnlyList<EditorProjectShaderSource> resolvedSources = sourceResolver.Resolve(packagerResult.ReferencedShaderAssetIds);
+            IReadOnlyList<string> referencedShaderAssetIds = packagerResult.ReferencedShaderDependencies
+                .Select(dependency => dependency.ShaderAssetId)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            IReadOnlyList<EditorProjectShaderSource> resolvedSources = sourceResolver.Resolve(referencedShaderAssetIds);
             PlatformShaderArtifactCookSource[] shaderSources = new PlatformShaderArtifactCookSource[resolvedSources.Count];
             for (int index = 0; index < resolvedSources.Count; index++) {
                 EditorProjectShaderSource resolvedSource = resolvedSources[index];

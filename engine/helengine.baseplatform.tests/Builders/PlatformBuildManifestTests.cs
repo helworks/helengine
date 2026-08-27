@@ -32,7 +32,8 @@ public class PlatformBuildManifestTests {
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
             new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
-            [workItem]);
+            [workItem],
+            PlatformBuildRuntimeFeatureManifest.Empty);
 
         Assert.Single(manifest.PlatformCookWorkItems);
         Assert.Equal("gc-texture:logo", manifest.PlatformCookWorkItems[0].WorkItemId);
@@ -109,7 +110,9 @@ public class PlatformBuildManifestTests {
                 "windows-loose-files",
                 [
                     new PlatformContainerArtifact("container-0", "install-tree", 0)
-                ]));
+                ]),
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty);
 
         Assert.Equal("main-menu", manifest.StartupSceneId);
         Assert.Single(manifest.CookedArtifacts);

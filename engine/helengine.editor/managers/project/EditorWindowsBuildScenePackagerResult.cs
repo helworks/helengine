@@ -7,10 +7,6 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorPlatformBuildScenePackagerResult {
         /// <summary>
-        /// Stores the deduplicated shader asset ids referenced by the packaged scenes.
-        /// </summary>
-        readonly string[] ReferencedShaderAssetIdsValue;
-        /// <summary>
         /// Stores material-selected shader dependencies including optional program-pair lookup keys.
         /// </summary>
         readonly PlatformShaderDependency[] ReferencedShaderDependenciesValue;
@@ -26,46 +22,24 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes a new scene-packaging result.
         /// </summary>
-        /// <param name="referencedShaderAssetIds">Deduplicated shader asset ids referenced by the packaged scenes.</param>
+        /// <param name="referencedShaderDependencies">Complete shader dependencies reported by material cooking.</param>
         /// <param name="platformCookWorkItems">Builder-owned platform cook work items discovered while packaging the scenes.</param>
         /// <param name="cookedArtifactDeclarations">Explicit declarations for material and shader files written while packaging scenes.</param>
-        /// <param name="referencedShaderDependencies">Complete shader dependencies reported by material cooking, when available.</param>
         public EditorPlatformBuildScenePackagerResult(
-            IReadOnlyList<string> referencedShaderAssetIds,
+            IReadOnlyList<PlatformShaderDependency> referencedShaderDependencies,
             IReadOnlyList<PlatformCookWorkItem> platformCookWorkItems,
-            IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations,
-            IReadOnlyList<PlatformShaderDependency> referencedShaderDependencies = null) {
-            if (referencedShaderAssetIds == null) {
-                throw new ArgumentNullException(nameof(referencedShaderAssetIds));
+            IReadOnlyList<PlatformCookedArtifactDeclaration> cookedArtifactDeclarations) {
+            if (referencedShaderDependencies == null) {
+                throw new ArgumentNullException(nameof(referencedShaderDependencies));
             } else if (platformCookWorkItems == null) {
                 throw new ArgumentNullException(nameof(platformCookWorkItems));
             } else if (cookedArtifactDeclarations == null) {
                 throw new ArgumentNullException(nameof(cookedArtifactDeclarations));
             }
 
-            IReadOnlyList<PlatformShaderDependency> effectiveDependencies = referencedShaderDependencies;
-            if (effectiveDependencies == null) {
-                PlatformShaderDependency[] idOnlyDependencies = new PlatformShaderDependency[referencedShaderAssetIds.Count];
-                for (int index = 0; index < idOnlyDependencies.Length; index++) {
-                    idOnlyDependencies[index] = new PlatformShaderDependency(referencedShaderAssetIds[index], string.Empty, string.Empty, string.Empty);
-                }
-
-                effectiveDependencies = idOnlyDependencies;
-            }
-
-            ReferencedShaderAssetIdsValue = referencedShaderAssetIds.ToArray();
-            ReferencedShaderDependenciesValue = effectiveDependencies.ToArray();
+            ReferencedShaderDependenciesValue = referencedShaderDependencies.ToArray();
             PlatformCookWorkItemsValue = platformCookWorkItems.ToArray();
             CookedArtifactDeclarationsValue = cookedArtifactDeclarations.ToArray();
-        }
-
-        /// <summary>
-        /// Gets the deduplicated shader asset ids referenced by the packaged scenes.
-        /// </summary>
-        public IReadOnlyList<string> ReferencedShaderAssetIds {
-            get {
-                return ReferencedShaderAssetIdsValue;
-            }
         }
 
         /// <summary>

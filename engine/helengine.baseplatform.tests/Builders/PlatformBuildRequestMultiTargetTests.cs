@@ -45,7 +45,9 @@ public class PlatformBuildRequestMultiTargetTests {
                     new PlatformBuildCodeModule("gameplay", "gameplay", "windows-loose-files", ["always-loaded"], [])
                 ],
                 [],
-                new PlatformContainerWritePlan(string.Empty, [])),
+                new PlatformContainerWritePlan(string.Empty, []),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty),
             [
                 new PlatformBuildTargetVariant("windows-target", "windows", "dx11", "shared"),
                 new PlatformBuildTargetVariant("ps2-target", "ps2", "gskit", "shared")

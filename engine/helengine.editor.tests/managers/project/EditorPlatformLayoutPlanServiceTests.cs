@@ -37,7 +37,9 @@ public sealed class EditorPlatformLayoutPlanServiceTests {
                 ],
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>())),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty),
             new PlatformStorageProfileDefinition(
                 "loose-files",
                 "Loose Files",
@@ -103,7 +105,9 @@ public sealed class EditorPlatformLayoutPlanServiceTests {
                 ],
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>())),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty),
             new PlatformStorageProfileDefinition(
                 "loose-files",
                 "Loose Files",

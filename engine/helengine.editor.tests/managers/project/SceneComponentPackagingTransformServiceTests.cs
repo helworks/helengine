@@ -270,6 +270,21 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures superseded per-platform tessellation members do not create a cooked model variant.
+        /// </summary>
+        [Fact]
+        public void TryTransform_WhenSupersededTessellationMembersAreEnabled_DoesNotCreateCookedVariant() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateWrappedSupersededTessellatedMeshRecord();
+            SceneComponentPackagingTransformContext context = new SceneComponentPackagingTransformContext(new float3(4f, 1f, 1f));
+
+            bool transformed = service.TryTransform(record, BuildRootPath, context, out SceneComponentAssetRecord output);
+
+            Assert.True(transformed);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "generated", "models", "tessellation")));
+        }
+
+        /// <summary>
         /// Ensures tessellation loads a generated model from the package root when PS2 serializes its runtime model reference with a rooted path.
         /// </summary>
         [Fact]
@@ -447,8 +462,6 @@ namespace helengine.editor.tests {
                 contentManager,
                 assetImportManager,
                 fileSystemModelResolver,
-                new List<string>(),
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 "windows",
                 null,
                 string.Empty,
@@ -482,8 +495,6 @@ namespace helengine.editor.tests {
                 contentManager,
                 assetImportManager,
                 fileSystemModelResolver,
-                new List<string>(),
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 "gamecube",
                 null,
                 "main",
@@ -517,8 +528,6 @@ namespace helengine.editor.tests {
                 contentManager,
                 assetImportManager,
                 fileSystemModelResolver,
-                new List<string>(),
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 "ds",
                 null,
                 string.Empty,
@@ -552,8 +561,6 @@ namespace helengine.editor.tests {
                 contentManager,
                 assetImportManager,
                 fileSystemModelResolver,
-                new List<string>(),
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 "ds",
                 null,
                 string.Empty,
@@ -587,8 +594,6 @@ namespace helengine.editor.tests {
                 contentManager,
                 assetImportManager,
                 fileSystemModelResolver,
-                new List<string>(),
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 "external-platform",
                 null,
                 string.Empty,
@@ -622,8 +627,6 @@ namespace helengine.editor.tests {
                 contentManager,
                 assetImportManager,
                 fileSystemModelResolver,
-                new List<string>(),
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 "ps2",
                 null,
                 string.Empty,
@@ -791,14 +794,37 @@ namespace helengine.editor.tests {
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetAssetReference(nameof(MeshComponent.Model), global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel());
             SceneComponentAssetRecord baseRecord = descriptor.SerializeComponent(meshComponent, 0, saveState);
-            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride(platformId);
+            MeshComponentModifierStackService stackService = new MeshComponentModifierStackService();
+            stackService.SetStack(saveState, platformId, [
+                new MeshComponentModifier(MeshComponentModifier.TessellateKind) {
+                    MaxEdgeLength = 0.5,
+                    AtCookTime = tessellateAtCookTime
+                }
+            ]);
+            saveState.GetOrCreatePlatformOverride(platformId).Payload = baseRecord.Payload;
+            return new ComponentPlatformOverridePayloadService().Wrap(baseRecord, saveState);
+        }
+
+        /// <summary>
+        /// Creates one MeshComponent record containing only superseded per-platform tessellation members.
+        /// </summary>
+        /// <returns>Wrapped MeshComponent record prepared to prove superseded members are ignored.</returns>
+        static SceneComponentAssetRecord CreateWrappedSupersededTessellatedMeshRecord() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            MeshComponent meshComponent = new MeshComponent {
+                Model = new TestRuntimeModel()
+            };
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetAssetReference(nameof(MeshComponent.Model), global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel());
+            SceneComponentAssetRecord baseRecord = descriptor.SerializeComponent(meshComponent, 0, saveState);
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride("windows");
             overrideState.Payload = baseRecord.Payload;
-            overrideState.SetPropertyOverride(MeshComponentTessellationSettingsService.TessellateMemberName);
-            overrideState.SetMemberValue(MeshComponentTessellationSettingsService.TessellateMemberName, "True");
-            overrideState.SetPropertyOverride(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName);
-            overrideState.SetMemberValue(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, "0.5");
-            overrideState.SetPropertyOverride(MeshComponentTessellationSettingsService.TessellateAtCookTimeMemberName);
-            overrideState.SetMemberValue(MeshComponentTessellationSettingsService.TessellateAtCookTimeMemberName, tessellateAtCookTime.ToString(CultureInfo.InvariantCulture));
+            overrideState.SetPropertyOverride("MeshTessellate");
+            overrideState.SetMemberValue("MeshTessellate", "True");
+            overrideState.SetPropertyOverride("MeshTessellationMaxEdgeLength");
+            overrideState.SetMemberValue("MeshTessellationMaxEdgeLength", "0.5");
+            overrideState.SetPropertyOverride("MeshTessellateAtCookTime");
+            overrideState.SetMemberValue("MeshTessellateAtCookTime", "True");
             return new ComponentPlatformOverridePayloadService().Wrap(baseRecord, saveState);
         }
 

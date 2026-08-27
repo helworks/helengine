@@ -210,7 +210,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "BuildRequest",
@@ -308,7 +310,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "BuildRequest",
@@ -406,7 +410,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "BuildRequest",
@@ -504,7 +510,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "BuildRequest",
@@ -602,7 +610,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             MethodInfo buildRequestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "BuildRequest",
@@ -789,7 +799,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 ],
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
             PlatformStorageProfileDefinition storageProfile = new(
                 "default",
                 "Default",
@@ -879,7 +891,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             MethodInfo discoverMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "DiscoverReferencedRuntimeModuleIdsFromCookedScenes",
@@ -956,7 +970,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
             Array.Empty<PlatformBuildArtifact>(),
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
-            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty);
 
         MethodInfo applyRuntimeFeatureManifestMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
             "ApplyRuntimeFeatureManifest",
@@ -1116,7 +1132,9 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             MethodInfo emitMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "EmitGeneratedRuntimeComponentDeserializersForCookedScenes",

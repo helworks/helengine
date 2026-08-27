@@ -65,7 +65,9 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             Array.Empty<PlatformBuildArtifact>(),
             codeModules,
             Array.Empty<PlatformArtifactPlacement>(),
-            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty);
         manifest.StandardPlatformInputConfiguration = new StandardPlatformInputConfiguration([
             new StandardPlatformActionBinding(
                 StandardPlatformAction.Accept,
@@ -167,7 +169,9 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             Array.Empty<PlatformBuildArtifact>(),
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
-            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty);
         manifest.StandardPlatformInputConfiguration = new StandardPlatformInputConfiguration([
             new StandardPlatformActionBinding(
                 StandardPlatformAction.Accept,
@@ -214,7 +218,9 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             Array.Empty<PlatformBuildArtifact>(),
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
-            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty);
 
         EditorRuntimeNativeManifestWriter writer = new();
         writer.Write(generatedCoreRootPath, manifest);
@@ -263,7 +269,9 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
             Array.Empty<PlatformBuildArtifact>(),
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
-            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()));
+            new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty);
 
         EditorRuntimeNativeManifestWriter writer = new();
         writer.Write(generatedCoreRootPath, manifest);

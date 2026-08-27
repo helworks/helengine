@@ -22,6 +22,7 @@ public class PlatformBuildRequestCodegenTests {
                 "1.0.0",
                 "windows",
                 "1.0.0",
+                string.Empty,
                 [
                     new PlatformBuildScene(
                         "scene",
@@ -39,7 +40,13 @@ public class PlatformBuildRequestCodegenTests {
                         "asset.source",
                         new PlatformBuildPayloadReference("asset-payload", "asset-payload.source"),
                         [])
-                ]),
+                ],
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty),
             [
                 new PlatformBuildTargetVariant("target", "windows", "dx11", "shared")
             ],

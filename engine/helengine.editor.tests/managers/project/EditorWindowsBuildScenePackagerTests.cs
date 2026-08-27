@@ -319,7 +319,9 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
-            Assert.Equal(new[] { shaderAssetId }, result.ReferencedShaderAssetIds);
+            Assert.Collection(
+                result.ReferencedShaderDependencies,
+                dependency => Assert.Equal(shaderAssetId, dependency.ShaderAssetId));
         }
 
         /// <summary>

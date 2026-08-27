@@ -67,8 +67,6 @@ public sealed class CityRenderOnlySlopeScenePackagingTests : IDisposable {
             contentManager,
             assetImportManager,
             fileSystemModelResolver,
-            new List<string>(),
-            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
             "windows",
             null,
             string.Empty,

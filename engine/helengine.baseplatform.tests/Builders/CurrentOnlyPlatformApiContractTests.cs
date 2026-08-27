@@ -16,12 +16,13 @@ public sealed class CurrentOnlyPlatformApiContractTests {
     public void PlatformBuildManifest_constructors_require_explicit_platform_name_and_version() {
         ConstructorInfo[] constructors = typeof(PlatformBuildManifest).GetConstructors();
 
-        Assert.NotEmpty(constructors);
-        Assert.All(constructors, constructor => {
-            ParameterInfo[] parameters = constructor.GetParameters();
-            Assert.Contains(parameters, parameter => string.Equals(parameter.Name, "platformName", StringComparison.Ordinal));
-            Assert.Contains(parameters, parameter => string.Equals(parameter.Name, "platformVersion", StringComparison.Ordinal));
-        });
+        ConstructorInfo constructor = Assert.Single(constructors);
+        ParameterInfo[] parameters = constructor.GetParameters();
+        Assert.Equal(15, parameters.Length);
+        Assert.Contains(parameters, parameter => string.Equals(parameter.Name, "platformName", StringComparison.Ordinal));
+        Assert.Contains(parameters, parameter => string.Equals(parameter.Name, "platformVersion", StringComparison.Ordinal));
+        Assert.Contains(parameters, parameter => string.Equals(parameter.Name, "platformCookWorkItems", StringComparison.Ordinal));
+        Assert.Contains(parameters, parameter => string.Equals(parameter.Name, "runtimeFeatureManifest", StringComparison.Ordinal));
     }
 
     /// <summary>

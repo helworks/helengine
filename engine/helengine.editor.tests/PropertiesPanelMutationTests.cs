@@ -502,7 +502,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the platform Modifiers section adds a tessellation modifier and persists detached values without adding runtime properties to the component.
+        /// Ensures the platform Modifiers section adds a tessellation modifier and persists only current stack values without adding runtime properties to the component.
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenPlatformMeshTessellationIsEdited_PersistsPerPlatformDetachedValues() {
@@ -539,10 +539,11 @@ namespace helengine.editor.tests {
             Assert.True(saveState.TryGetPlatformOverride("ps2", out EntityComponentPlatformOverrideState ps2Override));
             Assert.True(ps2Override.TryGetMemberValue(MeshComponentModifierStackService.ModifierCountMemberName, out string ps2ModifierCount));
             Assert.Equal("1", ps2ModifierCount);
-            Assert.True(ps2Override.TryGetMemberValue(MeshComponentTessellationSettingsService.TessellateMemberName, out string ps2LegacyTessellate));
-            Assert.Equal("True", ps2LegacyTessellate);
-            Assert.True(ps2Override.TryGetMemberValue(MeshComponentTessellationSettingsService.TessellationMaxEdgeLengthMemberName, out string ps2EdgeLength));
-            Assert.Equal("0.25", ps2EdgeLength);
+            Assert.True(ps2Override.TryGetMemberValue("MeshModifier0Kind", out string ps2ModifierKind));
+            Assert.Equal(MeshComponentModifier.TessellateKind, ps2ModifierKind);
+            Assert.True(ps2Override.TryGetMemberValue("MeshModifier0MaxEdgeLength", out string ps2ModifierEdgeLength));
+            Assert.Equal("0.25", ps2ModifierEdgeLength);
+            Assert.DoesNotContain(ps2Override.EnumerateMemberValues(), entry => string.Equals(entry.Key, "MeshTessellate", StringComparison.Ordinal));
 
             SelectInspectorPlatform(panel, "windows");
             view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");

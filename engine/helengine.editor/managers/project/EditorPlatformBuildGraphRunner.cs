@@ -1377,7 +1377,8 @@ namespace helengine.editor {
                 cookedManifest.CodeModules,
                 cookedManifest.ArtifactPlacements,
                 cookedManifest.ContainerWritePlan,
-                cookedManifest.PlatformCookWorkItems);
+                cookedManifest.PlatformCookWorkItems,
+                cookedManifest.RuntimeFeatureManifest);
 
             PlatformBuildTargetVariant[] targetVariants = [
                 new PlatformBuildTargetVariant(

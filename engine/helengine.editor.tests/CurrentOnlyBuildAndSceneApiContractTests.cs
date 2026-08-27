@@ -1,4 +1,6 @@
 using helengine;
+using helengine.baseplatform.Results;
+using System.Reflection;
 
 namespace helengine.editor.tests;
 
@@ -35,6 +37,40 @@ public sealed class CurrentOnlyBuildAndSceneApiContractTests {
         Assert.DoesNotContain("TessellationSettingsService", source, StringComparison.Ordinal);
         Assert.DoesNotContain("TryReadLegacyTessellationStack", source, StringComparison.Ordinal);
         Assert.DoesNotContain("SynchronizeLegacyTessellationMembers", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures the scene-packager result accepts complete typed shader dependencies without an ID-only compatibility path.
+    /// </summary>
+    [Fact]
+    public void EditorPlatformBuildScenePackagerResult_exposes_typed_dependencies_only() {
+        ConstructorInfo constructor = Assert.Single(typeof(EditorPlatformBuildScenePackagerResult).GetConstructors());
+        ParameterInfo[] parameters = constructor.GetParameters();
+
+        Assert.Contains(parameters, parameter => parameter.ParameterType == typeof(IReadOnlyList<PlatformShaderDependency>));
+        Assert.DoesNotContain(parameters, parameter => parameter.ParameterType == typeof(IReadOnlyList<string>));
+        Assert.Null(typeof(EditorPlatformBuildScenePackagerResult).GetProperty("ReferencedShaderAssetIds"));
+
+        string packagerSource = File.ReadAllText(ResolveSourcePath("engine", "helengine.editor", "managers", "project", "EditorWindowsBuildScenePackager.cs"));
+        string transformSource = File.ReadAllText(ResolveSourcePath("engine", "helengine.editor", "managers", "project", "SceneComponentPackagingTransformService.cs"));
+        Assert.DoesNotContain("ReferencedShaderAssetIds", packagerSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("RememberReferencedShaderAssetId", packagerSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReferencedShaderAssetIds", transformSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("RememberReferencedShaderAssetId", transformSource, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures production editor code has no separate per-platform tessellation settings service.
+    /// </summary>
+    [Fact]
+    public void EditorProduction_uses_modifier_stack_without_superseded_tessellation_service() {
+        string editorRoot = ResolveSourcePath("engine", "helengine.editor");
+        string[] productionSources = Directory.GetFiles(editorRoot, "*.cs", SearchOption.AllDirectories);
+
+        foreach (string sourcePath in productionSources) {
+            string source = File.ReadAllText(sourcePath);
+            Assert.DoesNotContain("MeshComponentTessellationSettingsService", source, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>

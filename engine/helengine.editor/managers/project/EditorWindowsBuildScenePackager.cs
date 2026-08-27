@@ -244,10 +244,6 @@ namespace helengine.editor {
         readonly EditorFileSystemModelResolver FileSystemModelResolver;
 
         /// <summary>
-        /// Deduplicated shader asset ids referenced while packaging the current scene set.
-        /// </summary>
-        readonly List<string> ReferencedShaderAssetIds;
-        /// <summary>
         /// Material-reported shader dependencies including selected program-pair lookup keys.
         /// </summary>
         readonly List<PlatformShaderDependency> ReferencedShaderDependencies;
@@ -265,10 +261,6 @@ namespace helengine.editor {
         /// </summary>
         readonly IReadOnlyList<IAssetImporterRegistration> Importers;
 
-        /// <summary>
-        /// Fast lookup used to deduplicate referenced shader asset ids while preserving discovery order.
-        /// </summary>
-        readonly HashSet<string> ReferencedShaderAssetIdsSet;
         /// <summary>
         /// Fast lookup used to deduplicate complete material shader dependencies while preserving discovery order.
         /// </summary>
@@ -558,9 +550,7 @@ namespace helengine.editor {
                 registration.Register(AssetImportManager);
             }
             FileSystemModelResolver = new EditorFileSystemModelResolver(AssetImportManager);
-            ReferencedShaderAssetIds = new List<string>();
             ReferencedShaderDependencies = new List<PlatformShaderDependency>();
-            ReferencedShaderAssetIdsSet = new HashSet<string>(StringComparer.Ordinal);
             ReferencedShaderDependencyKeys = new HashSet<string>(StringComparer.Ordinal);
             PlatformCookWorkItems = new List<PlatformCookWorkItem>();
             PlatformCookWorkItemIds = new HashSet<string>(StringComparer.Ordinal);
@@ -590,8 +580,6 @@ namespace helengine.editor {
                 ProjectContentManager,
                 AssetImportManager,
                 FileSystemModelResolver,
-                ReferencedShaderAssetIds,
-                ReferencedShaderAssetIdsSet,
                 TargetPlatformId,
                 MaterialBuilder,
                 SelectedBuildProfileId,
@@ -645,9 +633,7 @@ namespace helengine.editor {
             string fullBuildRootPath = Path.GetFullPath(buildRootPath);
             Directory.CreateDirectory(fullBuildRootPath);
 
-            ReferencedShaderAssetIds.Clear();
             ReferencedShaderDependencies.Clear();
-            ReferencedShaderAssetIdsSet.Clear();
             ReferencedShaderDependencyKeys.Clear();
             PlatformCookWorkItems.Clear();
             PlatformCookWorkItemIds.Clear();
@@ -669,7 +655,7 @@ namespace helengine.editor {
                 WriteAsset(Path.Combine(fullBuildRootPath, packagedSceneRelativePath), packagedSceneAsset);
             }
 
-            return new EditorPlatformBuildScenePackagerResult(ReferencedShaderAssetIds, PlatformCookWorkItems, CookedArtifactDeclarations, ReferencedShaderDependencies);
+            return new EditorPlatformBuildScenePackagerResult(ReferencedShaderDependencies, PlatformCookWorkItems, CookedArtifactDeclarations);
         }
 
         /// <summary>
@@ -2753,15 +2739,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Tracks one referenced shader asset id if it has not already been recorded.
-        /// </summary>
-        /// <param name="shaderAssetId">Referenced shader asset identifier.</param>
-        void RememberReferencedShaderAssetId(string shaderAssetId) {
-            RememberReferencedShaderDependency(new PlatformShaderDependency(shaderAssetId, string.Empty, string.Empty, string.Empty));
-        }
-
-        /// <summary>
-        /// Tracks one complete material-reported shader dependency while preserving the legacy deduplicated shader-id view.
+        /// Tracks one complete material-reported shader dependency.
         /// </summary>
         /// <param name="dependency">Shader dependency reported by one material cook operation.</param>
         void RememberReferencedShaderDependency(PlatformShaderDependency dependency) {
@@ -2774,27 +2752,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material assets used by packaged scenes must include a shader asset id.");
             }
 
-            if (ReferencedShaderAssetIdsSet.Add(shaderAssetId)) {
-                ReferencedShaderAssetIds.Add(shaderAssetId);
-            }
-
             string dependencyKey = string.Concat(shaderAssetId, "\n", dependency.VertexProgramName, "\n", dependency.PixelProgramName, "\n", dependency.VariantName);
             if (ReferencedShaderDependencyKeys.Add(dependencyKey)) {
                 ReferencedShaderDependencies.Add(dependency);
-            }
-        }
-
-        /// <summary>
-        /// Tracks referenced shader asset ids returned by one builder-owned material cook result.
-        /// </summary>
-        /// <param name="shaderAssetIds">Referenced shader asset ids to record.</param>
-        void RememberReferencedShaderAssetIds(IReadOnlyList<string> shaderAssetIds) {
-            if (shaderAssetIds == null) {
-                throw new ArgumentNullException(nameof(shaderAssetIds));
-            }
-
-            for (int index = 0; index < shaderAssetIds.Count; index++) {
-                RememberReferencedShaderAssetId(shaderAssetIds[index]);
             }
         }
 

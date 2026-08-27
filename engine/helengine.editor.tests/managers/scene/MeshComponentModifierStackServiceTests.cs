@@ -32,15 +32,14 @@ namespace helengine.editor.tests {
         [Fact]
         public void SetStack_WithTessellateEntry_DoesNotWriteSupersededTessellationMembers() {
             MeshComponentModifierStackService service = new MeshComponentModifierStackService();
-            MeshComponentTessellationSettingsService supersededService = new MeshComponentTessellationSettingsService();
             EntityComponentSaveState saveState = new EntityComponentSaveState();
 
             service.SetStack(saveState, "ps2", [
                 new MeshComponentModifier(MeshComponentModifier.TessellateKind) { MaxEdgeLength = 0.5 }
             ]);
 
-            MeshComponentTessellationSettings supersededSettings = supersededService.GetForPlatform(saveState, "ps2");
-            Assert.False(supersededSettings.Tessellate);
+            Assert.True(saveState.TryGetPlatformOverride("ps2", out EntityComponentPlatformOverrideState overrideState));
+            Assert.DoesNotContain(overrideState.EnumerateMemberValues(), entry => string.Equals(entry.Key, "MeshTessellate", StringComparison.Ordinal));
         }
 
         /// <summary>
@@ -96,9 +95,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ResolveEffectiveStack_WithSupersededTessellationMembers_DoesNotCreateModifiers() {
             MeshComponentModifierStackService service = new MeshComponentModifierStackService();
-            MeshComponentTessellationSettingsService supersededService = new MeshComponentTessellationSettingsService();
             EntityComponentSaveState saveState = new EntityComponentSaveState();
-            supersededService.SetForPlatform(saveState, "ps2", new MeshComponentTessellationSettings(true, 0.75));
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride("ps2");
+            overrideState.SetMemberValue("MeshTessellate", "True");
+            overrideState.SetMemberValue("MeshTessellationMaxEdgeLength", "0.75");
 
             List<MeshComponentModifier> effectiveStack = service.ResolveEffectiveStack(saveState, "ps2");
             Assert.Empty(effectiveStack);
