@@ -293,6 +293,10 @@ namespace helengine.editor {
         /// </summary>
         readonly IEditorProjectAssetAuthoringService AssetAuthoringService;
         /// <summary>
+        /// Single project-scoped authoring session shared by editor commands for this host session.
+        /// </summary>
+        readonly IEditorProjectAuthoringSession AuthoringSession;
+        /// <summary>
         /// Explicitly registered shader backends available to this editor session.
         /// </summary>
         readonly ShaderBackendRegistry ShaderBackends;
@@ -610,7 +614,8 @@ namespace helengine.editor {
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(ShaderBackends);
 
             assetImportManager = InitializeAssetImports(Importers);
-            AssetAuthoringService = new EditorProjectAssetAuthoringService(assetImportManager);
+            AuthoringSession = new EditorProjectAuthoringSession(assetImportManager);
+            AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
             materialAssetSettingsService = new MaterialAssetSettingsService();
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
@@ -1660,6 +1665,7 @@ namespace helengine.editor {
             ClearUserSceneEntities();
             FlushPendingOwnedAssetReleases();
             ReleaseCurrentSceneOwnedAssets();
+            AuthoringSession.Dispose();
             core.Dispose();
         }
 
@@ -3341,7 +3347,7 @@ namespace helengine.editor {
                     new EditorCommandContext(
                         projectPath,
                         scriptHotReloadService.ScriptTypeResolver,
-                        AssetAuthoringService));
+                        AuthoringSession));
                 commandExecutionService.Execute(menuItem.CommandId);
                 Logger.WriteLine($"Executed project menu item '{menuItemId}'.");
             } catch (Exception ex) {

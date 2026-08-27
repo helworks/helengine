@@ -93,6 +93,8 @@ public sealed class EditorCommandExecutionServiceTests {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             ScriptTypeResolver = scriptTypeResolver ?? throw new ArgumentNullException(nameof(scriptTypeResolver));
             AssetAuthoring = assetAuthoring ?? new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(ProjectRootPath);
+            Authoring = AssetAuthoring as IEditorProjectAuthoringSession
+                ?? throw new InvalidOperationException("The test asset-authoring capability must be backed by a project authoring session.");
         }
 
         /// <summary>
@@ -109,6 +111,11 @@ public sealed class EditorCommandExecutionServiceTests {
         /// Gets the asset-authoring capability surfaced by the fake context.
         /// </summary>
         public IEditorProjectAssetAuthoringService AssetAuthoring { get; }
+
+        /// <summary>
+        /// Gets the project authoring session surfaced by the fake context.
+        /// </summary>
+        public IEditorProjectAuthoringSession Authoring { get; }
     }
 
     /// <summary>

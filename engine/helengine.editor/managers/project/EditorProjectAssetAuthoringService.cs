@@ -27,10 +27,21 @@ namespace helengine.editor {
         /// Initializes one project asset-authoring capability.
         /// </summary>
         /// <param name="assetImportManager">Host-owned import manager backing the capability.</param>
-        internal EditorProjectAssetAuthoringService(AssetImportManager assetImportManager) {
+        internal EditorProjectAssetAuthoringService(AssetImportManager assetImportManager)
+            : this(assetImportManager, null) {
+        }
+
+        /// <summary>
+        /// Initializes one project asset-authoring capability over a supplied shared reference resolver.
+        /// </summary>
+        /// <param name="assetImportManager">Host-owned import manager backing the capability.</param>
+        /// <param name="referenceResolver">Optional session-owned reference resolver.</param>
+        internal EditorProjectAssetAuthoringService(
+            AssetImportManager assetImportManager,
+            EditorAssetReferenceResolver referenceResolver) {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             string projectRootPath = ResolveProjectRootPath();
-            AssetReferenceResolver = new EditorAssetReferenceResolver(projectRootPath);
+            AssetReferenceResolver = referenceResolver ?? new EditorAssetReferenceResolver(projectRootPath);
             SceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(
                 AssetImportManagerValue.ContentManager,
                 projectRootPath,

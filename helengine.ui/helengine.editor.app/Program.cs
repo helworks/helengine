@@ -91,10 +91,9 @@ namespace helengine.editor.app {
 
             try {
                 FontAsset defaultFontAsset = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
-                IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault();
                 EditorCliCommandRunner runner = new EditorCliCommandRunner(
                     defaultFontAsset,
-                    new EditorProjectAssetAuthoringServiceFactory(importers));
+                    EditorHostImporterFactory.CreateAuthoringSessionFactory());
                 EditorBuildExecutionResult result = runner.Run(options);
                 if (result.Succeeded) {
                     Console.WriteLine(result.Message);

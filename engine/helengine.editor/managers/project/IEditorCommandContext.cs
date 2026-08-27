@@ -17,5 +17,10 @@ namespace helengine.editor {
         /// Gets the host-owned project asset-authoring capability available to the command.
         /// </summary>
         IEditorProjectAssetAuthoringService AssetAuthoring { get; }
+
+        /// <summary>
+        /// Gets the single host-owned project authoring session shared by the command invocation.
+        /// </summary>
+        IEditorProjectAuthoringSession Authoring { get; }
     }
 }

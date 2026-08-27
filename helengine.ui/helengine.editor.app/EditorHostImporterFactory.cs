@@ -28,5 +28,13 @@ namespace helengine.editor.app {
 
             return registrations;
         }
+
+        /// <summary>
+        /// Creates the project authoring-session factory configured with this host's importer registrations.
+        /// </summary>
+        /// <returns>Host-configured project authoring-session factory.</returns>
+        public static IEditorProjectAuthoringSessionFactory CreateAuthoringSessionFactory() {
+            return new EditorProjectAssetAuthoringServiceFactory(CreateDefault());
+        }
     }
 }
