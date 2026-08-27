@@ -78,7 +78,7 @@ namespace helengine.editor {
                 material.AuthoringAssetId = metadata.AssetId;
                 material.FormerAuthoringAssetIds = metadata.FormerAssetIds.ToArray();
             } catch (InvalidOperationException) {
-                // Invalid/non-current output is replaced by the current writer; no legacy
+                // Invalid/non-current output is replaced by the current writer; no alternate
                 // layout is interpreted here.
             }
         }

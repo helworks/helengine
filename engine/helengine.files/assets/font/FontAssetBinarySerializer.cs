@@ -21,26 +21,6 @@ namespace helengine.files {
         public const byte CurrentVersion = 5;
 
         /// <summary>
-        /// First packaged font version that stored source-texture runtime ids.
-        /// </summary>
-        const byte RuntimeTextureIdVersion = 2;
-
-        /// <summary>
-        /// First packaged font version that stored explicit texture color formats.
-        /// </summary>
-        const byte TextureColorFormatVersion = 3;
-
-        /// <summary>
-        /// First packaged font version that stored texture alpha precision and palette payloads.
-        /// </summary>
-        const byte PaletteTextureMetadataVersion = 4;
-
-        /// <summary>
-        /// First packaged font version that stored an external cooked atlas texture path.
-        /// </summary>
-        const byte ExternalCookedAtlasPathVersion = 5;
-
-        /// <summary>
         /// Payload endianness used by packaged font assets.
         /// </summary>
         static readonly EngineBinaryEndianness PayloadEndianness = EngineBinaryEndianness.LittleEndian;
@@ -157,26 +137,15 @@ namespace helengine.files {
             int atlasWidth;
             int atlasHeight;
 
-            if (header.Version >= ExternalCookedAtlasPathVersion) {
-                cookedAtlasTextureRelativePath = reader.ReadString();
-                ReadSourceTexture(reader, header, sourceTexture);
-                fontInfo = new FontInfo(
-                    reader.ReadString(),
-                    reader.ReadInt32(),
-                    reader.ReadSingle());
-                lineHeight = reader.ReadSingle();
-                atlasWidth = reader.ReadInt32();
-                atlasHeight = reader.ReadInt32();
-            } else {
-                fontInfo = new FontInfo(
-                    reader.ReadString(),
-                    reader.ReadInt32(),
-                    reader.ReadSingle());
-                lineHeight = reader.ReadSingle();
-                atlasWidth = reader.ReadInt32();
-                atlasHeight = reader.ReadInt32();
-                ReadSourceTexture(reader, header, sourceTexture);
-            }
+            cookedAtlasTextureRelativePath = reader.ReadString();
+            ReadSourceTexture(reader, sourceTexture);
+            fontInfo = new FontInfo(
+                reader.ReadString(),
+                reader.ReadInt32(),
+                reader.ReadSingle());
+            lineHeight = reader.ReadSingle();
+            atlasWidth = reader.ReadInt32();
+            atlasHeight = reader.ReadInt32();
 
             int characterCount = reader.ReadInt32();
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar>(characterCount);
@@ -213,8 +182,9 @@ namespace helengine.files {
             if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected font record kind '{header.RecordKind}'.");
             }
-            if (header.Version < 1 || header.Version > CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported font binary version '{header.Version}'.");
+            if (header.Version != CurrentVersion) {
+                throw new InvalidOperationException(
+                    $"Font binary version '{header.Version}' is unsupported; version '{CurrentVersion}' is required. Regenerate the packaged font asset.");
             }
         }
 
@@ -222,33 +192,21 @@ namespace helengine.files {
         /// Reads one serialized source-atlas payload from the packaged font stream.
         /// </summary>
         /// <param name="reader">Source reader positioned at the source-atlas payload.</param>
-        /// <param name="header">Packaged font header that controls versioned texture metadata.</param>
         /// <param name="sourceTexture">Texture asset instance that receives the decoded payload.</param>
-        static void ReadSourceTexture(EngineBinaryReader reader, EngineBinaryHeader header, TextureAsset sourceTexture) {
+        static void ReadSourceTexture(EngineBinaryReader reader, TextureAsset sourceTexture) {
             if (reader == null) {
                 throw new ArgumentNullException(nameof(reader));
-            }
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
             }
             if (sourceTexture == null) {
                 throw new ArgumentNullException(nameof(sourceTexture));
             }
 
-            sourceTexture.RuntimeAssetId = header.Version >= RuntimeTextureIdVersion
-                ? (ulong)reader.ReadInt64()
-                : 0ul;
+            sourceTexture.RuntimeAssetId = (ulong)reader.ReadInt64();
             sourceTexture.Width = reader.ReadUInt16();
             sourceTexture.Height = reader.ReadUInt16();
-            sourceTexture.ColorFormat = header.Version >= TextureColorFormatVersion
-                ? ReadTextureAssetColorFormat(reader)
-                : TextureAssetColorFormat.Rgba32;
-            sourceTexture.AlphaPrecision = header.Version >= PaletteTextureMetadataVersion
-                ? ReadTextureAssetAlphaPrecision(reader)
-                : GetDefaultTextureAssetAlphaPrecision(sourceTexture.ColorFormat);
-            sourceTexture.PaletteColors = header.Version >= PaletteTextureMetadataVersion
-                ? reader.ReadByteArray()
-                : Array.Empty<byte>();
+            sourceTexture.ColorFormat = ReadTextureAssetColorFormat(reader);
+            sourceTexture.AlphaPrecision = ReadTextureAssetAlphaPrecision(reader);
+            sourceTexture.PaletteColors = reader.ReadByteArray();
             sourceTexture.Colors = reader.ReadByteArray();
         }
 
@@ -300,19 +258,6 @@ namespace helengine.files {
             }
 
             throw new InvalidOperationException($"Unsupported texture alpha precision '{serializedValue}'.");
-        }
-
-        /// <summary>
-        /// Resolves the fallback alpha precision used by older packaged font payloads that predate explicit alpha metadata.
-        /// </summary>
-        /// <param name="colorFormat">Texture color format decoded from the payload.</param>
-        /// <returns>Default alpha precision implied by the color format.</returns>
-        static TextureAssetAlphaPrecision GetDefaultTextureAssetAlphaPrecision(TextureAssetColorFormat colorFormat) {
-            if (colorFormat == TextureAssetColorFormat.Rgba4444 || colorFormat == TextureAssetColorFormat.Indexed4) {
-                return TextureAssetAlphaPrecision.A4;
-            }
-
-            return TextureAssetAlphaPrecision.Opaque;
         }
 
         static KeyValuePair<char, FontChar>[] SortCharactersByKey(Dictionary<char, FontChar> characters) {

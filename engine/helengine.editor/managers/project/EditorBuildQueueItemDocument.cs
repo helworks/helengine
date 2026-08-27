@@ -151,7 +151,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the environment captured by a queue item, preserving legacy profile behavior.
+        /// Resolves the environment captured by a queue item, preserving the selected profile behavior.
         /// </summary>
         static string ResolveSelectedEnvironmentId(EditorBuildPlatformConfigDocument platformConfig, string selectedBuildProfileId) {
             if (!string.IsNullOrWhiteSpace(platformConfig.SelectedEnvironmentId)) {

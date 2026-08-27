@@ -14,7 +14,7 @@ namespace helengine {
         ModelAsset = 2,
 
         /// <summary>
-        /// The payload stores the legacy shader asset value kind reserved for shader-owned serializers.
+        /// The payload stores the shader asset value kind reserved for shader-owned serializers.
         /// </summary>
         ShaderAsset = 3,
 

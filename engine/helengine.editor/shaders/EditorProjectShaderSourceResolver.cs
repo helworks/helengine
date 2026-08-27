@@ -90,15 +90,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the source-file name for one engine-owned shader identity, including explicit legacy aliases retained by existing material assets.
+        /// Resolves the source-file name for one engine-owned shader identity.
         /// </summary>
         /// <param name="shaderAssetId">Persistent shader identity saved by a material.</param>
         /// <returns>Built-in HLSL file name that owns the shader source.</returns>
         static string ResolveBuiltInShaderFileName(string shaderAssetId) {
-            if (string.Equals(shaderAssetId, "ForwardLambertShader", StringComparison.Ordinal)) {
-                return "ForwardStandardShader.hlsl";
-            }
-
             return string.Concat(shaderAssetId, ".hlsl");
         }
 

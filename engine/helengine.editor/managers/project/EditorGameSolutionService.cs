@@ -46,16 +46,6 @@ namespace helengine.editor {
         const string CoverletCollectorPackageVersion = "6.0.2";
 
         /// <summary>
-        /// Legacy intermediate folder that should not remain under the assets project root.
-        /// </summary>
-        const string LegacyIntermediateFolderName = "obj";
-
-        /// <summary>
-        /// Legacy binary folder that should not remain under the assets project root.
-        /// </summary>
-        const string LegacyBinaryFolderName = "bin";
-
-        /// <summary>
         /// Absolute path to the game project root.
         /// </summary>
         readonly string ProjectRootPath;

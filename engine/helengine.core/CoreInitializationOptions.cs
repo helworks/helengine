@@ -5,7 +5,7 @@ namespace helengine {
     public class CoreInitializationOptions {
         /// <summary>
         /// Gets or sets the content stream source used by the core-owned content manager.
-        /// This replaces the legacy content-root-path initialization seam with one explicit runtime asset source.
+    /// Uses one explicit runtime asset source for content-root initialization.
         /// </summary>
         public IContentStreamSource ContentStreamSource { get; set; }
 

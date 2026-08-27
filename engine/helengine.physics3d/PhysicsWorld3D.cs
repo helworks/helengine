@@ -144,7 +144,7 @@ namespace helengine {
         public IReadOnlyList<TriggerEvent3D> TriggerEvents => TriggerEventsValue;
 
         /// <summary>
-        /// Returns exact body, contact, and persistent constraint counts owned by the legacy solver.
+        /// Returns exact body, contact, and persistent constraint counts owned by the solver.
         /// </summary>
         /// <param name="metrics">Current solver counters.</param>
         /// <returns>Always <see langword="true"/> because this solver owns all reported counters.</returns>
@@ -873,7 +873,7 @@ namespace helengine {
         /// <param name="second">Second body state.</param>
         /// <param name="stepSeconds">Simulation step length in seconds.</param>
         /// <param name="resolveDynamicPairs">True for dynamic-dynamic pairs; false for pairs involving a static or kinematic support.</param>
-        /// <param name="applyPositionCorrection">True when direct projection should be used for legacy post-pose contacts.</param>
+        /// <param name="applyPositionCorrection">True when direct projection should be used for post-pose contacts.</param>
         void ResolveBoxBoxPairByMobility(BodyState3D first, BodyState3D second, double stepSeconds, bool resolveDynamicPairs, bool applyPositionCorrection) {
             bool isDynamicPair = first.RigidBody.BodyKind == BodyKind3D.Dynamic && second.RigidBody.BodyKind == BodyKind3D.Dynamic;
             if (isDynamicPair != resolveDynamicPairs) {

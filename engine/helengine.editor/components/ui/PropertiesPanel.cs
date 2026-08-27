@@ -2512,7 +2512,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Records one selected-entity mutation into undo/redo history when available, or falls back to the legacy scene-mutation marker.
+        /// Records one selected-entity mutation into undo/redo history when available, or falls back to the scene-mutation marker.
         /// </summary>
         /// <param name="previousEntityState">Detached snapshot captured before the mutation.</param>
         void RecordSelectedEntityStateChange(SerializedEditorEntityState previousEntityState) {

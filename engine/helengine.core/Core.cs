@@ -64,7 +64,7 @@ namespace helengine {
         IRuntimeUpdateStageDiagnosticsProvider UpdateStageDiagnosticsProviderValue;
 
         /// <summary>
-        /// Owns profiler counters for the current host frame independently from legacy overlay metrics.
+        /// Owns profiler counters for the current host frame independently from overlay metrics.
         /// </summary>
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         readonly RuntimeProfilerMetrics RuntimeProfilerMetricsValue;
@@ -797,7 +797,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Records explicit native render counters for the current host frame without relying on legacy shared renderer fields.
+        /// Records explicit native render counters for the current host frame without relying on shared renderer fields.
         /// </summary>
         /// <param name="drawCallCount">Number of draw calls submitted by the native renderer.</param>
         /// <param name="triangleCount">Number of triangles submitted by the native renderer.</param>

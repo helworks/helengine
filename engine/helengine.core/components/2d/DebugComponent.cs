@@ -856,7 +856,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Formats one counter that is carried through a legacy double timing slot.
+        /// Formats one counter that is carried through a double timing slot.
         /// </summary>
         /// <param name="value">Counter value stored in the performance metric payload.</param>
         /// <returns>Whole-number counter text for compact on-device diagnostics.</returns>

@@ -4,16 +4,6 @@ namespace helengine {
     /// </summary>
     public static class ShaderAssetBinarySerializer {
         /// <summary>
-        /// Earliest editor asset format version that wrote runtime asset ids.
-        /// </summary>
-        const byte PreviousVersionWithoutRuntimeAssetId = 2;
-
-        /// <summary>
-        /// First asset version that embeds editor authoring identity after runtime identity.
-        /// </summary>
-        const byte AuthoringIdentityVersion = 24;
-
-        /// <summary>
         /// Deserializes one shader asset from the provided stream.
         /// </summary>
         /// <param name="stream">Stream containing one serialized shader asset payload.</param>
@@ -31,12 +21,13 @@ namespace helengine {
                 if ((EditorAssetBinaryValueKind)header.ValueKind != EditorAssetBinaryValueKind.ShaderAsset) {
                     throw new InvalidOperationException($"Serialized asset value kind '{header.ValueKind}' is not a shader asset.");
                 }
-                if (header.Version > PackagedAssetBinarySerializer.CurrentVersion) {
-                    throw new InvalidOperationException($"Unsupported shader asset binary version '{header.Version}'.");
+                if (header.Version != PackagedAssetBinarySerializer.CurrentVersion) {
+                    throw new InvalidOperationException(
+                        $"Shader asset binary version '{header.Version}' is unsupported; version '{PackagedAssetBinarySerializer.CurrentVersion}' is required. Regenerate the shader asset.");
                 }
 
                 using EngineBinaryReader reader = new BinaryReaderLE(stream, true);
-                return ReadShaderAsset(reader, header.Version);
+                return ReadShaderAsset(reader);
             } finally {
                 NativeOwnership.Delete(header);
             }
@@ -46,11 +37,10 @@ namespace helengine {
         /// Reads one shader asset payload from the supplied binary reader.
         /// </summary>
         /// <param name="reader">Binary reader positioned at the payload.</param>
-        /// <param name="version">Serialized asset format version.</param>
         /// <returns>Deserialized shader asset.</returns>
-        static ShaderAsset ReadShaderAsset(EngineBinaryReader reader, byte version) {
+        static ShaderAsset ReadShaderAsset(EngineBinaryReader reader) {
             ShaderAsset asset = new ShaderAsset();
-            ReadAssetIdentity(reader, asset, version);
+            ReadAssetIdentity(reader, asset);
             asset.Name = reader.ReadString();
             asset.TargetName = reader.ReadString();
             asset.Programs = reader.ReadArray(ReadShaderProgramAsset);
@@ -150,16 +140,11 @@ namespace helengine {
         /// </summary>
         /// <param name="reader">Binary reader positioned at the asset identity payload.</param>
         /// <param name="asset">Asset instance receiving the deserialized identity.</param>
-        /// <param name="version">Serialized asset format version.</param>
-        static void ReadAssetIdentity(EngineBinaryReader reader, Asset asset, byte version) {
+        static void ReadAssetIdentity(EngineBinaryReader reader, Asset asset) {
             asset.Id = reader.ReadString();
-            asset.RuntimeAssetId = version > PreviousVersionWithoutRuntimeAssetId
-                ? (ulong)reader.ReadInt64()
-                : 0ul;
-            if (version >= AuthoringIdentityVersion) {
-                asset.AuthoringAssetId = reader.ReadString();
-                asset.FormerAuthoringAssetIds = reader.ReadArray(ReadStringValue) ?? Array.Empty<string>();
-            }
+            asset.RuntimeAssetId = (ulong)reader.ReadInt64();
+            asset.AuthoringAssetId = reader.ReadString();
+            asset.FormerAuthoringAssetIds = reader.ReadArray(ReadStringValue) ?? Array.Empty<string>();
         }
 
         /// <summary>

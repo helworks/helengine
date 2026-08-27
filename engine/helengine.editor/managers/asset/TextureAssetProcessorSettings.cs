@@ -63,7 +63,7 @@ namespace helengine.editor {
         /// <summary>
         /// Resolves the effective indexing method for the current texture settings.
         /// </summary>
-        /// <returns>The configured indexing method, or the legacy indexed default when none was authored yet.</returns>
+        /// <returns>The configured indexing method, or the indexed default when none was authored yet.</returns>
         public TextureAssetIndexingMethod ResolveIndexingMethod() {
             if (!UsesIndexedColorFormat()) {
                 throw new InvalidOperationException("Indexing methods are only valid for indexed texture formats.");

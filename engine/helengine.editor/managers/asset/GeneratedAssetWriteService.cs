@@ -82,7 +82,7 @@ namespace helengine.editor {
                 asset.FormerAuthoringAssetIds = metadata.FormerAssetIds.ToArray();
             } catch (InvalidOperationException) {
                 // The current writer owns replacement of invalid/non-current output. There is
-                // intentionally no legacy interpretation or migration fallback here.
+                // The current writer owns replacement of invalid output; no alternate layout is interpreted here.
             }
         }
     }

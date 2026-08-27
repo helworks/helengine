@@ -455,7 +455,7 @@ namespace helengine.editor {
         /// </summary>
         bool IsSceneDirty;
         /// <summary>
-        /// True when one scene mutation notification originated from the tracked undo/redo recorder instead of an untracked legacy mutation path.
+        /// True when one scene mutation notification originated from the tracked undo/redo recorder instead of an untracked mutation path.
         /// </summary>
         bool IsTrackedSceneMutationNotification;
         /// <summary>
@@ -3849,7 +3849,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Recomputes the dirty state from tracked undo/redo revisions plus any untracked legacy mutations.
+        /// Recomputes the dirty state from tracked undo/redo revisions plus any untracked mutations.
         /// </summary>
         void RefreshSceneDirtyState() {
             IsSceneDirty = HasUntrackedSceneChangesSinceSave || !UndoRedoService.IsAtSavedState;
@@ -3988,7 +3988,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Raises one tracked scene mutation notification so dirty-state can distinguish history-backed mutations from legacy untracked ones.
+        /// Raises one tracked scene mutation notification so dirty-state can distinguish history-backed mutations from untracked ones.
         /// </summary>
         void RaiseTrackedSceneMutated() {
             IsTrackedSceneMutationNotification = true;

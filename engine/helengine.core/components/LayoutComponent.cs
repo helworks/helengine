@@ -24,7 +24,7 @@ namespace helengine {
         public const byte BottomAnchorFlag = 8;
 
         /// <summary>
-        /// Layout space mode that preserves the legacy nearest-provider behavior.
+        /// Layout space mode that preserves nearest-provider behavior.
         /// </summary>
         public const byte InheritedLayoutSpace = 0;
 
@@ -480,7 +480,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Resolves the nearest provider in the legacy inherited mode.
+        /// Resolves the nearest provider in the inherited mode.
         /// </summary>
         /// <returns>A hierarchy-owned ancestor bounds provider borrowed by the layout component when one exists; otherwise null.</returns>
         [NativeBorrowedReturn]

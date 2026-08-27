@@ -206,8 +206,8 @@ namespace helengine.editor {
                 StandardShaderVariant standardShaderVariant = usesSharedStandardShaderVariants && variantIndex < standardShaderVariants.Count
                     ? standardShaderVariants[variantIndex]
                     : null;
-                int legacyVariantIndex = variantIndex - standardShaderVariants.Count;
-                string variantName = standardShaderVariant == null ? variants[usesSharedStandardShaderVariants ? legacyVariantIndex : variantIndex] : standardShaderVariant.Name;
+                int customVariantIndex = variantIndex - standardShaderVariants.Count;
+                string variantName = standardShaderVariant == null ? variants[usesSharedStandardShaderVariants ? customVariantIndex : variantIndex] : standardShaderVariant.Name;
                 string vertexEntryPoint = standardShaderVariant == null ? DefaultVertexEntryPoint : standardShaderVariant.VertexEntryPoint;
                 string pixelEntryPoint = standardShaderVariant == null ? DefaultPixelEntryPoint : standardShaderVariant.PixelEntryPoint;
                 ShaderDefine[] defines = ShaderPlatformDefines.BuildDefines(target, ShaderModelValue, BuildVariantDefines(standardShaderVariant));

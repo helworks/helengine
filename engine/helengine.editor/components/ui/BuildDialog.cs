@@ -1351,7 +1351,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the environment selector index, falling back to release for legacy build settings.
+        /// Resolves the environment selector index, falling back to release when no environment is selected.
         /// </summary>
         int ResolveEnvironmentIndex(string environmentId) {
             if (!string.IsNullOrWhiteSpace(environmentId)) {

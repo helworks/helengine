@@ -89,11 +89,6 @@ namespace helengine.editor {
         /// </summary>
         const string StandardGeneratedMaterialAssetId = "engine:material:standard";
         /// <summary>
-        /// Folder name used for packaged imported texture assets referenced by material albedo bindings.
-        /// </summary>
-        const string ImportedTextureDirectoryName = "cooked/imported";
-
-        /// <summary>
         /// Shader source file used by the packaged generated standard material.
         /// </summary>
         const string StandardShaderFileName = "ForwardStandardShader.hlsl";
@@ -1807,9 +1802,6 @@ namespace helengine.editor {
                     ImportedTextureRuntimePathResolver.PathMatchesAssetId(TargetPlatformId, textureRelativePath, materialAsset.DiffuseTextureAssetId)) {
                     return materialAsset.DiffuseTextureAssetId;
                 }
-                if (TryResolveImportedTextureAssetIdFromCookedRelativePath(textureRelativePath, out string cookedTextureAssetId)) {
-                return cookedTextureAssetId;
-                }
             }
 
             return materialAsset.DiffuseTextureAssetId ?? string.Empty;
@@ -1856,35 +1848,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Extracts one imported texture asset id from a cooked runtime texture path saved by platform material settings.
-        /// </summary>
-        /// <param name="textureRelativePath">Runtime texture path stored in material cook fields.</param>
-        /// <param name="assetId">Resolved imported texture asset id when the path points at the imported texture directory.</param>
-        /// <returns>True when the cooked path references one imported texture cache asset.</returns>
-        static bool TryResolveImportedTextureAssetIdFromCookedRelativePath(string textureRelativePath, out string assetId) {
-            assetId = string.Empty;
-            if (string.IsNullOrWhiteSpace(textureRelativePath)) {
-                return false;
-            }
-
-            string normalizedPath = textureRelativePath.Replace('\\', '/');
-            string importedTexturePrefix = ImportedTextureDirectoryName + "/";
-            if (!normalizedPath.StartsWith(importedTexturePrefix, StringComparison.OrdinalIgnoreCase)) {
-                return false;
-            }
-
-            string candidateAssetId = normalizedPath.Substring(importedTexturePrefix.Length);
-            if (candidateAssetId.EndsWith(".hetex", StringComparison.OrdinalIgnoreCase)) {
-                candidateAssetId = candidateAssetId.Substring(0, candidateAssetId.Length - ".hetex".Length);
-            }
-            if (string.IsNullOrWhiteSpace(candidateAssetId) || candidateAssetId.Contains('/')) {
-                return false;
-            }
-
-            assetId = candidateAssetId;
-            return true;
-        }
-
         /// <summary>
         /// Resolves one imported texture asset id to the serialized cache file produced by the project asset importer.
         /// </summary>
@@ -2342,9 +2305,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (!ImportedTextureRuntimePathResolver.PathMatchesAssetId(TargetPlatformId, textureRelativePath, diffuseTextureAssetId) &&
-                (!TryResolveImportedTextureAssetIdFromCookedRelativePath(textureRelativePath, out string legacyTextureAssetId) ||
-                    !string.Equals(legacyTextureAssetId, diffuseTextureAssetId, StringComparison.OrdinalIgnoreCase))) {
+            if (!ImportedTextureRuntimePathResolver.PathMatchesAssetId(TargetPlatformId, textureRelativePath, diffuseTextureAssetId)) {
                 return;
             }
 
