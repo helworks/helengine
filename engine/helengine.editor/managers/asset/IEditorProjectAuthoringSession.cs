@@ -60,6 +60,6 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
         /// <returns>Disposable project-scoped authoring session.</returns>
-        IEditorProjectAuthoringSession Create(string projectRootPath);
+        IEditorProjectAuthoringSession CreateSession(string projectRootPath);
     }
 }

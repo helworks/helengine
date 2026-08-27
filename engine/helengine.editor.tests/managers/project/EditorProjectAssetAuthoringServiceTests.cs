@@ -7,6 +7,21 @@ namespace helengine.editor.tests.managers.project;
 /// </summary>
 public sealed class EditorProjectAssetAuthoringServiceTests {
     /// <summary>
+    /// Ensures project bootstrap exposes only the disposable session factory and cannot create an
+    /// unowned project capability with a deferred identity cache.
+    /// </summary>
+    [Fact]
+    public void AuthoringFactory_ExposesOnlyDisposableSessionCreation() {
+        Type factoryType = typeof(EditorProjectAssetAuthoringServiceFactory);
+
+        Assert.Contains(typeof(IEditorProjectAuthoringSessionFactory), factoryType.GetInterfaces());
+        Assert.DoesNotContain(
+            factoryType.GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic),
+            method => method.Name == "Create" && typeof(IEditorProjectAssetAuthoringService).IsAssignableFrom(method.ReturnType));
+        Assert.NotNull(factoryType.GetMethod(nameof(EditorProjectAssetAuthoringServiceFactory.CreateSession)));
+    }
+
+    /// <summary>
     /// Ensures a command context preserves the host-owned asset-authoring capability for project code.
     /// </summary>
     [Fact]
@@ -17,22 +32,6 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
 
         Assert.Same(session, context.Authoring);
         session.Dispose();
-    }
-
-    /// <summary>
-    /// Ensures the transitional factory path returns only the legacy capability and does not erase a session lifetime.
-    /// </summary>
-    [Fact]
-    public void Factory_Create_ReturnsNonDisposableLegacyCapability() {
-        string projectRootPath = CreateTemporaryProjectRoot();
-        try {
-            IEditorProjectAssetAuthoringService capability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(projectRootPath);
-
-            Assert.IsNotType<EditorProjectAuthoringSession>(capability);
-            Assert.False(capability is IDisposable);
-        } finally {
-            DeleteTemporaryProjectRoot(projectRootPath);
-        }
     }
 
     /// <summary>
@@ -58,7 +57,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     [Fact]
     public void SaveTextureImportSettings_WhenRepeated_ProducesCurrentByteStableSettings() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        IEditorProjectAssetAuthoringService capability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(projectRootPath);
+        IEditorProjectAssetAuthoringService capability = CreateCapability(projectRootPath);
         string sourcePath = Path.Combine(projectRootPath, "assets", "textures", "sample.png");
         TextureAssetImportSettings settings = new TextureAssetImportSettings();
         settings.Importer.ImporterId = "fixture-texture";
@@ -90,7 +89,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
             new ConstantTextureImporter(),
             new[] { ".png" });
 
-        _ = new EditorProjectAssetAuthoringServiceFactory(new[] { registration }).Create(projectRootPath);
+        _ = CreateCapability(projectRootPath, new[] { registration });
 
         Assert.True(File.Exists(sourcePath + ".hasset"));
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(projectRootPath, "cache"), "*", SearchOption.AllDirectories));
@@ -103,7 +102,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     [Fact]
     public void NativeAssetAuthoring_WritesAndReferencesThroughOnePublicCapability() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        IEditorProjectAssetAuthoringService capability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(projectRootPath);
+        IEditorProjectAssetAuthoringService capability = CreateCapability(projectRootPath);
         ModelAsset model = new ModelAsset {
             Id = "Models/PublicApiModel",
             Positions = Array.Empty<float3>(),
@@ -132,8 +131,8 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
         const string authoringAssetId = "00112233445566778899aabbccddeeff";
         string firstProjectRootPath = CreateTemporaryProjectRoot();
         string secondProjectRootPath = CreateTemporaryProjectRoot();
-        IEditorProjectAssetAuthoringService firstCapability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(firstProjectRootPath);
-        IEditorProjectAssetAuthoringService secondCapability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(secondProjectRootPath);
+        IEditorProjectAssetAuthoringService firstCapability = CreateCapability(firstProjectRootPath);
+        IEditorProjectAssetAuthoringService secondCapability = CreateCapability(secondProjectRootPath);
 
         firstCapability.WriteNativeAsset(relativePath, CreatePublicApiModel(), authoringAssetId);
         secondCapability.WriteNativeAsset(relativePath, CreatePublicApiModel(), authoringAssetId);
@@ -154,7 +153,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     [Fact]
     public void NativeSceneAuthoring_WritesCurrentSceneWithExplicitIdentity() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        IEditorProjectAssetAuthoringService capability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(projectRootPath);
+        IEditorProjectAssetAuthoringService capability = CreateCapability(projectRootPath);
         SceneAsset scene = new SceneAsset {
             Id = "scenes/PublicApiScene.helen",
             RootEntities = Array.Empty<SceneEntityAsset>(),
@@ -204,6 +203,30 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
         string projectRootPath = Path.Combine(Path.GetTempPath(), "helengine-authoring-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(projectRootPath);
         return projectRootPath;
+    }
+
+    /// <summary>
+    /// Creates the lower-level authoring capability directly for tests that target that surface.
+    /// </summary>
+    /// <param name="projectRootPath">Project root used by the capability.</param>
+    /// <param name="importers">Optional importer registrations for the test host.</param>
+    /// <returns>Directly composed authoring capability.</returns>
+    static EditorProjectAssetAuthoringService CreateCapability(
+        string projectRootPath,
+        IReadOnlyList<IAssetImporterRegistration> importers = null) {
+        string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+        string assetsRootPath = Path.Combine(fullProjectRootPath, "assets");
+        Directory.CreateDirectory(assetsRootPath);
+        AssetImportManager assetImportManager = new AssetImportManager(
+            fullProjectRootPath,
+            new ContentManager(new HostFileSystemContentStreamSource(assetsRootPath)));
+        IReadOnlyList<IAssetImporterRegistration> registrations = importers ?? Array.Empty<IAssetImporterRegistration>();
+        for (int index = 0; index < registrations.Count; index++) {
+            registrations[index].Register(assetImportManager);
+        }
+
+        assetImportManager.GenerateMissingImportSettings();
+        return new EditorProjectAssetAuthoringService(assetImportManager);
     }
 
     /// <summary>

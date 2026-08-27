@@ -92,8 +92,21 @@ public sealed class EditorCommandExecutionServiceTests {
             IEditorProjectAssetAuthoringService assetAuthoring = null) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             ScriptTypeResolver = scriptTypeResolver ?? throw new ArgumentNullException(nameof(scriptTypeResolver));
-            AssetAuthoring = assetAuthoring ?? new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(ProjectRootPath);
+            AssetAuthoring = assetAuthoring ?? CreateAssetAuthoringCapability(ProjectRootPath);
             Authoring = new TestEditorCommandAuthoringSession();
+        }
+
+        /// <summary>
+        /// Creates the lower-level capability directly for this context test double.
+        /// </summary>
+        /// <param name="projectRootPath">Project root used by the context.</param>
+        /// <returns>Directly composed authoring capability.</returns>
+        static EditorProjectAssetAuthoringService CreateAssetAuthoringCapability(string projectRootPath) {
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            Directory.CreateDirectory(assetsRootPath);
+            return new EditorProjectAssetAuthoringService(new AssetImportManager(
+                projectRootPath,
+                new ContentManager(new HostFileSystemContentStreamSource(assetsRootPath))));
         }
 
         /// <summary>

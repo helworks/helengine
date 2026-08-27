@@ -91,7 +91,7 @@ namespace helengine.editor {
                 return buildResult;
             }
 
-            using IEditorProjectAuthoringSession authoring = AuthoringSessionFactory.Create(bootstrap.ProjectRootPath);
+            using IEditorProjectAuthoringSession authoring = AuthoringSessionFactory.CreateSession(bootstrap.ProjectRootPath);
             EditorCommandContext commandContext = new EditorCommandContext(
                 bootstrap.ProjectRootPath,
                 assemblyHost.ScriptTypeResolver,

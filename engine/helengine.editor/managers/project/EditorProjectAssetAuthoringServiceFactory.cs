@@ -1,8 +1,8 @@
 namespace helengine.editor {
     /// <summary>
-    /// Builds project asset-authoring capabilities from importer registrations supplied by the editor host.
+    /// Builds project authoring sessions from importer registrations supplied by the editor host.
     /// </summary>
-    public sealed class EditorProjectAssetAuthoringServiceFactory : IEditorProjectAssetAuthoringServiceFactory, IEditorProjectAuthoringSessionFactory {
+    public sealed class EditorProjectAssetAuthoringServiceFactory : IEditorProjectAuthoringSessionFactory {
         /// <summary>
         /// Importer registrations provided by the editor host.
         /// </summary>
@@ -17,15 +17,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates one host-configured capability for a project root.
-        /// </summary>
-        /// <param name="projectRootPath">Absolute project root path.</param>
-        /// <returns>Configured project asset-authoring capability.</returns>
-        public IEditorProjectAssetAuthoringService Create(string projectRootPath) {
-            return new EditorProjectAssetAuthoringService(CreateAssetImportManager(projectRootPath));
-        }
-
-        /// <summary>
         /// Creates one host-configured project authoring session.
         /// </summary>
         /// <param name="projectRootPath">Absolute project root path.</param>
@@ -35,16 +26,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates one project authoring session through the session-factory interface.
-        /// </summary>
-        /// <param name="projectRootPath">Absolute project root path.</param>
-        /// <returns>Configured project authoring session.</returns>
-        IEditorProjectAuthoringSession IEditorProjectAuthoringSessionFactory.Create(string projectRootPath) {
-            return CreateSession(projectRootPath);
-        }
-
-        /// <summary>
-        /// Creates one importer-configured manager shared by an asset-authoring capability or a project session.
+        /// Creates one importer-configured manager for a project session.
         /// </summary>
         /// <param name="projectRootPath">Absolute project root path.</param>
         /// <returns>Configured asset import manager.</returns>
