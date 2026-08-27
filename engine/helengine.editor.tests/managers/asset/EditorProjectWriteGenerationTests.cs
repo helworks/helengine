@@ -84,4 +84,12 @@ public sealed class EditorProjectWriteGenerationTests : IDisposable {
         Assert.Equal(2, changes.Count);
         Assert.Equal(new[] { 1L, 2L }, changes.Select(change => change.Generation));
     }
+
+    [Fact]
+    public void ProjectWriteLock_WhenOneBoundaryReentersSameProject_ReusesTheHeldHandle() {
+        using EditorProjectWriteLock outer = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromSeconds(1));
+        using EditorProjectWriteLock inner = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromMilliseconds(50));
+
+        Assert.NotNull(inner);
+    }
 }

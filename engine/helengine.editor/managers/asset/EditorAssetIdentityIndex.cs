@@ -459,11 +459,69 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Determines whether a current or former identity is claimed by any indexed asset kind.
+        /// </summary>
+        /// <param name="assetId">Identity to inspect.</param>
+        /// <returns>True when one indexed asset claims the identity.</returns>
+        internal bool IsAnyAssetIdentityClaimed(string assetId) {
+            EnsureNotDisposed();
+            return !string.IsNullOrWhiteSpace(assetId) && EntriesByLookupIdentity.ContainsKey(assetId);
+        }
+
+        /// <summary>
+        /// Adopts one saved identity through the same staged, publication-safe repair batch as startup repairs.
+        /// </summary>
+        /// <param name="fullPath">Absolute external authored asset path.</param>
+        /// <param name="requestedAssetId">Saved identity to adopt.</param>
+        /// <param name="repair">Immutable report record for the actual mutation.</param>
+        /// <returns>True when this call performed the adoption; false when another asset claimed the identity.</returns>
+        internal bool TryAdoptSavedAssetIdUnderLock(string fullPath, string requestedAssetId, EditorAssetRepairRecord repair) {
+            EnsureNotDisposed();
+            string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
+            EnsureInitialized();
+            ValidateNoReparseTraversal(normalizedFullPath);
+            if (PathClassifier.UsesEmbeddedIdentity(normalizedFullPath)) {
+                throw new InvalidOperationException($"Native asset '{fullPath}' owns embedded identity and cannot adopt a saved external identity.");
+            }
+            if (IsAnyAssetIdentityClaimed(requestedAssetId)) {
+                return false;
+            }
+
+            AssetIdentityMetadataDocument document = MetadataService.Load(normalizedFullPath);
+            document.AssetId = requestedAssetId;
+            ApplyRepairBatch(new[] {
+                new PendingIdentityRepair(AssetsRootPath, normalizedFullPath, document, repair)
+            });
+
+            string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedFullPath));
+            EditorAssetIdentityEntry existingEntry;
+            if (EntriesByPath.TryGetValue(relativePath, out existingEntry)) {
+                RemoveEntry(existingEntry);
+            }
+            AddEntry(CreateEntry(normalizedFullPath, document));
+            MissingMetadataPaths.Remove(normalizedFullPath);
+            return true;
+        }
+
+        /// <summary>
         /// Registers or updates one authored path without enumerating the assets tree.
         /// </summary>
         /// <param name="fullPath">Absolute authored asset path.</param>
         /// <returns>Current indexed entry for the path.</returns>
         public EditorAssetIdentityEntry RegisterOrUpdate(string fullPath) {
+            EnsureNotDisposed();
+            string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
+            EnsureInitialized();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            return RegisterOrUpdateUnderLock(normalizedFullPath);
+        }
+
+        /// <summary>
+        /// Registers or updates one authored path while the caller owns the project publication lock.
+        /// </summary>
+        /// <param name="fullPath">Validated absolute authored asset path.</param>
+        /// <returns>Current indexed entry for the path.</returns>
+        internal EditorAssetIdentityEntry RegisterOrUpdateUnderLock(string fullPath) {
             EnsureNotDisposed();
             string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
             EnsureInitialized();
@@ -473,29 +531,33 @@ namespace helengine.editor {
             }
             string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedFullPath));
             EditorAssetIdentityEntry existingEntry;
-            if (EntriesByPath.TryGetValue(relativePath, out existingEntry)) {
-                RemoveEntry(existingEntry);
-            }
-
-            if (!PathClassifier.UsesEmbeddedIdentity(normalizedFullPath) && !File.Exists(normalizedFullPath + ".hmeta")) {
+            EntriesByPath.TryGetValue(relativePath, out existingEntry);
+            bool metadataCreated;
+            AssetIdentityMetadataDocument document = LoadIdentityMetadataForReconciliation(normalizedFullPath, out metadataCreated);
+            if (metadataCreated) {
+                ApplyRepairBatch(new[] {
+                    new PendingIdentityRepair(
+                        AssetsRootPath,
+                        normalizedFullPath,
+                        document,
+                        new EditorAssetRepairRecord(
+                            EditorAssetRepairKind.MissingExternalMetadataCreation,
+                            relativePath,
+                            string.Empty,
+                            document.AssetId,
+                            null,
+                            "external identity document was missing",
+                            normalizedFullPath + ".hmeta",
+                            "Created missing external asset identity metadata."))
+                });
                 MissingMetadataPaths.Add(normalizedFullPath);
             } else {
                 MissingMetadataPaths.Remove(normalizedFullPath);
             }
-            bool metadataCreated;
-            AssetIdentityMetadataDocument document = LoadIdentityMetadata(normalizedFullPath, out metadataCreated);
-            if (metadataCreated) {
-                RepairReport.Append(new EditorAssetRepairRecord(
-                    EditorAssetRepairKind.MissingExternalMetadataCreation,
-                    relativePath,
-                    string.Empty,
-                    document.AssetId,
-                    null,
-                    "external identity document was missing",
-                    normalizedFullPath + ".hmeta",
-                    "Created missing external asset identity metadata."));
-            }
             EditorAssetIdentityEntry entry = CreateEntry(normalizedFullPath, document);
+            if (existingEntry != null) {
+                RemoveEntry(existingEntry);
+            }
             AddEntry(entry);
             if (!PreviousOwners.ContainsKey(entry.AssetId)) {
                 PreviousOwners[entry.AssetId] = entry.RelativePath;
@@ -606,16 +668,6 @@ namespace helengine.editor {
                 : MetadataService.Load(fullPath);
         }
 
-        AssetIdentityMetadataDocument LoadIdentityMetadata(string fullPath, out bool created) {
-            if (PathClassifier.UsesEmbeddedIdentity(fullPath)) {
-                created = false;
-                return MetadataService.Load(fullPath);
-            }
-
-            created = !File.Exists(fullPath + ".hmeta");
-            return MetadataService.LoadOrCreate(fullPath, string.Empty);
-        }
-
         /// <summary>
         /// Applies all staged identity mutations after their exact paths have been published.
         /// </summary>
@@ -627,21 +679,49 @@ namespace helengine.editor {
             for (int index = 0; index < pendingRepairs.Count; index++) {
                 pendingRepairs[index].CaptureOriginalState();
             }
-            for (int index = 0; index < pendingRepairs.Count; index++) {
-                ChangeLog.PublishChange(pendingRepairs[index].RelativePath);
-            }
-
+            long batchId = ChangeLog.BeginRepairBatch(pendingRepairs.Select(repair => repair.RelativePath).ToArray());
             int appliedCount = 0;
             try {
                 for (int index = 0; index < pendingRepairs.Count; index++) {
+                    // Count this path before invoking any replacement work so a later hash or
+                    // validation failure restores it even when the write itself succeeded.
+                    appliedCount++;
                     RepairMutationHook?.Invoke(index);
                     MetadataService.Save(pendingRepairs[index].FullPath, pendingRepairs[index].Document);
                     HashCache.InvalidateContentHash(pendingRepairs[index].FullPath);
-                    appliedCount++;
+                    AssetIdentityMetadataDocument persistedDocument = MetadataService.Load(pendingRepairs[index].FullPath);
+                    if (!string.Equals(persistedDocument.AssetId, pendingRepairs[index].Document.AssetId, StringComparison.Ordinal) ||
+                        !(persistedDocument.FormerAssetIds ?? new List<string>()).SequenceEqual(
+                            pendingRepairs[index].Document.FormerAssetIds ?? new List<string>(),
+                            StringComparer.Ordinal)) {
+                        throw new InvalidDataException($"Identity repair validation failed for '{pendingRepairs[index].FullPath}'.");
+                    }
                 }
-            } catch {
+
+                ChangeLog.CommitRepairBatch(batchId);
+            } catch (Exception primaryFailure) {
+                List<Exception> failures = new List<Exception>();
+                failures.Add(primaryFailure);
+
                 for (int index = appliedCount - 1; index >= 0; index--) {
-                    pendingRepairs[index].RestoreOriginalState();
+                    try {
+                        pendingRepairs[index].RestoreOriginalState();
+                    } catch (Exception exception) {
+                        failures.Add(exception);
+                    }
+                }
+                // Keep the pending marker when any restore failed. Readers and
+                // writers must remain blocked until the unresolved batch can be
+                // recovered, rather than observing a partially rolled-back graph.
+                if (failures.Count == 1) {
+                    try {
+                        ChangeLog.CancelRepairBatch(batchId);
+                    } catch (Exception exception) {
+                        failures.Add(exception);
+                    }
+                }
+                if (failures.Count > 1) {
+                    throw new AggregateException("Identity repair batch failed and rollback was incomplete.", failures);
                 }
                 throw;
             }
@@ -752,14 +832,47 @@ namespace helengine.editor {
             public void RestoreOriginalState() {
                 string metadataPath = UsesEmbeddedIdentity ? FullPath : FullPath + ".hmeta";
                 if (UsesEmbeddedIdentity) {
-                    File.WriteAllBytes(FullPath, OriginalBytes);
+                    AtomicReplace(FullPath, OriginalBytes);
                     return;
                 }
 
                 if (OriginalMetadataExists) {
-                    File.WriteAllBytes(metadataPath, OriginalMetadataBytes);
+                    AtomicReplace(metadataPath, OriginalMetadataBytes);
                 } else if (File.Exists(metadataPath)) {
-                    File.Delete(metadataPath);
+                    AtomicDelete(metadataPath);
+                }
+            }
+
+            static void AtomicReplace(string targetPath, byte[] bytes) {
+                string temporaryPath = targetPath + "." + Guid.NewGuid().ToString("N") + ".repair.tmp";
+                try {
+                    using (FileStream stream = new FileStream(
+                        temporaryPath,
+                        FileMode.CreateNew,
+                        FileAccess.Write,
+                        FileShare.None,
+                        4096,
+                        FileOptions.WriteThrough)) {
+                        stream.Write(bytes, 0, bytes.Length);
+                        stream.Flush(true);
+                    }
+                    File.Move(temporaryPath, targetPath, true);
+                } finally {
+                    if (File.Exists(temporaryPath)) {
+                        File.Delete(temporaryPath);
+                    }
+                }
+            }
+
+            static void AtomicDelete(string targetPath) {
+                string temporaryPath = targetPath + "." + Guid.NewGuid().ToString("N") + ".repair-delete.tmp";
+                try {
+                    File.Move(targetPath, temporaryPath);
+                    File.Delete(temporaryPath);
+                } finally {
+                    if (File.Exists(temporaryPath)) {
+                        File.Delete(temporaryPath);
+                    }
                 }
             }
         }

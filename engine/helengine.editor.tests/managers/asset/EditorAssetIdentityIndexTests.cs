@@ -110,6 +110,47 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a repair commit failure cancels pending paths instead of exposing ordinary committed changes.
+    /// </summary>
+    [Fact]
+    public void Initialize_WhenRepairCommitFails_CancelsPendingChangesForPreopenedReaders() {
+        string sourcePath = CreateAsset("Models/Source.fbx");
+        string duplicatePath = CreateAsset("Models/Duplicate.fbx");
+        CopyMetadata(sourcePath, duplicatePath, "00112233445566778899aabbccddeeff");
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        CommitFailingChangeLog changeLog = new CommitFailingChangeLog(TempRootPath);
+        EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(
+            TempRootPath,
+            null,
+            null,
+            null,
+            new CountingAssetFileCatalog(),
+            report,
+            changeLog);
+
+        Assert.Throws<IOException>(() => index.Initialize());
+
+        Assert.Empty(EditorProjectWriteGeneration.ReadAfter(TempRootPath, 0));
+        Assert.Empty(report.Records);
+        Assert.Equal("00112233445566778899aabbccddeeff", new AssetIdentityMetadataService().Load(duplicatePath).AssetId);
+    }
+
+    /// <summary>
+    /// Ensures incremental registration of a missing external identity uses committed publication.
+    /// </summary>
+    [Fact]
+    public void RegisterOrUpdate_WhenMetadataIsMissing_PublishesOneCommittedPath() {
+        string assetPath = CreateAsset("Models/Incremental.fbx");
+        using EditorAssetIdentityIndex index = CreateIndex();
+        index.Initialize();
+
+        index.RegisterOrUpdate(assetPath);
+
+        Assert.Contains(EditorProjectWriteGeneration.ReadAfter(TempRootPath, 0), change => change.RelativePath == "Models/Incremental.fbx");
+        Assert.True(File.Exists(assetPath + ".hmeta"));
+    }
+
+    /// <summary>
     /// Ensures a mid-batch repair failure rolls every applied identity mutation back before exposing the index.
     /// </summary>
     [Fact]
@@ -129,7 +170,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
             null,
             new CountingAssetFileCatalog(),
             report,
-            new FixedChangeLog(),
+            new FixedChangeLog(TempRootPath),
             mutationIndex => {
                 if (mutationIndex == 1) {
                     throw new IOException("Injected identity repair failure.");
@@ -514,18 +555,80 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         public long PublishChange(string relativePath) {
             throw new IOException("Injected identity publication failure.");
         }
+
+        public long BeginRepairBatch(IReadOnlyList<string> relativePaths) {
+            throw new IOException("Injected identity publication failure.");
+        }
+
+        public void CommitRepairBatch(long batchId) {
+            throw new IOException("Injected identity publication failure.");
+        }
+
+        public void CancelRepairBatch(long batchId) {
+        }
     }
 
     /// <summary>
     /// Change log used to exercise staged repair mutation hooks without replacing the real marker.
     /// </summary>
     sealed class FixedChangeLog : IEditorProjectWriteChangeLog {
-        public long CurrentGeneration => 0;
+        readonly string ProjectRootPath;
+
+        public FixedChangeLog(string projectRootPath) {
+            ProjectRootPath = projectRootPath;
+        }
+
+        public long CurrentGeneration => EditorProjectWriteGeneration.Read(ProjectRootPath);
 
         public IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation) => Array.Empty<EditorProjectWriteChange>();
 
         public long PublishChange(string relativePath) {
             return 1;
+        }
+
+        public long BeginRepairBatch(IReadOnlyList<string> relativePaths) {
+            return EditorProjectWriteGeneration.BeginRepairBatchUnderLock(ProjectRootPath, relativePaths);
+        }
+
+        public void CommitRepairBatch(long batchId) {
+            EditorProjectWriteGeneration.CommitRepairBatchUnderLock(ProjectRootPath, batchId);
+        }
+
+        public void CancelRepairBatch(long batchId) {
+            EditorProjectWriteGeneration.CancelRepairBatchUnderLock(ProjectRootPath, batchId);
+        }
+    }
+
+    /// <summary>
+    /// Persists a real pending repair and fails only when the staged batch would commit.
+    /// </summary>
+    sealed class CommitFailingChangeLog : IEditorProjectWriteChangeLog {
+        readonly string ProjectRootPath;
+
+        public CommitFailingChangeLog(string projectRootPath) {
+            ProjectRootPath = projectRootPath;
+        }
+
+        public long CurrentGeneration => EditorProjectWriteGeneration.Read(ProjectRootPath);
+
+        public IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation) {
+            return EditorProjectWriteGeneration.ReadAfter(ProjectRootPath, generation);
+        }
+
+        public long PublishChange(string relativePath) {
+            return EditorProjectWriteGeneration.PublishChangeUnderLock(ProjectRootPath, relativePath);
+        }
+
+        public long BeginRepairBatch(IReadOnlyList<string> relativePaths) {
+            return EditorProjectWriteGeneration.BeginRepairBatchUnderLock(ProjectRootPath, relativePaths);
+        }
+
+        public void CommitRepairBatch(long batchId) {
+            throw new IOException("Injected repair commit failure.");
+        }
+
+        public void CancelRepairBatch(long batchId) {
+            EditorProjectWriteGeneration.CancelRepairBatchUnderLock(ProjectRootPath, batchId);
         }
     }
 

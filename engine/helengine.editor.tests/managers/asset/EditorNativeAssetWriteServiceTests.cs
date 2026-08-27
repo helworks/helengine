@@ -656,6 +656,18 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
             PublishCount++;
             throw new IOException("Test publication failure.");
         }
+
+        public long BeginRepairBatch(IReadOnlyList<string> relativePaths) {
+            PublishCount++;
+            throw new IOException("Test publication failure.");
+        }
+
+        public void CommitRepairBatch(long batchId) {
+            throw new IOException("Test publication failure.");
+        }
+
+        public void CancelRepairBatch(long batchId) {
+        }
     }
 
     /// <summary>
@@ -676,6 +688,18 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
 
         public long PublishChange(string relativePath) {
             return EditorProjectWriteGeneration.PublishChangeUnderLock(ProjectRootPath, relativePath);
+        }
+
+        public long BeginRepairBatch(IReadOnlyList<string> relativePaths) {
+            return EditorProjectWriteGeneration.BeginRepairBatchUnderLock(ProjectRootPath, relativePaths);
+        }
+
+        public void CommitRepairBatch(long batchId) {
+            EditorProjectWriteGeneration.CommitRepairBatchUnderLock(ProjectRootPath, batchId);
+        }
+
+        public void CancelRepairBatch(long batchId) {
+            EditorProjectWriteGeneration.CancelRepairBatchUnderLock(ProjectRootPath, batchId);
         }
     }
 }

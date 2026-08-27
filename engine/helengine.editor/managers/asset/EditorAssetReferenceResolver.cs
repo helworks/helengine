@@ -13,6 +13,7 @@ namespace helengine.editor {
         readonly EditorAssetPathClassifier PathClassifier;
         readonly EditorAssetRepairReport RepairReport;
         IEditorAssetReadSynchronizer ReadSynchronizer;
+        bool OwnsReadSynchronizer;
         bool ResolutionScopeActive;
         HashSet<string> ResolutionScopeMissingMetadataPaths;
         bool IsDisposed;
@@ -71,7 +72,40 @@ namespace helengine.editor {
             EditorAssetHashCache hashCache = null,
             AssetIdentityMetadataService metadataService = null,
             EditorAssetPathClassifier pathClassifier = null,
-            EditorAssetRepairReport repairReport = null) {
+            EditorAssetRepairReport repairReport = null)
+            : this(projectRootPath, identityIndex, hashCache, metadataService, pathClassifier, repairReport, null, true) {
+        }
+
+        /// <summary>
+        /// Initializes a resolver with the project boundary already composed by its owning session.
+        /// </summary>
+        /// <param name="projectRootPath">Project root path.</param>
+        /// <param name="identityIndex">Session-owned identity index.</param>
+        /// <param name="hashCache">Session-owned hash cache.</param>
+        /// <param name="metadataService">Identity metadata service.</param>
+        /// <param name="pathClassifier">Authored path classifier.</param>
+        /// <param name="repairReport">Session-owned report.</param>
+        /// <param name="readSynchronizer">Session-owned publication boundary.</param>
+        internal EditorAssetReferenceResolver(
+            string projectRootPath,
+            EditorAssetIdentityIndex identityIndex,
+            EditorAssetHashCache hashCache,
+            AssetIdentityMetadataService metadataService,
+            EditorAssetPathClassifier pathClassifier,
+            EditorAssetRepairReport repairReport,
+            IEditorAssetReadSynchronizer readSynchronizer)
+            : this(projectRootPath, identityIndex, hashCache, metadataService, pathClassifier, repairReport, readSynchronizer, false) {
+        }
+
+        EditorAssetReferenceResolver(
+            string projectRootPath,
+            EditorAssetIdentityIndex identityIndex,
+            EditorAssetHashCache hashCache,
+            AssetIdentityMetadataService metadataService,
+            EditorAssetPathClassifier pathClassifier,
+            EditorAssetRepairReport repairReport,
+            IEditorAssetReadSynchronizer readSynchronizer,
+            bool createOwnedReadSynchronizer) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -79,7 +113,11 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             MetadataService = metadataService ?? new AssetIdentityMetadataService();
             PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
-            RepairReport = repairReport ?? identityIndex?.RepairReportValue ?? new EditorAssetRepairReport();
+            EditorAssetRepairReport indexedRepairReport = identityIndex?.RepairReportValue;
+            if (indexedRepairReport != null && repairReport != null && !ReferenceEquals(indexedRepairReport, repairReport)) {
+                throw new ArgumentException("An injected identity index and resolver must share one repair report.", nameof(repairReport));
+            }
+            RepairReport = indexedRepairReport ?? repairReport ?? new EditorAssetRepairReport();
             if (hashCache != null) {
                 HashCache = hashCache;
                 OwnsHashCache = false;
@@ -93,6 +131,15 @@ namespace helengine.editor {
             OwnsIdentityIndex = identityIndex == null;
             IdentityIndex = identityIndex ?? new EditorAssetIdentityIndex(ProjectRootPath, MetadataService, PathClassifier, HashCache, RepairReport);
             IdentityIndex.Initialize();
+            if (readSynchronizer != null) {
+                ReadSynchronizer = readSynchronizer;
+                OwnsReadSynchronizer = false;
+            } else if (createOwnedReadSynchronizer) {
+                ReadSynchronizer = new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache);
+                OwnsReadSynchronizer = true;
+            } else {
+                throw new ArgumentNullException(nameof(readSynchronizer));
+            }
         }
 
         /// <summary>
@@ -122,19 +169,11 @@ namespace helengine.editor {
             bool metadataChanged = pathMetadataWasMissing;
             bool savedIdWasAdopted = false;
             if (pathMetadataWasMissing && IsValidAssetId(reference.AssetId) &&
-                IdentityIndex.FindByAssetId(reference.AssetId, expectedKind).Count == 0) {
+                !IdentityIndex.IsAnyAssetIdentityClaimed(reference.AssetId)) {
                 string savedFullPath = ResolveInsideAssets(savedPath);
                 AssetIdentityMetadataDocument document = MetadataService.Load(savedFullPath);
                 string previousAssetId = document.AssetId;
-                document.AssetId = reference.AssetId;
-                long publishedGeneration = PublishAutomaticRepair(savedPath);
-                MetadataService.Save(savedFullPath, document);
-                metadataChanged = true;
-                savedIdWasAdopted = true;
-                IdentityIndex.RegisterOrUpdate(savedFullPath);
-                IdentityIndex.MarkMetadataPresent(savedFullPath);
-                MarkAutomaticRepairApplied(publishedGeneration);
-                AppendRepair(
+                EditorAssetRepairRecord adoptionRepair = CreateRepairRecord(
                     EditorAssetRepairKind.SavedIdAdoption,
                     savedPath,
                     previousAssetId,
@@ -142,6 +181,14 @@ namespace helengine.editor {
                     AssetReferenceResolutionTier.Path,
                     "saved identity adopted by exact normalized path",
                 "Adopted the saved identity for the existing authored source.");
+                savedIdWasAdopted = IdentityIndex.TryAdoptSavedAssetIdUnderLock(savedFullPath, reference.AssetId, adoptionRepair);
+                if (savedIdWasAdopted) {
+                    metadataChanged = true;
+                    IdentityIndex.MarkMetadataPresent(savedFullPath);
+                    if (ResolutionScopeActive) {
+                        ResolutionScopeMissingMetadataPaths.Remove(savedFullPath);
+                    }
+                }
             }
 
             EditorAssetResolutionCandidateScore candidateEvidence = null;
@@ -249,7 +296,7 @@ namespace helengine.editor {
                 EnsureIdentityIndexInitialized();
                 string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedPath));
                 EditorAssetIdentityEntry entry = IdentityIndex.FindByPath(relativePath);
-                entry ??= IdentityIndex.RegisterOrUpdate(normalizedPath);
+                entry ??= IdentityIndex.RegisterOrUpdateUnderLock(normalizedPath);
                 string contentHash = HashCache.GetContentHash(normalizedPath);
                 return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(entry.AssetId, entry.RelativePath, contentHash);
             });
@@ -264,9 +311,14 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(synchronizer));
             }
             if (ReadSynchronizer != null && !ReferenceEquals(ReadSynchronizer, synchronizer)) {
-                throw new InvalidOperationException("An asset reference resolver can only use one project read boundary.");
+                if (!OwnsReadSynchronizer) {
+                    throw new InvalidOperationException("An asset reference resolver can only use one project read boundary.");
+                }
+
+                (ReadSynchronizer as IDisposable)?.Dispose();
             }
             ReadSynchronizer = synchronizer;
+            OwnsReadSynchronizer = false;
         }
 
         /// <summary>
@@ -277,7 +329,9 @@ namespace helengine.editor {
             if (read == null) {
                 throw new ArgumentNullException(nameof(read));
             }
-            return ReadSynchronizer == null ? read() : ReadSynchronizer.Execute(read);
+            // Every resolver is composed with a project publication boundary, either
+            // borrowed from its session or owned by this standalone resolver.
+            return ReadSynchronizer.Execute(read);
         }
 
         /// <summary>Selects a UUID match using the explicit deterministic candidate score.</summary>
@@ -356,7 +410,28 @@ namespace helengine.editor {
             AssetReferenceResolutionTier? tier,
             string evidence,
             string diagnostic) {
-            RepairReport.Append(new EditorAssetRepairRecord(
+            RepairReport.Append(CreateRepairRecord(
+                kind,
+                relativePath,
+                previousAssetId,
+                currentAssetId,
+                tier,
+                evidence,
+                diagnostic));
+        }
+
+        /// <summary>
+        /// Creates one immutable repair record carrying the active binary document context.
+        /// </summary>
+        EditorAssetRepairRecord CreateRepairRecord(
+            EditorAssetRepairKind kind,
+            string relativePath,
+            string previousAssetId,
+            string currentAssetId,
+            AssetReferenceResolutionTier? tier,
+            string evidence,
+            string diagnostic) {
+            return new EditorAssetRepairRecord(
                 kind,
                 NormalizeRelativePath(relativePath),
                 previousAssetId,
@@ -364,23 +439,7 @@ namespace helengine.editor {
                 tier,
                 evidence,
                 NormalizeOwningDocument(EngineBinaryReadContext.CurrentAssetPath),
-                diagnostic));
-        }
-
-        /// <summary>
-        /// Publishes a changed identity path before a metadata mutation when a session boundary is attached.
-        /// </summary>
-        long PublishAutomaticRepair(string relativePath) {
-            return ReadSynchronizer == null ? 0 : ReadSynchronizer.PublishChange(NormalizeRelativePath(relativePath));
-        }
-
-        /// <summary>
-        /// Marks a published identity repair applied after local index bookkeeping succeeds.
-        /// </summary>
-        void MarkAutomaticRepairApplied(long generation) {
-            if (generation > 0 && ReadSynchronizer != null) {
-                ReadSynchronizer.MarkPublishedChangeApplied(generation);
-            }
+                diagnostic);
         }
 
         /// <summary>
@@ -542,6 +601,9 @@ namespace helengine.editor {
             }
             if (OwnsHashCache) {
                 HashCache.Dispose();
+            }
+            if (OwnsReadSynchronizer) {
+                (ReadSynchronizer as IDisposable)?.Dispose();
             }
             IsDisposed = true;
         }

@@ -3679,7 +3679,6 @@ namespace helengine.editor {
 
             try {
                 SceneSaveService.Save(fullPath, CurrentSceneSettings);
-                LogAuthoringRepairReport();
                 CurrentScenePath = Path.GetFullPath(fullPath);
                 sessionStateService?.SetLastScenePath(CurrentScenePath);
                 MarkSceneClean();
@@ -3694,6 +3693,8 @@ namespace helengine.editor {
             } catch (Exception ex) {
                 Logger.WriteError($"Scene save failed: {ex.Message}");
                 saveFileDialog.ShowError(ex.Message);
+            } finally {
+                LogAuthoringRepairReport();
             }
         }
 

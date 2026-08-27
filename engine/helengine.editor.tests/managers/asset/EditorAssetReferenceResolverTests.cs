@@ -1,3 +1,4 @@
+using System.Reflection;
 using Xunit;
 
 namespace helengine.editor.tests.managers.asset;
@@ -52,6 +53,35 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.Equal("Models/Current.fbx", result.CanonicalReference.RelativePath);
         Assert.Equal("00112233445566778899aabbccddeeff", result.CanonicalReference.AssetId);
         Assert.True(result.ReferenceChanged);
+    }
+
+    /// <summary>
+    /// Ensures a standalone resolver owns a project publication boundary for mutation-capable reads.
+    /// </summary>
+    [Fact]
+    public void StandaloneResolver_OwnsPublicationBoundary() {
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        FieldInfo synchronizerField = typeof(EditorAssetReferenceResolver).GetField("ReadSynchronizer", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(synchronizerField);
+        Assert.NotNull(synchronizerField.GetValue(resolver));
+    }
+
+    /// <summary>
+    /// Ensures an explicit report cannot diverge from the index-owned session report.
+    /// </summary>
+    [Fact]
+    public void Resolver_WhenExplicitReportDiffersFromInjectedIndex_RejectsSplitOwnership() {
+        EditorAssetRepairReport indexReport = new EditorAssetRepairReport();
+        EditorAssetRepairReport differentReport = new EditorAssetRepairReport();
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath);
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(TempRootPath, repairReport: indexReport, hashCache: cache);
+
+        Assert.Throws<ArgumentException>(() => new EditorAssetReferenceResolver(
+            TempRootPath,
+            index,
+            cache,
+            repairReport: differentReport));
     }
 
     /// <summary>
@@ -172,6 +202,34 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures an active resolution scope removes an adopted path from its missing-metadata snapshot.
+    /// </summary>
+    [Fact]
+    public void Resolve_WithinActiveScope_CompetingSavedIdsAdoptOnlyOnce() {
+        string targetPath = CreateAsset("Models/ScopedCompeting.fbx", new byte[] { 4, 5, 6 });
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
+        const string firstId = "00112233445566778899aabbccddeeff";
+        const string secondId = "ffeeddccbbaa99887766554433221100";
+        SceneAssetReference first = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(firstId, "Models/ScopedCompeting.fbx", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        SceneAssetReference second = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(secondId, "Models/ScopedCompeting.fbx", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        resolver.BeginResolutionScope();
+        try {
+            AssetReferenceResolution firstResult = resolver.Resolve(first, AssetEntryKind.Model);
+            AssetReferenceResolution secondResult = resolver.Resolve(second, AssetEntryKind.Model);
+
+            Assert.Equal(firstId, firstResult.CanonicalReference.AssetId);
+            Assert.Equal(firstId, secondResult.CanonicalReference.AssetId);
+        } finally {
+            resolver.EndResolutionScope();
+        }
+
+        Assert.Equal(firstId, new AssetIdentityMetadataService().Load(targetPath).AssetId);
+        Assert.Single(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
+    }
+
+    /// <summary>
     /// Ensures reference repairs identify the active binary document when one is available.
     /// </summary>
     [Fact]
@@ -245,6 +303,25 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.Equal(AssetReferenceResolutionTier.ContentHash, result.Tier);
         Assert.Equal("Models/A.fbx", result.CanonicalReference.RelativePath);
         Assert.NotEqual(firstPath, secondPath);
+    }
+
+    /// <summary>
+    /// Ensures a current identity claimed by another asset kind cannot be adopted by an exact saved path.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenSavedIdIsClaimedByAnotherKind_DoesNotAdoptAtModelPath() {
+        string ownerPath = CreateNativeHelmat("Materials/Owner.helmat", "00112233445566778899aabbccddeeff");
+        string targetPath = CreateAsset("Models/Target.fbx", new byte[] { 4, 5, 6 });
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "00112233445566778899aabbccddeeff",
+            "Models/Target.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal(targetPath, result.FullPath);
+        Assert.NotEqual("00112233445566778899aabbccddeeff", new AssetIdentityMetadataService().Load(targetPath).AssetId);
     }
 
     /// <summary>

@@ -13,7 +13,7 @@ namespace helengine.editor {
     /// <summary>
     /// Writes current native asset payloads with stable embedded identity and byte-level idempotence.
     /// </summary>
-    internal sealed class EditorNativeAssetWriteService : IEditorAssetReadSynchronizer {
+    internal sealed class EditorNativeAssetWriteService : IEditorAssetReadSynchronizer, IDisposable {
         /// <summary>
         /// Canonical assets root owned by this writer.
         /// </summary>
@@ -53,6 +53,8 @@ namespace helengine.editor {
         /// Tracks the current thread's ownership of this synchronizer boundary so nested resolver calls reuse the same lock.
         /// </summary>
         readonly ThreadLocal<bool> ReadBoundaryHeld = new ThreadLocal<bool>();
+
+        bool IsDisposed;
 
         /// <summary>
         /// Initializes one native writer over the session-owned identity graph.
@@ -115,6 +117,7 @@ namespace helengine.editor {
         /// Runs a reference or hash read at the same publication boundary as writes.
         /// </summary>
         internal TResult ExecuteSynchronizedRead<TResult>(Func<TResult> read) {
+            EnsureNotDisposed();
             if (read == null) {
                 throw new ArgumentNullException(nameof(read));
             }
@@ -166,6 +169,7 @@ namespace helengine.editor {
         /// <param name="asset">Native asset payload to serialize.</param>
         /// <returns>Disposition and canonical identity data for the destination.</returns>
         public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
+            EnsureNotDisposed();
             if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
             }
@@ -199,7 +203,7 @@ namespace helengine.editor {
                 long publishedGeneration = ChangeLog.PublishChange(normalizedRelativePath);
                 WriteAtomically(fullPath, serializedBytes);
                 HashCache.InvalidateContentHash(fullPath);
-                IdentityIndex.RegisterOrUpdate(fullPath);
+                IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
                 string replacedContentHash = HashCache.GetContentHash(fullPath);
                 LastObservedGeneration = publishedGeneration;
                 return new EditorAssetWriteResult(
@@ -211,7 +215,7 @@ namespace helengine.editor {
                     preservedExistingIdentity);
             }
 
-            IdentityIndex.RegisterOrUpdate(fullPath);
+            IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
             string contentHash = HashCache.GetContentHash(fullPath);
 
             return new EditorAssetWriteResult(
@@ -221,6 +225,24 @@ namespace helengine.editor {
                 contentHash,
                 disposition,
                 preservedExistingIdentity);
+        }
+
+        /// <summary>
+        /// Releases the thread-local state owned by a standalone resolver boundary.
+        /// </summary>
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+
+            ReadBoundaryHeld.Dispose();
+            IsDisposed = true;
+        }
+
+        void EnsureNotDisposed() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorNativeAssetWriteService));
+            }
         }
 
         /// <summary>
@@ -333,7 +355,7 @@ namespace helengine.editor {
                 ValidateNoReparseTraversal(fullPath);
                 if (File.Exists(fullPath) && new EditorAssetPathClassifier().IsAuthoredAsset(fullPath)) {
                     bool metadataWasMissing = IdentityIndex.WasMetadataMissing(fullPath);
-                    IdentityIndex.RegisterOrUpdate(fullPath);
+                    IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
                     if (metadataWasMissing) {
                         IdentityIndex.MarkMetadataMissing(fullPath);
                     }

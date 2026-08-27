@@ -118,8 +118,10 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            NativeAssetWriteService = new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache);
-            ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
+            NativeAssetWriteService = dependencies.NativeAssetWriteService ?? new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache);
+            if (dependencies.NativeAssetWriteService == null) {
+                ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
+            }
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService);
         }
 
@@ -511,10 +513,22 @@ namespace helengine.editor {
             EditorAssetHashCache hashCache = new EditorAssetHashCache(projectRootPath);
             EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache, repairReport);
             identityIndex.Initialize();
-            EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, hashCache, repairReport: repairReport);
-            EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, hashCache);
+            EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
+            EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(
+                projectRootPath,
+                identityIndex,
+                hashCache,
+                null,
+                null,
+                repairReport,
+                nativeAssetWriteService);
+            EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(
+                referenceResolver,
+                identityIndex,
+                hashCache,
+                nativeAssetWriteService);
             IEditorAuthoringSessionLifetime lifetime = new EditorAuthoringSessionLifetime(resources);
-            return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, repairReport);
+            return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, repairReport, nativeAssetWriteService);
         }
 
         /// <summary>
@@ -527,6 +541,7 @@ namespace helengine.editor {
             public readonly EditorAssetReferenceResolver ReferenceResolver;
             public readonly IEditorAuthoringSessionLifetime Lifetime;
             public readonly EditorAssetRepairReport RepairReport;
+            public readonly EditorNativeAssetWriteService NativeAssetWriteService;
 
             public SessionDependencies(
                 AssetImportManager assetImportManager,
@@ -534,13 +549,15 @@ namespace helengine.editor {
                 EditorAssetIdentityIndex identityIndex,
                 EditorAssetReferenceResolver referenceResolver,
                 IEditorAuthoringSessionLifetime lifetime,
-                EditorAssetRepairReport repairReport = null) {
+                EditorAssetRepairReport repairReport = null,
+                EditorNativeAssetWriteService nativeAssetWriteService = null) {
                 AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
                 HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
                 IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
                 ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
                 Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
                 RepairReport = repairReport ?? ReferenceResolver.RepairReportValue;
+                NativeAssetWriteService = nativeAssetWriteService;
             }
         }
 
@@ -669,15 +686,18 @@ namespace helengine.editor {
         readonly EditorAssetReferenceResolver ReferenceResolver;
         readonly EditorAssetIdentityIndex IdentityIndex;
         readonly EditorAssetHashCache HashCache;
+        readonly EditorNativeAssetWriteService NativeAssetWriteService;
         bool IsDisposed;
 
         public EditorProjectAuthoringSessionResources(
             EditorAssetReferenceResolver referenceResolver,
             EditorAssetIdentityIndex identityIndex,
-            EditorAssetHashCache hashCache) {
+            EditorAssetHashCache hashCache,
+            EditorNativeAssetWriteService nativeAssetWriteService = null) {
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            NativeAssetWriteService = nativeAssetWriteService;
         }
 
         public void Dispose() {
@@ -688,6 +708,7 @@ namespace helengine.editor {
             ReferenceResolver.Dispose();
             IdentityIndex.Dispose();
             HashCache.Dispose();
+            NativeAssetWriteService?.Dispose();
             IsDisposed = true;
         }
     }

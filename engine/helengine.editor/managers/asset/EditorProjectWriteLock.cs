@@ -7,11 +7,17 @@ namespace helengine.editor {
     internal sealed class EditorProjectWriteLock : IDisposable {
         static readonly TimeSpan DefaultMaximumWait = TimeSpan.FromSeconds(60);
         const int RetryDelayMilliseconds = 10;
+        [ThreadStatic]
+        static Dictionary<string, EditorProjectWriteLock> HeldLocks;
         readonly FileStream LockStream;
+        readonly string ProjectRootPath;
+        readonly bool OwnsHandle;
         bool IsDisposed;
 
-        EditorProjectWriteLock(FileStream lockStream) {
+        EditorProjectWriteLock(FileStream lockStream, string projectRootPath, bool ownsHandle) {
             LockStream = lockStream;
+            ProjectRootPath = projectRootPath;
+            OwnsHandle = ownsHandle;
         }
 
         /// <summary>
@@ -38,6 +44,10 @@ namespace helengine.editor {
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
+            if (HeldLocks != null && HeldLocks.TryGetValue(fullProjectRootPath, out EditorProjectWriteLock heldLock)) {
+                return new EditorProjectWriteLock(heldLock.LockStream, fullProjectRootPath, false);
+            }
+
             string lockPath = Path.Combine(fullProjectRootPath, "cache", "editor", "authoring-write.lock");
             string lockDirectoryPath = Path.GetDirectoryName(lockPath);
             Directory.CreateDirectory(lockDirectoryPath);
@@ -52,7 +62,10 @@ namespace helengine.editor {
                         FileShare.None,
                         1,
                         FileOptions.SequentialScan);
-                    return new EditorProjectWriteLock(lockStream);
+                    EditorProjectWriteLock acquiredLock = new EditorProjectWriteLock(lockStream, fullProjectRootPath, true);
+                    (HeldLocks ??= new Dictionary<string, EditorProjectWriteLock>(
+                        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))[fullProjectRootPath] = acquiredLock;
+                    return acquiredLock;
                 } catch (IOException exception) {
                     lastIOException = exception;
                     Thread.Sleep(RetryDelayMilliseconds);
@@ -70,7 +83,18 @@ namespace helengine.editor {
                 return;
             }
 
+            if (!OwnsHandle) {
+                IsDisposed = true;
+                return;
+            }
+
+            // Remove the ambient ownership only after the underlying handle has
+            // closed successfully, so a failed release can be retried safely.
             LockStream.Dispose();
+            if (HeldLocks != null && HeldLocks.TryGetValue(ProjectRootPath, out EditorProjectWriteLock heldLock) &&
+                ReferenceEquals(heldLock, this)) {
+                HeldLocks.Remove(ProjectRootPath);
+            }
             IsDisposed = true;
         }
     }
@@ -98,6 +122,12 @@ namespace helengine.editor {
         IReadOnlyList<EditorProjectWriteChange> ReadAfter(long generation);
 
         long PublishChange(string relativePath);
+
+        long BeginRepairBatch(IReadOnlyList<string> relativePaths);
+
+        void CommitRepairBatch(long batchId);
+
+        void CancelRepairBatch(long batchId);
     }
 
     /// <summary>
@@ -123,6 +153,18 @@ namespace helengine.editor {
         public long PublishChange(string relativePath) {
             return EditorProjectWriteGeneration.PublishChangeUnderLock(ProjectRootPath, relativePath);
         }
+
+        public long BeginRepairBatch(IReadOnlyList<string> relativePaths) {
+            return EditorProjectWriteGeneration.BeginRepairBatchUnderLock(ProjectRootPath, relativePaths);
+        }
+
+        public void CommitRepairBatch(long batchId) {
+            EditorProjectWriteGeneration.CommitRepairBatchUnderLock(ProjectRootPath, batchId);
+        }
+
+        public void CancelRepairBatch(long batchId) {
+            EditorProjectWriteGeneration.CancelRepairBatchUnderLock(ProjectRootPath, batchId);
+        }
     }
 
     /// <summary>
@@ -142,7 +184,10 @@ namespace helengine.editor {
         /// Reads the current generation from the strict project snapshot, or zero when no snapshot exists.
         /// </summary>
         public static long Read(string projectRootPath) {
-            return ReadSnapshot(projectRootPath).CurrentGeneration;
+            string generationPath = GetPath(projectRootPath);
+            ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            EnsureNoPendingRepair(snapshot, generationPath);
+            return snapshot.CurrentGeneration;
         }
 
         /// <summary>
@@ -153,7 +198,9 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(generation));
             }
 
+            string generationPath = GetPath(projectRootPath);
             ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            EnsureNoPendingRepair(snapshot, generationPath);
             return snapshot.Changes
                 .Where(change => change.Generation > generation)
                 .OrderBy(change => change.Generation)
@@ -172,6 +219,37 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Persists one pending identity-repair batch without publishing ordinary change records.
+        /// </summary>
+        /// <param name="projectRootPath">Project root that owns the snapshot.</param>
+        /// <param name="relativePaths">Exact assets-relative paths in the staged batch.</param>
+        /// <returns>Opaque batch token used to commit or cancel.</returns>
+        public static long BeginRepairBatch(string projectRootPath, IReadOnlyList<string> relativePaths) {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            return BeginRepairBatchUnderLock(projectRootPath, relativePaths);
+        }
+
+        /// <summary>
+        /// Commits one pending identity-repair batch while the caller owns the project lock.
+        /// </summary>
+        /// <param name="projectRootPath">Project root that owns the snapshot.</param>
+        /// <param name="batchId">Pending batch token.</param>
+        public static void CommitRepairBatch(string projectRootPath, long batchId) {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            CommitRepairBatchUnderLock(projectRootPath, batchId);
+        }
+
+        /// <summary>
+        /// Cancels one pending identity-repair batch while the caller owns the project lock.
+        /// </summary>
+        /// <param name="projectRootPath">Project root that owns the snapshot.</param>
+        /// <param name="batchId">Pending batch token.</param>
+        public static void CancelRepairBatch(string projectRootPath, long batchId) {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            CancelRepairBatchUnderLock(projectRootPath, batchId);
+        }
+
+        /// <summary>
         /// Publishes one exact path while the caller owns the project publication lock.
         /// </summary>
         internal static long PublishChangeUnderLock(string projectRootPath, string relativePath) {
@@ -181,6 +259,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(generationDirectoryPath);
 
             ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            EnsureNoPendingRepair(snapshot, generationPath);
             long generation = checked(snapshot.CurrentGeneration + 1);
             Dictionary<string, ProjectWriteGenerationChange> changes = snapshot.Changes
                 .ToDictionary(change => change.RelativePath, change => change, PathComparer);
@@ -199,6 +278,90 @@ namespace helengine.editor {
             };
             WriteSnapshotAtomically(generationPath, nextSnapshot);
             return generation;
+        }
+
+        /// <summary>
+        /// Persists one pending identity-repair batch while the caller owns the project lock.
+        /// </summary>
+        internal static long BeginRepairBatchUnderLock(string projectRootPath, IReadOnlyList<string> relativePaths) {
+            if (relativePaths == null || relativePaths.Count == 0) {
+                throw new ArgumentException("A repair batch must contain at least one path.", nameof(relativePaths));
+            }
+
+            string generationPath = GetPath(projectRootPath);
+            string generationDirectoryPath = Path.GetDirectoryName(generationPath);
+            Directory.CreateDirectory(generationDirectoryPath);
+            ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            EnsureNoPendingRepair(snapshot, generationPath);
+            List<string> normalizedPaths = relativePaths
+                .Select(path => NormalizeRelativePath(projectRootPath, path))
+                .Distinct(PathComparer)
+                .OrderBy(path => path, PathComparer)
+                .ThenBy(path => path, StringComparer.Ordinal)
+                .ToList();
+            if (normalizedPaths.Count == 0) {
+                throw new ArgumentException("A repair batch must contain at least one path.", nameof(relativePaths));
+            }
+
+            long batchId = checked(snapshot.CurrentGeneration + 1);
+            snapshot.PendingRepair = new ProjectWriteGenerationPendingRepair {
+                BatchId = batchId,
+                RelativePaths = normalizedPaths
+            };
+            WriteSnapshotAtomically(generationPath, snapshot);
+            return batchId;
+        }
+
+        /// <summary>
+        /// Commits one pending identity-repair batch while the caller owns the project lock.
+        /// </summary>
+        internal static void CommitRepairBatchUnderLock(string projectRootPath, long batchId) {
+            string generationPath = GetPath(projectRootPath);
+            ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            ProjectWriteGenerationPendingRepair pendingRepair = RequirePendingRepair(snapshot, generationPath, batchId);
+            Dictionary<string, ProjectWriteGenerationChange> changes = snapshot.Changes
+                .ToDictionary(change => change.RelativePath, change => change, PathComparer);
+            long nextGeneration = snapshot.CurrentGeneration;
+            for (int index = 0; index < pendingRepair.RelativePaths.Count; index++) {
+                nextGeneration = checked(nextGeneration + 1);
+                string relativePath = pendingRepair.RelativePaths[index];
+                changes[relativePath] = new ProjectWriteGenerationChange {
+                    Generation = nextGeneration,
+                    RelativePath = relativePath
+                };
+            }
+
+            snapshot.CurrentGeneration = nextGeneration;
+            snapshot.Changes = changes.Values
+                .OrderBy(change => change.Generation)
+                .ThenBy(change => change.RelativePath, PathComparer)
+                .ToList();
+            snapshot.PendingRepair = null;
+            WriteSnapshotAtomically(generationPath, snapshot);
+        }
+
+        /// <summary>
+        /// Cancels one pending identity-repair batch while the caller owns the project lock.
+        /// </summary>
+        internal static void CancelRepairBatchUnderLock(string projectRootPath, long batchId) {
+            string generationPath = GetPath(projectRootPath);
+            ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
+            RequirePendingRepair(snapshot, generationPath, batchId);
+            snapshot.PendingRepair = null;
+            WriteSnapshotAtomically(generationPath, snapshot);
+        }
+
+        static void EnsureNoPendingRepair(ProjectWriteGenerationSnapshot snapshot, string generationPath) {
+            if (snapshot?.PendingRepair != null) {
+                throw new InvalidOperationException($"Project authoring repair recovery is required for pending batch '{snapshot.PendingRepair.BatchId}' in '{generationPath}'.");
+            }
+        }
+
+        static ProjectWriteGenerationPendingRepair RequirePendingRepair(ProjectWriteGenerationSnapshot snapshot, string generationPath, long batchId) {
+            if (snapshot?.PendingRepair == null || snapshot.PendingRepair.BatchId != batchId) {
+                throw new InvalidOperationException($"Project authoring repair batch '{batchId}' is not pending in '{generationPath}'.");
+            }
+            return snapshot.PendingRepair;
         }
 
         static ProjectWriteGenerationSnapshot ReadSnapshot(string projectRootPath) {
@@ -271,6 +434,29 @@ namespace helengine.editor {
                 (snapshot.CurrentGeneration > 0 && maximumGeneration != snapshot.CurrentGeneration)) {
                 throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' has inconsistent generation bounds.");
             }
+
+            if (snapshot.PendingRepair != null) {
+                if (snapshot.PendingRepair.BatchId <= snapshot.CurrentGeneration ||
+                    snapshot.PendingRepair.RelativePaths == null ||
+                    snapshot.PendingRepair.RelativePaths.Count == 0) {
+                    throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' contains an invalid pending repair batch.");
+                }
+
+                HashSet<string> pendingPaths = new HashSet<string>(PathComparer);
+                for (int index = 0; index < snapshot.PendingRepair.RelativePaths.Count; index++) {
+                    string relativePath = snapshot.PendingRepair.RelativePaths[index];
+                    string normalizedPath;
+                    try {
+                        normalizedPath = NormalizeRelativePath(projectRootPath, relativePath);
+                    } catch (Exception exception) when (exception is ArgumentException || exception is InvalidOperationException) {
+                        throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' contains an invalid pending path.", exception);
+                    }
+
+                    if (!string.Equals(normalizedPath, relativePath, StringComparison.Ordinal) || !pendingPaths.Add(relativePath)) {
+                        throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' contains a duplicate or non-canonical pending path.");
+                    }
+                }
+            }
         }
 
         static void WriteSnapshotAtomically(string generationPath, ProjectWriteGenerationSnapshot snapshot) {
@@ -342,12 +528,20 @@ namespace helengine.editor {
             public long CurrentGeneration { get; set; }
 
             public List<ProjectWriteGenerationChange> Changes { get; set; }
+
+            public ProjectWriteGenerationPendingRepair PendingRepair { get; set; }
         }
 
         sealed class ProjectWriteGenerationChange {
             public long Generation { get; set; }
 
             public string RelativePath { get; set; }
+        }
+
+        sealed class ProjectWriteGenerationPendingRepair {
+            public long BatchId { get; set; }
+
+            public List<string> RelativePaths { get; set; }
         }
     }
 }
