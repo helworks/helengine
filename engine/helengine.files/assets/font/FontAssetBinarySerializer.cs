@@ -187,6 +187,9 @@ namespace helengine.files {
             if (header.RecordKind != (ushort)RecordKind) {
                 throw new InvalidOperationException($"Unexpected font record kind '{header.RecordKind}'.");
             }
+            if (header.ValueKind != ValueKind) {
+                throw new InvalidOperationException($"Unexpected font value kind '{header.ValueKind}'.");
+            }
             if (header.Version != CurrentVersion) {
                 throw new InvalidOperationException(
                     $"Font binary version '{header.Version}' is unsupported; version '{CurrentVersion}' is required. Regenerate the packaged font asset.");

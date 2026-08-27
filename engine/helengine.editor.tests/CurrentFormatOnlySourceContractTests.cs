@@ -16,9 +16,9 @@ public sealed class CurrentFormatOnlySourceContractTests {
         ("backward compatibility claim", CreateForbiddenRegex(@"backward\s+compatibility", RegexOptions.IgnoreCase)),
         ("persisted compatibility construct", CreateForbiddenRegex(@"\bcompatibility\s+(?:cycle|fallback|path|alias|overload)\b", RegexOptions.IgnoreCase)),
         ("persisted version range acceptance", CreateForbiddenRegex(
-            @"(?:(?:\b(?:\w*(?:format|schema|payload|received)version|(?:\w*(?:document|header|record|asset|serialized|stored)\w*)\s*(?:\?\s*)?\.\s*version|version)\b\s*(?:is\s*)?(?:<=|>=|<|>)\s*(?:\d+|[A-Za-z_]\w*version)\b)|(?:(?:\d+|[A-Za-z_]\w*version)\b\s*(?:<=|>=|<|>)\s*(?:\b(?:\w*(?:format|schema|payload|received)version|(?:\w*(?:document|header|record|asset|serialized|stored)\w*)\s*(?:\?\s*)?\.\s*version|version)\b)))",
+            @"(?:(?:\b(?:\w*(?:format|schema|payload|received|document|header|record|asset|serialized|stored)version|(?:\w*(?:document|header|record|asset|serialized|stored)\w*)\s*(?:\?\s*)?\.\s*version|version)\b\s*(?:is\s*)?(?:<=|>=|<|>)\s*(?:\d+|[A-Za-z_]\w*version)\b)|(?:(?:\d+|[A-Za-z_]\w*version)\b\s*(?:is\s*)?(?:<=|>=|<|>)\s*(?:\b(?:\w*(?:format|schema|payload|received|document|header|record|asset|serialized|stored)version|(?:\w*(?:document|header|record|asset|serialized|stored)\w*)\s*(?:\?\s*)?\.\s*version|version)\b)))",
             RegexOptions.IgnoreCase)),
-        ("persisted version compatibility helper", CreateForbiddenRegex(@"\b(?:IsVersionSupported|AcceptsVersion)\s*\(", RegexOptions.IgnoreCase))
+        ("persisted version compatibility helper", CreateForbiddenRegex(@"\b(?:IsVersionSupported|AcceptsVersion|IsSupportedVersion|SupportsVersion|CanReadVersion|IsCompatibleVersion)\s*\(", RegexOptions.IgnoreCase))
     ];
 
     static readonly string[] ProductionSourceDirectoryNames = [
@@ -99,8 +99,26 @@ public sealed class CurrentFormatOnlySourceContractTests {
                 if (1 <= asset.Version) { }
                 if (serializedAsset.Version > 3) { }
                 if (stored.Version < minimumVersion) { }
+                if (DocumentVersion
+                    >=
+                    CurrentVersion) { }
+                if (headERVERSION <= 3) { }
+                if (recordVersion is >= CurrentVersion) { }
+                if (ASSETversion is <= CurrentVersion) { }
+                if (serializedVersion > 3) { }
+                if (storedVersion < minimumVersion) { }
+                if (4 <= documentVersion) { }
+                if (CurrentVersion > headerVersion) { }
+                if (2 <= recordVersion) { }
+                if (CurrentVersion >= assetVersion) { }
+                if (serializedVersion is < CurrentVersion) { }
+                if (minimumVersion is <= storedVersion) { }
                 if (IsVersionSupported(payloadVersion)) { }
                 if (AcceptsVersion(schemaVersion)) { }
+                if (IsSupportedVersion(documentVersion)) { }
+                if (SupportsVersion(headerVersion)) { }
+                if (CanReadVersion(recordVersion)) { }
+                if (IsCompatibleVersion(assetVersion)) { }
                 if (gpuVersion > 1) { }
                 if (minimumVersion < maximumVersion) { }
                 if (summary > UnsupportedFormatVersion) { }
@@ -109,9 +127,9 @@ public sealed class CurrentFormatOnlySourceContractTests {
 
         IReadOnlyList<(string Name, int Index)> violations = FindForbiddenMatches(sourceText);
 
-        Assert.Equal(12, violations.Count);
-        Assert.Equal(10, violations.Count(violation => violation.Name == "persisted version range acceptance"));
-        Assert.Equal(2, violations.Count(violation => violation.Name == "persisted version compatibility helper"));
+        Assert.Equal(28, violations.Count);
+        Assert.Equal(22, violations.Count(violation => violation.Name == "persisted version range acceptance"));
+        Assert.Equal(6, violations.Count(violation => violation.Name == "persisted version compatibility helper"));
         Assert.DoesNotContain(violations, violation => violation.Index == sourceText.IndexOf("gpuVersion", StringComparison.Ordinal));
         Assert.DoesNotContain(violations, violation => violation.Index == sourceText.IndexOf("minimumVersion < maximumVersion", StringComparison.Ordinal));
     }

@@ -33,8 +33,17 @@ namespace helengine.files.tests.containers {
                 "project",
                 "1.0.0",
                 "1.0.0-engine",
+                "test",
+                "1.0.0",
+                string.Empty,
                 Array.Empty<PlatformBuildScene>(),
-                Array.Empty<PlatformBuildAsset>());
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             writer.Write(manifest, SourceRootPath, OutputRootPath);
 
