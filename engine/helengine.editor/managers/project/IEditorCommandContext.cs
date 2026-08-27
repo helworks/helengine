@@ -12,5 +12,10 @@ namespace helengine.editor {
         /// Gets the shared script type resolver backed by the currently loaded project assemblies.
         /// </summary>
         IScriptTypeResolver ScriptTypeResolver { get; }
+
+        /// <summary>
+        /// Gets the host-owned project asset-authoring capability available to the command.
+        /// </summary>
+        IEditorProjectAssetAuthoringService AssetAuthoring { get; }
     }
 }

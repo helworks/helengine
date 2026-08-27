@@ -88,9 +88,11 @@ public sealed class EditorCommandExecutionServiceTests {
         /// <param name="scriptTypeResolver">Resolver surfaced by the context.</param>
         public TestEditorCommandContext(
             string projectRootPath,
-            IScriptTypeResolver scriptTypeResolver) {
+            IScriptTypeResolver scriptTypeResolver,
+            IEditorProjectAssetAuthoringService assetAuthoring = null) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             ScriptTypeResolver = scriptTypeResolver ?? throw new ArgumentNullException(nameof(scriptTypeResolver));
+            AssetAuthoring = assetAuthoring ?? new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(ProjectRootPath);
         }
 
         /// <summary>
@@ -102,6 +104,11 @@ public sealed class EditorCommandExecutionServiceTests {
         /// Gets the resolver surfaced by the context.
         /// </summary>
         public IScriptTypeResolver ScriptTypeResolver { get; }
+
+        /// <summary>
+        /// Gets the asset-authoring capability surfaced by the fake context.
+        /// </summary>
+        public IEditorProjectAssetAuthoringService AssetAuthoring { get; }
     }
 
     /// <summary>

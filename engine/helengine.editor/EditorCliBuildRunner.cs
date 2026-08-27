@@ -234,7 +234,9 @@ namespace helengine.editor {
             for (int index = 0; index < commandIds.Count; index++) {
                 string commandId = commandIds[index];
                 Console.WriteLine($"[build] executing editor prebuild command '{commandId}' for profile '{buildProfileId}'");
-                EditorBuildExecutionResult commandResult = new EditorCliCommandRunner(DefaultFontAsset).Run(
+                EditorBuildExecutionResult commandResult = new EditorCliCommandRunner(
+                    DefaultFontAsset,
+                    new EditorProjectAssetAuthoringServiceFactory(Importers)).Run(
                     new EditorCliCommandOptions(bootstrap.ProjectRootPath, commandId));
                 if (!commandResult.Succeeded) {
                     return EditorBuildExecutionResult.Failure($"Editor prebuild command '{commandId}' for profile '{buildProfileId}' failed: {commandResult.Message}");

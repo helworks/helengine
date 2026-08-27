@@ -138,8 +138,7 @@ namespace helengine.editor {
                 return header.FormatId == global::helengine.files.EditorAssetBinarySerializer.FormatId &&
                      (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset ||
                      (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings &&
-                      header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument &&
-                      IsAuthoredMaterialPath(fullPath)));
+                      header.ValueKind == (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument));
             } catch {
                 return false;
             }

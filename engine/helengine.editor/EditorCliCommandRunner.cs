@@ -14,11 +14,20 @@ namespace helengine.editor {
         readonly FontAsset DefaultFontAsset;
 
         /// <summary>
+        /// Factory that creates the host-configured project asset-authoring capability for each command run.
+        /// </summary>
+        readonly IEditorProjectAssetAuthoringServiceFactory AssetAuthoringServiceFactory;
+
+        /// <summary>
         /// Initializes a headless editor command runner with the default font asset required by editor systems.
         /// </summary>
         /// <param name="defaultFontAsset">Font asset used by editor systems during command execution.</param>
-        public EditorCliCommandRunner(FontAsset defaultFontAsset) {
+        /// <param name="assetAuthoringServiceFactory">Factory backed by importer registrations supplied by the editor host.</param>
+        public EditorCliCommandRunner(
+            FontAsset defaultFontAsset,
+            IEditorProjectAssetAuthoringServiceFactory assetAuthoringServiceFactory) {
             DefaultFontAsset = defaultFontAsset ?? throw new ArgumentNullException(nameof(defaultFontAsset));
+            AssetAuthoringServiceFactory = assetAuthoringServiceFactory ?? throw new ArgumentNullException(nameof(assetAuthoringServiceFactory));
         }
 
         /// <summary>
@@ -82,9 +91,11 @@ namespace helengine.editor {
                 return buildResult;
             }
 
+            IEditorProjectAssetAuthoringService assetAuthoring = AssetAuthoringServiceFactory.Create(bootstrap.ProjectRootPath);
             EditorCommandContext commandContext = new EditorCommandContext(
                 bootstrap.ProjectRootPath,
-                assemblyHost.ScriptTypeResolver);
+                assemblyHost.ScriptTypeResolver,
+                assetAuthoring);
             EditorCommandExecutionService commandExecutionService = new EditorCommandExecutionService(hotReloadService, commandContext);
 
             try {

@@ -8,18 +8,24 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Absolute project root path for the active editor session.</param>
         /// <param name="scriptTypeResolver">Resolver backed by the currently loaded project assemblies.</param>
+        /// <param name="assetAuthoring">Host-owned asset-authoring capability for the active project.</param>
         public EditorCommandContext(
             string projectRootPath,
-            IScriptTypeResolver scriptTypeResolver) {
+            IScriptTypeResolver scriptTypeResolver,
+            IEditorProjectAssetAuthoringService assetAuthoring) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
             if (scriptTypeResolver == null) {
                 throw new ArgumentNullException(nameof(scriptTypeResolver));
             }
+            if (assetAuthoring == null) {
+                throw new ArgumentNullException(nameof(assetAuthoring));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             ScriptTypeResolver = scriptTypeResolver;
+            AssetAuthoring = assetAuthoring;
         }
 
         /// <summary>
@@ -31,5 +37,10 @@ namespace helengine.editor {
         /// Gets the resolver backed by the currently loaded project assemblies.
         /// </summary>
         public IScriptTypeResolver ScriptTypeResolver { get; }
+
+        /// <summary>
+        /// Gets the host-owned asset-authoring capability for the active project.
+        /// </summary>
+        public IEditorProjectAssetAuthoringService AssetAuthoring { get; }
     }
 }

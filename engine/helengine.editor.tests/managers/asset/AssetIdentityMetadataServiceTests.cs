@@ -134,6 +134,28 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures importer-generated material settings use their embedded identity without creating a nested sidecar.
+    /// </summary>
+    [Fact]
+    public void Load_ForImportedMaterialSettings_UsesEmbeddedIdentityWithoutSidecar() {
+        string materialPath = Path.Combine(TempRootPath, "assets", "models", "Model", "Material.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(materialPath)!);
+        MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument {
+            AuthoringAssetId = "00112233445566778899aabbccddeeff"
+        };
+        document.Importer.ImporterId = "helengine.material";
+        document.Importer.AssetId = "models/Material.hasset";
+        using (FileStream stream = File.Create(materialPath)) {
+            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
+        }
+
+        AssetIdentityMetadataDocument loaded = new AssetIdentityMetadataService().Load(materialPath);
+
+        Assert.Equal(document.AuthoringAssetId, loaded.AssetId);
+        Assert.False(File.Exists(materialPath + ".hmeta"));
+    }
+
+    /// <summary>
     /// Ensures a native file without the current embedded identity is rejected.
     /// </summary>
     [Fact]
