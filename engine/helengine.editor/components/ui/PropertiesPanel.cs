@@ -697,6 +697,7 @@ namespace helengine.editor {
         /// <param name="processorSettings">Processor settings to display.</param>
         /// <param name="importerIds">Registered importer identifiers.</param>
         /// <param name="platformDefinitionsById">Platform definitions available for the supported project platforms.</param>
+        /// <param name="presentationEntryKind">Optional typed kind used to present processor controls while the original entry remains available for labels and paths.</param>
         public void ShowImportSettings(
             AssetBrowserEntry entry,
             string importerId,
@@ -707,7 +708,8 @@ namespace helengine.editor {
             IReadOnlyDictionary<string, PlatformDefinition> platformDefinitionsById = null,
             IReadOnlyList<string> environmentIds = null,
             int sourceImageWidth = 0,
-            int sourceImageHeight = 0) {
+            int sourceImageHeight = 0,
+            AssetEntryKind? presentationEntryKind = null) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
             }
@@ -730,7 +732,7 @@ namespace helengine.editor {
             DeactivateSelectedEntityTransformProjection();
             currentEntry = entry;
             HideRemoveComponentDialog();
-            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, entry.EntryKind, platformDefinitionsById, environmentIds, sourceImageWidth, sourceImageHeight);
+            importSettingsView.Show(importerIds, importerId, processorSettings, supportedPlatforms, activePlatformId, presentationEntryKind ?? entry.EntryKind, platformDefinitionsById, environmentIds, sourceImageWidth, sourceImageHeight);
             MaterialView.Hide();
             AnimationClipView.Hide();
             ComponentPlatformTabStrip.Root.Enabled = false;

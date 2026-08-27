@@ -176,6 +176,9 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleAssetSelected", entry);
             Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+            AssetImportSettingsView view = GetPrivateField<AssetImportSettingsView>(panel, "importSettingsView");
+            Assert.True(view.IsTextureProcessorVisible);
+            Assert.StartsWith("VRAM:", GetPrivateField<TextComponent>(view, "VramPreviewText").Text, StringComparison.Ordinal);
 
             AssetProcessorSettings requestProcessorSettings = new AssetProcessorSettings();
             requestProcessorSettings.Platforms["windows"] = new AssetPlatformProcessorSettings {
@@ -192,8 +195,13 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleImportSettingsApplyRequested", entry, request);
             Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+            Assert.True(view.IsTextureProcessorVisible);
+            Assert.Equal(128, view.CurrentTextureMaxResolutionValue);
             InvokePrivate(session, "HandlePropertiesPanelAssetState", panel, entry);
             Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+            Assert.True(view.IsTextureProcessorVisible);
+            Assert.Equal(128, view.CurrentTextureMaxResolutionValue);
+            Assert.StartsWith("VRAM:", GetPrivateField<TextComponent>(view, "VramPreviewText").Text, StringComparison.Ordinal);
 
             using (FileStream stream = new FileStream(sourcePath + ".hasset", FileMode.Open, FileAccess.Read, FileShare.Read)) {
                 TextureAssetImportSettings restoredSettings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
@@ -201,6 +209,64 @@ namespace helengine.editor.tests {
                 Assert.Equal(128, restoredSettings.Processor.Platforms["windows"].MaxResolution);
             }
             Assert.NotEqual(originalSidecar, File.ReadAllBytes(sourcePath + ".hasset"));
+        }
+
+        /// <summary>
+        /// Ensures a dynamically registered model extension presents model controls while selection, apply, and refresh continue using the typed model sidecar.
+        /// </summary>
+        [Fact]
+        public void CustomModelImporterExtension_PresentsTypedSettingsAcrossSelectionApplyAndRefresh() {
+            const string customExtension = ".dynamicmodel";
+            string sourcePath = WriteSourceModel("custom.dynamicmodel");
+            EditorSession session = CreateSession();
+            AssetImportManager manager = GetPrivateField<AssetImportManager>(session, "assetImportManager");
+            PropertiesPanel panel = GetPrivateField<PropertiesPanel>(session, "propertiesPanel");
+            manager.RegisterModelImporter(new ModelImporterRegistration(
+                "test-dynamic-model",
+                new TestModelImporter(),
+                new[] { customExtension }));
+
+            ModelAssetImportSettings settings = manager.LoadOrCreateModelImportSettings(sourcePath);
+            manager.SaveModelImportSettings(sourcePath, settings);
+            AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
+                "custom.dynamicmodel",
+                "Models/custom.dynamicmodel",
+                sourcePath,
+                customExtension,
+                AssetEntryKind.File);
+            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier().Classify(sourcePath));
+            Assert.True(manager.IsModelExtension(customExtension));
+
+            InvokePrivate(session, "HandleAssetSelected", entry);
+            Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+            AssetImportSettingsView view = GetPrivateField<AssetImportSettingsView>(panel, "importSettingsView");
+            Assert.True(view.IsModelProcessorVisible);
+
+            AssetProcessorSettings requestProcessorSettings = new AssetProcessorSettings();
+            requestProcessorSettings.Platforms["windows"] = new AssetPlatformProcessorSettings {
+                Model = new ModelAssetProcessorSettings {
+                    FlipWinding = true
+                }
+            };
+            AssetImportSettingsApplyRequest request = new AssetImportSettingsApplyRequest(
+                "test-dynamic-model",
+                "windows",
+                requestProcessorSettings);
+
+            InvokePrivate(session, "HandleImportSettingsApplyRequested", entry, request);
+            Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+            Assert.True(view.IsModelProcessorVisible);
+            Assert.True(view.CurrentFlipWindingValue);
+
+            InvokePrivate(session, "HandlePropertiesPanelAssetState", panel, entry);
+            Assert.DoesNotContain("Sectioned import settings sidecar", GetImportErrorText(panel), StringComparison.Ordinal);
+            Assert.True(view.IsModelProcessorVisible);
+            Assert.True(view.CurrentFlipWindingValue);
+            using (FileStream stream = new FileStream(sourcePath + ".hasset", FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                ModelAssetImportSettings restoredSettings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
+                Assert.Equal("test-dynamic-model", restoredSettings.Importer.ImporterId);
+                Assert.True(restoredSettings.Processor.Platforms["windows"].FlipWinding);
+            }
         }
 
         /// <summary>

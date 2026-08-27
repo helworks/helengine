@@ -75,7 +75,7 @@ namespace helengine.editor.tests {
         /// Ensures missing settings generation writes typed sidecars that the current texture and model import paths can consume.
         /// </summary>
         [Fact]
-        public void GenerateMissingImportSettings_WhenTextureAndModelSourcesExist_WritesTypedSidecars() {
+        public void GenerateMissingImportSettings_WhenTextureModelAndAudioSourcesExist_WritesTypedSidecars() {
             string textureSourcePath = WriteSourceTexture("generated-texture.png");
             string modelSourcePath = Path.Combine(AssetsRootPath, "generated-model.obj");
             string audioSourcePath = WriteSourceAudio("generated-audio.wav");
