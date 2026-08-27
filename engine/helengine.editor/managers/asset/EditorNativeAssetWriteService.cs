@@ -46,6 +46,11 @@ namespace helengine.editor {
         long LastObservedGeneration;
 
         /// <summary>
+        /// Tracks the current thread's ownership of this synchronizer boundary so nested resolver calls reuse the same lock.
+        /// </summary>
+        readonly ThreadLocal<bool> ReadBoundaryHeld = new ThreadLocal<bool>();
+
+        /// <summary>
         /// Initializes one native writer over the session-owned identity graph.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
@@ -110,9 +115,18 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(read));
             }
 
+            if (ReadBoundaryHeld.Value) {
+                return read();
+            }
+
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
-            ReconcileIfGenerationChanged();
-            return read();
+            ReadBoundaryHeld.Value = true;
+            try {
+                ReconcileIfGenerationChanged();
+                return read();
+            } finally {
+                ReadBoundaryHeld.Value = false;
+            }
         }
 
         /// <summary>

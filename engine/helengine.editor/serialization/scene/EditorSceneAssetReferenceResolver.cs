@@ -88,6 +88,11 @@ namespace helengine.editor {
         List<AudioAsset> ActiveOwnedAudio;
 
         /// <summary>
+        /// Test seam invoked after a file-backed reference is resolved and immediately before its payload is opened.
+        /// </summary>
+        internal Action BeforePayloadLoadForTests { get; set; }
+
+        /// <summary>
         /// Initializes a new runtime asset resolver for scene loading.
         /// </summary>
         /// <param name="assetContentManager">Content manager used to load file-backed assets.</param>
@@ -232,7 +237,7 @@ namespace helengine.editor {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 return ResolveGeneratedModel(reference);
             } else if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                return ResolveFileSystemModel(reference);
+                return IdentityReferenceResolver.ExecuteSynchronizedRead(() => ResolveFileSystemModel(reference));
             } else {
                 throw new InvalidOperationException($"Unsupported model reference source kind '{reference.SourceKind}'.");
             }
@@ -251,7 +256,7 @@ namespace helengine.editor {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 return ResolveGeneratedMaterial(reference);
             } else if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                return ResolveFileSystemMaterial(reference);
+                return IdentityReferenceResolver.ExecuteSynchronizedRead(() => ResolveFileSystemMaterial(reference));
             } else {
                 throw new InvalidOperationException($"Unsupported material reference source kind '{reference.SourceKind}'.");
             }
@@ -270,7 +275,7 @@ namespace helengine.editor {
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 return ResolveGeneratedFont(reference);
             } else if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
-                return ResolveFileSystemFont(reference);
+                return IdentityReferenceResolver.ExecuteSynchronizedRead(() => ResolveFileSystemFont(reference));
             } else {
                 throw new InvalidOperationException($"Unsupported font reference source kind '{reference.SourceKind}'.");
             }
@@ -290,10 +295,12 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported texture reference source kind '{reference.SourceKind}'.");
             }
 
-            TextureAsset textureAsset = ResolveFileSystemTexture(reference);
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
-            TrackOwnedTexture(runtimeTexture);
-            return runtimeTexture;
+            return IdentityReferenceResolver.ExecuteSynchronizedRead(() => {
+                TextureAsset textureAsset = ResolveFileSystemTexture(reference);
+                RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+                TrackOwnedTexture(runtimeTexture);
+                return runtimeTexture;
+            });
         }
 
         /// <summary>Starts recording authored reference repairs for one scene load.</summary>
@@ -407,8 +414,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported animation clip reference source kind '{reference.SourceKind}'.");
             }
 
-            string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.File);
-            return AssetContentManager.Load<AnimationClipAsset>(fullPath, EditorContentProcessorIds.AnimationClipAsset);
+            return IdentityReferenceResolver.ExecuteSynchronizedRead(() => {
+                string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.File);
+                BeforePayloadLoadForTests?.Invoke();
+                return AssetContentManager.Load<AnimationClipAsset>(fullPath, EditorContentProcessorIds.AnimationClipAsset);
+            });
         }
 
         /// <summary>Resolves one persisted audio reference into an editor audio asset.</summary>
@@ -421,12 +431,15 @@ namespace helengine.editor {
             if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
                 throw new InvalidOperationException($"Unsupported audio reference source kind '{reference.SourceKind}'.");
             }
-            string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Audio);
-            AudioAsset audioAsset = AssetContentManager.Load<AudioAsset>(fullPath, EditorContentProcessorIds.AudioAsset);
-            if (ActiveOwnedAudio != null && !ActiveOwnedAudio.Contains(audioAsset)) {
-                ActiveOwnedAudio.Add(audioAsset);
-            }
-            return audioAsset;
+            return IdentityReferenceResolver.ExecuteSynchronizedRead(() => {
+                string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Audio);
+                BeforePayloadLoadForTests?.Invoke();
+                AudioAsset audioAsset = AssetContentManager.Load<AudioAsset>(fullPath, EditorContentProcessorIds.AudioAsset);
+                if (ActiveOwnedAudio != null && !ActiveOwnedAudio.Contains(audioAsset)) {
+                    ActiveOwnedAudio.Add(audioAsset);
+                }
+                return audioAsset;
+            });
         }
 
         /// <summary>
@@ -446,6 +459,7 @@ namespace helengine.editor {
         /// <returns>Runtime model built from the processed model asset.</returns>
         RuntimeModel ResolveFileSystemModel(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Model);
+            BeforePayloadLoadForTests?.Invoke();
             if (FileSystemModelResolver == null) {
                 ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, EditorContentProcessorIds.ModelAsset);
                 RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
@@ -475,6 +489,7 @@ namespace helengine.editor {
         /// <returns>Runtime material built from the serialized material asset.</returns>
         RuntimeMaterial ResolveFileSystemMaterial(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Material);
+            BeforePayloadLoadForTests?.Invoke();
             string platformId = ResolveMaterialPreviewPlatformId(fullPath);
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new InvalidOperationException("At least one supported project platform must exist before file-backed materials can be resolved.");
@@ -644,6 +659,7 @@ namespace helengine.editor {
             }
 
             string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Image);
+            BeforePayloadLoadForTests?.Invoke();
             if (FileSystemTextureResolver != null) {
                 return FileSystemTextureResolver.ResolveTextureAsset(fullPath);
             }
@@ -771,10 +787,12 @@ namespace helengine.editor {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
             }
 
-            string fullPath = Path.GetFullPath(Path.Combine(ImportRootPath, assetId));
+            string fullPath = Path.GetFullPath(Path.Combine(ImportRootPath, assetId.Replace('/', Path.DirectorySeparatorChar)));
             if (!IsPathInsideImportRoot(fullPath)) {
                 throw new InvalidOperationException("Imported texture asset references must stay inside the project cache folder.");
             }
+
+            ValidateNoReparseTraversalFromRoot(fullPath, ImportRootPath);
 
             return fullPath;
         }
@@ -805,6 +823,7 @@ namespace helengine.editor {
         /// <returns>Runtime font asset built from the packaged font asset.</returns>
         FontAsset ResolveFileSystemFont(SceneAssetReference reference) {
             string fullPath = ResolveFileSystemAssetPath(reference, AssetEntryKind.Font);
+            BeforePayloadLoadForTests?.Invoke();
             if (FileSystemFontResolver != null) {
                 FontAsset resolvedFont = FileSystemFontResolver.ResolveFontAsset(fullPath);
                 TrackOwnedFont(resolvedFont);
@@ -859,6 +878,10 @@ namespace helengine.editor {
             return resolution.FullPath;
         }
 
+        static StringComparison PathComparison => OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
         /// <summary>
         /// Determines whether one absolute path points inside the project assets folder.
         /// </summary>
@@ -869,7 +892,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            StringComparison comparison = PathComparison;
             if (string.Equals(fullPath, AssetsRootPath, comparison)) {
                 return true;
             }
@@ -894,7 +917,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (string.Equals(fullPath, ImportRootPath, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(fullPath, ImportRootPath, PathComparison)) {
                 return true;
             }
 
@@ -905,7 +928,38 @@ namespace helengine.editor {
                 rootWithSeparator = ImportRootPath + Path.DirectorySeparatorChar;
             }
 
-            return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+            return fullPath.StartsWith(rootWithSeparator, PathComparison);
+        }
+
+        /// <summary>
+        /// Rejects links or junctions between an imported-cache root and a candidate path.
+        /// </summary>
+        void ValidateNoReparseTraversalFromRoot(string fullPath, string rootPath) {
+            string canonicalRootPath = Path.GetFullPath(rootPath);
+            string currentPath = Path.GetFullPath(fullPath);
+            while (true) {
+                try {
+                    FileAttributes attributes = File.GetAttributes(currentPath);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
+                        throw new InvalidOperationException($"Imported texture asset path '{fullPath}' traverses a reparse point.");
+                    }
+                } catch (FileNotFoundException) {
+                } catch (DirectoryNotFoundException) {
+                }
+
+                if (string.Equals(currentPath, canonicalRootPath, PathComparison)) {
+                    return;
+                }
+
+                string parentPath = Path.GetDirectoryName(currentPath);
+                string rootPrefix = canonicalRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                if (string.IsNullOrWhiteSpace(parentPath) ||
+                    (!string.Equals(parentPath, canonicalRootPath, PathComparison) && !parentPath.StartsWith(rootPrefix, PathComparison))) {
+                    throw new InvalidOperationException("Imported texture asset references must stay inside the project cache folder.");
+                }
+
+                currentPath = parentPath;
+            }
         }
 
         /// <summary>

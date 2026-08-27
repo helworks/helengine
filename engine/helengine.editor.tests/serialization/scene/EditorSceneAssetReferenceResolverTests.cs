@@ -1,5 +1,6 @@
 using helengine.directx11;
 using helengine.editor.tests.testing;
+using System.Reflection;
 using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
@@ -188,6 +189,90 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(2f, Assert.IsType<AnimationClipAsset>(firstSession.LoadNativeAsset<AnimationClipAsset>("animations/Shared.hanim")).Duration);
             KeyValuePair<SceneAssetReference, SceneAssetReference> replacement = Assert.Single(replacements);
             Assert.NotEqual(reference.ContentHash, replacement.Value.ContentHash);
+        }
+
+        /// <summary>
+        /// Ensures the project publication boundary remains held while a scene payload is opened.
+        /// </summary>
+        [Fact]
+        public void ResolveAnimationClip_WhenWriterStartsDuringPayloadOpen_LoadsThePublishedBytes() {
+            ContentManager firstContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
+            ContentManager secondContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(firstContentManager);
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(secondContentManager);
+            using EditorProjectAuthoringSession firstSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), firstContentManager);
+            using EditorProjectAuthoringSession secondSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), secondContentManager);
+            EditorAssetWriteResult firstWrite = firstSession.WriteAsset("animations/Atomic.hanim", CreateAnimationClip(1f));
+            SceneAssetReference reference = firstSession.CreateReference("animations/Atomic.hanim", AssetEntryKind.File);
+            EditorSceneAssetReferenceResolver sceneResolver = Assert.IsType<EditorSceneAssetReferenceResolver>(firstSession.CreateSceneAssetReferenceResolver());
+            Task<EditorAssetWriteResult> competingWrite = null;
+            sceneResolver.BeforePayloadLoadForTests = () => {
+                competingWrite = Task.Run(() => secondSession.WriteAsset("animations/Atomic.hanim", CreateAnimationClip(2f)));
+                Assert.False(competingWrite.Wait(TimeSpan.FromMilliseconds(250)));
+            };
+
+            AnimationClipAsset loaded = sceneResolver.ResolveAnimationClip(reference);
+
+            sceneResolver.BeforePayloadLoadForTests = null;
+            Assert.Equal(1f, loaded.Duration);
+            Assert.Equal(firstWrite.ContentHash, reference.ContentHash);
+            Assert.True(competingWrite.Wait(TimeSpan.FromSeconds(10)));
+            Assert.Equal(2f, Assert.IsType<AnimationClipAsset>(firstSession.LoadNativeAsset<AnimationClipAsset>("animations/Atomic.hanim")).Duration);
+            Assert.Equal(firstWrite.AssetId, loaded.AuthoringAssetId);
+        }
+
+        /// <summary>
+        /// Ensures imported cache path containment remains case-sensitive on case-sensitive systems.
+        /// </summary>
+        [Fact]
+        public void ResolveImportedTextureAssetPath_WhenCaseSiblingIsUsed_RejectsOnCaseSensitiveSystems() {
+            if (OperatingSystem.IsWindows()) {
+                return;
+            }
+
+            string cacheSibling = Path.Combine(TempProjectRootPath, "CACHE");
+            Directory.CreateDirectory(cacheSibling);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
+                new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
+                TempProjectRootPath);
+
+            TargetInvocationException invocationException = Assert.Throws<TargetInvocationException>(() => InvokeImportedTexturePath(resolver, "../CACHE/escaped.texture"));
+
+            Assert.IsType<InvalidOperationException>(invocationException.InnerException);
+        }
+
+        /// <summary>
+        /// Ensures imported cache path containment rejects a linked directory that escapes the cache root.
+        /// </summary>
+        [Fact]
+        public void ResolveImportedTextureAssetPath_WhenDirectoryLinkEscapesCache_RejectsWithoutOutsideAccess() {
+            string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-import-cache-outside-" + Guid.NewGuid().ToString("N"));
+            string linkPath = Path.Combine(TempProjectRootPath, "cache", "linked");
+            Directory.CreateDirectory(outsideRoot);
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "cache"));
+            try {
+                try {
+                    Directory.CreateSymbolicLink(linkPath, outsideRoot);
+                } catch (Exception linkException) when (linkException is IOException || linkException is UnauthorizedAccessException || linkException is PlatformNotSupportedException) {
+                    return;
+                }
+
+                EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
+                    new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
+                    TempProjectRootPath);
+
+                TargetInvocationException invocationException = Assert.Throws<TargetInvocationException>(() => InvokeImportedTexturePath(resolver, "linked/escaped.texture"));
+
+                Assert.IsType<InvalidOperationException>(invocationException.InnerException);
+                Assert.False(File.Exists(Path.Combine(outsideRoot, "escaped.texture")));
+            } finally {
+                if (Directory.Exists(TempProjectRootPath)) {
+                    Directory.Delete(TempProjectRootPath, true);
+                }
+                if (Directory.Exists(outsideRoot)) {
+                    Directory.Delete(outsideRoot, true);
+                }
+            }
         }
 
         /// <summary>
@@ -463,6 +548,16 @@ namespace helengine.editor.tests.serialization.scene {
                 RotationTracks = Array.Empty<RotationKeyframeTrackAsset>(),
                 PlatformOverrides = Array.Empty<AnimationClipPlatformOverrideAsset>()
             };
+        }
+
+        /// <summary>
+        /// Invokes the private imported-cache path validator for containment-focused tests.
+        /// </summary>
+        static string InvokeImportedTexturePath(EditorSceneAssetReferenceResolver resolver, string assetId) {
+            MethodInfo method = typeof(EditorSceneAssetReferenceResolver).GetMethod(
+                "ResolveImportedTextureAssetPath",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            return Assert.IsType<string>(method.Invoke(resolver, new object[] { assetId }));
         }
 
         /// <summary>
