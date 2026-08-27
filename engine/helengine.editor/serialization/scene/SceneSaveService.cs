@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Serializes the current editor scene into one `.helen` asset stored under the project assets folder.
     /// </summary>
-    public class SceneSaveService {
+    public class SceneSaveService : IDisposable {
         /// <summary>
         /// Absolute path to the project root.
         /// </summary>
@@ -49,7 +49,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
         /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
-        public SceneSaveService(string projectRootPath, ComponentPersistenceRegistry persistenceRegistry) {
+        public SceneSaveService(string projectRootPath, ComponentPersistenceRegistry persistenceRegistry)
+            : this(projectRootPath, persistenceRegistry, null) {
+        }
+
+        /// <summary>
+        /// Initializes a scene save service over a host-owned reference resolver.
+        /// </summary>
+        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
+        /// <param name="referenceResolver">Resolver shared by the owning authoring session.</param>
+        internal SceneSaveService(
+            string projectRootPath,
+            ComponentPersistenceRegistry persistenceRegistry,
+            EditorAssetReferenceResolver referenceResolver) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -62,10 +75,22 @@ namespace helengine.editor {
             PersistenceRegistry = persistenceRegistry;
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
-            AssetReferenceInferenceService = new SceneAssetReferenceInferenceService(ProjectRootPath);
-            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(ProjectRootPath);
+            AssetReferenceInferenceService = referenceResolver == null
+                ? new SceneAssetReferenceInferenceService(ProjectRootPath)
+                : new SceneAssetReferenceInferenceService(ProjectRootPath, referenceResolver);
+            AssetReferenceCanonicalizationService = referenceResolver == null
+                ? new EditorAssetReferenceCanonicalizationService(ProjectRootPath)
+                : new EditorAssetReferenceCanonicalizationService(referenceResolver);
             TransformEditingService = new EntityPlatformTransformEditingService();
             ComponentEditingService = new ComponentPlatformEditingService();
+        }
+
+        /// <summary>
+        /// Releases resolver state accumulated while serializing this save service's project.
+        /// </summary>
+        public void Dispose() {
+            AssetReferenceInferenceService.Dispose();
+            AssetReferenceCanonicalizationService.Dispose();
         }
 
         /// <summary>

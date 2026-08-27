@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Provides asset browsing data and extension classification for the editor UI.
     /// </summary>
-    public class EditorAssetManager {
+    public class EditorAssetManager : IDisposable {
         /// <summary>
         /// Name of the assets folder at the project root.
         /// </summary>
@@ -191,6 +191,13 @@ namespace helengine.editor {
             }
 
             entries.Sort(CompareEntries);
+        }
+
+        /// <summary>
+        /// Flushes the project-scoped identity hash cache at the manager lifetime boundary.
+        /// </summary>
+        public void Dispose() {
+            identityHashCache.Dispose();
         }
 
         /// <summary>

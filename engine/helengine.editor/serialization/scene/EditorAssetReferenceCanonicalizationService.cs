@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Canonicalizes file-backed references supplied by editor authoring tools before persistence.
     /// </summary>
-    public sealed class EditorAssetReferenceCanonicalizationService {
+    public sealed class EditorAssetReferenceCanonicalizationService : IDisposable {
         /// <summary>
         /// Project root used to resolve authored source files.
         /// </summary>
@@ -12,6 +12,10 @@ namespace helengine.editor {
         /// Shared command-scoped resolver used for every reference in this service.
         /// </summary>
         readonly EditorAssetReferenceResolver ReferenceResolver;
+        /// <summary>
+        /// Indicates whether this service created its resolver and owns its lifetime.
+        /// </summary>
+        readonly bool OwnsReferenceResolver;
 
         /// <summary>
         /// Initializes a project-scoped canonicalization service.
@@ -24,6 +28,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             ReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
+            OwnsReferenceResolver = true;
         }
 
         /// <summary>
@@ -33,6 +38,16 @@ namespace helengine.editor {
         public EditorAssetReferenceCanonicalizationService(EditorAssetReferenceResolver referenceResolver) {
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             ProjectRootPath = referenceResolver.ProjectRootPathValue;
+            OwnsReferenceResolver = false;
+        }
+
+        /// <summary>
+        /// Releases the resolver created by this service, if any.
+        /// </summary>
+        public void Dispose() {
+            if (OwnsReferenceResolver) {
+                ReferenceResolver.Dispose();
+            }
         }
 
         /// <summary>

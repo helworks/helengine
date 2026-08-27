@@ -338,6 +338,7 @@ namespace helengine.editor {
         public void WriteNativeAsset(string relativePath, Asset asset) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeAsset(relativePath, asset);
+            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -349,6 +350,7 @@ namespace helengine.editor {
         public void WriteNativeAsset(string relativePath, Asset asset, string authoringAssetId) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeAsset(relativePath, asset, authoringAssetId);
+            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -362,6 +364,7 @@ namespace helengine.editor {
         public void WriteNativeScene(string relativePath, SceneSettingsAsset sceneSettings, Entity[] roots, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeScene(relativePath, sceneSettings, roots, persistenceRegistry, authoringAssetId);
+            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -383,6 +386,7 @@ namespace helengine.editor {
         public void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeBlueprint(relativePath, persistenceRegistry);
+            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -394,6 +398,7 @@ namespace helengine.editor {
         public void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeBlueprint(relativePath, persistenceRegistry, authoringAssetId);
+            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -414,6 +419,7 @@ namespace helengine.editor {
         public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeMaterial(relativePath, definition);
+            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -425,6 +431,7 @@ namespace helengine.editor {
         public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition, string authoringAssetId) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeMaterial(relativePath, definition, authoringAssetId);
+            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>
@@ -560,6 +567,14 @@ namespace helengine.editor {
         /// <returns>Normalized assets-relative path.</returns>
         static string NormalizeRelativePath(string relativePath) {
             return relativePath.Replace('\\', '/').Trim('/');
+        }
+
+        /// <summary>
+        /// Adds one successfully authored destination to the initialized identity index.
+        /// </summary>
+        /// <param name="relativePath">Assets-relative destination path.</param>
+        void RegisterAuthoredWrite(string relativePath) {
+            IdentityIndex.RegisterOrUpdate(ResolveAssetsPath(relativePath));
         }
 
         /// <summary>

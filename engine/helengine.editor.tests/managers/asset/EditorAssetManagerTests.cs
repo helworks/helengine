@@ -45,6 +45,26 @@ public sealed class EditorAssetManagerTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the asset manager flushes its owned hash cache at its lifetime boundary.
+    /// </summary>
+    [Fact]
+    public void Dispose_FlushesOwnedIdentityHashCache() {
+        string assetPath = Path.Combine(TempRootPath, "assets", "Visible.png");
+        File.WriteAllBytes(assetPath, new byte[] { 1, 2, 3 });
+        EditorAssetManager manager = new EditorAssetManager(TempRootPath);
+        List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
+
+        manager.LoadEntries(entries);
+        string cachePath = Path.Combine(TempRootPath, "cache", "editor", "asset-identity-index.json");
+        Assert.False(File.Exists(cachePath));
+
+        manager.Dispose();
+        manager.Dispose();
+
+        Assert.True(File.Exists(cachePath));
+    }
+
+    /// <summary>
     /// Ensures one malformed sidecar is preserved and reported without hiding later valid assets.
     /// </summary>
     [Fact]

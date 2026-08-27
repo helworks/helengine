@@ -88,7 +88,7 @@ namespace helengine.editor {
             Directory.CreateDirectory(effectiveExecutionRootPath);
             IPlatformAssetBuilder effectiveMaterialBuilder = ResolveEffectiveMaterialBuilder(materialBuilder);
 
-            EditorPlatformBuildScenePackager packager = new(
+            using EditorPlatformBuildScenePackager packager = new(
                 ProjectRootPath,
                 Importers,
                 platformDefinition,

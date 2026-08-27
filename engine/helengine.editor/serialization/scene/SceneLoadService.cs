@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Reconstructs editor entities from serialized scene asset payloads.
     /// </summary>
-    public class SceneLoadService {
+    public class SceneLoadService : IDisposable {
         /// <summary>
         /// Registry used to deserialize supported component types.
         /// </summary>
@@ -66,6 +66,13 @@ namespace helengine.editor {
             }
 
             BlueprintExpansionService = new BlueprintEditorExpansionService(projectRootPath, persistenceRegistry, referenceResolver);
+        }
+
+        /// <summary>
+        /// Releases blueprint-expansion resolver state owned by this loader.
+        /// </summary>
+        public void Dispose() {
+            BlueprintExpansionService?.Dispose();
         }
 
         /// <summary>

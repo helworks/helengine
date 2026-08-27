@@ -74,8 +74,9 @@ namespace helengine.current_test_project_scene_generator {
             SceneAssetReference cube = EngineSceneAssetReferenceFactory.CreateCubeModel();
             SceneAssetReference plane = EngineSceneAssetReferenceFactory.CreatePlaneModel();
             SceneAssetReference standard = EngineSceneAssetReferenceFactory.CreateStandardMaterial();
-            SceneAssetReference transparent = FileReference(root, "Materials/rendering/TransparentStandard.helmat");
-            SceneAssetReference doubleSided = FileReference(root, "Materials/rendering/DoubleSidedStandard.helmat");
+            using EditorAssetHashCache hashCache = new EditorAssetHashCache(root);
+            SceneAssetReference transparent = FileReference(root, hashCache, "Materials/rendering/TransparentStandard.helmat");
+            SceneAssetReference doubleSided = FileReference(root, hashCache, "Materials/rendering/DoubleSidedStandard.helmat");
 
             Write(root, "opaque-basics.helen", BuildScene("opaque-basics", Camera(new float3(0f, 2f, -12f)),
                 Meshes("opaque", cube, standard, 4), new[] { cube, standard }));
@@ -448,10 +449,10 @@ namespace helengine.current_test_project_scene_generator {
             return Convert.ToHexString(digest, 0, 16).ToLowerInvariant();
         }
 
-        static SceneAssetReference FileReference(string projectRootPath, string relativePath) {
+        static SceneAssetReference FileReference(string projectRootPath, EditorAssetHashCache hashCache, string relativePath) {
             string fullPath = Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
             AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataService().Load(fullPath);
-            string contentHash = new EditorAssetHashCache(projectRootPath).GetContentHash(fullPath);
+            string contentHash = hashCache.GetContentHash(fullPath);
             return SceneAssetReferenceFactory.CreateFileSystemReference(metadata.AssetId, relativePath, contentHash);
         }
     }

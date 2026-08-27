@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Reads one `.helen` file from disk and materializes editor entities from it.
     /// </summary>
-    public class SceneFileLoadService {
+    public class SceneFileLoadService : IDisposable {
         /// <summary>
         /// Absolute path to the project root.
         /// </summary>
@@ -39,6 +39,13 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             ReferenceResolver = referenceResolver;
             SceneLoadService = new SceneLoadService(ProjectRootPath, persistenceRegistry, referenceResolver);
+        }
+
+        /// <summary>
+        /// Releases resolver state owned by the scene loader.
+        /// </summary>
+        public void Dispose() {
+            SceneLoadService.Dispose();
         }
 
         /// <summary>

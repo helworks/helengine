@@ -158,6 +158,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Releases project-scoped data owned by the asset browser.
+        /// </summary>
+        public void DisposeAuthoringResources() {
+            BrowserView.DisposeAuthoringResources();
+        }
+
+        /// <summary>
         /// Handles layout updates when the dockable size changes.
         /// </summary>
         protected override void OnSizeChanged() {

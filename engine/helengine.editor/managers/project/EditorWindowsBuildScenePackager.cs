@@ -9,7 +9,7 @@ namespace helengine.editor {
     /// <summary>
     /// Packages selected editor scenes and their required runtime assets into one Windows player content root.
     /// </summary>
-    public sealed class EditorPlatformBuildScenePackager {
+    public sealed class EditorPlatformBuildScenePackager : IDisposable {
         /// <summary>
         /// Current payload version for serialized camera component scene records.
         /// </summary>
@@ -651,6 +651,13 @@ namespace helengine.editor {
             }
 
             return new EditorPlatformBuildScenePackagerResult(ReferencedShaderDependencies, PlatformCookWorkItems, CookedArtifactDeclarations);
+        }
+
+        /// <summary>
+        /// Releases authored reference state owned by the package operation.
+        /// </summary>
+        public void Dispose() {
+            BlueprintExpansionService.Dispose();
         }
 
         /// <summary>

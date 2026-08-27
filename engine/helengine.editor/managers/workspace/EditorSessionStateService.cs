@@ -81,7 +81,8 @@ namespace helengine.editor {
                 if (!fullPath.StartsWith(assetsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(fullPath)) {
                     throw new InvalidOperationException("The last scene must be a current authored scene inside the project assets directory.");
                 }
-                SceneAssetReference reference = new EditorAssetReferenceResolver(ProjectRootPath).CreateFileReference(fullPath, AssetEntryKind.Scene);
+                using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+                SceneAssetReference reference = resolver.CreateFileReference(fullPath, AssetEntryKind.Scene);
                 Directory.CreateDirectory(Path.Combine(ProjectRootPath, "user_settings"));
                 File.WriteAllText(StateFilePath, JsonSerializer.Serialize(new EditorSessionStateDocument {
                     LastSceneReference = reference
@@ -97,7 +98,7 @@ namespace helengine.editor {
             if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
                 throw new InvalidOperationException("The last scene reference must be filesystem-backed.");
             }
-            EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
             AssetReferenceResolution resolution = resolver.Resolve(reference, AssetEntryKind.Scene);
             return resolution.FullPath;
         }

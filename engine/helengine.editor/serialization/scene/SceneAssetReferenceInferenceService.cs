@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Infers stable scene asset references from live runtime component assignments during scene save.
     /// </summary>
-    public class SceneAssetReferenceInferenceService {
+    public class SceneAssetReferenceInferenceService : IDisposable {
         /// <summary>
         /// Stable save-state slot name used for mesh model references.
         /// </summary>
@@ -29,6 +29,8 @@ namespace helengine.editor {
         readonly MaterialAssetSettingsService MaterialAssetSettingsService;
         /// <summary>Project-scoped resolver used to create canonical authored references.</summary>
         readonly EditorAssetReferenceResolver AssetReferenceResolver;
+        /// <summary>Indicates whether this service created and owns its resolver.</summary>
+        readonly bool OwnsAssetReferenceResolver;
 
         /// <summary>
         /// Cached authored model source paths keyed by their stable imported model asset id.
@@ -53,6 +55,30 @@ namespace helengine.editor {
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
             MaterialAssetSettingsService = new MaterialAssetSettingsService();
             AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
+            OwnsAssetReferenceResolver = true;
+        }
+
+        /// <summary>
+        /// Initializes a save-time inference service over a host-owned reference resolver.
+        /// </summary>
+        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="referenceResolver">Resolver shared by the owning authoring session.</param>
+        internal SceneAssetReferenceInferenceService(
+            string projectRootPath,
+            EditorAssetReferenceResolver referenceResolver) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
+            MaterialAssetSettingsService = new MaterialAssetSettingsService();
+            AssetReferenceResolver = referenceResolver;
+            OwnsAssetReferenceResolver = false;
         }
 
         /// <summary>
@@ -85,6 +111,15 @@ namespace helengine.editor {
 
             if (component is TextComponent textComponent) {
                 PopulateOverlayFontAssetReferences(nameof(TextComponent), textComponent.Font, saveState);
+            }
+        }
+
+        /// <summary>
+        /// Releases the project-scoped resolver owned by this inference service.
+        /// </summary>
+        public void Dispose() {
+            if (OwnsAssetReferenceResolver) {
+                AssetReferenceResolver.Dispose();
             }
         }
 

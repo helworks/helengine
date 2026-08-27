@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Indexes authored asset identities and repairs duplicate UUID sidecars deterministically.
     /// </summary>
-    public sealed class EditorAssetIdentityIndex {
+    public sealed class EditorAssetIdentityIndex : IDisposable {
         /// <summary>
         /// Absolute project root path.
         /// </summary>
@@ -27,6 +27,10 @@ namespace helengine.editor {
         /// Project-scoped content hash cache.
         /// </summary>
         readonly EditorAssetHashCache HashCache;
+        /// <summary>
+        /// Indicates whether this index created and owns its hash cache.
+        /// </summary>
+        readonly bool OwnsHashCache;
 
         /// <summary>
         /// Filesystem catalog used for explicit authored-file reconciliation.
@@ -84,6 +88,7 @@ namespace helengine.editor {
             MetadataService = metadataService ?? new AssetIdentityMetadataService();
             PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
             HashCache = hashCache ?? new EditorAssetHashCache(ProjectRootPath);
+            OwnsHashCache = hashCache == null;
             FileCatalog = new FileEditorAssetFileCatalog();
             EntriesByPath = new Dictionary<string, EditorAssetIdentityEntry>(StringComparer.OrdinalIgnoreCase);
             EntriesByAssetId = new Dictionary<string, List<EditorAssetIdentityEntry>>(StringComparer.Ordinal);
@@ -145,6 +150,20 @@ namespace helengine.editor {
         /// <returns>Independent set of paths with missing metadata.</returns>
         internal HashSet<string> CopyMissingMetadataPaths() {
             return new HashSet<string>(MissingMetadataPaths, StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Returns the cache used by this index so another project service can borrow its lifetime.
+        /// </summary>
+        internal EditorAssetHashCache HashCacheValue => HashCache;
+
+        /// <summary>
+        /// Releases a hash cache created by this index; injected caches remain caller-owned.
+        /// </summary>
+        public void Dispose() {
+            if (OwnsHashCache) {
+                HashCache.Dispose();
+            }
         }
 
         /// <summary>

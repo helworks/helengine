@@ -1798,7 +1798,7 @@ namespace helengine.editor {
             string assetsRootPath = FindAssetsRoot(materialAssetPath);
             string projectRootPath = Directory.GetParent(assetsRootPath)?.FullName
                 ?? throw new InvalidOperationException($"Material asset '{materialAssetPath}' does not have a project root.");
-            EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
             EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
             bool changed = false;
             resolver.BeginResolutionScope();
@@ -1829,7 +1829,7 @@ namespace helengine.editor {
             string assetsRootPath = FindAssetsRoot(materialAssetPath);
             string projectRootPath = Directory.GetParent(assetsRootPath)?.FullName
                 ?? throw new InvalidOperationException($"Material asset '{materialAssetPath}' does not have a project root.");
-            EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
             resolver.BeginResolutionScope();
             try {
                 return ResolveAssetReferences(assetsRootPath, settings, resolver, new EditorAssetPathClassifier());

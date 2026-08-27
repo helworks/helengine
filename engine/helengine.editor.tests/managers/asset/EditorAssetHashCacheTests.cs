@@ -45,12 +45,14 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         Assert.Equal(1, firstStore.SaveCount);
 
         CountingAssetHashCacheStore secondStore = new CountingAssetHashCacheStore();
-        EditorAssetHashCache secondCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), secondStore);
+        CountingAssetFileHasher secondHasher = new CountingAssetFileHasher();
+        EditorAssetHashCache secondCache = new EditorAssetHashCache(TempRootPath, secondHasher, secondStore);
         string secondHash = secondCache.GetContentHash(assetPath);
 
         Assert.Matches("^sha256:[0-9a-f]{64}$", firstHash);
         Assert.Equal(firstHash, secondHash);
         Assert.Equal(0, secondStore.SaveCount);
+        Assert.Equal(0, secondHasher.FileHashCount);
     }
 
     /// <summary>

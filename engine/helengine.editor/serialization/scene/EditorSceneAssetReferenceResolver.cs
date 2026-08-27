@@ -5,7 +5,7 @@ namespace helengine.editor {
     /// <summary>
     /// Resolves persisted scene asset references back into runtime assets for editor scene loading.
     /// </summary>
-    public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver, IEditorOwnedAssetTrackingSceneAssetReferenceResolver, IEditorAssetReferenceHealingResolver {
+    public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver, IEditorOwnedAssetTrackingSceneAssetReferenceResolver, IEditorAssetReferenceHealingResolver, IDisposable {
         /// <summary>
         /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
         /// </summary>
@@ -62,6 +62,10 @@ namespace helengine.editor {
         /// Project-scoped authored identity resolver used before runtime asset loading.
         /// </summary>
         readonly EditorAssetReferenceResolver IdentityReferenceResolver;
+        /// <summary>
+        /// Indicates whether this resolver created its identity resolver and therefore owns its lifetime.
+        /// </summary>
+        readonly bool OwnsIdentityReferenceResolver;
         /// <summary>Reference replacements recorded for the active healing scope.</summary>
         Dictionary<SceneAssetReference, SceneAssetReference> ReferenceHealingReplacements;
         /// <summary>
@@ -103,6 +107,7 @@ namespace helengine.editor {
             AssetContentManager = assetContentManager;
             MaterialSettingsService = new MaterialAssetSettingsService();
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
+            OwnsIdentityReferenceResolver = true;
         }
 
         /// <summary>
@@ -130,6 +135,7 @@ namespace helengine.editor {
             FileSystemModelResolver = fileSystemModelResolver;
             MaterialSettingsService = new MaterialAssetSettingsService();
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
+            OwnsIdentityReferenceResolver = true;
         }
 
         /// <summary>
@@ -166,6 +172,7 @@ namespace helengine.editor {
             FileSystemFontResolver = fileSystemFontResolver;
             MaterialSettingsService = new MaterialAssetSettingsService();
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
+            OwnsIdentityReferenceResolver = true;
         }
 
         /// <summary>
@@ -209,6 +216,7 @@ namespace helengine.editor {
             FileSystemTextureResolver = fileSystemTextureResolver;
             MaterialSettingsService = new MaterialAssetSettingsService();
             IdentityReferenceResolver = identityReferenceResolver ?? new EditorAssetReferenceResolver(fullProjectRootPath);
+            OwnsIdentityReferenceResolver = identityReferenceResolver == null;
         }
 
         /// <summary>
@@ -956,6 +964,15 @@ namespace helengine.editor {
 
             if (!ActiveOwnedMaterials.Contains(asset)) {
                 ActiveOwnedMaterials.Add(asset);
+            }
+        }
+
+        /// <summary>
+        /// Releases an identity resolver created by this scene resolver.
+        /// </summary>
+        public void Dispose() {
+            if (OwnsIdentityReferenceResolver) {
+                IdentityReferenceResolver.Dispose();
             }
         }
 

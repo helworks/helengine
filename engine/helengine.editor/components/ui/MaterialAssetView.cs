@@ -692,7 +692,8 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(EditorProjectPaths.ProjectRoot)) {
                 throw new InvalidOperationException("Project paths must be initialized before assigning material assets.");
             }
-            return new EditorAssetReferenceResolver(EditorProjectPaths.ProjectRoot).CreateFileReference(entry.FullPath, entry.EntryKind);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(EditorProjectPaths.ProjectRoot);
+            return resolver.CreateFileReference(entry.FullPath, entry.EntryKind);
         }
 
         /// <summary>

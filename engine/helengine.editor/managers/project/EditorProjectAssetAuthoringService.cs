@@ -41,15 +41,17 @@ namespace helengine.editor {
             EditorAssetReferenceResolver referenceResolver) {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             string projectRootPath = ResolveProjectRootPath();
-            AssetReferenceResolver = referenceResolver ?? new EditorAssetReferenceResolver(projectRootPath);
+            AssetReferenceResolver = referenceResolver;
             SceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(
                 AssetImportManagerValue.ContentManager,
                 projectRootPath,
                 new EditorFileSystemModelResolver(AssetImportManagerValue),
                 new EditorFileSystemFontResolver(AssetImportManagerValue),
                 new EditorFileSystemTextureResolver(AssetImportManagerValue),
-                AssetReferenceResolver);
-            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AssetReferenceResolver);
+                referenceResolver);
+            AssetReferenceCanonicalizationService = referenceResolver != null
+                ? new EditorAssetReferenceCanonicalizationService(referenceResolver)
+                : new EditorAssetReferenceCanonicalizationService(projectRootPath);
         }
 
         /// <summary>
@@ -210,9 +212,11 @@ namespace helengine.editor {
             string fullPath = Path.Combine(
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
-            new SceneSaveService(
+            using SceneSaveService saveService = new SceneSaveService(
                 ResolveProjectRootPath(),
-                persistenceRegistry).Save(fullPath, sceneSettings, roots, authoringAssetId);
+                persistenceRegistry,
+                AssetReferenceResolver);
+            saveService.Save(fullPath, sceneSettings, roots, authoringAssetId);
         }
 
         /// <summary>
@@ -234,9 +238,11 @@ namespace helengine.editor {
             string fullPath = Path.Combine(
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
-            new BlueprintSaveService(
+            using BlueprintSaveService saveService = new BlueprintSaveService(
                 ResolveProjectRootPath(),
-                persistenceRegistry).Save(fullPath);
+                persistenceRegistry,
+                AssetReferenceResolver);
+            saveService.Save(fullPath);
         }
 
         /// <summary>
@@ -252,9 +258,11 @@ namespace helengine.editor {
             string fullPath = Path.Combine(
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
-            new BlueprintSaveService(
+            using BlueprintSaveService saveService = new BlueprintSaveService(
                 ResolveProjectRootPath(),
-                persistenceRegistry).Save(fullPath, authoringAssetId);
+                persistenceRegistry,
+                AssetReferenceResolver);
+            saveService.Save(fullPath, authoringAssetId);
         }
 
         /// <summary>
@@ -310,7 +318,12 @@ namespace helengine.editor {
         public SceneAssetReference CreateFileReference(string relativePath, AssetEntryKind expectedKind) {
             ValidateRelativeAssetPath(relativePath);
             string fullPath = Path.Combine(AssetImportManagerValue.AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-            return AssetReferenceResolver.CreateFileReference(fullPath, expectedKind);
+            if (AssetReferenceResolver != null) {
+                return AssetReferenceResolver.CreateFileReference(fullPath, expectedKind);
+            }
+
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ResolveProjectRootPath());
+            return resolver.CreateFileReference(fullPath, expectedKind);
         }
 
         /// <summary>

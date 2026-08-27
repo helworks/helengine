@@ -203,6 +203,51 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures explicit reconciliation observes an authored file move and removes its old path.
+    /// </summary>
+    [Fact]
+    public void ReconcileExternalChanges_ObservesMovedAuthoredFile() {
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        string sourcePath = CreateAsset("Models/Before.fbx");
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string assetId = "00112233445566778899aabbccddeeff";
+        metadata.Save(sourcePath, new AssetIdentityMetadataDocument { AssetId = assetId });
+        EditorAssetIdentityIndex index = CreateIndex(catalog);
+        index.Initialize();
+
+        string destinationPath = Path.Combine(TempRootPath, "assets", "Models", "After.fbx");
+        File.Move(sourcePath, destinationPath);
+        File.Move(sourcePath + ".hmeta", destinationPath + ".hmeta");
+        index.ReconcileExternalChanges();
+
+        Assert.Equal(2, catalog.EnumerationCount);
+        Assert.Null(index.FindByPath("Models/Before.fbx"));
+        Assert.Equal(assetId, index.FindByPath("Models/After.fbx").AssetId);
+    }
+
+    /// <summary>
+    /// Ensures explicit reconciliation removes authored files that no longer exist.
+    /// </summary>
+    [Fact]
+    public void ReconcileExternalChanges_ObservesRemovedAuthoredFile() {
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        string assetPath = CreateAsset("Models/Removed.fbx");
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string assetId = "ffeeddccbbaa99887766554433221100";
+        metadata.Save(assetPath, new AssetIdentityMetadataDocument { AssetId = assetId });
+        EditorAssetIdentityIndex index = CreateIndex(catalog);
+        index.Initialize();
+
+        File.Delete(assetPath);
+        File.Delete(assetPath + ".hmeta");
+        index.ReconcileExternalChanges();
+
+        Assert.Equal(2, catalog.EnumerationCount);
+        Assert.Null(index.FindByPath("Models/Removed.fbx"));
+        Assert.Empty(index.FindByAssetId(assetId, AssetEntryKind.Model));
+    }
+
+    /// <summary>
     /// Creates the identity index with its project-scoped dependencies.
     /// </summary>
     /// <returns>Configured identity index.</returns>

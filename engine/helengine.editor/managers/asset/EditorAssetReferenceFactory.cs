@@ -12,7 +12,8 @@ namespace helengine.editor {
         /// <returns>Canonical reference containing asset id and content hash.</returns>
         public static SceneAssetReference CreateFileReference(string projectRootPath, string relativePath, AssetEntryKind expectedKind) {
             string fullPath = ResolveAssetPath(projectRootPath, relativePath);
-            return new EditorAssetReferenceResolver(projectRootPath).CreateFileReference(fullPath, expectedKind);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
+            return resolver.CreateFileReference(fullPath, expectedKind);
         }
 
         /// <summary>
@@ -35,7 +36,7 @@ namespace helengine.editor {
                 return reference;
             }
 
-            EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
             if (string.IsNullOrWhiteSpace(reference.AssetId) || string.IsNullOrWhiteSpace(reference.ContentHash)) {
                 return resolver.CreateFileReference(fullPath, expectedKind);
             }

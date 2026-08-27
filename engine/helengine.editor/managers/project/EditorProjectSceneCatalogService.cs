@@ -118,7 +118,8 @@ namespace helengine.editor {
             if (GetSceneIds().Contains(sceneId, StringComparer.Ordinal)) {
                 string relativePath = ResolveScenePath(sceneId);
                 string fullPath = Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-                return new EditorAssetReferenceResolver(ProjectRootPath).CreateFileReference(fullPath, AssetEntryKind.Scene);
+                using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+                return resolver.CreateFileReference(fullPath, AssetEntryKind.Scene);
             }
 
             return global::helengine.SceneAssetReferenceFactory.Rehydrate(
@@ -140,7 +141,8 @@ namespace helengine.editor {
                 return reference.AssetId;
             }
 
-            AssetReferenceResolution resolution = new EditorAssetReferenceResolver(ProjectRootPath).Resolve(reference, AssetEntryKind.Scene);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+            AssetReferenceResolution resolution = resolver.Resolve(reference, AssetEntryKind.Scene);
             return ResolveSceneId(resolution.FullPath);
         }
 

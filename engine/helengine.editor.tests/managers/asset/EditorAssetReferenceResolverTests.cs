@@ -203,6 +203,46 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a resolver flushes a cache it creates and repeated disposal is harmless.
+    /// </summary>
+    [Fact]
+    public void Dispose_WhenResolverOwnsHashCache_FlushesExactlyOnce() {
+        string assetPath = CreateAsset("Models/Owned.fbx", new byte[] { 7, 8, 9 });
+        EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+
+        resolver.CreateFileReference(assetPath, AssetEntryKind.Model);
+        string cachePath = Path.Combine(TempRootPath, "cache", "editor", "asset-identity-index.json");
+        Assert.False(File.Exists(cachePath));
+
+        resolver.Dispose();
+        resolver.Dispose();
+
+        Assert.True(File.Exists(cachePath));
+        string persisted = File.ReadAllText(cachePath);
+        resolver = null;
+        Assert.Contains("Models/Owned.fbx", persisted, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Ensures a resolver borrowing a caller cache does not flush or release it.
+    /// </summary>
+    [Fact]
+    public void Dispose_WhenResolverBorrowsHashCache_LeavesCacheLifetimeWithCaller() {
+        string assetPath = CreateAsset("Models/Borrowed.fbx", new byte[] { 2, 4, 6 });
+        string cachePath = Path.Combine(TempRootPath, "cache", "editor", "asset-identity-index.json");
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath);
+        EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, hashCache: cache);
+
+        resolver.CreateFileReference(assetPath, AssetEntryKind.Model);
+        resolver.Dispose();
+
+        Assert.False(File.Exists(cachePath));
+        cache.Dispose();
+        Assert.True(File.Exists(cachePath));
+        cache.Dispose();
+    }
+
+    /// <summary>
     /// Creates one source file below the isolated assets root.
     /// </summary>
     /// <param name="relativePath">Path relative to assets.</param>

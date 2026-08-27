@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Serializes the current editor blueprint authoring state into one `.hblueprint` asset stored under the project assets folder.
     /// </summary>
-    public class BlueprintSaveService {
+    public class BlueprintSaveService : IDisposable {
         /// <summary>
         /// Absolute path to the project root.
         /// </summary>
@@ -23,7 +23,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
         /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
-        public BlueprintSaveService(string projectRootPath, ComponentPersistenceRegistry persistenceRegistry) {
+        public BlueprintSaveService(string projectRootPath, ComponentPersistenceRegistry persistenceRegistry)
+            : this(projectRootPath, persistenceRegistry, null) {
+        }
+
+        /// <summary>
+        /// Initializes a blueprint save service over a host-owned reference resolver.
+        /// </summary>
+        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
+        /// <param name="referenceResolver">Resolver shared by the owning authoring session.</param>
+        internal BlueprintSaveService(
+            string projectRootPath,
+            ComponentPersistenceRegistry persistenceRegistry,
+            EditorAssetReferenceResolver referenceResolver) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -33,7 +46,16 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
-            SceneSaveService = new SceneSaveService(ProjectRootPath, persistenceRegistry);
+            SceneSaveService = referenceResolver == null
+                ? new SceneSaveService(ProjectRootPath, persistenceRegistry)
+                : new SceneSaveService(ProjectRootPath, persistenceRegistry, referenceResolver);
+        }
+
+        /// <summary>
+        /// Releases resolver state owned by the intermediate scene serializer.
+        /// </summary>
+        public void Dispose() {
+            SceneSaveService.Dispose();
         }
 
         /// <summary>

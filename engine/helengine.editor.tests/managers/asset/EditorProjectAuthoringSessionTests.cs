@@ -97,6 +97,35 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a successful native write is visible through the session index without a full rescan.
+    /// </summary>
+    [Fact]
+    public void WriteNativeAsset_RegistersDestinationForImmediateReferenceResolution() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        EditorAssetHashCache cache = new EditorAssetHashCache(projectRootPath);
+        EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
+            CreateAssetImportManager(projectRootPath),
+            cache,
+            new EditorAuthoringSessionLifetime(cache),
+            catalog));
+        const string assetId = "00112233445566778899aabbccddeeff";
+
+        session.WriteNativeAsset("Models/Written.hasset", CreateModelAsset(), assetId);
+
+        Assert.Equal(1, catalog.EnumerationCount);
+        SceneAssetReference persistedReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            assetId,
+            "Models/Written.hasset",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        AssetReferenceResolution resolution = session.ResolveReference(persistedReference, AssetEntryKind.Model);
+
+        Assert.Equal(assetId, resolution.CanonicalReference.AssetId);
+        Assert.Equal("Models/Written.hasset", resolution.CanonicalReference.RelativePath);
+        Assert.Equal(1, catalog.EnumerationCount);
+    }
+
+    /// <summary>
     /// Ensures session-owned disposable state is released exactly once despite repeated host disposal calls.
     /// </summary>
     [Fact]
@@ -175,6 +204,39 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         return new AssetImportManager(
             projectRootPath,
             new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
+    }
+
+    /// <summary>
+    /// Creates a minimal current native model payload used by write-path tests.
+    /// </summary>
+    static ModelAsset CreateModelAsset() {
+        return new ModelAsset {
+            Id = "Models/Written",
+            Positions = Array.Empty<float3>(),
+            Normals = Array.Empty<float3>(),
+            TexCoords = Array.Empty<float2>(),
+            Indices16 = Array.Empty<ushort>(),
+            Indices32 = Array.Empty<uint>(),
+            Submeshes = Array.Empty<ModelSubmeshAsset>()
+        };
+    }
+
+    /// <summary>
+    /// Counts full authored-file enumerations while delegating to the filesystem.
+    /// </summary>
+    sealed class CountingAssetFileCatalog : IEditorAssetFileCatalog {
+        /// <summary>
+        /// Gets the number of full authored-file enumerations.
+        /// </summary>
+        public int EnumerationCount { get; private set; }
+
+        /// <summary>
+        /// Enumerates authored files beneath one assets root.
+        /// </summary>
+        public IEnumerable<string> EnumerateFiles(string assetsRootPath) {
+            EnumerationCount++;
+            return Directory.EnumerateFiles(assetsRootPath, "*", SearchOption.AllDirectories);
+        }
     }
 
     /// <summary>

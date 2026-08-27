@@ -4,7 +4,7 @@ namespace helengine.editor {
     /// <summary>
     /// Expands blueprint instance roots inside serialized scene assets before platform packaging rewrites them.
     /// </summary>
-    public sealed class BlueprintPackagedSceneExpansionService {
+    public sealed class BlueprintPackagedSceneExpansionService : IDisposable {
         /// <summary>
         /// Stable persisted component type id used by serialized blueprint instance markers.
         /// </summary>
@@ -73,6 +73,13 @@ namespace helengine.editor {
             }
 
             sceneAsset.AssetReferences = mergedReferences.ToArray();
+        }
+
+        /// <summary>
+        /// Releases the authored blueprint resolver owned by this service.
+        /// </summary>
+        public void Dispose() {
+            AssetReferenceResolver.Dispose();
         }
 
         /// <summary>

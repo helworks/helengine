@@ -4,6 +4,12 @@ namespace helengine.editor {
     /// </summary>
     public class SaveFileDialog : EditorEntity {
         /// <summary>
+        /// Releases project-scoped browser data owned by this dialog.
+        /// </summary>
+        public void DisposeAuthoringResources() {
+            BrowserView?.DisposeAuthoringResources();
+        }
+        /// <summary>
         /// Default minimum width for the dialog panel.
         /// </summary>
         public const int MinPanelWidth = 420;

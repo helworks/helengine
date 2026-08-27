@@ -2,11 +2,12 @@ namespace helengine.editor {
     /// <summary>
     /// Resolves authored editor references by stable UUID, path, and finally content hash.
     /// </summary>
-    public sealed class EditorAssetReferenceResolver {
+    public sealed class EditorAssetReferenceResolver : IDisposable {
         readonly string ProjectRootPath;
         readonly string AssetsRootPath;
         readonly EditorAssetIdentityIndex IdentityIndex;
         readonly EditorAssetHashCache HashCache;
+        readonly bool OwnsHashCache;
         readonly AssetIdentityMetadataService MetadataService;
         readonly EditorAssetPathClassifier PathClassifier;
         bool ResolutionScopeActive;
@@ -33,7 +34,16 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             MetadataService = metadataService ?? new AssetIdentityMetadataService();
             PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
-            HashCache = hashCache ?? new EditorAssetHashCache(ProjectRootPath);
+            if (hashCache != null) {
+                HashCache = hashCache;
+                OwnsHashCache = false;
+            } else if (identityIndex != null) {
+                HashCache = identityIndex.HashCacheValue;
+                OwnsHashCache = false;
+            } else {
+                HashCache = new EditorAssetHashCache(ProjectRootPath);
+                OwnsHashCache = true;
+            }
             IdentityIndex = identityIndex ?? new EditorAssetIdentityIndex(ProjectRootPath, MetadataService, PathClassifier, HashCache);
             IdentityIndex.Initialize();
         }
@@ -217,6 +227,15 @@ namespace helengine.editor {
             return ResolutionScopeActive
                 ? ResolutionScopeMissingMetadataPaths.Contains(normalizedFullPath)
                 : IdentityIndex.WasMetadataMissing(normalizedFullPath);
+        }
+
+        /// <summary>
+        /// Releases a cache created by this resolver; borrowed caches remain owned by their caller.
+        /// </summary>
+        public void Dispose() {
+            if (OwnsHashCache) {
+                HashCache.Dispose();
+            }
         }
     }
 }

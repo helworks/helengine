@@ -152,6 +152,13 @@ namespace helengine.editor {
         public event Action SelectionCleared;
 
         /// <summary>
+        /// Releases project-scoped data owned by this browser view.
+        /// </summary>
+        public void DisposeAuthoringResources() {
+            DataSource.Dispose();
+        }
+
+        /// <summary>
         /// Initializes a new asset browser view.
         /// </summary>
         /// <param name="font">Font used for labels.</param>

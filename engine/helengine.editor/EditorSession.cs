@@ -212,6 +212,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorSceneAssetReferenceResolver sceneAssetReferenceResolver;
         /// <summary>
+        /// Resolver used by editor properties and authored-reference factories.
+        /// </summary>
+        readonly EditorAssetReferenceResolver authoredAssetReferenceResolver;
+        /// <summary>
         /// Factory used to convert asset-browser entries into stable scene asset references.
         /// </summary>
         readonly SceneAssetReferenceFactory sceneAssetReferenceFactory;
@@ -684,7 +688,7 @@ namespace helengine.editor {
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
-            EditorAssetReferenceResolver authoredAssetReferenceResolver = new EditorAssetReferenceResolver(this.projectPath);
+            authoredAssetReferenceResolver = new EditorAssetReferenceResolver(this.projectPath);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
@@ -1506,15 +1510,18 @@ namespace helengine.editor {
         /// </summary>
         void DisposeScaleSensitiveDialogs() {
             if (assetPickerModal != null) {
+                assetPickerModal.DisposeAuthoringResources();
                 assetPickerModal.Dispose();
             }
             if (meshModifierPickerModal != null) {
                 meshModifierPickerModal.Dispose();
             }
             if (saveFileDialog != null) {
+                saveFileDialog.DisposeAuthoringResources();
                 saveFileDialog.Dispose();
             }
             if (openFileDialog != null) {
+                openFileDialog.DisposeAuthoringResources();
                 openFileDialog.Dispose();
             }
             if (reparentEntityDialog != null) {
@@ -1660,11 +1667,17 @@ namespace helengine.editor {
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
             shaderModuleManager.Dispose();
             DetachTrackedWorkspacePanelsForDispose();
+            DisposeScaleSensitiveDialogs();
             EditorKeyboardFocusService.Reset();
             UntrackCurrentSceneFromSceneManager();
             ClearUserSceneEntities();
             FlushPendingOwnedAssetReleases();
             ReleaseCurrentSceneOwnedAssets();
+            assetBrowserPanel.DisposeAuthoringResources();
+            authoredAssetReferenceResolver.Dispose();
+            sceneAssetReferenceResolver.Dispose();
+            SceneSaveService.Dispose();
+            SceneFileLoadService.Dispose();
             AuthoringSession.Dispose();
             core.Dispose();
         }
@@ -3302,7 +3315,8 @@ namespace helengine.editor {
             if (!File.Exists(materialFullPath)) {
                 throw new InvalidOperationException($"Imported material source '{materialFullPath}' does not exist and cannot produce a canonical asset reference.");
             }
-            return new EditorAssetReferenceResolver(projectPath).CreateFileReference(materialFullPath, AssetEntryKind.Material);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectPath);
+            return resolver.CreateFileReference(materialFullPath, AssetEntryKind.Material);
         }
 
         /// <summary>
@@ -5294,7 +5308,8 @@ namespace helengine.editor {
             }
 
             try {
-                AssetReferenceResolution resolution = new EditorAssetReferenceResolver(projectPath).Resolve(assetReference, entryKind);
+                using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectPath);
+                AssetReferenceResolution resolution = resolver.Resolve(assetReference, entryKind);
                 SceneAssetReference canonicalReference = resolution.CanonicalReference;
                 assetEntry = AssetBrowserEntry.CreateFileSystemFile(
                     Path.GetFileName(resolution.FullPath),

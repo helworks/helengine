@@ -291,8 +291,10 @@ namespace helengine.editor {
 
             ExportProjectRootPath = Path.GetFullPath(projectRootPath);
             ExportReferenceResolver = new EditorAssetReferenceResolver(ExportProjectRootPath);
-            ExportReferenceResolver.BeginResolutionScope();
+            bool resolutionScopeActive = false;
             try {
+                ExportReferenceResolver.BeginResolutionScope();
+                resolutionScopeActive = true;
                 AssetIdentityMetadataService identityMetadataService = new AssetIdentityMetadataService();
                 string[] sceneIds = PhysicsValidationSceneCatalog.GetSceneIds();
                 for (int index = 0; index < sceneIds.Length; index++) {
@@ -314,7 +316,12 @@ namespace helengine.editor {
                     AssetSerializer.Serialize(stream, sceneAsset);
                 }
             } finally {
-                ExportReferenceResolver.EndResolutionScope();
+                if (ExportReferenceResolver != null) {
+                    if (resolutionScopeActive) {
+                        ExportReferenceResolver.EndResolutionScope();
+                    }
+                    ExportReferenceResolver.Dispose();
+                }
                 ExportReferenceResolver = null;
                 ExportProjectRootPath = null;
             }

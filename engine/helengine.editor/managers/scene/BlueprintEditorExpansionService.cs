@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Expands blueprint instance roots into inherited read-only scene subtrees for editor visualization.
     /// </summary>
-    public sealed class BlueprintEditorExpansionService {
+    public sealed class BlueprintEditorExpansionService : IDisposable {
         /// <summary>
         /// Absolute path to the project root.
         /// </summary>
@@ -70,6 +70,13 @@ namespace helengine.editor {
 
             MarkInheritedSubtree(loadedBlueprint.RootEntity, instanceComponent.BlueprintAssetReference);
             instanceRoot.AddChild(loadedBlueprint.RootEntity);
+        }
+
+        /// <summary>
+        /// Releases the authored reference resolver owned by this expansion service.
+        /// </summary>
+        public void Dispose() {
+            AssetReferenceResolver.Dispose();
         }
 
         /// <summary>

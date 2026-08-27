@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Provides the current asset-browser directory view across filesystem and generated sources.
     /// </summary>
-    public class AssetBrowserDataSource {
+    public class AssetBrowserDataSource : IDisposable {
         /// <summary>
         /// Filesystem-backed asset manager used for project assets.
         /// </summary>
@@ -90,6 +90,13 @@ namespace helengine.editor {
             }
 
             entries.Sort(CompareEntries);
+        }
+
+        /// <summary>
+        /// Releases the filesystem asset manager owned by this data source.
+        /// </summary>
+        public void Dispose() {
+            FileSystemAssets.Dispose();
         }
 
         /// <summary>

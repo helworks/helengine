@@ -4,6 +4,12 @@ namespace helengine.editor {
     /// </summary>
     public sealed class AssetPickerModal : EditorDialogBase {
         /// <summary>
+        /// Releases project-scoped browser data owned by this modal.
+        /// </summary>
+        public void DisposeAuthoringResources() {
+            BrowserView?.DisposeAuthoringResources();
+        }
+        /// <summary>
         /// Default minimum width for the picker content area.
         /// </summary>
         public const int MinPanelWidth = 360;
