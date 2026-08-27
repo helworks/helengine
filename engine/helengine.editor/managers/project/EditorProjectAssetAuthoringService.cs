@@ -144,7 +144,7 @@ namespace helengine.editor {
         /// Creates a scene-reference resolver using all file-backed asset resolvers owned by the host.
         /// </summary>
         /// <returns>Resolver for file-backed scene asset references.</returns>
-        public EditorSceneAssetReferenceResolver CreateSceneAssetReferenceResolver() {
+        public ISceneAssetReferenceResolver CreateSceneAssetReferenceResolver() {
             return SceneAssetReferenceResolver;
         }
 

@@ -84,7 +84,7 @@ namespace helengine.editor {
         /// Creates the scene-reference resolver backed by the host-owned current import pipeline.
         /// </summary>
         /// <returns>Resolver for file-backed scene asset references.</returns>
-        EditorSceneAssetReferenceResolver CreateSceneAssetReferenceResolver();
+        ISceneAssetReferenceResolver CreateSceneAssetReferenceResolver();
 
         /// <summary>
         /// Writes one current native asset beneath the active project's assets directory.
