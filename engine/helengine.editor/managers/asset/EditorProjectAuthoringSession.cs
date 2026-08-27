@@ -34,6 +34,11 @@ namespace helengine.editor {
         readonly EditorAssetReferenceResolver ReferenceResolver;
 
         /// <summary>
+        /// Lifetime coordinator for resources owned by this session.
+        /// </summary>
+        readonly IEditorAuthoringSessionLifetime Lifetime;
+
+        /// <summary>
         /// Existing project asset-authoring surface delegated to until later tasks route callers to this session directly.
         /// </summary>
         readonly IEditorProjectAssetAuthoringService AssetAuthoringService;
@@ -65,8 +70,36 @@ namespace helengine.editor {
         /// Creates a project session over an import manager already owned by an editor host.
         /// </summary>
         /// <param name="assetImportManager">Host-owned import manager for the project.</param>
-        public EditorProjectAuthoringSession(AssetImportManager assetImportManager) {
+        internal EditorProjectAuthoringSession(AssetImportManager assetImportManager)
+            : this(
+                assetImportManager,
+                new EditorAssetHashCache(ResolveProjectRootPath(assetImportManager))) {
+        }
+
+        /// <summary>
+        /// Initializes one project session over a host manager and one session-owned hash cache.
+        /// </summary>
+        /// <param name="assetImportManager">Borrowed host-owned import manager for the project.</param>
+        /// <param name="hashCache">Session-owned content hash cache.</param>
+        internal EditorProjectAuthoringSession(
+            AssetImportManager assetImportManager,
+            EditorAssetHashCache hashCache)
+            : this(assetImportManager, hashCache, new EditorAuthoringSessionLifetime(hashCache)) {
+        }
+
+        /// <summary>
+        /// Initializes one project session over host-owned manager state and an internal lifetime seam.
+        /// </summary>
+        /// <param name="assetImportManager">Borrowed host-owned import manager for the project.</param>
+        /// <param name="hashCache">Session-owned content hash cache.</param>
+        /// <param name="lifetime">Internal coordinator for session-owned disposable state.</param>
+        internal EditorProjectAuthoringSession(
+            AssetImportManager assetImportManager,
+            EditorAssetHashCache hashCache,
+            IEditorAuthoringSessionLifetime lifetime) {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+            HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
             AssetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath);
             string projectRootPath = Path.GetDirectoryName(AssetsRootPath);
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
@@ -74,7 +107,6 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            HashCache = new EditorAssetHashCache(ProjectRootPath);
             IdentityIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, HashCache);
             ReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath, IdentityIndex, HashCache);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver);
@@ -126,24 +158,7 @@ namespace helengine.editor {
         /// <returns>Destination result for the write.</returns>
         public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
             EnsureNotDisposed();
-            if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            }
-
-            string fullPath = ResolveAssetsPath(relativePath);
-            bool destinationExisted = File.Exists(fullPath);
-            AssetAuthoringService.WriteNativeAsset(NormalizeRelativePath(relativePath), asset);
-            string contentHash = HashCache.GetContentHash(fullPath);
-            EditorAssetWriteDisposition disposition = destinationExisted
-                ? EditorAssetWriteDisposition.Changed
-                : EditorAssetWriteDisposition.Created;
-            return new EditorAssetWriteResult(
-                NormalizeRelativePath(relativePath),
-                fullPath,
-                asset.AuthoringAssetId,
-                contentHash,
-                disposition,
-                destinationExisted);
+            throw new NotSupportedException("Stable native asset writing is provided by the editor native asset write service task.");
         }
 
         /// <summary>
@@ -152,7 +167,7 @@ namespace helengine.editor {
         /// <returns>Project-scoped authoring transaction.</returns>
         public EditorAuthoringTransaction BeginTransaction() {
             EnsureNotDisposed();
-            return new EditorAuthoringTransaction(ProjectRootPath);
+            throw new NotSupportedException("Recoverable authoring transactions are provided by the editor transaction service task.");
         }
 
         /// <summary>
@@ -429,6 +444,26 @@ namespace helengine.editor {
             }
 
             IsDisposed = true;
+            Lifetime.Dispose();
+        }
+
+        /// <summary>
+        /// Resolves the project root from a host import manager before constructing session-owned services.
+        /// </summary>
+        /// <param name="assetImportManager">Host import manager.</param>
+        /// <returns>Canonical project root path.</returns>
+        static string ResolveProjectRootPath(AssetImportManager assetImportManager) {
+            if (assetImportManager == null) {
+                throw new ArgumentNullException(nameof(assetImportManager));
+            }
+
+            string assetsRootPath = Path.GetFullPath(assetImportManager.AssetsRootPath);
+            string projectRootPath = Path.GetDirectoryName(assetsRootPath);
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new InvalidOperationException("The host asset import manager does not expose a canonical project root.");
+            }
+
+            return projectRootPath;
         }
 
         /// <summary>

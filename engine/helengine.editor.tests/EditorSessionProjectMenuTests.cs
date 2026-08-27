@@ -81,6 +81,9 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "projectPath", TempProjectRootPath);
             SetPrivateField(session, "titleBar", new EditorTitleBar(CreateFont(), 1280, 720, "helengine"));
             SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
+            ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
+            AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
+            SetPrivateField(session, "AuthoringSession", new EditorProjectAuthoringSession(assetImportManager));
             return session;
         }
 

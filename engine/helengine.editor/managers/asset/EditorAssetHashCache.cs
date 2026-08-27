@@ -4,7 +4,7 @@ namespace helengine.editor {
     /// <summary>
     /// Caches authored asset SHA-256 values using source path fingerprints.
     /// </summary>
-    public sealed class EditorAssetHashCache {
+    public sealed class EditorAssetHashCache : IDisposable {
         /// <summary>
         /// JSON options for the disposable hash cache.
         /// </summary>
@@ -49,6 +49,11 @@ namespace helengine.editor {
         bool IsLoaded;
 
         /// <summary>
+        /// Tracks whether this session-owned cache has been released.
+        /// </summary>
+        bool IsDisposed;
+
+        /// <summary>
         /// Initializes a project-scoped hash cache.
         /// </summary>
         /// <param name="projectRootPath">Project root path.</param>
@@ -70,6 +75,17 @@ namespace helengine.editor {
         /// Gets the disposable cache file path.
         /// </summary>
         public string CachePath => CacheFilePath;
+
+        /// <summary>
+        /// Releases cache ownership without changing the current eager persistence behavior.
+        /// </summary>
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+
+            IsDisposed = true;
+        }
 
         /// <summary>
         /// Gets the cached or freshly computed hash for one authored asset.

@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace helengine.editor.tests.managers.asset;
 
 /// <summary>
@@ -40,6 +42,78 @@ public sealed class EditorProjectAuthoringSessionTests {
         session.Dispose();
         session.Dispose();
         Assert.Throws<ObjectDisposedException>(() => session.RefreshExternalChanges());
+    }
+
+    /// <summary>
+    /// Ensures the session does not claim stable native-write behavior before the dedicated write service task exists.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_BeforeStableWriteService_ThrowsTaskBoundaryException() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        AssetImportManager assetImportManager = new AssetImportManager(
+            projectRootPath,
+            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
+        EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(assetImportManager);
+
+        Assert.Throws<NotSupportedException>(() => session.WriteAsset("models/test.hasset", new ModelAsset {
+            Id = "Models/Test",
+            Positions = Array.Empty<float3>(),
+            Normals = Array.Empty<float3>(),
+            TexCoords = Array.Empty<float2>(),
+            Indices16 = Array.Empty<ushort>(),
+            Indices32 = Array.Empty<uint>(),
+            Submeshes = Array.Empty<ModelSubmeshAsset>()
+        }));
+    }
+
+    /// <summary>
+    /// Ensures transaction creation remains an explicit task boundary until recoverable publication is implemented.
+    /// </summary>
+    [Fact]
+    public void BeginTransaction_BeforeRecoverableTransactionService_ThrowsTaskBoundaryException() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        AssetImportManager assetImportManager = new AssetImportManager(
+            projectRootPath,
+            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
+        EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(assetImportManager);
+
+        Assert.Throws<NotSupportedException>(() => session.BeginTransaction());
+    }
+
+    /// <summary>
+    /// Ensures session-owned disposable state is released exactly once despite repeated host disposal calls.
+    /// </summary>
+    [Fact]
+    public void Dispose_ReleasesOwnedLifetimeExactlyOnce() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        AssetImportManager assetImportManager = new AssetImportManager(
+            projectRootPath,
+            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
+        CountingSessionLifetime lifetime = new CountingSessionLifetime();
+        EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(
+            assetImportManager,
+            new EditorAssetHashCache(projectRootPath),
+            lifetime);
+
+        session.Dispose();
+        session.Dispose();
+
+        Assert.Equal(1, lifetime.DisposeCount);
+    }
+
+    /// <summary>
+    /// Ensures the host-facing session does not expose the borrowed import-manager constructor publicly.
+    /// </summary>
+    [Fact]
+    public void AssetImportManagerConstructor_IsInternalToTheEditorHost() {
+        ConstructorInfo constructor = typeof(EditorProjectAuthoringSession).GetConstructor(
+            BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+            null,
+            new[] { typeof(AssetImportManager) },
+            null);
+
+        Assert.NotNull(constructor);
+        Assert.False(constructor.IsPublic);
     }
 
     /// <summary>
@@ -289,6 +363,23 @@ public sealed class EditorProjectAuthoringSessionTests {
         /// </summary>
         public IReadOnlyList<string> GetSupportedPlatformIds() {
             return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// Counts disposal calls made through the session's internal owned-resource seam.
+    /// </summary>
+    sealed class CountingSessionLifetime : IEditorAuthoringSessionLifetime {
+        /// <summary>
+        /// Gets the number of times the lifetime was released.
+        /// </summary>
+        public int DisposeCount { get; private set; }
+
+        /// <summary>
+        /// Records one lifetime release.
+        /// </summary>
+        public void Dispose() {
+            DisposeCount++;
         }
     }
 }
