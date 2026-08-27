@@ -48,8 +48,8 @@ namespace helengine.editor {
             writer.WriteString(document.AuthoringAssetId ?? string.Empty);
             writer.WriteInt32(document.FormerAuthoringAssetIds?.Count ?? 0);
             if (document.FormerAuthoringAssetIds != null) {
-                for (int index = 0; index < document.FormerAuthoringAssetIds.Count; index++) {
-                    writer.WriteString(document.FormerAuthoringAssetIds[index]);
+                foreach (string formerAssetId in document.FormerAuthoringAssetIds.OrderBy(formerAssetId => formerAssetId, StringComparer.Ordinal)) {
+                    writer.WriteString(formerAssetId);
                 }
             }
             writer.WriteString(document.Importer.ImporterId ?? string.Empty);

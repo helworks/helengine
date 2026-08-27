@@ -45,12 +45,116 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures material embedded former identities are ordered independently of caller insertion order.
+        /// </summary>
+        [Fact]
+        public void MaterialAssetCommonSettingsSerializer_WhenFormerIdentitiesAreInsertedInReverseOrder_IsDeterministic() {
+            MaterialAssetCommonSettingsDocument first = CreateMaterialCommonSettingsDocument(
+                new[] { "roughness" },
+                new[] { "albedo" });
+            first.FormerAuthoringAssetIds = new List<string> {
+                "ffeeddccbbaa99887766554433221100",
+                "11112222333344445555666677778888"
+            };
+            MaterialAssetCommonSettingsDocument second = CreateMaterialCommonSettingsDocument(
+                new[] { "roughness" },
+                new[] { "albedo" });
+            second.FormerAuthoringAssetIds = first.FormerAuthoringAssetIds.AsEnumerable().Reverse().ToList();
+
+            Assert.Equal(SerializeMaterialCommonSettings(first), SerializeMaterialCommonSettings(second));
+        }
+
+        /// <summary>
         /// Ensures the native scene serializer orders unordered asset references by their stable key.
         /// </summary>
         [Fact]
         public void SceneAssetSerializer_WhenReferencesAreInsertedInReverseOrder_IsDeterministic() {
             SceneAsset first = CreateSceneWithReferences(new[] { "Models/Z.hasset", "Models/A.hasset" });
             SceneAsset second = CreateSceneWithReferences(new[] { "Models/A.hasset", "Models/Z.hasset" });
+
+            Assert.Equal(AssetSerializer.SerializeToBytes(first), AssetSerializer.SerializeToBytes(second));
+        }
+
+        /// <summary>
+        /// Ensures former embedded identities are serialized in ordinal order.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_WhenFormerIdentitiesAreInsertedInReverseOrder_IsDeterministic() {
+            ModelAsset first = new ModelAsset {
+                Id = "Models/FormerOrder",
+                AuthoringAssetId = "00112233445566778899aabbccddeeff",
+                FormerAuthoringAssetIds = new[] { "ffeeddccbbaa99887766554433221100", "11112222333344445555666677778888" }
+            };
+            ModelAsset second = new ModelAsset {
+                Id = first.Id,
+                AuthoringAssetId = first.AuthoringAssetId,
+                FormerAuthoringAssetIds = first.FormerAuthoringAssetIds.Reverse().ToArray()
+            };
+
+            Assert.Equal(AssetSerializer.SerializeToBytes(first), AssetSerializer.SerializeToBytes(second));
+        }
+
+        /// <summary>
+        /// Ensures reference ordering remains deterministic when the primary path key ties.
+        /// </summary>
+        [Fact]
+        public void SceneAssetSerializer_WhenReferencePrimaryKeysTie_IsDeterministic() {
+            const string relativePath = "Textures/Tied.png";
+            SceneAssetReference firstReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "00112233445566778899aabbccddeeff", relativePath,
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+            SceneAssetReference secondReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "ffeeddccbbaa99887766554433221100", relativePath,
+                "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
+            SceneAsset first = CreateSceneWithReferenceObjects(new[] { firstReference, secondReference });
+            SceneAsset second = CreateSceneWithReferenceObjects(new[] { secondReference, firstReference });
+
+            Assert.Equal(AssetSerializer.SerializeToBytes(first), AssetSerializer.SerializeToBytes(second));
+        }
+
+        /// <summary>
+        /// Ensures blueprint references use the same total ordering as scene references.
+        /// </summary>
+        [Fact]
+        public void BlueprintAssetSerializer_WhenReferencePrimaryKeysTie_IsDeterministic() {
+            const string relativePath = "Textures/Tied.png";
+            SceneAssetReference firstReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "00112233445566778899aabbccddeeff", relativePath,
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+            SceneAssetReference secondReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "ffeeddccbbaa99887766554433221100", relativePath,
+                "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210");
+            BlueprintAsset first = CreateBlueprintWithReferenceObjects(new[] { firstReference, secondReference });
+            BlueprintAsset second = CreateBlueprintWithReferenceObjects(new[] { secondReference, firstReference });
+
+            Assert.Equal(AssetSerializer.SerializeToBytes(first), AssetSerializer.SerializeToBytes(second));
+        }
+
+        /// <summary>
+        /// Ensures animation platform overrides are ordered by platform and nested environment.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_AnimationPlatformOverrides_WhenInsertedInReverseOrder_IsDeterministic() {
+            AnimationClipAsset first = CreateAnimationWithOverrides(new[] {
+                new AnimationClipPlatformOverrideAsset { PlatformId = "windows", EnvironmentId = "shipping" },
+                new AnimationClipPlatformOverrideAsset { PlatformId = "android", EnvironmentId = "debug" },
+                new AnimationClipPlatformOverrideAsset { PlatformId = "windows", EnvironmentId = "debug" }
+            });
+            AnimationClipAsset second = CreateAnimationWithOverrides(first.PlatformOverrides.Reverse().ToArray());
+
+            Assert.Equal(AssetSerializer.SerializeToBytes(first), AssetSerializer.SerializeToBytes(second));
+        }
+
+        /// <summary>
+        /// Ensures audio platform overrides are ordered by platform.
+        /// </summary>
+        [Fact]
+        public void AssetSerializer_AudioPlatformOverrides_WhenInsertedInReverseOrder_IsDeterministic() {
+            AudioAsset first = CreateAudioWithOverrides(new[] {
+                new AudioAssetPlatformOverrideAsset { PlatformId = "windows", EncodingFamilyId = "pcm" },
+                new AudioAssetPlatformOverrideAsset { PlatformId = "android", EncodingFamilyId = "opus" }
+            });
+            AudioAsset second = CreateAudioWithOverrides(first.PlatformOverrides.Reverse().ToArray());
 
             Assert.Equal(AssetSerializer.SerializeToBytes(first), AssetSerializer.SerializeToBytes(second));
         }
@@ -2086,6 +2190,66 @@ namespace helengine.editor.tests {
             }
             scene.AssetReferences = references.ToArray();
             return scene;
+        }
+
+        /// <summary>
+        /// Creates one scene from already-created reference values.
+        /// </summary>
+        /// <param name="references">References in caller insertion order.</param>
+        /// <returns>Scene asset with unordered references.</returns>
+        static SceneAsset CreateSceneWithReferenceObjects(IReadOnlyList<SceneAssetReference> references) {
+            SceneAsset scene = new SceneAsset {
+                Id = "Scenes/DeterministicTie.helen",
+                AuthoringAssetId = "00112233445566778899aabbccddeeff",
+                RootEntities = Array.Empty<SceneEntityAsset>(),
+                AssetReferences = references.ToArray(),
+                SceneSettings = new SceneSettingsAsset()
+            };
+            return scene;
+        }
+
+        /// <summary>
+        /// Creates one blueprint from already-created reference values.
+        /// </summary>
+        /// <param name="references">References in caller insertion order.</param>
+        /// <returns>Blueprint asset with unordered references.</returns>
+        static BlueprintAsset CreateBlueprintWithReferenceObjects(IReadOnlyList<SceneAssetReference> references) {
+            return new BlueprintAsset {
+                Id = "Blueprints/DeterministicTie.hblueprint",
+                AuthoringAssetId = "00112233445566778899aabbccddeeff",
+                RootEntity = new SceneEntityAsset {
+                    Id = 1u,
+                    Name = "Root",
+                    Components = Array.Empty<SceneComponentAssetRecord>(),
+                    Children = Array.Empty<SceneEntityAsset>()
+                },
+                AssetReferences = references.ToArray()
+            };
+        }
+
+        /// <summary>
+        /// Creates one animation clip with caller-ordered platform overrides.
+        /// </summary>
+        /// <param name="overrides">Platform overrides in caller insertion order.</param>
+        /// <returns>Animation clip asset.</returns>
+        static AnimationClipAsset CreateAnimationWithOverrides(AnimationClipPlatformOverrideAsset[] overrides) {
+            return new AnimationClipAsset {
+                Id = "Animations/OverrideOrder",
+                Duration = 1f,
+                PlatformOverrides = overrides
+            };
+        }
+
+        /// <summary>
+        /// Creates one audio asset with caller-ordered platform overrides.
+        /// </summary>
+        /// <param name="overrides">Platform overrides in caller insertion order.</param>
+        /// <returns>Audio asset.</returns>
+        static AudioAsset CreateAudioWithOverrides(AudioAssetPlatformOverrideAsset[] overrides) {
+            return new AudioAsset {
+                Id = "Audio/OverrideOrder",
+                PlatformOverrides = overrides
+            };
         }
 
         /// <summary>

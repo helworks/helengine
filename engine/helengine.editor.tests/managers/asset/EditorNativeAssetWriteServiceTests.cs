@@ -120,11 +120,13 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     public void WriteAsset_WhenDestinationExists_PreservesCurrentAndFormerIdentities() {
         const string currentAssetId = "00112233445566778899aabbccddeeff";
         const string formerAssetId = "ffeeddccbbaa99887766554433221100";
+        string path = Path.Combine(ProjectRootPath, "assets", "models", "TestModel.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        File.WriteAllBytes(path, AssetSerializer.SerializeToBytes(CreateModel(
+            authoringAssetId: currentAssetId,
+            formerAuthoringAssetIds: new[] { formerAssetId })));
         using IEditorProjectAuthoringSession session = CreateSession();
 
-        session.WriteAsset("models/TestModel.hasset", CreateModel(
-            authoringAssetId: currentAssetId,
-            formerAuthoringAssetIds: new[] { formerAssetId }));
         EditorAssetWriteResult result = session.WriteAsset("models/TestModel.hasset", CreateModel(
             authoringAssetId: "abcdefabcdefabcdefabcdefabcdefab"));
 
@@ -166,6 +168,189 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures invalid embedded identity aliases are rejected before an existing destination is replaced.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenExistingDestinationHasDuplicateFormerIdentity_RejectsWithoutReplacement() {
+        using IEditorProjectAuthoringSession session = CreateSession();
+        string path = Path.Combine(ProjectRootPath, "assets", "models", "DuplicateFormer.hasset");
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        byte[] existingBytes = AssetSerializer.SerializeToBytes(CreateModel(
+            authoringAssetId: "00112233445566778899aabbccddeeff",
+            formerAuthoringAssetIds: new[] {
+                "ffeeddccbbaa99887766554433221100",
+                "ffeeddccbbaa99887766554433221100"
+            }));
+        File.WriteAllBytes(path, existingBytes);
+
+        Assert.Throws<InvalidOperationException>(() => session.WriteAsset("models/DuplicateFormer.hasset", CreateModel()));
+
+        Assert.Equal(existingBytes, File.ReadAllBytes(path));
+    }
+
+    /// <summary>
+    /// Ensures the writer rejects destinations whose extension cannot contain the supplied native asset kind.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenExtensionDoesNotMatchAssetKind_RejectsWithoutMutation() {
+        using IEditorProjectAuthoringSession session = CreateSession();
+        string wrongPath = Path.Combine(ProjectRootPath, "assets", "scenes", "WrongExtension.hasset");
+
+        Assert.Throws<InvalidOperationException>(() => session.WriteAsset(
+            "scenes/WrongExtension.hasset",
+            CreateScene()));
+
+        Assert.False(File.Exists(wrongPath));
+        Assert.False(File.Exists(wrongPath + ".hmeta"));
+    }
+
+    /// <summary>
+    /// Ensures external and metadata extensions are not accepted as native destinations.
+    /// </summary>
+    [Theory]
+    [InlineData("models/External.png")]
+    [InlineData("models/Hidden.hmeta")]
+    [InlineData("models/Unknown.txt")]
+    public void WriteAsset_WhenExtensionIsNotCurrentNative_RejectsWithoutMutation(string relativePath) {
+        using IEditorProjectAuthoringSession session = CreateSession();
+
+        Assert.Throws<InvalidOperationException>(() => session.WriteAsset(relativePath, CreateModel()));
+
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar))));
+    }
+
+    /// <summary>
+    /// Ensures a directory link cannot redirect a native write outside the project assets root.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenDirectoryLinkEscapesAssetsRoot_RejectsWithoutMutation() {
+        string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-native-write-outside-" + Guid.NewGuid().ToString("N"));
+        string linkPath = Path.Combine(ProjectRootPath, "assets", "linked");
+        Directory.CreateDirectory(outsideRoot);
+        try {
+            try {
+                Directory.CreateSymbolicLink(linkPath, outsideRoot);
+            } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is PlatformNotSupportedException) {
+                return;
+            }
+
+            using IEditorProjectAuthoringSession session = CreateSession();
+            Assert.Throws<InvalidOperationException>(() => session.WriteAsset("linked/Escaped.hasset", CreateModel()));
+
+            Assert.False(File.Exists(Path.Combine(outsideRoot, "Escaped.hasset")));
+            Assert.False(File.Exists(Path.Combine(outsideRoot, "Escaped.hasset.hmeta")));
+        } finally {
+            if (Directory.Exists(ProjectRootPath)) {
+                Directory.Delete(ProjectRootPath, true);
+            }
+            if (Directory.Exists(outsideRoot)) {
+                Directory.Delete(outsideRoot, true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ensures a sibling that differs only by case is not treated as the assets root on case-sensitive filesystems.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenCaseSensitiveSiblingIsOutsideAssetsRoot_RejectsWithoutMutation() {
+        if (OperatingSystem.IsWindows()) {
+            return;
+        }
+
+        string siblingRoot = Path.Combine(ProjectRootPath, "ASSETS");
+        Directory.CreateDirectory(siblingRoot);
+        using IEditorProjectAuthoringSession session = CreateSession();
+
+        Assert.Throws<InvalidOperationException>(() => session.WriteAsset("../ASSETS/Sibling.hasset", CreateModel()));
+
+        Assert.False(File.Exists(Path.Combine(siblingRoot, "Sibling.hasset")));
+    }
+
+    /// <summary>
+    /// Ensures caller-supplied former identities are not published for a new destination.
+    /// </summary>
+    [Fact]
+    public void WriteAsset_WhenNewDestinationContainsFormerAliases_ClearsAliasesBeforePublication() {
+        using IEditorProjectAuthoringSession session = CreateSession();
+
+        EditorAssetWriteResult result = session.WriteAsset(
+            "models/New.hasset",
+            CreateModel(
+                authoringAssetId: "00112233445566778899aabbccddeeff",
+                formerAuthoringAssetIds: new[] { "ffeeddccbbaa99887766554433221100", "ffeeddccbbaa99887766554433221100" }));
+
+        Assert.Empty(ReadModel(result.FullPath).FormerAuthoringAssetIds);
+    }
+
+    /// <summary>
+    /// Ensures the native writer remains an internal composition detail of the project session.
+    /// </summary>
+    [Fact]
+    public void EditorNativeAssetWriteService_IsNotPublic() {
+        Assert.False(typeof(EditorNativeAssetWriteService).IsPublic);
+    }
+
+    /// <summary>
+    /// Ensures concurrent sessions cannot publish one caller identity to two new destinations.
+    /// </summary>
+    [Fact]
+    public async Task WriteAsset_WhenSessionsRaceForOneCallerIdentity_PublishesAtMostOneDestination() {
+        const string callerAssetId = "00112233445566778899aabbccddeeff";
+        using IEditorProjectAuthoringSession firstSession = CreateSession();
+        using IEditorProjectAuthoringSession secondSession = CreateSession();
+        using Barrier startBarrier = new Barrier(2);
+
+        Task<EditorAssetWriteResult> firstWrite = Task.Run(() => {
+            startBarrier.SignalAndWait();
+            return firstSession.WriteAsset("models/RaceFirst.hasset", CreateModel(authoringAssetId: callerAssetId));
+        });
+        Task<EditorAssetWriteResult> secondWrite = Task.Run(() => {
+            startBarrier.SignalAndWait();
+            return secondSession.WriteAsset("models/RaceSecond.hasset", CreateModel(authoringAssetId: callerAssetId));
+        });
+        Task<EditorAssetWriteResult>[] writes = new[] { firstWrite, secondWrite };
+
+        int successfulWrites = 0;
+        for (int index = 0; index < writes.Length; index++) {
+            try {
+                await writes[index];
+                successfulWrites++;
+            } catch (InvalidOperationException) {
+            }
+        }
+
+        Assert.Equal(1, successfulWrites);
+        Assert.Single(Directory.GetFiles(Path.Combine(ProjectRootPath, "assets", "models"), "Race*.hasset"));
+    }
+
+    /// <summary>
+    /// Ensures concurrent first writes to one destination converge on one identity.
+    /// </summary>
+    [Fact]
+    public async Task WriteAsset_WhenSessionsRaceForOneDestination_PreservesOnePublishedIdentity() {
+        const string firstAssetId = "00112233445566778899aabbccddeeff";
+        const string secondAssetId = "ffeeddccbbaa99887766554433221100";
+        using IEditorProjectAuthoringSession firstSession = CreateSession();
+        using IEditorProjectAuthoringSession secondSession = CreateSession();
+        using Barrier startBarrier = new Barrier(2);
+
+        Task<EditorAssetWriteResult> firstWrite = Task.Run(() => {
+            startBarrier.SignalAndWait();
+            return firstSession.WriteAsset("models/RaceSame.hasset", CreateModel(authoringAssetId: firstAssetId));
+        });
+        Task<EditorAssetWriteResult> secondWrite = Task.Run(() => {
+            startBarrier.SignalAndWait();
+            return secondSession.WriteAsset("models/RaceSame.hasset", CreateModel(authoringAssetId: secondAssetId));
+        });
+        EditorAssetWriteResult[] writes = await Task.WhenAll(firstWrite, secondWrite);
+
+        ModelAsset saved = ReadModel(Path.Combine(ProjectRootPath, "assets", "models", "RaceSame.hasset"));
+        Assert.Contains(saved.AuthoringAssetId, new[] { firstAssetId, secondAssetId });
+        Assert.All(writes, write => Assert.Equal(saved.AuthoringAssetId, write.AssetId));
+    }
+
+    /// <summary>
     /// Creates one session through the public host factory.
     /// </summary>
     /// <returns>Disposable project authoring session.</returns>
@@ -194,6 +379,19 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
             Indices16 = Array.Empty<ushort>(),
             Indices32 = Array.Empty<uint>(),
             Submeshes = Array.Empty<ModelSubmeshAsset>()
+        };
+    }
+
+    /// <summary>
+    /// Creates a minimal scene payload for extension validation.
+    /// </summary>
+    /// <returns>Current scene asset.</returns>
+    static SceneAsset CreateScene() {
+        return new SceneAsset {
+            Id = "Scenes/TestScene",
+            RootEntities = Array.Empty<SceneEntityAsset>(),
+            AssetReferences = Array.Empty<SceneAssetReference>(),
+            SceneSettings = new SceneSettingsAsset()
         };
     }
 

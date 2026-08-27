@@ -2,7 +2,12 @@ namespace helengine.editor {
     /// <summary>
     /// Writes current native asset payloads with stable embedded identity and byte-level idempotence.
     /// </summary>
-    public sealed class EditorNativeAssetWriteService {
+    internal sealed class EditorNativeAssetWriteService {
+        /// <summary>
+        /// Canonical assets root owned by this writer.
+        /// </summary>
+        readonly string ProjectRootPath;
+
         /// <summary>
         /// Canonical assets root owned by this writer.
         /// </summary>
@@ -24,6 +29,11 @@ namespace helengine.editor {
         readonly AssetIdentityMetadataService MetadataService;
 
         /// <summary>
+        /// Last project publication generation observed by this writer.
+        /// </summary>
+        string LastObservedGeneration;
+
+        /// <summary>
         /// Initializes one native writer over the session-owned identity graph.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
@@ -37,10 +47,12 @@ namespace helengine.editor {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
 
-            AssetsRootPath = Path.Combine(Path.GetFullPath(projectRootPath), "assets");
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
             MetadataService = new AssetIdentityMetadataService();
+            LastObservedGeneration = EditorProjectWriteGeneration.Read(ProjectRootPath);
         }
 
         /// <summary>
@@ -55,28 +67,43 @@ namespace helengine.editor {
             }
 
             string fullPath = ResolveDestination(relativePath, out string normalizedRelativePath);
+            ValidateNativeDestination(fullPath, asset);
+            ValidateNoReparseTraversal(fullPath);
+
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            ReconcileIfGenerationChanged();
+            ValidateNoReparseTraversal(fullPath);
+
             bool destinationExists = File.Exists(fullPath);
             bool preservedExistingIdentity = false;
             if (destinationExists) {
+                ValidateExistingNativeContainer(fullPath, asset);
                 CopyExistingIdentity(fullPath, asset);
                 preservedExistingIdentity = true;
             } else {
                 AssignNewDestinationIdentity(asset);
+                asset.FormerAuthoringAssetIds = Array.Empty<string>();
             }
-            asset.FormerAuthoringAssetIds ??= Array.Empty<string>();
 
             byte[] serializedBytes = AssetSerializer.SerializeToBytes(asset);
             EditorAssetWriteDisposition disposition = destinationExists
                 ? EditorAssetWriteDisposition.Changed
                 : EditorAssetWriteDisposition.Created;
+            bool replaced = false;
             if (destinationExists && File.ReadAllBytes(fullPath).AsSpan().SequenceEqual(serializedBytes)) {
                 disposition = EditorAssetWriteDisposition.Unchanged;
             } else {
                 WriteAtomically(fullPath, serializedBytes);
+                replaced = true;
+                HashCache.InvalidateContentHash(fullPath);
             }
 
             IdentityIndex.RegisterOrUpdate(fullPath);
             string contentHash = HashCache.GetContentHash(fullPath);
+            if (replaced) {
+                LastObservedGeneration = EditorProjectWriteGeneration.Advance(ProjectRootPath);
+            }
+
             return new EditorAssetWriteResult(
                 normalizedRelativePath,
                 fullPath,
@@ -106,10 +133,10 @@ namespace helengine.editor {
                 relativePath.Replace('/', Path.DirectorySeparatorChar)));
             string assetsPrefix = canonicalAssetsRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 + Path.DirectorySeparatorChar;
-            if (!fullPath.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase)) {
+            if (!fullPath.StartsWith(assetsPrefix, PathComparison)) {
                 throw new InvalidOperationException("Native asset destinations must remain beneath the project assets root.");
             }
-            if (string.Equals(fullPath, canonicalAssetsRoot, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(fullPath, canonicalAssetsRoot, PathComparison)) {
                 throw new InvalidOperationException("Native asset destinations must identify a file beneath the project assets root.");
             }
 
@@ -118,6 +145,113 @@ namespace helengine.editor {
                 .Replace(Path.AltDirectorySeparatorChar, '/')
                 .Trim('/');
             return fullPath;
+        }
+
+        /// <summary>
+        /// Gets the operating-system path comparison used for containment checks.
+        /// </summary>
+        static StringComparison PathComparison => OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        /// <summary>
+        /// Validates the destination extension and the asset type before any destination access.
+        /// </summary>
+        /// <param name="fullPath">Candidate absolute destination.</param>
+        /// <param name="asset">Asset payload to serialize.</param>
+        static void ValidateNativeDestination(string fullPath, Asset asset) {
+            if (asset is ShaderAsset || asset is TextAsset || asset is PlatformMaterialAsset) {
+                throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not a supported native authoring destination.");
+            }
+
+            string expectedExtension = asset switch {
+                SceneAsset => SceneAsset.FileExtension,
+                BlueprintAsset => BlueprintAsset.FileExtension,
+                AnimationClipAsset => ".hanim",
+                TextureAsset => EditorFileTemplateRegistry.MaterialExtension,
+                ModelAsset => EditorFileTemplateRegistry.MaterialExtension,
+                MaterialAsset => EditorFileTemplateRegistry.MaterialExtension,
+                AudioAsset => EditorFileTemplateRegistry.MaterialExtension,
+                _ => throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not a supported native authoring destination.")
+            };
+            if (!string.Equals(Path.GetExtension(fullPath), expectedExtension, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException($"Native asset destination '{fullPath}' must use extension '{expectedExtension}' for asset type '{asset.GetType().Name}'.");
+            }
+        }
+
+        /// <summary>
+        /// Rejects reparse-point traversal before the writer touches destination state.
+        /// </summary>
+        /// <param name="fullPath">Candidate absolute destination.</param>
+        void ValidateNoReparseTraversal(string fullPath) {
+            string rootPath = Path.GetFullPath(AssetsRootPath);
+            string currentPath = fullPath;
+            while (true) {
+                try {
+                    FileAttributes attributes = File.GetAttributes(currentPath);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
+                        throw new InvalidOperationException($"Native asset destination '{fullPath}' traverses a reparse point.");
+                    }
+                } catch (FileNotFoundException) {
+                } catch (DirectoryNotFoundException) {
+                }
+                if (string.Equals(currentPath, rootPath, PathComparison)) {
+                    break;
+                }
+                string parent = Path.GetDirectoryName(currentPath);
+                if (string.IsNullOrWhiteSpace(parent) ||
+                    (!string.Equals(parent, rootPath, PathComparison) &&
+                     !parent.StartsWith(rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, PathComparison))) {
+                    throw new InvalidOperationException($"Native asset destination '{fullPath}' is outside the project assets root.");
+                }
+                currentPath = parent;
+            }
+        }
+
+        /// <summary>
+        /// Reconciles one publication generation observed from another authoring session.
+        /// </summary>
+        void ReconcileIfGenerationChanged() {
+            string currentGeneration = EditorProjectWriteGeneration.Read(ProjectRootPath);
+            if (string.Equals(currentGeneration, LastObservedGeneration, StringComparison.Ordinal)) {
+                return;
+            }
+
+            IdentityIndex.ReconcileExternalChanges();
+            LastObservedGeneration = currentGeneration;
+        }
+
+        /// <summary>
+        /// Validates that an existing destination is a current native asset of the requested type.
+        /// </summary>
+        /// <param name="fullPath">Existing destination path.</param>
+        /// <param name="asset">Incoming asset payload.</param>
+        static void ValidateExistingNativeContainer(string fullPath, Asset asset) {
+            using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            EditorAssetBinaryValueKind expectedValueKind = GetExpectedValueKind(asset);
+            if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId ||
+                header.RecordKind != (ushort)EditorBinaryRecordKind.Asset ||
+                header.Version != global::helengine.files.EditorAssetBinarySerializer.CurrentVersion ||
+                header.ValueKind != (ushort)expectedValueKind) {
+                throw new InvalidOperationException($"Native asset destination '{fullPath}' is not a current '{expectedValueKind}' payload.");
+            }
+        }
+
+        /// <summary>
+        /// Maps one accepted asset payload to its serialized value kind.
+        /// </summary>
+        /// <param name="asset">Asset payload to classify.</param>
+        /// <returns>Expected current binary value kind.</returns>
+        static EditorAssetBinaryValueKind GetExpectedValueKind(Asset asset) {
+            if (asset is TextureAsset) return EditorAssetBinaryValueKind.TextureAsset;
+            if (asset is ModelAsset) return EditorAssetBinaryValueKind.ModelAsset;
+            if (asset is MaterialAsset) return EditorAssetBinaryValueKind.MaterialAsset;
+            if (asset is AnimationClipAsset) return EditorAssetBinaryValueKind.AnimationClipAsset;
+            if (asset is AudioAsset) return EditorAssetBinaryValueKind.AudioAsset;
+            if (asset is SceneAsset) return EditorAssetBinaryValueKind.SceneAsset;
+            if (asset is BlueprintAsset) return EditorAssetBinaryValueKind.BlueprintAsset;
+            throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not a supported native authoring destination.");
         }
 
         /// <summary>

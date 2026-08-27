@@ -142,6 +142,27 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures explicit invalidation defeats a stale same-length, same-timestamp fingerprint.
+    /// </summary>
+    [Fact]
+    public void InvalidateContentHash_WhenBytesChangeButFingerprintDoesNot_RecomputesHash() {
+        string assetPath = CreateAsset("Textures/SameFingerprint.png", new byte[] { 1, 2, 3, 4 });
+        CountingAssetFileHasher hasher = new CountingAssetFileHasher();
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, hasher, new CountingAssetHashCacheStore());
+
+        string firstHash = cache.GetContentHash(assetPath);
+        DateTime originalTimestamp = File.GetLastWriteTimeUtc(assetPath);
+        File.WriteAllBytes(assetPath, new byte[] { 5, 6, 7, 8 });
+        File.SetLastWriteTimeUtc(assetPath, originalTimestamp);
+
+        cache.InvalidateContentHash(assetPath);
+        string secondHash = cache.GetContentHash(assetPath);
+
+        Assert.NotEqual(firstHash, secondHash);
+        Assert.Equal(2, hasher.FileHashCount);
+    }
+
+    /// <summary>
     /// Ensures malformed disposable cache JSON is ignored and rebuilt from the source file.
     /// </summary>
     [Fact]

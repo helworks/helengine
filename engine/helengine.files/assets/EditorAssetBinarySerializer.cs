@@ -467,7 +467,10 @@ namespace helengine.files {
             writer.WriteArray(asset.PositionOffsetTracks, WritePositionOffsetKeyframeTrackAsset);
             writer.WriteArray(asset.ScaleTracks, WriteScaleKeyframeTrackAsset);
             writer.WriteArray(asset.RotationTracks, WriteRotationKeyframeTrackAsset);
-            writer.WriteArray(asset.PlatformOverrides, WriteAnimationClipPlatformOverrideAsset);
+            writer.WriteArray(asset.PlatformOverrides?
+                .OrderBy(platformOverride => platformOverride?.PlatformId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(platformOverride => platformOverride?.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+                .ToArray(), WriteAnimationClipPlatformOverrideAsset);
         }
 
         /// <summary>
@@ -504,7 +507,9 @@ namespace helengine.files {
             writer.WriteString(asset.EncodingFamilyId);
             writer.WriteByteArray(asset.EncodedBytes);
             writer.WriteArray(asset.Chunks, WriteAudioChunkDescriptor);
-            writer.WriteArray(asset.PlatformOverrides, WriteAudioAssetPlatformOverrideAsset);
+            writer.WriteArray(asset.PlatformOverrides?
+                .OrderBy(platformOverride => platformOverride?.PlatformId ?? string.Empty, StringComparer.Ordinal)
+                .ToArray(), WriteAudioAssetPlatformOverrideAsset);
         }
 
         /// <summary>
@@ -821,7 +826,7 @@ namespace helengine.files {
             EnsureRuntimeAssetIdentity(asset);
             WriteAssetIdentity(writer, asset);
             writer.WriteArray(asset.RootEntities, WriteSceneEntityAsset);
-            writer.WriteArray(asset.AssetReferences?.OrderBy(reference => reference.RelativePath, StringComparer.Ordinal).ToArray(), WriteSceneAssetReference);
+            writer.WriteArray(SortSceneAssetReferences(asset.AssetReferences), WriteSceneAssetReference);
             writer.WriteUInt32(asset.Physics3DSceneFeatureFlags);
             WriteSceneSettingsAsset(writer, asset.SceneSettings);
         }
@@ -860,7 +865,7 @@ namespace helengine.files {
             EnsureRuntimeAssetIdentity(asset);
             WriteAssetIdentity(writer, asset);
             WriteSceneEntityAsset(writer, asset.RootEntity);
-            writer.WriteArray(asset.AssetReferences?.OrderBy(reference => reference.RelativePath, StringComparer.Ordinal).ToArray(), WriteSceneAssetReference);
+            writer.WriteArray(SortSceneAssetReferences(asset.AssetReferences), WriteSceneAssetReference);
         }
 
         /// <summary>
@@ -1199,6 +1204,20 @@ namespace helengine.files {
         }
 
         /// <summary>
+        /// Orders scene and blueprint references by every serialized identity field.
+        /// </summary>
+        /// <param name="references">References to order.</param>
+        /// <returns>Ordinally ordered references.</returns>
+        static SceneAssetReference[] SortSceneAssetReferences(SceneAssetReference[] references) {
+            return references?.OrderBy(reference => (int)(reference?.SourceKind ?? default(SceneAssetReferenceSourceKind)))
+                .ThenBy(reference => reference?.RelativePath ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(reference => reference?.ProviderId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(reference => reference?.AssetId ?? string.Empty, StringComparer.Ordinal)
+                .ThenBy(reference => reference?.ContentHash ?? string.Empty, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        /// <summary>
         /// Writes one serialized scene component record.
         /// </summary>
         /// <param name="writer">Destination writer for the payload.</param>
@@ -1335,7 +1354,9 @@ namespace helengine.files {
             writer.WriteString(asset.Id);
             writer.WriteInt64(unchecked((long)asset.RuntimeAssetId));
             writer.WriteString(asset.AuthoringAssetId ?? string.Empty);
-            writer.WriteArray(asset.FormerAuthoringAssetIds ?? Array.Empty<string>(), WriteStringValue);
+            writer.WriteArray((asset.FormerAuthoringAssetIds ?? Array.Empty<string>())
+                .OrderBy(formerAssetId => formerAssetId, StringComparer.Ordinal)
+                .ToArray(), WriteStringValue);
         }
 
         /// <summary>

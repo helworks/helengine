@@ -166,6 +166,20 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Invalidates one cached path after an authoring write replaces its bytes.
+        /// </summary>
+        /// <param name="assetPath">Absolute authored asset path.</param>
+        public void InvalidateContentHash(string assetPath) {
+            EnsureNotDisposed();
+            string fullPath = NormalizeAndValidatePath(assetPath);
+            EnsureLoaded();
+            string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, fullPath));
+            Entries.Remove(relativePath);
+            DirtyPaths.Remove(relativePath);
+            IsDirty = DirtyPaths.Count > 0;
+        }
+
+        /// <summary>
         /// Computes one recovery hash, canonicalizing native payloads without their embedded identity metadata.
         /// </summary>
         /// <param name="fullPath">Absolute authored source path.</param>

@@ -35,7 +35,20 @@ namespace helengine.editor {
         /// <param name="referenceResolver">Session-owned reference resolver.</param>
         internal EditorProjectAssetAuthoringService(
             AssetImportManager assetImportManager,
-            EditorAssetReferenceResolver referenceResolver) {
+            EditorAssetReferenceResolver referenceResolver)
+            : this(assetImportManager, referenceResolver, null) {
+        }
+
+        /// <summary>
+        /// Initializes one project capability over a supplied session-owned native writer.
+        /// </summary>
+        /// <param name="assetImportManager">Host-owned import manager backing the capability.</param>
+        /// <param name="referenceResolver">Session-owned reference resolver.</param>
+        /// <param name="nativeAssetWriteService">Session-owned native writer.</param>
+        internal EditorProjectAssetAuthoringService(
+            AssetImportManager assetImportManager,
+            EditorAssetReferenceResolver referenceResolver,
+            EditorNativeAssetWriteService nativeAssetWriteService) {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             AssetReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             string projectRootPath = ResolveProjectRootPath();
@@ -47,10 +60,10 @@ namespace helengine.editor {
                 new EditorFileSystemTextureResolver(AssetImportManagerValue),
                 AssetReferenceResolver);
             AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AssetReferenceResolver);
-            NativeAssetWriteService = new EditorNativeAssetWriteService(
-                projectRootPath,
-                AssetReferenceResolver.IdentityIndexValue,
-                AssetReferenceResolver.HashCacheValue);
+            NativeAssetWriteService = nativeAssetWriteService ?? new EditorNativeAssetWriteService(
+                    projectRootPath,
+                    AssetReferenceResolver.IdentityIndexValue,
+                    AssetReferenceResolver.HashCacheValue);
         }
 
         /// <summary>
