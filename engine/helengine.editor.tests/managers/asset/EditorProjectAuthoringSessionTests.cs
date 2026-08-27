@@ -145,14 +145,15 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures transaction creation remains an explicit task boundary until recoverable publication is implemented.
+    /// Ensures transaction creation is owned by the project session.
     /// </summary>
     [Fact]
-    public void BeginTransaction_BeforeRecoverableTransactionService_ThrowsTaskBoundaryException() {
+    public void BeginTransaction_CreatesSessionOwnedTransaction() {
         string projectRootPath = CreateTemporaryProjectRoot();
         EditorProjectAuthoringSession session = CreateSession(projectRootPath);
 
-        Assert.Throws<NotSupportedException>(() => session.BeginTransaction());
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        Assert.NotNull(transaction);
     }
 
     /// <summary>

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace helengine.editor {
     /// <summary>
     /// Provides the project publication boundary used by readers of the shared identity graph.
@@ -205,6 +207,180 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Prepares canonical native bytes while leaving the assets tree untouched.
+        /// </summary>
+        internal EditorPreparedAssetWrite PrepareAsset(string relativePath, Asset asset) {
+            EnsureNotDisposed();
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            string fullPath = ResolveDestination(relativePath, out string normalizedRelativePath);
+            ValidateNativeDestination(fullPath, asset);
+            ValidateNoReparseTraversal(fullPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            ReconcileIfGenerationChanged();
+            ValidateNoReparseTraversal(fullPath);
+
+            bool priorExists = File.Exists(fullPath);
+            bool preservedExistingIdentity = false;
+            if (priorExists) {
+                ValidateExistingNativeContainer(fullPath, asset);
+                CopyExistingIdentity(fullPath, asset);
+                preservedExistingIdentity = true;
+            } else {
+                AssignNewDestinationIdentity(asset);
+                asset.FormerAuthoringAssetIds = Array.Empty<string>();
+            }
+
+            byte[] serializedBytes = AssetSerializer.SerializeToBytes(asset);
+            byte[] priorBytes = priorExists ? File.ReadAllBytes(fullPath) : null;
+            bool unchanged = priorExists && priorBytes.AsSpan().SequenceEqual(serializedBytes);
+            string priorContentHash = priorExists ? HashCache.ComputeContentHashFresh(fullPath) : null;
+            string stagedContentHash = HashCache.ComputeCanonicalAssetHash(asset);
+            return new EditorPreparedAssetWrite {
+                RelativePath = normalizedRelativePath,
+                FullPath = fullPath,
+                SerializedBytes = serializedBytes,
+                ContentHash = stagedContentHash,
+                AssetId = asset.AuthoringAssetId,
+                PriorExists = priorExists,
+                PriorContentHash = priorContentHash,
+                PriorSerializedHash = priorExists ? HashCache.ComputeSerializedHash(priorBytes) : null,
+                PreservedExistingIdentity = preservedExistingIdentity,
+                IsUnchanged = unchanged
+            };
+        }
+
+        /// <summary>
+        /// Applies one successfully replaced destination to the session-owned graph.
+        /// </summary>
+        internal void ApplyPublishedAssetUnderLock(EditorPreparedAssetWrite prepared) {
+            EnsureNotDisposed();
+            if (prepared == null) {
+                throw new ArgumentNullException(nameof(prepared));
+            }
+
+            HashCache.InvalidateContentHash(prepared.FullPath);
+            IdentityIndex.RegisterOrUpdateUnderLock(prepared.FullPath);
+            HashCache.GetContentHash(prepared.FullPath);
+        }
+
+        /// <summary>
+        /// Publishes one transaction destination generation while the project lock is held.
+        /// </summary>
+        internal long PublishChangeUnderLock(string relativePath) {
+            EnsureNotDisposed();
+            return ChangeLog.PublishChange(relativePath);
+        }
+
+        /// <summary>
+        /// Updates this writer's observed publication generation after a transaction commit.
+        /// </summary>
+        internal void ObserveCurrentGenerationUnderLock() {
+            EnsureNotDisposed();
+            LastObservedGeneration = ChangeLog.CurrentGeneration;
+        }
+
+        /// <summary>
+        /// Flushes the session-owned hash cache at a transaction commit boundary.
+        /// </summary>
+        internal void FlushHashCacheAtCommit() {
+            EnsureNotDisposed();
+            HashCache.Flush();
+        }
+
+        /// <summary>
+        /// Computes one fresh recovery hash for a destination while bypassing the cache fingerprint.
+        /// </summary>
+        internal string ComputeCurrentContentHash(string fullPath) {
+            EnsureNotDisposed();
+            return HashCache.ComputeContentHashFresh(fullPath);
+        }
+
+        /// <summary>
+        /// Computes a full serialized-byte fingerprint for transaction race checks.
+        /// </summary>
+        internal string ComputeSerializedHash(byte[] bytes) {
+            EnsureNotDisposed();
+            return HashCache.ComputeSerializedHash(bytes);
+        }
+
+        /// <summary>
+        /// Validates that staged bytes are a current native payload of the destination kind.
+        /// </summary>
+        internal void ValidatePreparedPayload(byte[] serializedBytes, string destinationPath, string expectedContentHash) {
+            EnsureNotDisposed();
+            if (serializedBytes == null || serializedBytes.Length == 0) {
+                throw new InvalidDataException("The staged native payload is empty.");
+            }
+
+            using MemoryStream stream = new MemoryStream(serializedBytes, writable: false);
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId ||
+                header.RecordKind != (ushort)EditorBinaryRecordKind.Asset ||
+                header.Version != global::helengine.files.EditorAssetBinarySerializer.CurrentVersion) {
+                throw new InvalidDataException("The staged native payload is not a current asset document.");
+            }
+
+            stream.Position = 0;
+            Asset asset = AssetSerializer.Deserialize(stream);
+            ValidateNativeDestination(destinationPath, asset);
+            string actualContentHash = HashCache.ComputeCanonicalAssetHash(asset);
+            if (!string.Equals(actualContentHash, expectedContentHash, StringComparison.Ordinal)) {
+                throw new InvalidDataException("The staged native payload hash does not match its journal.");
+            }
+        }
+
+        /// <summary>
+        /// Validates one current native payload without requiring a session-owned cache.
+        /// </summary>
+        internal static void ValidateCurrentNativePayload(byte[] serializedBytes, string destinationPath) {
+            if (serializedBytes == null || serializedBytes.Length == 0) {
+                throw new InvalidDataException("The staged native payload is empty.");
+            }
+
+            using MemoryStream stream = new MemoryStream(serializedBytes, writable: false);
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId ||
+                header.RecordKind != (ushort)EditorBinaryRecordKind.Asset ||
+                header.Version != global::helengine.files.EditorAssetBinarySerializer.CurrentVersion) {
+                throw new InvalidDataException("The staged native payload is not a current asset document.");
+            }
+
+            stream.Position = 0;
+            Asset asset = AssetSerializer.Deserialize(stream);
+            ValidateNativeDestination(destinationPath, asset);
+        }
+
+        /// <summary>
+        /// Computes the canonical recovery hash of one current native payload.
+        /// </summary>
+        internal static string ComputeCanonicalNativeHash(byte[] serializedBytes, string destinationPath) {
+            ValidateCurrentNativePayload(serializedBytes, destinationPath);
+            using MemoryStream input = new MemoryStream(serializedBytes, writable: false);
+            Asset asset = AssetSerializer.Deserialize(input);
+            asset.AuthoringAssetId = string.Empty;
+            asset.FormerAuthoringAssetIds = Array.Empty<string>();
+            using MemoryStream canonical = new MemoryStream();
+            AssetSerializer.Serialize(canonical, asset);
+            return string.Concat("sha256:", Convert.ToHexString(SHA256.HashData(canonical.ToArray())).ToLowerInvariant());
+        }
+
+        /// <summary>
+        /// Restores one destination's in-memory identity graph after a failed publication.
+        /// </summary>
+        internal void RestorePublishedAssetUnderLock(EditorPreparedAssetWrite prepared) {
+            EnsureNotDisposed();
+            HashCache.InvalidateContentHash(prepared.FullPath);
+            if (prepared.PriorExists) {
+                IdentityIndex.RegisterOrUpdateUnderLock(prepared.FullPath);
+            } else {
+                IdentityIndex.RemoveUnderLock(prepared.FullPath);
+            }
+        }
+
+        /// <summary>
         /// Releases the thread-local state owned by a standalone resolver boundary.
         /// </summary>
         public void Dispose() {
@@ -268,7 +444,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fullPath">Candidate absolute destination.</param>
         /// <param name="asset">Asset payload to serialize.</param>
-        static void ValidateNativeDestination(string fullPath, Asset asset) {
+        internal static void ValidateNativeDestination(string fullPath, Asset asset) {
             if (asset is ShaderAsset || asset is TextAsset || asset is PlatformMaterialAsset) {
                 throw new InvalidOperationException($"Asset type '{asset.GetType().Name}' is not a supported native authoring destination.");
             }

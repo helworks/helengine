@@ -54,6 +54,16 @@ namespace helengine.editor {
         readonly EditorAssetRepairReport RepairReportValue;
 
         /// <summary>
+        /// Serializes the one-active-transaction session slot.
+        /// </summary>
+        readonly object TransactionGate = new object();
+
+        /// <summary>
+        /// The transaction currently owned by this session, when one is active.
+        /// </summary>
+        EditorAuthoringTransaction ActiveTransaction;
+
+        /// <summary>
         /// Tracks whether the session has released its owned state.
         /// </summary>
         bool IsDisposed;
@@ -188,12 +198,41 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Begins one current placeholder transaction associated with this project.
+        /// Begins one project-scoped transaction associated with this session.
         /// </summary>
         /// <returns>Project-scoped authoring transaction.</returns>
         public EditorAuthoringTransaction BeginTransaction() {
             EnsureNotDisposed();
-            throw new NotSupportedException("Recoverable authoring transactions are provided by the editor transaction service task.");
+            return BeginTransaction(null);
+        }
+
+        /// <summary>
+        /// Begins one transaction through the internal publication test seam.
+        /// </summary>
+        internal EditorAuthoringTransaction BeginTransaction(EditorAuthoringTransactionHooks hooks) {
+            EnsureNotDisposed();
+            lock (TransactionGate) {
+                if (ActiveTransaction != null) {
+                    throw new InvalidOperationException("Only one authoring transaction may be active per project session.");
+                }
+
+                EditorAuthoringTransaction transaction = null;
+                transaction = new EditorAuthoringTransaction(
+                    ProjectRootPath,
+                    NativeAssetWriteService,
+                    () => ReleaseTransaction(transaction),
+                    hooks);
+                ActiveTransaction = transaction;
+                return transaction;
+            }
+        }
+
+        void ReleaseTransaction(EditorAuthoringTransaction transaction) {
+            lock (TransactionGate) {
+                if (ReferenceEquals(ActiveTransaction, transaction)) {
+                    ActiveTransaction = null;
+                }
+            }
         }
 
         /// <summary>
@@ -478,6 +517,11 @@ namespace helengine.editor {
                 return;
             }
 
+            EditorAuthoringTransaction activeTransaction;
+            lock (TransactionGate) {
+                activeTransaction = ActiveTransaction;
+            }
+            activeTransaction?.Dispose();
             Lifetime.Dispose();
             IsDisposed = true;
         }
@@ -508,6 +552,7 @@ namespace helengine.editor {
         /// <returns>Explicit project service composition.</returns>
         static SessionDependencies CreateDependencies(AssetImportManager assetImportManager) {
             string projectRootPath = ResolveProjectRootPath(assetImportManager);
+            EditorAuthoringTransactionRecoveryService.Recover(projectRootPath);
             EditorAssetRepairReport repairReport = new EditorAssetRepairReport();
             EditorAssetHashCache hashCache = new EditorAssetHashCache(projectRootPath);
             EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache, repairReport);

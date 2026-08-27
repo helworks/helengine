@@ -203,6 +203,51 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Computes one current recovery hash without changing cached state.
+        /// </summary>
+        internal string ComputeContentHashFresh(string assetPath) {
+            EnsureNotDisposed();
+            string fullPath = NormalizeAndValidatePath(assetPath);
+            return string.Concat("sha256:", ComputeContentHash(fullPath));
+        }
+
+        /// <summary>
+        /// Computes a recovery hash for prepared native bytes without publishing them.
+        /// </summary>
+        internal string ComputeCanonicalAssetHash(Asset asset) {
+            EnsureNotDisposed();
+            if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            }
+
+            string originalAssetId = asset.AuthoringAssetId;
+            string[] originalFormerIds = asset.FormerAuthoringAssetIds;
+            try {
+                asset.AuthoringAssetId = string.Empty;
+                asset.FormerAuthoringAssetIds = Array.Empty<string>();
+                using MemoryStream canonical = new MemoryStream();
+                AssetSerializer.Serialize(canonical, asset);
+                canonical.Position = 0;
+                return string.Concat("sha256:", FileHasher.ComputeHash(canonical));
+            } finally {
+                asset.AuthoringAssetId = originalAssetId;
+                asset.FormerAuthoringAssetIds = originalFormerIds;
+            }
+        }
+
+        /// <summary>
+        /// Computes a full serialized-byte fingerprint without changing cache state.
+        /// </summary>
+        internal string ComputeSerializedHash(byte[] bytes) {
+            EnsureNotDisposed();
+            if (bytes == null) {
+                throw new ArgumentNullException(nameof(bytes));
+            }
+            using MemoryStream stream = new MemoryStream(bytes, writable: false);
+            return string.Concat("sha256:", FileHasher.ComputeHash(stream));
+        }
+
+        /// <summary>
         /// Computes one recovery hash, canonicalizing native payloads without their embedded identity metadata.
         /// </summary>
         /// <param name="fullPath">Absolute authored source path.</param>
