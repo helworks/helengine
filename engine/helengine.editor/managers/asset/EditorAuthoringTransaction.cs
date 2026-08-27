@@ -13,6 +13,8 @@ namespace helengine.editor {
         readonly Action CompletionCallback;
         readonly EditorAuthoringTransactionHooks Hooks;
         readonly Dictionary<string, EditorPreparedAssetWrite> PreparedByPath;
+        readonly object StateGate = new object();
+        FileStream LeaseStream;
         EditorAuthoringTransactionDocument Document;
         bool IsDisposed;
         bool IsCompleted;
@@ -34,16 +36,37 @@ namespace helengine.editor {
             PreparedByPath = new Dictionary<string, EditorPreparedAssetWrite>(PathComparer);
 
             string transactionRoot = EditorAuthoringTransactionRecoveryService.GetTransactionRoot(ProjectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
             Directory.CreateDirectory(transactionRoot);
             string transactionId = Guid.NewGuid().ToString("N");
-            TransactionDirectoryPath = Path.Combine(transactionRoot, transactionId);
-            Directory.CreateDirectory(TransactionDirectoryPath);
-            ManifestPath = Path.Combine(TransactionDirectoryPath, "transaction.json");
-            Document = new EditorAuthoringTransactionDocument {
-                TransactionId = transactionId,
-                State = EditorAuthoringTransactionState.Staging
-            };
-            WriteDocument();
+            TransactionDirectoryPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(transactionRoot, transactionId, "transaction");
+            ManifestPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "transaction.json", "manifest");
+            try {
+                Directory.CreateDirectory(TransactionDirectoryPath);
+                EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "staged", "staged-root");
+                EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "backups", "backup-root");
+                Directory.CreateDirectory(Path.Combine(TransactionDirectoryPath, "staged"));
+                Directory.CreateDirectory(Path.Combine(TransactionDirectoryPath, "backups"));
+                string leasePath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "lease", "lease");
+                LeaseStream = new FileStream(leasePath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
+                Document = new EditorAuthoringTransactionDocument {
+                    TransactionId = transactionId,
+                    State = EditorAuthoringTransactionState.Staging
+                };
+                WriteDocument();
+            } catch (Exception primaryException) {
+                try {
+                    LeaseStream?.Dispose();
+                    LeaseStream = null;
+                    if (Directory.Exists(TransactionDirectoryPath)) {
+                        EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(TransactionDirectoryPath, transactionRoot);
+                        Directory.Delete(TransactionDirectoryPath, true);
+                    }
+                } catch (Exception cleanupException) {
+                    throw new AggregateException("Authoring transaction construction and cleanup failed.", primaryException, cleanupException);
+                }
+                throw;
+            }
         }
 
         /// <summary>
@@ -60,132 +83,202 @@ namespace helengine.editor {
         /// Stages one canonical native asset without touching its destination.
         /// </summary>
         public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
-            EnsureStaging();
-            if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
+            lock (StateGate) {
+                EnsureStaging();
+                if (asset == null) {
+                    throw new ArgumentNullException(nameof(asset));
+                }
+
+                string normalizedHint = NormalizeRelativePath(relativePath);
+                if (PreparedByPath.TryGetValue(normalizedHint, out EditorPreparedAssetWrite previous)) {
+                    asset.AuthoringAssetId = previous.AssetId;
+                    asset.FormerAuthoringAssetIds = Array.Empty<string>();
+                }
+
+                EditorPreparedAssetWrite prepared = NativeWriter.PrepareAsset(relativePath, asset);
+                EditorAuthoringTransactionEntry existingEntry = Document.Entries.FirstOrDefault(entry =>
+                    string.Equals(entry.DestinationRelativePath, prepared.RelativePath, PathComparison));
+                string stagedRelativePath = existingEntry?.StagedRelativePath ??
+                    Path.Combine("staged", Document.Entries.Count.ToString("D8") + ".payload").Replace(Path.DirectorySeparatorChar, '/');
+                string stagedPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
+                    TransactionDirectoryPath,
+                    stagedRelativePath,
+                    "staged");
+                WriteBytesDurably(stagedPath, prepared.SerializedBytes);
+
+                EditorAuthoringTransactionEntry entry = existingEntry ?? new EditorAuthoringTransactionEntry {
+                    DestinationRelativePath = prepared.RelativePath,
+                    StagedRelativePath = stagedRelativePath,
+                    PriorExists = prepared.PriorExists,
+                    PriorContentHash = prepared.PriorContentHash,
+                    PriorSerializedHash = prepared.PriorSerializedHash,
+                    BackupRelativePath = prepared.PriorExists
+                        ? Path.Combine("backups", Document.Entries.Count.ToString("D8") + ".payload").Replace(Path.DirectorySeparatorChar, '/')
+                        : null
+                };
+                entry.StagedContentHash = prepared.ContentHash;
+                entry.StagedSerializedHash = prepared.SerializedHash;
+                entry.ExpectedAssetId = prepared.AssetId;
+                entry.ExpectedAssetKind = prepared.AssetKind;
+                entry.Changed = !prepared.IsUnchanged;
+                entry.Progress = entry.Changed ? EditorAuthoringTransactionEntryProgress.Staged : EditorAuthoringTransactionEntryProgress.Skipped;
+                entry.State = EditorAuthoringTransactionState.Staging;
+                if (existingEntry == null) {
+                    Document.Entries.Add(entry);
+                }
+                PreparedByPath[prepared.RelativePath] = prepared;
+                WriteDocument();
+
+                EditorAssetWriteDisposition disposition = prepared.PriorExists
+                    ? (prepared.IsUnchanged ? EditorAssetWriteDisposition.Unchanged : EditorAssetWriteDisposition.Changed)
+                    : EditorAssetWriteDisposition.Created;
+                return new EditorAssetWriteResult(
+                    prepared.RelativePath,
+                    prepared.FullPath,
+                    prepared.AssetId,
+                    prepared.ContentHash,
+                    disposition,
+                    prepared.PreservedExistingIdentity);
             }
-
-            string normalizedHint = NormalizeRelativePath(relativePath);
-            if (PreparedByPath.TryGetValue(normalizedHint, out EditorPreparedAssetWrite previous)) {
-                asset.AuthoringAssetId = previous.AssetId;
-                asset.FormerAuthoringAssetIds = Array.Empty<string>();
-            }
-
-            EditorPreparedAssetWrite prepared = NativeWriter.PrepareAsset(relativePath, asset);
-            EditorAuthoringTransactionEntry existingEntry = Document.Entries.FirstOrDefault(entry =>
-                string.Equals(entry.DestinationRelativePath, prepared.RelativePath, PathComparison));
-            string stagedRelativePath = existingEntry?.StagedRelativePath ??
-                Path.Combine("staged", Document.Entries.Count.ToString("D8") + ".payload").Replace(Path.DirectorySeparatorChar, '/');
-            string stagedPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
-                TransactionDirectoryPath,
-                stagedRelativePath,
-                "staged");
-            WriteBytesDurably(stagedPath, prepared.SerializedBytes);
-
-            EditorAuthoringTransactionEntry entry = existingEntry ?? new EditorAuthoringTransactionEntry {
-                DestinationRelativePath = prepared.RelativePath,
-                StagedRelativePath = stagedRelativePath,
-                PriorExists = prepared.PriorExists,
-                PriorContentHash = prepared.PriorContentHash,
-                PriorSerializedHash = prepared.PriorSerializedHash,
-                BackupRelativePath = prepared.PriorExists
-                    ? Path.Combine("backups", Document.Entries.Count.ToString("D8") + ".payload").Replace(Path.DirectorySeparatorChar, '/')
-                    : null
-            };
-            entry.StagedContentHash = prepared.ContentHash;
-            entry.Changed = !prepared.IsUnchanged;
-            entry.State = EditorAuthoringTransactionState.Staging;
-            if (existingEntry == null) {
-                Document.Entries.Add(entry);
-            }
-            PreparedByPath[prepared.RelativePath] = prepared;
-            WriteDocument();
-
-            EditorAssetWriteDisposition disposition = prepared.PriorExists
-                ? (prepared.IsUnchanged ? EditorAssetWriteDisposition.Unchanged : EditorAssetWriteDisposition.Changed)
-                : EditorAssetWriteDisposition.Created;
-            return new EditorAssetWriteResult(
-                prepared.RelativePath,
-                prepared.FullPath,
-                prepared.AssetId,
-                prepared.ContentHash,
-                disposition,
-                prepared.PreservedExistingIdentity);
         }
 
         /// <summary>
         /// Publishes all changed staged outputs under the project authoring lock.
         /// </summary>
         public void Commit() {
-            if (IsCompleted) {
-                return;
-            }
-            EnsureStaging();
-            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
-            ValidateStagedEntriesUnderLock();
-            List<EditorAuthoringTransactionEntry> changedEntries = Document.Entries
-                .Where(entry => entry.Changed)
-                .ToList();
-            List<EditorAuthoringTransactionEntry> appliedEntries = new List<EditorAuthoringTransactionEntry>();
-            try {
-                for (int index = 0; index < changedEntries.Count; index++) {
-                    EditorAuthoringTransactionEntry entry = changedEntries[index];
-                    EditorPreparedAssetWrite prepared = PreparedByPath[entry.DestinationRelativePath];
-                    if (entry.PriorExists) {
-                        string backupPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
-                            TransactionDirectoryPath,
-                            entry.BackupRelativePath,
-                            "backup");
-                        WriteBytesDurably(backupPath, File.ReadAllBytes(prepared.FullPath));
+            lock (StateGate) {
+                if (IsCompleted) {
+                    return;
+                }
+                EnsureStaging();
+                using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+                ValidateStagedEntriesUnderLock();
+                List<EditorAuthoringTransactionEntry> changedEntries = Document.Entries
+                    .Where(entry => entry.Changed)
+                    .ToList();
+                List<EditorAuthoringTransactionEntry> appliedEntries = new List<EditorAuthoringTransactionEntry>();
+                IDisposable pendingOwner = null;
+                bool committedDurably = false;
+                try {
+                    for (int index = 0; index < changedEntries.Count; index++) {
+                        EditorAuthoringTransactionEntry entry = changedEntries[index];
+                        EditorPreparedAssetWrite prepared = PreparedByPath[entry.DestinationRelativePath];
+                        if (entry.PriorExists) {
+                            string backupPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
+                                TransactionDirectoryPath,
+                                entry.BackupRelativePath,
+                                "backup");
+                            byte[] priorBytes = File.ReadAllBytes(prepared.FullPath);
+                            if (!string.Equals(NativeWriter.ComputeCurrentContentHash(prepared.FullPath), entry.PriorContentHash, StringComparison.Ordinal) ||
+                                !string.Equals(NativeWriter.ComputeSerializedHash(priorBytes), entry.PriorSerializedHash, StringComparison.Ordinal)) {
+                                throw new IOException($"The authoring transaction destination '{prepared.FullPath}' changed after validation.");
+                            }
+                            WriteBytesDurably(backupPath, priorBytes);
+                            entry.BackupContentHash = entry.PriorContentHash;
+                            entry.BackupSerializedHash = NativeWriter.ComputeSerializedHash(priorBytes);
+                        }
                     }
-                }
 
-                Document.State = EditorAuthoringTransactionState.Committing;
-                for (int index = 0; index < Document.Entries.Count; index++) {
-                    Document.Entries[index].State = Document.State;
-                }
-                WriteDocument();
-                for (int index = 0; index < changedEntries.Count; index++) {
-                    EditorAuthoringTransactionEntry entry = changedEntries[index];
-                    EditorPreparedAssetWrite prepared = PreparedByPath[entry.DestinationRelativePath];
-                    Hooks.BeforeReplacement?.Invoke(index, prepared.FullPath);
-                    appliedEntries.Add(entry);
-                    EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, prepared.SerializedBytes);
-                    Hooks.AfterReplacement?.Invoke(index, prepared.FullPath);
-                }
-
-                for (int index = 0; index < changedEntries.Count; index++) {
-                    EditorAuthoringTransactionEntry entry = changedEntries[index];
-                    Hooks.BeforeGraphUpdate?.Invoke(index, entry.DestinationRelativePath);
-                    NativeWriter.ApplyPublishedAssetUnderLock(PreparedByPath[entry.DestinationRelativePath]);
-                }
-                for (int index = 0; index < changedEntries.Count; index++) {
-                    Hooks.BeforePublication?.Invoke(index, changedEntries[index].DestinationRelativePath);
-                    NativeWriter.PublishChangeUnderLock(changedEntries[index].DestinationRelativePath);
-                }
-                NativeWriter.ObserveCurrentGenerationUnderLock();
-                NativeWriter.FlushHashCacheAtCommit();
-                Document.State = EditorAuthoringTransactionState.Committed;
-                for (int index = 0; index < Document.Entries.Count; index++) {
-                    Document.Entries[index].State = Document.State;
-                }
-                WriteDocument();
-                DeleteOwnDirectory();
-                Complete();
-            } catch (Exception primaryException) {
-                Exception rollbackException = RollbackUnderLock(appliedEntries);
-                if (rollbackException == null) {
-                    Document.State = EditorAuthoringTransactionState.Staging;
+                    Document.State = EditorAuthoringTransactionState.Committing;
                     for (int index = 0; index < Document.Entries.Count; index++) {
                         Document.Entries[index].State = Document.State;
                     }
                     WriteDocument();
-                }
+                    if (changedEntries.Count > 0) {
+                        EditorAuthoringTransactionPendingMarker.PublishUnderLock(ProjectRootPath, Document.TransactionId,
+                            changedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
+                        pendingOwner = EditorAuthoringTransactionPendingMarker.EnterOwner(ProjectRootPath, Document.TransactionId);
+                    }
+                    for (int index = 0; index < changedEntries.Count; index++) {
+                        EditorAuthoringTransactionEntry entry = changedEntries[index];
+                        EditorPreparedAssetWrite prepared = PreparedByPath[entry.DestinationRelativePath];
+                        Hooks.BeforeReplacement?.Invoke(index, prepared.FullPath);
+                        entry.Progress = EditorAuthoringTransactionEntryProgress.Applying;
+                        WriteDocument();
+                        string stagedPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
+                            TransactionDirectoryPath,
+                            entry.StagedRelativePath,
+                            "staged");
+                        byte[] stagedBytes = File.ReadAllBytes(stagedPath);
+                        NativeWriter.ValidatePreparedPayload(
+                            stagedBytes,
+                            prepared.FullPath,
+                            entry.StagedContentHash,
+                            entry.StagedSerializedHash,
+                            entry.ExpectedAssetId,
+                            entry.ExpectedAssetKind);
+                        appliedEntries.Add(entry);
+                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, stagedBytes);
+                        entry.Progress = EditorAuthoringTransactionEntryProgress.Applied;
+                        WriteDocument();
+                        Hooks.AfterReplacement?.Invoke(index, prepared.FullPath);
+                    }
 
-                if (rollbackException != null) {
-                    throw new AggregateException("Authoring transaction publication and rollback failed; the journal remains for recovery.", primaryException, rollbackException);
+                    for (int index = 0; index < changedEntries.Count; index++) {
+                        EditorAuthoringTransactionEntry entry = changedEntries[index];
+                        Hooks.BeforeGraphUpdate?.Invoke(index, entry.DestinationRelativePath);
+                        NativeWriter.ApplyPublishedAssetUnderLock(PreparedByPath[entry.DestinationRelativePath]);
+                    }
+                    for (int index = 0; index < changedEntries.Count; index++) {
+                        Hooks.BeforePublication?.Invoke(index, changedEntries[index].DestinationRelativePath);
+                    }
+                    NativeWriter.FlushHashCacheAtCommit();
+                    if (changedEntries.Count > 0) {
+                        NativeWriter.PublishChangesUnderLock(changedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
+                    }
+                    NativeWriter.ObserveCurrentGenerationUnderLock();
+                    Document.State = EditorAuthoringTransactionState.Committed;
+                    for (int index = 0; index < Document.Entries.Count; index++) {
+                        Document.Entries[index].State = Document.State;
+                    }
+                    WriteDocument();
+                    committedDurably = true;
+                    EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
+                    pendingOwner?.Dispose();
+                    pendingOwner = null;
+                    try {
+                        Hooks.BeforeCleanup?.Invoke();
+                        DeleteOwnDirectory();
+                    } catch {
+                        CloseLease();
+                    }
+                    Complete();
+                } catch (Exception primaryException) {
+                    if (committedDurably) {
+                        pendingOwner?.Dispose();
+                        CloseLease();
+                        Complete();
+                        throw new InvalidOperationException("The authoring transaction committed but could not clear its pending marker.", primaryException);
+                    }
+                    Exception rollbackException = committedDurably ? null : RollbackUnderLock(appliedEntries);
+                    if (rollbackException == null) {
+                        try {
+                            // Persist rollback tombstones before releasing the marker so
+                            // a newly opened observer cannot reuse a failed publication hash.
+                            NativeWriter.FlushHashCacheAtCommit();
+                        } catch (Exception cacheRollbackException) {
+                            rollbackException = cacheRollbackException;
+                        }
+                        if (rollbackException == null) {
+                            Document.State = EditorAuthoringTransactionState.Staging;
+                            for (int index = 0; index < Document.Entries.Count; index++) {
+                                Document.Entries[index].State = Document.State;
+                            }
+                            WriteDocument();
+                            try {
+                                EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
+                            } catch (Exception clearException) {
+                                rollbackException = clearException;
+                            }
+                        }
+                    }
+                    pendingOwner?.Dispose();
+
+                    if (rollbackException != null) {
+                        throw new AggregateException("Authoring transaction publication and rollback failed; the journal remains for recovery.", primaryException, rollbackException);
+                    }
+                    throw;
                 }
-                throw;
             }
         }
 
@@ -193,14 +286,20 @@ namespace helengine.editor {
         /// Removes uncommitted staging owned by this transaction.
         /// </summary>
         public void Dispose() {
-            if (IsDisposed || IsCompleted) {
-                return;
-            }
+            lock (StateGate) {
+                if (IsDisposed || IsCompleted) {
+                    return;
+                }
 
-            if (Document.State == EditorAuthoringTransactionState.Staging) {
-                DeleteOwnDirectory();
+                if (Document.State == EditorAuthoringTransactionState.Staging) {
+                    DeleteOwnDirectory();
+                } else {
+                    // A journal retained for recovery still owns a live lease until
+                    // its session is released; leave the journal and marker intact.
+                    CloseLease();
+                }
+                Complete();
             }
-            Complete();
         }
 
         void ValidateStagedEntriesUnderLock() {
@@ -217,7 +316,13 @@ namespace helengine.editor {
                 EditorAuthoringTransactionRecoveryService.ResolveContainedPath(AssetsRootPath, entry.DestinationRelativePath, "destination");
                 string stagedPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, entry.StagedRelativePath, "staged");
                 byte[] stagedBytes = File.ReadAllBytes(stagedPath);
-                NativeWriter.ValidatePreparedPayload(stagedBytes, prepared.FullPath, entry.StagedContentHash);
+                NativeWriter.ValidatePreparedPayload(
+                    stagedBytes,
+                    prepared.FullPath,
+                    entry.StagedContentHash,
+                    entry.StagedSerializedHash,
+                    entry.ExpectedAssetId,
+                    entry.ExpectedAssetKind);
                 bool currentExists = File.Exists(prepared.FullPath);
                 if (currentExists != entry.PriorExists) {
                     throw new IOException($"The authoring transaction destination '{prepared.FullPath}' changed after staging.");
@@ -240,12 +345,31 @@ namespace helengine.editor {
                 EditorAuthoringTransactionEntry entry = appliedEntries[index];
                 try {
                     EditorPreparedAssetWrite prepared = PreparedByPath[entry.DestinationRelativePath];
+                    byte[] currentBytes = File.Exists(prepared.FullPath) ? File.ReadAllBytes(prepared.FullPath) : null;
+                    if (currentBytes != null) {
+                        string currentHash = NativeWriter.ComputeSerializedHash(currentBytes);
+                        bool isStaged = string.Equals(currentHash, entry.StagedSerializedHash, StringComparison.Ordinal);
+                        bool isPrior = entry.PriorExists && string.Equals(currentHash, entry.PriorSerializedHash, StringComparison.Ordinal);
+                        if (!isStaged && !isPrior) {
+                            throw new InvalidDataException($"The transaction destination '{prepared.FullPath}' changed after publication failed.");
+                        }
+                    } else if (entry.PriorExists) {
+                        throw new InvalidDataException($"The transaction destination '{prepared.FullPath}' disappeared after publication failed.");
+                    }
                     if (entry.PriorExists) {
                         string backupPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
                             TransactionDirectoryPath,
                             entry.BackupRelativePath,
                             "backup");
-                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, File.ReadAllBytes(backupPath));
+                        byte[] backupBytes = File.ReadAllBytes(backupPath);
+                        EditorNativeAssetWriteService.ValidateNativePayloadIntegrity(
+                            backupBytes,
+                            prepared.FullPath,
+                            entry.BackupContentHash ?? entry.PriorContentHash,
+                            entry.BackupSerializedHash ?? entry.PriorSerializedHash,
+                            entry.ExpectedAssetId,
+                            entry.ExpectedAssetKind);
+                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, backupBytes);
                     } else if (File.Exists(prepared.FullPath)) {
                         File.Delete(prepared.FullPath);
                     }
@@ -266,7 +390,25 @@ namespace helengine.editor {
                 Document.TransactionId,
                 "transaction");
             if (Directory.Exists(TransactionDirectoryPath)) {
+                CloseLease();
+                EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(TransactionDirectoryPath,
+                    EditorAuthoringTransactionRecoveryService.GetTransactionRoot(ProjectRootPath));
                 Directory.Delete(TransactionDirectoryPath, true);
+            }
+        }
+
+        void CloseLease() {
+            if (LeaseStream == null) {
+                return;
+            }
+
+            LeaseStream.Dispose();
+            LeaseStream = null;
+        }
+
+        internal void ReleaseLeaseForTesting() {
+            lock (StateGate) {
+                CloseLease();
             }
         }
 
@@ -280,6 +422,13 @@ namespace helengine.editor {
         }
 
         void WriteDocument() {
+            EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                TransactionDirectoryPath,
+                EditorAuthoringTransactionRecoveryService.GetTransactionRoot(ProjectRootPath));
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                ManifestPath,
+                TransactionDirectoryPath);
             string temporaryPath = ManifestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(Document, EditorAuthoringTransactionDocument.JsonOptions);
             try {
@@ -341,5 +490,7 @@ namespace helengine.editor {
         public Action<int, string> BeforeGraphUpdate { get; init; }
 
         public Action<int, string> BeforePublication { get; init; }
+
+        public Action BeforeCleanup { get; init; }
     }
 }

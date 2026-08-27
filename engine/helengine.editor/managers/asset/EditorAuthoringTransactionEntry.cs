@@ -13,6 +13,16 @@ namespace helengine.editor {
 
         public string PriorSerializedHash { get; set; }
 
+        public string StagedSerializedHash { get; set; }
+
+        public string BackupContentHash { get; set; }
+
+        public string BackupSerializedHash { get; set; }
+
+        public string ExpectedAssetId { get; set; }
+
+        public string ExpectedAssetKind { get; set; }
+
         public string StagedContentHash { get; set; }
 
         public string BackupRelativePath { get; set; }
@@ -20,6 +30,8 @@ namespace helengine.editor {
         public EditorAuthoringTransactionState State { get; set; }
 
         public bool Changed { get; set; }
+
+        public EditorAuthoringTransactionEntryProgress Progress { get; set; }
     }
 
     /// <summary>
@@ -29,5 +41,15 @@ namespace helengine.editor {
         Staging,
         Committing,
         Committed
+    }
+
+    /// <summary>
+    /// Durable replacement progress for one transaction entry.
+    /// </summary>
+    public enum EditorAuthoringTransactionEntryProgress {
+        Staged,
+        Applying,
+        Applied,
+        Skipped
     }
 }

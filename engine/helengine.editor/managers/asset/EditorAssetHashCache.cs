@@ -115,7 +115,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Flush();
+            FlushCore();
             IsDisposed = true;
         }
 
@@ -124,6 +124,11 @@ namespace helengine.editor {
         /// </summary>
         public void Flush() {
             EnsureNotDisposed();
+            EnsurePublicationAvailable();
+            FlushCore();
+        }
+
+        void FlushCore() {
             if (!IsDirty) {
                 return;
             }
@@ -149,6 +154,7 @@ namespace helengine.editor {
         /// <returns>Lowercase SHA-256 hash prefixed with <c>sha256:</c>.</returns>
         public string GetContentHash(string assetPath) {
             EnsureNotDisposed();
+            EnsurePublicationAvailable();
             string fullPath = NormalizeAndValidatePath(assetPath);
             FileInfo fileInfo = new FileInfo(fullPath);
             EnsureLoaded();
@@ -179,6 +185,7 @@ namespace helengine.editor {
         /// <param name="assetPath">Absolute authored asset path.</param>
         public void InvalidateContentHash(string assetPath) {
             EnsureNotDisposed();
+            EnsurePublicationAvailable();
             string fullPath = NormalizeAndValidatePath(assetPath, false);
             EnsureLoaded();
             string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, fullPath));
@@ -193,6 +200,7 @@ namespace helengine.editor {
         /// </summary>
         public void InvalidateAllContentHashes() {
             EnsureNotDisposed();
+            EnsurePublicationAvailable();
             EnsureLoaded();
             foreach (string relativePath in Entries.Keys.ToArray()) {
                 RemovedPaths.Add(relativePath);
@@ -207,6 +215,7 @@ namespace helengine.editor {
         /// </summary>
         internal string ComputeContentHashFresh(string assetPath) {
             EnsureNotDisposed();
+            EnsurePublicationAvailable();
             string fullPath = NormalizeAndValidatePath(assetPath);
             return string.Concat("sha256:", ComputeContentHash(fullPath));
         }
@@ -216,6 +225,7 @@ namespace helengine.editor {
         /// </summary>
         internal string ComputeCanonicalAssetHash(Asset asset) {
             EnsureNotDisposed();
+            EnsurePublicationAvailable();
             if (asset == null) {
                 throw new ArgumentNullException(nameof(asset));
             }
@@ -240,6 +250,7 @@ namespace helengine.editor {
         /// </summary>
         internal string ComputeSerializedHash(byte[] bytes) {
             EnsureNotDisposed();
+            EnsurePublicationAvailable();
             if (bytes == null) {
                 throw new ArgumentNullException(nameof(bytes));
             }
@@ -299,6 +310,10 @@ namespace helengine.editor {
                     Entries[NormalizeRelativePath(entry.RelativePath)] = entry;
                 }
             }
+        }
+
+        void EnsurePublicationAvailable() {
+            EditorAuthoringTransactionPendingMarker.EnsureNoPending(ProjectRootPath);
         }
 
         /// <summary>

@@ -161,6 +161,18 @@ namespace helengine.editor {
 
         long PublishChange(string relativePath);
 
+        long PublishChanges(IReadOnlyList<string> relativePaths) {
+            if (relativePaths == null || relativePaths.Count == 0) {
+                throw new ArgumentException("At least one changed path is required.", nameof(relativePaths));
+            }
+
+            long generation = 0;
+            for (int index = 0; index < relativePaths.Count; index++) {
+                generation = PublishChange(relativePaths[index]);
+            }
+            return generation;
+        }
+
         long BeginRepairBatch(IReadOnlyList<string> relativePaths);
 
         void CommitRepairBatch(long batchId);
@@ -190,6 +202,10 @@ namespace helengine.editor {
 
         public long PublishChange(string relativePath) {
             return EditorProjectWriteGeneration.PublishChangeUnderLock(ProjectRootPath, relativePath);
+        }
+
+        public long PublishChanges(IReadOnlyList<string> relativePaths) {
+            return EditorProjectWriteGeneration.PublishChangesUnderLock(ProjectRootPath, relativePaths);
         }
 
         public long BeginRepairBatch(IReadOnlyList<string> relativePaths) {
@@ -291,24 +307,43 @@ namespace helengine.editor {
         /// Publishes one exact path while the caller owns the project publication lock.
         /// </summary>
         internal static long PublishChangeUnderLock(string projectRootPath, string relativePath) {
-            string normalizedRelativePath = NormalizeRelativePath(projectRootPath, relativePath);
+            return PublishChangesUnderLock(projectRootPath, new[] { relativePath });
+        }
+
+        /// <summary>
+        /// Publishes a complete changed-path set as one generation snapshot replacement.
+        /// </summary>
+        internal static long PublishChangesUnderLock(string projectRootPath, IReadOnlyList<string> relativePaths) {
+            if (relativePaths == null || relativePaths.Count == 0) {
+                throw new ArgumentException("At least one changed path is required.", nameof(relativePaths));
+            }
+            List<string> normalizedPaths = relativePaths
+                .Select(relativePath => NormalizeRelativePath(projectRootPath, relativePath))
+                .Distinct(PathComparer)
+                .OrderBy(path => path, PathComparer)
+                .ThenBy(path => path, StringComparer.Ordinal)
+                .ToList();
             string generationPath = GetPath(projectRootPath);
             string generationDirectoryPath = Path.GetDirectoryName(generationPath);
             Directory.CreateDirectory(generationDirectoryPath);
 
             ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
             EnsureNoPendingRepair(snapshot, generationPath);
-            long generation = checked(snapshot.CurrentGeneration + 1);
+            long generation = checked(snapshot.CurrentGeneration + normalizedPaths.Count);
             Dictionary<string, ProjectWriteGenerationChange> changes = snapshot.Changes
                 .ToDictionary(change => change.RelativePath, change => change, PathComparer);
-            changes[normalizedRelativePath] = new ProjectWriteGenerationChange {
-                Generation = generation,
-                RelativePath = normalizedRelativePath
-            };
+            long nextGeneration = snapshot.CurrentGeneration;
+            for (int index = 0; index < normalizedPaths.Count; index++) {
+                string normalizedRelativePath = normalizedPaths[index];
+                changes[normalizedRelativePath] = new ProjectWriteGenerationChange {
+                    Generation = ++nextGeneration,
+                    RelativePath = normalizedRelativePath
+                };
+            }
 
             ProjectWriteGenerationSnapshot nextSnapshot = new ProjectWriteGenerationSnapshot {
                 Version = CurrentVersion,
-                CurrentGeneration = generation,
+                CurrentGeneration = nextGeneration,
                 Changes = changes.Values
                     .OrderBy(change => change.Generation)
                     .ThenBy(change => change.RelativePath, PathComparer)
@@ -404,6 +439,7 @@ namespace helengine.editor {
 
         static ProjectWriteGenerationSnapshot ReadSnapshot(string projectRootPath) {
             string generationPath = GetPath(projectRootPath);
+            EditorAuthoringTransactionPendingMarker.EnsureNoPending(projectRootPath);
             if (!File.Exists(generationPath)) {
                 return new ProjectWriteGenerationSnapshot {
                     Version = CurrentVersion,

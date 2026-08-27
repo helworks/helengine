@@ -243,7 +243,9 @@ namespace helengine.editor {
                 FullPath = fullPath,
                 SerializedBytes = serializedBytes,
                 ContentHash = stagedContentHash,
+                SerializedHash = HashCache.ComputeSerializedHash(serializedBytes),
                 AssetId = asset.AuthoringAssetId,
+                AssetKind = GetExpectedValueKind(asset).ToString(),
                 PriorExists = priorExists,
                 PriorContentHash = priorContentHash,
                 PriorSerializedHash = priorExists ? HashCache.ComputeSerializedHash(priorBytes) : null,
@@ -272,6 +274,14 @@ namespace helengine.editor {
         internal long PublishChangeUnderLock(string relativePath) {
             EnsureNotDisposed();
             return ChangeLog.PublishChange(relativePath);
+        }
+
+        /// <summary>
+        /// Publishes all changed transaction destinations as one generation snapshot.
+        /// </summary>
+        internal long PublishChangesUnderLock(IReadOnlyList<string> relativePaths) {
+            EnsureNotDisposed();
+            return ChangeLog.PublishChanges(relativePaths);
         }
 
         /// <summary>
@@ -309,7 +319,13 @@ namespace helengine.editor {
         /// <summary>
         /// Validates that staged bytes are a current native payload of the destination kind.
         /// </summary>
-        internal void ValidatePreparedPayload(byte[] serializedBytes, string destinationPath, string expectedContentHash) {
+        internal void ValidatePreparedPayload(
+            byte[] serializedBytes,
+            string destinationPath,
+            string expectedContentHash,
+            string expectedSerializedHash,
+            string expectedAssetId,
+            string expectedAssetKind) {
             EnsureNotDisposed();
             if (serializedBytes == null || serializedBytes.Length == 0) {
                 throw new InvalidDataException("The staged native payload is empty.");
@@ -323,13 +339,7 @@ namespace helengine.editor {
                 throw new InvalidDataException("The staged native payload is not a current asset document.");
             }
 
-            stream.Position = 0;
-            Asset asset = AssetSerializer.Deserialize(stream);
-            ValidateNativeDestination(destinationPath, asset);
-            string actualContentHash = HashCache.ComputeCanonicalAssetHash(asset);
-            if (!string.Equals(actualContentHash, expectedContentHash, StringComparison.Ordinal)) {
-                throw new InvalidDataException("The staged native payload hash does not match its journal.");
-            }
+            ValidateNativePayloadIntegrity(serializedBytes, destinationPath, expectedContentHash, expectedSerializedHash, expectedAssetId, expectedAssetKind);
         }
 
         /// <summary>
@@ -365,6 +375,27 @@ namespace helengine.editor {
             using MemoryStream canonical = new MemoryStream();
             AssetSerializer.Serialize(canonical, asset);
             return string.Concat("sha256:", Convert.ToHexString(SHA256.HashData(canonical.ToArray())).ToLowerInvariant());
+        }
+
+        internal static void ValidateNativePayloadIntegrity(
+            byte[] serializedBytes,
+            string destinationPath,
+            string expectedContentHash,
+            string expectedSerializedHash,
+            string expectedAssetId,
+            string expectedAssetKind) {
+            ValidateCurrentNativePayload(serializedBytes, destinationPath);
+            string actualSerializedHash = string.Concat("sha256:", Convert.ToHexString(SHA256.HashData(serializedBytes)).ToLowerInvariant());
+            if (!string.Equals(actualSerializedHash, expectedSerializedHash, StringComparison.Ordinal)) {
+                throw new InvalidDataException("The native payload serialized bytes do not match its journal.");
+            }
+            using MemoryStream input = new MemoryStream(serializedBytes, writable: false);
+            Asset asset = AssetSerializer.Deserialize(input);
+            if (!string.Equals(ComputeCanonicalNativeHash(serializedBytes, destinationPath), expectedContentHash, StringComparison.Ordinal) ||
+                !string.Equals(asset.AuthoringAssetId, expectedAssetId, StringComparison.Ordinal) ||
+                !string.Equals(GetExpectedValueKind(asset).ToString(), expectedAssetKind, StringComparison.Ordinal)) {
+                throw new InvalidDataException("The native payload identity or canonical hash does not match its journal.");
+            }
         }
 
         /// <summary>
@@ -542,7 +573,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="asset">Asset payload to classify.</param>
         /// <returns>Expected current binary value kind.</returns>
-        static EditorAssetBinaryValueKind GetExpectedValueKind(Asset asset) {
+        internal static EditorAssetBinaryValueKind GetExpectedValueKind(Asset asset) {
             if (asset is TextureAsset) return EditorAssetBinaryValueKind.TextureAsset;
             if (asset is ModelAsset) return EditorAssetBinaryValueKind.ModelAsset;
             if (asset is MaterialAsset) return EditorAssetBinaryValueKind.MaterialAsset;

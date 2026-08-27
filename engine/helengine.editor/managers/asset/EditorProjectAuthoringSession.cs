@@ -69,6 +69,11 @@ namespace helengine.editor {
         bool IsDisposed;
 
         /// <summary>
+        /// Prevents new transactions while disposal waits for the active transaction.
+        /// </summary>
+        bool IsDisposing;
+
+        /// <summary>
         /// Creates a host-configured project session and registers the supplied importers on its import manager.
         /// </summary>
         /// <param name="projectRootPath">Project root path.</param>
@@ -212,6 +217,9 @@ namespace helengine.editor {
         internal EditorAuthoringTransaction BeginTransaction(EditorAuthoringTransactionHooks hooks) {
             EnsureNotDisposed();
             lock (TransactionGate) {
+                if (IsDisposing) {
+                    throw new ObjectDisposedException(nameof(EditorProjectAuthoringSession));
+                }
                 if (ActiveTransaction != null) {
                     throw new InvalidOperationException("Only one authoring transaction may be active per project session.");
                 }
@@ -513,17 +521,35 @@ namespace helengine.editor {
         /// Releases this session's state and ignores repeated disposal calls.
         /// </summary>
         public void Dispose() {
-            if (IsDisposed) {
-                return;
+            lock (TransactionGate) {
+                while (IsDisposing && !IsDisposed) {
+                    Monitor.Wait(TransactionGate);
+                }
+                if (IsDisposed) {
+                    return;
+                }
+                IsDisposing = true;
             }
 
-            EditorAuthoringTransaction activeTransaction;
-            lock (TransactionGate) {
-                activeTransaction = ActiveTransaction;
+            try {
+                EditorAuthoringTransaction activeTransaction;
+                lock (TransactionGate) {
+                    activeTransaction = ActiveTransaction;
+                }
+                activeTransaction?.Dispose();
+                Lifetime.Dispose();
+                lock (TransactionGate) {
+                    IsDisposed = true;
+                    IsDisposing = false;
+                    Monitor.PulseAll(TransactionGate);
+                }
+            } catch {
+                lock (TransactionGate) {
+                    IsDisposing = false;
+                    Monitor.PulseAll(TransactionGate);
+                }
+                throw;
             }
-            activeTransaction?.Dispose();
-            Lifetime.Dispose();
-            IsDisposed = true;
         }
 
         /// <summary>

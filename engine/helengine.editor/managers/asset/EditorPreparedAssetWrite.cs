@@ -11,7 +11,11 @@ namespace helengine.editor {
 
         public string ContentHash { get; init; }
 
+        public string SerializedHash { get; init; }
+
         public string AssetId { get; init; }
+
+        public string AssetKind { get; init; }
 
         public bool PriorExists { get; init; }
 

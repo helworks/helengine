@@ -61,6 +61,59 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     [Fact]
+    public void Commit_WhenStagedIdentityBytesAreCorrupted_FailsClosedWithoutPublishing() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+        string stagedPath = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId,
+            "staged",
+            "00000000.payload");
+        Asset stagedAsset;
+        using (FileStream stream = new FileStream(stagedPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            stagedAsset = AssetSerializer.Deserialize(stream);
+        }
+        stagedAsset.AuthoringAssetId = "abcdefabcdefabcdefabcdefabcdefab";
+        File.WriteAllBytes(stagedPath, AssetSerializer.SerializeToBytes(stagedAsset));
+
+        Assert.Throws<InvalidDataException>(() => transaction.Commit());
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
+    }
+
+    [Fact]
+    public void SecondSession_DoesNotDeleteLiveStagingTransaction() {
+        using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = author.BeginTransaction();
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+        string transactionDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId);
+
+        using EditorProjectAuthoringSession observer = CreateSession(ProjectRootPath);
+
+        Assert.True(Directory.Exists(transactionDirectory));
+        transaction.Commit();
+        Assert.True(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
+    }
+
+    [Fact]
+    public void PendingTransactionMarker_BlocksAlreadyOpenSessionReads() {
+        using EditorProjectAuthoringSession observer = CreateSession(ProjectRootPath);
+        string markerPath = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-transactions.pending");
+        Directory.CreateDirectory(Path.GetDirectoryName(markerPath));
+        File.WriteAllText(markerPath, "{\"version\":1,\"transactionId\":\"00112233445566778899aabbccddeeff\",\"relativePaths\":[\"models/ship.hasset\"]}");
+
+        Assert.Throws<InvalidOperationException>(() => observer.RefreshExternalChanges());
+    }
+
+    [Fact]
     public void BeginTransaction_AllowsOnlyOneActiveTransaction() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         using EditorAuthoringTransaction transaction = session.BeginTransaction();
@@ -79,6 +132,30 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
 
         Assert.True(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
         Assert.True(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "cargo.hasset")));
+    }
+
+    [Fact]
+    public void Commit_WhenCleanupFailsLeavesCommittedJournalForStartupCleanup() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            BeforeCleanup = () => throw new IOException("injected cleanup failure")
+        };
+        using EditorAuthoringTransaction transaction = session.BeginTransaction(hooks);
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+        string transactionDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId);
+
+        transaction.Commit();
+
+        Assert.True(File.Exists(Path.Combine(ProjectRootPath, "assets", "models", "ship.hasset")));
+        Assert.True(Directory.Exists(transactionDirectory));
+        Assert.Equal(EditorAuthoringTransactionState.Committed, transaction.State);
+        using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
+        Assert.False(Directory.Exists(transactionDirectory));
     }
 
     [Fact]
@@ -185,11 +262,18 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         File.WriteAllBytes(backupPath, originalBytes);
         entry.PriorContentHash = original.ContentHash;
         entry.PriorSerializedHash = "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(originalBytes)).ToLowerInvariant();
+        entry.BackupContentHash = original.ContentHash;
+        entry.BackupSerializedHash = entry.PriorSerializedHash;
+        entry.ExpectedAssetId = original.AssetId;
+        entry.ExpectedAssetKind = "ModelAsset";
+        entry.StagedSerializedHash = "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Combine(transactionDirectory, entry.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar))))).ToLowerInvariant();
         entry.Changed = true;
+        entry.Progress = EditorAuthoringTransactionEntryProgress.Applied;
         File.Copy(Path.Combine(transactionDirectory, entry.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar)), original.FullPath, true);
         document.State = EditorAuthoringTransactionState.Committing;
         entry.State = document.State;
         File.WriteAllText(manifestPath, System.Text.Json.JsonSerializer.Serialize(document, EditorAuthoringTransactionDocument.JsonOptions));
+        transaction.ReleaseLeaseForTesting();
 
         using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
 
@@ -240,6 +324,9 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     static void WriteEmptyDocument(string transactionDirectory, EditorAuthoringTransactionState state) {
+        Directory.CreateDirectory(Path.Combine(transactionDirectory, "staged"));
+        Directory.CreateDirectory(Path.Combine(transactionDirectory, "backups"));
+        File.WriteAllBytes(Path.Combine(transactionDirectory, "lease"), Array.Empty<byte>());
         EditorAuthoringTransactionDocument document = new EditorAuthoringTransactionDocument {
             TransactionId = Path.GetFileName(transactionDirectory),
             State = state,
