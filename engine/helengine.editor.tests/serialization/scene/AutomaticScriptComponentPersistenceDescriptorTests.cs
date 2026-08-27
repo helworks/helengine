@@ -439,10 +439,10 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures empty automatic-script payloads materialize default component instances instead of failing editor deserialization.
+        /// Ensures empty automatic-script payloads fail instead of materializing default component instances.
         /// </summary>
         [Fact]
-        public void DeserializeComponent_WhenAutomaticScriptPayloadIsEmpty_ReturnsDefaultComponentState() {
+        public void DeserializeComponent_WhenAutomaticScriptPayloadIsEmpty_ThrowsCurrentFormatError() {
             AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
             SceneComponentAssetRecord record = new SceneComponentAssetRecord {
                 ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent)),
@@ -450,9 +450,47 @@ namespace helengine.editor.tests.serialization.scene {
                 Payload = Array.Empty<byte>()
             };
 
-            TestUpdateOnlyScriptComponent component = Assert.IsType<TestUpdateOnlyScriptComponent>(descriptor.DeserializeComponent(record, null, null));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, null, null));
 
-            Assert.Equal(0, component.UpdateOrder);
+            Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures truncated automatic-script payloads fail with current-format regeneration guidance.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenAutomaticScriptPayloadIsTruncated_ThrowsCurrentFormatError() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent)),
+                ComponentIndex = 0,
+                Payload = [1]
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures the current tagged payload with an explicit zero member count round-trips for a component without persisted members.
+        /// </summary>
+        [Fact]
+        public void SerializeAndDeserialize_WhenScriptComponentHasNoPersistedMembers_RoundTripsCurrentZeroMemberPayload() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestScriptComponentWithoutPersistedMembers component = new TestScriptComponentWithoutPersistedMembers();
+
+            SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            TestScriptComponentWithoutPersistedMembers deserialized = Assert.IsType<TestScriptComponentWithoutPersistedMembers>(
+                descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Equal(AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptComponentWithoutPersistedMembers)), record.ComponentTypeId);
+            Assert.NotEmpty(record.Payload);
+            Assert.NotNull(deserialized);
         }
 
         /// <summary>

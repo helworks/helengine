@@ -1830,12 +1830,17 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures empty automatic-script payloads with no persisted members package into valid runtime ordinal payloads.
+        /// Ensures the current zero-member automatic-script payload packages into a valid runtime ordinal payload.
         /// </summary>
         [Fact]
-        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndPayloadIsEmpty_WritesValidRuntimePayload() {
-            string sceneId = "Scenes/LegacyEmptyAutomaticScriptScene.helen";
+        public void Package_WhenAutomaticScriptComponentHasNoPersistedMembersAndCurrentPayload_WritesValidRuntimePayload() {
+            string sceneId = "Scenes/CurrentZeroMemberAutomaticScriptScene.helen";
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptComponentWithoutPersistedMembers));
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneComponentAssetRecord currentRecord = descriptor.SerializeComponent(
+                new TestScriptComponentWithoutPersistedMembers(),
+                0,
+                new EntityComponentSaveState());
 
             WriteSceneAsset(sceneId, new SceneAsset {
                 Id = sceneId,
@@ -1850,7 +1855,7 @@ namespace helengine.editor.tests {
                             new SceneComponentAssetRecord {
                                 ComponentTypeId = componentTypeId,
                                 ComponentIndex = 0,
-                                Payload = Array.Empty<byte>()
+                                Payload = currentRecord.Payload
                             }
                         },
                         Children = Array.Empty<SceneEntityAsset>()
@@ -1880,11 +1885,11 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures empty automatic-script payloads with reflected inherited members package using default component values.
+        /// Ensures empty automatic-script payloads fail packaging instead of being rewritten with default component values.
         /// </summary>
         [Fact]
-        public void Package_WhenAutomaticScriptComponentUsesLegacyEmptyPayload_WritesDefaultReflectedMemberValues() {
-            string sceneId = "Scenes/LegacyEmptyUpdateScriptScene.helen";
+        public void Package_WhenAutomaticScriptComponentUsesEmptyPayload_ThrowsCurrentFormatError() {
+            string sceneId = "Scenes/EmptyUpdateScriptScene.helen";
             string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestUpdateOnlyScriptComponent));
 
             WriteSceneAsset(sceneId, new SceneAsset {
@@ -1917,17 +1922,11 @@ namespace helengine.editor.tests {
                 null,
                 new FakeScriptTypeResolver(typeof(TestUpdateOnlyScriptComponent)));
 
-            packager.Package(new[] { sceneId }, BuildRootPath);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => packager.Package(new[] { sceneId }, BuildRootPath));
 
-            using FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
-            SceneAsset packagedScene = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
-            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
-
-            using MemoryStream payloadStream = new MemoryStream(packagedRecord.Payload ?? Array.Empty<byte>(), false);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian);
-            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-            Assert.Equal(1, reader.ReadInt32());
-            Assert.Equal((byte)0, reader.ReadByte());
+            Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

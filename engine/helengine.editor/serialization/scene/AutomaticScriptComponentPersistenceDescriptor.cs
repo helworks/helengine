@@ -88,15 +88,22 @@ namespace helengine.editor {
             Component component = CreateComponent(componentType);
             byte[] payload = record.Payload ?? Array.Empty<byte>();
             if (payload.Length == 0) {
-                return component;
+                throw new InvalidOperationException(
+                    "Automatic scripted component payload is empty; the current version/member-count payload is required. Regenerate the scene in the current format.");
             }
 
-            if (TryDeserializeTaggedPayload(component, schema, payload, saveComponent, referenceResolver)) {
-                return component;
-            }
+            try {
+                if (TryDeserializeTaggedPayload(component, schema, payload, saveComponent, referenceResolver)) {
+                    return component;
+                }
 
-            DeserializeRuntimePayload(component, schema, payload, saveComponent, referenceResolver);
-            return component;
+                DeserializeRuntimePayload(component, schema, payload, saveComponent, referenceResolver);
+                return component;
+            } catch (EndOfStreamException exception) {
+                throw new InvalidOperationException(
+                    "Automatic scripted component payload is truncated; the current version/member-count payload is required. Regenerate the scene in the current format.",
+                    exception);
+            }
         }
 
         /// <summary>
