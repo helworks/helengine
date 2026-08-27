@@ -8,7 +8,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="filePath">Absolute or relative path to the file.</param>
         /// <returns>Hex-encoded SHA-256 hash.</returns>
-        public string ComputeHash(string filePath) {
+        public virtual string ComputeHash(string filePath) {
             if (string.IsNullOrWhiteSpace(filePath)) {
                 throw new ArgumentException("File path must be provided.", nameof(filePath));
             }
@@ -26,7 +26,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="stream">Stream containing the file contents.</param>
         /// <returns>Hex-encoded SHA-256 hash.</returns>
-        public string ComputeHash(Stream stream) {
+        public virtual string ComputeHash(Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }

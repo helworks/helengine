@@ -29,6 +29,11 @@ namespace helengine.editor {
         readonly EditorAssetHashCache HashCache;
 
         /// <summary>
+        /// Filesystem catalog used for explicit authored-file reconciliation.
+        /// </summary>
+        readonly IEditorAssetFileCatalog FileCatalog;
+
+        /// <summary>
         /// Current indexed entries by normalized path.
         /// </summary>
         readonly Dictionary<string, EditorAssetIdentityEntry> EntriesByPath;
@@ -47,6 +52,16 @@ namespace helengine.editor {
         /// Previous owner path by UUID for stable duplicate repair.
         /// </summary>
         readonly Dictionary<string, string> PreviousOwners;
+
+        /// <summary>
+        /// Authored paths whose external identity document was absent during the last reconciliation.
+        /// </summary>
+        readonly HashSet<string> MissingMetadataPaths;
+
+        /// <summary>
+        /// Tracks whether the initial authored-file snapshot has been built.
+        /// </summary>
+        bool IsInitialized;
 
         /// <summary>
         /// Initializes a project-scoped identity index.
@@ -69,21 +84,79 @@ namespace helengine.editor {
             MetadataService = metadataService ?? new AssetIdentityMetadataService();
             PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
             HashCache = hashCache ?? new EditorAssetHashCache(ProjectRootPath);
+            FileCatalog = new FileEditorAssetFileCatalog();
             EntriesByPath = new Dictionary<string, EditorAssetIdentityEntry>(StringComparer.OrdinalIgnoreCase);
             EntriesByAssetId = new Dictionary<string, List<EditorAssetIdentityEntry>>(StringComparer.Ordinal);
             EntriesByLookupIdentity = new Dictionary<string, List<EditorAssetIdentityEntry>>(StringComparer.Ordinal);
             PreviousOwners = new Dictionary<string, string>(StringComparer.Ordinal);
+            MissingMetadataPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
-        /// Refreshes the index from authored files and repairs duplicate current UUIDs.
+        /// Initializes one index with a testable authored-file catalog.
         /// </summary>
-        public void Refresh() {
+        /// <param name="projectRootPath">Project root path.</param>
+        /// <param name="metadataService">Optional metadata service.</param>
+        /// <param name="pathClassifier">Optional shared classifier.</param>
+        /// <param name="hashCache">Optional hash cache.</param>
+        /// <param name="fileCatalog">Catalog used to enumerate authored files.</param>
+        internal EditorAssetIdentityIndex(
+            string projectRootPath,
+            AssetIdentityMetadataService metadataService,
+            EditorAssetPathClassifier pathClassifier,
+            EditorAssetHashCache hashCache,
+            IEditorAssetFileCatalog fileCatalog)
+            : this(projectRootPath, metadataService, pathClassifier, hashCache) {
+            FileCatalog = fileCatalog ?? throw new ArgumentNullException(nameof(fileCatalog));
+        }
+
+        /// <summary>
+        /// Initializes the index from authored files once and repairs duplicate current UUIDs.
+        /// </summary>
+        public void Initialize() {
+            if (IsInitialized) {
+                return;
+            }
+
+            ReconcileCore();
+            IsInitialized = true;
+        }
+
+        /// <summary>
+        /// Reconciles external authored-file changes through one explicit full enumeration.
+        /// </summary>
+        public void ReconcileExternalChanges() {
+            EnsureInitialized();
+            ReconcileCore();
+        }
+
+        /// <summary>
+        /// Indicates whether one external path lacked identity metadata during the last reconciliation.
+        /// </summary>
+        /// <param name="fullPath">Absolute authored asset path.</param>
+        /// <returns>True when external metadata was absent at reconciliation time.</returns>
+        internal bool WasMetadataMissing(string fullPath) {
+            return !string.IsNullOrWhiteSpace(fullPath) && MissingMetadataPaths.Contains(Path.GetFullPath(fullPath));
+        }
+
+        /// <summary>
+        /// Copies paths that lacked external identity metadata at the last reconciliation.
+        /// </summary>
+        /// <returns>Independent set of paths with missing metadata.</returns>
+        internal HashSet<string> CopyMissingMetadataPaths() {
+            return new HashSet<string>(MissingMetadataPaths, StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Reconciles the current authored-file snapshot and rebuilds all lookup maps.
+        /// </summary>
+        void ReconcileCore() {
             if (!Directory.Exists(AssetsRootPath)) {
                 Directory.CreateDirectory(AssetsRootPath);
             }
 
-            List<string> sourcePaths = Directory.EnumerateFiles(AssetsRootPath, "*", SearchOption.AllDirectories)
+            MissingMetadataPaths.Clear();
+            List<string> sourcePaths = FileCatalog.EnumerateFiles(AssetsRootPath)
                 .Where(path => PathClassifier.IsAuthoredAsset(path))
                 .Select(Path.GetFullPath)
                 .OrderBy(path => NormalizeRelativePath(path), StringComparer.Ordinal)
@@ -91,6 +164,9 @@ namespace helengine.editor {
             List<EditorAssetIdentityEntry> loadedEntries = new List<EditorAssetIdentityEntry>();
             for (int index = 0; index < sourcePaths.Count; index++) {
                 string fullPath = sourcePaths[index];
+                if (!PathClassifier.UsesEmbeddedIdentity(fullPath) && !File.Exists(fullPath + ".hmeta")) {
+                    MissingMetadataPaths.Add(fullPath);
+                }
                 AssetIdentityMetadataDocument document = LoadIdentityMetadata(fullPath);
                 loadedEntries.Add(CreateEntry(fullPath, document));
             }
@@ -208,11 +284,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Registers one authored path and refreshes duplicate ownership globally.
+        /// Registers or updates one authored path without enumerating the assets tree.
         /// </summary>
         /// <param name="fullPath">Absolute authored asset path.</param>
         /// <returns>Current indexed entry for the path.</returns>
-        public EditorAssetIdentityEntry RegisterOrRefresh(string fullPath) {
+        public EditorAssetIdentityEntry RegisterOrUpdate(string fullPath) {
+            EnsureInitialized();
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
             }
@@ -226,6 +303,11 @@ namespace helengine.editor {
                 RemoveEntry(existingEntry);
             }
 
+            if (!PathClassifier.UsesEmbeddedIdentity(normalizedFullPath) && !File.Exists(normalizedFullPath + ".hmeta")) {
+                MissingMetadataPaths.Add(normalizedFullPath);
+            } else {
+                MissingMetadataPaths.Remove(normalizedFullPath);
+            }
             EditorAssetIdentityEntry entry = CreateEntry(normalizedFullPath, LoadIdentityMetadata(normalizedFullPath));
             AddEntry(entry);
             if (!PreviousOwners.ContainsKey(entry.AssetId)) {
@@ -233,6 +315,25 @@ namespace helengine.editor {
             }
 
             return entry;
+        }
+
+        /// <summary>
+        /// Removes one indexed authored path without enumerating the assets tree.
+        /// </summary>
+        /// <param name="fullPath">Absolute authored asset path.</param>
+        public void Remove(string fullPath) {
+            EnsureInitialized();
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
+            }
+
+            string normalizedFullPath = Path.GetFullPath(fullPath);
+            string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedFullPath));
+            EditorAssetIdentityEntry existingEntry;
+            if (EntriesByPath.TryGetValue(relativePath, out existingEntry)) {
+                RemoveEntry(existingEntry);
+            }
+            MissingMetadataPaths.Remove(normalizedFullPath);
         }
 
         /// <summary>
@@ -372,6 +473,15 @@ namespace helengine.editor {
         /// <returns>Slash-separated relative path.</returns>
         static string NormalizeRelativePath(string path) {
             return path.Replace('\\', '/').Trim('/');
+        }
+
+        /// <summary>
+        /// Rejects incremental operations before the initial snapshot exists.
+        /// </summary>
+        void EnsureInitialized() {
+            if (!IsInitialized) {
+                throw new InvalidOperationException("The asset identity index must be initialized before incremental operations.");
+            }
         }
     }
 }

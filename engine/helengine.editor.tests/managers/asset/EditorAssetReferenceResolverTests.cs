@@ -186,6 +186,23 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures resolver operations reuse one initialized index without implicit full rescans.
+    /// </summary>
+    [Fact]
+    public void Resolve_MultipleReferences_ReusesInitializedIndexWithoutRescanning() {
+        string firstPath = CreateAsset("Models/A.fbx", new byte[] { 1, 2, 3 });
+        string secondPath = CreateAsset("Models/B.fbx", new byte[] { 4, 5, 6 });
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(TempRootPath, null, null, null, catalog);
+        EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, index);
+
+        resolver.CreateFileReference(firstPath, AssetEntryKind.Model);
+        resolver.CreateFileReference(secondPath, AssetEntryKind.Model);
+
+        Assert.Equal(1, catalog.EnumerationCount);
+    }
+
+    /// <summary>
     /// Creates one source file below the isolated assets root.
     /// </summary>
     /// <param name="relativePath">Path relative to assets.</param>
@@ -212,5 +229,25 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         using FileStream stream = File.Create(assetPath);
         MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
         return assetPath;
+    }
+
+    /// <summary>
+    /// Counts authored-file enumerations while delegating enumeration to the real filesystem.
+    /// </summary>
+    sealed class CountingAssetFileCatalog : IEditorAssetFileCatalog {
+        /// <summary>
+        /// Gets the number of full authored-file enumerations requested by the resolver index.
+        /// </summary>
+        public int EnumerationCount { get; private set; }
+
+        /// <summary>
+        /// Enumerates all files beneath the requested assets root.
+        /// </summary>
+        /// <param name="assetsRootPath">Absolute assets root path.</param>
+        /// <returns>Filesystem paths beneath the assets root.</returns>
+        public IEnumerable<string> EnumerateFiles(string assetsRootPath) {
+            EnumerationCount++;
+            return Directory.EnumerateFiles(assetsRootPath, "*", SearchOption.AllDirectories);
+        }
     }
 }

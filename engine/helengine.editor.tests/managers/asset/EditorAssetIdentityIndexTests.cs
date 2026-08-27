@@ -38,7 +38,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         CopyMetadata(firstPath, secondPath, "00112233445566778899aabbccddeeff");
         EditorAssetIdentityIndex index = CreateIndex();
 
-        index.Refresh();
+        index.Initialize();
 
         EditorAssetIdentityEntry owner = index.FindByPath("Models/A.fbx");
         EditorAssetIdentityEntry copy = index.FindByPath("Models/B.fbx");
@@ -57,7 +57,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         CopyMetadata(firstPath, secondPath, "00112233445566778899aabbccddeeff");
         EditorAssetIdentityIndex index = CreateIndex();
 
-        index.Refresh();
+        index.Initialize();
         string firstOwnerId = index.FindByPath("Models/A.fbx").AssetId;
         AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService();
         metadataService.Save(firstPath, new AssetIdentityMetadataDocument {
@@ -69,7 +69,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
             FormerAssetIds = new List<string>()
         });
 
-        index.Refresh();
+        index.ReconcileExternalChanges();
 
         Assert.Equal(firstOwnerId, index.FindByPath("Models/A.fbx").AssetId);
     }
@@ -86,7 +86,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
             FormerAssetIds = new List<string> { "ffeeddccbbaa99887766554433221100" }
         });
         EditorAssetIdentityIndex index = CreateIndex();
-        index.Refresh();
+        index.Initialize();
 
         Assert.NotNull(index.FindByPath("Models/Only.fbx"));
         Assert.Single(index.FindByAssetId("00112233445566778899aabbccddeeff", AssetEntryKind.Model));
@@ -105,7 +105,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         const string malformedJson = "{not json";
         File.WriteAllText(metadataPath, malformedJson);
 
-        Assert.Throws<InvalidOperationException>(() => CreateIndex().Refresh());
+        Assert.Throws<InvalidOperationException>(() => CreateIndex().Initialize());
 
         Assert.Equal(malformedJson, File.ReadAllText(metadataPath));
     }
@@ -118,7 +118,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         string assetPath = CreateNativeAnimation("Animations/Indexed.hanim", "aabbccddeeff00112233445566778899");
         EditorAssetIdentityIndex index = CreateIndex();
 
-        index.Refresh();
+        index.Initialize();
 
         EditorAssetIdentityEntry entry = index.FindByPath("Animations/Indexed.hanim");
         Assert.NotNull(entry);
@@ -137,7 +137,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         string secondPath = CreateNativeAnimation("Animations/B.hanim", "aabbccddeeff00112233445566778899");
         EditorAssetIdentityIndex index = CreateIndex();
 
-        index.Refresh();
+        index.Initialize();
 
         IReadOnlyList<EditorAssetIdentityEntry> matches = index.FindByAssetId(
             "aabbccddeeff00112233445566778899",
@@ -152,11 +152,71 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures repeated initialization reuses one enumerated authored-file snapshot.
+    /// </summary>
+    [Fact]
+    public void Initialize_IsIdempotent_EnumeratesAuthoredFilesOnce() {
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        CreateAsset("Models/Initialized.fbx");
+        EditorAssetIdentityIndex index = CreateIndex(catalog);
+
+        index.Initialize();
+        index.Initialize();
+
+        Assert.Equal(1, catalog.EnumerationCount);
+    }
+
+    /// <summary>
+    /// Ensures incremental registration and removal do not trigger a second full enumeration.
+    /// </summary>
+    [Fact]
+    public void RegisterOrUpdateAndRemove_AfterInitialization_DoNotEnumerateAgain() {
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        string existingPath = CreateAsset("Models/Existing.fbx");
+        EditorAssetIdentityIndex index = CreateIndex(catalog);
+        index.Initialize();
+
+        string addedPath = CreateAsset("Models/Added.fbx");
+        index.RegisterOrUpdate(addedPath);
+        index.Remove(existingPath);
+
+        Assert.Equal(1, catalog.EnumerationCount);
+        Assert.Null(index.FindByPath("Models/Existing.fbx"));
+        Assert.NotNull(index.FindByPath("Models/Added.fbx"));
+    }
+
+    /// <summary>
+    /// Ensures external reconciliation is the explicit boundary that performs another enumeration.
+    /// </summary>
+    [Fact]
+    public void ReconcileExternalChanges_AfterInitialization_EnumeratesOnceMore() {
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        CreateAsset("Models/Initial.fbx");
+        EditorAssetIdentityIndex index = CreateIndex(catalog);
+        index.Initialize();
+
+        CreateAsset("Models/External.fbx");
+        index.ReconcileExternalChanges();
+
+        Assert.Equal(2, catalog.EnumerationCount);
+        Assert.NotNull(index.FindByPath("Models/External.fbx"));
+    }
+
+    /// <summary>
     /// Creates the identity index with its project-scoped dependencies.
     /// </summary>
     /// <returns>Configured identity index.</returns>
     EditorAssetIdentityIndex CreateIndex() {
         return new EditorAssetIdentityIndex(TempRootPath);
+    }
+
+    /// <summary>
+    /// Creates an identity index with an instrumented authored-file catalog.
+    /// </summary>
+    /// <param name="catalog">Catalog used to count full authored-file enumerations.</param>
+    /// <returns>Configured identity index.</returns>
+    EditorAssetIdentityIndex CreateIndex(IEditorAssetFileCatalog catalog) {
+        return new EditorAssetIdentityIndex(TempRootPath, null, null, null, catalog);
     }
 
     /// <summary>
@@ -199,5 +259,25 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
             FormerAssetIds = new List<string>()
         });
         File.Copy(sourcePath + ".hmeta", destinationPath + ".hmeta", true);
+    }
+
+    /// <summary>
+    /// Counts authored-file enumerations while delegating enumeration to the real filesystem.
+    /// </summary>
+    sealed class CountingAssetFileCatalog : IEditorAssetFileCatalog {
+        /// <summary>
+        /// Gets the number of full authored-file enumerations requested by the index.
+        /// </summary>
+        public int EnumerationCount { get; private set; }
+
+        /// <summary>
+        /// Enumerates all files beneath the requested assets root.
+        /// </summary>
+        /// <param name="assetsRootPath">Absolute assets root path.</param>
+        /// <returns>Filesystem paths beneath the assets root.</returns>
+        public IEnumerable<string> EnumerateFiles(string assetsRootPath) {
+            EnumerationCount++;
+            return Directory.EnumerateFiles(assetsRootPath, "*", SearchOption.AllDirectories);
+        }
     }
 }

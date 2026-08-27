@@ -108,6 +108,39 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             IdentityIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, HashCache);
+            IdentityIndex.Initialize();
+            ReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath, IdentityIndex, HashCache);
+            AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver);
+            RepairReportValue = new EditorAssetRepairReport();
+        }
+
+        /// <summary>
+        /// Initializes one project session with an instrumentable authored-file catalog.
+        /// </summary>
+        /// <param name="assetImportManager">Borrowed host-owned import manager for the project.</param>
+        /// <param name="hashCache">Session-owned content hash cache.</param>
+        /// <param name="lifetime">Internal coordinator for session-owned disposable state.</param>
+        /// <param name="fileCatalog">Catalog used to initialize and reconcile the identity index.</param>
+        internal EditorProjectAuthoringSession(
+            AssetImportManager assetImportManager,
+            EditorAssetHashCache hashCache,
+            IEditorAuthoringSessionLifetime lifetime,
+            IEditorAssetFileCatalog fileCatalog) {
+            AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+            HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+            Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+            if (fileCatalog == null) {
+                throw new ArgumentNullException(nameof(fileCatalog));
+            }
+            AssetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath);
+            string projectRootPath = Path.GetDirectoryName(AssetsRootPath);
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new InvalidOperationException("The host asset import manager does not expose a canonical project root.");
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            IdentityIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, HashCache, fileCatalog);
+            IdentityIndex.Initialize();
             ReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath, IdentityIndex, HashCache);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver);
             RepairReportValue = new EditorAssetRepairReport();
@@ -175,7 +208,7 @@ namespace helengine.editor {
         /// </summary>
         public void RefreshExternalChanges() {
             EnsureNotDisposed();
-            IdentityIndex.Refresh();
+            IdentityIndex.ReconcileExternalChanges();
         }
 
         /// <summary>

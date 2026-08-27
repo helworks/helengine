@@ -1,18 +1,8 @@
-using System.Text.Json;
-
 namespace helengine.editor {
     /// <summary>
     /// Caches authored asset SHA-256 values using source path fingerprints.
     /// </summary>
     public sealed class EditorAssetHashCache : IDisposable {
-        /// <summary>
-        /// JSON options for the disposable hash cache.
-        /// </summary>
-        static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
-
         /// <summary>
         /// Absolute project root path.
         /// </summary>
@@ -34,6 +24,11 @@ namespace helengine.editor {
         readonly AssetFileHasher FileHasher;
 
         /// <summary>
+        /// Cache document store used for loading and deferred atomic persistence.
+        /// </summary>
+        readonly IEditorAssetHashCacheStore CacheStore;
+
+        /// <summary>
         /// Shared classifier used to identify native payloads whose embedded identity is excluded from content hashes.
         /// </summary>
         readonly EditorAssetPathClassifier PathClassifier;
@@ -49,6 +44,11 @@ namespace helengine.editor {
         bool IsLoaded;
 
         /// <summary>
+        /// Tracks whether in-memory entries differ from the last stored document.
+        /// </summary>
+        bool IsDirty;
+
+        /// <summary>
         /// Tracks whether this session-owned cache has been released.
         /// </summary>
         bool IsDisposed;
@@ -58,7 +58,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectRootPath">Project root path.</param>
         /// <param name="fileHasher">Optional file hashing implementation.</param>
-        public EditorAssetHashCache(string projectRootPath, AssetFileHasher fileHasher = null) {
+        public EditorAssetHashCache(string projectRootPath, AssetFileHasher fileHasher = null)
+            : this(projectRootPath, fileHasher, new FileEditorAssetHashCacheStore()) {
+        }
+
+        /// <summary>
+        /// Initializes a project-scoped hash cache with an instrumentable document store.
+        /// </summary>
+        /// <param name="projectRootPath">Project root path.</param>
+        /// <param name="fileHasher">Optional file hashing implementation.</param>
+        /// <param name="cacheStore">Document store used for loading and flushing cache data.</param>
+        internal EditorAssetHashCache(
+            string projectRootPath,
+            AssetFileHasher fileHasher,
+            IEditorAssetHashCacheStore cacheStore) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -67,6 +80,7 @@ namespace helengine.editor {
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             CacheFilePath = Path.Combine(ProjectRootPath, "cache", "editor", "asset-identity-index.json");
             FileHasher = fileHasher ?? new AssetFileHasher();
+            CacheStore = cacheStore ?? throw new ArgumentNullException(nameof(cacheStore));
             PathClassifier = new EditorAssetPathClassifier();
             Entries = new Dictionary<string, EditorAssetHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
         }
@@ -77,14 +91,27 @@ namespace helengine.editor {
         public string CachePath => CacheFilePath;
 
         /// <summary>
-        /// Releases cache ownership without changing the current eager persistence behavior.
+        /// Flushes dirty cache state and releases cache ownership exactly once.
         /// </summary>
         public void Dispose() {
             if (IsDisposed) {
                 return;
             }
 
+            Flush();
             IsDisposed = true;
+        }
+
+        /// <summary>
+        /// Atomically stores the sorted cache document when in-memory entries are dirty.
+        /// </summary>
+        public void Flush() {
+            if (!IsDirty) {
+                return;
+            }
+
+            Save();
+            IsDirty = false;
         }
 
         /// <summary>
@@ -112,7 +139,7 @@ namespace helengine.editor {
                 LastWriteUtcTicks = fileInfo.LastWriteTimeUtc.Ticks,
                 ContentHash = contentHash
             };
-            Save();
+            IsDirty = true;
             return contentHash;
         }
 
@@ -158,46 +185,26 @@ namespace helengine.editor {
             }
 
             IsLoaded = true;
-            if (!File.Exists(CacheFilePath)) {
+            EditorAssetHashCacheDocument document = CacheStore.Load(CacheFilePath);
+            if (document == null || document.Entries == null) {
                 return;
             }
-
-            try {
-                string json = File.ReadAllText(CacheFilePath);
-                EditorAssetHashCacheDocument document = JsonSerializer.Deserialize<EditorAssetHashCacheDocument>(json, JsonOptions);
-                if (document == null || document.Entries == null) {
-                    return;
+            for (int index = 0; index < document.Entries.Count; index++) {
+                EditorAssetHashCacheEntry entry = document.Entries[index];
+                if (entry != null && !string.IsNullOrWhiteSpace(entry.RelativePath) && IsValidContentHash(entry.ContentHash)) {
+                    Entries[NormalizeRelativePath(entry.RelativePath)] = entry;
                 }
-                for (int index = 0; index < document.Entries.Count; index++) {
-                    EditorAssetHashCacheEntry entry = document.Entries[index];
-                    if (entry != null && !string.IsNullOrWhiteSpace(entry.RelativePath) && IsValidContentHash(entry.ContentHash)) {
-                        Entries[NormalizeRelativePath(entry.RelativePath)] = entry;
-                    }
-                }
-            } catch {
-                Entries.Clear();
             }
         }
 
         /// <summary>
-        /// Saves the disposable cache atomically.
+        /// Builds and atomically stores a sorted cache document.
         /// </summary>
         void Save() {
-            string directoryPath = Path.GetDirectoryName(CacheFilePath);
-            Directory.CreateDirectory(directoryPath);
-            string temporaryPath = CacheFilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                EditorAssetHashCacheDocument document = new EditorAssetHashCacheDocument {
-                    Entries = Entries.Values.OrderBy(entry => entry.RelativePath, StringComparer.Ordinal).ToList()
-                };
-                string json = JsonSerializer.Serialize(document, JsonOptions);
-                File.WriteAllText(temporaryPath, json, new System.Text.UTF8Encoding(false));
-                File.Move(temporaryPath, CacheFilePath, true);
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    File.Delete(temporaryPath);
-                }
-            }
+            EditorAssetHashCacheDocument document = new EditorAssetHashCacheDocument {
+                Entries = Entries.Values.OrderBy(entry => entry.RelativePath, StringComparer.Ordinal).ToList()
+            };
+            CacheStore.Save(CacheFilePath, document);
         }
 
         /// <summary>
