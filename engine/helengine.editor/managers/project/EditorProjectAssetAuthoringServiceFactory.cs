@@ -44,7 +44,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates one importer-configured manager shared by a legacy capability or a current session.
+        /// Creates one importer-configured manager shared by an asset-authoring capability or a project session.
         /// </summary>
         /// <param name="projectRootPath">Absolute project root path.</param>
         /// <returns>Configured asset import manager.</returns>
