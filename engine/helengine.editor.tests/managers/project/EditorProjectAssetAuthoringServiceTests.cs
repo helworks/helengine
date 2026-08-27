@@ -90,6 +90,31 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
     }
 
     /// <summary>
+    /// Ensures project-authored native output is byte-stable when the caller supplies its stable identity explicitly.
+    /// </summary>
+    [Fact]
+    public void NativeAssetAuthoring_WithExplicitIdentity_IsByteStableAcrossFreshProjectRoots() {
+        const string relativePath = "models/PublicApiStableModel.hasset";
+        const string authoringAssetId = "00112233445566778899aabbccddeeff";
+        string firstProjectRootPath = CreateTemporaryProjectRoot();
+        string secondProjectRootPath = CreateTemporaryProjectRoot();
+        IEditorProjectAssetAuthoringService firstCapability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(firstProjectRootPath);
+        IEditorProjectAssetAuthoringService secondCapability = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).Create(secondProjectRootPath);
+
+        firstCapability.WriteNativeAsset(relativePath, CreatePublicApiModel(), authoringAssetId);
+        secondCapability.WriteNativeAsset(relativePath, CreatePublicApiModel(), authoringAssetId);
+
+        byte[] firstBytes = File.ReadAllBytes(Path.Combine(firstProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        byte[] secondBytes = File.ReadAllBytes(Path.Combine(secondProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        Assert.Equal(firstBytes, secondBytes);
+        using MemoryStream stream = new MemoryStream(firstBytes);
+        ModelAsset restored = Assert.IsType<ModelAsset>(AssetSerializer.Deserialize(stream));
+        Assert.Equal(authoringAssetId, restored.AuthoringAssetId);
+        Assert.False(File.Exists(Path.Combine(firstProjectRootPath, "assets", relativePath + ".hmeta")));
+        Assert.False(File.Exists(Path.Combine(secondProjectRootPath, "assets", relativePath + ".hmeta")));
+    }
+
+    /// <summary>
     /// Ensures live scene definitions are persisted through the same public native authoring boundary as detached assets.
     /// </summary>
     [Fact]
@@ -145,5 +170,21 @@ public sealed class EditorProjectAssetAuthoringServiceTests {
         string projectRootPath = Path.Combine(Path.GetTempPath(), "helengine-authoring-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(projectRootPath);
         return projectRootPath;
+    }
+
+    /// <summary>
+    /// Creates the empty deterministic model payload used by native authoring tests.
+    /// </summary>
+    /// <returns>Model asset with no geometry and deterministic metadata.</returns>
+    static ModelAsset CreatePublicApiModel() {
+        return new ModelAsset {
+            Id = "Models/PublicApiStableModel",
+            Positions = Array.Empty<float3>(),
+            Normals = Array.Empty<float3>(),
+            TexCoords = Array.Empty<float2>(),
+            Indices16 = Array.Empty<ushort>(),
+            Indices32 = Array.Empty<uint>(),
+            Submeshes = Array.Empty<ModelSubmeshAsset>()
+        };
     }
 }
