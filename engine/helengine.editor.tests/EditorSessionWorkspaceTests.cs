@@ -680,6 +680,11 @@ namespace helengine.editor.tests {
             readonly string TempProjectRootPath;
 
             /// <summary>
+            /// Explicitly owned authoring session shared by workspace-created asset services.
+            /// </summary>
+            readonly EditorProjectAuthoringSession AuthoringSession;
+
+            /// <summary>
             /// Creates one workspace test harness with the minimum editor dependencies.
             /// </summary>
             /// <returns>Initialized editor-session harness.</returns>
@@ -725,6 +730,17 @@ namespace helengine.editor.tests {
                 PreviewSourceResolver previewSourceResolver = new PreviewSourceResolver(assetImportManager, Core.Instance.RenderManager2D, Core.Instance.RenderManager3D);
                 EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
                 EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
+                EditorAssetHashCache hashCache = new EditorAssetHashCache(TempProjectRootPath);
+                EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempProjectRootPath, null, null, hashCache);
+                identityIndex.Initialize();
+                EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempProjectRootPath, identityIndex, hashCache);
+                EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, hashCache);
+                AuthoringSession = new EditorProjectAuthoringSession(
+                    assetImportManager,
+                    hashCache,
+                    identityIndex,
+                    referenceResolver,
+                    new EditorAuthoringSessionLifetime(resources));
                 Session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
                 SetPrivateField(Session, "dockingManager", new DockingManager());
@@ -739,9 +755,11 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "WorkspaceLayoutService", new EditorWorkspaceLayoutService(TempProjectRootPath));
                 SetPrivateField(Session, "sceneCanvasProfileState", new EditorSceneCanvasProfileState());
                 SetPrivateField(Session, "assetImportManager", assetImportManager);
+                SetPrivateField(Session, "AuthoringSession", AuthoringSession);
+                SetPrivateField(Session, "authoredAssetReferenceResolver", referenceResolver);
                 SetPrivateField(Session, "previewSourceResolver", previewSourceResolver);
-                SetPrivateField(Session, "sceneAssetReferenceFactory", new SceneAssetReferenceFactory());
-                SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver));
+                SetPrivateField(Session, "sceneAssetReferenceFactory", new SceneAssetReferenceFactory(referenceResolver));
+                SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver, new EditorFileSystemTextureResolver(assetImportManager), referenceResolver));
                 SetPrivateField(Session, "ProjectSupportedPlatforms", new[] { "windows" });
                 SetPrivateField(Session, "ProjectLocalSettingsService", projectLocalSettingsService);
                 SetPrivateField(Session, "ActiveProjectPlatform", "windows");
@@ -765,6 +783,8 @@ namespace helengine.editor.tests {
                     EditorKeyboardFocusService.UnregisterGroup(instances[index].Dockable);
                     instances[index].Controller.Dispose();
                 }
+
+                AuthoringSession.Dispose();
 
                 EditorKeyboardFocusService.Reset();
                 EditorSelectionService.ClearSelection();
@@ -806,7 +826,7 @@ namespace helengine.editor.tests {
             public SceneAssetReference CreateCurrentAssetReference(string relativePath, AssetEntryKind entryKind) {
                 string normalizedRelativePath = relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
                 string fullPath = Path.Combine(TempProjectRootPath, "assets", normalizedRelativePath);
-                return new EditorAssetReferenceResolver(TempProjectRootPath).CreateFileReference(fullPath, entryKind);
+                return AuthoringSession.CreateReference(normalizedRelativePath, entryKind);
             }
 
             /// <summary>

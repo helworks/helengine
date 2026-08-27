@@ -34,7 +34,7 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     [Fact]
     public void Authoring_WhenConcreteSessionIsPassed_IsUnambiguous() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        EditorProjectAuthoringSession authoring = TrackSession(new EditorProjectAuthoringSession(CreateAssetImportManager(projectRootPath)));
+        EditorProjectAuthoringSession authoring = CreateSession(projectRootPath);
 
         EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), authoring);
 
@@ -72,7 +72,7 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     [Fact]
     public void WriteAsset_BeforeStableWriteService_ThrowsTaskBoundaryException() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(CreateAssetImportManager(projectRootPath)));
+        EditorProjectAuthoringSession session = CreateSession(projectRootPath);
 
         Assert.Throws<NotSupportedException>(() => session.WriteAsset("models/test.hasset", new ModelAsset {
             Id = "Models/Test",
@@ -91,7 +91,7 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     [Fact]
     public void BeginTransaction_BeforeRecoverableTransactionService_ThrowsTaskBoundaryException() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(CreateAssetImportManager(projectRootPath)));
+        EditorProjectAuthoringSession session = CreateSession(projectRootPath);
 
         Assert.Throws<NotSupportedException>(() => session.BeginTransaction());
     }
@@ -104,11 +104,17 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         string projectRootPath = CreateTemporaryProjectRoot();
         CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
         EditorAssetHashCache cache = new EditorAssetHashCache(projectRootPath);
+        AssetImportManager manager = CreateAssetImportManager(projectRootPath);
+        EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, cache, catalog);
+        identityIndex.Initialize();
+        EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
+        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache);
         EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
-            CreateAssetImportManager(projectRootPath),
+            manager,
             cache,
-            new EditorAuthoringSessionLifetime(cache),
-            catalog));
+            identityIndex,
+            referenceResolver,
+            new EditorAuthoringSessionLifetime(resources)));
         const string assetId = "00112233445566778899aabbccddeeff";
 
         session.WriteNativeAsset("Models/Written.hasset", CreateModelAsset(), assetId);
@@ -131,10 +137,16 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     [Fact]
     public void Dispose_ReleasesOwnedLifetimeExactlyOnce() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        CountingSessionLifetime lifetime = new CountingSessionLifetime();
+        EditorAssetHashCache cache = new EditorAssetHashCache(projectRootPath);
+        EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, cache);
+        identityIndex.Initialize();
+        EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
+        CountingSessionLifetime lifetime = new CountingSessionLifetime(new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache));
         EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
             CreateAssetImportManager(projectRootPath),
-            new EditorAssetHashCache(projectRootPath),
+            cache,
+            identityIndex,
+            referenceResolver,
             lifetime));
 
         session.Dispose();
@@ -154,8 +166,7 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
             new[] { typeof(AssetImportManager) },
             null);
 
-        Assert.NotNull(constructor);
-        Assert.False(constructor.IsPublic);
+        Assert.Null(constructor);
     }
 
     /// <summary>
@@ -204,6 +215,25 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         return new AssetImportManager(
             projectRootPath,
             new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
+    }
+
+    /// <summary>
+    /// Composes explicitly owned project services for one session test.
+    /// </summary>
+    /// <param name="projectRootPath">Temporary project root.</param>
+    /// <returns>Tracked session with an owned resource lifetime.</returns>
+    EditorProjectAuthoringSession CreateSession(string projectRootPath) {
+        EditorAssetHashCache cache = new EditorAssetHashCache(projectRootPath);
+        EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, cache);
+        identityIndex.Initialize();
+        EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
+        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache);
+        return TrackSession(new EditorProjectAuthoringSession(
+            CreateAssetImportManager(projectRootPath),
+            cache,
+            identityIndex,
+            referenceResolver,
+            new EditorAuthoringSessionLifetime(resources)));
     }
 
     /// <summary>
@@ -308,15 +338,32 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     /// </summary>
     sealed class CountingSessionLifetime : IEditorAuthoringSessionLifetime {
         /// <summary>
+        /// Resource graph released at the lifetime boundary.
+        /// </summary>
+        readonly IDisposable OwnedService;
+        /// <summary>
         /// Gets the number of times the lifetime was released.
         /// </summary>
         public int DisposeCount { get; private set; }
 
         /// <summary>
+        /// Initializes a counting lifetime over explicitly owned resources.
+        /// </summary>
+        /// <param name="ownedService">Resource graph to release.</param>
+        public CountingSessionLifetime(IDisposable ownedService) {
+            OwnedService = ownedService ?? throw new ArgumentNullException(nameof(ownedService));
+        }
+
+        /// <summary>
         /// Records one lifetime release.
         /// </summary>
         public void Dispose() {
+            if (DisposeCount != 0) {
+                return;
+            }
+
             DisposeCount++;
+            OwnedService.Dispose();
         }
     }
 }

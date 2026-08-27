@@ -19,6 +19,7 @@ namespace helengine.editor {
         /// Delegate used to release panel-specific resources on close.
         /// </summary>
         readonly Action disposeAction;
+        bool isDisposed;
 
         /// <summary>
         /// Initializes one workspace panel controller for the supplied dockable panel.
@@ -93,6 +94,11 @@ namespace helengine.editor {
         /// Releases the panel-specific resources owned by the controller.
         /// </summary>
         public void Dispose() {
+            if (isDisposed) {
+                return;
+            }
+
+            isDisposed = true;
             disposeAction();
         }
     }

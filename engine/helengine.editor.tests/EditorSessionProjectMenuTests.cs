@@ -91,7 +91,17 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
-            AuthoringSession = new EditorProjectAuthoringSession(assetImportManager);
+            EditorAssetHashCache hashCache = new EditorAssetHashCache(TempProjectRootPath);
+            EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempProjectRootPath, null, null, hashCache);
+            identityIndex.Initialize();
+            EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempProjectRootPath, identityIndex, hashCache);
+            EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, hashCache);
+            AuthoringSession = new EditorProjectAuthoringSession(
+                assetImportManager,
+                hashCache,
+                identityIndex,
+                referenceResolver,
+                new EditorAuthoringSessionLifetime(resources));
             SetPrivateField(session, "AuthoringSession", AuthoringSession);
             return session;
         }

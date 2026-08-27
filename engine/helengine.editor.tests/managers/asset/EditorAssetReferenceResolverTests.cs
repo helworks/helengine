@@ -243,6 +243,35 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a resolver rejects external files before creating metadata through reference creation.
+    /// </summary>
+    [Fact]
+    public void CreateFileReference_WhenPathIsOutsideAssetsRoot_RejectsWithoutCreatingMetadata() {
+        string outsidePath = Path.Combine(TempRootPath, "outside-reference.fbx");
+        File.WriteAllBytes(outsidePath, new byte[] { 3, 2, 1 });
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+
+        Assert.Throws<InvalidOperationException>(() => resolver.CreateFileReference(outsidePath, AssetEntryKind.Model));
+
+        Assert.False(File.Exists(outsidePath + ".hmeta"));
+    }
+
+    /// <summary>
+    /// Ensures a disposed resolver rejects every resolution-scope and reference operation.
+    /// </summary>
+    [Fact]
+    public void Dispose_WhenRepeated_RejectsResolutionOperationsAfterRelease() {
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        resolver.Dispose();
+        resolver.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => resolver.Resolve(null, AssetEntryKind.Model));
+        Assert.Throws<ObjectDisposedException>(() => resolver.BeginResolutionScope());
+        Assert.Throws<ObjectDisposedException>(() => resolver.EndResolutionScope());
+        Assert.Throws<ObjectDisposedException>(() => resolver.CreateFileReference(Path.Combine(TempRootPath, "assets", "Models", "Missing.fbx"), AssetEntryKind.Model));
+    }
+
+    /// <summary>
     /// Creates one source file below the isolated assets root.
     /// </summary>
     /// <param name="relativePath">Path relative to assets.</param>

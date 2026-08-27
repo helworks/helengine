@@ -15,17 +15,32 @@ namespace helengine.editor {
         /// <summary>
         /// Shared file classifier used by the asset browser and identity services.
         /// </summary>
-        readonly EditorAssetPathClassifier pathClassifier;
+        EditorAssetPathClassifier pathClassifier;
 
         /// <summary>
         /// Sidecar service used to provide stable authored identities.
         /// </summary>
-        readonly AssetIdentityMetadataService identityMetadataService;
+        AssetIdentityMetadataService identityMetadataService;
 
         /// <summary>
         /// Project-scoped content hash cache.
         /// </summary>
-        readonly EditorAssetHashCache identityHashCache;
+        EditorAssetHashCache identityHashCache;
+
+        /// <summary>
+        /// Optional session-owned identity index borrowed by this browser manager.
+        /// </summary>
+        EditorAssetIdentityIndex identityIndex;
+
+        /// <summary>
+        /// Indicates whether this manager created its cache and therefore releases it.
+        /// </summary>
+        bool ownsIdentityHashCache;
+
+        /// <summary>
+        /// Tracks repeated manager disposal calls.
+        /// </summary>
+        bool isDisposed;
 
         /// <summary>
         /// Extensions treated as image assets.
@@ -98,12 +113,37 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="projectPath">Path to the project root.</param>
         public EditorAssetManager(string projectPath) {
+            Initialize(projectPath, null, null);
+        }
+
+        /// <summary>
+        /// Initializes a browser manager using the resolver graph owned by an editor session.
+        /// </summary>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="referenceResolver">Session-owned resolver whose cache and index are borrowed.</param>
+        internal EditorAssetManager(string projectPath, EditorAssetReferenceResolver referenceResolver) {
+            if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
+            }
+
+            Initialize(projectPath, referenceResolver.HashCacheValue, referenceResolver.IdentityIndexValue);
+        }
+
+        /// <summary>
+        /// Initializes one manager over explicit shared identity services.
+        /// </summary>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="hashCache">Borrowed shared hash cache, or null to create one.</param>
+        /// <param name="identityIndex">Borrowed shared identity index, or null for metadata-only browsing.</param>
+        void Initialize(string projectPath, EditorAssetHashCache hashCache, EditorAssetIdentityIndex identityIndexValue) {
             assetsRootPath = ResolveAssetsRoot(projectPath);
             currentRelativePath = string.Empty;
             pathClassifier = new EditorAssetPathClassifier();
             string projectRootPath = Path.GetDirectoryName(assetsRootPath) ?? Directory.GetCurrentDirectory();
             identityMetadataService = new AssetIdentityMetadataService();
-            identityHashCache = new EditorAssetHashCache(projectRootPath);
+            identityHashCache = hashCache ?? new EditorAssetHashCache(projectRootPath);
+            ownsIdentityHashCache = hashCache == null;
+            identityIndex = identityIndexValue;
         }
 
         /// <summary>
@@ -179,9 +219,9 @@ namespace helengine.editor {
                     }
                     try {
                         AssetEntryKind entryKind = pathClassifier.Classify(filePath);
-                        AssetIdentityMetadataDocument metadata = LoadIdentityMetadata(filePath);
+                        string assetId = LoadAssetId(filePath, relativePath);
                         string contentHash = identityHashCache.GetContentHash(filePath);
-                        entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind, metadata.AssetId, contentHash));
+                        entries.Add(AssetBrowserEntry.CreateFileSystemFile(name, relativePath, filePath, extension, entryKind, assetId, contentHash));
                     } catch (Exception ex) {
                         Logger.WriteError($"Asset browser skipped '{relativePath}': {ex.Message}");
                     }
@@ -197,7 +237,36 @@ namespace helengine.editor {
         /// Flushes the project-scoped identity hash cache at the manager lifetime boundary.
         /// </summary>
         public void Dispose() {
-            identityHashCache.Dispose();
+            if (isDisposed) {
+                return;
+            }
+
+            isDisposed = true;
+            if (ownsIdentityHashCache) {
+                identityHashCache.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Loads the indexed identity when one is available, without creating new metadata.
+        /// </summary>
+        /// <param name="filePath">Absolute authored path.</param>
+        /// <param name="relativePath">Normalized assets-relative path.</param>
+        /// <returns>Current asset id.</returns>
+        string LoadAssetId(string filePath, string relativePath) {
+            if (identityIndex != null) {
+                EditorAssetIdentityEntry entry = identityIndex.FindByPath(relativePath);
+                if (entry != null) {
+                    return entry.AssetId;
+                }
+
+                if (pathClassifier.IsAuthoredAsset(filePath)) {
+                    entry = identityIndex.RegisterOrUpdate(filePath);
+                    return entry.AssetId;
+                }
+            }
+
+            return LoadIdentityMetadata(filePath).AssetId;
         }
 
         /// <summary>

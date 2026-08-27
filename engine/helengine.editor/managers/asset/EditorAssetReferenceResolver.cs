@@ -8,15 +8,42 @@ namespace helengine.editor {
         readonly EditorAssetIdentityIndex IdentityIndex;
         readonly EditorAssetHashCache HashCache;
         readonly bool OwnsHashCache;
+        readonly bool OwnsIdentityIndex;
         readonly AssetIdentityMetadataService MetadataService;
         readonly EditorAssetPathClassifier PathClassifier;
         bool ResolutionScopeActive;
         HashSet<string> ResolutionScopeMissingMetadataPaths;
+        bool IsDisposed;
 
         /// <summary>
         /// Project root exposed only to other editor-owned services sharing this resolver.
         /// </summary>
-        internal string ProjectRootPathValue => ProjectRootPath;
+        internal string ProjectRootPathValue {
+            get {
+                EnsureNotDisposed();
+                return ProjectRootPath;
+            }
+        }
+
+        /// <summary>
+        /// Gets the identity index shared by this project-scoped resolver.
+        /// </summary>
+        internal EditorAssetIdentityIndex IdentityIndexValue {
+            get {
+                EnsureNotDisposed();
+                return IdentityIndex;
+            }
+        }
+
+        /// <summary>
+        /// Gets the hash cache shared by this project-scoped resolver.
+        /// </summary>
+        internal EditorAssetHashCache HashCacheValue {
+            get {
+                EnsureNotDisposed();
+                return HashCache;
+            }
+        }
 
         /// <summary>
         /// Initializes a project-scoped reference resolver.
@@ -44,6 +71,7 @@ namespace helengine.editor {
                 HashCache = new EditorAssetHashCache(ProjectRootPath);
                 OwnsHashCache = true;
             }
+            OwnsIdentityIndex = identityIndex == null;
             IdentityIndex = identityIndex ?? new EditorAssetIdentityIndex(ProjectRootPath, MetadataService, PathClassifier, HashCache);
             IdentityIndex.Initialize();
         }
@@ -55,6 +83,7 @@ namespace helengine.editor {
         /// <param name="expectedKind">Required asset category.</param>
         /// <returns>Resolved and canonicalized reference.</returns>
         public AssetReferenceResolution Resolve(SceneAssetReference reference, AssetEntryKind expectedKind) {
+            EnsureNotDisposed();
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
             }
@@ -122,6 +151,7 @@ namespace helengine.editor {
 
         /// <summary>Refreshes the identity index once for a multi-reference load or build scope.</summary>
         public void BeginResolutionScope() {
+            EnsureNotDisposed();
             if (ResolutionScopeActive) {
                 throw new InvalidOperationException("An asset reference resolution scope is already active.");
             }
@@ -132,6 +162,7 @@ namespace helengine.editor {
 
         /// <summary>Ends the active multi-reference resolution scope.</summary>
         public void EndResolutionScope() {
+            EnsureNotDisposed();
             if (!ResolutionScopeActive) {
                 throw new InvalidOperationException("No asset reference resolution scope is active.");
             }
@@ -146,10 +177,15 @@ namespace helengine.editor {
         /// <param name="expectedKind">Required asset category.</param>
         /// <returns>Canonical stable reference.</returns>
         public SceneAssetReference CreateFileReference(string fullPath, AssetEntryKind expectedKind) {
+            EnsureNotDisposed();
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
             }
             string normalizedPath = Path.GetFullPath(fullPath);
+            string assetsPrefix = AssetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!normalizedPath.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException($"Path '{fullPath}' must be inside the assets directory.");
+            }
             if (!PathClassifier.IsAuthoredAsset(normalizedPath) || PathClassifier.Classify(normalizedPath) != expectedKind) {
                 throw new InvalidOperationException($"Path '{fullPath}' is not an authored {expectedKind} asset.");
             }
@@ -218,6 +254,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Rejects operations after this resolver has released its owned resources.
+        /// </summary>
+        void EnsureNotDisposed() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorAssetReferenceResolver));
+            }
+        }
+
+        /// <summary>
         /// Determines whether one authored path lacked external metadata at the current resolution boundary.
         /// </summary>
         /// <param name="fullPath">Absolute authored path.</param>
@@ -233,9 +278,17 @@ namespace helengine.editor {
         /// Releases a cache created by this resolver; borrowed caches remain owned by their caller.
         /// </summary>
         public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+
+            if (OwnsIdentityIndex) {
+                IdentityIndex.Dispose();
+            }
             if (OwnsHashCache) {
                 HashCache.Dispose();
             }
+            IsDisposed = true;
         }
     }
 }

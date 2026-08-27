@@ -31,8 +31,17 @@ namespace helengine.editor {
         /// Initializes a new asset-browser data source for one project path.
         /// </summary>
         /// <param name="projectPath">Path to the project root.</param>
-        public AssetBrowserDataSource(string projectPath, bool includeGeneratedEntries = true) {
-            FileSystemAssets = new EditorAssetManager(projectPath);
+        public AssetBrowserDataSource(string projectPath, bool includeGeneratedEntries = true)
+            : this(new EditorAssetManager(projectPath), includeGeneratedEntries) {
+        }
+
+        /// <summary>
+        /// Initializes a data source over a manager whose project resources are supplied by its owner.
+        /// </summary>
+        /// <param name="fileSystemAssets">Asset manager borrowed for this data source lifetime.</param>
+        /// <param name="includeGeneratedEntries">True to include generated entries.</param>
+        internal AssetBrowserDataSource(EditorAssetManager fileSystemAssets, bool includeGeneratedEntries = true) {
+            FileSystemAssets = fileSystemAssets ?? throw new ArgumentNullException(nameof(fileSystemAssets));
             DirectorySources = new Dictionary<string, AssetBrowserEntrySourceKind>(StringComparer.Ordinal);
             CurrentRelativePathValue = string.Empty;
             CurrentDirectoryIsGenerated = false;

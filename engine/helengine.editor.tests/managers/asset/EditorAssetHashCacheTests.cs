@@ -56,6 +56,53 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures sequential cache flushes merge dirty paths instead of dropping another cache's update.
+    /// </summary>
+    [Fact]
+    public void Flush_WhenTwoCachesHashDifferentFiles_PreservesBothDirtyUpdates() {
+        string seededPath = CreateAsset("Models/Seed.obj", new byte[] { 0, 1, 2 });
+        string firstPath = CreateAsset("Models/First.obj", new byte[] { 3, 4, 5 });
+        string secondPath = CreateAsset("Models/Second.obj", new byte[] { 6, 7, 8 });
+
+        using (EditorAssetHashCache seedCache = new EditorAssetHashCache(TempRootPath)) {
+            seedCache.GetContentHash(seededPath);
+        }
+
+        string firstHash;
+        string secondHash;
+        using (EditorAssetHashCache firstCache = new EditorAssetHashCache(TempRootPath))
+        using (EditorAssetHashCache secondCache = new EditorAssetHashCache(TempRootPath)) {
+            firstHash = firstCache.GetContentHash(firstPath);
+            secondHash = secondCache.GetContentHash(secondPath);
+            firstCache.Flush();
+            secondCache.Flush();
+        }
+
+        CountingAssetFileHasher finalHasher = new CountingAssetFileHasher();
+        using EditorAssetHashCache finalCache = new EditorAssetHashCache(TempRootPath, finalHasher);
+        Assert.Equal(firstHash, finalCache.GetContentHash(firstPath));
+        Assert.Equal(secondHash, finalCache.GetContentHash(secondPath));
+        Assert.Equal(0, finalHasher.FileHashCount);
+    }
+
+    /// <summary>
+    /// Ensures a disposed cache rejects hashing and flushing without creating a dirty cache document.
+    /// </summary>
+    [Fact]
+    public void Dispose_WhenRepeated_RejectsHashAndFlushAfterRelease() {
+        string assetPath = CreateAsset("Models/Disposed.obj", new byte[] { 1, 2, 3 });
+        string cachePath = Path.Combine(TempRootPath, "cache", "editor", "asset-identity-index.json");
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath);
+
+        cache.Dispose();
+        cache.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => cache.GetContentHash(assetPath));
+        Assert.Throws<ObjectDisposedException>(() => cache.Flush());
+        Assert.False(File.Exists(cachePath));
+    }
+
+    /// <summary>
     /// Ensures changed source bytes invalidate a cached fingerprint.
     /// </summary>
     [Fact]
@@ -122,14 +169,19 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         CountingAssetHashCacheStore store = new CountingAssetHashCacheStore();
         CountingAssetFileHasher hasher = new CountingAssetFileHasher();
         EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, hasher, store);
+        EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempRootPath, null, null, cache, catalog);
+        identityIndex.Initialize();
+        EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempRootPath, identityIndex, cache);
+        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache);
         AssetImportManager manager = new AssetImportManager(
             TempRootPath,
             new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempRootPath, "assets"))));
         EditorProjectAuthoringSession session = new EditorProjectAuthoringSession(
             manager,
             cache,
-            new EditorAuthoringSessionLifetime(cache),
-            catalog);
+            identityIndex,
+            referenceResolver,
+            new EditorAuthoringSessionLifetime(resources));
 
         session.CreateReference("Models/A.obj", AssetEntryKind.Model);
         session.CreateReference("Models/B.obj", AssetEntryKind.Model);

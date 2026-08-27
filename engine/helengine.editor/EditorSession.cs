@@ -618,8 +618,10 @@ namespace helengine.editor {
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(ShaderBackends);
 
             assetImportManager = InitializeAssetImports(Importers);
-            AuthoringSession = new EditorProjectAuthoringSession(assetImportManager);
+            EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(assetImportManager);
+            AuthoringSession = concreteAuthoringSession;
             AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
+            authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
             materialAssetSettingsService = new MaterialAssetSettingsService();
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
@@ -686,9 +688,10 @@ namespace helengine.editor {
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
-            assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics);
+            EditorAssetManager assetBrowserManager = new EditorAssetManager(this.projectPath, authoredAssetReferenceResolver);
+            AssetBrowserDataSource assetBrowserDataSource = new AssetBrowserDataSource(assetBrowserManager);
+            assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics, assetBrowserDataSource);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
-            authoredAssetReferenceResolver = new EditorAssetReferenceResolver(this.projectPath);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
@@ -702,7 +705,7 @@ namespace helengine.editor {
                 scriptAssemblyHost);
             ComponentPersistenceRegistry persistenceRegistry = CreateComponentPersistenceRegistry(scriptHotReloadService.ScriptTypeResolver);
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
-            SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry);
+            SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry, authoredAssetReferenceResolver);
             HistoryCaptureService = new EditorHistoryCaptureService(SceneSaveService);
             ComponentHistoryAdapterRegistry = new ComponentHistoryAdapterRegistry();
             SceneCreationService = new EditorSceneCreationService();
@@ -726,7 +729,7 @@ namespace helengine.editor {
             sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
             sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
-            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver);
+            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver, authoredAssetReferenceResolver);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
@@ -1674,7 +1677,6 @@ namespace helengine.editor {
             FlushPendingOwnedAssetReleases();
             ReleaseCurrentSceneOwnedAssets();
             assetBrowserPanel.DisposeAuthoringResources();
-            authoredAssetReferenceResolver.Dispose();
             sceneAssetReferenceResolver.Dispose();
             SceneSaveService.Dispose();
             SceneFileLoadService.Dispose();
@@ -1992,8 +1994,10 @@ namespace helengine.editor {
         /// <param name="session">Owning editor session.</param>
         /// <returns>Created asset browser panel controller.</returns>
         IEditorWorkspacePanelController CreateAssetBrowserPanelController(EditorSession session) {
-            AssetBrowserPanel panel = new AssetBrowserPanel(session.uiFont, session.projectPath, session.CurrentUiMetrics);
-            return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
+            EditorAssetManager manager = new EditorAssetManager(session.projectPath, session.authoredAssetReferenceResolver);
+            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(manager);
+            AssetBrowserPanel panel = new AssetBrowserPanel(session.uiFont, session.projectPath, session.CurrentUiMetrics, dataSource);
+            return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.DisposeAuthoringResources);
         }
 
         /// <summary>
@@ -3315,8 +3319,7 @@ namespace helengine.editor {
             if (!File.Exists(materialFullPath)) {
                 throw new InvalidOperationException($"Imported material source '{materialFullPath}' does not exist and cannot produce a canonical asset reference.");
             }
-            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectPath);
-            return resolver.CreateFileReference(materialFullPath, AssetEntryKind.Material);
+            return authoredAssetReferenceResolver.CreateFileReference(materialFullPath, AssetEntryKind.Material);
         }
 
         /// <summary>
@@ -5308,8 +5311,7 @@ namespace helengine.editor {
             }
 
             try {
-                using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectPath);
-                AssetReferenceResolution resolution = resolver.Resolve(assetReference, entryKind);
+                AssetReferenceResolution resolution = authoredAssetReferenceResolver.Resolve(assetReference, entryKind);
                 SceneAssetReference canonicalReference = resolution.CanonicalReference;
                 assetEntry = AssetBrowserEntry.CreateFileSystemFile(
                     Path.GetFileName(resolution.FullPath),

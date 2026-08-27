@@ -63,43 +63,48 @@ namespace helengine.editor {
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
             ContentManager contentManager)
-            : this(CreateAssetImportManager(projectRootPath, importers, contentManager)) {
+            : this(CreateDependencies(CreateAssetImportManager(projectRootPath, importers, contentManager))) {
         }
 
         /// <summary>
         /// Creates a project session over an import manager already owned by an editor host.
         /// </summary>
         /// <param name="assetImportManager">Host-owned import manager for the project.</param>
-        internal EditorProjectAuthoringSession(AssetImportManager assetImportManager)
-            : this(
-                assetImportManager,
-                new EditorAssetHashCache(ResolveProjectRootPath(assetImportManager))) {
+        internal static EditorProjectAuthoringSession CreateFromManager(AssetImportManager assetImportManager) {
+            return new EditorProjectAuthoringSession(CreateDependencies(assetImportManager));
         }
 
         /// <summary>
-        /// Initializes one project session over a host manager and one session-owned hash cache.
+        /// Initializes one project session over explicitly composed project services.
         /// </summary>
         /// <param name="assetImportManager">Borrowed host-owned import manager for the project.</param>
         /// <param name="hashCache">Session-owned content hash cache.</param>
-        internal EditorProjectAuthoringSession(
-            AssetImportManager assetImportManager,
-            EditorAssetHashCache hashCache)
-            : this(assetImportManager, hashCache, new EditorAuthoringSessionLifetime(hashCache)) {
-        }
-
-        /// <summary>
-        /// Initializes one project session over host-owned manager state and an internal lifetime seam.
-        /// </summary>
-        /// <param name="assetImportManager">Borrowed host-owned import manager for the project.</param>
-        /// <param name="hashCache">Session-owned content hash cache.</param>
+        /// <param name="identityIndex">Session-owned identity index.</param>
+        /// <param name="referenceResolver">Session-owned reference resolver.</param>
         /// <param name="lifetime">Internal coordinator for session-owned disposable state.</param>
         internal EditorProjectAuthoringSession(
             AssetImportManager assetImportManager,
             EditorAssetHashCache hashCache,
-            IEditorAuthoringSessionLifetime lifetime) {
-            AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
-            HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
-            Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+            EditorAssetIdentityIndex identityIndex,
+            EditorAssetReferenceResolver referenceResolver,
+            IEditorAuthoringSessionLifetime lifetime)
+            : this(new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime)) {
+        }
+
+        /// <summary>
+        /// Initializes one project session over explicitly composed project services.
+        /// </summary>
+        /// <param name="dependencies">Explicit services and lifetime owned by this session.</param>
+        EditorProjectAuthoringSession(SessionDependencies dependencies) {
+            if (dependencies == null) {
+                throw new ArgumentNullException(nameof(dependencies));
+            }
+
+            AssetImportManagerValue = dependencies.AssetImportManager;
+            HashCache = dependencies.HashCache;
+            IdentityIndex = dependencies.IdentityIndex;
+            ReferenceResolver = dependencies.ReferenceResolver;
+            Lifetime = dependencies.Lifetime;
             AssetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath);
             string projectRootPath = Path.GetDirectoryName(AssetsRootPath);
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
@@ -107,44 +112,24 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            IdentityIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, HashCache);
-            IdentityIndex.Initialize();
-            ReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath, IdentityIndex, HashCache);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver);
             RepairReportValue = new EditorAssetRepairReport();
         }
 
         /// <summary>
-        /// Initializes one project session with an instrumentable authored-file catalog.
+        /// Gets the session-owned resolver for editor services within this host lifetime.
         /// </summary>
-        /// <param name="assetImportManager">Borrowed host-owned import manager for the project.</param>
-        /// <param name="hashCache">Session-owned content hash cache.</param>
-        /// <param name="lifetime">Internal coordinator for session-owned disposable state.</param>
-        /// <param name="fileCatalog">Catalog used to initialize and reconcile the identity index.</param>
-        internal EditorProjectAuthoringSession(
-            AssetImportManager assetImportManager,
-            EditorAssetHashCache hashCache,
-            IEditorAuthoringSessionLifetime lifetime,
-            IEditorAssetFileCatalog fileCatalog) {
-            AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
-            HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
-            Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
-            if (fileCatalog == null) {
-                throw new ArgumentNullException(nameof(fileCatalog));
-            }
-            AssetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath);
-            string projectRootPath = Path.GetDirectoryName(AssetsRootPath);
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new InvalidOperationException("The host asset import manager does not expose a canonical project root.");
-            }
+        internal EditorAssetReferenceResolver ReferenceResolverValue => ReferenceResolver;
 
-            ProjectRootPath = Path.GetFullPath(projectRootPath);
-            IdentityIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, HashCache, fileCatalog);
-            IdentityIndex.Initialize();
-            ReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath, IdentityIndex, HashCache);
-            AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver);
-            RepairReportValue = new EditorAssetRepairReport();
-        }
+        /// <summary>
+        /// Gets the session-owned hash cache for editor services within this host lifetime.
+        /// </summary>
+        internal EditorAssetHashCache HashCacheValue => HashCache;
+
+        /// <summary>
+        /// Gets the session-owned identity index for editor services within this host lifetime.
+        /// </summary>
+        internal EditorAssetIdentityIndex IdentityIndexValue => IdentityIndex;
 
         /// <summary>
         /// Gets the immutable repair report accumulated by this session.
@@ -507,6 +492,46 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Composes the services and lifetime owned by one host-created session.
+        /// </summary>
+        /// <param name="assetImportManager">Host import manager borrowed by the session.</param>
+        /// <returns>Explicit project service composition.</returns>
+        static SessionDependencies CreateDependencies(AssetImportManager assetImportManager) {
+            string projectRootPath = ResolveProjectRootPath(assetImportManager);
+            EditorAssetHashCache hashCache = new EditorAssetHashCache(projectRootPath);
+            EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache);
+            identityIndex.Initialize();
+            EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, hashCache);
+            EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, hashCache);
+            IEditorAuthoringSessionLifetime lifetime = new EditorAuthoringSessionLifetime(resources);
+            return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime);
+        }
+
+        /// <summary>
+        /// Explicit services retained by one session constructor boundary.
+        /// </summary>
+        sealed class SessionDependencies {
+            public readonly AssetImportManager AssetImportManager;
+            public readonly EditorAssetHashCache HashCache;
+            public readonly EditorAssetIdentityIndex IdentityIndex;
+            public readonly EditorAssetReferenceResolver ReferenceResolver;
+            public readonly IEditorAuthoringSessionLifetime Lifetime;
+
+            public SessionDependencies(
+                AssetImportManager assetImportManager,
+                EditorAssetHashCache hashCache,
+                EditorAssetIdentityIndex identityIndex,
+                EditorAssetReferenceResolver referenceResolver,
+                IEditorAuthoringSessionLifetime lifetime) {
+                AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+                HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+                IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
+                ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
+                Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
+            }
+        }
+
+        /// <summary>
         /// Creates the host import manager used by the public constructor.
         /// </summary>
         /// <param name="projectRootPath">Project root path.</param>
@@ -584,6 +609,36 @@ namespace helengine.editor {
             if (IsDisposed) {
                 throw new ObjectDisposedException(nameof(EditorProjectAuthoringSession));
             }
+        }
+    }
+
+    /// <summary>
+    /// Releases the resolver, index, and cache composed for one project session.
+    /// </summary>
+    internal sealed class EditorProjectAuthoringSessionResources : IDisposable {
+        readonly EditorAssetReferenceResolver ReferenceResolver;
+        readonly EditorAssetIdentityIndex IdentityIndex;
+        readonly EditorAssetHashCache HashCache;
+        bool IsDisposed;
+
+        public EditorProjectAuthoringSessionResources(
+            EditorAssetReferenceResolver referenceResolver,
+            EditorAssetIdentityIndex identityIndex,
+            EditorAssetHashCache hashCache) {
+            ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
+            IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
+            HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
+        }
+
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+
+            IsDisposed = true;
+            ReferenceResolver.Dispose();
+            IdentityIndex.Dispose();
+            HashCache.Dispose();
         }
     }
 }

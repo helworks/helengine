@@ -68,6 +68,11 @@ namespace helengine.editor {
         bool IsInitialized;
 
         /// <summary>
+        /// Tracks whether this index has released its owned resources.
+        /// </summary>
+        bool IsDisposed;
+
+        /// <summary>
         /// Initializes a project-scoped identity index.
         /// </summary>
         /// <param name="projectRootPath">Project root path.</param>
@@ -119,6 +124,7 @@ namespace helengine.editor {
         /// Initializes the index from authored files once and repairs duplicate current UUIDs.
         /// </summary>
         public void Initialize() {
+            EnsureNotDisposed();
             if (IsInitialized) {
                 return;
             }
@@ -131,6 +137,7 @@ namespace helengine.editor {
         /// Reconciles external authored-file changes through one explicit full enumeration.
         /// </summary>
         public void ReconcileExternalChanges() {
+            EnsureNotDisposed();
             EnsureInitialized();
             ReconcileCore();
         }
@@ -141,6 +148,7 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute authored asset path.</param>
         /// <returns>True when external metadata was absent at reconciliation time.</returns>
         internal bool WasMetadataMissing(string fullPath) {
+            EnsureNotDisposed();
             return !string.IsNullOrWhiteSpace(fullPath) && MissingMetadataPaths.Contains(Path.GetFullPath(fullPath));
         }
 
@@ -149,21 +157,32 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Independent set of paths with missing metadata.</returns>
         internal HashSet<string> CopyMissingMetadataPaths() {
+            EnsureNotDisposed();
             return new HashSet<string>(MissingMetadataPaths, StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
         /// Returns the cache used by this index so another project service can borrow its lifetime.
         /// </summary>
-        internal EditorAssetHashCache HashCacheValue => HashCache;
+        internal EditorAssetHashCache HashCacheValue {
+            get {
+                EnsureNotDisposed();
+                return HashCache;
+            }
+        }
 
         /// <summary>
         /// Releases a hash cache created by this index; injected caches remain caller-owned.
         /// </summary>
         public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+
             if (OwnsHashCache) {
                 HashCache.Dispose();
             }
+            IsDisposed = true;
         }
 
         /// <summary>
@@ -247,6 +266,7 @@ namespace helengine.editor {
         /// <param name="relativePath">Assets-relative path.</param>
         /// <returns>Matching entry, or null when absent.</returns>
         public EditorAssetIdentityEntry FindByPath(string relativePath) {
+            EnsureNotDisposed();
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 return null;
             }
@@ -262,6 +282,7 @@ namespace helengine.editor {
         /// <param name="expectedKind">Required asset kind.</param>
         /// <returns>Matching indexed entries.</returns>
         public IReadOnlyList<EditorAssetIdentityEntry> FindByAssetId(string assetId, AssetEntryKind expectedKind) {
+            EnsureNotDisposed();
             List<EditorAssetIdentityEntry> matches = new List<EditorAssetIdentityEntry>();
             if (string.IsNullOrWhiteSpace(assetId)) {
                 return matches;
@@ -287,6 +308,7 @@ namespace helengine.editor {
         /// <param name="expectedKind">Required asset kind.</param>
         /// <returns>Sorted compatible entries.</returns>
         public IReadOnlyList<EditorAssetIdentityEntry> EnumerateCompatible(AssetEntryKind expectedKind) {
+            EnsureNotDisposed();
             return EntriesByPath.Values
                 .Where(entry => entry.EntryKind == expectedKind)
                 .OrderBy(entry => entry.RelativePath, StringComparer.Ordinal)
@@ -299,6 +321,7 @@ namespace helengine.editor {
         /// <param name="assetId">UUID to inspect.</param>
         /// <returns>True when the current UUID is indexed.</returns>
         public bool IsCurrentAssetIdOwned(string assetId) {
+            EnsureNotDisposed();
             return !string.IsNullOrWhiteSpace(assetId) && EntriesByAssetId.ContainsKey(assetId);
         }
 
@@ -308,14 +331,12 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute authored asset path.</param>
         /// <returns>Current indexed entry for the path.</returns>
         public EditorAssetIdentityEntry RegisterOrUpdate(string fullPath) {
+            EnsureNotDisposed();
+            string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
             EnsureInitialized();
-            if (string.IsNullOrWhiteSpace(fullPath)) {
-                throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
-            }
-            if (!PathClassifier.IsAuthoredAsset(fullPath)) {
+            if (!PathClassifier.IsAuthoredAsset(normalizedFullPath)) {
                 throw new InvalidOperationException($"Path '{fullPath}' is not an authored asset.");
             }
-            string normalizedFullPath = Path.GetFullPath(fullPath);
             string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedFullPath));
             EditorAssetIdentityEntry existingEntry;
             if (EntriesByPath.TryGetValue(relativePath, out existingEntry)) {
@@ -341,12 +362,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fullPath">Absolute authored asset path.</param>
         public void Remove(string fullPath) {
+            EnsureNotDisposed();
+            string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
             EnsureInitialized();
-            if (string.IsNullOrWhiteSpace(fullPath)) {
-                throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
-            }
-
-            string normalizedFullPath = Path.GetFullPath(fullPath);
             string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, normalizedFullPath));
             EditorAssetIdentityEntry existingEntry;
             if (EntriesByPath.TryGetValue(relativePath, out existingEntry)) {
@@ -500,6 +518,31 @@ namespace helengine.editor {
         void EnsureInitialized() {
             if (!IsInitialized) {
                 throw new InvalidOperationException("The asset identity index must be initialized before incremental operations.");
+            }
+        }
+
+        /// <summary>
+        /// Normalizes a path and verifies that it is strictly beneath the assets root.
+        /// </summary>
+        string NormalizeAndValidateAssetsPath(string fullPath) {
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                throw new ArgumentException("Asset path must be provided.", nameof(fullPath));
+            }
+
+            string normalizedFullPath = Path.GetFullPath(fullPath);
+            string assetsPrefix = AssetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!normalizedFullPath.StartsWith(assetsPrefix, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException($"Path '{fullPath}' must be inside the assets directory.");
+            }
+            return normalizedFullPath;
+        }
+
+        /// <summary>
+        /// Rejects operations after this index has released its owned resources.
+        /// </summary>
+        void EnsureNotDisposed() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorAssetIdentityIndex));
             }
         }
     }

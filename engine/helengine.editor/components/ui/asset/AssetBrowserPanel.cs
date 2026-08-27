@@ -92,7 +92,25 @@ namespace helengine.editor {
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
         /// <param name="openFolderAction">Callback used when the user chooses to open the current folder in Explorer.</param>
-        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, Action<string> openFolderAction) : base(font, metrics) {
+        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, Action<string> openFolderAction)
+            : this(font, projectPath, metrics, openFolderAction, null) {
+        }
+
+        /// <summary>
+        /// Initializes an asset browser panel over a data source supplied by its project owner.
+        /// </summary>
+        /// <param name="font">Font used for labels.</param>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
+        /// <param name="dataSource">Data source whose manager shares the project session resources.</param>
+        internal AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, AssetBrowserDataSource dataSource)
+            : this(font, projectPath, metrics, OpenFolderInExplorer, dataSource) {
+        }
+
+        /// <summary>
+        /// Initializes an asset browser panel with an explicit data source and folder launcher.
+        /// </summary>
+        AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, Action<string> openFolderAction, AssetBrowserDataSource dataSource) : base(font, metrics) {
             if (openFolderAction == null) {
                 throw new ArgumentNullException(nameof(openFolderAction));
             }
@@ -123,7 +141,8 @@ namespace helengine.editor {
                 iconBackgroundOrder,
                 textOrder,
                 true,
-                this);
+                this,
+                dataSource);
             ContentRoot.AddChild(BrowserView.Entity);
 
             BrowserView.AssetActivated += HandleAssetActivated;

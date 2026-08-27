@@ -49,6 +49,11 @@ namespace helengine.editor {
         bool IsDirty;
 
         /// <summary>
+        /// Relative paths changed by this cache since its last successful flush.
+        /// </summary>
+        readonly HashSet<string> DirtyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Tracks whether this session-owned cache has been released.
         /// </summary>
         bool IsDisposed;
@@ -88,7 +93,12 @@ namespace helengine.editor {
         /// <summary>
         /// Gets the disposable cache file path.
         /// </summary>
-        public string CachePath => CacheFilePath;
+        public string CachePath {
+            get {
+                EnsureNotDisposed();
+                return CacheFilePath;
+            }
+        }
 
         /// <summary>
         /// Flushes dirty cache state and releases cache ownership exactly once.
@@ -106,6 +116,7 @@ namespace helengine.editor {
         /// Atomically stores the sorted cache document when in-memory entries are dirty.
         /// </summary>
         public void Flush() {
+            EnsureNotDisposed();
             if (!IsDirty) {
                 return;
             }
@@ -120,6 +131,7 @@ namespace helengine.editor {
         /// <param name="assetPath">Absolute authored asset path.</param>
         /// <returns>Lowercase SHA-256 hash prefixed with <c>sha256:</c>.</returns>
         public string GetContentHash(string assetPath) {
+            EnsureNotDisposed();
             string fullPath = NormalizeAndValidatePath(assetPath);
             FileInfo fileInfo = new FileInfo(fullPath);
             EnsureLoaded();
@@ -139,6 +151,7 @@ namespace helengine.editor {
                 LastWriteUtcTicks = fileInfo.LastWriteTimeUtc.Ticks,
                 ContentHash = contentHash
             };
+            DirtyPaths.Add(relativePath);
             IsDirty = true;
             return contentHash;
         }
@@ -201,10 +214,35 @@ namespace helengine.editor {
         /// Builds and atomically stores a sorted cache document.
         /// </summary>
         void Save() {
+            // Reload the document at the store boundary so independent caches
+            // retain updates made by another owner after this cache was loaded.
+            Dictionary<string, EditorAssetHashCacheEntry> mergedEntries =
+                new Dictionary<string, EditorAssetHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
+            EditorAssetHashCacheDocument storedDocument = CacheStore.Load(CacheFilePath);
+            if (storedDocument != null && storedDocument.Entries != null) {
+                for (int index = 0; index < storedDocument.Entries.Count; index++) {
+                    EditorAssetHashCacheEntry entry = storedDocument.Entries[index];
+                    if (entry != null && !string.IsNullOrWhiteSpace(entry.RelativePath) && IsValidContentHash(entry.ContentHash)) {
+                        string relativePath = NormalizeRelativePath(entry.RelativePath);
+                        mergedEntries[relativePath] = entry;
+                    }
+                }
+            }
+
+            foreach (string dirtyPath in DirtyPaths) {
+                EditorAssetHashCacheEntry entry;
+                if (Entries.TryGetValue(dirtyPath, out entry)) {
+                    mergedEntries[dirtyPath] = entry;
+                } else {
+                    mergedEntries.Remove(dirtyPath);
+                }
+            }
+
             EditorAssetHashCacheDocument document = new EditorAssetHashCacheDocument {
-                Entries = Entries.Values.OrderBy(entry => entry.RelativePath, StringComparer.Ordinal).ToList()
+                Entries = mergedEntries.Values.OrderBy(entry => entry.RelativePath, StringComparer.Ordinal).ToList()
             };
             CacheStore.Save(CacheFilePath, document);
+            DirtyPaths.Clear();
         }
 
         /// <summary>
@@ -249,6 +287,15 @@ namespace helengine.editor {
                 }
             }
             return true;
+        }
+
+        /// <summary>
+        /// Rejects operations after this cache has released its owned state.
+        /// </summary>
+        void EnsureNotDisposed() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorAssetHashCache));
+            }
         }
     }
 }

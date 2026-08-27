@@ -22,7 +22,7 @@ namespace helengine.editor {
         /// <param name="projectRootPath">Absolute project root path.</param>
         /// <returns>Configured project authoring session.</returns>
         public IEditorProjectAuthoringSession CreateSession(string projectRootPath) {
-            return new EditorProjectAuthoringSession(CreateAssetImportManager(projectRootPath));
+            return EditorProjectAuthoringSession.CreateFromManager(CreateAssetImportManager(projectRootPath));
         }
 
         /// <summary>

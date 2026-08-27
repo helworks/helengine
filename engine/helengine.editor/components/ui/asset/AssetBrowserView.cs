@@ -190,7 +190,8 @@ namespace helengine.editor {
                 iconBackgroundOrder,
                 textOrder,
                 includeGeneratedEntries,
-                focusGroup) {
+                focusGroup,
+                null) {
         }
 
         /// <summary>
@@ -216,7 +217,47 @@ namespace helengine.editor {
             byte iconBackgroundOrder,
             byte textOrder,
             bool includeGeneratedEntries = true,
-            IFocusGroup focusGroup = null) {
+            IFocusGroup focusGroup = null)
+            : this(
+                font,
+                metrics,
+                projectPath,
+                layerMask,
+                toolbarOrder,
+                rowBackgroundOrder,
+                iconBackgroundOrder,
+                textOrder,
+                includeGeneratedEntries,
+                focusGroup,
+                null) {
+        }
+
+        /// <summary>
+        /// Initializes an asset browser view over a data source supplied by its project owner.
+        /// </summary>
+        /// <param name="font">Font used for labels.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the browser toolbar and rows.</param>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="layerMask">Layer mask for all entities in the view.</param>
+        /// <param name="toolbarOrder">Render order for toolbar backgrounds.</param>
+        /// <param name="rowBackgroundOrder">Render order for row backgrounds.</param>
+        /// <param name="iconBackgroundOrder">Render order for icon backgrounds.</param>
+        /// <param name="textOrder">Render order for text labels.</param>
+        /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
+        /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
+        /// <param name="dataSource">Data source supplied by the project owner, or null to create one.</param>
+        internal AssetBrowserView(
+            FontAsset font,
+            EditorUiMetrics metrics,
+            string projectPath,
+            ushort layerMask,
+            byte toolbarOrder,
+            byte rowBackgroundOrder,
+            byte iconBackgroundOrder,
+            byte textOrder,
+            bool includeGeneratedEntries,
+            IFocusGroup focusGroup,
+            AssetBrowserDataSource dataSource) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -229,7 +270,7 @@ namespace helengine.editor {
 
             Font = font;
             Metrics = metrics;
-            DataSource = new AssetBrowserDataSource(projectPath, includeGeneratedEntries);
+            DataSource = dataSource ?? new AssetBrowserDataSource(projectPath, includeGeneratedEntries);
             ToolbarOrder = toolbarOrder;
             RowBackgroundOrder = rowBackgroundOrder;
             IconBackgroundOrder = iconBackgroundOrder;

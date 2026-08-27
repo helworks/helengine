@@ -186,6 +186,59 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures incremental registration rejects an external path before classifier or metadata work.
+    /// </summary>
+    [Fact]
+    public void RegisterOrUpdate_WhenPathIsOutsideAssetsRoot_RejectsWithoutCreatingMetadata() {
+        string outsidePath = Path.Combine(TempRootPath, "outside.fbx");
+        File.WriteAllBytes(outsidePath, new byte[] { 4, 5, 6 });
+        EditorAssetIdentityIndex index = CreateIndex();
+
+        Assert.Throws<InvalidOperationException>(() => index.RegisterOrUpdate(outsidePath));
+
+        Assert.False(File.Exists(outsidePath + ".hmeta"));
+    }
+
+    /// <summary>
+    /// Ensures incremental removal rejects an external path before touching its metadata.
+    /// </summary>
+    [Fact]
+    public void Remove_WhenPathIsOutsideAssetsRoot_RejectsWithoutChangingMetadata() {
+        string outsidePath = Path.Combine(TempRootPath, "outside-remove.fbx");
+        string metadataPath = outsidePath + ".hmeta";
+        File.WriteAllBytes(outsidePath, new byte[] { 7, 8, 9 });
+        File.WriteAllText(metadataPath, "external metadata");
+        EditorAssetIdentityIndex index = CreateIndex();
+
+        Assert.Throws<InvalidOperationException>(() => index.Remove(outsidePath));
+
+        Assert.Equal("external metadata", File.ReadAllText(metadataPath));
+    }
+
+    /// <summary>
+    /// Ensures an index rejects every operational call after its owner releases it.
+    /// </summary>
+    [Fact]
+    public void Dispose_WhenRepeated_RejectsOperationsAfterRelease() {
+        EditorAssetIdentityIndex index = CreateIndex();
+        index.Initialize();
+        index.Dispose();
+        index.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => index.Initialize());
+        Assert.Throws<ObjectDisposedException>(() => index.ReconcileExternalChanges());
+        Assert.Throws<ObjectDisposedException>(() => index.FindByPath("Models/Missing.fbx"));
+        Assert.Throws<ObjectDisposedException>(() => index.FindByAssetId("00112233445566778899aabbccddeeff", AssetEntryKind.Model));
+        Assert.Throws<ObjectDisposedException>(() => index.EnumerateCompatible(AssetEntryKind.Model));
+        Assert.Throws<ObjectDisposedException>(() => index.IsCurrentAssetIdOwned("00112233445566778899aabbccddeeff"));
+        Assert.Throws<ObjectDisposedException>(() => index.RegisterOrUpdate(Path.Combine(TempRootPath, "assets", "Models", "Missing.fbx")));
+        Assert.Throws<ObjectDisposedException>(() => index.Remove(Path.Combine(TempRootPath, "assets", "Models", "Missing.fbx")));
+        Assert.Throws<ObjectDisposedException>(() => index.WasMetadataMissing(Path.Combine(TempRootPath, "assets", "Models", "Missing.fbx")));
+        Assert.Throws<ObjectDisposedException>(() => index.CopyMissingMetadataPaths());
+        Assert.Throws<ObjectDisposedException>(() => _ = index.HashCacheValue);
+    }
+
+    /// <summary>
     /// Ensures external reconciliation is the explicit boundary that performs another enumeration.
     /// </summary>
     [Fact]
