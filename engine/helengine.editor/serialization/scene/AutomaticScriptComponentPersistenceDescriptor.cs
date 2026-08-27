@@ -151,6 +151,11 @@ namespace helengine.editor {
                         matchedTaggedField = true;
                         using (fieldReader) {
                             member.SetValue(component, ReadSupportedMemberValue(fieldReader, member, component, saveComponent, referenceResolver));
+                            if (!reader.TryGetFieldPayloadLength(member.Name, out int fieldPayloadLength)) {
+                                throw new InvalidOperationException(
+                                    $"Automatic scripted component field '{member.Name}' could not be measured in the current format. Regenerate the scene in the current format.");
+                            }
+                            RequireTaggedFieldPayloadEnd(fieldReader, fieldPayloadLength, member.Name);
                         }
                     }
                 }
@@ -174,6 +179,28 @@ namespace helengine.editor {
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Requires one known tagged field reader to be positioned at the end of its current value payload.
+        /// </summary>
+        /// <param name="fieldReader">Reader positioned after the decoded field value.</param>
+        /// <param name="fieldPayloadLength">Raw byte length of the current field payload.</param>
+        /// <param name="fieldName">Current persisted field name used in diagnostics.</param>
+        static void RequireTaggedFieldPayloadEnd(EngineBinaryReader fieldReader, int fieldPayloadLength, string fieldName) {
+            if (fieldReader == null) {
+                throw new ArgumentNullException(nameof(fieldReader));
+            }
+            if (fieldPayloadLength < 0) {
+                throw new ArgumentOutOfRangeException(nameof(fieldPayloadLength));
+            }
+            if (string.IsNullOrWhiteSpace(fieldName)) {
+                throw new ArgumentException("Field name must be provided.", nameof(fieldName));
+            }
+            if (fieldReader.GetStreamPosition() != fieldPayloadLength) {
+                throw new InvalidOperationException(
+                    $"Automatic scripted component field '{fieldName}' contains trailing data after its current value. Regenerate the scene in the current format.");
+            }
         }
 
         /// <summary>
@@ -410,7 +437,8 @@ namespace helengine.editor {
 
             string assemblyName = componentType.Assembly.GetName().Name ?? string.Empty;
             string namespaceName = componentType.Namespace ?? string.Empty;
-            return assemblyName.StartsWith("helengine", StringComparison.Ordinal)
+            return (string.Equals(assemblyName, "helengine.core", StringComparison.Ordinal)
+                || string.Equals(assemblyName, "helengine.physics", StringComparison.Ordinal))
                 && string.Equals(namespaceName, "helengine", StringComparison.Ordinal);
         }
 

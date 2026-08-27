@@ -630,6 +630,54 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures a user component in the engine namespace round-trips through its current assembly-qualified id.
+        /// </summary>
+        [Fact]
+        public void PersistedComponentTypeResolver_WhenUserComponentUsesEngineNamespace_RoundTripsCurrentId() {
+            Type componentType = typeof(HelengineNamespaceUserComponent);
+            string componentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(componentType);
+
+            Assert.Equal(componentType.FullName + ", " + componentType.Assembly.GetName().Name, componentTypeId);
+            Assert.Same(componentType, PersistedComponentTypeResolver.TryResolve(componentTypeId));
+        }
+
+        /// <summary>
+        /// Ensures a type id that spoofs an engine built-in name from a user assembly is rejected.
+        /// </summary>
+        [Fact]
+        public void PersistedComponentTypeResolver_WhenUserAssemblySpoofsEngineBuiltInName_ReturnsNull() {
+            Type resolvedType = PersistedComponentTypeResolver.TryResolve(
+                "helengine.TextComponent, User Scripts");
+
+            Assert.Null(resolvedType);
+        }
+
+        /// <summary>
+        /// Ensures known tagged field payloads reject bytes that remain after the current value.
+        /// </summary>
+        [Fact]
+        public void DeserializeComponent_WhenKnownTaggedFieldContainsTrailingBytes_ThrowsCurrentFormatError() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            EditorTaggedSceneComponentFieldWriter writer = new EditorTaggedSceneComponentFieldWriter();
+            writer.WriteField(nameof(TestScriptSerializableComponent.DisplayName), fieldWriter => {
+                fieldWriter.WriteString("Menu Row");
+                fieldWriter.WriteByte(0x7f);
+            });
+            SceneComponentAssetRecord record = new SceneComponentAssetRecord {
+                ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptSerializableComponent)),
+                ComponentIndex = 0,
+                Payload = writer.BuildPayload()
+            };
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+                () => descriptor.DeserializeComponent(record, null, null));
+
+            Assert.Contains(nameof(TestScriptSerializableComponent.DisplayName), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("current", exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures one explicitly registered current deserializer remains resolvable by its exact stable id while id variants fail.
         /// </summary>
         [Fact]

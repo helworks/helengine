@@ -47,12 +47,16 @@ namespace helengine.editor {
             builder.AppendLine("    using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);");
             builder.AppendLine("    using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);");
             builder.AppendLine($"    {schema.ComponentType.FullName} component = new {schema.ComponentType.FullName}();");
+            builder.AppendLine("    byte? receivedVersion = null;");
+            builder.AppendLine("    int? receivedMemberCount = null;");
             builder.AppendLine("    try {");
             builder.AppendLine("        byte version = reader.ReadByte();");
+            builder.AppendLine("        receivedVersion = version;");
             builder.AppendLine("        if (version != AutomaticScriptComponentRuntimeDeserializer.CurrentVersion) {");
             builder.AppendLine("            throw new InvalidOperationException($\"Unsupported automatic scripted component payload received version '{version}'; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' is required. Regenerate/rebuild the asset in the current format.\");");
             builder.AppendLine("        }");
             builder.AppendLine("        int memberCount = reader.ReadInt32();");
+            builder.AppendLine("        receivedMemberCount = memberCount;");
             builder.AppendLine($"        if (memberCount != {schema.Members.Count}) {{");
             builder.AppendLine($"            throw new InvalidOperationException($\"Unsupported automatic scripted component payload received member count '{{memberCount}}'; current member count '{schema.Members.Count}' is required. Regenerate/rebuild the asset in the current format.\");");
             builder.AppendLine("        }");
@@ -67,7 +71,9 @@ namespace helengine.editor {
             builder.AppendLine("        }");
             builder.AppendLine("        return component;");
             builder.AppendLine("    } catch (EndOfStreamException exception) {");
-            builder.AppendLine($"        throw new InvalidOperationException(\"Automatic scripted component payload is truncated; current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}' and current member count '{schema.Members.Count}' are required. Regenerate/rebuild the asset in the current format.\", exception);");
+            builder.AppendLine($"        string versionText = receivedVersion.HasValue ? $\"received version '{{receivedVersion.Value}}', current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}'\" : \"received version unavailable, current version '{AutomaticScriptComponentRuntimeDeserializer.CurrentVersion}'\";");
+            builder.AppendLine($"        string memberCountText = receivedMemberCount.HasValue ? $\"received member count '{{receivedMemberCount.Value}}', current member count '{schema.Members.Count}'\" : \"received member count unavailable, current member count '{schema.Members.Count}'\";");
+            builder.AppendLine("        throw new InvalidOperationException($\"Automatic scripted component payload is truncated ({versionText}; {memberCountText}). Regenerate/rebuild the asset in the current format.\", exception);");
             builder.AppendLine("    }");
             builder.AppendLine("}");
             return builder.ToString();
@@ -237,9 +243,15 @@ namespace helengine.editor {
             builder.AppendLine("delete reader;");
             builder.AppendLine("}");
             builder.AppendLine("});");
+            builder.AppendLine("uint8_t receivedVersion = 0;");
+            builder.AppendLine("bool hasReceivedVersion = false;");
+            builder.AppendLine("int32_t receivedMemberCount = 0;");
+            builder.AppendLine("bool hasReceivedMemberCount = false;");
             builder.AppendLine("try");
             builder.AppendLine("{");
             builder.AppendLine("const uint8_t version = reader->ReadByte();");
+            builder.AppendLine("receivedVersion = version;");
+            builder.AppendLine("hasReceivedVersion = true;");
             builder.AppendLine("    if (version != CurrentVersion)");
             builder.AppendLine("    {");
             builder.AppendLine(UseCompactNativeExceptionMessages
@@ -247,6 +259,8 @@ namespace helengine.editor {
                 : "throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload received version '\") + String::ToJoinString(version) + std::string(\"'; current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"' is required. Regenerate/rebuild the asset in the current format.\"));");
             builder.AppendLine("    }");
             builder.AppendLine("const int32_t memberCount = reader->ReadInt32();");
+            builder.AppendLine("receivedMemberCount = memberCount;");
+            builder.AppendLine("hasReceivedMemberCount = true;");
             builder.AppendLine("    if (memberCount != MemberCount)");
             builder.AppendLine("    {");
             builder.AppendLine(UseCompactNativeExceptionMessages
@@ -272,7 +286,7 @@ namespace helengine.editor {
             builder.AppendLine("{");
             builder.AppendLine(UseCompactNativeExceptionMessages
                 ? "throw new InvalidOperationException();"
-                : "throw new InvalidOperationException(\"Automatic scripted component payload is truncated; current version and current member count are required. Regenerate/rebuild the asset in the current format.\", exception);");
+                : "std::string versionText = hasReceivedVersion ? std::string(\"received version '\") + String::ToJoinString(receivedVersion) + std::string(\"', current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"'\") : std::string(\"received version unavailable, current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"'\");\nstd::string memberCountText = hasReceivedMemberCount ? std::string(\"received member count '\") + String::ToJoinString(receivedMemberCount) + std::string(\"', current member count '\") + String::ToJoinString(MemberCount) + std::string(\"'\") : std::string(\"received member count unavailable, current member count '\") + String::ToJoinString(MemberCount) + std::string(\"'\");\nthrow new InvalidOperationException(std::string(\"Automatic scripted component payload is truncated (\") + versionText + std::string(\"; \") + memberCountText + std::string(\"). Regenerate/rebuild the asset in the current format.\"), exception);");
             builder.AppendLine("}");
             builder.AppendLine("}");
             builder.AppendLine("}");

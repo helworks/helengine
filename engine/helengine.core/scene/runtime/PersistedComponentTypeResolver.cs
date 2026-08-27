@@ -17,7 +17,7 @@ namespace helengine {
             }
             if (componentTypeId.Contains(',', StringComparison.Ordinal)) {
                 if (!TryParseCurrentAssemblyQualifiedId(componentTypeId, out string typeName, out string assemblyName)
-                    || string.Equals(typeName.Substring(0, typeName.LastIndexOf('.')), "helengine", StringComparison.Ordinal)) {
+                    || IsSpoofedEngineComponentId(typeName, assemblyName)) {
                     return null;
                 }
 
@@ -53,6 +53,50 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Determines whether an assembly-qualified id attempts to repackage an engine-owned component under a non-current qualification.
+        /// </summary>
+        /// <param name="typeName">Fully qualified component type name from the persisted id.</param>
+        /// <param name="assemblyName">Simple assembly name from the persisted id.</param>
+        /// <returns>True when the id uses an engine-owned component name in an invalid assembly-qualified form.</returns>
+        static bool IsSpoofedEngineComponentId(string typeName, string assemblyName) {
+            if (string.IsNullOrWhiteSpace(typeName) || string.IsNullOrWhiteSpace(assemblyName)) {
+                return true;
+            }
+
+            int namespaceSeparatorIndex = typeName.LastIndexOf('.');
+            if (namespaceSeparatorIndex <= 0
+                || !string.Equals(typeName.Substring(0, namespaceSeparatorIndex), "helengine", StringComparison.Ordinal)) {
+                return false;
+            }
+            if (IsEngineComponentAssemblyName(assemblyName)) {
+                return true;
+            }
+
+            Type coreComponentType = typeof(Component).Assembly.GetType(typeName, false, false);
+            if (coreComponentType != null && typeof(Component).IsAssignableFrom(coreComponentType)) {
+                return true;
+            }
+
+            try {
+                Assembly physicsAssembly = Assembly.Load(new AssemblyName("helengine.physics"));
+                Type physicsComponentType = physicsAssembly.GetType(typeName, false, false);
+                return physicsComponentType != null && typeof(Component).IsAssignableFrom(physicsComponentType);
+            } catch (Exception) {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Determines whether a simple assembly name identifies one engine-owned component assembly.
+        /// </summary>
+        /// <param name="assemblyName">Simple assembly name under evaluation.</param>
+        /// <returns>True for exact engine component assembly identities; otherwise false.</returns>
+        static bool IsEngineComponentAssemblyName(string assemblyName) {
+            return string.Equals(assemblyName, "helengine.core", StringComparison.Ordinal)
+                || string.Equals(assemblyName, "helengine.physics", StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Parses the current simple assembly-qualified component identifier shape without accepting runtime qualification metadata.
         /// </summary>
         /// <param name="componentTypeId">Stable component identifier to parse.</param>
@@ -70,8 +114,7 @@ namespace helengine {
             string parsedTypeName = componentTypeId.Substring(0, separatorIndex);
             string parsedAssemblyName = componentTypeId.Substring(separatorIndex + 2);
             if (string.IsNullOrWhiteSpace(parsedTypeName)
-                || string.IsNullOrWhiteSpace(parsedAssemblyName)
-                || parsedAssemblyName.IndexOf(' ') >= 0) {
+                || string.IsNullOrWhiteSpace(parsedAssemblyName)) {
                 return false;
             }
 

@@ -40,11 +40,19 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("regenerate", managedSource, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("rebuild", managedSource, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("EndOfStreamException", managedSource, StringComparison.Ordinal);
+            Assert.Contains("receivedVersion.HasValue", managedSource, StringComparison.Ordinal);
+            Assert.Contains("receivedMemberCount.HasValue", managedSource, StringComparison.Ordinal);
+            Assert.Contains("received version unavailable", managedSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("received member count unavailable", managedSource, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("received version", nativeSource, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("current version", nativeSource, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("received member count", nativeSource, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("regenerate", nativeSource, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("rebuild", nativeSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("hasReceivedVersion", nativeSource, StringComparison.Ordinal);
+            Assert.Contains("hasReceivedMemberCount", nativeSource, StringComparison.Ordinal);
+            Assert.Contains("received version unavailable", nativeSource, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("received member count unavailable", nativeSource, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

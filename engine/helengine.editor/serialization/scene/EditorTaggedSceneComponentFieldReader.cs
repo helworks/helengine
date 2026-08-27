@@ -87,5 +87,26 @@ namespace helengine.editor {
             fieldReader = EngineBinaryReader.Create(new MemoryStream(payload, false), EngineBinaryEndianness.LittleEndian, false);
             return true;
         }
+
+        /// <summary>
+        /// Attempts to read the raw byte length of one current tagged field payload.
+        /// </summary>
+        /// <param name="fieldName">Current persisted field name.</param>
+        /// <param name="payloadLength">Raw payload length when the field exists.</param>
+        /// <returns>True when the field exists; otherwise false.</returns>
+        internal bool TryGetFieldPayloadLength(string fieldName, out int payloadLength) {
+            if (string.IsNullOrWhiteSpace(fieldName)) {
+                payloadLength = 0;
+                return false;
+            }
+
+            if (FieldPayloadsByName.TryGetValue(fieldName, out byte[] payload)) {
+                payloadLength = payload.Length;
+                return true;
+            }
+
+            payloadLength = 0;
+            return false;
+        }
     }
 }
