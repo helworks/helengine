@@ -243,7 +243,33 @@ namespace helengine.editor {
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
-        public SaveFileDialog(FontAsset font, EditorUiMetrics metrics, string projectPath) {
+        public SaveFileDialog(FontAsset font, EditorUiMetrics metrics, string projectPath)
+            : this(font, metrics, projectPath, new AssetBrowserDataSource(projectPath, false)) {
+        }
+
+        /// <summary>
+        /// Initializes a save-file dialog over a session-owned reference resolver.
+        /// </summary>
+        /// <param name="font">Font used for labels and buttons.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
+        /// <param name="projectPath">Project root that owns the assets folder.</param>
+        /// <param name="referenceResolver">Session-owned resolver borrowed by this dialog browser.</param>
+        internal SaveFileDialog(
+            FontAsset font,
+            EditorUiMetrics metrics,
+            string projectPath,
+            EditorAssetReferenceResolver referenceResolver)
+            : this(font, metrics, projectPath, CreateBorrowedDataSource(projectPath, referenceResolver)) {
+        }
+
+        /// <summary>
+        /// Initializes a save-file dialog over a data source whose lifetime is owned by the dialog.
+        /// </summary>
+        SaveFileDialog(
+            FontAsset font,
+            EditorUiMetrics metrics,
+            string projectPath,
+            AssetBrowserDataSource dataSource) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -369,13 +395,16 @@ namespace helengine.editor {
 
             BrowserView = new AssetBrowserView(
                 Font,
+                EditorUiMetrics.Default,
                 projectPath,
                 LayerMask,
                 toolbarOrder,
                 rowBackgroundOrder,
                 iconBackgroundOrder,
                 TextOrder,
-                false);
+                false,
+                null,
+                dataSource ?? throw new ArgumentNullException(nameof(dataSource)));
             BrowserView.SetToolbarButtonRenderOrders(TextOrder, TextOrder);
             BrowserView.AssetActivated += HandleAssetActivated;
             PanelRoot.AddChild(BrowserView.Entity);
@@ -441,6 +470,17 @@ namespace helengine.editor {
 
             Enabled = false;
             IsInitialized = true;
+        }
+
+        /// <summary>
+        /// Creates one browser data source borrowing the supplied session resolver.
+        /// </summary>
+        static AssetBrowserDataSource CreateBorrowedDataSource(string projectPath, EditorAssetReferenceResolver referenceResolver) {
+            if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
+            }
+
+            return new AssetBrowserDataSource(new EditorAssetManager(projectPath, referenceResolver), false);
         }
 
         /// <summary>

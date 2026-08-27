@@ -24,34 +24,24 @@ namespace helengine.editor {
         readonly EditorAssetReferenceCanonicalizationService AssetReferenceCanonicalizationService;
 
         /// <summary>
-        /// Initializes one project asset-authoring capability.
-        /// </summary>
-        /// <param name="assetImportManager">Host-owned import manager backing the capability.</param>
-        internal EditorProjectAssetAuthoringService(AssetImportManager assetImportManager)
-            : this(assetImportManager, null) {
-        }
-
-        /// <summary>
         /// Initializes one project asset-authoring capability over a supplied shared reference resolver.
         /// </summary>
         /// <param name="assetImportManager">Host-owned import manager backing the capability.</param>
-        /// <param name="referenceResolver">Optional session-owned reference resolver.</param>
+        /// <param name="referenceResolver">Session-owned reference resolver.</param>
         internal EditorProjectAssetAuthoringService(
             AssetImportManager assetImportManager,
             EditorAssetReferenceResolver referenceResolver) {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+            AssetReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             string projectRootPath = ResolveProjectRootPath();
-            AssetReferenceResolver = referenceResolver;
             SceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(
                 AssetImportManagerValue.ContentManager,
                 projectRootPath,
                 new EditorFileSystemModelResolver(AssetImportManagerValue),
                 new EditorFileSystemFontResolver(AssetImportManagerValue),
                 new EditorFileSystemTextureResolver(AssetImportManagerValue),
-                referenceResolver);
-            AssetReferenceCanonicalizationService = referenceResolver != null
-                ? new EditorAssetReferenceCanonicalizationService(referenceResolver)
-                : new EditorAssetReferenceCanonicalizationService(projectRootPath);
+                AssetReferenceResolver);
+            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AssetReferenceResolver);
         }
 
         /// <summary>
@@ -318,12 +308,7 @@ namespace helengine.editor {
         public SceneAssetReference CreateFileReference(string relativePath, AssetEntryKind expectedKind) {
             ValidateRelativeAssetPath(relativePath);
             string fullPath = Path.Combine(AssetImportManagerValue.AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-            if (AssetReferenceResolver != null) {
-                return AssetReferenceResolver.CreateFileReference(fullPath, expectedKind);
-            }
-
-            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ResolveProjectRootPath());
-            return resolver.CreateFileReference(fullPath, expectedKind);
+            return AssetReferenceResolver.CreateFileReference(fullPath, expectedKind);
         }
 
         /// <summary>

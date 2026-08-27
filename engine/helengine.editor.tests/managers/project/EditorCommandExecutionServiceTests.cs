@@ -12,6 +12,7 @@ public sealed class EditorCommandExecutionServiceTests {
     [Fact]
     public void Execute_WhenCommandExists_InvokesItsExecuteMethod() {
         TestInvokableEditorCommand.Reset();
+        using TestEditorCommandContext context = new TestEditorCommandContext(Path.GetTempPath(), new ScriptTypeResolver());
         EditorCommandExecutionService service = new EditorCommandExecutionService(
             new TestCommandCatalogProvider([
                 new EditorProjectCommandDescriptor(
@@ -20,7 +21,7 @@ public sealed class EditorCommandExecutionServiceTests {
                     typeof(TestInvokableEditorCommand),
                     "menu.tools")
             ]),
-            new TestEditorCommandContext(Path.GetTempPath(), new ScriptTypeResolver()));
+            context);
 
         service.Execute("menu.invoke");
 
@@ -34,6 +35,7 @@ public sealed class EditorCommandExecutionServiceTests {
     public void Execute_WhenCommandThrows_WrapsTheFailureWithCommandId() {
         string sentinelFilePath = Path.Combine(Path.GetTempPath(), "helengine-editor-command-sentinel-" + Guid.NewGuid().ToString("N") + ".txt");
         File.WriteAllText(sentinelFilePath, "unchanged");
+        using TestEditorCommandContext context = new TestEditorCommandContext(Path.GetTempPath(), new ScriptTypeResolver());
         EditorCommandExecutionService service = new EditorCommandExecutionService(
             new TestCommandCatalogProvider([
                 new EditorProjectCommandDescriptor(
@@ -42,7 +44,7 @@ public sealed class EditorCommandExecutionServiceTests {
                     typeof(ThrowingEditorCommand),
                     "menu.tools")
             ]),
-            new TestEditorCommandContext(Path.GetTempPath(), new ScriptTypeResolver()));
+            context);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.Execute("menu.throw"));
 
@@ -80,7 +82,11 @@ public sealed class EditorCommandExecutionServiceTests {
     /// <summary>
     /// Minimal editor command context used to drive command-execution tests.
     /// </summary>
-    sealed class TestEditorCommandContext : IEditorCommandContext {
+    sealed class TestEditorCommandContext : IEditorCommandContext, IDisposable {
+        /// <summary>
+        /// Session created when this test context owns its asset-authoring surface.
+        /// </summary>
+        readonly EditorProjectAuthoringSession OwnedAuthoringSession;
         /// <summary>
         /// Initializes one fake editor command context.
         /// </summary>
@@ -92,7 +98,13 @@ public sealed class EditorCommandExecutionServiceTests {
             IEditorProjectAssetAuthoringService assetAuthoring = null) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             ScriptTypeResolver = scriptTypeResolver ?? throw new ArgumentNullException(nameof(scriptTypeResolver));
-            AssetAuthoring = assetAuthoring ?? CreateAssetAuthoringCapability(ProjectRootPath);
+            OwnedAuthoringSession = null;
+            if (assetAuthoring == null) {
+                OwnedAuthoringSession = CreateAssetAuthoringCapability(ProjectRootPath);
+                AssetAuthoring = OwnedAuthoringSession;
+            } else {
+                AssetAuthoring = assetAuthoring;
+            }
             Authoring = new TestEditorCommandAuthoringSession();
         }
 
@@ -101,12 +113,9 @@ public sealed class EditorCommandExecutionServiceTests {
         /// </summary>
         /// <param name="projectRootPath">Project root used by the context.</param>
         /// <returns>Directly composed authoring capability.</returns>
-        static EditorProjectAssetAuthoringService CreateAssetAuthoringCapability(string projectRootPath) {
-            string assetsRootPath = Path.Combine(projectRootPath, "assets");
-            Directory.CreateDirectory(assetsRootPath);
-            return new EditorProjectAssetAuthoringService(new AssetImportManager(
-                projectRootPath,
-                new ContentManager(new HostFileSystemContentStreamSource(assetsRootPath))));
+        static EditorProjectAuthoringSession CreateAssetAuthoringCapability(string projectRootPath) {
+            return Assert.IsType<EditorProjectAuthoringSession>(
+                new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(projectRootPath));
         }
 
         /// <summary>
@@ -128,6 +137,13 @@ public sealed class EditorCommandExecutionServiceTests {
         /// Gets the project authoring session surfaced by the fake context.
         /// </summary>
         public IEditorProjectAuthoringSession Authoring { get; }
+
+        /// <summary>
+        /// Releases the session owned by this test context, when it created one.
+        /// </summary>
+        public void Dispose() {
+            OwnedAuthoringSession?.Dispose();
+        }
     }
 
     /// <summary>

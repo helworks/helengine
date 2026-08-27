@@ -121,7 +121,16 @@ namespace helengine.editor {
                 return;
             }
 
-            Save();
+            Dictionary<string, EditorAssetHashCacheEntry> dirtyEntries = new Dictionary<string, EditorAssetHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
+            foreach (string dirtyPath in DirtyPaths) {
+                EditorAssetHashCacheEntry entry;
+                if (Entries.TryGetValue(dirtyPath, out entry)) {
+                    dirtyEntries[dirtyPath] = entry;
+                }
+            }
+
+            CacheStore.Update(CacheFilePath, dirtyEntries);
+            DirtyPaths.Clear();
             IsDirty = false;
         }
 
@@ -208,41 +217,6 @@ namespace helengine.editor {
                     Entries[NormalizeRelativePath(entry.RelativePath)] = entry;
                 }
             }
-        }
-
-        /// <summary>
-        /// Builds and atomically stores a sorted cache document.
-        /// </summary>
-        void Save() {
-            // Reload the document at the store boundary so independent caches
-            // retain updates made by another owner after this cache was loaded.
-            Dictionary<string, EditorAssetHashCacheEntry> mergedEntries =
-                new Dictionary<string, EditorAssetHashCacheEntry>(StringComparer.OrdinalIgnoreCase);
-            EditorAssetHashCacheDocument storedDocument = CacheStore.Load(CacheFilePath);
-            if (storedDocument != null && storedDocument.Entries != null) {
-                for (int index = 0; index < storedDocument.Entries.Count; index++) {
-                    EditorAssetHashCacheEntry entry = storedDocument.Entries[index];
-                    if (entry != null && !string.IsNullOrWhiteSpace(entry.RelativePath) && IsValidContentHash(entry.ContentHash)) {
-                        string relativePath = NormalizeRelativePath(entry.RelativePath);
-                        mergedEntries[relativePath] = entry;
-                    }
-                }
-            }
-
-            foreach (string dirtyPath in DirtyPaths) {
-                EditorAssetHashCacheEntry entry;
-                if (Entries.TryGetValue(dirtyPath, out entry)) {
-                    mergedEntries[dirtyPath] = entry;
-                } else {
-                    mergedEntries.Remove(dirtyPath);
-                }
-            }
-
-            EditorAssetHashCacheDocument document = new EditorAssetHashCacheDocument {
-                Entries = mergedEntries.Values.OrderBy(entry => entry.RelativePath, StringComparer.Ordinal).ToList()
-            };
-            CacheStore.Save(CacheFilePath, document);
-            DirtyPaths.Clear();
         }
 
         /// <summary>

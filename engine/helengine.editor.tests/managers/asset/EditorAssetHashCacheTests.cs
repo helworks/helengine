@@ -86,6 +86,30 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures overlapping flushes merge at the store boundary rather than overwriting each other's updates.
+    /// </summary>
+    [Fact]
+    public async Task Flush_WhenTwoCachesOverlapAtStoreBoundary_PreservesBothDirtyUpdates() {
+        string firstPath = CreateAsset("Models/ConcurrentFirst.obj", new byte[] { 3, 4, 5 });
+        string secondPath = CreateAsset("Models/ConcurrentSecond.obj", new byte[] { 6, 7, 8 });
+        OverlappingAssetHashCacheStore store = new OverlappingAssetHashCacheStore();
+        using EditorAssetHashCache firstCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        using EditorAssetHashCache secondCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+
+        firstCache.GetContentHash(firstPath);
+        secondCache.GetContentHash(secondPath);
+        Task firstFlush = Task.Run(firstCache.Flush);
+        Task secondFlush = Task.Run(secondCache.Flush);
+        await Task.WhenAll(firstFlush, secondFlush);
+
+        CountingAssetFileHasher finalHasher = new CountingAssetFileHasher();
+        using EditorAssetHashCache finalCache = new EditorAssetHashCache(TempRootPath, finalHasher);
+        Assert.Equal("sha256:" + new AssetFileHasher().ComputeHash(firstPath), finalCache.GetContentHash(firstPath));
+        Assert.Equal("sha256:" + new AssetFileHasher().ComputeHash(secondPath), finalCache.GetContentHash(secondPath));
+        Assert.Equal(0, finalHasher.FileHashCount);
+    }
+
+    /// <summary>
     /// Ensures a disposed cache rejects hashing and flushing without creating a dirty cache document.
     /// </summary>
     [Fact]
@@ -216,6 +240,24 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a failed store update leaves dirty state available for a later successful flush.
+    /// </summary>
+    [Fact]
+    public void Flush_WhenStoreUpdateFails_RetainsDirtyState() {
+        string assetPath = CreateAsset("Models/Retry.obj", new byte[] { 1, 2, 3 });
+        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore { FailNextUpdate = true };
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        cache.GetContentHash(assetPath);
+
+        Assert.Throws<IOException>(() => cache.Flush());
+        Assert.Equal(0, store.SaveCount);
+        cache.Flush();
+
+        Assert.Equal(1, store.SaveCount);
+        Assert.Contains(store.LastSavedDocument.Entries, entry => entry.RelativePath == "Models/Retry.obj");
+    }
+
+    /// <summary>
     /// Writes a deterministic native scene fixture used to compare semantic hashes.
     /// </summary>
     static void WriteNativeScene(string path) {
@@ -250,6 +292,11 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         public int SaveCount { get; private set; }
 
         /// <summary>
+        /// Gets or sets whether the next update should fail before writing.
+        /// </summary>
+        public bool FailNextUpdate { get; set; }
+
+        /// <summary>
         /// Gets the most recent document supplied to the store.
         /// </summary>
         public EditorAssetHashCacheDocument LastSavedDocument { get; private set; }
@@ -272,6 +319,56 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
             SaveCount++;
             LastSavedDocument = document;
             new FileEditorAssetHashCacheStore().Save(cachePath, document);
+        }
+
+        /// <summary>
+        /// Merges dirty entries through the real store after counting the operation.
+        /// </summary>
+        public EditorAssetHashCacheDocument Update(
+            string cachePath,
+            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates) {
+            if (FailNextUpdate) {
+                FailNextUpdate = false;
+                throw new IOException("Test cache store failure.");
+            }
+
+            SaveCount++;
+            EditorAssetHashCacheDocument document = new FileEditorAssetHashCacheStore().Update(cachePath, updates);
+            LastSavedDocument = document;
+            return document;
+        }
+    }
+
+    /// <summary>
+    /// Coordinates two cache writes after each owner has read the same stored document.
+    /// </summary>
+    sealed class OverlappingAssetHashCacheStore : IEditorAssetHashCacheStore {
+        readonly Barrier SaveBarrier = new Barrier(2);
+        readonly FileEditorAssetHashCacheStore InnerStore = new FileEditorAssetHashCacheStore();
+
+        /// <summary>
+        /// Loads the current cache document.
+        /// </summary>
+        public EditorAssetHashCacheDocument Load(string cachePath) {
+            return InnerStore.Load(cachePath);
+        }
+
+        /// <summary>
+        /// Saves after both owners have prepared their updates.
+        /// </summary>
+        public void Save(string cachePath, EditorAssetHashCacheDocument document) {
+            SaveBarrier.SignalAndWait(TimeSpan.FromSeconds(10));
+            InnerStore.Save(cachePath, document);
+        }
+
+        /// <summary>
+        /// Coordinates two dirty updates before entering the atomic file-store operation.
+        /// </summary>
+        public EditorAssetHashCacheDocument Update(
+            string cachePath,
+            IReadOnlyDictionary<string, EditorAssetHashCacheEntry> updates) {
+            SaveBarrier.SignalAndWait(TimeSpan.FromSeconds(10));
+            return InnerStore.Update(cachePath, updates);
         }
     }
 

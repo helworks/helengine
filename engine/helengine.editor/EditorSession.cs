@@ -695,7 +695,7 @@ namespace helengine.editor {
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
-            assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath);
+            assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
             meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
@@ -717,8 +717,8 @@ namespace helengine.editor {
                 buildConfigService,
                 CreateBuildExecutorRouter());
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
-            saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, this.projectPath);
-            openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, this.projectPath);
+            saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
+            openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
             platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
             environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
@@ -1487,9 +1487,9 @@ namespace helengine.editor {
             }
 
             if (!string.IsNullOrWhiteSpace(projectPath)) {
-                assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath);
-                saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath);
-                openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath);
+                assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
+                saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
+                openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
             } else {
                 assetPickerModal = null;
                 saveFileDialog = null;

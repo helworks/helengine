@@ -100,6 +100,32 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the picker.</param>
         /// <param name="projectPath">Path to the project root.</param>
         public AssetPickerModal(FontAsset font, EditorUiMetrics metrics, string projectPath)
+            : this(font, metrics, projectPath, new AssetBrowserDataSource(projectPath)) {
+        }
+
+        /// <summary>
+        /// Initializes an asset picker over a session-owned reference resolver.
+        /// </summary>
+        /// <param name="font">Font used for labels.</param>
+        /// <param name="metrics">Scaled editor UI metrics used to size the picker.</param>
+        /// <param name="projectPath">Path to the project root.</param>
+        /// <param name="referenceResolver">Session-owned resolver borrowed by this picker browser.</param>
+        internal AssetPickerModal(
+            FontAsset font,
+            EditorUiMetrics metrics,
+            string projectPath,
+            EditorAssetReferenceResolver referenceResolver)
+            : this(font, metrics, projectPath, CreateBorrowedDataSource(projectPath, referenceResolver)) {
+        }
+
+        /// <summary>
+        /// Initializes an asset picker over a data source whose lifetime is owned by the picker.
+        /// </summary>
+        AssetPickerModal(
+            FontAsset font,
+            EditorUiMetrics metrics,
+            string projectPath,
+            AssetBrowserDataSource dataSource)
             : base("AssetPickerModal", "Select Asset", font, metrics, MinPanelWidth, MinPanelHeight, EditorTitleBar.HeightPixels) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
@@ -121,18 +147,33 @@ namespace helengine.editor {
 
             BrowserView = new AssetBrowserView(
                 Font,
+                EditorUiMetrics.Default,
                 projectPath,
                 LayerMask,
                 PanelOrder,
                 PanelOrder,
                 PanelOrder,
-                TextOrder);
+                TextOrder,
+                true,
+                null,
+                dataSource ?? throw new ArgumentNullException(nameof(dataSource)));
             BrowserView.SetToolbarButtonRenderOrders(TextOrder, TextOrder);
             BrowserView.AssetActivated += HandleAssetActivated;
             DialogContentRoot.AddChild(BrowserView.Entity);
 
             Enabled = false;
             IsInitialized = true;
+        }
+
+        /// <summary>
+        /// Creates one browser data source borrowing the supplied session resolver.
+        /// </summary>
+        static AssetBrowserDataSource CreateBorrowedDataSource(string projectPath, EditorAssetReferenceResolver referenceResolver) {
+            if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
+            }
+
+            return new AssetBrowserDataSource(new EditorAssetManager(projectPath, referenceResolver));
         }
 
         /// <summary>
