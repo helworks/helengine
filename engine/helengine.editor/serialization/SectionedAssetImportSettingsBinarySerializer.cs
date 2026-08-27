@@ -56,7 +56,7 @@ namespace helengine.editor {
             writer.WriteString(settings.Importer.SourceChecksum);
             writer.WriteString(settings.Importer.AssetId);
             writer.WriteInt32(settings.Processor.Platforms.Count);
-            foreach (KeyValuePair<string, AssetPlatformProcessorSettings> entry in settings.Processor.Platforms) {
+            foreach (KeyValuePair<string, AssetPlatformProcessorSettings> entry in settings.Processor.Platforms.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
                     throw new InvalidOperationException("Asset import settings cannot contain a blank processor platform id.");
                 } else if (entry.Value == null) {
@@ -69,7 +69,7 @@ namespace helengine.editor {
                 SerializePlatformSettings(writer, entry.Value, $"platform '{entry.Key}'");
                 writer.WriteInt32(entry.Value.Environments?.Count ?? 0);
                 if (entry.Value.Environments != null) {
-                    foreach (KeyValuePair<string, AssetPlatformProcessorSettings> environmentEntry in entry.Value.Environments) {
+                    foreach (KeyValuePair<string, AssetPlatformProcessorSettings> environmentEntry in entry.Value.Environments.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                         if (string.IsNullOrWhiteSpace(environmentEntry.Key) || environmentEntry.Value == null) {
                             throw new InvalidOperationException($"Asset import settings cannot contain an invalid environment override for platform '{entry.Key}'.");
                         }
@@ -156,7 +156,7 @@ namespace helengine.editor {
             }
 
             writer.WriteInt32(settings.Sections.Count);
-            foreach (KeyValuePair<string, AssetPlatformSettingsSection> sectionEntry in settings.Sections) {
+            foreach (KeyValuePair<string, AssetPlatformSettingsSection> sectionEntry in settings.Sections.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(sectionEntry.Key) || sectionEntry.Value == null) {
                     throw new InvalidOperationException($"Asset import settings contains an invalid processor section for {ownerLabel}.");
                 }

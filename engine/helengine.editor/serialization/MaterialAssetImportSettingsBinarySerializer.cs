@@ -47,7 +47,7 @@ namespace helengine.editor {
             writer.WriteString(settings.Importer.SourceChecksum);
             writer.WriteString(settings.Importer.AssetId);
             writer.WriteInt32(settings.Processor.Platforms.Count);
-            foreach (KeyValuePair<string, MaterialAssetProcessorSettings> entry in settings.Processor.Platforms) {
+            foreach (KeyValuePair<string, MaterialAssetProcessorSettings> entry in settings.Processor.Platforms.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
                     throw new InvalidOperationException("Material asset import settings cannot contain a blank processor platform id.");
                 } else if (entry.Value == null) {
@@ -59,7 +59,7 @@ namespace helengine.editor {
                 writer.WriteString(entry.Key);
                 writer.WriteString(entry.Value.SchemaId ?? string.Empty);
                 writer.WriteInt32(entry.Value.FieldValues.Count);
-                foreach (KeyValuePair<string, string> fieldEntry in entry.Value.FieldValues) {
+                foreach (KeyValuePair<string, string> fieldEntry in entry.Value.FieldValues.OrderBy(fieldEntry => fieldEntry.Key, StringComparer.Ordinal)) {
                     if (string.IsNullOrWhiteSpace(fieldEntry.Key)) {
                         throw new InvalidOperationException($"Material asset import settings cannot contain a blank material field id for platform '{entry.Key}'.");
                     } else if (fieldEntry.Value == null) {
@@ -148,7 +148,7 @@ namespace helengine.editor {
         /// <summary>Writes typed reference values.</summary>
         static void WriteReferences(EngineBinaryWriter writer, Dictionary<string, SceneAssetReference> references) {
             writer.WriteInt32(references.Count);
-            foreach (KeyValuePair<string, SceneAssetReference> entry in references) {
+            foreach (KeyValuePair<string, SceneAssetReference> entry in references.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key) || entry.Value == null) {
                     throw new InvalidOperationException("Material asset reference values must contain nonblank ids and references.");
                 }

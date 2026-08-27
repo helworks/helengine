@@ -44,7 +44,6 @@ namespace helengine.current_test_project_scene_generator {
         const string TowerSpinTypeId = "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay";
         const ushort SceneObjectsLayerMask = 0b0100000000000000;
 
-        readonly GeneratedAssetWriteService AssetWriter = new GeneratedAssetWriteService();
         readonly GeneratedMaterialAssetWriteService MaterialWriter = new GeneratedMaterialAssetWriteService();
         readonly GeneratedSceneComponentAuthoringService ComponentAuthoringService = new GeneratedSceneComponentAuthoringService();
 
@@ -70,30 +69,31 @@ namespace helengine.current_test_project_scene_generator {
 
             WriteMaterialDependencies(root);
             WritePs2BasisMaterialDependencies(root);
-            WriteBootstrapScene(root);
+            using IEditorProjectAuthoringSession authoringSession = new EditorProjectAssetAuthoringServiceFactory(
+                Array.Empty<IAssetImporterRegistration>()).CreateSession(root);
+            WriteBootstrapScene(authoringSession);
             SceneAssetReference cube = EngineSceneAssetReferenceFactory.CreateCubeModel();
             SceneAssetReference plane = EngineSceneAssetReferenceFactory.CreatePlaneModel();
             SceneAssetReference standard = EngineSceneAssetReferenceFactory.CreateStandardMaterial();
-            using EditorAssetHashCache hashCache = new EditorAssetHashCache(root);
-            SceneAssetReference transparent = FileReference(root, hashCache, "Materials/rendering/TransparentStandard.helmat");
-            SceneAssetReference doubleSided = FileReference(root, hashCache, "Materials/rendering/DoubleSidedStandard.helmat");
+            SceneAssetReference transparent = authoringSession.CreateReference("Materials/rendering/TransparentStandard.helmat", AssetEntryKind.Material);
+            SceneAssetReference doubleSided = authoringSession.CreateReference("Materials/rendering/DoubleSidedStandard.helmat", AssetEntryKind.Material);
 
-            Write(root, "opaque-basics.helen", BuildScene("opaque-basics", Camera(new float3(0f, 2f, -12f)),
+            Write(authoringSession, "opaque-basics.helen", BuildScene("opaque-basics", Camera(new float3(0f, 2f, -12f)),
                 Meshes("opaque", cube, standard, 4), new[] { cube, standard }));
-            Write(root, "transparency-order.helen", BuildScene("transparency-order", Camera(new float3(0f, 1f, -12f)),
+            Write(authoringSession, "transparency-order.helen", BuildScene("transparency-order", Camera(new float3(0f, 1f, -12f)),
                 Meshes("transparency", cube, transparent, 3), new[] { cube, transparent }));
-            Write(root, "depth-prepass.helen", BuildScene("depth-prepass", Camera(new float3(0f, 2f, -12f), "camera", "Camera", null, DepthPrepassMode.Always),
+            Write(authoringSession, "depth-prepass.helen", BuildScene("depth-prepass", Camera(new float3(0f, 2f, -12f), "camera", "Camera", null, DepthPrepassMode.Always),
                 Meshes("depth", cube, standard, 4), new[] { cube, standard }));
-            Write(root, "material-inputs.helen", BuildScene("material-inputs", Camera(new float3(0f, 2f, -12f)),
+            Write(authoringSession, "material-inputs.helen", BuildScene("material-inputs", Camera(new float3(0f, 2f, -12f)),
                 new[] { Mesh("material-input", "MaterialInput", new float3(0f, 0f, 0f), new float3(3f, 3f, 3f), cube, standard) },
                 new[] { cube, standard, doubleSided }));
 
-            Write(root, "point-shadow.helen", BuildPointShadowScene(root, cube, plane, standard));
-            Write(root, "point-shadow-lab.helen", BuildPointShadowLabScene(root, cube, standard));
-            Write(root, "spot-shadow-lab.helen", BuildSpotShadowLabScene(root, cube, standard));
-            Write(root, "directional-shadow-lab.helen", BuildDirectionalShadowLabScene(root, cube, standard));
-            Write(root, "directional-shadow-plaza.helen", BuildDirectionalShadowPlazaScene(root, cube, plane, standard));
-            Write(root, "ps2_basis_light_test.helen", BuildScene("ps2_basis_light_test", Camera(new float3(0f, 3f, -14f)),
+            Write(authoringSession, "point-shadow.helen", BuildPointShadowScene(root, cube, plane, standard));
+            Write(authoringSession, "point-shadow-lab.helen", BuildPointShadowLabScene(root, cube, standard));
+            Write(authoringSession, "spot-shadow-lab.helen", BuildSpotShadowLabScene(root, cube, standard));
+            Write(authoringSession, "directional-shadow-lab.helen", BuildDirectionalShadowLabScene(root, cube, standard));
+            Write(authoringSession, "directional-shadow-plaza.helen", BuildDirectionalShadowPlazaScene(root, cube, plane, standard));
+            Write(authoringSession, "ps2_basis_light_test.helen", BuildScene("ps2_basis_light_test", Camera(new float3(0f, 3f, -14f)),
                 Meshes("ps2", cube, standard, 6), new[] { cube, standard }));
         }
 
@@ -303,10 +303,10 @@ namespace helengine.current_test_project_scene_generator {
             return ComponentAuthoringService.CreateEmptyScriptPayload();
         }
 
-        void Write(string projectRootPath, string fileName, SceneAsset scene) {
+        void Write(IEditorProjectAuthoringSession authoringSession, string fileName, SceneAsset scene) {
             scene.AuthoringAssetId = CreateStableAuthoringAssetId(SceneRootRelativePath + "/" + fileName);
             scene.FormerAuthoringAssetIds = Array.Empty<string>();
-            AssetWriter.WriteAsset(projectRootPath, SceneRootRelativePath + "/" + fileName, scene);
+            authoringSession.WriteAsset(SceneRootRelativePath + "/" + fileName, scene);
         }
 
         /// <summary>
@@ -380,8 +380,8 @@ namespace helengine.current_test_project_scene_generator {
         /// <summary>
         /// Rewrites the project bootstrap scene through the current native asset writer.
         /// </summary>
-        /// <param name="projectRootPath">Project root that owns the test-project assets.</param>
-        void WriteBootstrapScene(string projectRootPath) {
+        /// <param name="authoringSession">Project-scoped authoring session that owns the test-project assets.</param>
+        void WriteBootstrapScene(IEditorProjectAuthoringSession authoringSession) {
             SceneAsset bootstrapScene = new SceneAsset {
                 Id = BootstrapSceneRelativePath,
                 AuthoringAssetId = CreateStableAuthoringAssetId(BootstrapSceneRelativePath),
@@ -390,7 +390,7 @@ namespace helengine.current_test_project_scene_generator {
                 RootEntities = Array.Empty<SceneEntityAsset>(),
                 SceneSettings = new SceneSettingsAsset()
             };
-            AssetWriter.WriteAsset(projectRootPath, BootstrapSceneRelativePath, bootstrapScene);
+            authoringSession.WriteAsset(BootstrapSceneRelativePath, bootstrapScene);
         }
 
         /// <summary>
@@ -447,13 +447,6 @@ namespace helengine.current_test_project_scene_generator {
 
             byte[] digest = SHA256.HashData(Encoding.UTF8.GetBytes("helengine.current-test-project-rendering|" + logicalPath));
             return Convert.ToHexString(digest, 0, 16).ToLowerInvariant();
-        }
-
-        static SceneAssetReference FileReference(string projectRootPath, EditorAssetHashCache hashCache, string relativePath) {
-            string fullPath = Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
-            AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataService().Load(fullPath);
-            string contentHash = hashCache.GetContentHash(fullPath);
-            return SceneAssetReferenceFactory.CreateFileSystemReference(metadata.AssetId, relativePath, contentHash);
         }
     }
 }

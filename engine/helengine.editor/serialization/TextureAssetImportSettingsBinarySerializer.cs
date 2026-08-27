@@ -47,7 +47,7 @@ namespace helengine.editor {
             writer.WriteString(settings.Importer.SourceChecksum);
             writer.WriteString(settings.Importer.AssetId);
             writer.WriteInt32(settings.Processor.Platforms.Count);
-            foreach (KeyValuePair<string, TextureAssetProcessorSettings> entry in settings.Processor.Platforms) {
+            foreach (KeyValuePair<string, TextureAssetProcessorSettings> entry in settings.Processor.Platforms.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
                     throw new InvalidOperationException("Texture asset import settings cannot contain a blank processor platform id.");
                 } else if (entry.Value == null) {
@@ -65,11 +65,11 @@ namespace helengine.editor {
             }
             writer.WriteInt32(settings.Processor.Environments?.Count ?? 0);
             if (settings.Processor.Environments != null) {
-                foreach (KeyValuePair<string, Dictionary<string, TextureAssetProcessorSettings>> platformEnvironment in settings.Processor.Environments) {
+                foreach (KeyValuePair<string, Dictionary<string, TextureAssetProcessorSettings>> platformEnvironment in settings.Processor.Environments.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                     writer.WriteString(platformEnvironment.Key);
                     writer.WriteInt32(platformEnvironment.Value?.Count ?? 0);
                     if (platformEnvironment.Value == null) continue;
-                    foreach (KeyValuePair<string, TextureAssetProcessorSettings> environmentEntry in platformEnvironment.Value) {
+                    foreach (KeyValuePair<string, TextureAssetProcessorSettings> environmentEntry in platformEnvironment.Value.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                         writer.WriteString(environmentEntry.Key);
                         WriteTextureSettings(writer, environmentEntry.Value, environmentEntry.Key);
                     }

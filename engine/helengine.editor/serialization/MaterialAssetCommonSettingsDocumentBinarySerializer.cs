@@ -57,7 +57,7 @@ namespace helengine.editor {
             writer.WriteString(document.Importer.AssetId ?? string.Empty);
             writer.WriteString(document.Processor.SchemaId ?? string.Empty);
             writer.WriteInt32(document.Processor.FieldValues.Count);
-            foreach (KeyValuePair<string, string> entry in document.Processor.FieldValues) {
+            foreach (KeyValuePair<string, string> entry in document.Processor.FieldValues.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 if (string.IsNullOrWhiteSpace(entry.Key)) {
                     throw new InvalidOperationException("Material common settings cannot contain a blank field id.");
                 } else if (entry.Value == null) {
@@ -138,7 +138,7 @@ namespace helengine.editor {
         /// <summary>Writes typed material references.</summary>
         static void WriteReferences(EngineBinaryWriter writer, Dictionary<string, SceneAssetReference> references) {
             writer.WriteInt32(references.Count);
-            foreach (KeyValuePair<string, SceneAssetReference> entry in references) {
+            foreach (KeyValuePair<string, SceneAssetReference> entry in references.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
                 writer.WriteString(entry.Key);
                 writer.WriteInt32((int)entry.Value.SourceKind);
                 writer.WriteString(entry.Value.RelativePath);

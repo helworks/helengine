@@ -821,7 +821,7 @@ namespace helengine.files {
             EnsureRuntimeAssetIdentity(asset);
             WriteAssetIdentity(writer, asset);
             writer.WriteArray(asset.RootEntities, WriteSceneEntityAsset);
-            writer.WriteArray(asset.AssetReferences, WriteSceneAssetReference);
+            writer.WriteArray(asset.AssetReferences?.OrderBy(reference => reference.RelativePath, StringComparer.Ordinal).ToArray(), WriteSceneAssetReference);
             writer.WriteUInt32(asset.Physics3DSceneFeatureFlags);
             WriteSceneSettingsAsset(writer, asset.SceneSettings);
         }
@@ -860,7 +860,7 @@ namespace helengine.files {
             EnsureRuntimeAssetIdentity(asset);
             WriteAssetIdentity(writer, asset);
             WriteSceneEntityAsset(writer, asset.RootEntity);
-            writer.WriteArray(asset.AssetReferences, WriteSceneAssetReference);
+            writer.WriteArray(asset.AssetReferences?.OrderBy(reference => reference.RelativePath, StringComparer.Ordinal).ToArray(), WriteSceneAssetReference);
         }
 
         /// <summary>

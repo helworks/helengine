@@ -67,14 +67,14 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures the session does not claim stable native-write behavior before the dedicated write service task exists.
+    /// Ensures the session routes native writes through its stable writer.
     /// </summary>
     [Fact]
-    public void WriteAsset_BeforeStableWriteService_ThrowsTaskBoundaryException() {
+    public void WriteAsset_UsesStableNativeWriter() {
         string projectRootPath = CreateTemporaryProjectRoot();
         EditorProjectAuthoringSession session = CreateSession(projectRootPath);
 
-        Assert.Throws<NotSupportedException>(() => session.WriteAsset("models/test.hasset", new ModelAsset {
+        EditorAssetWriteResult result = session.WriteAsset("models/test.hasset", new ModelAsset {
             Id = "Models/Test",
             Positions = Array.Empty<float3>(),
             Normals = Array.Empty<float3>(),
@@ -82,7 +82,10 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
             Indices16 = Array.Empty<ushort>(),
             Indices32 = Array.Empty<uint>(),
             Submeshes = Array.Empty<ModelSubmeshAsset>()
-        }));
+        });
+
+        Assert.Equal(EditorAssetWriteDisposition.Created, result.Disposition);
+        Assert.Equal("models/test.hasset", result.RelativePath);
     }
 
     /// <summary>

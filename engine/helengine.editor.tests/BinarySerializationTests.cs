@@ -30,6 +30,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures material common-settings bytes do not depend on dictionary insertion order.
+        /// </summary>
+        [Fact]
+        public void MaterialAssetCommonSettingsSerializer_WhenDictionariesAreInsertedInReverseOrder_IsDeterministic() {
+            MaterialAssetCommonSettingsDocument first = CreateMaterialCommonSettingsDocument(
+                new[] { "roughness", "base-color" },
+                new[] { "normal", "albedo" });
+            MaterialAssetCommonSettingsDocument second = CreateMaterialCommonSettingsDocument(
+                new[] { "base-color", "roughness" },
+                new[] { "albedo", "normal" });
+
+            Assert.Equal(SerializeMaterialCommonSettings(first), SerializeMaterialCommonSettings(second));
+        }
+
+        /// <summary>
+        /// Ensures the native scene serializer orders unordered asset references by their stable key.
+        /// </summary>
+        [Fact]
+        public void SceneAssetSerializer_WhenReferencesAreInsertedInReverseOrder_IsDeterministic() {
+            SceneAsset first = CreateSceneWithReferences(new[] { "Models/Z.hasset", "Models/A.hasset" });
+            SceneAsset second = CreateSceneWithReferences(new[] { "Models/A.hasset", "Models/Z.hasset" });
+
+            Assert.Equal(AssetSerializer.SerializeToBytes(first), AssetSerializer.SerializeToBytes(second));
+        }
+
+        /// <summary>
         /// Ensures the little-endian binary writer and reader keep payload byte order stable.
         /// </summary>
         [Fact]
@@ -1999,6 +2025,67 @@ namespace helengine.editor.tests {
                     }
                 }
             };
+        }
+
+        /// <summary>
+        /// Creates one shared material-settings document with caller-controlled insertion order.
+        /// </summary>
+        /// <param name="fieldOrder">Field ids in insertion order.</param>
+        /// <param name="referenceOrder">Reference ids in insertion order.</param>
+        /// <returns>Material common-settings document.</returns>
+        static MaterialAssetCommonSettingsDocument CreateMaterialCommonSettingsDocument(
+            IReadOnlyList<string> fieldOrder,
+            IReadOnlyList<string> referenceOrder) {
+            MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument {
+                AuthoringAssetId = "00112233445566778899aabbccddeeff",
+                FormerAuthoringAssetIds = new List<string> { "ffeeddccbbaa99887766554433221100" },
+                Importer = new AssetImporterSettings {
+                    ImporterId = "helengine.material",
+                    SourceChecksum = "source",
+                    AssetId = "Materials/Test"
+                }
+            };
+            document.Processor.SchemaId = "standard-shader";
+            for (int index = 0; index < fieldOrder.Count; index++) {
+                document.Processor.FieldValues[fieldOrder[index]] = fieldOrder[index] + "-value";
+            }
+            for (int index = 0; index < referenceOrder.Count; index++) {
+                string referenceId = referenceOrder[index];
+                document.Processor.AssetReferenceValues[referenceId] = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                    string.Equals(referenceId, "normal", StringComparison.Ordinal)
+                        ? "11112222333344445555666677778888"
+                        : "9999aaaabbbbccccddddeeeeffffffff",
+                    "Textures/" + referenceId + ".png",
+                    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+            }
+            return document;
+        }
+
+        /// <summary>
+        /// Creates one scene whose reference collection is assembled in the supplied order.
+        /// </summary>
+        /// <param name="relativePaths">Reference paths in insertion order.</param>
+        /// <returns>Scene asset with unordered references.</returns>
+        static SceneAsset CreateSceneWithReferences(IReadOnlyList<string> relativePaths) {
+            SceneAsset scene = new SceneAsset {
+                Id = "Scenes/Deterministic.helen",
+                AuthoringAssetId = "00112233445566778899aabbccddeeff",
+                FormerAuthoringAssetIds = Array.Empty<string>(),
+                RootEntities = Array.Empty<SceneEntityAsset>(),
+                SceneSettings = new SceneSettingsAsset()
+            };
+            List<SceneAssetReference> references = new List<SceneAssetReference>();
+            for (int index = 0; index < relativePaths.Count; index++) {
+                string relativePath = relativePaths[index];
+                references.Add(global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                    relativePath.EndsWith("/A.hasset", StringComparison.Ordinal)
+                        ? "11112222333344445555666677778888"
+                        : "9999aaaabbbbccccddddeeeeffffffff",
+                    relativePath,
+                    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
+            }
+            scene.AssetReferences = references.ToArray();
+            return scene;
         }
 
         /// <summary>

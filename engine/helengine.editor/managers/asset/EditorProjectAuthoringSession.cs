@@ -44,6 +44,11 @@ namespace helengine.editor {
         readonly IEditorProjectAssetAuthoringService AssetAuthoringService;
 
         /// <summary>
+        /// Stable native writer sharing this session's identity index and hash cache.
+        /// </summary>
+        readonly EditorNativeAssetWriteService NativeAssetWriteService;
+
+        /// <summary>
         /// Report owned by this session and shared by every operation.
         /// </summary>
         readonly EditorAssetRepairReport RepairReportValue;
@@ -113,6 +118,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver);
+            NativeAssetWriteService = new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache);
             RepairReportValue = new EditorAssetRepairReport();
         }
 
@@ -176,7 +182,7 @@ namespace helengine.editor {
         /// <returns>Destination result for the write.</returns>
         public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
             EnsureNotDisposed();
-            throw new NotSupportedException("Stable native asset writing is provided by the editor native asset write service task.");
+            return NativeAssetWriteService.WriteAsset(relativePath, asset);
         }
 
         /// <summary>

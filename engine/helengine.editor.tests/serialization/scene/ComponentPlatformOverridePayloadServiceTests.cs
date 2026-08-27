@@ -66,6 +66,23 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures unordered override maps produce the same wrapped bytes regardless of insertion order.
+        /// </summary>
+        [Fact]
+        public void Wrap_WhenOverrideMapsAreInsertedInReverseOrder_IsDeterministic() {
+            ComponentPlatformOverridePayloadService service = new ComponentPlatformOverridePayloadService();
+            SceneComponentAssetRecord baseRecord = new SceneComponentAssetRecord {
+                ComponentTypeId = "helengine.TestComponent",
+                Payload = new byte[] { 1, 2, 3 }
+            };
+
+            byte[] first = service.Wrap(baseRecord, CreateUnorderedOverrideState(new[] { "z-slot", "a-slot" }, new[] { "z-property", "a-property" }, new[] { "z-member", "a-member" })).Payload;
+            byte[] second = service.Wrap(baseRecord, CreateUnorderedOverrideState(new[] { "a-slot", "z-slot" }, new[] { "a-property", "z-property" }, new[] { "a-member", "z-member" })).Payload;
+
+            Assert.Equal(first, second);
+        }
+
+        /// <summary>
         /// Ensures the removed version-3 wrapped override payload is rejected instead of being normalized to the current schema.
         /// </summary>
         [Fact]
@@ -88,6 +105,36 @@ namespace helengine.editor.tests.serialization.scene {
         /// <returns>File-system scene asset reference.</returns>
         static SceneAssetReference CreateFileReference(string relativePath) {
             return global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(relativePath);
+        }
+
+        /// <summary>
+        /// Creates one override state whose unordered collections use the supplied insertion order.
+        /// </summary>
+        /// <param name="referenceNames">Reference names in insertion order.</param>
+        /// <param name="propertyPaths">Property paths in insertion order.</param>
+        /// <param name="memberNames">Detached member names in insertion order.</param>
+        /// <returns>One populated override state.</returns>
+        static EntityComponentSaveState CreateUnorderedOverrideState(
+            IReadOnlyList<string> referenceNames,
+            IReadOnlyList<string> propertyPaths,
+            IReadOnlyList<string> memberNames) {
+            EntityComponentPlatformOverrideState overrideState = new EntityComponentPlatformOverrideState {
+                Payload = new byte[] { 4, 5, 6 }
+            };
+            for (int index = 0; index < referenceNames.Count; index++) {
+                string referenceName = referenceNames[index];
+                overrideState.SetAssetReference(referenceName, CreateFileReference("models/" + referenceName + ".hasset"));
+            }
+            for (int index = 0; index < propertyPaths.Count; index++) {
+                overrideState.SetPropertyOverride(propertyPaths[index]);
+            }
+            for (int index = 0; index < memberNames.Count; index++) {
+                overrideState.SetMemberValue(memberNames[index], memberNames[index] + "-value");
+            }
+
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetPlatformOverride("windows", overrideState);
+            return saveState;
         }
 
         /// <summary>

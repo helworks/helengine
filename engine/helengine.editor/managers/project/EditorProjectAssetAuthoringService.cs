@@ -24,6 +24,11 @@ namespace helengine.editor {
         readonly EditorAssetReferenceCanonicalizationService AssetReferenceCanonicalizationService;
 
         /// <summary>
+        /// Native writer backed by the session-owned identity index and hash cache.
+        /// </summary>
+        readonly EditorNativeAssetWriteService NativeAssetWriteService;
+
+        /// <summary>
         /// Initializes one project asset-authoring capability over a supplied shared reference resolver.
         /// </summary>
         /// <param name="assetImportManager">Host-owned import manager backing the capability.</param>
@@ -42,6 +47,10 @@ namespace helengine.editor {
                 new EditorFileSystemTextureResolver(AssetImportManagerValue),
                 AssetReferenceResolver);
             AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AssetReferenceResolver);
+            NativeAssetWriteService = new EditorNativeAssetWriteService(
+                projectRootPath,
+                AssetReferenceResolver.IdentityIndexValue,
+                AssetReferenceResolver.HashCacheValue);
         }
 
         /// <summary>
@@ -156,7 +165,7 @@ namespace helengine.editor {
         /// </summary>
         public void WriteNativeAsset(string relativePath, Asset asset) {
             ValidateRelativeAssetPath(relativePath);
-            new GeneratedAssetWriteService().WriteAsset(ResolveProjectRootPath(), relativePath, asset);
+            NativeAssetWriteService.WriteAsset(relativePath, asset);
         }
 
         /// <summary>
@@ -171,7 +180,7 @@ namespace helengine.editor {
 
             asset.AuthoringAssetId = authoringAssetId;
             asset.FormerAuthoringAssetIds ??= Array.Empty<string>();
-            new GeneratedAssetWriteService().WriteAsset(ResolveProjectRootPath(), relativePath, asset);
+            NativeAssetWriteService.WriteAsset(relativePath, asset);
         }
 
         /// <summary>

@@ -116,7 +116,10 @@ namespace helengine.editor {
                 overrides.Add(overrideState);
             }
 
-            return overrides.ToArray();
+            return overrides
+                .OrderBy(overrideState => overrideState.PlatformId, StringComparer.Ordinal)
+                .ThenBy(overrideState => overrideState.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+                .ToArray();
         }
 
         /// <summary>
@@ -383,7 +386,9 @@ namespace helengine.editor {
                 assetReferences.Add(assetReference);
             }
 
-            return assetReferences;
+            return assetReferences
+                .OrderBy(assetReference => assetReference.Key, StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>
@@ -401,7 +406,9 @@ namespace helengine.editor {
                 propertyPaths.Add(propertyPath);
             }
 
-            return propertyPaths;
+            return propertyPaths
+                .OrderBy(propertyPath => propertyPath, StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>
@@ -419,7 +426,9 @@ namespace helengine.editor {
                 memberValues.Add(memberValue);
             }
 
-            return memberValues;
+            return memberValues
+                .OrderBy(memberValue => memberValue.Key, StringComparer.Ordinal)
+                .ToList();
         }
     }
 }
