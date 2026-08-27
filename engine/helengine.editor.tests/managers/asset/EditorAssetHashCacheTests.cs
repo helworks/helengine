@@ -217,7 +217,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempRootPath, null, null, cache, catalog);
         identityIndex.Initialize();
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempRootPath, identityIndex, cache);
-        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache);
+        EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(TempRootPath, identityIndex, cache);
+        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService);
         AssetImportManager manager = new AssetImportManager(
             TempRootPath,
             new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempRootPath, "assets"))));
@@ -226,7 +227,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
             cache,
             identityIndex,
             referenceResolver,
-            new EditorAuthoringSessionLifetime(resources));
+            new EditorAuthoringSessionLifetime(resources),
+            nativeAssetWriteService);
 
         session.CreateReference("Models/A.obj", AssetEntryKind.Model);
         session.CreateReference("Models/B.obj", AssetEntryKind.Model);
@@ -310,7 +312,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempRootPath, null, null, cache);
         identityIndex.Initialize();
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempRootPath, identityIndex, cache);
-        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache);
+        EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(TempRootPath, identityIndex, cache);
+        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService);
         AssetImportManager manager = new AssetImportManager(
             TempRootPath,
             new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempRootPath, "assets"))));
@@ -319,7 +322,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
             cache,
             identityIndex,
             referenceResolver,
-            new EditorAuthoringSessionLifetime(resources));
+            new EditorAuthoringSessionLifetime(resources),
+            nativeAssetWriteService);
 
         session.CreateReference("Models/SessionRetry.obj", AssetEntryKind.Model);
 

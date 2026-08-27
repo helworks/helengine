@@ -44,13 +44,14 @@ namespace helengine.editor {
             }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
-            if (HeldLocks != null && HeldLocks.TryGetValue(fullProjectRootPath, out EditorProjectWriteLock heldLock)) {
-                return new EditorProjectWriteLock(heldLock.LockStream, fullProjectRootPath, false);
-            }
-
             string lockPath = Path.Combine(fullProjectRootPath, "cache", "editor", "authoring-write.lock");
             string lockDirectoryPath = Path.GetDirectoryName(lockPath);
             Directory.CreateDirectory(lockDirectoryPath);
+            string canonicalLockPath = CanonicalizeLockPath(lockPath);
+            if (HeldLocks != null && HeldLocks.TryGetValue(canonicalLockPath, out EditorProjectWriteLock heldLock)) {
+                return new EditorProjectWriteLock(heldLock.LockStream, canonicalLockPath, false);
+            }
+
             IOException lastIOException = null;
             DateTime deadlineUtc = DateTime.UtcNow + maximumWait;
             while (DateTime.UtcNow <= deadlineUtc) {
@@ -62,9 +63,9 @@ namespace helengine.editor {
                         FileShare.None,
                         1,
                         FileOptions.SequentialScan);
-                    EditorProjectWriteLock acquiredLock = new EditorProjectWriteLock(lockStream, fullProjectRootPath, true);
+                    EditorProjectWriteLock acquiredLock = new EditorProjectWriteLock(lockStream, canonicalLockPath, true);
                     (HeldLocks ??= new Dictionary<string, EditorProjectWriteLock>(
-                        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))[fullProjectRootPath] = acquiredLock;
+                        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))[canonicalLockPath] = acquiredLock;
                     return acquiredLock;
                 } catch (IOException exception) {
                     lastIOException = exception;
@@ -73,6 +74,43 @@ namespace helengine.editor {
             }
 
             throw new IOException($"Could not acquire the project authoring write lock at '{lockPath}'.", lastIOException);
+        }
+
+        /// <summary>
+        /// Canonicalizes the lock-file identity, including any linked ancestor directory.
+        /// </summary>
+        /// <param name="lockPath">Absolute lock-file path.</param>
+        /// <returns>Canonical lock-file key used for reentrant ownership.</returns>
+        static string CanonicalizeLockPath(string lockPath) {
+            string fullLockPath = Path.GetFullPath(lockPath);
+            string directoryPath = Path.GetDirectoryName(fullLockPath);
+            string fileName = Path.GetFileName(fullLockPath);
+            List<string> suffix = new List<string>();
+            DirectoryInfo current = new DirectoryInfo(directoryPath);
+            while (current != null) {
+                try {
+                    DirectoryInfo resolved = current.ResolveLinkTarget(true) as DirectoryInfo;
+                    if (resolved != null) {
+                        string canonicalDirectory = resolved.FullName;
+                        for (int index = suffix.Count - 1; index >= 0; index--) {
+                            canonicalDirectory = Path.Combine(canonicalDirectory, suffix[index]);
+                        }
+                        return Path.Combine(canonicalDirectory, fileName);
+                    }
+                } catch (IOException) {
+                } catch (UnauthorizedAccessException) {
+                } catch (PlatformNotSupportedException) {
+                }
+
+                DirectoryInfo parent = current.Parent;
+                if (parent == null) {
+                    break;
+                }
+                suffix.Add(current.Name);
+                current = parent;
+            }
+
+            return Path.Combine(directoryPath, fileName);
         }
 
         /// <summary>

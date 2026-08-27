@@ -92,8 +92,9 @@ namespace helengine.editor {
             EditorAssetHashCache hashCache,
             EditorAssetIdentityIndex identityIndex,
             EditorAssetReferenceResolver referenceResolver,
-            IEditorAuthoringSessionLifetime lifetime)
-            : this(new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime)) {
+            IEditorAuthoringSessionLifetime lifetime,
+            EditorNativeAssetWriteService nativeAssetWriteService)
+            : this(new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, nativeAssetWriteService)) {
         }
 
         /// <summary>
@@ -118,10 +119,8 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            NativeAssetWriteService = dependencies.NativeAssetWriteService ?? new EditorNativeAssetWriteService(ProjectRootPath, IdentityIndex, HashCache);
-            if (dependencies.NativeAssetWriteService == null) {
-                ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
-            }
+            NativeAssetWriteService = dependencies.NativeAssetWriteService;
+            ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService);
         }
 
@@ -528,7 +527,7 @@ namespace helengine.editor {
                 hashCache,
                 nativeAssetWriteService);
             IEditorAuthoringSessionLifetime lifetime = new EditorAuthoringSessionLifetime(resources);
-            return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, repairReport, nativeAssetWriteService);
+            return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, nativeAssetWriteService, repairReport);
         }
 
         /// <summary>
@@ -549,15 +548,15 @@ namespace helengine.editor {
                 EditorAssetIdentityIndex identityIndex,
                 EditorAssetReferenceResolver referenceResolver,
                 IEditorAuthoringSessionLifetime lifetime,
-                EditorAssetRepairReport repairReport = null,
-                EditorNativeAssetWriteService nativeAssetWriteService = null) {
+                EditorNativeAssetWriteService nativeAssetWriteService,
+                EditorAssetRepairReport repairReport = null) {
                 AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
                 HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
                 IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
                 ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
                 Lifetime = lifetime ?? throw new ArgumentNullException(nameof(lifetime));
                 RepairReport = repairReport ?? ReferenceResolver.RepairReportValue;
-                NativeAssetWriteService = nativeAssetWriteService;
+                NativeAssetWriteService = nativeAssetWriteService ?? throw new ArgumentNullException(nameof(nativeAssetWriteService));
             }
         }
 
@@ -693,11 +692,11 @@ namespace helengine.editor {
             EditorAssetReferenceResolver referenceResolver,
             EditorAssetIdentityIndex identityIndex,
             EditorAssetHashCache hashCache,
-            EditorNativeAssetWriteService nativeAssetWriteService = null) {
+            EditorNativeAssetWriteService nativeAssetWriteService) {
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
-            NativeAssetWriteService = nativeAssetWriteService;
+            NativeAssetWriteService = nativeAssetWriteService ?? throw new ArgumentNullException(nameof(nativeAssetWriteService));
         }
 
         public void Dispose() {
@@ -708,7 +707,7 @@ namespace helengine.editor {
             ReferenceResolver.Dispose();
             IdentityIndex.Dispose();
             HashCache.Dispose();
-            NativeAssetWriteService?.Dispose();
+            NativeAssetWriteService.Dispose();
             IsDisposed = true;
         }
     }

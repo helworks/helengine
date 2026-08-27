@@ -42,7 +42,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         using EditorAssetHashCache hashCache = new EditorAssetHashCache(projectRootPath);
         using EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, hashCache: hashCache);
         identityIndex.Initialize();
-        EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
+        using EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
 
         Assert.Throws<ArgumentNullException>(() => new EditorProjectAssetAuthoringService(assetImportManager, null, writer));
     }

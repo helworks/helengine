@@ -92,4 +92,56 @@ public sealed class EditorProjectWriteGenerationTests : IDisposable {
 
         Assert.NotNull(inner);
     }
+
+    [Fact]
+    public void ProjectWriteLock_WhenEquivalentRootSpellingsAreUsed_ReusesTheHeldHandle() {
+        string equivalentRoot = Path.Combine(ProjectRootPath, "assets", "..", ".");
+        using EditorProjectWriteLock outer = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromSeconds(1));
+        using EditorProjectWriteLock inner = EditorProjectWriteLock.Acquire(equivalentRoot, TimeSpan.FromMilliseconds(50));
+
+        Assert.NotNull(inner);
+    }
+
+    [Fact]
+    public void ProjectWriteLock_WhenRootIsReachedThroughDirectoryLink_ReusesTheHeldHandle() {
+        string linkRoot = Path.Combine(Path.GetTempPath(), "helengine-write-generation-tests", Guid.NewGuid().ToString("N"));
+        try {
+            try {
+                Directory.CreateSymbolicLink(linkRoot, ProjectRootPath);
+            } catch (Exception exception) when (exception is UnauthorizedAccessException || exception is IOException || exception is PlatformNotSupportedException) {
+                return;
+            }
+
+            using EditorProjectWriteLock outer = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromSeconds(1));
+            using EditorProjectWriteLock inner = EditorProjectWriteLock.Acquire(linkRoot, TimeSpan.FromMilliseconds(50));
+
+            Assert.NotNull(inner);
+        } finally {
+            if (Directory.Exists(linkRoot)) {
+                Directory.Delete(linkRoot);
+            }
+        }
+    }
+
+    [Fact]
+    public void ProjectWriteLock_WhenProjectsDiffer_DoesNotShareTheHeldHandle() {
+        string secondProjectRoot = Path.Combine(Path.GetTempPath(), "helengine-write-generation-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(secondProjectRoot, "assets"));
+        try {
+            using EditorProjectWriteLock first = EditorProjectWriteLock.Acquire(ProjectRootPath, TimeSpan.FromSeconds(1));
+            using EditorProjectWriteLock second = EditorProjectWriteLock.Acquire(secondProjectRoot, TimeSpan.FromMilliseconds(50));
+
+            Assert.NotSame(GetLockStream(first), GetLockStream(second));
+        } finally {
+            if (Directory.Exists(secondProjectRoot)) {
+                Directory.Delete(secondProjectRoot, true);
+            }
+        }
+    }
+
+    static object GetLockStream(EditorProjectWriteLock projectWriteLock) {
+        return typeof(EditorProjectWriteLock)
+            .GetField("LockStream", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .GetValue(projectWriteLock);
+    }
 }

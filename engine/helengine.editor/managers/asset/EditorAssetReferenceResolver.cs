@@ -169,7 +169,7 @@ namespace helengine.editor {
             bool metadataChanged = pathMetadataWasMissing;
             bool savedIdWasAdopted = false;
             if (pathMetadataWasMissing && IsValidAssetId(reference.AssetId) &&
-                !IdentityIndex.IsAnyAssetIdentityClaimed(reference.AssetId)) {
+                !IdentityIndex.IsAnyAssetIdentityClaimedUnderLock(reference.AssetId)) {
                 string savedFullPath = ResolveInsideAssets(savedPath);
                 AssetIdentityMetadataDocument document = MetadataService.Load(savedFullPath);
                 string previousAssetId = document.AssetId;
@@ -184,7 +184,7 @@ namespace helengine.editor {
                 savedIdWasAdopted = IdentityIndex.TryAdoptSavedAssetIdUnderLock(savedFullPath, reference.AssetId, adoptionRepair);
                 if (savedIdWasAdopted) {
                     metadataChanged = true;
-                    IdentityIndex.MarkMetadataPresent(savedFullPath);
+                    IdentityIndex.MarkMetadataPresentUnderLock(savedFullPath);
                     if (ResolutionScopeActive) {
                         ResolutionScopeMissingMetadataPaths.Remove(savedFullPath);
                     }
@@ -397,7 +397,7 @@ namespace helengine.editor {
                 string.Equals(candidate.AssetId, savedAssetId, StringComparison.Ordinal),
                 string.Equals(candidate.RelativePath, savedPath, PathComparison),
                 matchesSavedHash,
-                IdentityIndex.IsRecordedOwner(savedAssetId, candidate.RelativePath),
+                IdentityIndex.IsRecordedOwnerUnderLock(savedAssetId, candidate.RelativePath),
                 candidate.RelativePath);
         }
 

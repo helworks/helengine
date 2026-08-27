@@ -734,13 +734,15 @@ namespace helengine.editor.tests {
                 EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempProjectRootPath, null, null, hashCache);
                 identityIndex.Initialize();
                 EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempProjectRootPath, identityIndex, hashCache);
-                EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, hashCache);
+                EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(TempProjectRootPath, identityIndex, hashCache);
+                EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, hashCache, nativeAssetWriteService);
                 AuthoringSession = new EditorProjectAuthoringSession(
                     assetImportManager,
                     hashCache,
                     identityIndex,
                     referenceResolver,
-                    new EditorAuthoringSessionLifetime(resources));
+                    new EditorAuthoringSessionLifetime(resources),
+                    nativeAssetWriteService);
                 Session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
                 SetPrivateField(Session, "dockingManager", new DockingManager());

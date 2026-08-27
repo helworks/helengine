@@ -16,6 +16,15 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     /// </summary>
     readonly List<IDisposable> Sessions = new List<IDisposable>();
 
+    [Fact]
+    public void ExplicitComposition_RequiresTheSessionOwnedWriter() {
+        ConstructorInfo constructor = typeof(EditorProjectAuthoringSession)
+            .GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Single(item => item.GetParameters().Length > 0 && item.GetParameters()[0].ParameterType == typeof(AssetImportManager));
+
+        Assert.Equal(typeof(EditorNativeAssetWriteService), constructor.GetParameters().Last().ParameterType);
+    }
+
     /// <summary>
     /// Ensures an injected new-only session is returned unchanged by the command context.
     /// </summary>
@@ -158,13 +167,15 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, cache, catalog);
         identityIndex.Initialize();
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
-        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache);
+        EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, cache);
+        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService);
         EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
             manager,
             cache,
             identityIndex,
             referenceResolver,
-            new EditorAuthoringSessionLifetime(resources)));
+            new EditorAuthoringSessionLifetime(resources),
+            nativeAssetWriteService));
         const string assetId = "00112233445566778899aabbccddeeff";
 
         session.WriteNativeAsset("Models/Written.hasset", CreateModelAsset(), assetId);
@@ -191,13 +202,15 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, cache);
         identityIndex.Initialize();
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
-        CountingSessionLifetime lifetime = new CountingSessionLifetime(new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache));
+        EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, cache);
+        CountingSessionLifetime lifetime = new CountingSessionLifetime(new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService));
         EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
             CreateAssetImportManager(projectRootPath),
             cache,
             identityIndex,
             referenceResolver,
-            lifetime));
+            lifetime,
+            nativeAssetWriteService));
 
         session.Dispose();
         session.Dispose();
@@ -277,13 +290,15 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, cache);
         identityIndex.Initialize();
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
-        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache);
+        EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, cache);
+        EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService);
         return TrackSession(new EditorProjectAuthoringSession(
             CreateAssetImportManager(projectRootPath),
             cache,
             identityIndex,
             referenceResolver,
-            new EditorAuthoringSessionLifetime(resources)));
+            new EditorAuthoringSessionLifetime(resources),
+            nativeAssetWriteService));
     }
 
     /// <summary>

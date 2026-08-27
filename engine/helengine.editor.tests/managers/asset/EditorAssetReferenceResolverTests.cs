@@ -349,6 +349,164 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.True(result.CandidateEvidence.IsCurrentId);
     }
 
+    [Fact]
+    public void Resolve_IsolatedCurrentIdTierWinsBeforePathHashOwnerOrOrdinal() {
+        string currentPath = CreateAsset("Models/CurrentTier.fbx", new byte[] { 1, 2, 3 });
+        string formerPath = CreateAsset("Models/FormerTier.fbx", new byte[] { 4, 5, 6 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string savedId = "00112233445566778899aabbccddeeff";
+        metadata.Save(currentPath, new AssetIdentityMetadataDocument { AssetId = savedId });
+        metadata.Save(formerPath, new AssetIdentityMetadataDocument {
+            AssetId = "ffeeddccbbaa99887766554433221100",
+            FormerAssetIds = new List<string> { savedId }
+        });
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            savedId,
+            "Models/FormerTier.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal("Models/CurrentTier.fbx", result.CanonicalReference.RelativePath);
+        Assert.True(result.CandidateEvidence.IsCurrentId);
+    }
+
+    [Fact]
+    public void Resolve_IsolatedSavedPathTierWinsWhenIdentityIsOnlyFormerAndHashDiffers() {
+        string pathWinner = CreateAsset("Models/PathTier.fbx", new byte[] { 1, 2, 3 });
+        string hashCandidate = CreateAsset("Models/HashTier.fbx", new byte[] { 4, 5, 6 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        metadata.Save(pathWinner, new AssetIdentityMetadataDocument { AssetId = "00112233445566778899aabbccddeeff" });
+        metadata.Save(hashCandidate, new AssetIdentityMetadataDocument { AssetId = "ffeeddccbbaa99887766554433221100" });
+        using EditorAssetReferenceResolver hashResolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference hashReference = hashResolver.CreateFileReference(hashCandidate, AssetEntryKind.Model);
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "11223344556677889900aabbccddeeff",
+            "Models/PathTier.fbx",
+            hashReference.ContentHash);
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal("Models/PathTier.fbx", result.CanonicalReference.RelativePath);
+        Assert.True(result.CandidateEvidence.MatchesSavedPath);
+        Assert.False(result.CandidateEvidence.MatchesSavedHash);
+    }
+
+    [Fact]
+    public void Resolve_IsolatedSavedHashTierWinsWhenOnlyOneCandidateMatchesHash() {
+        string nonMatch = CreateAsset("Models/HashNonMatch.fbx", new byte[] { 1, 2, 3 });
+        string hashWinner = CreateAsset("Models/HashWinner.fbx", new byte[] { 4, 5, 6 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        metadata.Save(nonMatch, new AssetIdentityMetadataDocument { AssetId = "00112233445566778899aabbccddeeff" });
+        metadata.Save(hashWinner, new AssetIdentityMetadataDocument { AssetId = "ffeeddccbbaa99887766554433221100" });
+        using EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference hashReference = setupResolver.CreateFileReference(hashWinner, AssetEntryKind.Model);
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "11223344556677889900aabbccddeeff",
+            "Models/MissingHashTier.fbx",
+            hashReference.ContentHash);
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal("Models/HashWinner.fbx", result.CanonicalReference.RelativePath);
+        Assert.True(result.CandidateEvidence.MatchesSavedHash);
+    }
+
+    [Fact]
+    public void Resolve_IsolatedRecordedOwnerTierWinsForFormerAliasCandidates() {
+        string recordedPath = CreateAsset("Models/RecordedTier.fbx", new byte[] { 1, 2, 3 });
+        string otherPath = CreateAsset("Models/OtherRecordedTier.fbx", new byte[] { 4, 5, 6 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string formerId = "00112233445566778899aabbccddeeff";
+        metadata.Save(recordedPath, new AssetIdentityMetadataDocument { AssetId = formerId });
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(TempRootPath);
+        index.Initialize();
+        metadata.Save(recordedPath, new AssetIdentityMetadataDocument {
+            AssetId = "ffeeddccbbaa99887766554433221100",
+            FormerAssetIds = new List<string> { formerId }
+        });
+        metadata.Save(otherPath, new AssetIdentityMetadataDocument {
+            AssetId = "11223344556677889900aabbccddeeff",
+            FormerAssetIds = new List<string> { formerId }
+        });
+        index.ReconcileExternalChanges();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, index);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            formerId,
+            "Models/MissingRecordedTier.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal("Models/RecordedTier.fbx", result.CanonicalReference.RelativePath);
+        Assert.True(result.CandidateEvidence.IsRecordedOwner);
+    }
+
+    [Fact]
+    public void Resolve_IsolatedOrdinalTierWinsWhenFormerAliasCandidatesTieAllStrongerEvidence() {
+        string ordinalWinner = CreateAsset("Models/AOrdinalTier.fbx", new byte[] { 1, 2, 3 });
+        string ordinalOther = CreateAsset("Models/BOrdinalTier.fbx", new byte[] { 4, 5, 6 });
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        const string formerId = "00112233445566778899aabbccddeeff";
+        metadata.Save(ordinalWinner, new AssetIdentityMetadataDocument {
+            AssetId = "ffeeddccbbaa99887766554433221100",
+            FormerAssetIds = new List<string> { formerId }
+        });
+        metadata.Save(ordinalOther, new AssetIdentityMetadataDocument {
+            AssetId = "11223344556677889900aabbccddeeff",
+            FormerAssetIds = new List<string> { formerId }
+        });
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            formerId,
+            "Models/MissingOrdinalTier.fbx",
+            "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal("Models/AOrdinalTier.fbx", result.CanonicalReference.RelativePath);
+        Assert.Equal("Models/AOrdinalTier.fbx", result.CandidateEvidence.RelativePath);
+        Assert.False(result.CandidateEvidence.IsRecordedOwner);
+    }
+
+    [Fact]
+    public void CreateFileReference_WhenNewExternalCopyClaimsCurrentId_RekeysThroughPublicResolver() {
+        string ownerPath = CreateAsset("Models/PublicOwner.fbx", new byte[] { 1, 2, 3 });
+        const string copiedId = "00112233445566778899aabbccddeeff";
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        metadata.Save(ownerPath, new AssetIdentityMetadataDocument { AssetId = copiedId });
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        string copyPath = CreateAsset("Models/PublicCopy.fbx", new byte[] { 4, 5, 6 });
+        metadata.Save(copyPath, new AssetIdentityMetadataDocument { AssetId = copiedId });
+
+        SceneAssetReference copyReference = resolver.CreateFileReference(copyPath, AssetEntryKind.Model);
+
+        Assert.Equal(copiedId, resolver.CreateFileReference(ownerPath, AssetEntryKind.Model).AssetId);
+        Assert.NotEqual(copiedId, copyReference.AssetId);
+        Assert.True(File.Exists(copyPath + ".hmeta"));
+        Assert.Equal(copyReference.AssetId, new AssetIdentityMetadataService().Load(copyPath).AssetId);
+    }
+
+    [Fact]
+    public void CreateFileReference_WhenNewNativeCopyClaimsCurrentId_RekeysEmbeddedIdentityThroughPublicResolver() {
+        string ownerPath = CreateNativeAnimation("Animations/PublicOwner.hanim", "aabbccddeeff00112233445566778899", 1f);
+        string copyPath = Path.Combine(TempRootPath, "assets", "Animations", "PublicCopy.hanim");
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
+        File.Copy(ownerPath, copyPath);
+
+        SceneAssetReference copyReference = resolver.CreateFileReference(copyPath, AssetEntryKind.File);
+
+        Assert.Equal("aabbccddeeff00112233445566778899", resolver.CreateFileReference(ownerPath, AssetEntryKind.File).AssetId);
+        Assert.NotEqual("aabbccddeeff00112233445566778899", copyReference.AssetId);
+        Assert.Contains(
+            "aabbccddeeff00112233445566778899",
+            new AssetIdentityMetadataService().Load(copyPath).FormerAssetIds);
+        Assert.False(File.Exists(copyPath + ".hmeta"));
+    }
+
     /// <summary>
     /// Ensures a matching saved content hash selects a compatible native candidate.
     /// </summary>

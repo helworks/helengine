@@ -58,7 +58,7 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
         using EditorAssetHashCache preopenedCache = new EditorAssetHashCache(ProjectRootPath);
         using EditorAssetIdentityIndex preopenedIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, preopenedCache);
         preopenedIndex.Initialize();
-        EditorNativeAssetWriteService preopenedWriter = new EditorNativeAssetWriteService(ProjectRootPath, preopenedIndex, preopenedCache);
+        using EditorNativeAssetWriteService preopenedWriter = new EditorNativeAssetWriteService(ProjectRootPath, preopenedIndex, preopenedCache);
 
         string duplicatePath = CreateExternalAsset("Models/StartupZCopy.fbx");
         File.Copy(firstPath + ".hmeta", duplicatePath + ".hmeta", true);
@@ -390,11 +390,11 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
         using EditorAssetHashCache firstCache = new EditorAssetHashCache(ProjectRootPath);
         using EditorAssetIdentityIndex firstIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, firstCache, catalog);
         firstIndex.Initialize();
-        EditorNativeAssetWriteService firstWriter = new EditorNativeAssetWriteService(ProjectRootPath, firstIndex, firstCache);
+        using EditorNativeAssetWriteService firstWriter = new EditorNativeAssetWriteService(ProjectRootPath, firstIndex, firstCache);
         using EditorAssetHashCache secondCache = new EditorAssetHashCache(ProjectRootPath);
         using EditorAssetIdentityIndex secondIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, secondCache);
         secondIndex.Initialize();
-        EditorNativeAssetWriteService secondWriter = new EditorNativeAssetWriteService(ProjectRootPath, secondIndex, secondCache);
+        using EditorNativeAssetWriteService secondWriter = new EditorNativeAssetWriteService(ProjectRootPath, secondIndex, secondCache);
 
         firstWriter.WriteAsset("models/Initial.hasset", CreateModel());
         string initialPath = Path.Combine(ProjectRootPath, "assets", "models", "Initial.hasset");
@@ -490,7 +490,7 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
         File.WriteAllBytes(fullPath, AssetSerializer.SerializeToBytes(CreateModel(authoringAssetId: "00112233445566778899aabbccddeeff")));
         EditorProjectWriteGeneration.PublishChange(ProjectRootPath, relativePath);
 
-        _ = new EditorNativeAssetWriteService(ProjectRootPath, index, cache);
+        using EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(ProjectRootPath, index, cache);
 
         Assert.NotNull(index.FindByPath(relativePath));
         Assert.Equal(relativePath, index.FindByPath(relativePath).RelativePath);
@@ -528,7 +528,7 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
         using EditorAssetHashCache failingCache = new EditorAssetHashCache(ProjectRootPath);
         using EditorAssetIdentityIndex failingIndex = new EditorAssetIdentityIndex(ProjectRootPath, null, null, failingCache);
         failingIndex.Initialize();
-        EditorNativeAssetWriteService failingWriter = new EditorNativeAssetWriteService(
+        using EditorNativeAssetWriteService failingWriter = new EditorNativeAssetWriteService(
             ProjectRootPath,
             failingIndex,
             failingCache,
@@ -554,7 +554,7 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
         using EditorAssetHashCache cache = new EditorAssetHashCache(ProjectRootPath);
         using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(ProjectRootPath, null, null, cache);
         index.Initialize();
-        EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(ProjectRootPath, index, cache, changeLog);
+        using EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(ProjectRootPath, index, cache, changeLog);
         string destinationPath = Path.Combine(ProjectRootPath, "assets", "models", "PublicationFailure.hasset");
 
         Assert.Throws<IOException>(() => writer.WriteAsset("models/PublicationFailure.hasset", CreateModel()));

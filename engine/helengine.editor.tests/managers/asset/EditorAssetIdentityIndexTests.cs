@@ -150,6 +150,86 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         Assert.True(File.Exists(assetPath + ".hmeta"));
     }
 
+    [Fact]
+    public void NormalIndexOperations_WhenRepairBatchIsPersisted_FailClosedUntilBatchIsCanceled() {
+        string assetPath = CreateAsset("Models/Pending.fbx");
+        using EditorAssetIdentityIndex index = CreateIndex();
+        index.Initialize();
+        long batchId = EditorProjectWriteGeneration.BeginRepairBatch(TempRootPath, new[] { "Models/Pending.fbx" });
+        try {
+            Assert.Throws<InvalidOperationException>(() => index.ReconcileExternalChanges());
+            Assert.Throws<InvalidOperationException>(() => index.RegisterOrUpdate(assetPath));
+            Assert.Throws<InvalidOperationException>(() => index.Remove(assetPath));
+            Assert.Throws<InvalidOperationException>(() => index.MarkMetadataPresent(assetPath));
+            Assert.Throws<InvalidOperationException>(() => index.MarkMetadataMissing(assetPath));
+
+            using EditorAssetIdentityIndex unopenedIndex = CreateIndex();
+            Assert.Throws<InvalidOperationException>(() => unopenedIndex.Initialize());
+        } finally {
+            EditorProjectWriteGeneration.CancelRepairBatch(TempRootPath, batchId);
+        }
+    }
+
+    [Fact]
+    public void RegisterOrUpdate_WhenNewExternalCopyClaimsCurrentId_RekeysCopyIncrementally() {
+        string ownerPath = CreateAsset("Models/Owner.fbx");
+        string copyPath = CreateAsset("Models/Copy.fbx");
+        const string copiedId = "00112233445566778899aabbccddeeff";
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        metadata.Save(ownerPath, new AssetIdentityMetadataDocument { AssetId = copiedId });
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(
+            TempRootPath,
+            null,
+            null,
+            null,
+            catalog,
+            report);
+        index.Initialize();
+        metadata.Save(copyPath, new AssetIdentityMetadataDocument { AssetId = copiedId });
+
+        EditorAssetIdentityEntry copy = index.RegisterOrUpdate(copyPath);
+
+        EditorAssetIdentityEntry owner = index.FindByPath("Models/Owner.fbx");
+        Assert.Equal(1, catalog.EnumerationCount);
+        Assert.Equal(copiedId, owner.AssetId);
+        Assert.NotEqual(copiedId, copy.AssetId);
+        Assert.Contains(copiedId, copy.FormerAssetIds);
+        Assert.Single(index.FindByAssetId(copy.AssetId, AssetEntryKind.Model));
+        Assert.Contains(report.Records, repair =>
+            repair.Kind == EditorAssetRepairKind.DuplicateIdReassignment &&
+            repair.RelativePath == "Models/Copy.fbx");
+    }
+
+    [Fact]
+    public void RegisterOrUpdate_WhenNewNativeCopyClaimsCurrentId_RekeysCopyIncrementallyWithoutSidecar() {
+        string ownerPath = CreateNativeAnimation("Animations/Owner.hanim", "aabbccddeeff00112233445566778899");
+        string copyPath = Path.Combine(TempRootPath, "assets", "Animations", "Copy.hanim");
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(
+            TempRootPath,
+            null,
+            null,
+            null,
+            new CountingAssetFileCatalog(),
+            report);
+        index.Initialize();
+        File.Copy(ownerPath, copyPath);
+
+        EditorAssetIdentityEntry copy = index.RegisterOrUpdate(copyPath);
+
+        EditorAssetIdentityEntry owner = index.FindByPath("Animations/Owner.hanim");
+        Assert.Equal("aabbccddeeff00112233445566778899", owner.AssetId);
+        Assert.NotEqual(owner.AssetId, copy.AssetId);
+        Assert.Contains(owner.AssetId, copy.FormerAssetIds);
+        Assert.Single(index.FindByAssetId(copy.AssetId, AssetEntryKind.File));
+        Assert.False(File.Exists(copyPath + ".hmeta"));
+        Assert.Contains(report.Records, repair =>
+            repair.Kind == EditorAssetRepairKind.DuplicateIdReassignment &&
+            repair.RelativePath == "Animations/Copy.hanim");
+    }
+
     /// <summary>
     /// Ensures a mid-batch repair failure rolls every applied identity mutation back before exposing the index.
     /// </summary>

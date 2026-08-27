@@ -4,10 +4,6 @@ namespace helengine.editor {
     /// </summary>
     internal interface IEditorAssetReadSynchronizer {
         TResult Execute<TResult>(Func<TResult> read);
-
-        long PublishChange(string relativePath);
-
-        void MarkPublishedChangeApplied(long generation);
     }
 
     /// <summary>
@@ -141,25 +137,6 @@ namespace helengine.editor {
         /// </summary>
         TResult IEditorAssetReadSynchronizer.Execute<TResult>(Func<TResult> read) {
             return ExecuteSynchronizedRead(read);
-        }
-
-        /// <summary>
-        /// Publishes one metadata repair path while the current read boundary owns the project lock.
-        /// </summary>
-        public long PublishChange(string relativePath) {
-            if (!ReadBoundaryHeld.Value) {
-                throw new InvalidOperationException("Repair publication requires the project read boundary.");
-            }
-            return ChangeLog.PublishChange(relativePath);
-        }
-
-        /// <summary>
-        /// Advances this writer after local index and hash bookkeeping has completed.
-        /// </summary>
-        public void MarkPublishedChangeApplied(long generation) {
-            if (generation > LastObservedGeneration) {
-                LastObservedGeneration = generation;
-            }
         }
 
         /// <summary>
@@ -357,10 +334,10 @@ namespace helengine.editor {
                     bool metadataWasMissing = IdentityIndex.WasMetadataMissing(fullPath);
                     IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
                     if (metadataWasMissing) {
-                        IdentityIndex.MarkMetadataMissing(fullPath);
+                        IdentityIndex.MarkMetadataMissingUnderLock(fullPath);
                     }
                 } else {
-                    IdentityIndex.Remove(fullPath);
+                    IdentityIndex.RemoveUnderLock(fullPath);
                 }
                 HashCache.InvalidateContentHash(fullPath);
                 LastObservedGeneration = change.Generation;

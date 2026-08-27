@@ -149,11 +149,12 @@ namespace helengine.editor {
         /// </summary>
         public void Initialize() {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
             if (IsInitialized) {
                 return;
             }
 
-            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
             ReconcileCore();
             IsInitialized = true;
         }
@@ -163,8 +164,9 @@ namespace helengine.editor {
         /// </summary>
         public void ReconcileExternalChanges() {
             EnsureNotDisposed();
-            EnsureInitialized();
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
+            EnsureInitialized();
             ReconcileCore();
         }
 
@@ -174,6 +176,7 @@ namespace helengine.editor {
         internal void ReconcileExternalChangesUnderLock() {
             EnsureNotDisposed();
             EnsureInitialized();
+            EnsurePublicationAvailableUnderLock();
             ReconcileCore();
         }
 
@@ -184,6 +187,8 @@ namespace helengine.editor {
         /// <returns>True when external metadata was absent at reconciliation time.</returns>
         internal bool WasMetadataMissing(string fullPath) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
             return !string.IsNullOrWhiteSpace(fullPath) && MissingMetadataPaths.Contains(Path.GetFullPath(fullPath));
         }
 
@@ -193,6 +198,8 @@ namespace helengine.editor {
         /// <returns>Independent set of paths with missing metadata.</returns>
         internal HashSet<string> CopyMissingMetadataPaths() {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
             return new HashSet<string>(MissingMetadataPaths, PathComparer);
         }
 
@@ -202,6 +209,8 @@ namespace helengine.editor {
         internal EditorAssetHashCache HashCacheValue {
             get {
                 EnsureNotDisposed();
+                using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+                EnsurePublicationAvailableUnderLock();
                 return HashCache;
             }
         }
@@ -234,6 +243,7 @@ namespace helengine.editor {
         /// Reconciles the current authored-file snapshot and rebuilds all lookup maps.
         /// </summary>
         void ReconcileCore() {
+            EnsurePublicationAvailableUnderLock();
             HashSet<string> previousMissingMetadataPaths = new HashSet<string>(MissingMetadataPaths, PathComparer);
             Dictionary<string, string> previousOwners = new Dictionary<string, string>(PreviousOwners, StringComparer.Ordinal);
             try {
@@ -363,6 +373,8 @@ namespace helengine.editor {
         /// <returns>Matching entry, or null when absent.</returns>
         public EditorAssetIdentityEntry FindByPath(string relativePath) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
             if (string.IsNullOrWhiteSpace(relativePath)) {
                 return null;
             }
@@ -379,6 +391,8 @@ namespace helengine.editor {
         /// <returns>Matching indexed entries.</returns>
         public IReadOnlyList<EditorAssetIdentityEntry> FindByAssetId(string assetId, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
             List<EditorAssetIdentityEntry> matches = new List<EditorAssetIdentityEntry>();
             if (string.IsNullOrWhiteSpace(assetId)) {
                 return matches;
@@ -405,6 +419,8 @@ namespace helengine.editor {
         /// <returns>Sorted compatible entries.</returns>
         public IReadOnlyList<EditorAssetIdentityEntry> EnumerateCompatible(AssetEntryKind expectedKind) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
             return EntriesByPath.Values
                 .Where(entry => entry.EntryKind == expectedKind)
                 .OrderBy(entry => entry.RelativePath, PathComparer)
@@ -418,6 +434,8 @@ namespace helengine.editor {
         /// <returns>True when the current UUID is indexed.</returns>
         public bool IsCurrentAssetIdOwned(string assetId) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
             return !string.IsNullOrWhiteSpace(assetId) && EntriesByAssetId.ContainsKey(assetId);
         }
 
@@ -429,6 +447,20 @@ namespace helengine.editor {
         /// <returns>True when the path is the remembered owner.</returns>
         internal bool IsRecordedOwner(string assetId, string relativePath) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
+            return IsRecordedOwnerUnderLock(assetId, relativePath);
+        }
+
+        /// <summary>
+        /// Determines recorded ownership while the caller owns the project publication lock.
+        /// </summary>
+        /// <param name="assetId">Identity to inspect.</param>
+        /// <param name="relativePath">Normalized relative path to compare.</param>
+        /// <returns>True when the path is the remembered owner.</returns>
+        internal bool IsRecordedOwnerUnderLock(string assetId, string relativePath) {
+            EnsureNotDisposed();
+            EnsurePublicationAvailableUnderLock();
             if (string.IsNullOrWhiteSpace(assetId) || string.IsNullOrWhiteSpace(relativePath)) {
                 return false;
             }
@@ -442,6 +474,18 @@ namespace helengine.editor {
         /// </summary>
         internal void MarkMetadataPresent(string fullPath) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
+            MarkMetadataPresentUnderLock(fullPath);
+        }
+
+        /// <summary>
+        /// Marks one metadata path complete while the caller owns the project publication lock.
+        /// </summary>
+        /// <param name="fullPath">Absolute authored asset path.</param>
+        internal void MarkMetadataPresentUnderLock(string fullPath) {
+            EnsureNotDisposed();
+            EnsurePublicationAvailableUnderLock();
             if (!string.IsNullOrWhiteSpace(fullPath)) {
                 MissingMetadataPaths.Remove(Path.GetFullPath(fullPath));
             }
@@ -453,6 +497,18 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute authored asset path.</param>
         internal void MarkMetadataMissing(string fullPath) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
+            MarkMetadataMissingUnderLock(fullPath);
+        }
+
+        /// <summary>
+        /// Retains one metadata path as missing while the caller owns the project publication lock.
+        /// </summary>
+        /// <param name="fullPath">Absolute authored asset path.</param>
+        internal void MarkMetadataMissingUnderLock(string fullPath) {
+            EnsureNotDisposed();
+            EnsurePublicationAvailableUnderLock();
             if (!string.IsNullOrWhiteSpace(fullPath)) {
                 MissingMetadataPaths.Add(Path.GetFullPath(fullPath));
             }
@@ -465,6 +521,19 @@ namespace helengine.editor {
         /// <returns>True when one indexed asset claims the identity.</returns>
         internal bool IsAnyAssetIdentityClaimed(string assetId) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
+            return IsAnyAssetIdentityClaimedUnderLock(assetId);
+        }
+
+        /// <summary>
+        /// Determines whether an identity is claimed while the caller owns the project publication lock.
+        /// </summary>
+        /// <param name="assetId">Identity to inspect.</param>
+        /// <returns>True when one indexed asset claims the identity.</returns>
+        internal bool IsAnyAssetIdentityClaimedUnderLock(string assetId) {
+            EnsureNotDisposed();
+            EnsurePublicationAvailableUnderLock();
             return !string.IsNullOrWhiteSpace(assetId) && EntriesByLookupIdentity.ContainsKey(assetId);
         }
 
@@ -477,13 +546,14 @@ namespace helengine.editor {
         /// <returns>True when this call performed the adoption; false when another asset claimed the identity.</returns>
         internal bool TryAdoptSavedAssetIdUnderLock(string fullPath, string requestedAssetId, EditorAssetRepairRecord repair) {
             EnsureNotDisposed();
+            EnsurePublicationAvailableUnderLock();
             string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
             EnsureInitialized();
             ValidateNoReparseTraversal(normalizedFullPath);
             if (PathClassifier.UsesEmbeddedIdentity(normalizedFullPath)) {
                 throw new InvalidOperationException($"Native asset '{fullPath}' owns embedded identity and cannot adopt a saved external identity.");
             }
-            if (IsAnyAssetIdentityClaimed(requestedAssetId)) {
+            if (IsAnyAssetIdentityClaimedUnderLock(requestedAssetId)) {
                 return false;
             }
 
@@ -510,10 +580,10 @@ namespace helengine.editor {
         /// <returns>Current indexed entry for the path.</returns>
         public EditorAssetIdentityEntry RegisterOrUpdate(string fullPath) {
             EnsureNotDisposed();
-            string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
-            EnsureInitialized();
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
-            return RegisterOrUpdateUnderLock(normalizedFullPath);
+            EnsurePublicationAvailableUnderLock();
+            EnsureInitialized();
+            return RegisterOrUpdateUnderLock(fullPath);
         }
 
         /// <summary>
@@ -523,6 +593,7 @@ namespace helengine.editor {
         /// <returns>Current indexed entry for the path.</returns>
         internal EditorAssetIdentityEntry RegisterOrUpdateUnderLock(string fullPath) {
             EnsureNotDisposed();
+            EnsurePublicationAvailableUnderLock();
             string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
             EnsureInitialized();
             ValidateNoReparseTraversal(normalizedFullPath);
@@ -534,25 +605,101 @@ namespace helengine.editor {
             EntriesByPath.TryGetValue(relativePath, out existingEntry);
             bool metadataCreated;
             AssetIdentityMetadataDocument document = LoadIdentityMetadataForReconciliation(normalizedFullPath, out metadataCreated);
+            List<PendingIdentityRepair> pendingRepairs = new List<PendingIdentityRepair>();
             if (metadataCreated) {
-                ApplyRepairBatch(new[] {
-                    new PendingIdentityRepair(
-                        AssetsRootPath,
-                        normalizedFullPath,
-                        document,
-                        new EditorAssetRepairRecord(
-                            EditorAssetRepairKind.MissingExternalMetadataCreation,
-                            relativePath,
-                            string.Empty,
-                            document.AssetId,
-                            null,
-                            "external identity document was missing",
-                            normalizedFullPath + ".hmeta",
-                            "Created missing external asset identity metadata."))
-                });
+                pendingRepairs.Add(new PendingIdentityRepair(
+                    AssetsRootPath,
+                    normalizedFullPath,
+                    document,
+                    new EditorAssetRepairRecord(
+                        EditorAssetRepairKind.MissingExternalMetadataCreation,
+                        relativePath,
+                        string.Empty,
+                        document.AssetId,
+                        null,
+                        "external identity document was missing",
+                        normalizedFullPath + ".hmeta",
+                        "Created missing external asset identity metadata.")));
+            }
+
+            Dictionary<string, AssetIdentityMetadataDocument> repairedDocuments = new Dictionary<string, AssetIdentityMetadataDocument>(PathComparer);
+            string incomingAssetId = document.AssetId;
+            string retainedOwnerPath = null;
+            List<EditorAssetIdentityEntry> currentOwners;
+            if (EntriesByAssetId.TryGetValue(incomingAssetId, out currentOwners)) {
+                List<IncrementalIdentityCandidate> candidates = currentOwners
+                    .Where(entry => !string.Equals(entry.FullPath, normalizedFullPath, PathComparison))
+                    .Select(entry => new IncrementalIdentityCandidate(entry.FullPath, entry.RelativePath, CreateDocument(entry), false))
+                    .ToList();
+                if (candidates.Count > 0) {
+                    candidates.Add(new IncrementalIdentityCandidate(normalizedFullPath, relativePath, CloneDocument(document), true));
+                    IncrementalIdentityCandidate owner = SelectIncrementalOwner(incomingAssetId, candidates, out bool selectedByRecordedOwner);
+                    retainedOwnerPath = owner.RelativePath;
+                    HashSet<string> usedIds = new HashSet<string>(EntriesByAssetId.Keys, StringComparer.Ordinal) {
+                        incomingAssetId
+                    };
+                    for (int index = 0; index < candidates.Count; index++) {
+                        IncrementalIdentityCandidate candidate = candidates[index];
+                        if (ReferenceEquals(candidate, owner)) {
+                            continue;
+                        }
+
+                        AssetIdentityMetadataDocument repairedDocument = CloneDocument(candidate.Document);
+                        if (!repairedDocument.FormerAssetIds.Contains(incomingAssetId, StringComparer.Ordinal)) {
+                            repairedDocument.FormerAssetIds.Add(incomingAssetId);
+                        }
+                        string replacementId = CreateUnusedAssetId(usedIds);
+                        repairedDocument.AssetId = replacementId;
+                        usedIds.Add(replacementId);
+                        repairedDocuments[candidate.FullPath] = repairedDocument;
+                        pendingRepairs.Add(new PendingIdentityRepair(
+                            AssetsRootPath,
+                            candidate.FullPath,
+                            repairedDocument,
+                            new EditorAssetRepairRecord(
+                                EditorAssetRepairKind.DuplicateIdReassignment,
+                                candidate.RelativePath,
+                                incomingAssetId,
+                                replacementId,
+                                null,
+                                SelectIncrementalOwnerEvidence(owner, selectedByRecordedOwner),
+                                PathClassifier.UsesEmbeddedIdentity(candidate.FullPath)
+                                    ? candidate.FullPath
+                                    : candidate.FullPath + ".hmeta",
+                                "Reassigned copied identity to the non-owning asset.")));
+                    }
+
+                    if (repairedDocuments.TryGetValue(normalizedFullPath, out AssetIdentityMetadataDocument repairedIncomingDocument)) {
+                        document = repairedIncomingDocument;
+                    }
+                }
+            }
+
+            ApplyRepairBatch(pendingRepairs);
+            if (metadataCreated) {
                 MissingMetadataPaths.Add(normalizedFullPath);
             } else {
                 MissingMetadataPaths.Remove(normalizedFullPath);
+            }
+            if (repairedDocuments.Count > 0) {
+                foreach (KeyValuePair<string, AssetIdentityMetadataDocument> repaired in repairedDocuments) {
+                    // The incoming path is published by the final entry update below.
+                    // Do not add it here as well, or its lookup map would contain two
+                    // equivalent entry objects for one current identity.
+                    if (string.Equals(repaired.Key, normalizedFullPath, PathComparison)) {
+                        continue;
+                    }
+                    string repairedRelativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, repaired.Key));
+                    EditorAssetIdentityEntry oldEntry;
+                    if (EntriesByPath.TryGetValue(repairedRelativePath, out oldEntry)) {
+                        RemoveEntry(oldEntry);
+                    }
+                    AddEntry(CreateEntry(repaired.Key, repaired.Value));
+                    PreviousOwners[repaired.Value.AssetId] = repairedRelativePath;
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(retainedOwnerPath)) {
+                PreviousOwners[incomingAssetId] = retainedOwnerPath;
             }
             EditorAssetIdentityEntry entry = CreateEntry(normalizedFullPath, document);
             if (existingEntry != null) {
@@ -572,6 +719,19 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute authored asset path.</param>
         public void Remove(string fullPath) {
             EnsureNotDisposed();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EnsurePublicationAvailableUnderLock();
+            EnsureInitialized();
+            RemoveUnderLock(fullPath);
+        }
+
+        /// <summary>
+        /// Removes one indexed authored path while the caller owns the project publication lock.
+        /// </summary>
+        /// <param name="fullPath">Absolute authored asset path.</param>
+        internal void RemoveUnderLock(string fullPath) {
+            EnsureNotDisposed();
+            EnsurePublicationAvailableUnderLock();
             string normalizedFullPath = NormalizeAndValidateAssetsPath(fullPath);
             EnsureInitialized();
             ValidateNoReparseTraversal(normalizedFullPath);
@@ -782,6 +942,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Creates a mutable metadata document from one indexed entry.
+        /// </summary>
+        /// <param name="entry">Indexed entry to copy.</param>
+        /// <returns>Independent metadata document.</returns>
+        static AssetIdentityMetadataDocument CreateDocument(EditorAssetIdentityEntry entry) {
+            return new AssetIdentityMetadataDocument {
+                AssetId = entry.AssetId,
+                FormerAssetIds = new List<string>(entry.FormerAssetIds ?? Array.Empty<string>())
+            };
+        }
+
+        /// <summary>
         /// Creates a UUID not currently owned by any indexed entry.
         /// </summary>
         /// <param name="usedIds">Used UUID set.</param>
@@ -792,6 +964,65 @@ namespace helengine.editor {
                 candidate = Guid.NewGuid().ToString("N");
             } while (usedIds.Contains(candidate));
             return candidate;
+        }
+
+        /// <summary>
+        /// Selects one owner for an identity discovered by incremental registration.
+        /// </summary>
+        /// <param name="assetId">Current identity claimed by the candidates.</param>
+        /// <param name="candidates">Existing and newly discovered candidates.</param>
+        /// <returns>The deterministic owner candidate.</returns>
+        IncrementalIdentityCandidate SelectIncrementalOwner(
+            string assetId,
+            IReadOnlyList<IncrementalIdentityCandidate> candidates,
+            out bool selectedByRecordedOwner) {
+            selectedByRecordedOwner = false;
+            if (PreviousOwners.TryGetValue(assetId, out string previousOwnerPath)) {
+                for (int index = 0; index < candidates.Count; index++) {
+                    if (string.Equals(candidates[index].RelativePath, previousOwnerPath, PathComparison)) {
+                        selectedByRecordedOwner = true;
+                        return candidates[index];
+                    }
+                }
+            }
+
+            return candidates
+                .OrderBy(candidate => candidate.RelativePath, PathComparer)
+                .ThenBy(candidate => candidate.RelativePath, StringComparer.Ordinal)
+                .First();
+        }
+
+        /// <summary>
+        /// Describes one existing or newly discovered identity candidate.
+        /// </summary>
+        sealed class IncrementalIdentityCandidate {
+            public IncrementalIdentityCandidate(
+                string fullPath,
+                string relativePath,
+                AssetIdentityMetadataDocument document,
+                bool isIncoming) {
+                FullPath = fullPath;
+                RelativePath = relativePath;
+                Document = document;
+                IsIncoming = isIncoming;
+            }
+
+            public string FullPath { get; }
+
+            public string RelativePath { get; }
+
+            public AssetIdentityMetadataDocument Document { get; }
+
+            public bool IsIncoming { get; }
+        }
+
+        /// <summary>
+        /// Describes the evidence used to keep one owner during incremental duplicate repair.
+        /// </summary>
+        static string SelectIncrementalOwnerEvidence(IncrementalIdentityCandidate owner, bool selectedByRecordedOwner) {
+            return selectedByRecordedOwner
+                ? $"selected recorded owner path='{owner.RelativePath}'"
+                : $"selected ordinal owner path='{owner.RelativePath}'";
         }
 
         /// <summary>
@@ -893,6 +1124,14 @@ namespace helengine.editor {
             if (!IsInitialized) {
                 throw new InvalidOperationException("The asset identity index must be initialized before incremental operations.");
             }
+        }
+
+        /// <summary>
+        /// Rejects normal index activity while an identity-repair batch is pending.
+        /// The caller must already hold the project publication lock.
+        /// </summary>
+        void EnsurePublicationAvailableUnderLock() {
+            EditorProjectWriteGeneration.Read(ProjectRootPath);
         }
 
         /// <summary>
