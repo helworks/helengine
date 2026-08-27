@@ -331,6 +331,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Returns the current project-supported platform identifiers through the host project service.
+        /// </summary>
+        public IReadOnlyList<string> GetSupportedPlatformIds() {
+            return new EditorProjectPlatformsService(ResolveProjectRootPath()).Load().SupportedPlatforms;
+        }
+
+        /// <summary>
         /// Resolves the root path used by the hidden host import manager.
         /// </summary>
         /// <returns>Absolute project root path.</returns>

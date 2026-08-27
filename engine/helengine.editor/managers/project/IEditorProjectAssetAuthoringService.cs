@@ -184,5 +184,10 @@ namespace helengine.editor {
         /// <param name="textureAsset">Loaded texture when available.</param>
         /// <returns>True when the imported texture could be loaded.</returns>
         bool TryLoadImportedTextureAsset(string assetId, out TextureAsset textureAsset);
+
+        /// <summary>
+        /// Returns the current project-supported platform identifiers for authoring decisions.
+        /// </summary>
+        IReadOnlyList<string> GetSupportedPlatformIds();
     }
 }
