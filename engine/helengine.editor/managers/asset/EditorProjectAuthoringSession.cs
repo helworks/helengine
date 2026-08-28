@@ -829,11 +829,27 @@ namespace helengine.editor {
                 return;
             }
 
-            ReferenceResolver.Dispose();
-            IdentityIndex.Dispose();
-            HashCache.Dispose();
-            NativeAssetWriteService.Dispose();
+            List<Exception> failures = new List<Exception>();
+            DisposeOwner(NativeAssetWriteService, failures);
+            DisposeOwner(HashCache, failures);
+            DisposeOwner(IdentityIndex, failures);
+            DisposeOwner(ReferenceResolver, failures);
+            if (failures.Count != 0) {
+                if (failures.Count == 1) {
+                    throw failures[0];
+                }
+                throw new AggregateException("One or more project authoring services could not be released; disposal may be retried.", failures);
+            }
+
             IsDisposed = true;
+        }
+
+        static void DisposeOwner(IDisposable owner, List<Exception> failures) {
+            try {
+                owner.Dispose();
+            } catch (Exception exception) {
+                failures.Add(exception);
+            }
         }
     }
 }

@@ -140,6 +140,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the explicit output root used by this module manager.
+        /// </summary>
+        public string PackageOutputPath => options.PackageOutputPath;
+
+        /// <summary>
         /// Starts shader file monitoring and triggers initial compilation.
         /// </summary>
         public void Start() {

@@ -769,9 +769,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the texture source file.</param>
         /// <returns>Imported <see cref="TextureAsset"/> instance.</returns>
         public TextureAsset ImportTexture(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Texture source file was not found.", sourcePath);
@@ -815,7 +813,8 @@ namespace helengine.editor {
         public bool TryGetTextureSourceDimensions(string sourcePath, out int width, out int height) {
             width = 0;
             height = 0;
-            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath)) {
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
+            if (!File.Exists(sourcePath)) {
                 return false;
             }
             if (!TryLoadOrCreateTextureImportSettings(sourcePath, out TextureAssetImportSettings settings)) {
@@ -844,9 +843,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the text source file.</param>
         /// <returns>Imported <see cref="TextAsset"/> instance.</returns>
         public TextAsset ImportText(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Text source file was not found.", sourcePath);
@@ -880,9 +877,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the font source file.</param>
         /// <returns>Imported <see cref="FontAsset"/> instance.</returns>
         public FontAsset ImportFont(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Font source file was not found.", sourcePath);
@@ -906,9 +901,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the audio source file.</param>
         /// <returns>Imported <see cref="AudioAsset"/> instance.</returns>
         public AudioAsset ImportAudio(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Audio source file was not found.", sourcePath);
@@ -945,9 +938,8 @@ namespace helengine.editor {
         /// <param name="platformId">Target platform identifier whose texture settings should be applied.</param>
         /// <returns>Imported <see cref="FontAsset"/> instance for the requested platform.</returns>
         public FontAsset BuildFontAssetForPlatform(string sourcePath, string platformId) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
+            if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
@@ -1012,9 +1004,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the model source file.</param>
         /// <returns>Imported <see cref="ModelAsset"/> instance.</returns>
         public ModelAsset ImportModel(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Model source file was not found.", sourcePath);
@@ -1141,9 +1131,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <returns>Resolved import settings.</returns>
         public AssetImportSettings LoadOrCreateImportSettings(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
@@ -1170,9 +1158,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <param name="settings">Settings to serialize.</param>
         public void SaveImportSettings(string sourcePath, AssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
@@ -1350,9 +1336,7 @@ namespace helengine.editor {
         /// <param name="asset">Loaded texture asset when available.</param>
         /// <returns>True when the source can be resolved to a texture asset.</returns>
         public bool TryLoadTextureAsset(string sourcePath, out TextureAsset asset) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Texture source file was not found.", sourcePath);
@@ -1625,9 +1609,7 @@ namespace helengine.editor {
         /// <param name="asset">Loaded text asset when available.</param>
         /// <returns>True when the source can be resolved to a text asset.</returns>
         public bool TryLoadTextAsset(string sourcePath, out TextAsset asset) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Text source file was not found.", sourcePath);
@@ -1665,9 +1647,7 @@ namespace helengine.editor {
         /// <param name="asset">Loaded font asset when available.</param>
         /// <returns>True when the source can be resolved to a font asset.</returns>
         public bool TryLoadFontAsset(string sourcePath, out FontAsset asset) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Font source file was not found.", sourcePath);
@@ -1705,9 +1685,7 @@ namespace helengine.editor {
         /// <param name="asset">Loaded audio asset when available.</param>
         /// <returns>True when the source can be resolved to an audio asset.</returns>
         public bool TryLoadAudioAsset(string sourcePath, out AudioAsset asset) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Audio source file was not found.", sourcePath);
@@ -1745,9 +1723,7 @@ namespace helengine.editor {
         /// <param name="asset">Loaded model asset when available.</param>
         /// <returns>True when the source can be resolved to a model asset.</returns>
         public bool TryLoadModelAsset(string sourcePath, out ModelAsset asset) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             if (!File.Exists(sourcePath)) {
                 throw new FileNotFoundException("Model source file was not found.", sourcePath);
@@ -2200,9 +2176,7 @@ namespace helengine.editor {
         /// <param name="settings">Resolved settings when available; null when no default importer exists.</param>
         /// <returns>True when settings could be resolved for the source file.</returns>
         public bool TryLoadOrCreateImportSettings(string sourcePath, out AssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
@@ -2622,9 +2596,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <returns>Resolved typed texture import settings.</returns>
         public TextureAssetImportSettings LoadOrCreateTextureImportSettings(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
@@ -2655,9 +2627,8 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <param name="settings">Settings to serialize.</param>
         public void SaveTextureImportSettings(string sourcePath, TextureAssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            } else if (settings == null) {
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
+            if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
 
@@ -2672,9 +2643,7 @@ namespace helengine.editor {
         /// <param name="settings">Resolved settings when available.</param>
         /// <returns>True when settings could be resolved for the source file.</returns>
         public bool TryLoadOrCreateTextureImportSettings(string sourcePath, out TextureAssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
@@ -2701,9 +2670,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <returns>Resolved typed model import settings.</returns>
         public ModelAssetImportSettings LoadOrCreateModelImportSettings(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
@@ -2734,9 +2701,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <returns>Resolved typed audio import settings.</returns>
         public AudioAssetImportSettings LoadOrCreateAudioImportSettings(string sourcePath) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
@@ -2767,9 +2732,8 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <param name="settings">Settings to serialize.</param>
         public void SaveModelImportSettings(string sourcePath, ModelAssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            } else if (settings == null) {
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
+            if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
 
@@ -2783,9 +2747,8 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the source file.</param>
         /// <param name="settings">Settings to serialize.</param>
         public void SaveAudioImportSettings(string sourcePath, AudioAssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            } else if (settings == null) {
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
+            if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
 
@@ -2800,9 +2763,7 @@ namespace helengine.editor {
         /// <param name="settings">Resolved settings when available.</param>
         /// <returns>True when settings could be resolved for the source file.</returns>
         public bool TryLoadOrCreateModelImportSettings(string sourcePath, out ModelAssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
@@ -2830,9 +2791,7 @@ namespace helengine.editor {
         /// <param name="settings">Resolved settings when available.</param>
         /// <returns>True when settings could be resolved for the source file.</returns>
         public bool TryLoadOrCreateAudioImportSettings(string sourcePath, out AudioAssetImportSettings settings) {
-            if (string.IsNullOrWhiteSpace(sourcePath)) {
-                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
-            }
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
 
             string settingsPath = GetSettingsPath(sourcePath);
             bool settingsFileExists = File.Exists(settingsPath);
@@ -4777,6 +4736,19 @@ namespace helengine.editor {
                 !candidate.StartsWith(root + Path.DirectorySeparatorChar, comparison)) {
                 throw new InvalidDataException($"{description} path '{candidatePath}' escapes root '{rootPath}'.");
             }
+        }
+
+        string NormalizeAndValidateAuthoredSourcePath(string sourcePath) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+
+            string normalizedPath = Path.IsPathRooted(sourcePath)
+                ? Path.GetFullPath(sourcePath)
+                : Path.GetFullPath(Path.Combine(assetsRootPath, sourcePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar)));
+            EnsurePathBeneathRoot(assetsRootPath, normalizedPath, "Authored source");
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(normalizedPath, projectRootPath);
+            return normalizedPath;
         }
 
         bool IsVerifiedRegularFile(string filePath) {

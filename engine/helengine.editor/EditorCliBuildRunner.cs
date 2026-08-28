@@ -55,7 +55,6 @@ namespace helengine.editor {
             core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
-            EditorProjectPaths.Initialize(bootstrap.ProjectRootPath);
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService, options.PlatformId);
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);

@@ -41,7 +41,14 @@ namespace helengine.editor {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             AssetReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             NativeAssetWriteService = nativeAssetWriteService ?? throw new ArgumentNullException(nameof(nativeAssetWriteService));
-            string projectRootPath = ResolveProjectRootPath();
+            string projectRootPath = Path.GetFullPath(AssetImportManagerValue.ProjectRootPath);
+            string expectedAssetsRootPath = Path.Combine(projectRootPath, "assets");
+            StringComparison pathComparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (!string.Equals(Path.GetFullPath(AssetImportManagerValue.AssetsRootPath), expectedAssetsRootPath, pathComparison)) {
+                throw new InvalidOperationException("The host asset import manager assets root does not belong to its canonical project root.");
+            }
             SceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(
                 AssetImportManagerValue.ContentManager,
                 projectRootPath,
@@ -211,7 +218,7 @@ namespace helengine.editor {
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
             using SceneSaveService saveService = new SceneSaveService(
-                ResolveProjectRootPath(),
+                AssetImportManagerValue.ProjectRootPath,
                 persistenceRegistry,
                 AssetReferenceResolver);
             saveService.Save(fullPath, sceneSettings, roots, authoringAssetId);
@@ -237,7 +244,7 @@ namespace helengine.editor {
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
             using BlueprintSaveService saveService = new BlueprintSaveService(
-                ResolveProjectRootPath(),
+                AssetImportManagerValue.ProjectRootPath,
                 persistenceRegistry,
                 AssetReferenceResolver);
             saveService.Save(fullPath);
@@ -257,7 +264,7 @@ namespace helengine.editor {
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
             using BlueprintSaveService saveService = new BlueprintSaveService(
-                ResolveProjectRootPath(),
+                AssetImportManagerValue.ProjectRootPath,
                 persistenceRegistry,
                 AssetReferenceResolver);
             saveService.Save(fullPath, authoringAssetId);
@@ -275,7 +282,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(asset));
             }
 
-            string projectRootPath = ResolveProjectRootPath();
+            string projectRootPath = Path.GetFullPath(AssetImportManagerValue.ProjectRootPath);
             string cacheRootPath = Path.GetFullPath(Path.Combine(projectRootPath, "cache"));
             string fullPath = Path.GetFullPath(Path.Combine(cacheRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
             StringComparison comparison = OperatingSystem.IsWindows()
@@ -303,7 +310,7 @@ namespace helengine.editor {
         /// </summary>
         public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition) {
             ValidateRelativeAssetPath(relativePath);
-            new GeneratedMaterialAssetWriteService().WriteMaterial(ResolveProjectRootPath(), relativePath, definition);
+            new GeneratedMaterialAssetWriteService().WriteMaterial(AssetImportManagerValue.ProjectRootPath, relativePath, definition);
         }
 
         /// <summary>
@@ -318,7 +325,7 @@ namespace helengine.editor {
 
             definition.MaterialAsset.AuthoringAssetId = authoringAssetId;
             definition.MaterialAsset.FormerAuthoringAssetIds ??= Array.Empty<string>();
-            new GeneratedMaterialAssetWriteService().WriteMaterial(ResolveProjectRootPath(), relativePath, definition);
+            new GeneratedMaterialAssetWriteService().WriteMaterial(AssetImportManagerValue.ProjectRootPath, relativePath, definition);
         }
 
         /// <summary>
@@ -341,7 +348,7 @@ namespace helengine.editor {
             }
 
             using MemoryStream stream = new MemoryStream(
-                EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(), fullPath),
+                EditorAuthoringMutationScope.ReadAllBytes(AssetImportManagerValue.ProjectRootPath, fullPath),
                 writable: false);
             if (AssetSerializer.Deserialize(stream) is not TAsset asset) {
                 throw new InvalidOperationException($"Native asset '{relativePath}' is not a {typeof(TAsset).Name}.");
@@ -364,21 +371,7 @@ namespace helengine.editor {
         /// Returns the current project-supported platform identifiers through the host project service.
         /// </summary>
         public IReadOnlyList<string> GetSupportedPlatformIds() {
-            return new EditorProjectPlatformsService(ResolveProjectRootPath()).Load().SupportedPlatforms;
-        }
-
-        /// <summary>
-        /// Resolves the root path used by the hidden host import manager.
-        /// </summary>
-        /// <returns>Absolute project root path.</returns>
-        string ResolveProjectRootPath() {
-            string assetsRootPath = AssetImportManagerValue.AssetsRootPath;
-            string projectRootPath = Path.GetDirectoryName(assetsRootPath);
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new InvalidOperationException("The host asset import manager does not expose a project root path.");
-            }
-
-            return Path.GetFullPath(projectRootPath);
+            return new EditorProjectPlatformsService(AssetImportManagerValue.ProjectRootPath).Load().SupportedPlatforms;
         }
 
         /// <summary>

@@ -619,7 +619,6 @@ namespace helengine.editor {
             EditorComponentAddCatalog.Initialize();
             core.Input.SetKeyboardActive(true);
 
-            EditorProjectPaths.Initialize(this.projectPath);
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(ShaderBackends);
 
             assetImportManager = InitializeAssetImports(Importers);

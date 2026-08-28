@@ -15,6 +15,10 @@ namespace helengine.editor {
         /// Content manager used to load serialized shader packages.
         /// </summary>
         static ContentManager PackageContentManager;
+        /// <summary>
+        /// Package output root owned by the initialized module manager.
+        /// </summary>
+        static string ShaderCachePath;
 
         /// <summary>
         /// Initializes the shader package service with the active module manager.
@@ -33,6 +37,7 @@ namespace helengine.editor {
             ModuleManager = shaderModuleManager;
             RuntimeTarget = runtimeTarget;
             PackageContentManager = contentManager;
+            ShaderCachePath = Path.GetFullPath(shaderModuleManager.PackageOutputPath);
         }
 
         /// <summary>
@@ -49,7 +54,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Shader package service has not been initialized.");
             }
 
-            string shaderCachePath = EditorProjectPaths.ShaderCache;
+            string shaderCachePath = ShaderCachePath;
             if (string.IsNullOrWhiteSpace(shaderCachePath)) {
                 throw new InvalidOperationException("Shader cache path has not been initialized.");
             }

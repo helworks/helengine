@@ -65,6 +65,21 @@ public sealed class EditorAssetManagerTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures browser construction never substitutes the process working
+    /// directory when a host supplies an invalid project root.
+    /// </summary>
+    [Fact]
+    public void Constructor_RequiresExistingDirectoryProjectRoot() {
+        string missingRoot = Path.Combine(TempRootPath, "missing-project");
+        string fileRoot = Path.Combine(TempRootPath, "project-file");
+        File.WriteAllText(fileRoot, "not a project directory");
+
+        Assert.ThrowsAny<Exception>(() => new EditorAssetManager(missingRoot));
+        Assert.ThrowsAny<Exception>(() => new EditorAssetManager(fileRoot));
+        Assert.Throws<ArgumentException>(() => new EditorAssetManager(null));
+    }
+
+    /// <summary>
     /// Ensures a failed owned-cache flush leaves the manager retryable instead of losing ownership state.
     /// </summary>
     [Fact]

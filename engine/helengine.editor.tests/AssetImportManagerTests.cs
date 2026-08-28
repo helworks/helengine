@@ -67,6 +67,92 @@ namespace helengine.editor.tests {
             }
         }
 
+        /// <summary>
+        /// Ensures every authored-source entry point rejects a rooted path
+        /// outside the authoritative assets tree before probing or creating
+        /// adjacent settings.
+        /// </summary>
+        [Fact]
+        public void AuthoredSourceApis_WhenPathIsOutsideAssets_RejectBeforeAnyProbeOrMutation() {
+            string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-import-outside-api-tests-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(outsideRoot);
+            string outsidePath = Path.Combine(outsideRoot, "outside.png");
+            string missingOutsidePath = Path.Combine(outsideRoot, "missing.png");
+            File.WriteAllBytes(outsidePath, new byte[] { 1, 2, 3 });
+            AssetImportManager manager = CreateManager();
+            try {
+                Assert.ThrowsAny<Exception>(() => manager.ImportTexture(outsidePath));
+                Assert.ThrowsAny<Exception>(() => manager.ImportFont(outsidePath));
+                Assert.ThrowsAny<Exception>(() => manager.ImportAudio(outsidePath));
+                Assert.ThrowsAny<Exception>(() => manager.ImportModel(outsidePath));
+                Assert.ThrowsAny<Exception>(() => manager.TryGetTextureSourceDimensions(outsidePath, out _, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadTextureAsset(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadTextAsset(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadFontAsset(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadAudioAsset(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadModelAsset(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.LoadOrCreateImportSettings(outsidePath));
+                Assert.ThrowsAny<Exception>(() => manager.LoadOrCreateTextureImportSettings(outsidePath));
+                Assert.ThrowsAny<Exception>(() => manager.LoadOrCreateModelImportSettings(outsidePath));
+                Assert.ThrowsAny<Exception>(() => manager.LoadOrCreateAudioImportSettings(outsidePath));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadOrCreateImportSettings(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadOrCreateTextureImportSettings(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadOrCreateModelImportSettings(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadOrCreateAudioImportSettings(outsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadTextureAsset(missingOutsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadTextAsset(missingOutsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadFontAsset(missingOutsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadAudioAsset(missingOutsidePath, out _));
+                Assert.ThrowsAny<Exception>(() => manager.TryLoadModelAsset(missingOutsidePath, out _));
+                Assert.False(File.Exists(outsidePath + AssetImportManager.SettingsExtension));
+            } finally {
+                if (Directory.Exists(outsideRoot)) {
+                    Directory.Delete(outsideRoot, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Keeps every public source/settings entry point behind the same
+        /// authoritative path preflight before it can probe a file.
+        /// </summary>
+        [Fact]
+        public void AuthoredSourceApis_NormalizeBeforeFilesystemProbe() {
+            string source = File.ReadAllText(ResolveEditorSourcePath());
+            string[] methodNames = {
+                "ImportTexture", "TryGetTextureSourceDimensions", "ImportText", "ImportFont",
+                "ImportAudio", "BuildFontAssetForPlatform", "ImportModel", "LoadOrCreateImportSettings",
+                "SaveImportSettings", "TryLoadTextureAsset", "TryLoadTextAsset", "TryLoadFontAsset",
+                "TryLoadAudioAsset", "TryLoadModelAsset", "TryLoadOrCreateImportSettings",
+                "LoadOrCreateTextureImportSettings", "SaveTextureImportSettings",
+                "TryLoadOrCreateTextureImportSettings", "LoadOrCreateModelImportSettings",
+                "LoadOrCreateAudioImportSettings", "SaveModelImportSettings", "SaveAudioImportSettings",
+                "TryLoadOrCreateModelImportSettings", "TryLoadOrCreateAudioImportSettings"
+            };
+
+            foreach (string methodName in methodNames) {
+                int declaration = source.IndexOf("public ", source.IndexOf("class AssetImportManager", StringComparison.Ordinal), StringComparison.Ordinal);
+                while (declaration >= 0) {
+                    int nameStart = source.IndexOf(methodName + "(", declaration, StringComparison.Ordinal);
+                    int declarationEnd = source.IndexOf("\n", declaration, StringComparison.Ordinal);
+                    if (nameStart >= declaration && (declarationEnd < 0 || nameStart < declarationEnd)) {
+                        break;
+                    }
+                    int nextDeclaration = source.IndexOf("\n        public ", declaration + 1, StringComparison.Ordinal);
+                    declaration = nextDeclaration < 0 ? -1 : nextDeclaration + 1;
+                }
+
+                Assert.True(declaration >= 0, $"Could not locate public method {methodName}.");
+                int bodyStart = source.IndexOf('{', declaration);
+                int nextMethod = source.IndexOf("\n        public ", bodyStart + 1, StringComparison.Ordinal);
+                string methodBody = source.Substring(bodyStart, (nextMethod < 0 ? source.Length : nextMethod) - bodyStart);
+                int preflight = methodBody.IndexOf("NormalizeAndValidateAuthoredSourcePath(sourcePath)", StringComparison.Ordinal);
+                int probe = methodBody.IndexOf("File.Exists(sourcePath)", StringComparison.Ordinal);
+                Assert.True(preflight >= 0, $"{methodName} must normalize sourcePath before any operation.");
+                Assert.True(probe < 0 || preflight < probe, $"{methodName} probes sourcePath before normalization.");
+            }
+        }
+
         [Fact]
         public void SaveImportSettings_RoundTripsPlatformFontTextureSettingsThroughVerifiedLeaves() {
             string sourcePath = WriteSourceFont("round-trip-font.ttf");
@@ -994,6 +1080,25 @@ namespace helengine.editor.tests {
             string sourcePath = Path.Combine(AssetsRootPath, fileName);
             File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
             return sourcePath;
+        }
+
+        static string ResolveEditorSourcePath() {
+            string currentPath = AppContext.BaseDirectory;
+            while (!string.IsNullOrWhiteSpace(currentPath)) {
+                string candidate = Path.Combine(currentPath, "engine", "helengine.editor", "managers", "asset", "AssetImportManager.cs");
+                if (File.Exists(candidate)) {
+                    return candidate;
+                }
+
+                DirectoryInfo parent = Directory.GetParent(currentPath);
+                if (parent == null) {
+                    break;
+                }
+
+                currentPath = parent.FullName;
+            }
+
+            throw new InvalidOperationException("Could not locate the AssetImportManager source file.");
         }
 
         /// <summary>

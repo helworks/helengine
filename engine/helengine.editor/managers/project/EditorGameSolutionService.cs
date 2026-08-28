@@ -659,7 +659,6 @@ namespace helengine.editor {
         /// </summary>
         public bool HasCodeModules {
             get {
-                EditorProjectPaths.Initialize(ProjectRootPath);
                 return CodeModuleManifestService.Load().Modules.Length > 0;
             }
         }
@@ -669,7 +668,6 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Generated code solution description.</returns>
         EditorGeneratedCodeSolution BuildGeneratedCodeSolution() {
-            EditorProjectPaths.Initialize(ProjectRootPath);
             EditorCodeModuleManifestDocument manifestDocument = CodeModuleManifestService.Load();
             if (string.IsNullOrWhiteSpace(GeneratedOutputRootPath)) {
                 return GeneratedCodeSolutionBuilder.Build(ProjectRootPath, manifestDocument);

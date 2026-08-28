@@ -164,7 +164,7 @@ namespace helengine.editor {
         /// <param name="identityIndex">Borrowed shared identity index, or null for metadata-only browsing.</param>
         void Initialize(string projectPath, EditorAssetHashCache hashCache, EditorAssetIdentityIndex identityIndexValue) {
             assetsRootPath = ResolveAssetsRoot(projectPath);
-            projectRootPath = Path.GetDirectoryName(assetsRootPath) ?? Directory.GetCurrentDirectory();
+            projectRootPath = Path.GetFullPath(projectPath);
             currentRelativePath = string.Empty;
             pathClassifier = new EditorAssetPathClassifier(projectRootPath);
             identityMetadataService = new AssetIdentityMetadataService(projectRootPath);
@@ -405,24 +405,20 @@ namespace helengine.editor {
         /// <param name="projectPath">Path to the project root.</param>
         /// <returns>Absolute assets folder path.</returns>
         string ResolveAssetsRoot(string projectPath) {
-            string rootPath = projectPath;
-            if (string.IsNullOrWhiteSpace(rootPath)) {
-                rootPath = Directory.GetCurrentDirectory();
-            } else {
-                try {
-                    rootPath = Path.GetFullPath(rootPath);
-                } catch {
-                    rootPath = Directory.GetCurrentDirectory();
-                }
+            if (string.IsNullOrWhiteSpace(projectPath)) {
+                throw new ArgumentException("An existing project root path must be provided.", nameof(projectPath));
             }
 
+            string rootPath = Path.GetFullPath(projectPath);
             if (File.Exists(rootPath)) {
-                rootPath = Path.GetDirectoryName(rootPath) ?? Directory.GetCurrentDirectory();
+                throw new ArgumentException("The project root path must name a directory.", nameof(projectPath));
             }
 
             if (!Directory.Exists(rootPath)) {
-                rootPath = Directory.GetCurrentDirectory();
+                throw new DirectoryNotFoundException($"The project root '{rootPath}' does not exist.");
             }
+
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(rootPath, rootPath);
 
             string assetsPath = Path.Combine(rootPath, AssetsFolderName);
             if (!Directory.Exists(assetsPath)) {
