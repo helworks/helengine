@@ -23,15 +23,27 @@ namespace helengine.editor {
     }
 
     /// <summary>
+    /// Selects whether teardown is a best-effort construction abort or a
+    /// dependency-aware live session disposal.
+    /// </summary>
+    internal enum EditorSessionCleanupMode {
+        LiveDispose,
+        ConstructionAbort
+    }
+
+    /// <summary>
     /// Groups editor-session teardown actions so detachment and process-wide
     /// state reset always run before owned resources are released.
     /// </summary>
     internal enum EditorSessionCleanupPhase {
         Dispose = 0,
         OwnedState = 1,
-        Panel = 2,
-        Reset = 3,
-        Detach = 4
+        OwnedPendingAssetFlush = 2,
+        OwnedSceneEntities = 3,
+        OwnedSceneUntrack = 4,
+        Panel = 5,
+        Reset = 6,
+        Detach = 7
     }
 
     /// <summary>
@@ -96,14 +108,24 @@ namespace helengine.editor {
         internal bool HasTransferredOwnership => Transferred;
 
         /// <summary>
-        /// Attempts every unresolved entry. Higher-priority phases run first,
-        /// while entries within a phase retain reverse acquisition order.
+        /// Disposes using the dependency-aware live-session policy.
         /// </summary>
         internal void Dispose() {
+            Dispose(EditorSessionCleanupMode.LiveDispose);
+        }
+
+        /// <summary>
+        /// Attempts unresolved entries according to the selected lifecycle
+        /// policy. Construction aborts attempt every phase; live disposal
+        /// stops at the first phase that still has a failure so lower-level
+        /// dependencies remain available for retry.
+        /// </summary>
+        internal void Dispose(EditorSessionCleanupMode mode) {
             List<Exception> failures = new List<Exception>();
             int cleanupActionIndex = 0;
             for (int phaseValue = (int)EditorSessionCleanupPhase.Detach; phaseValue >= (int)EditorSessionCleanupPhase.Dispose; phaseValue--) {
                 EditorSessionCleanupPhase phase = (EditorSessionCleanupPhase)phaseValue;
+                int failuresBeforePhase = failures.Count;
                 for (int index = CleanupEntries.Count - 1; index >= 0; index--) {
                     CleanupEntry entry = CleanupEntries[index];
                     if (entry.Completed || entry.Phase != phase) {
@@ -117,6 +139,10 @@ namespace helengine.editor {
                     } catch (Exception exception) {
                         failures.Add(exception);
                     }
+                }
+
+                if (mode == EditorSessionCleanupMode.LiveDispose && failures.Count > failuresBeforePhase) {
+                    break;
                 }
             }
             if (failures.Count == 1) {

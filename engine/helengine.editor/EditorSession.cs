@@ -854,14 +854,18 @@ namespace helengine.editor {
             // disposal while still allowing detachers, resets, and panels to
             // finish first. Each action remains independently retryable in
             // the shared ledger.
-            constructionLedger.Register(UntrackCurrentSceneFromSceneManager, EditorSessionCleanupPhase.OwnedState);
-            constructionLedger.Register(DisposeUserSceneEntitiesForTeardown, EditorSessionCleanupPhase.OwnedState);
-            constructionLedger.Register(FlushPendingOwnedAssetReleases, EditorSessionCleanupPhase.OwnedState);
+            // These entries are registered in reverse desired execution order
+            // because each phase executes its entries LIFO. The separate
+            // phases also keep a failed scene-entity cleanup from releasing
+            // pending/current assets before the next retry.
             constructionLedger.Register(() => {
                 if (CurrentSceneOwnedAssets != null) {
                     ReleaseCurrentSceneOwnedAssets();
                 }
             }, EditorSessionCleanupPhase.OwnedState);
+            constructionLedger.Register(FlushPendingOwnedAssetReleases, EditorSessionCleanupPhase.OwnedPendingAssetFlush);
+            constructionLedger.Register(DisposeUserSceneEntitiesForTeardown, EditorSessionCleanupPhase.OwnedSceneEntities);
+            constructionLedger.Register(UntrackCurrentSceneFromSceneManager, EditorSessionCleanupPhase.OwnedSceneUntrack);
             RefreshSceneDirtyState();
             // Register the detach action before acquiring the first event
             // subscription. Partial construction can therefore unwind even if
@@ -980,7 +984,7 @@ namespace helengine.editor {
             constructionLedger.TransferOwnership();
             } catch (Exception primaryException) {
                 try {
-                    constructionLedger.Dispose();
+                    constructionLedger.Dispose(EditorSessionCleanupMode.ConstructionAbort);
                 } catch (Exception cleanupException) {
                     List<Exception> failures = new List<Exception> { primaryException };
                     if (cleanupException is AggregateException aggregateCleanupException) {
@@ -1943,14 +1947,16 @@ namespace helengine.editor {
             ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);
             RegisterCurrentScaleSensitiveDialogCleanup(ledger);
             ledger.Register(() => shaderModuleManager?.Dispose(), EditorSessionCleanupPhase.Dispose);
-            ledger.Register(UntrackCurrentSceneFromSceneManager, EditorSessionCleanupPhase.OwnedState);
-            ledger.Register(DisposeUserSceneEntitiesForTeardown, EditorSessionCleanupPhase.OwnedState);
-            ledger.Register(FlushPendingOwnedAssetReleases, EditorSessionCleanupPhase.OwnedState);
+            // Keep fallback fixtures on the same ordered, dependency-aware
+            // scene teardown graph as the fully initialized session.
             ledger.Register(() => {
                 if (CurrentSceneOwnedAssets != null) {
                     ReleaseCurrentSceneOwnedAssets();
                 }
             }, EditorSessionCleanupPhase.OwnedState);
+            ledger.Register(FlushPendingOwnedAssetReleases, EditorSessionCleanupPhase.OwnedPendingAssetFlush);
+            ledger.Register(DisposeUserSceneEntitiesForTeardown, EditorSessionCleanupPhase.OwnedSceneEntities);
+            ledger.Register(UntrackCurrentSceneFromSceneManager, EditorSessionCleanupPhase.OwnedSceneUntrack);
             ledger.Register(() => assetBrowserPanel?.DisposeAuthoringResources(), EditorSessionCleanupPhase.Dispose);
             ledger.Register(() => sceneAssetReferenceResolver?.Dispose(), EditorSessionCleanupPhase.Dispose);
             ledger.Register(() => SceneSaveService?.Dispose(), EditorSessionCleanupPhase.Dispose);

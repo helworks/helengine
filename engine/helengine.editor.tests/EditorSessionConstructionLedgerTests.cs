@@ -84,7 +84,7 @@ public sealed class EditorSessionConstructionLedgerTests {
         ledger.Dispose();
 
         Assert.Equal(
-            new[] { "second-detacher", "first-detacher", "publisher", "first-detacher" },
+            new[] { "second-detacher", "first-detacher", "first-detacher", "publisher" },
             calls);
     }
 
@@ -100,6 +100,86 @@ public sealed class EditorSessionConstructionLedgerTests {
         Assert.Equal(2, exception.Flatten().InnerExceptions.Count);
         Assert.Contains(exception.Flatten().InnerExceptions, failure => failure.Message == "first cleanup");
         Assert.Contains(exception.Flatten().InnerExceptions, failure => failure.Message == "second cleanup");
+    }
+
+    [Fact]
+    public void LiveDispose_WhenHighPhaseFails_AttemptsSiblingsButBlocksLowerPhasesUntilRetry() {
+        EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
+        List<string> calls = new List<string>();
+        bool failOnce = true;
+        ledger.Register(() => calls.Add("lower"), EditorSessionCleanupPhase.Dispose);
+        ledger.Register(() => {
+            calls.Add("high-failing");
+            if (failOnce) {
+                failOnce = false;
+                throw new InvalidOperationException("high phase failed once");
+            }
+        }, EditorSessionCleanupPhase.Panel);
+        ledger.Register(() => calls.Add("high-sibling"), EditorSessionCleanupPhase.Panel);
+        ledger.TransferOwnership();
+
+        Assert.Throws<InvalidOperationException>(() => ledger.Dispose());
+        Assert.Equal(new[] { "high-sibling", "high-failing" }, calls);
+
+        ledger.Dispose();
+        Assert.Equal(new[] { "high-sibling", "high-failing", "high-failing", "lower" }, calls);
+
+        ledger.Dispose();
+        Assert.Equal(new[] { "high-sibling", "high-failing", "high-failing", "lower" }, calls);
+    }
+
+    [Fact]
+    public void ConstructionAbort_WhenMultiplePhasesFail_AttemptsEveryPhase() {
+        EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
+        List<string> calls = new List<string>();
+        ledger.Register(() => {
+            calls.Add("lower");
+            throw new InvalidOperationException("lower cleanup");
+        }, EditorSessionCleanupPhase.Dispose);
+        ledger.Register(() => {
+            calls.Add("higher");
+            throw new InvalidOperationException("higher cleanup");
+        }, EditorSessionCleanupPhase.Panel);
+
+        AggregateException failure = Assert.Throws<AggregateException>(() => ledger.Dispose(EditorSessionCleanupMode.ConstructionAbort));
+
+        Assert.Equal(new[] { "higher", "lower" }, calls);
+        Assert.Contains(failure.Flatten().InnerExceptions, exception => exception.Message == "higher cleanup");
+        Assert.Contains(failure.Flatten().InnerExceptions, exception => exception.Message == "lower cleanup");
+    }
+
+    [Fact]
+    public void LiveDispose_WhenOwnedSceneEntityCleanupFails_PreservesTeardownOrderAndBlocksAssetRelease() {
+        EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
+        List<string> calls = new List<string>();
+        bool failOnce = true;
+
+        // Registration is intentionally in the reverse of the desired live
+        // teardown order because the ledger executes each phase LIFO.
+        ledger.Register(() => calls.Add("release-assets"), EditorSessionCleanupPhase.OwnedState);
+        ledger.Register(() => calls.Add("flush-pending-releases"), EditorSessionCleanupPhase.OwnedPendingAssetFlush);
+        ledger.Register(() => {
+            calls.Add("dispose-scene-entities");
+            if (failOnce) {
+                failOnce = false;
+                throw new InvalidOperationException("scene entity cleanup failed once");
+            }
+        }, EditorSessionCleanupPhase.OwnedSceneEntities);
+        ledger.Register(() => calls.Add("untrack-scene"), EditorSessionCleanupPhase.OwnedSceneUntrack);
+        ledger.TransferOwnership();
+
+        Assert.Throws<InvalidOperationException>(() => ledger.Dispose());
+        Assert.Equal(new[] { "untrack-scene", "dispose-scene-entities" }, calls);
+
+        ledger.Dispose();
+        Assert.Equal(
+            new[] { "untrack-scene", "dispose-scene-entities", "dispose-scene-entities", "flush-pending-releases", "release-assets" },
+            calls);
+
+        ledger.Dispose();
+        Assert.Equal(
+            new[] { "untrack-scene", "dispose-scene-entities", "dispose-scene-entities", "flush-pending-releases", "release-assets" },
+            calls);
     }
 
     [Fact]
