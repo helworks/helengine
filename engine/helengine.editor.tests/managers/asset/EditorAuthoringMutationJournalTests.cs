@@ -1,5 +1,6 @@
 using Xunit;
 using System.Text.Json;
+using System.Reflection;
 
 namespace helengine.editor.tests.managers.asset;
 
@@ -17,6 +18,87 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         if (Directory.Exists(ProjectRootPath)) {
             Directory.Delete(ProjectRootPath, true);
         }
+    }
+
+    [Fact]
+    public void MutationScope_ExposesDedicatedFixedNamePrimitives() {
+        BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+        Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedRenameNoReplace", flags));
+        Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedRenameExchange", flags));
+        Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedDeleteVerifiedLeaf", flags));
+        Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedDeleteVerifiedDirectoryTree", flags));
+        Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedWrite", flags));
+    }
+
+    [Fact]
+    public void MutationJournalSource_UsesFixedPrimitivesForItsOwnLifecycle() {
+        string sourcePath = FindSourceFile("EditorAuthoringMutationJournal.cs");
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.DoesNotContain("WithoutJournal(", source, StringComparison.Ordinal);
+        Assert.Contains("Fixed", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FixedNamePrimitives_UseNoReplaceExchangeAndVerifiedDelete() {
+        string source = Path.Combine(ProjectRootPath, "assets", "fixed-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "fixed-destination.hasset");
+        string replacement = Path.Combine(ProjectRootPath, "assets", "fixed-replacement.hasset");
+
+        EditorAuthoringMutationScope.FixedCreateExclusive(ProjectRootPath, source, new byte[] { 1, 2, 3 });
+        EditorAuthoringMutationScope.FixedRenameNoReplace(ProjectRootPath, source, destination);
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(destination));
+
+        EditorAuthoringMutationScope.FixedCreateExclusive(ProjectRootPath, replacement, new byte[] { 4, 5, 6 });
+        EditorAuthoringMutationScope.FixedRenameExchange(ProjectRootPath, replacement, destination);
+        Assert.Equal(new byte[] { 4, 5, 6 }, File.ReadAllBytes(destination));
+        EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(ProjectRootPath, replacement);
+        Assert.False(File.Exists(replacement));
+    }
+
+    [Fact]
+    public void Recover_WhenPayloadWriteIsInterrupted_DiscardsRecognizedPartialPayload() {
+        string source = Path.Combine(ProjectRootPath, "assets", "source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "destination.hasset");
+        string operationDirectory;
+        using (EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "copy", source, destination)) {
+            string stagedNextPath = journal.CreateStagedPayloadNextPath();
+            operationDirectory = journal.OperationDirectoryPath;
+            EditorAuthoringMutationScope.FixedCreateExclusive(ProjectRootPath, stagedNextPath, new byte[] { 8, 9 });
+        }
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.False(Directory.Exists(operationDirectory));
+        Assert.False(File.Exists(destination));
+    }
+
+    [Fact]
+    public void FixedRenameNoReplace_WhenDestinationExists_PreservesBothEntries() {
+        string source = Path.Combine(ProjectRootPath, "assets", "existing-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "existing-destination.hasset");
+        File.WriteAllBytes(source, new byte[] { 1 });
+        File.WriteAllBytes(destination, new byte[] { 2 });
+
+        Assert.Throws<IOException>(() => EditorAuthoringMutationScope.FixedRenameNoReplace(ProjectRootPath, source, destination));
+        Assert.Equal(new byte[] { 1 }, File.ReadAllBytes(source));
+        Assert.Equal(new byte[] { 2 }, File.ReadAllBytes(destination));
+    }
+
+    static string FindSourceFile(string fileName) {
+        DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (directory != null) {
+            string candidate = Path.Combine(directory.FullName, "helengine.editor", "managers", "asset", fileName);
+            if (File.Exists(candidate)) {
+                return candidate;
+            }
+            candidate = Path.Combine(directory.FullName, "engine", "helengine.editor", "managers", "asset", fileName);
+            if (File.Exists(candidate)) {
+                return candidate;
+            }
+            directory = directory.Parent;
+        }
+        throw new FileNotFoundException(fileName);
     }
 
     [Fact]

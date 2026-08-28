@@ -180,13 +180,10 @@ namespace helengine.editor {
                 throw new InvalidDataException($"The verified leaf '{filePath}' is not directly beneath the pinned mutation directory.");
             }
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, ProjectRootPath);
-            FileMode openMode = mode == FileMode.Create
-                ? (File.Exists(fullPath) ? FileMode.Open : FileMode.CreateNew)
-                : mode;
             SafeFileHandle handle = OperatingSystem.IsWindows()
-                ? OpenAndVerifyWindowsFile(fullPath, openMode, access, share, includeDelete)
+                ? OpenAndVerifyWindowsFile(fullPath, mode, access, share, includeDelete)
                 : OperatingSystem.IsLinux()
-                    ? OpenAndVerifyPosixFile(Path.GetFileName(fullPath), openMode, access)
+                    ? OpenAndVerifyPosixFile(Path.GetFileName(fullPath), mode, access)
                     : throw CreateUnsupportedPlatformException();
             try {
                 FileStream stream = new FileStream(handle, access, 4096, false);
@@ -197,6 +194,308 @@ namespace helengine.editor {
             } catch {
                 handle.Dispose();
                 throw;
+            }
+        }
+
+        // These fixed-name primitives are intentionally separate from the
+        // journal-aware public mutation helpers.  Journal persistence owns the
+        // exact names it passes here, so the primitives never create a second
+        // operation, quarantine entry, or anonymous temporary name.
+        internal static void FixedWrite(
+            string projectRootPath,
+            string filePath,
+            byte[] bytes,
+            bool createNew = false) {
+            if (bytes == null) {
+                throw new ArgumentNullException(nameof(bytes));
+            }
+            string fullPath = Path.GetFullPath(filePath);
+            string parent = Path.GetDirectoryName(fullPath);
+            using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, parent);
+            using (EditorAuthoringVerifiedFile file = scope.OpenVerifiedFile(
+                fullPath,
+                createNew ? FileMode.CreateNew : FileMode.Create,
+                FileAccess.Write,
+                FileShare.None)) {
+                file.Stream.Write(bytes, 0, bytes.Length);
+                file.Stream.Flush(true);
+            }
+            if (OperatingSystem.IsLinux()) {
+                FsyncDirectory(scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(), parent);
+            }
+        }
+
+        internal static void FixedCreateExclusive(
+            string projectRootPath,
+            string filePath,
+            byte[] bytes) {
+            FixedWrite(projectRootPath, filePath, bytes, createNew: true);
+        }
+
+        internal static void FixedRenameNoReplace(
+            string projectRootPath,
+            string sourcePath,
+            string destinationPath,
+            string expectedSourceIdentity = null) {
+            FixedRename(projectRootPath, sourcePath, destinationPath, false, false, expectedSourceIdentity, null);
+        }
+
+        internal static void FixedRenameExchange(
+            string projectRootPath,
+            string sourcePath,
+            string destinationPath,
+            string expectedSourceIdentity = null,
+            string expectedDestinationIdentity = null) {
+            FixedRename(projectRootPath, sourcePath, destinationPath, true, true, expectedSourceIdentity, expectedDestinationIdentity);
+        }
+
+        static void FixedRename(
+            string projectRootPath,
+            string sourcePath,
+            string destinationPath,
+            bool replaceExisting,
+            bool exchange,
+            string expectedSourceIdentity,
+            string expectedDestinationIdentity) {
+            string source = Path.GetFullPath(sourcePath);
+            string destination = Path.GetFullPath(destinationPath);
+            string sourceParent = Path.GetDirectoryName(source);
+            string destinationParent = Path.GetDirectoryName(destination);
+            if (string.IsNullOrWhiteSpace(sourceParent) || string.IsNullOrWhiteSpace(destinationParent)) {
+                throw new InvalidDataException("A fixed authoring rename requires contained parent directories.");
+            }
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, projectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, projectRootPath);
+            using EditorAuthoringMutationScope sourceScope = AcquireForMutation(projectRootPath, sourceParent);
+            EditorAuthoringMutationScope destinationScope = null;
+            try {
+                destinationScope = string.Equals(sourceParent, destinationParent, PathComparison)
+                    ? sourceScope
+                    : AcquireForMutation(projectRootPath, destinationParent);
+
+                string sourceIdentityBefore = CaptureVerifiedIdentity(projectRootPath, source);
+                if (sourceIdentityBefore == "missing" || sourceIdentityBefore == "unavailable" ||
+                    (expectedSourceIdentity != null && !string.Equals(sourceIdentityBefore, expectedSourceIdentity, StringComparison.Ordinal))) {
+                    throw new InvalidDataException($"The fixed authoring source '{source}' failed identity verification.");
+                }
+                string destinationIdentityBefore = CaptureVerifiedIdentity(projectRootPath, destination);
+                if (exchange && destinationIdentityBefore == "missing") {
+                    throw new FileNotFoundException($"The fixed exchange destination '{destination}' does not exist.");
+                }
+                if (!exchange && destinationIdentityBefore != "missing") {
+                    throw new IOException($"The fixed rename destination '{destination}' already exists.");
+                }
+                if (expectedDestinationIdentity != null &&
+                    !string.Equals(destinationIdentityBefore, expectedDestinationIdentity, StringComparison.Ordinal)) {
+                    throw new InvalidDataException($"The fixed authoring destination '{destination}' failed identity verification.");
+                }
+
+                if (OperatingSystem.IsWindows()) {
+                    bool sourceIsDirectory = (File.GetAttributes(source) & FileAttributes.Directory) != 0;
+                    if (sourceIsDirectory) {
+                        using SafeFileHandle sourceDirectory = OpenAndVerifyWindowsDirectory(source, true);
+                        sourceScope.RenameVerifiedWindowsLeaf(
+                            sourceDirectory,
+                            Path.GetFileName(destination),
+                            replaceExisting,
+                            destinationScope);
+                    } else {
+                        using EditorAuthoringVerifiedFile sourceFile = sourceScope.OpenVerifiedFileCore(
+                            source,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.ReadWrite,
+                            true);
+                        sourceScope.RenameVerifiedWindowsLeaf(
+                            sourceFile.Stream.SafeFileHandle,
+                            Path.GetFileName(destination),
+                            replaceExisting,
+                            destinationScope);
+                    }
+                } else if (OperatingSystem.IsLinux()) {
+                int sourceParentFd = sourceScope.Handles[sourceScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
+                int destinationParentFd = destinationScope.Handles[destinationScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
+                if (!TryGetLinuxEntry(sourceParentFd, Path.GetFileName(source), out PosixStat sourceStatus)) {
+                    throw new FileNotFoundException($"The fixed authoring source '{source}' does not exist.");
+                }
+                bool sourceIsDirectory = (sourceStatus.Mode & PosixFileTypeMask) == PosixDirectoryFileType;
+                EnsureLinuxEntryType(sourceStatus, sourceIsDirectory, source);
+                bool destinationExists = TryGetLinuxEntry(destinationParentFd, Path.GetFileName(destination), out PosixStat destinationStatus);
+                if (destinationExists) {
+                    EnsureLinuxEntryType(destinationStatus, sourceIsDirectory, destination);
+                }
+                if (exchange) {
+                    RenameLinuxExchangeRaw(
+                        sourceParentFd,
+                        Path.GetFileName(source),
+                        destinationParentFd,
+                        Path.GetFileName(destination),
+                        destination);
+                } else {
+                    RenameLinuxNoReplaceRaw(
+                        sourceParentFd,
+                        Path.GetFileName(source),
+                        destinationParentFd,
+                        Path.GetFileName(destination),
+                        destination);
+                }
+                // Namespace success is observed before the durability step;
+                // callers can reconcile both names if fsync reports failure.
+                FsyncDirectory(sourceParentFd, sourceParent);
+                if (destinationParentFd != sourceParentFd) {
+                    FsyncDirectory(destinationParentFd, destinationParent);
+                }
+                } else {
+                    throw CreateUnsupportedPlatformException();
+                }
+
+                string destinationIdentityAfter = CaptureVerifiedIdentity(projectRootPath, destination);
+                if (destinationIdentityAfter == "missing" || destinationIdentityAfter == "unavailable") {
+                    throw new IOException($"The fixed authoring rename did not publish '{destination}'.");
+                }
+            } finally {
+                if (!ReferenceEquals(destinationScope, sourceScope)) {
+                    destinationScope?.Dispose();
+                }
+            }
+        }
+
+        internal static void FixedDeleteVerifiedLeaf(
+            string projectRootPath,
+            string filePath,
+            string expectedIdentity = null) {
+            string fullPath = Path.GetFullPath(filePath);
+            string parent = Path.GetDirectoryName(fullPath);
+            using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, parent);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, projectRootPath);
+            string actualIdentity = CaptureVerifiedIdentity(projectRootPath, fullPath);
+            if (actualIdentity == "missing") {
+                return;
+            }
+            if (actualIdentity == "unavailable" || (expectedIdentity != null && !string.Equals(actualIdentity, expectedIdentity, StringComparison.Ordinal))) {
+                throw new InvalidDataException($"The fixed authoring leaf '{fullPath}' failed identity verification.");
+            }
+            if (OperatingSystem.IsWindows()) {
+                using EditorAuthoringVerifiedFile file = scope.OpenVerifiedFileCore(
+                    fullPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite,
+                    true);
+                DeleteVerifiedWindowsLeaf(file.Stream.SafeFileHandle);
+            } else if (OperatingSystem.IsLinux()) {
+                int parentFd = scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32();
+                if (!TryGetLinuxEntry(parentFd, Path.GetFileName(fullPath), out PosixStat status)) {
+                    return;
+                }
+                EnsureLinuxEntryType(status, false, fullPath);
+                if (UnlinkAt(parentFd, Path.GetFileName(fullPath), 0) != 0) {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not delete fixed authoring leaf '{fullPath}'.");
+                }
+                FsyncDirectory(parentFd, parent);
+            } else {
+                throw CreateUnsupportedPlatformException();
+            }
+        }
+
+        internal static void FixedDeleteVerifiedDirectoryTree(
+            string projectRootPath,
+            string directoryPath,
+            string containingRoot = null) {
+            string fullPath = Path.GetFullPath(directoryPath);
+            string root = string.IsNullOrWhiteSpace(containingRoot) ? projectRootPath : containingRoot;
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, root);
+            if (CaptureVerifiedIdentity(projectRootPath, fullPath) == "missing") {
+                return;
+            }
+            FixedDeleteDirectoryTreeCore(projectRootPath, fullPath, root);
+        }
+
+        static void FixedDeleteDirectoryTreeCore(string projectRootPath, string fullPath, string containingRoot) {
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
+            if (OperatingSystem.IsLinux()) {
+                string parentPath = Path.GetDirectoryName(fullPath);
+                using EditorAuthoringMutationScope parentScope = AcquireForMutation(projectRootPath, parentPath);
+                int parentFd = parentScope.Handles[parentScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
+                if (!TryGetLinuxEntry(parentFd, Path.GetFileName(fullPath), out PosixStat status)) {
+                    return;
+                }
+                EnsureLinuxEntryType(status, true, fullPath);
+                using SafeFileHandle directory = OpenPosixDirectory(Path.GetFileName(fullPath), parentScope.Handles[parentScope.Handles.Count - 1]);
+                FixedDeleteDirectoryContentsLinux(projectRootPath, directory, fullPath, containingRoot);
+                EnsureLinuxIdentity(parentFd, Path.GetFileName(fullPath), new PosixEntryIdentity(status), fullPath);
+                if (UnlinkAt(parentFd, Path.GetFileName(fullPath), PosixAtRemovedDirectory) != 0) {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not delete fixed authoring directory '{fullPath}'.");
+                }
+                FsyncDirectory(parentFd, parentPath);
+                return;
+            }
+            if (!OperatingSystem.IsWindows()) {
+                throw CreateUnsupportedPlatformException();
+            }
+            foreach (string child in Directory.GetFileSystemEntries(fullPath, "*", SearchOption.TopDirectoryOnly).ToArray()) {
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(child, containingRoot);
+                if ((File.GetAttributes(child) & FileAttributes.Directory) != 0) {
+                    FixedDeleteDirectoryTreeCore(projectRootPath, child, containingRoot);
+                } else {
+                    FixedDeleteVerifiedLeaf(projectRootPath, child);
+                }
+            }
+            string windowsParent = Path.GetDirectoryName(fullPath);
+            using EditorAuthoringMutationScope windowsParentScope = AcquireForMutation(projectRootPath, windowsParent);
+            using SafeFileHandle windowsDirectory = OpenAndVerifyWindowsDirectory(fullPath, true);
+            DeleteVerifiedWindowsLeaf(windowsDirectory);
+        }
+
+        static void FixedDeleteDirectoryContentsLinux(
+            string projectRootPath,
+            SafeFileHandle directory,
+            string directoryPath,
+            string containingRoot) {
+            int duplicateFd = PosixDup(directory.DangerousGetHandle().ToInt32());
+            if (duplicateFd < 0) {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not enumerate fixed authoring directory '{directoryPath}'.");
+            }
+            IntPtr directoryStream = PosixFdOpenDir(duplicateFd);
+            if (directoryStream == IntPtr.Zero) {
+                PosixClose(duplicateFd);
+                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not enumerate fixed authoring directory '{directoryPath}'.");
+            }
+            try {
+                int parentFd = directory.DangerousGetHandle().ToInt32();
+                while (true) {
+                    IntPtr entry = PosixReadDir(directoryStream);
+                    if (entry == IntPtr.Zero) {
+                        break;
+                    }
+                    string name = ReadLinuxDirectoryEntryName(entry);
+                    if (name == "." || name == "..") {
+                        continue;
+                    }
+                    string childPath = Path.Combine(directoryPath, name);
+                    if (!TryGetLinuxEntry(parentFd, name, out PosixStat status)) {
+                        continue;
+                    }
+                    if ((status.Mode & PosixFileTypeMask) == PosixDirectoryFileType) {
+                        using SafeFileHandle childDirectory = OpenPosixDirectory(name, directory);
+                        FixedDeleteDirectoryContentsLinux(projectRootPath, childDirectory, childPath, containingRoot);
+                        EnsureLinuxIdentity(parentFd, name, new PosixEntryIdentity(status), childPath);
+                        if (UnlinkAt(parentFd, name, PosixAtRemovedDirectory) != 0) {
+                            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove fixed authoring directory '{childPath}'.");
+                        }
+                        FsyncDirectory(parentFd, childPath);
+                    } else {
+                        EnsureLinuxEntryType(status, false, childPath);
+                        using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, name);
+                        EnsureLinuxIdentity(parentFd, name, new PosixEntryIdentity(status), childPath);
+                        if (UnlinkAt(parentFd, name, 0) != 0) {
+                            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove fixed authoring leaf '{childPath}'.");
+                        }
+                        FsyncDirectory(parentFd, childPath);
+                    }
+                }
+            } finally {
+                PosixClosedDir(directoryStream);
             }
         }
 
@@ -544,9 +843,7 @@ namespace helengine.editor {
         }
 
         static void RenameLinuxNoReplace(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string path) {
-            if (RenameAt2(sourceParentFd, sourceName, destinationParentFd, destinationName, PosixRenameNoReplace) != 0) {
-                throw CreatePosixRenameException(path);
-            }
+            RenameLinuxNoReplaceRaw(sourceParentFd, sourceName, destinationParentFd, destinationName, path);
             FsyncDirectory(sourceParentFd, path);
             if (destinationParentFd != sourceParentFd) {
                 FsyncDirectory(destinationParentFd, path);
@@ -554,10 +851,30 @@ namespace helengine.editor {
         }
 
         static void RenameLinuxExchange(int parentFd, string sourceName, string destinationName, string path) {
-            if (RenameAt2(parentFd, sourceName, parentFd, destinationName, PosixRenameExchange) != 0) {
+            RenameLinuxExchangeRaw(parentFd, sourceName, parentFd, destinationName, path);
+            FsyncDirectory(parentFd, path);
+        }
+
+        static void RenameLinuxNoReplaceRaw(
+            int sourceParentFd,
+            string sourceName,
+            int destinationParentFd,
+            string destinationName,
+            string path) {
+            if (RenameAt2(sourceParentFd, sourceName, destinationParentFd, destinationName, PosixRenameNoReplace) != 0) {
                 throw CreatePosixRenameException(path);
             }
-            FsyncDirectory(parentFd, path);
+        }
+
+        static void RenameLinuxExchangeRaw(
+            int sourceParentFd,
+            string sourceName,
+            int destinationParentFd,
+            string destinationName,
+            string path) {
+            if (RenameAt2(sourceParentFd, sourceName, destinationParentFd, destinationName, PosixRenameExchange) != 0) {
+                throw CreatePosixRenameException(path);
+            }
         }
 
         /// <summary>Deletes a verified regular-file leaf without following links.</summary>
@@ -568,9 +885,9 @@ namespace helengine.editor {
             }
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "delete", filePath, filePath);
             string deletingPath = journal.CreateDeletingPath(filePath);
-            MoveLeafToPinnedDestination(filePath, deletingPath, this);
+            EditorAuthoringMutationScope.FixedRenameNoReplace(ProjectRootPath, filePath, deletingPath);
             journal.MarkPhase("Published");
-            DeleteLeafCore(deletingPath);
+            EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(ProjectRootPath, deletingPath);
             journal.Complete();
         }
 
@@ -640,13 +957,15 @@ namespace helengine.editor {
             string sourceParent = Path.GetDirectoryName(source);
             string destinationParent = Path.GetDirectoryName(destination);
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "copy", source, destination);
-            string stagedPath = journal.CreateStagedPayloadPath(Path.GetFileName(destination));
+            string stagedPath = journal.CreateStagedPayloadPath("payload");
+            string stagedNextPath = journal.CreateStagedPayloadNextPath();
+            string stagedHash;
             using EditorAuthoringMutationScope sourceScope = AcquireForMutation(projectRootPath, sourceParent);
             using EditorAuthoringMutationScope stagedScope = AcquireForMutation(projectRootPath, Path.GetDirectoryName(stagedPath));
             {
                 using EditorAuthoringVerifiedFile sourceFile = sourceScope.OpenVerifiedFile(source, FileMode.Open, FileAccess.Read, FileShare.Read);
                 using EditorAuthoringVerifiedFile stagedFile = stagedScope.OpenVerifiedFile(
-                    stagedPath,
+                    stagedNextPath,
                     FileMode.CreateNew,
                     FileAccess.Write,
                     FileShare.None);
@@ -658,14 +977,24 @@ namespace helengine.editor {
                     hasher.AppendData(buffer, 0, read);
                 }
                 stagedFile.Stream.Flush(true);
-                journal.RecordStagedPayload(stagedPath, Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant());
+                stagedHash = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
             }
+            EditorAuthoringMutationScope.FixedRenameNoReplace(projectRootPath, stagedNextPath, stagedPath);
+            journal.RecordStagedPayload(stagedPath, stagedHash);
+            journal.ValidateStagedPayload();
 
-            // The staged source lives below the operation directory even when
-            // the caller's source and destination originally shared a parent.
-            // Always pin the actual destination parent before publishing it.
+            // The staged payload remains the operation's publication source.
+            // Publishing is an explicit durable intent followed by one fixed
+            // no-replace/exchange namespace operation.
+            journal.MarkPhase("Publishing");
             using EditorAuthoringMutationScope destinationScope = AcquireForMutation(projectRootPath, destinationParent);
-            stagedScope.MoveLeafToPinnedDestination(stagedPath, destination, destinationScope);
+            string destinationIdentity = CaptureVerifiedIdentity(projectRootPath, destination);
+            if (destinationIdentity == "missing") {
+                EditorAuthoringMutationScope.FixedRenameNoReplace(projectRootPath, stagedPath, destination);
+            } else {
+                EditorAuthoringMutationScope.FixedRenameExchange(projectRootPath, stagedPath, destination);
+                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(projectRootPath, stagedPath, destinationIdentity);
+            }
             journal.MarkPhase("Published");
             journal.Complete();
         }
@@ -674,13 +1003,10 @@ namespace helengine.editor {
         internal static void DeleteLeaf(string projectRootPath, string filePath) {
             string fullPath = Path.GetFullPath(filePath);
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "delete", fullPath, fullPath);
-            using EditorAuthoringMutationScope scope = AcquireForMutation(
-                projectRootPath,
-                Path.GetDirectoryName(fullPath));
             string deletingPath = journal.CreateDeletingPath(fullPath);
-            scope.MoveLeafToPinnedDestination(fullPath, deletingPath, scope);
+            FixedRenameNoReplace(projectRootPath, fullPath, deletingPath);
             journal.MarkPhase("Published");
-            scope.DeleteLeafWithoutJournal(deletingPath);
+            FixedDeleteVerifiedLeaf(projectRootPath, deletingPath);
             journal.Complete();
         }
 
@@ -756,9 +1082,9 @@ namespace helengine.editor {
             }
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "delete-directory", fullPath, fullPath);
             string deletingPath = journal.CreateDeletingPath(fullPath);
-            MoveDirectoryCore(projectRootPath, fullPath, deletingPath, Path.GetDirectoryName(fullPath));
+            FixedRenameNoReplace(projectRootPath, fullPath, deletingPath);
             journal.MarkPhase("Published");
-            DeleteDirectoryTreeWithoutJournal(projectRootPath, deletingPath, containingRoot);
+            FixedDeleteVerifiedDirectoryTree(projectRootPath, deletingPath, containingRoot);
             journal.Complete();
         }
 
@@ -1016,54 +1342,32 @@ namespace helengine.editor {
                 "replace",
                 fullPath,
                 fullPath);
-            string stagedPath = journal.CreateStagedPayloadPath(Path.GetFileName(fullPath));
+            string stagedPath = journal.CreateStagedPayloadPath("payload");
+            string stagedNextPath = journal.CreateStagedPayloadNextPath();
             string directoryPath = Path.GetDirectoryName(fullPath);
-            string publicationTempPath = null;
-            try {
-                using (EditorAuthoringMutationScope stagedScope = AcquireForMutation(projectRootPath, Path.GetDirectoryName(stagedPath)))
-                using (EditorAuthoringVerifiedFile stagedFile = stagedScope.OpenVerifiedFile(
-                    stagedPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None)) {
-                    stagedFile.Stream.Write(bytes, 0, bytes.Length);
-                    stagedFile.Stream.Flush(true);
-                }
-                string stagedHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-                journal.RecordStagedPayload(stagedPath, stagedHash);
-
-                // The operation-owned payload is copied to a deterministic
-                // publication leaf in the destination parent. The journal
-                // records that leaf so recovery can distinguish a staged,
-                // unpublished write from a destination that already contains
-                // the exact staged bytes.
-                publicationTempPath = Path.Combine(directoryPath, EditorAuthoringMutationJournal.ReserveTransientName(Path.GetFileName(fullPath)));
-                journal.MarkPhase("Staged");
-                using (EditorAuthoringMutationScope stagedReadScope = AcquireForMutation(projectRootPath, Path.GetDirectoryName(stagedPath)))
-                using (EditorAuthoringMutationScope destinationScope = AcquireForMutation(projectRootPath, directoryPath)) {
-                    using (EditorAuthoringVerifiedFile stagedRead = stagedReadScope.OpenVerifiedFile(stagedPath, FileMode.Open, FileAccess.Read, FileShare.Read))
-                    using (EditorAuthoringVerifiedFile publicationTemp = destinationScope.OpenVerifiedFile(publicationTempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
-                        stagedRead.Stream.CopyTo(publicationTemp.Stream);
-                        publicationTemp.Stream.Flush(true);
-                    }
-                    destinationScope.ReplaceLeafWithoutJournal(publicationTempPath, fullPath, true);
-                }
-                journal.MarkPhase("Published");
-                journal.Complete();
-            } finally {
-                if (!string.IsNullOrWhiteSpace(publicationTempPath)) {
-                    try {
-                        using IDisposable ephemeralJournal = EditorAuthoringMutationJournal.EnterEphemeral(projectRootPath);
-                        using EditorAuthoringMutationScope cleanupScope = AcquireForMutation(projectRootPath, directoryPath);
-                        cleanupScope.DeleteLeafCore(publicationTempPath);
-                    } catch {
-                        // The durable operation retains staged bytes and the
-                        // publication name when cleanup cannot complete;
-                        // startup recovery can then fail closed or retire it
-                        // after validating the exact destination hash.
-                    }
-                }
+            using (EditorAuthoringMutationScope stagedScope = AcquireForMutation(projectRootPath, Path.GetDirectoryName(stagedNextPath)))
+            using (EditorAuthoringVerifiedFile stagedFile = stagedScope.OpenVerifiedFile(
+                stagedNextPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None)) {
+                stagedFile.Stream.Write(bytes, 0, bytes.Length);
+                stagedFile.Stream.Flush(true);
             }
+            EditorAuthoringMutationScope.FixedRenameNoReplace(projectRootPath, stagedNextPath, stagedPath);
+            string stagedHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            journal.RecordStagedPayload(stagedPath, stagedHash);
+            journal.ValidateStagedPayload();
+            journal.MarkPhase("Publishing");
+            string destinationIdentity = CaptureVerifiedIdentity(projectRootPath, fullPath);
+            if (destinationIdentity == "missing") {
+                EditorAuthoringMutationScope.FixedRenameNoReplace(projectRootPath, stagedPath, fullPath);
+            } else {
+                EditorAuthoringMutationScope.FixedRenameExchange(projectRootPath, stagedPath, fullPath);
+                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(projectRootPath, stagedPath, destinationIdentity);
+            }
+            journal.MarkPhase("Published");
+            journal.Complete();
         }
 
         internal static void WriteAllBytesAtomicallyWithoutJournal(string projectRootPath, string filePath, byte[] bytes, bool replaceExisting = true) {

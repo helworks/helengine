@@ -86,6 +86,26 @@ namespace helengine.editor {
             return stagedPath;
         }
 
+        /// <summary>
+        /// Returns the fixed staging write name. Callers write and flush this
+        /// leaf first, then promote it to <c>payload</c> with the fixed
+        /// no-replace primitive. Keeping the incomplete write at a recognized
+        /// name lets recovery discard it without probing arbitrary siblings.
+        /// </summary>
+        internal string CreateStagedPayloadNextPath() {
+            if (Completed) {
+                throw new InvalidOperationException("The authoring mutation journal is already complete.");
+            }
+            string stagedDirectory = Path.Combine(OperationDirectoryPath, "staged");
+            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, stagedDirectory);
+            string stagedPath = Path.Combine(stagedDirectory, "payload");
+            string nextPath = stagedPath + ".next";
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(nextPath, OperationDirectoryPath);
+            Document.Phase = "StagingAllocated";
+            Persist();
+            return nextPath;
+        }
+
         internal void RecordStagedPayload(string stagedPath, string exactHash) {
             if (string.IsNullOrWhiteSpace(exactHash)) {
                 throw new ArgumentException("The staged payload hash must be provided.", nameof(exactHash));
@@ -101,6 +121,19 @@ namespace helengine.editor {
             Document.StagedExactHash = exactHash;
             Document.Phase = "Staged";
             Persist();
+        }
+
+        internal void ValidateStagedPayload() {
+            if (string.IsNullOrWhiteSpace(Document.StagedRelativePath) || string.IsNullOrWhiteSpace(Document.StagedExactHash)) {
+                throw new InvalidDataException("The authoring mutation has no staged payload proof.");
+            }
+            string stagedPath = Path.Combine(
+                OperationDirectoryPath,
+                Document.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string actualHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(ProjectRootPath, stagedPath);
+            if (!string.Equals(actualHash, Document.StagedExactHash, StringComparison.Ordinal)) {
+                throw new InvalidDataException("The staged authoring payload changed before publication.");
+            }
         }
 
         internal static EditorAuthoringMutationJournal Begin(string projectRootPath, string kind, string sourcePath, string destinationPath) {
@@ -145,13 +178,13 @@ namespace helengine.editor {
                         string cleanupDirectory = Directory.Exists(operationDirectory)
                             ? operationDirectory
                             : creatingDirectory;
-                        EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, cleanupDirectory, journalDirectory);
+                        EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, cleanupDirectory, journalDirectory);
                     } catch (Exception cleanupException) {
                         throw new AggregateException("Authoring mutation journal construction failed and cleanup failed.", primaryException, cleanupException);
                     }
                     throw;
                 }
-                EditorAuthoringMutationScope.MoveDirectoryWithoutJournal(root, creatingDirectory, operationDirectory);
+                EditorAuthoringMutationScope.FixedRenameNoReplace(root, creatingDirectory, operationDirectory);
                 journalPath = Path.Combine(operationDirectory, "document.json");
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(journalPath, operationDirectory);
                 EditorAuthoringMutationJournal journal = new EditorAuthoringMutationJournal(root, journalPath, document, Current.Value, projectWriteLock);
@@ -162,14 +195,14 @@ namespace helengine.editor {
                 List<Exception> cleanupFailures = new List<Exception>();
                 try {
                     if (!string.IsNullOrWhiteSpace(operationDirectory) && Directory.Exists(operationDirectory)) {
-                        EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, operationDirectory, Path.GetDirectoryName(operationDirectory));
+                        EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, operationDirectory, Path.GetDirectoryName(operationDirectory));
                     }
                 } catch (Exception cleanupException) {
                     cleanupFailures.Add(cleanupException);
                 }
                 try {
                     if (!string.IsNullOrWhiteSpace(creatingDirectory) && Directory.Exists(creatingDirectory)) {
-                        EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, creatingDirectory, Path.GetDirectoryName(creatingDirectory));
+                        EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, creatingDirectory, Path.GetDirectoryName(creatingDirectory));
                     }
                 } catch (Exception cleanupException) {
                     cleanupFailures.Add(cleanupException);
@@ -287,13 +320,13 @@ namespace helengine.editor {
                 if (operationName.StartsWith(".creating-", StringComparison.Ordinal)) {
                     ValidateTransitionDirectoryName(operationName, ".creating-");
                     EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(operationDirectory, journalDirectory);
-                    EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, operationDirectory, journalDirectory);
+                    EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, operationDirectory, journalDirectory);
                     continue;
                 }
                 if (operationName.StartsWith(".deleting-", StringComparison.Ordinal)) {
                     ValidateTransitionDirectoryName(operationName, ".deleting-");
                     EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(operationDirectory, journalDirectory);
-                    EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, operationDirectory, journalDirectory);
+                    EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, operationDirectory, journalDirectory);
                     continue;
                 }
                 if (!Directory.Exists(operationDirectory) || !Guid.TryParseExact(operationName, "N", out _)) {
@@ -334,16 +367,17 @@ namespace helengine.editor {
                     if (nextDocumentFailure != null) {
                         // A torn next document is safe to discard only after
                         // the durable current document has been validated.
-                        EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, nextPath);
+                        EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, nextPath);
                     } else if (!hasDocument) {
                         using EditorAuthoringMutationScope operationScope = EditorAuthoringMutationScope.AcquireForMutation(root, operationDirectory);
-                        operationScope.ReplaceLeafWithoutJournal(nextPath, path, false);
+                        EditorAuthoringMutationScope.FixedRenameNoReplace(root, nextPath, path);
                     } else {
                         if (currentDocument == null || nextDocument.Sequence > currentDocument.Sequence) {
                             using EditorAuthoringMutationScope operationScope = EditorAuthoringMutationScope.AcquireForMutation(root, operationDirectory);
-                            operationScope.ReplaceLeafWithoutJournal(nextPath, path, true);
+                            EditorAuthoringMutationScope.FixedRenameExchange(root, nextPath, path);
+                            EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, nextPath);
                         } else {
-                            EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, nextPath);
+                            EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, nextPath);
                         }
                     }
                 }
@@ -364,6 +398,18 @@ namespace helengine.editor {
                     continue;
                 }
                 if (string.Equals(document.Phase, "Staged", StringComparison.Ordinal)) {
+                    RecoverStagedDocument(root, path, document);
+                    continue;
+                }
+                if (string.Equals(document.Phase, "StagingAllocated", StringComparison.Ordinal)) {
+                    string stagedDirectory = Path.Combine(operationDirectory, "staged");
+                    if (Directory.Exists(stagedDirectory)) {
+                        EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, stagedDirectory, operationDirectory);
+                    }
+                    RetireDocument(root, path);
+                    continue;
+                }
+                if (string.Equals(document.Phase, "Publishing", StringComparison.Ordinal)) {
                     RecoverStagedDocument(root, path, document);
                     continue;
                 }
@@ -425,14 +471,21 @@ namespace helengine.editor {
                 string stagedDirectory = Path.Combine(operationDirectory, "staged");
                 if (Directory.Exists(stagedDirectory)) {
                     foreach (string stagedEntry in Directory.GetFileSystemEntries(stagedDirectory, "*", SearchOption.TopDirectoryOnly)) {
-                        if (!string.Equals(Path.GetFullPath(stagedEntry), stagedPath, comparison)) {
+                        bool expectedFinal = string.Equals(Path.GetFullPath(stagedEntry), stagedPath, comparison);
+                        bool expectedWrite = string.Equals(document.Phase, "StagingAllocated", StringComparison.Ordinal) &&
+                            string.Equals(Path.GetFullPath(stagedEntry), stagedPath + ".next", comparison);
+                        if (!expectedFinal && !expectedWrite) {
                             throw new InvalidDataException($"The staged authoring operation contains an unexpected payload '{stagedEntry}'.");
                         }
                     }
                 }
             } else {
                 string stagedDirectory = Path.Combine(operationDirectory, "staged");
-                if (Directory.Exists(stagedDirectory) && Directory.GetFileSystemEntries(stagedDirectory).Length != 0) {
+                bool hasWriteInProgress = string.Equals(document.Phase, "StagingAllocated", StringComparison.Ordinal) &&
+                    Directory.Exists(stagedDirectory) &&
+                    Directory.GetFileSystemEntries(stagedDirectory).All(entry =>
+                        string.Equals(Path.GetFileName(entry), "payload.next", StringComparison.Ordinal));
+                if (Directory.Exists(stagedDirectory) && Directory.GetFileSystemEntries(stagedDirectory).Length != 0 && !hasWriteInProgress) {
                     throw new InvalidDataException("The staged authoring operation contains an unrecorded payload.");
                 }
             }
@@ -449,9 +502,9 @@ namespace helengine.editor {
             }
             if (sourceIdentity == "missing" && deletingIdentity == document.ExpectedSourceIdentity) {
                 if (document.Kind.Equals("delete-directory", StringComparison.Ordinal)) {
-                    EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, deletingPath, Path.GetDirectoryName(deletingPath));
+                    EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, deletingPath, Path.GetDirectoryName(deletingPath));
                 } else {
-                    EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, deletingPath);
+                    EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, deletingPath);
                 }
                 RetireDocument(root, journalPath);
                 return true;
@@ -483,7 +536,7 @@ namespace helengine.editor {
                     if (transientIdentity != document.ExpectedDestinationIdentity) {
                         throw new InvalidOperationException($"The authoring mutation '{journalPath}' found a changed quarantine entry.");
                     }
-                    EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, transientPath);
+                    EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, transientPath);
                 }
                 RetireDocument(root, journalPath);
                 return true;
@@ -502,7 +555,7 @@ namespace helengine.editor {
                     if (transientIdentity != document.ExpectedSourceIdentity) {
                         throw new InvalidOperationException($"The authoring mutation '{journalPath}' found a changed quarantine entry.");
                     }
-                    EditorAuthoringMutationScope.MoveLeaf(root, transientPath, sourcePath);
+                    EditorAuthoringMutationScope.FixedRenameNoReplace(root, transientPath, sourcePath);
                 }
                 sourceIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, sourcePath);
             }
@@ -544,17 +597,17 @@ namespace helengine.editor {
             // next document is written through its verified handle and then
             // atomically promoted; an incomplete next document is discarded
             // only after the current document has been proved valid by Recover.
-            using (EditorAuthoringMutationScope operationWriteScope = EditorAuthoringMutationScope.AcquireForMutation(root, operationDirectory))
-            using (EditorAuthoringVerifiedFile nextDocument = operationWriteScope.OpenVerifiedFile(
-                nextPath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.None)) {
-                nextDocument.Stream.Write(bytes, 0, bytes.Length);
-                nextDocument.Stream.Flush(true);
+            if (createNew) {
+                EditorAuthoringMutationScope.FixedCreateExclusive(root, nextPath, bytes);
+                EditorAuthoringMutationScope.FixedRenameNoReplace(root, nextPath, path);
+            } else {
+                EditorAuthoringMutationScope.FixedWrite(root, nextPath, bytes);
+                EditorAuthoringMutationScope.FixedRenameExchange(root, nextPath, path);
+                // On POSIX the exchanged old document remains at document.next;
+                // on Windows the verified replace consumes it. Deleting an
+                // already absent fixed leaf is intentionally idempotent.
+                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, nextPath);
             }
-            using EditorAuthoringMutationScope operationScope = EditorAuthoringMutationScope.AcquireForMutation(root, operationDirectory);
-            operationScope.ReplaceLeafWithoutJournal(nextPath, path, replaceExisting: !createNew);
         }
 
         static string NormalizeRelativePath(string root, string path) {
@@ -596,7 +649,9 @@ namespace helengine.editor {
                 throw new InvalidDataException($"The authoring mutation journal '{path}' is missing entry identity proofs.");
             }
             if (!string.Equals(document.Phase, "Prepared", StringComparison.Ordinal) &&
+                !string.Equals(document.Phase, "StagingAllocated", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Staged", StringComparison.Ordinal) &&
+                !string.Equals(document.Phase, "Publishing", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Quarantining", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Published", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Completed", StringComparison.Ordinal)) {
@@ -653,12 +708,24 @@ namespace helengine.editor {
                     throw new InvalidOperationException($"The published authoring deletion '{journalPath}' found a changed deleting entry.");
                 }
                 if (document.Kind.Equals("delete-directory", StringComparison.Ordinal)) {
-                    EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, destinationPath, Path.GetDirectoryName(destinationPath));
+                    EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, destinationPath, Path.GetDirectoryName(destinationPath));
                 } else {
-                    EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, destinationPath);
+                    EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, destinationPath);
                 }
                 RetireDocument(root, journalPath);
                 return;
+            }
+
+            // A staged payload publication has a different identity from the
+            // pre-existing source. Its content hash is authoritative after
+            // the fixed publish syscall, including when the process stopped
+            // before the phase document advanced.
+            if (!string.IsNullOrWhiteSpace(document.StagedExactHash)) {
+                string destinationHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationPath);
+                if (string.Equals(destinationHash, document.StagedExactHash, StringComparison.Ordinal)) {
+                    RetireDocument(root, journalPath);
+                    return;
+                }
             }
 
             if (string.Equals(document.ExpectedSourceIdentity, "missing", StringComparison.Ordinal) ||
@@ -677,7 +744,7 @@ namespace helengine.editor {
                 if (!string.Equals(transientIdentity, document.ExpectedDestinationIdentity, StringComparison.Ordinal)) {
                     throw new InvalidOperationException($"The published authoring mutation '{journalPath}' found a changed quarantine entry.");
                 }
-                EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, transientPath);
+                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, transientPath);
             }
             RetireDocument(root, journalPath);
         }
@@ -697,18 +764,41 @@ namespace helengine.editor {
             string stagedHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, stagedPath);
             string destinationPath = Path.Combine(root, document.DestinationRelativePath.Replace('/', Path.DirectorySeparatorChar));
             string destinationHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationPath);
+            if (string.Equals(destinationHash, document.StagedExactHash, StringComparison.Ordinal)) {
+                // Existing-destination exchange leaves the former destination
+                // inode at the fixed payload name on POSIX until the cleanup
+                // step. Accept only that exact recorded identity; an
+                // unexpected payload must remain a recovery blocker.
+                string stagedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, stagedPath);
+                if (stagedIdentity == "missing" ||
+                    string.Equals(stagedIdentity, document.ExpectedDestinationIdentity, StringComparison.Ordinal)) {
+                    if (stagedIdentity != "missing") {
+                        EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, stagedPath, document.ExpectedDestinationIdentity);
+                    }
+                    RetireDocument(root, journalPath);
+                    return;
+                }
+                throw new InvalidOperationException($"The staged authoring mutation '{journalPath}' found an unexpected former destination payload.");
+            }
             if (string.Equals(stagedHash, document.StagedExactHash, StringComparison.Ordinal) &&
                 string.Equals(destinationHash, document.StagedExactHash, StringComparison.Ordinal)) {
                 RetireDocument(root, journalPath);
                 return;
             }
             if (string.Equals(stagedHash, document.StagedExactHash, StringComparison.Ordinal) && destinationHash == "missing") {
-                using (EditorAuthoringMutationScope stagedScope = EditorAuthoringMutationScope.AcquireForMutation(root, Path.GetDirectoryName(stagedPath)))
-                using (EditorAuthoringMutationScope destinationScope = EditorAuthoringMutationScope.AcquireForMutation(root, Path.GetDirectoryName(destinationPath))) {
-                    stagedScope.MoveLeafToPinnedDestination(stagedPath, destinationPath, destinationScope);
-                }
+                EditorAuthoringMutationScope.FixedRenameNoReplace(root, stagedPath, destinationPath);
                 RetireDocument(root, journalPath);
                 return;
+            }
+            if (string.Equals(stagedHash, document.StagedExactHash, StringComparison.Ordinal) &&
+                destinationHash != "missing") {
+                string destinationIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationPath);
+                if (destinationIdentity == document.ExpectedDestinationIdentity) {
+                    EditorAuthoringMutationScope.FixedRenameExchange(root, stagedPath, destinationPath);
+                    EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, stagedPath, document.ExpectedDestinationIdentity);
+                    RetireDocument(root, journalPath);
+                    return;
+                }
             }
             // A failed publication can leave the original destination and its
             // exact staged publication leaf side by side. Remove only that
@@ -722,7 +812,7 @@ namespace helengine.editor {
                         string transientPath = Path.Combine(destinationParent, document.TransientEntries[index]);
                         string transientHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, transientPath);
                         if (string.Equals(transientHash, document.StagedExactHash, StringComparison.Ordinal)) {
-                            EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, transientPath);
+                            EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, transientPath);
                         } else if (transientHash != "missing") {
                             throw new InvalidOperationException($"The staged authoring mutation '{journalPath}' found an unexpected publication leaf.");
                         }
@@ -744,8 +834,8 @@ namespace helengine.editor {
             EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(operationDirectory, journalDirectory);
             string deletingDirectory = Path.Combine(journalDirectory, ".deleting-" + operationId);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(deletingDirectory, journalDirectory);
-            EditorAuthoringMutationScope.MoveDirectoryWithoutJournal(root, operationDirectory, deletingDirectory);
-            EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, deletingDirectory, journalDirectory);
+            EditorAuthoringMutationScope.FixedRenameNoReplace(root, operationDirectory, deletingDirectory);
+            EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(root, deletingDirectory, journalDirectory);
         }
 
         static MutationDocument ReadDocument(string path, string root) {
