@@ -59,11 +59,28 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.DoesNotContain("WithoutJournal(", source, StringComparison.Ordinal);
         Assert.DoesNotContain("RecoverStagedDocument", source, StringComparison.Ordinal);
         Assert.DoesNotContain("FixedRenameExchange", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("standalone-", source, StringComparison.Ordinal);
         Assert.Contains("Fixed", source, StringComparison.Ordinal);
         Assert.Contains("DestinationOld", source, StringComparison.Ordinal);
         Assert.Contains("DocumentOld", source, StringComparison.Ordinal);
         string scopeSource = File.ReadAllText(FindSourceFile("EditorAuthoringMutationScope.cs"));
         Assert.DoesNotContain("RenameLinuxExchange", scopeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnterEphemeral", scopeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("WithoutJournal", scopeSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReserveTransientName_WhenDocumentWriteIsActive_RejectsReentrantMutation() {
+        string source = Path.Combine(ProjectRootPath, "assets", "reentrant-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "reentrant-destination.hasset");
+        using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "replace", source, destination);
+        using IDisposable documentWrite = EditorAuthoringMutationJournal.EnterDocumentWriteScope();
+
+        Assert.Throws<InvalidOperationException>(() => EditorAuthoringMutationJournal.ReserveTransientName("payload"));
+        Assert.Throws<InvalidOperationException>(() => journal.MarkPhase("Quarantining"));
+        Assert.Throws<InvalidOperationException>(() => EditorAuthoringMutationJournal.SetCurrentExpectedIdentities("missing"));
+        Assert.Throws<InvalidOperationException>(() => journal.Complete());
+        Assert.Throws<InvalidOperationException>(() => EditorAuthoringMutationJournal.Begin(ProjectRootPath, "replace", source, destination));
     }
 
     [Fact]
@@ -309,6 +326,69 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.Empty(Directory.GetDirectories(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations")));
     }
 
+    [LinuxFact]
+    public void LinuxDocumentLifecycle_MultiplePersistsRecoverAfterScopeRelease() {
+        string source = Path.Combine(ProjectRootPath, "assets", "linux-document-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "linux-document-destination.hasset");
+        string operationDirectory;
+        using (EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "replace", source, destination)) {
+            operationDirectory = journal.OperationDirectoryPath;
+            journal.MarkPhase("Quarantining");
+            journal.MarkPhase("Prepared");
+            bool retirementInterrupted = false;
+            try {
+                EditorAuthoringMutationScope.MutationHookForTests = point => {
+                    if (!retirementInterrupted && point.Contains("->.deleting-", StringComparison.Ordinal)) {
+                        retirementInterrupted = true;
+                        throw new IOException("injected retirement cut");
+                    }
+                };
+                journal.Complete();
+            } finally {
+                EditorAuthoringMutationScope.MutationHookForTests = null;
+            }
+        }
+
+        Assert.True(Directory.Exists(operationDirectory));
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.False(Directory.Exists(operationDirectory));
+    }
+
+    [LinuxFact]
+    public void LinuxQuarantine_PersistsRelativePathAndIdentityBeforeNamespaceMove() {
+        string source = Path.Combine(ProjectRootPath, "assets", "linux-owned-quarantine.hasset");
+        File.WriteAllBytes(source, new byte[] { 3, 1, 4 });
+        string operationDirectory = null;
+        bool interrupted = false;
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (!interrupted && point == "FixedDelete.AfterQuarantineProof") {
+                    interrupted = true;
+                    throw new IOException("injected quarantine cut");
+                }
+            };
+            Assert.Throws<IOException>(() => EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, source));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        string journalRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
+        string[] operations = Directory.Exists(journalRoot) ? Directory.GetDirectories(journalRoot) : Array.Empty<string>();
+        operationDirectory = Assert.Single(operations.Where(path => Guid.TryParseExact(Path.GetFileName(path), "N", out _)));
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(operationDirectory, "document.json")));
+        JsonElement transient = Assert.Single(document.RootElement.GetProperty("TransientEntries").EnumerateArray());
+        Assert.Contains("assets/", transient.GetProperty("RelativePath").GetString(), StringComparison.Ordinal);
+        Assert.Equal("assets", transient.GetProperty("ParentRelativePath").GetString());
+        Assert.StartsWith("dev:", transient.GetProperty("ExpectedIdentity").GetString(), StringComparison.Ordinal);
+        Assert.Equal(64, transient.GetProperty("ExpectedHash").GetString()?.Length);
+        Assert.Equal("quarantine", transient.GetProperty("Action").GetString());
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+        Assert.True(File.Exists(source));
+    }
+
     [Fact]
     public void Begin_UsesContainedOperationDirectoryWithFixedDocumentArtifact() {
         string source = Path.Combine(ProjectRootPath, "assets", "source.hasset");
@@ -543,6 +623,31 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     }
 
     [Fact]
+    public void Recover_WhenBareStagedPayloadWasDeletedAndDestinationIsStillMissing_RetiresIdempotently() {
+        string source = Path.Combine(ProjectRootPath, "assets", "bare-staged-deleted-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "bare-staged-deleted-destination.hasset");
+        File.WriteAllBytes(source, new byte[] { 1, 2, 3 });
+        string operationDirectory;
+        using (EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "copy", source, destination)) {
+            string stagedPath = journal.CreateStagedPayloadPath("payload");
+            EditorAuthoringMutationScope.FixedCreateExclusive(ProjectRootPath, stagedPath, new byte[] { 4, 5, 6 });
+            journal.RecordStagedPayload(
+                stagedPath,
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(new byte[] { 4, 5, 6 })).ToLowerInvariant());
+            operationDirectory = journal.OperationDirectoryPath;
+        }
+
+        File.Delete(Path.Combine(operationDirectory, "staged", "payload"));
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.False(Directory.Exists(operationDirectory));
+        Assert.False(File.Exists(destination));
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(source));
+    }
+
+    [Fact]
     public void Recover_WhenWriteIsBareStagedAndDestinationDiverged_FailsClosedWithoutMutation() {
         string destination = Path.Combine(ProjectRootPath, "assets", "bare-staged-write-destination.hasset");
         File.WriteAllBytes(destination, new byte[] { 1, 2, 3 });
@@ -759,7 +864,7 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     [Fact]
     public void FixedDeleteDirectoryTree_WhenTopEntryChangesAfterProof_PreservesReplacement() {
         string source = Path.Combine(ProjectRootPath, "cache", "proof-directory");
-        string moved = Path.Combine(ProjectRootPath, "cache", "proof-directory-attacker");
+        string moved = Path.Combine(ProjectRootPath, "cache", "proof-directory-replacement");
         Directory.CreateDirectory(source);
         string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
         bool swapped = false;
@@ -784,263 +889,6 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.True(swapped);
         Assert.True(Directory.Exists(source));
         Assert.True(Directory.Exists(moved));
-    }
-
-    [LinuxFact]
-    public void LinuxFixedRename_WhenQuarantinedSourceChangesAfterProof_PreservesBothInodes() {
-        string source = Path.Combine(ProjectRootPath, "assets", "linux-rename-source.hasset");
-        string destination = Path.Combine(ProjectRootPath, "assets", "linux-rename-destination.hasset");
-        string attacker = Path.Combine(ProjectRootPath, "assets", "linux-rename-attacker.hasset");
-        File.WriteAllBytes(source, new byte[] { 1, 2, 3 });
-        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        string expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(new byte[] { 1, 2, 3 })).ToLowerInvariant();
-        bool swapped = false;
-        try {
-            EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (!swapped && point == "FixedRename.AfterQuarantineProof") {
-                    string quarantine = Directory.GetFiles(Path.GetDirectoryName(source), ".authoring-mutation-standalone-*", SearchOption.TopDirectoryOnly).Single();
-                    File.Move(quarantine, attacker);
-                    File.WriteAllBytes(quarantine, new byte[] { 9, 9, 9 });
-                    swapped = true;
-                }
-            };
-
-            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedRenameNoReplace(
-                ProjectRootPath, source, destination, expectedIdentity, "missing", expectedHash));
-        } finally {
-            EditorAuthoringMutationScope.MutationHookForTests = null;
-        }
-
-        Assert.True(swapped);
-        Assert.False(File.Exists(destination));
-        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(attacker));
-        Assert.Equal(new byte[] { 9, 9, 9 }, File.ReadAllBytes(source));
-    }
-
-    [LinuxFact]
-    public void LinuxFixedDeleteLeaf_WhenQuarantinedEntryChangesAfterProof_PreservesBothInodes() {
-        string source = Path.Combine(ProjectRootPath, "assets", "linux-delete-leaf.hasset");
-        string attacker = Path.Combine(ProjectRootPath, "assets", "linux-delete-leaf-attacker.hasset");
-        File.WriteAllBytes(source, new byte[] { 3, 2, 1 });
-        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        string expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(new byte[] { 3, 2, 1 })).ToLowerInvariant();
-        bool swapped = false;
-        try {
-            EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (!swapped && point == "FixedDelete.AfterQuarantineProof") {
-                    string quarantine = Directory.GetFiles(Path.GetDirectoryName(source), ".authoring-mutation-standalone-*", SearchOption.TopDirectoryOnly).Single();
-                    File.Move(quarantine, attacker);
-                    File.WriteAllBytes(quarantine, new byte[] { 8, 8, 8 });
-                    swapped = true;
-                }
-            };
-
-            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(
-                ProjectRootPath, source, expectedIdentity, expectedHash));
-        } finally {
-            EditorAuthoringMutationScope.MutationHookForTests = null;
-        }
-
-        Assert.True(swapped);
-        Assert.Equal(new byte[] { 3, 2, 1 }, File.ReadAllBytes(attacker));
-        Assert.Equal(new byte[] { 8, 8, 8 }, File.ReadAllBytes(source));
-    }
-
-    [LinuxFact]
-    public void LinuxFixedDeleteDirectory_WhenTopQuarantineChangesAfterProof_PreservesBothTrees() {
-        string source = Path.Combine(ProjectRootPath, "cache", "linux-delete-directory");
-        string attacker = Path.Combine(ProjectRootPath, "cache", "linux-delete-directory-attacker");
-        Directory.CreateDirectory(source);
-        File.WriteAllBytes(Path.Combine(source, "payload.bin"), new byte[] { 4, 5, 6 });
-        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        bool swapped = false;
-        try {
-            EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (!swapped && point == "FixedDeleteDirectory.AfterQuarantineProof") {
-                    string quarantine = Directory.GetDirectories(Path.Combine(ProjectRootPath, "cache"), ".authoring-mutation-standalone-*", SearchOption.TopDirectoryOnly).Single();
-                    Directory.Move(quarantine, attacker);
-                    Directory.CreateDirectory(quarantine);
-                    File.WriteAllBytes(Path.Combine(quarantine, "replacement.bin"), new byte[] { 7, 7, 7 });
-                    swapped = true;
-                }
-            };
-
-            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(
-                ProjectRootPath, source, ProjectRootPath, expectedIdentity));
-        } finally {
-            EditorAuthoringMutationScope.MutationHookForTests = null;
-        }
-
-        Assert.True(swapped);
-        Assert.Equal(new byte[] { 4, 5, 6 }, File.ReadAllBytes(Path.Combine(attacker, "payload.bin")));
-        Assert.Equal(new byte[] { 7, 7, 7 }, File.ReadAllBytes(Path.Combine(source, "replacement.bin")));
-    }
-
-    [LinuxFact]
-    public void LinuxFixedDeleteDirectory_WhenNestedQuarantineChangesAfterProof_PreservesNestedTree() {
-        string source = Path.Combine(ProjectRootPath, "cache", "linux-delete-nested-directory");
-        Directory.CreateDirectory(Path.Combine(source, "child"));
-        File.WriteAllBytes(Path.Combine(source, "child", "payload.bin"), new byte[] { 4, 5, 6 });
-        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        string topQuarantine = null;
-        bool swapped = false;
-        int proofCount = 0;
-        try {
-            EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (point != "FixedDeleteDirectory.AfterQuarantineProof") {
-                    return;
-                }
-                proofCount++;
-                string candidate = Directory.GetDirectories(Path.Combine(ProjectRootPath, "cache"), ".authoring-mutation-standalone-*", SearchOption.TopDirectoryOnly).Single();
-                if (proofCount == 1) {
-                    topQuarantine = candidate;
-                    return;
-                }
-                string nestedQuarantine = Directory.GetDirectories(topQuarantine, ".authoring-mutation-standalone-*", SearchOption.AllDirectories).Single();
-                string attacker = Path.Combine(Path.GetDirectoryName(nestedQuarantine), "nested-attacker");
-                Directory.Move(nestedQuarantine, attacker);
-                Directory.CreateDirectory(nestedQuarantine);
-                File.WriteAllBytes(Path.Combine(nestedQuarantine, "replacement.bin"), new byte[] { 8, 8, 8 });
-                swapped = true;
-            };
-
-            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(
-                ProjectRootPath, source, ProjectRootPath, expectedIdentity));
-        } finally {
-            EditorAuthoringMutationScope.MutationHookForTests = null;
-        }
-
-        Assert.True(swapped);
-        Assert.Equal(new byte[] { 4, 5, 6 }, File.ReadAllBytes(Path.Combine(source, "child", "payload.bin")));
-        Assert.Equal(new byte[] { 8, 8, 8 }, File.ReadAllBytes(Path.Combine(source, "child", "replacement.bin")));
-    }
-
-    [LinuxFact]
-    public void LinuxFixedRename_WhenFinalProofChanges_PreservesSubstitutedSource() {
-        string source = Path.Combine(ProjectRootPath, "assets", "linux-final-rename-source.hasset");
-        string destination = Path.Combine(ProjectRootPath, "assets", "linux-final-rename-destination.hasset");
-        string attacker = Path.Combine(ProjectRootPath, "assets", "linux-final-rename-attacker.hasset");
-        File.WriteAllBytes(source, new byte[] { 1, 2, 3 });
-        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        string expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(new byte[] { 1, 2, 3 })).ToLowerInvariant();
-        bool swapped = false;
-        try {
-            EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (point != "FixedRename.BeforeFinalSyscall" || swapped) {
-                    return;
-                }
-                string quarantine = Directory.GetFiles(Path.GetDirectoryName(source), ".authoring-mutation-standalone-*", SearchOption.TopDirectoryOnly).Single();
-                File.Move(quarantine, attacker);
-                File.WriteAllBytes(quarantine, new byte[] { 9, 9, 9 });
-                swapped = true;
-            };
-
-            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedRenameNoReplace(
-                ProjectRootPath, source, destination, expectedIdentity, "missing", expectedHash));
-        } finally {
-            EditorAuthoringMutationScope.MutationHookForTests = null;
-        }
-
-        Assert.True(swapped);
-        Assert.False(File.Exists(destination));
-        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(attacker));
-    }
-
-    [LinuxFact]
-    public void LinuxFixedDeleteLeaf_WhenFinalProofChanges_PreservesSubstitutedLeaf() {
-        string source = Path.Combine(ProjectRootPath, "assets", "linux-final-delete-leaf.hasset");
-        string attacker = Path.Combine(ProjectRootPath, "assets", "linux-final-delete-attacker.hasset");
-        File.WriteAllBytes(source, new byte[] { 3, 2, 1 });
-        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        string expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(new byte[] { 3, 2, 1 })).ToLowerInvariant();
-        bool swapped = false;
-        try {
-            EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (point != "FixedDelete.BeforeFinalSyscall" || swapped) {
-                    return;
-                }
-                string quarantine = Directory.GetFiles(Path.GetDirectoryName(source), ".authoring-mutation-standalone-*", SearchOption.TopDirectoryOnly).Single();
-                File.Move(quarantine, attacker);
-                File.WriteAllBytes(quarantine, new byte[] { 8, 8, 8 });
-                swapped = true;
-            };
-
-            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(
-                ProjectRootPath, source, expectedIdentity, expectedHash));
-        } finally {
-            EditorAuthoringMutationScope.MutationHookForTests = null;
-        }
-
-        Assert.True(swapped);
-        Assert.Equal(new byte[] { 3, 2, 1 }, File.ReadAllBytes(attacker));
-    }
-
-    [LinuxFact]
-    public void LinuxFixedDeleteDirectory_WhenFinalProofChanges_PreservesSubstitutedTopTree() {
-        string source = Path.Combine(ProjectRootPath, "cache", "linux-final-delete-directory");
-        string attacker = Path.Combine(ProjectRootPath, "cache", "linux-final-delete-directory-attacker");
-        Directory.CreateDirectory(source);
-        File.WriteAllBytes(Path.Combine(source, "payload.bin"), new byte[] { 4, 5, 6 });
-        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        string quarantine = null;
-        bool swapped = false;
-        try {
-            EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (point != "FixedDeleteDirectory.BeforeFinalSyscall" || swapped) {
-                    return;
-                }
-                quarantine = Directory.GetDirectories(Path.Combine(ProjectRootPath, "cache"), ".authoring-mutation-standalone-*", SearchOption.TopDirectoryOnly).Single();
-                Directory.Move(quarantine, attacker);
-                Directory.CreateDirectory(quarantine);
-                File.WriteAllBytes(Path.Combine(quarantine, "replacement.bin"), new byte[] { 7, 7, 7 });
-                swapped = true;
-            };
-
-            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(
-                ProjectRootPath, source, ProjectRootPath, expectedIdentity));
-        } finally {
-            EditorAuthoringMutationScope.MutationHookForTests = null;
-        }
-
-        Assert.True(swapped);
-        Assert.True(Directory.Exists(attacker));
-        Assert.True(Directory.Exists(quarantine));
-        Assert.Equal(new byte[] { 7, 7, 7 }, File.ReadAllBytes(Path.Combine(quarantine, "replacement.bin")));
-    }
-
-    [LinuxFact]
-    public void LinuxFixedDeleteDirectory_WhenNestedFinalProofChanges_PreservesSubstitutedNestedTree() {
-        string source = Path.Combine(ProjectRootPath, "cache", "linux-final-delete-nested");
-        Directory.CreateDirectory(Path.Combine(source, "child"));
-        File.WriteAllBytes(Path.Combine(source, "child", "payload.bin"), new byte[] { 4, 5, 6 });
-        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        string topQuarantine = null;
-        string nestedQuarantine = null;
-        bool swapped = false;
-        try {
-            EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (point != "FixedDeleteDirectory.BeforeFinalSyscall" || swapped) {
-                    return;
-                }
-                topQuarantine = Directory.GetDirectories(Path.Combine(ProjectRootPath, "cache"), ".authoring-mutation-standalone-*", SearchOption.TopDirectoryOnly).Single();
-                nestedQuarantine = Directory.GetDirectories(topQuarantine, ".authoring-mutation-standalone-*", SearchOption.AllDirectories).Single();
-                string attacker = Path.Combine(Path.GetDirectoryName(nestedQuarantine), "nested-final-attacker");
-                Directory.Move(nestedQuarantine, attacker);
-                Directory.CreateDirectory(nestedQuarantine);
-                File.WriteAllBytes(Path.Combine(nestedQuarantine, "replacement.bin"), new byte[] { 8, 8, 8 });
-                swapped = true;
-            };
-
-            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedDeleteVerifiedDirectoryTree(
-                ProjectRootPath, source, ProjectRootPath, expectedIdentity));
-        } finally {
-            EditorAuthoringMutationScope.MutationHookForTests = null;
-        }
-
-        Assert.True(swapped);
-        Assert.True(Directory.Exists(source));
-        Assert.True(File.Exists(Path.Combine(source, "child", "nested-final-attacker", "payload.bin")));
-        Assert.Equal(new byte[] { 8, 8, 8 }, File.ReadAllBytes(Path.Combine(source, "child", Path.GetFileName(nestedQuarantine), "replacement.bin")));
     }
 
     [Fact]
