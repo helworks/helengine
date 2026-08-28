@@ -28,6 +28,20 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedDeleteVerifiedLeaf", flags));
         Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedDeleteVerifiedDirectoryTree", flags));
         Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedWrite", flags));
+
+        Assert.Contains(
+            typeof(EditorAuthoringMutationScope).GetMethod("FixedRenameNoReplace", flags)!.GetParameters(),
+            parameter => parameter.Name == "expectedSourceIdentity");
+        Assert.Contains(
+            typeof(EditorAuthoringMutationScope).GetMethod("FixedRenameNoReplace", flags)!.GetParameters(),
+            parameter => parameter.Name == "expectedDestinationIdentity");
+        Assert.Contains(
+            typeof(EditorAuthoringMutationScope).GetMethod("FixedRenameExchange", flags)!.GetParameters(),
+            parameter => parameter.Name == "expectedDestinationIdentity");
+        Assert.Contains(
+            typeof(EditorAuthoringMutationScope).GetMethod("FixedDeleteVerifiedDirectoryTree", flags)!.GetParameters(),
+            parameter => parameter.Name == "expectedIdentity");
+        Assert.NotNull(typeof(EditorAuthoringMutationScope).GetProperty("MutationHookForTests", flags));
     }
 
     [Fact]
@@ -85,6 +99,138 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.Equal(new byte[] { 2 }, File.ReadAllBytes(destination));
     }
 
+    [Fact]
+    public void FixedRenameNoReplace_WhenSourceIdentityChangesAfterProof_PreservesReplacement() {
+        string source = Path.Combine(ProjectRootPath, "assets", "proof-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "proof-destination.hasset");
+        File.WriteAllBytes(source, new byte[] { 1 });
+        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
+        bool changed = false;
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (!changed && point == "FixedRename.BeforeSyscall") {
+                    changed = true;
+                    File.Delete(source);
+                    File.WriteAllBytes(source, new byte[] { 7 });
+                }
+            };
+
+            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedRenameNoReplace(
+                ProjectRootPath, source, destination, expectedIdentity));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        Assert.False(File.Exists(destination));
+        Assert.Equal(new byte[] { 7 }, File.ReadAllBytes(source));
+    }
+
+    [Fact]
+    public void FixedRenameNoReplace_WhenDestinationAppearsAfterProof_PreservesBothEntries() {
+        string source = Path.Combine(ProjectRootPath, "assets", "proof-destination-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "proof-destination-race.hasset");
+        File.WriteAllBytes(source, new byte[] { 2 });
+        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
+        bool appeared = false;
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (!appeared && point == "FixedRename.BeforeSyscall") {
+                    appeared = true;
+                    File.WriteAllBytes(destination, new byte[] { 8 });
+                }
+            };
+
+            Assert.Throws<IOException>(() => EditorAuthoringMutationScope.FixedRenameNoReplace(
+                ProjectRootPath, source, destination, expectedIdentity));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        Assert.Equal(new byte[] { 2 }, File.ReadAllBytes(source));
+        Assert.Equal(new byte[] { 8 }, File.ReadAllBytes(destination));
+    }
+
+    [Fact]
+    public void FixedDeleteVerifiedLeaf_WhenIdentityChangesAfterProof_PreservesReplacement() {
+        string path = Path.Combine(ProjectRootPath, "assets", "proof-delete.hasset");
+        File.WriteAllBytes(path, new byte[] { 3 });
+        string expectedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, path);
+        bool changed = false;
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (!changed && point == "FixedDelete.BeforeSyscall") {
+                    changed = true;
+                    File.Delete(path);
+                    File.WriteAllBytes(path, new byte[] { 6 });
+                }
+            };
+
+            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(
+                ProjectRootPath, path, expectedIdentity));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        Assert.Equal(new byte[] { 6 }, File.ReadAllBytes(path));
+    }
+
+    [Fact]
+    public void FixedRenameExchange_WhenDestinationIdentityChangesAfterProof_PreservesReplacement() {
+        string source = Path.Combine(ProjectRootPath, "assets", "exchange-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "exchange-destination.hasset");
+        File.WriteAllBytes(source, new byte[] { 4 });
+        File.WriteAllBytes(destination, new byte[] { 5 });
+        string sourceIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
+        string destinationIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, destination);
+        bool changed = false;
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (!changed && point == "FixedRename.BeforeSyscall") {
+                    changed = true;
+                    File.Delete(destination);
+                    File.WriteAllBytes(destination, new byte[] { 10 });
+                }
+            };
+
+            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.FixedRenameExchange(
+                ProjectRootPath,
+                source,
+                destination,
+                sourceIdentity,
+                destinationIdentity));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        Assert.Equal(new byte[] { 4 }, File.ReadAllBytes(source));
+        Assert.Equal(new byte[] { 10 }, File.ReadAllBytes(destination));
+    }
+
+    [Fact]
+    public void FixedRename_WhenFailureOccursAfterNamespaceSyscall_LeavesPublishedIdentityObservable() {
+        string source = Path.Combine(ProjectRootPath, "assets", "post-syscall-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "post-syscall-destination.hasset");
+        File.WriteAllBytes(source, new byte[] { 11 });
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (point == "FixedRename.AfterSyscallBeforeFsync") {
+                    throw new IOException("injected durability failure");
+                }
+            };
+
+            Assert.Throws<IOException>(() => EditorAuthoringMutationScope.FixedRenameNoReplace(
+                ProjectRootPath,
+                source,
+                destination,
+                EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source)));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        Assert.False(File.Exists(source));
+        Assert.Equal(new byte[] { 11 }, File.ReadAllBytes(destination));
+    }
+
     static string FindSourceFile(string fileName) {
         DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (directory != null) {
@@ -112,6 +258,7 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
             using JsonDocument document = JsonDocument.Parse(File.ReadAllText(documentPath));
             Assert.Equal("replace", document.RootElement.GetProperty("Kind").GetString());
             Assert.Contains("missing", document.RootElement.GetProperty("ExpectedSourceIdentity").GetString(), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("missing", document.RootElement.GetProperty("ExpectedDestinationHash").GetString());
             journal.Complete();
         }
 
@@ -147,6 +294,65 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
 
         Assert.True(File.Exists(destination));
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, File.ReadAllBytes(destination));
+    }
+
+    [Fact]
+    public void CopyLeaf_WhenDestinationAlreadyExists_RejectsWithoutReplacingEitherEntry() {
+        string source = Path.Combine(ProjectRootPath, "assets", "copy-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "copy-destination.hasset");
+        File.WriteAllBytes(source, new byte[] { 1, 2, 3 });
+        File.WriteAllBytes(destination, new byte[] { 9, 8, 7 });
+
+        Assert.Throws<IOException>(() => EditorAuthoringMutationScope.CopyLeaf(ProjectRootPath, source, destination));
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(source));
+        Assert.Equal(new byte[] { 9, 8, 7 }, File.ReadAllBytes(destination));
+    }
+
+    [Fact]
+    public void CopyLeaf_WhenDestinationAppearsDuringStaging_PreservesTheConcurrentDestination() {
+        string source = Path.Combine(ProjectRootPath, "assets", "copy-race-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "copy-race-destination.hasset");
+        File.WriteAllBytes(source, new byte[] { 1, 4, 9 });
+        bool appeared = false;
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (!appeared && point == "FixedRename.BeforeSyscall") {
+                    appeared = true;
+                    File.WriteAllBytes(destination, new byte[] { 6, 4, 2 });
+                }
+            };
+
+            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.CopyLeaf(ProjectRootPath, source, destination));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        Assert.Equal(new byte[] { 1, 4, 9 }, File.ReadAllBytes(source));
+        Assert.Equal(new byte[] { 6, 4, 2 }, File.ReadAllBytes(destination));
+    }
+
+    [Fact]
+    public void WriteAllBytesAtomically_WhenDestinationChangesDuringStaging_PreservesTheConcurrentDestination() {
+        string destination = Path.Combine(ProjectRootPath, "assets", "write-race-destination.hasset");
+        File.WriteAllBytes(destination, new byte[] { 3, 3, 3 });
+        bool changed = false;
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (!changed && point == "FixedRename.BeforeSyscall") {
+                    changed = true;
+                    File.WriteAllBytes(destination, new byte[] { 8, 8, 8 });
+                }
+            };
+
+            Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                ProjectRootPath,
+                destination,
+                new byte[] { 1, 1, 1 }));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        Assert.Equal(new byte[] { 8, 8, 8 }, File.ReadAllBytes(destination));
     }
 
     [Fact]
