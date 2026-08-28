@@ -59,7 +59,14 @@ namespace helengine.editor {
         // Production callers never set this hook.
         internal static Action<string> MutationHookForTests { get; set; }
 
-        static void InvokeMutationHook(string point) {
+        internal static bool IsDirectoryIdentity(string identity) {
+            return !string.IsNullOrWhiteSpace(identity) &&
+                (identity.EndsWith(":directory", StringComparison.OrdinalIgnoreCase) ||
+                 identity.EndsWith(";directory", StringComparison.OrdinalIgnoreCase) ||
+                 identity.EndsWith("type:4000", StringComparison.OrdinalIgnoreCase));
+        }
+
+        internal static void InvokeMutationHook(string point) {
             MutationHookForTests?.Invoke(point);
         }
 
@@ -749,16 +756,37 @@ namespace helengine.editor {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, ProjectRootPath);
             if (OperatingSystem.IsWindows()) {
+                EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.CurrentValue;
+                InvokeMutationHook("ReplaceLeaf.BeforeHandleProof");
                 using EditorAuthoringVerifiedFile sourceFile = OpenVerifiedFileCore(
                     source,
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite,
                     true);
+                if (journal != null) {
+                    string sourceIdentity = DescribeWindowsHandle(sourceFile.Stream.SafeFileHandle);
+                    if (!string.Equals(sourceIdentity, journal.ExpectedSourceIdentityValue, StringComparison.Ordinal) ||
+                        IsDirectoryIdentity(journal.ExpectedSourceIdentityValue)) {
+                        throw new InvalidDataException($"The replacement source '{source}' changed or is a directory.");
+                    }
+                    VerifyExpectedHash(sourceFile.Stream.SafeFileHandle, journal.ExpectedSourceHashValue, "replacement source");
+                }
+                InvokeMutationHook("ReplaceLeaf.AfterHandleProof");
                 RenameVerifiedWindowsLeaf(
                     sourceFile.Stream.SafeFileHandle,
                     Path.GetFileName(destination),
                     replaceExisting && File.Exists(destination));
+                if (journal != null) {
+                    // The source handle remains bound to the published inode;
+                    // verify its bytes before any path-based destination
+                    // observation can advance the journal.
+                    VerifyExpectedHash(sourceFile.Stream.SafeFileHandle, journal.ExpectedSourceHashValue, "replacement destination");
+                    string destinationIdentity = CaptureVerifiedIdentity(ProjectRootPath, destination);
+                    if (!string.Equals(destinationIdentity, journal.ExpectedSourceIdentityValue, StringComparison.Ordinal)) {
+                        throw new InvalidDataException($"The replacement destination '{destination}' failed identity verification.");
+                    }
+                }
             } else if (OperatingSystem.IsLinux()) {
                 ReplaceLinuxLeaf(
                     Handles[Handles.Count - 1].DangerousGetHandle().ToInt32(),
@@ -1343,8 +1371,18 @@ namespace helengine.editor {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, projectRootPath);
             if (OperatingSystem.IsWindows()) {
+                EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.CurrentValue;
+                InvokeMutationHook("MoveDirectory.BeforeHandleProof");
                 using SafeFileHandle sourceDirectory = OpenAndVerifyWindowsDirectory(source, true);
+                string sourceIdentity = DescribeWindowsHandle(sourceDirectory);
+                if (journal != null && !string.Equals(sourceIdentity, journal.ExpectedSourceIdentityValue, StringComparison.Ordinal)) {
+                    throw new InvalidDataException($"The directory move source '{source}' changed after proof.");
+                }
+                InvokeMutationHook("MoveDirectory.AfterHandleProof");
                 scope.RenameVerifiedWindowsLeaf(sourceDirectory, Path.GetFileName(destination), false);
+                if (journal != null && !string.Equals(CaptureVerifiedIdentity(projectRootPath, destination), journal.ExpectedSourceIdentityValue, StringComparison.Ordinal)) {
+                    throw new InvalidDataException($"The directory move destination '{destination}' failed identity verification.");
+                }
             } else if (OperatingSystem.IsLinux()) {
                 MoveLinuxDirectory(
                     scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
@@ -1607,19 +1645,39 @@ namespace helengine.editor {
                 throw new IOException($"The verified destination '{destination}' already exists.");
             }
             if (OperatingSystem.IsWindows()) {
+                EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.CurrentValue;
+                InvokeMutationHook("MoveLeaf.BeforeHandleProof");
                 using EditorAuthoringVerifiedFile sourceFile = OpenVerifiedFileCore(
                     source,
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite,
                     true);
+                if (journal != null) {
+                    string sourceIdentity = DescribeWindowsHandle(sourceFile.Stream.SafeFileHandle);
+                    if (!string.Equals(sourceIdentity, journal.ExpectedSourceIdentityValue, StringComparison.Ordinal) ||
+                        IsDirectoryIdentity(journal.ExpectedSourceIdentityValue)) {
+                        throw new InvalidDataException($"The move source '{source}' changed or is a directory.");
+                    }
+                    VerifyExpectedHash(sourceFile.Stream.SafeFileHandle, journal.ExpectedSourceHashValue, "move source");
+                }
+                InvokeMutationHook("MoveLeaf.AfterHandleProof");
                 RenameVerifiedWindowsLeaf(
                     sourceFile.Stream.SafeFileHandle,
                     Path.GetFileName(destination),
                     false,
                     destinationScope);
-                if (CaptureVerifiedIdentity(ProjectRootPath, destination) == "missing") {
+                if (journal != null) {
+                    VerifyExpectedHash(sourceFile.Stream.SafeFileHandle, journal.ExpectedSourceHashValue, "move destination");
+                }
+                string destinationIdentityAfter = CaptureVerifiedIdentity(ProjectRootPath, destination);
+                if (destinationIdentityAfter == "missing") {
                     throw new IOException($"Verified rename did not publish '{destination}'.");
+                }
+                if (journal != null) {
+                    if (!string.Equals(destinationIdentityAfter, journal.ExpectedSourceIdentityValue, StringComparison.Ordinal)) {
+                        throw new InvalidDataException($"The move destination '{destination}' failed identity verification.");
+                    }
                 }
             } else {
                 SafeFileHandle sourceDirectory = Handles[Handles.Count - 1];

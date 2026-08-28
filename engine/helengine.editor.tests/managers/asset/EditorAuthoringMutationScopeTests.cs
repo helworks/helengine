@@ -42,6 +42,13 @@ public sealed class EditorAuthoringMutationScopeTests : IDisposable {
     }
 
     [Fact]
+    public void DirectoryIdentity_RecognizesWindowsAndLinuxDirectoryProofs() {
+        Assert.True(EditorAuthoringMutationScope.IsDirectoryIdentity("windows:00000001:0000000200000003:directory"));
+        Assert.True(EditorAuthoringMutationScope.IsDirectoryIdentity("dev:8;inode:42;type:4000"));
+        Assert.False(EditorAuthoringMutationScope.IsDirectoryIdentity("dev:8;inode:42;type:8000"));
+    }
+
+    [Fact]
     public void AuthoringServices_RequireExplicitProjectRoot() {
         Assert.DoesNotContain(
             typeof(AssetFileHasher).GetConstructors(
@@ -166,6 +173,35 @@ public sealed class EditorAuthoringMutationScopeTests : IDisposable {
                 File.Delete(outsidePath);
             }
         }
+    }
+
+    [Fact]
+    public void MoveDirectory_PublishesDirectoryIdentityWithoutReadingDirectoryAsAFile() {
+        string sourcePath = Path.Combine(ProjectRootPath, "assets", "directory-source");
+        string destinationPath = Path.Combine(ProjectRootPath, "assets", "directory-destination");
+        Directory.CreateDirectory(sourcePath);
+        File.WriteAllBytes(Path.Combine(sourcePath, "payload.bin"), new byte[] { 3, 1, 4 });
+
+        EditorAuthoringMutationScope.MoveDirectory(ProjectRootPath, sourcePath, destinationPath);
+
+        Assert.False(Directory.Exists(sourcePath));
+        Assert.Equal(new byte[] { 3, 1, 4 }, File.ReadAllBytes(Path.Combine(destinationPath, "payload.bin")));
+        string journalRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
+        Assert.True(!Directory.Exists(journalRoot) || !Directory.EnumerateFileSystemEntries(journalRoot).Any());
+    }
+
+    [Fact]
+    public void DeleteDirectoryTree_UsesDirectoryProofAndNeverHashesTheDirectoryContentsAsAFile() {
+        string directoryPath = Path.Combine(ProjectRootPath, "assets", "directory-to-delete");
+        Directory.CreateDirectory(directoryPath);
+        File.WriteAllBytes(Path.Combine(directoryPath, "payload.bin"), new byte[] { 9, 2, 6 });
+
+        EditorAuthoringMutationScope.DeleteDirectoryTree(
+            ProjectRootPath,
+            directoryPath,
+            Path.Combine(ProjectRootPath, "assets"));
+
+        Assert.False(Directory.Exists(directoryPath));
     }
 
     [DirectoryLinkFact]

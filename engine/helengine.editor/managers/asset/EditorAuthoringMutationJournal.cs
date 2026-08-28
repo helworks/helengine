@@ -251,7 +251,7 @@ namespace helengine.editor {
             EnsureMutationCallbackAllowed();
             string fullPath = RequireContainedArtifact(path, "staged/payload.publishing");
             string identity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, fullPath);
-            string hash = EditorAuthoringMutationScope.TryGetVerifiedSha256(ProjectRootPath, fullPath);
+            string hash = CaptureHash(ProjectRootPath, fullPath);
             if (identity == "missing" || identity == "unavailable" || hash == "missing" || hash == "unavailable") {
                 throw new InvalidDataException("The publishing payload identity could not be verified.");
             }
@@ -270,7 +270,7 @@ namespace helengine.editor {
             EnsureMutationCallbackAllowed();
             string fullPath = RequireContainedArtifact(path, "destination.old");
             string identity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, fullPath);
-            string hash = EditorAuthoringMutationScope.TryGetVerifiedSha256(ProjectRootPath, fullPath);
+            string hash = CaptureHash(ProjectRootPath, fullPath);
             if (identity == "missing" || identity == "unavailable" || hash == "missing" || hash == "unavailable") {
                 throw new InvalidDataException("The former destination identity could not be verified.");
             }
@@ -321,7 +321,7 @@ namespace helengine.editor {
             if (!string.Equals(actual, Document.ExpectedDestinationIdentity, StringComparison.Ordinal)) {
                 throw new InvalidDataException($"The authoring mutation destination '{destinationPath}' changed after journal creation.");
             }
-            string actualHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(ProjectRootPath, destinationPath);
+            string actualHash = CaptureHash(ProjectRootPath, destinationPath);
             if (!string.Equals(actualHash, Document.ExpectedDestinationHash, StringComparison.Ordinal)) {
                 throw new InvalidDataException($"The authoring mutation destination '{destinationPath}' content changed after journal creation.");
             }
@@ -529,8 +529,7 @@ namespace helengine.editor {
                 throw new ArgumentException("A transient mutation requires one original leaf name.", nameof(originalName));
             }
             bool isDirectory = string.Equals(expectedHash, "directory", StringComparison.Ordinal) ||
-                expectedIdentity.EndsWith(":directory", StringComparison.Ordinal) ||
-                expectedIdentity.EndsWith(";directory", StringComparison.Ordinal);
+                EditorAuthoringMutationScope.IsDirectoryIdentity(expectedIdentity);
             string recoveryIntent = action switch {
                 "RestoreOriginal" => "RestoreOriginal",
                 "RollbackPublication" => "RollbackPublication",
@@ -566,6 +565,7 @@ namespace helengine.editor {
                 string.IsNullOrWhiteSpace(recoveryIntent) || !SupportedTransientEntryKinds.Contains(entryKind) ||
                 !SupportedTransientRecoveryIntents.Contains(recoveryIntent) ||
                 (!string.Equals(journal.Document.Kind, "move", StringComparison.Ordinal) &&
+                 !string.Equals(journal.Document.Kind, "move-directory", StringComparison.Ordinal) &&
                  !string.Equals(journal.Document.Kind, "replace", StringComparison.Ordinal))) {
                 throw new ArgumentException("A durable transient mutation requires valid paths, identity, entry kind, and recovery intent.");
             }
@@ -817,6 +817,7 @@ namespace helengine.editor {
                 if (!string.Equals(transient.Lifecycle, "CleanupPending", StringComparison.Ordinal)) {
                     transient.Lifecycle = "CleanupPending";
                     Persist();
+                    EditorAuthoringMutationScope.InvokeMutationHook("Recovery.AfterCleanupPendingPersist");
                 }
                 if (quarantineIdentity != "missing") {
                     VerifyTransientLocation(ProjectRootPath, quarantinePath, transient, "cleanup quarantine");
@@ -838,6 +839,7 @@ namespace helengine.editor {
                     ProjectRootPath,
                     quarantinePath,
                     "TransientCleanup.FlushParent");
+                EditorAuthoringMutationScope.InvokeMutationHook("Recovery.AfterCleanupParentFlush");
                 RemoveTransient(quarantinePath);
             }
         }
@@ -848,7 +850,7 @@ namespace helengine.editor {
             if (!string.Equals(destinationIdentity, document.ExpectedSourceIdentity, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"The published authoring mutation found a changed destination '{destinationPath}'.");
             }
-            string destinationHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationPath);
+            string destinationHash = CaptureHash(root, destinationPath);
             if (!string.Equals(destinationHash, document.ExpectedSourceHash, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"The published authoring mutation found changed destination content '{destinationPath}'.");
             }
@@ -984,6 +986,10 @@ namespace helengine.editor {
                 if (string.Equals(document.Phase, "Prepared", StringComparison.Ordinal)) {
                     if (document.Kind.StartsWith("delete", StringComparison.Ordinal) &&
                         TryRecoverDeleteBeforePublished(root, path, document)) {
+                        continue;
+                    }
+                    if (document.Kind is "move" or "move-directory" or "replace") {
+                        TryRecoverPreparedPublication(root, path, document);
                         continue;
                     }
                     RetireDocument(root, path);
@@ -1147,6 +1153,37 @@ namespace helengine.editor {
             throw new InvalidOperationException($"The authoring deletion '{journalPath}' found conflicting source and deleting entries.");
         }
 
+        static void TryRecoverPreparedPublication(string root, string journalPath, MutationDocument document) {
+            string sourcePath = Path.Combine(root, document.SourceRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string destinationPath = Path.Combine(root, document.DestinationRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string sourceIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, sourcePath);
+            string destinationIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationPath);
+            string sourceHash = CaptureHash(root, sourcePath);
+            string destinationHash = CaptureHash(root, destinationPath);
+            bool sourceIsExpected = string.Equals(sourceIdentity, document.ExpectedSourceIdentity, StringComparison.Ordinal) &&
+                string.Equals(sourceHash, document.ExpectedSourceHash, StringComparison.Ordinal);
+            bool destinationIsExpected = string.Equals(destinationIdentity, document.ExpectedDestinationIdentity, StringComparison.Ordinal) &&
+                string.Equals(destinationHash, document.ExpectedDestinationHash, StringComparison.Ordinal);
+            if (sourceIsExpected && destinationIsExpected) {
+                RetireDocument(root, journalPath);
+                return;
+            }
+
+            bool sourceIsMissing = sourceIdentity == "missing" && sourceHash == "missing";
+            bool destinationIsPublished = string.Equals(destinationIdentity, document.ExpectedSourceIdentity, StringComparison.Ordinal) &&
+                string.Equals(destinationHash, document.ExpectedSourceHash, StringComparison.Ordinal);
+            if (sourceIsMissing && destinationIsPublished) {
+                EditorAuthoringMutationScope.FlushContainingDirectoryForRecovery(root, destinationPath, "Recovery.BeforePreparedPublicationDestinationFlush");
+                EditorAuthoringMutationScope.FlushContainingDirectoryForRecovery(root, sourcePath, "Recovery.BeforePreparedPublicationSourceFlush");
+                document.Phase = "Published";
+                DurableCurrent?.Persist();
+                RecoverPublishedDocument(root, journalPath, document);
+                return;
+            }
+
+            throw new InvalidOperationException($"The prepared authoring mutation '{journalPath}' has conflicting source or destination state.");
+        }
+
         static void TryRecoverTransientEntries(string root, string journalPath, MutationDocument document) {
             bool committed = string.Equals(document.Phase, "Published", StringComparison.Ordinal);
             // The list is a mutation graph ordered by reservation. Reverse
@@ -1298,6 +1335,7 @@ namespace helengine.editor {
             if (!string.Equals(transient.Lifecycle, "CleanupPending", StringComparison.Ordinal)) {
                 transient.Lifecycle = "CleanupPending";
                 DurableCurrent?.Persist();
+                EditorAuthoringMutationScope.InvokeMutationHook("Recovery.AfterCleanupPendingPersist");
             }
             if (quarantineIdentity != "missing") {
                 VerifyTransientLocation(root, quarantinePath, transient, "cleanup quarantine");
@@ -1308,6 +1346,7 @@ namespace helengine.editor {
                 }
             }
             EditorAuthoringMutationScope.FlushContainingDirectoryForRecovery(root, quarantinePath, "TransientCleanup.FlushParent");
+            EditorAuthoringMutationScope.InvokeMutationHook("Recovery.AfterCleanupParentFlush");
             CompleteTransient(quarantinePath);
         }
 
@@ -1400,7 +1439,7 @@ namespace helengine.editor {
             if (identity == "missing" || identity == "unavailable") {
                 return identity;
             }
-            if (identity.EndsWith(":directory", StringComparison.Ordinal)) {
+            if (EditorAuthoringMutationScope.IsDirectoryIdentity(identity)) {
                 return "directory";
             }
             return EditorAuthoringMutationScope.TryGetVerifiedSha256(root, path);
@@ -1435,9 +1474,7 @@ namespace helengine.editor {
                 string.IsNullOrWhiteSpace(document.ExpectedDestinationHash)) {
                 throw new InvalidDataException($"The authoring mutation journal '{path}' is missing destination content proof.");
             }
-            bool sourceIsDirectory = document.ExpectedSourceIdentity?.EndsWith(":directory", StringComparison.Ordinal) == true ||
-                document.ExpectedSourceIdentity?.EndsWith(";directory", StringComparison.Ordinal) == true ||
-                document.ExpectedSourceIdentity?.EndsWith("type:4000", StringComparison.OrdinalIgnoreCase) == true;
+            bool sourceIsDirectory = EditorAuthoringMutationScope.IsDirectoryIdentity(document.ExpectedSourceIdentity);
             bool sourceIsMissing = string.Equals(document.ExpectedSourceIdentity, "missing", StringComparison.Ordinal);
             if (!string.Equals(document.Phase, "Completed", StringComparison.Ordinal) &&
                 (string.IsNullOrWhiteSpace(document.ExpectedSourceHash) ||
@@ -1446,8 +1483,18 @@ namespace helengine.editor {
                  (sourceIsDirectory && !string.Equals(document.ExpectedSourceHash, "directory", StringComparison.Ordinal)))) {
                 throw new InvalidDataException($"The authoring mutation journal '{path}' is missing source content proof.");
             }
+            bool destinationIsDirectory = EditorAuthoringMutationScope.IsDirectoryIdentity(document.ExpectedDestinationIdentity);
+            bool destinationIsMissing = string.Equals(document.ExpectedDestinationIdentity, "missing", StringComparison.Ordinal);
+            bool directoryOperation = document.Kind is "move-directory" or "delete-directory";
+            if (!sourceIsMissing && sourceIsDirectory != directoryOperation) {
+                throw new InvalidDataException($"The authoring mutation journal '{path}' has a source proof that does not match its operation kind.");
+            }
+            if (!destinationIsMissing && destinationIsDirectory != directoryOperation) {
+                throw new InvalidDataException($"The authoring mutation journal '{path}' has a destination proof that does not match its operation kind.");
+            }
             if (document.TransientEntries.Count > 0) {
                 if (!string.Equals(document.Kind, "move", StringComparison.Ordinal) &&
+                    !string.Equals(document.Kind, "move-directory", StringComparison.Ordinal) &&
                     !string.Equals(document.Kind, "replace", StringComparison.Ordinal)) {
                     throw new InvalidDataException($"The authoring mutation journal '{path}' contains transients for a non-publication operation.");
                 }
@@ -1592,6 +1639,11 @@ namespace helengine.editor {
                         throw new InvalidDataException($"The authoring move '{path}' must contain exactly one publication rollback entry.");
                     }
                     ValidatePublicationEntry(document.TransientEntries[0]);
+                } else if (string.Equals(document.Kind, "move-directory", StringComparison.Ordinal)) {
+                    if (document.TransientEntries.Count != 1) {
+                        throw new InvalidDataException($"The authoring directory move '{path}' must contain exactly one publication rollback entry.");
+                    }
+                    ValidatePublicationEntry(document.TransientEntries[0]);
                 } else if (string.Equals(document.Kind, "replace", StringComparison.Ordinal)) {
                     bool hasExistingDestination = !string.Equals(document.ExpectedDestinationIdentity, "missing", StringComparison.Ordinal);
                     if (!hasExistingDestination && document.TransientEntries.Count != 1) {
@@ -1624,21 +1676,29 @@ namespace helengine.editor {
             }
 
             void ValidatePublicationEntry(TransientMutation transient) {
+                bool sourceDirectory = EditorAuthoringMutationScope.IsDirectoryIdentity(document.ExpectedSourceIdentity);
                 if (!string.Equals(transient.RecoveryIntent, "RollbackPublication", StringComparison.Ordinal) ||
                     !string.Equals(transient.OriginalRelativePath, document.SourceRelativePath, pathComparison) ||
                     !string.Equals(transient.IntendedDestinationRelativePath, document.DestinationRelativePath, pathComparison) ||
+                    !string.Equals(transient.EntryKind, sourceDirectory ? "Directory" : "File", StringComparison.Ordinal) ||
                     !string.Equals(transient.ExpectedIdentity, document.ExpectedSourceIdentity, StringComparison.Ordinal) ||
-                    !string.Equals(transient.ExpectedHash, document.ExpectedSourceHash, StringComparison.Ordinal)) {
+                    (sourceDirectory
+                        ? !string.IsNullOrWhiteSpace(transient.ExpectedHash)
+                        : !string.Equals(transient.ExpectedHash, document.ExpectedSourceHash, StringComparison.Ordinal))) {
                     throw new InvalidDataException($"The authoring mutation journal '{path}' contains an invalid publication rollback edge.");
                 }
             }
 
             void ValidateRestorationEntry(TransientMutation transient) {
+                bool destinationDirectory = EditorAuthoringMutationScope.IsDirectoryIdentity(document.ExpectedDestinationIdentity);
                 if (!string.Equals(transient.RecoveryIntent, "RestoreOriginal", StringComparison.Ordinal) ||
                     !string.Equals(transient.OriginalRelativePath, document.DestinationRelativePath, pathComparison) ||
                     !string.IsNullOrWhiteSpace(transient.IntendedDestinationRelativePath) ||
+                    !string.Equals(transient.EntryKind, destinationDirectory ? "Directory" : "File", StringComparison.Ordinal) ||
                     !string.Equals(transient.ExpectedIdentity, document.ExpectedDestinationIdentity, StringComparison.Ordinal) ||
-                    !string.Equals(transient.ExpectedHash, document.ExpectedDestinationHash, StringComparison.Ordinal)) {
+                    (destinationDirectory
+                        ? !string.IsNullOrWhiteSpace(transient.ExpectedHash)
+                        : string.Equals(transient.ExpectedHash, document.ExpectedDestinationHash, StringComparison.Ordinal) == false)) {
                     throw new InvalidDataException($"The authoring mutation journal '{path}' contains an invalid destination restoration edge.");
                 }
             }
@@ -1790,8 +1850,8 @@ namespace helengine.editor {
             if (!string.Equals(destinationIdentity, document.ExpectedSourceIdentity, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"The published authoring mutation '{journalPath}' found a changed destination entry.");
             }
-            if (!document.Kind.Equals("move-directory", StringComparison.Ordinal)) {
-                string destinationHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationPath);
+            if (!EditorAuthoringMutationScope.IsDirectoryIdentity(document.ExpectedSourceIdentity)) {
+                string destinationHash = CaptureHash(root, destinationPath);
                 if (!string.Equals(destinationHash, document.ExpectedSourceHash, StringComparison.Ordinal)) {
                     throw new InvalidOperationException($"The published authoring mutation '{journalPath}' found changed destination content.");
                 }
