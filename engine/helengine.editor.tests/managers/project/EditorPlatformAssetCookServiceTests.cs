@@ -29,7 +29,6 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Directory.CreateDirectory(BuildRootPath);
         ShaderBackendRegistry shaderBackendRegistry = new();
         shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-        EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
     }
 
     public void Dispose() {

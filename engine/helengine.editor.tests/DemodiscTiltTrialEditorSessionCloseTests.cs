@@ -103,7 +103,6 @@ public sealed class DemodiscTiltTrialEditorSessionCloseTests : IDisposable {
         ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
         shaderBackendRegistry.Register(new DirectX11ShaderBackend());
         shaderBackendRegistry.Register(new VulkanShaderBackend());
-        EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         return shaderBackendRegistry;
     }
 

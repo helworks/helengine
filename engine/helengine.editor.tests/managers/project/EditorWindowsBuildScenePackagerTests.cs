@@ -41,7 +41,6 @@ namespace helengine.editor.tests {
 
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         }
 
         /// <summary>
@@ -1013,7 +1012,6 @@ namespace helengine.editor.tests {
 
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             FontAsset defaultFont = CreatePackagedFontAsset();
             PlatformDefinition platformDefinition = CreateCanonicalPathPlatformDefinition(Array.Empty<PlatformComponentSupportRule>());
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
@@ -1715,7 +1713,6 @@ namespace helengine.editor.tests {
             WriteSceneAsset(sceneId, "helengine.TextComponent", WriteTextComponentPayload(), new[] { CreateEditorFontReference() });
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
             PlatformDefinition platformDefinition = CreateBuilderOwnedFontAtlasTexturePlatformDefinition(defaultSerializedTextureSettings);
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(

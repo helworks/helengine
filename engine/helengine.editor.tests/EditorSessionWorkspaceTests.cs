@@ -713,7 +713,6 @@ namespace helengine.editor.tests {
                     });
                 ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
                 shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
-                EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
                 EditorKeyboardFocusService.Reset();
                 GeneratedAssetProviderRegistry.ResetForTests();
                 GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());

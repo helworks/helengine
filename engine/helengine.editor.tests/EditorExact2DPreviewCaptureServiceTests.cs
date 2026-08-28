@@ -13,7 +13,6 @@ namespace helengine.editor.tests {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new helengine.vulkan.VulkanShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()

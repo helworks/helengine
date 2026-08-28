@@ -526,7 +526,6 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(buildRootPath);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
             SceneAsset authoredScene = new SceneAsset {
                 Id = sceneId,

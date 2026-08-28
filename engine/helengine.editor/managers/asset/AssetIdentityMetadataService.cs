@@ -148,9 +148,6 @@ namespace helengine.editor {
 
             string projectRootPath = ResolveProjectRootPath(assetPath);
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
-            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
-                projectRootPath,
-                Path.GetDirectoryName(Path.GetFullPath(assetPath)));
 
             if (PathClassifier.UsesEmbeddedIdentity(assetPath)) {
                 ValidateDocument(document, assetPath);
@@ -160,24 +157,11 @@ namespace helengine.editor {
 
             string metadataPath = GetMetadataPath(assetPath);
             ValidateDocument(document, metadataPath);
-            string temporaryPath = metadataPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                string json = JsonSerializer.Serialize(document, JsonOptions);
-                using (EditorAuthoringVerifiedFile temporary = mutationScope.OpenVerifiedFile(
-                    temporaryPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None)) {
-                    byte[] bytes = new UTF8Encoding(false).GetBytes(json);
-                    temporary.Stream.Write(bytes, 0, bytes.Length);
-                    temporary.Stream.Flush(true);
-                }
-                mutationScope.ReplaceLeaf(temporaryPath, metadataPath, true);
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    mutationScope.DeleteLeaf(temporaryPath);
-                }
-            }
+            byte[] bytes = new UTF8Encoding(false).GetBytes(JsonSerializer.Serialize(document, JsonOptions));
+            // The atomic write owns the staged payload and publication journal;
+            // metadata updates therefore cannot create a nested journal or an
+            // anonymous sibling temporary file.
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, metadataPath, bytes);
         }
 
         /// <summary>

@@ -20,6 +20,7 @@ namespace helengine.editor {
         /// </summary>
         readonly string ShaderCachePath;
         readonly string ProjectRootPath;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Initializes the shader package service with the active module manager.
@@ -27,12 +28,13 @@ namespace helengine.editor {
         /// <param name="shaderModuleManager">Module manager used for on-demand compilation.</param>
         /// <param name="runtimeTarget">Runtime target used by the active renderer.</param>
         /// <param name="contentManager">Content manager used to read compiled shader packages.</param>
-        public EditorShaderPackageService(string projectRootPath, ShaderModuleManager shaderModuleManager, ShaderCompileTarget runtimeTarget, ContentManager contentManager) {
+        public EditorShaderPackageService(string projectRootPath, ShaderModuleManager shaderModuleManager, ShaderCompileTarget runtimeTarget, ContentManager contentManager, ShaderBackendRegistry shaderBackendRegistry = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
             ModuleManager = shaderModuleManager ?? throw new ArgumentNullException(nameof(shaderModuleManager));
             PackageContentManager = contentManager ?? throw new ArgumentNullException(nameof(contentManager));
+            BuiltInShaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry ?? EditorBuiltInShaderAssetLibrary.CreateDefaultShaderBackendRegistry());
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             RuntimeTarget = runtimeTarget;
             ShaderCachePath = Path.GetFullPath(shaderModuleManager.PackageOutputPath);
@@ -60,7 +62,7 @@ namespace helengine.editor {
             ValidatePackagePath(packagePath);
             bool compiled = ModuleManager.EnsureShaderCompiled(shaderId);
             if (!compiled && !File.Exists(packagePath)) {
-                if (EditorBuiltInShaderAssetLibrary.TryLoadShaderAssetById(RuntimeTarget, shaderId, out ShaderAsset builtInShaderAsset)) {
+                if (BuiltInShaderLibrary.TryLoadById(RuntimeTarget, shaderId, out ShaderAsset builtInShaderAsset)) {
                     return builtInShaderAsset;
                 }
 

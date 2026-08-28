@@ -45,7 +45,6 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
         Environment.SetEnvironmentVariable("HELENGINE_BUILD_WORKSPACE_ROOT", null);
         ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
         shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-        EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
     }
 
     /// <summary>

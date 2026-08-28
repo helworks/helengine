@@ -124,11 +124,53 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     [Fact]
     public void Recover_WhenJournalVersionIsMalformed_FailsClosed() {
         string journalDirectory = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
-        Directory.CreateDirectory(journalDirectory);
-        File.WriteAllText(Path.Combine(journalDirectory, "bad.json"), "{\"Version\":99}");
+        string operationDirectory = Path.Combine(journalDirectory, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(operationDirectory);
+        File.WriteAllText(Path.Combine(operationDirectory, "document.json"), "{\"Version\":99}");
 
         Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationJournal.Recover(ProjectRootPath));
-        Assert.True(File.Exists(Path.Combine(journalDirectory, "bad.json")));
+        Assert.True(File.Exists(Path.Combine(operationDirectory, "document.json")));
+    }
+
+    [Fact]
+    public void Recover_WhenCreatingOperationDirectoryIsVisible_RemovesOnlyItsContainedTree() {
+        string journalDirectory = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
+        string creatingDirectory = Path.Combine(journalDirectory, ".creating-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(creatingDirectory, "staged"));
+        File.WriteAllBytes(Path.Combine(creatingDirectory, "staged", "payload.bin"), new byte[] { 1, 2, 3 });
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.False(Directory.Exists(creatingDirectory));
+        Assert.Empty(Directory.GetFiles(ProjectRootPath, "outside-*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public void Recover_WhenDeletingOperationDirectoryIsVisible_ResumesContainedRetirement() {
+        string journalDirectory = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
+        string deletingDirectory = Path.Combine(journalDirectory, ".deleting-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(deletingDirectory, "staged"));
+        File.WriteAllBytes(Path.Combine(deletingDirectory, "staged", "payload.bin"), new byte[] { 4, 5, 6 });
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.False(Directory.Exists(deletingDirectory));
+    }
+
+    [Fact]
+    public void Recover_WhenNextDocumentHasHigherSequence_PromotesItBeforeRecovery() {
+        string journalDirectory = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
+        string operationId = Guid.NewGuid().ToString("N");
+        string operationDirectory = Path.Combine(journalDirectory, operationId);
+        Directory.CreateDirectory(operationDirectory);
+        string document = "{\"Version\":1,\"OperationId\":\"" + operationId + "\",\"Kind\":\"replace\",\"SourceRelativePath\":\"assets/source.hasset\",\"DestinationRelativePath\":\"assets/destination.hasset\",\"ExpectedSourceIdentity\":\"missing\",\"ExpectedDestinationIdentity\":\"missing\",\"Phase\":\"Completed\",\"Sequence\":1,\"TransientEntries\":[]}";
+        string nextDocument = document.Replace("\"Sequence\":1", "\"Sequence\":2", StringComparison.Ordinal);
+        File.WriteAllText(Path.Combine(operationDirectory, "document.json"), document);
+        File.WriteAllText(Path.Combine(operationDirectory, "document.next"), nextDocument);
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.False(Directory.Exists(operationDirectory));
     }
 
     [Fact]
@@ -144,13 +186,39 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     }
 
     [Fact]
+    public void Begin_WhenMutationKindIsNotWhitelisted_RejectsBeforeJournalCreation() {
+        Assert.Throws<ArgumentException>(() => EditorAuthoringMutationJournal.Begin(
+            ProjectRootPath,
+            "unrecognized-operation",
+            Path.Combine(ProjectRootPath, "assets", "source.hasset"),
+            Path.Combine(ProjectRootPath, "assets", "destination.hasset")));
+
+        Assert.False(Directory.Exists(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations")));
+    }
+
+    [Fact]
+    public void Recover_WhenDocumentOperationIdDoesNotMatchDirectory_RejectsWithoutRetiringIt() {
+        string journalDirectory = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
+        string operationId = Guid.NewGuid().ToString("N");
+        string otherOperationId = Guid.NewGuid().ToString("N");
+        string operationDirectory = Path.Combine(journalDirectory, operationId);
+        Directory.CreateDirectory(operationDirectory);
+        File.WriteAllText(
+            Path.Combine(operationDirectory, "document.json"),
+            $"{{\"Version\":1,\"Sequence\":1,\"OperationId\":\"{otherOperationId}\",\"Kind\":\"replace\",\"SourceRelativePath\":\"assets/source.hasset\",\"DestinationRelativePath\":\"assets/destination.hasset\",\"ExpectedSourceIdentity\":\"missing\",\"ExpectedDestinationIdentity\":\"missing\",\"Phase\":\"Completed\",\"TransientEntries\":[]}}");
+
+        Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationJournal.Recover(ProjectRootPath));
+        Assert.True(Directory.Exists(operationDirectory));
+    }
+
+    [Fact]
     public void Recover_WhenCompletedDocumentRetirementWasInterrupted_RemovesOnlyTheValidatedDocument() {
         string journalDirectory = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
         string operationId = Guid.NewGuid().ToString("N");
         string operationDirectory = Path.Combine(journalDirectory, operationId);
         Directory.CreateDirectory(operationDirectory);
         string journalPath = Path.Combine(operationDirectory, "document.json");
-        File.WriteAllText(journalPath, $"{{\"Version\":1,\"OperationId\":\"{operationId}\",\"Kind\":\"replace\",\"SourceRelativePath\":\"assets/source.hasset\",\"DestinationRelativePath\":\"assets/destination.hasset\",\"ExpectedSourceIdentity\":\"missing\",\"ExpectedDestinationIdentity\":\"missing\",\"Phase\":\"Completed\",\"TransientEntries\":[]}}");
+        File.WriteAllText(journalPath, $"{{\"Version\":1,\"Sequence\":1,\"OperationId\":\"{operationId}\",\"Kind\":\"replace\",\"SourceRelativePath\":\"assets/source.hasset\",\"DestinationRelativePath\":\"assets/destination.hasset\",\"ExpectedSourceIdentity\":\"missing\",\"ExpectedDestinationIdentity\":\"missing\",\"Phase\":\"Completed\",\"TransientEntries\":[]}}");
 
         EditorAuthoringMutationJournal.Recover(ProjectRootPath);
 

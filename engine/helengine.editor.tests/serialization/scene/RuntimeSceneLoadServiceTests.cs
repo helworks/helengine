@@ -27,7 +27,6 @@ namespace helengine.editor.tests.serialization.scene {
             Directory.CreateDirectory(TempRootPath);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
             EditorCore core = new EditorCore(new Project {
                 Name = "Runtime Scene Load",

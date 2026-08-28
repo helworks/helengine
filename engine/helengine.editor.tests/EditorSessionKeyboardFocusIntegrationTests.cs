@@ -256,7 +256,6 @@ namespace helengine.editor.tests {
             TransformGizmoSnapSettingsService.ResetDefaults();
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
 
             inputManager = new TestInputBackend();
             inputManager.SetKeyboardState(new KeyboardState());
@@ -411,7 +410,6 @@ namespace helengine.editor.tests {
                 Array.Empty<ShaderDefine>());
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderModuleManagerOptions options = new ShaderModuleManagerOptions(
                 shaderRootPath,
                 packageOutputPath,

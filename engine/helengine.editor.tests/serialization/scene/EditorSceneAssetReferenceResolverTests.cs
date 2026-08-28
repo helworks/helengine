@@ -577,7 +577,6 @@ namespace helengine.editor.tests.serialization.scene {
                 Array.Empty<ShaderDefine>());
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderModuleManagerOptions options = new ShaderModuleManagerOptions(
                 shaderRootPath,
                 packageOutputPath,

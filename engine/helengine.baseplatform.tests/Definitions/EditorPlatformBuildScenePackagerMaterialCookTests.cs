@@ -50,7 +50,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     public void Package_when_builder_is_available_uses_target_platform_material_sidecar_values() {
         string sceneId = "Scenes/TestScene.helen";
         string materialRelativePath = "Materials/TestMaterial.helmat";
-        SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
+        EditorBuiltInShaderAssetLibrary shaderLibrary = SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
         WriteMaterialAsset(materialRelativePath, "StaleShader");
         WriteMaterialSettings(materialRelativePath);
         WriteSceneAsset(sceneId, materialRelativePath);
@@ -62,7 +62,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             "windows",
             builder,
             "debug",
-            "directx11");
+            "directx11",
+            shaderLibrary);
         EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
         string packagedMaterialPath = Path.Combine(BuildRootPath, "cooked", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
@@ -85,7 +86,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     [Fact]
     public void Package_whenBuilderCooksMaterial_reportsExplicitMaterialOutput() {
         string sceneId = "Scenes/TestScene.helen";
-        SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
+        EditorBuiltInShaderAssetLibrary shaderLibrary = SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
         WriteEmptySceneAsset(sceneId);
 
         IPlatformAssetBuilder builder = new TestPlatformAssetBuilder();
@@ -95,7 +96,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             "windows",
             builder,
             "debug",
-            "directx11");
+            "directx11",
+            shaderLibrary);
         EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
         PlatformCookedArtifactDeclaration materialOutput = Assert.Single(
@@ -117,13 +119,15 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         WriteMaterialAsset(materialRelativePath, "StaleShader");
 
         IPlatformAssetBuilder builder = new TestPlatformAssetBuilder();
+        EditorBuiltInShaderAssetLibrary shaderLibrary = new EditorBuiltInShaderAssetLibrary(EditorBuiltInShaderAssetLibrary.CreateDefaultShaderBackendRegistry());
         EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
             ProjectRootPath,
             Array.Empty<IAssetImporterRegistration>(),
             "windows",
             builder,
             "debug",
-            "directx11");
+            "directx11",
+            shaderLibrary);
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
         ShaderMaterialAsset materialAsset = new MaterialAssetSettingsService(ProjectRootPath).LoadMaterialAsset(materialPath, "windows");
         MethodInfo loadMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
@@ -146,7 +150,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     public void Package_when_scene_level_asset_reference_targets_material_routes_reference_through_material_cook_path() {
         string sceneId = "Scenes/TestScene.helen";
         string materialRelativePath = "Materials/TestMaterial.helmat";
-        SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
+        EditorBuiltInShaderAssetLibrary shaderLibrary = SeedBuiltInStandardShaderAsset(ShaderCompileTarget.DirectX11);
         WriteMaterialAsset(materialRelativePath, "StaleShader");
         WriteMaterialSettings(materialRelativePath);
         WriteSceneAssetWithSceneLevelMaterialReference(sceneId, materialRelativePath);
@@ -158,7 +162,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             "windows",
             builder,
             "debug",
-            "directx11");
+            "directx11",
+            shaderLibrary);
         packager.Package(new[] { sceneId }, BuildRootPath);
 
         string packagedScenePath = Path.Combine(BuildRootPath, "cooked", "scenes", "TestScene.hasset");
@@ -184,6 +189,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
 
         SceneAsset sceneAsset = new SceneAsset {
             Id = sceneId,
+            AuthoringAssetId = "11111111111111111111111111111111",
+            FormerAuthoringAssetIds = Array.Empty<string>(),
             RootEntities = [
                 new SceneEntityAsset {
                     Id = 1,
@@ -217,6 +224,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
 
         SceneAsset sceneAsset = new SceneAsset {
             Id = sceneId,
+            AuthoringAssetId = "22222222222222222222222222222222",
+            FormerAuthoringAssetIds = Array.Empty<string>(),
             RootEntities = Array.Empty<SceneEntityAsset>()
         };
 
@@ -235,6 +244,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
 
         SceneAsset sceneAsset = new SceneAsset {
             Id = sceneId,
+            AuthoringAssetId = "33333333333333333333333333333333",
+            FormerAuthoringAssetIds = Array.Empty<string>(),
             AssetReferences = [
                 global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
                     "00112233445566778899aabbccddeeff",
@@ -258,6 +269,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
 
         MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument();
+        document.AuthoringAssetId = "44444444444444444444444444444444";
+        document.FormerAuthoringAssetIds = new List<string>();
         document.Importer.ImporterId = "helengine.material";
         document.Importer.AssetId = materialRelativePath;
         document.Processor.SchemaId = "standard-shader";
@@ -295,9 +308,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     /// Seeds the built-in shader library cache with a prebuilt ForwardStandardShader shader asset so the test does not invoke runtime compilation.
     /// </summary>
     /// <param name="target">Shader compile target to seed.</param>
-    void SeedBuiltInStandardShaderAsset(ShaderCompileTarget target) {
+    EditorBuiltInShaderAssetLibrary SeedBuiltInStandardShaderAsset(ShaderCompileTarget target) {
         string shaderPath = EditorBuiltInShaderAssetLibrary.ResolveShaderPath("ForwardStandardShader.hlsl");
-        string cacheKey = string.Concat(target.ToString(), "|", shaderPath);
         ShaderAsset shaderAsset = new ShaderAsset {
             Id = "ForwardStandardShader",
             Name = "ForwardStandardShader",
@@ -329,9 +341,9 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             ]
         };
 
-        FieldInfo cacheField = typeof(EditorBuiltInShaderAssetLibrary).GetField("ShaderAssetsByKey", BindingFlags.Static | BindingFlags.NonPublic);
-        Dictionary<string, ShaderAsset> cache = Assert.IsType<Dictionary<string, ShaderAsset>>(cacheField.GetValue(null));
-        cache[cacheKey] = shaderAsset;
+        EditorBuiltInShaderAssetLibrary library = new EditorBuiltInShaderAssetLibrary(EditorBuiltInShaderAssetLibrary.CreateDefaultShaderBackendRegistry());
+        library.RegisterCompiledAsset(target, Path.GetFileName(shaderPath), shaderAsset);
+        return library;
     }
 
     /// <summary>

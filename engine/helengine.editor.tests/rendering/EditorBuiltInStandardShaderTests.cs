@@ -13,7 +13,6 @@ namespace helengine.editor.tests.rendering {
         public EditorBuiltInStandardShaderTests() {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         }
 
         /// <summary>

@@ -41,6 +41,12 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
+            // Recover and initialize the project authoring graph before any
+            // build configuration, importer, shader, or watcher work can
+            // observe the project. The build owns this session for its full
+            // lifetime, including the empty-prebuild case.
+            using IEditorProjectAuthoringSession authoringSession =
+                new EditorProjectAssetAuthoringServiceFactory(Importers).CreateSession(bootstrap.ProjectRootPath);
             EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options);
             if (!prebuildResult.Succeeded) {
                 return prebuildResult;
@@ -56,7 +62,6 @@ namespace helengine.editor {
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService, options.PlatformId);
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(

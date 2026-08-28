@@ -190,6 +190,11 @@ namespace helengine.editor {
         readonly string ProjectRootPath;
 
         /// <summary>
+        /// Built-in shader compiler/cache owned by this package operation.
+        /// </summary>
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
+
+        /// <summary>
         /// Absolute source assets root used to resolve project-relative scene ids and file-backed asset references.
         /// </summary>
         readonly string AssetsRootPath;
@@ -445,6 +450,33 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Initializes a scene packager with an explicitly owned built-in shader
+        /// library, allowing a host to keep shader compilation state isolated.
+        /// </summary>
+        public EditorPlatformBuildScenePackager(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            string targetPlatformId,
+            IPlatformAssetBuilder materialBuilder,
+            string selectedBuildProfileId,
+            string selectedGraphicsProfileId,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                importers,
+                targetPlatformId,
+                null,
+                null,
+                materialBuilder,
+                selectedBuildProfileId,
+                selectedGraphicsProfileId,
+                null,
+                null,
+                "",
+                builtInShaderAssetLibrary) {
+        }
+
+        /// <summary>
         /// Initializes one scene packager for the supplied project root, importer registrations, platform definition, default font asset, and optional material translator.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
@@ -503,7 +535,8 @@ namespace helengine.editor {
             string selectedGraphicsProfileId,
             IScriptTypeResolver scriptTypeResolver,
             ITextComponentSpriteBakeService textComponentSpriteBakeService = null,
-            string selectedEnvironmentId = "") {
+            string selectedEnvironmentId = "",
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -512,6 +545,7 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
+            BuiltInShaderAssetLibrary = builtInShaderAssetLibrary ?? new EditorBuiltInShaderAssetLibrary(EditorBuiltInShaderAssetLibrary.CreateDefaultShaderBackendRegistry());
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             ProjectContentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ProjectContentManager);
@@ -2432,7 +2466,7 @@ namespace helengine.editor {
             if (IsStandardShaderSchema(materialSettings.SchemaId) && !useCustomShader) {
                 fieldValues[VariantFieldId] = StandardShaderVariantName;
                 if (!usesCookedPlatformOwnedMaterialResolution) {
-                    ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                    ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(ShaderCompileTarget.DirectX11, StandardShaderFileName);
                     fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
                     fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
                     fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
@@ -2585,7 +2619,7 @@ namespace helengine.editor {
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
             string shaderAssetId = StandardShaderAssetId;
             if (ShouldWriteGeneratedStandardShaderAsset()) {
-                ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(ShaderCompileTarget.DirectX11, StandardShaderFileName);
                 shaderAssetId = shaderAsset.Id;
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
                 RememberShaderOutput(StandardGeneratedShaderRelativePath, shaderAssetId);

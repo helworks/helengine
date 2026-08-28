@@ -17,7 +17,6 @@ namespace helengine.editor.tests {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         }
 
         /// <summary>

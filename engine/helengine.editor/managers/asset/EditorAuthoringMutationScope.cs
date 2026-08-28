@@ -1016,10 +1016,54 @@ namespace helengine.editor {
                 "replace",
                 fullPath,
                 fullPath);
-            journal.MarkPhase("Quarantining");
-            WriteAllBytesAtomically(projectRootPath, filePath, bytes, true, true);
-            journal.MarkPhase("Published");
-            journal.Complete();
+            string stagedPath = journal.CreateStagedPayloadPath(Path.GetFileName(fullPath));
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            string publicationTempPath = null;
+            try {
+                using (EditorAuthoringMutationScope stagedScope = AcquireForMutation(projectRootPath, Path.GetDirectoryName(stagedPath)))
+                using (EditorAuthoringVerifiedFile stagedFile = stagedScope.OpenVerifiedFile(
+                    stagedPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None)) {
+                    stagedFile.Stream.Write(bytes, 0, bytes.Length);
+                    stagedFile.Stream.Flush(true);
+                }
+                string stagedHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                journal.RecordStagedPayload(stagedPath, stagedHash);
+
+                // The operation-owned payload is copied to a deterministic
+                // publication leaf in the destination parent. The journal
+                // records that leaf so recovery can distinguish a staged,
+                // unpublished write from a destination that already contains
+                // the exact staged bytes.
+                publicationTempPath = Path.Combine(directoryPath, EditorAuthoringMutationJournal.ReserveTransientName(Path.GetFileName(fullPath)));
+                journal.MarkPhase("Staged");
+                using (EditorAuthoringMutationScope stagedReadScope = AcquireForMutation(projectRootPath, Path.GetDirectoryName(stagedPath)))
+                using (EditorAuthoringMutationScope destinationScope = AcquireForMutation(projectRootPath, directoryPath)) {
+                    using (EditorAuthoringVerifiedFile stagedRead = stagedReadScope.OpenVerifiedFile(stagedPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    using (EditorAuthoringVerifiedFile publicationTemp = destinationScope.OpenVerifiedFile(publicationTempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
+                        stagedRead.Stream.CopyTo(publicationTemp.Stream);
+                        publicationTemp.Stream.Flush(true);
+                    }
+                    destinationScope.ReplaceLeafWithoutJournal(publicationTempPath, fullPath, true);
+                }
+                journal.MarkPhase("Published");
+                journal.Complete();
+            } finally {
+                if (!string.IsNullOrWhiteSpace(publicationTempPath)) {
+                    try {
+                        using IDisposable ephemeralJournal = EditorAuthoringMutationJournal.EnterEphemeral(projectRootPath);
+                        using EditorAuthoringMutationScope cleanupScope = AcquireForMutation(projectRootPath, directoryPath);
+                        cleanupScope.DeleteLeafCore(publicationTempPath);
+                    } catch {
+                        // The durable operation retains staged bytes and the
+                        // publication name when cleanup cannot complete;
+                        // startup recovery can then fail closed or retire it
+                        // after validating the exact destination hash.
+                    }
+                }
+            }
         }
 
         internal static void WriteAllBytesAtomicallyWithoutJournal(string projectRootPath, string filePath, byte[] bytes, bool replaceExisting = true) {
@@ -1039,7 +1083,7 @@ namespace helengine.editor {
             string directoryPath = Path.GetDirectoryName(fullPath);
             using IDisposable ephemeralJournal = journalOperation ? null : EditorAuthoringMutationJournal.EnterEphemeral(projectRootPath);
             using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, directoryPath);
-            string temporaryPath = Path.Combine(directoryPath, ".authoring-mutation-temp-" + Guid.NewGuid().ToString("N") + "-" + Path.GetFileName(fullPath) + ".tmp");
+            string temporaryPath = Path.Combine(directoryPath, EditorAuthoringMutationJournal.ReserveTransientName(Path.GetFileName(fullPath)));
             try {
                 using (EditorAuthoringVerifiedFile temporary = scope.OpenVerifiedFile(
                     temporaryPath,
@@ -1049,11 +1093,11 @@ namespace helengine.editor {
                     temporary.Stream.Write(bytes, 0, bytes.Length);
                     temporary.Stream.Flush(true);
                 }
-                if (journalOperation) {
-                    scope.ReplaceLeaf(temporaryPath, fullPath, replaceExisting);
-                } else {
-                    scope.ReplaceLeafWithoutJournal(temporaryPath, fullPath, replaceExisting);
-                }
+                // The outer journal is the sole durable owner for a public
+                // atomic write. The temporary is published with the verified
+                // no-journal primitive so persistence cannot recurse into a
+                // second operation while the first one is still active.
+                scope.ReplaceLeafWithoutJournal(temporaryPath, fullPath, replaceExisting);
             } finally {
                 // The replace moves the temporary entry into place. Cleanup
                 // must therefore be a direct verified delete of a possibly

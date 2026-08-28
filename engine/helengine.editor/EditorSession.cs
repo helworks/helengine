@@ -297,6 +297,11 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorShaderPackageService shaderPackageService;
         /// <summary>
+        /// Session-owned built-in shader compiler/cache. No compiled built-in
+        /// shader state is shared between projects or editor sessions.
+        /// </summary>
+        readonly EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary;
+        /// <summary>
         /// Asset import manager responsible for creating import settings and outputs.
         /// </summary>
         readonly AssetImportManager assetImportManager;
@@ -592,9 +597,13 @@ namespace helengine.editor {
             IReadOnlyList<IAssetImporterRegistration> importers,
             Func<string> browseOutputFolderResolver,
             ShaderBackendRegistry shaderBackendRegistry) {
+            EditorSessionConstructionLedger constructionLedger = new EditorSessionConstructionLedger();
+            try {
             this.core = core ?? throw new ArgumentNullException(nameof(core));
+            constructionLedger.Register(this.core);
             BrowseOutputFolderResolver = browseOutputFolderResolver ?? throw new ArgumentNullException(nameof(browseOutputFolderResolver));
             ShaderBackends = shaderBackendRegistry ?? throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(ShaderBackends);
             CanonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
             this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
             ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
@@ -614,6 +623,7 @@ namespace helengine.editor {
             availablePlatformProviderResolver = CreateAvailablePlatformProviderResolver();
             platformCatalogService = CreatePlatformCatalogService();
             EditorContentManager = new ContentManager(new HostFileSystemContentStreamSource(ResolveAssetsRootPath(this.projectPath)));
+            constructionLedger.Register(EditorContentManager);
             EditorContentManagerConfiguration.ConfigureEditorContentManager(EditorContentManager);
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -627,15 +637,13 @@ namespace helengine.editor {
             EditorComponentAddCatalog.Initialize();
             core.Input.SetKeyboardActive(true);
 
-            EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(ShaderBackends);
-
             assetImportManager = InitializeAssetImports(Importers);
+            constructionLedger.Register(assetImportManager);
             EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(assetImportManager);
+            constructionLedger.Register(concreteAuthoringSession);
             // Session construction completes current transaction recovery and
             // initializes the project identity graph before importer-owned files
             // are generated or cached.
-            bool authoringSessionOwnershipTransferred = false;
-            try {
                 assetImportManager.ImportTexturesMissingCache();
                 assetImportManager.ImportModelsMissingCache();
                 AuthoringSession = concreteAuthoringSession;
@@ -703,18 +711,28 @@ namespace helengine.editor {
             InitializePanelRegistry();
 
             dockingManager = new DockingManager();
+            // Dialogs are recreated during UI-scale changes and are not
+            // independently owned by the workspace registry. Register one
+            // null-safe aggregate action before the first dialog is built so
+            // partial construction cannot strand a browser/cache owner.
+            constructionLedger.Register(DisposeScaleSensitiveDialogs);
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
+            constructionLedger.Register(sceneHierarchyPanel);
             EditorAssetManager assetBrowserManager = new EditorAssetManager(this.projectPath, authoredAssetReferenceResolver);
             AssetBrowserDataSource assetBrowserDataSource = new AssetBrowserDataSource(assetBrowserManager);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics, assetBrowserDataSource);
+            constructionLedger.Register(assetBrowserPanel);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver, this.projectPath);
+            constructionLedger.Register(propertiesPanel);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
+            constructionLedger.Register(loggerPanel);
             LogAuthoringRepairReport();
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
+            constructionLedger.Register(previewPanel);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
             meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
@@ -723,9 +741,11 @@ namespace helengine.editor {
                 gameSolutionService,
                 new EditorDotNetScriptBuildTool(),
                 scriptAssemblyHost);
+            constructionLedger.Register(scriptHotReloadService);
             ComponentPersistenceRegistry persistenceRegistry = CreateComponentPersistenceRegistry(scriptHotReloadService.ScriptTypeResolver);
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
             SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry, authoredAssetReferenceResolver);
+            constructionLedger.Register(SceneSaveService);
             HistoryCaptureService = new EditorHistoryCaptureService(SceneSaveService);
             ComponentHistoryAdapterRegistry = new ComponentHistoryAdapterRegistry();
             SceneCreationService = new EditorSceneCreationService();
@@ -750,10 +770,12 @@ namespace helengine.editor {
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
             sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
             sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver, authoredAssetReferenceResolver);
+            constructionLedger.Register(sceneAssetReferenceResolver);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
                 sceneAssetReferenceResolver);
+            constructionLedger.Register(SceneFileLoadService);
             UndoRedoService = new EditorUndoRedoService(CreateHistoryContext());
             HistoryMutationService = new EditorMutationService(
                 UndoRedoService,
@@ -774,6 +796,10 @@ namespace helengine.editor {
             IsSceneDirty = false;
             HasUntrackedSceneChangesSinceSave = false;
             RefreshSceneDirtyState();
+            // Register the detach action before acquiring the first event
+            // subscription. Partial construction can therefore unwind even if
+            // one later subscription or dialog handler fails.
+            constructionLedger.Register(DetachConstructionSubscriptions);
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
             EditorMeshModifierPickerService.PickRequested += HandleMeshModifierPickRequested;
@@ -839,7 +865,8 @@ namespace helengine.editor {
 
             ShaderCompileTarget runtimeTarget = ResolveRuntimeShaderTarget(render3D);
             shaderModuleManager = BuildShaderModuleManager(runtimeTarget);
-            shaderPackageService = new EditorShaderPackageService(this.projectPath, shaderModuleManager, runtimeTarget, EditorContentManager);
+            constructionLedger.Register(shaderModuleManager);
+            shaderPackageService = new EditorShaderPackageService(this.projectPath, shaderModuleManager, runtimeTarget, EditorContentManager, ShaderBackends);
             propertiesPanel.ShaderPackageService = shaderPackageService;
             sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
@@ -849,29 +876,12 @@ namespace helengine.editor {
 
             UpdateLayout(renderWidth, renderHeight);
             PromptForPlatformSelectionIfRequired();
-            authoringSessionOwnershipTransferred = true;
+            constructionLedger.TransferOwnership();
             } catch (Exception primaryException) {
-                if (!authoringSessionOwnershipTransferred) {
-                    List<Exception> cleanupFailures = new List<Exception>();
-                    void AttemptConstructionCleanup(Action cleanup) {
-                        try {
-                            cleanup();
-                        } catch (Exception cleanupException) {
-                            cleanupFailures.Add(cleanupException);
-                        }
-                    }
-
-                    AttemptConstructionCleanup(() => shaderModuleManager?.Dispose());
-                    AttemptConstructionCleanup(() => scriptHotReloadService?.Dispose());
-                    AttemptConstructionCleanup(() => sceneAssetReferenceResolver?.Dispose());
-                    AttemptConstructionCleanup(() => SceneSaveService?.Dispose());
-                    AttemptConstructionCleanup(() => SceneFileLoadService?.Dispose());
-                    AttemptConstructionCleanup(() => concreteAuthoringSession.Dispose());
-                    AttemptConstructionCleanup(() => core.Dispose());
-                    if (cleanupFailures.Count > 0) {
-                        cleanupFailures.Insert(0, primaryException);
-                        throw new AggregateException("Editor session construction failed and cleanup also failed.", cleanupFailures);
-                    }
+                try {
+                    constructionLedger.Dispose();
+                } catch (Exception cleanupException) {
+                    throw new AggregateException("Editor session construction failed and cleanup also failed.", primaryException, cleanupException);
                 }
                 throw;
             }
@@ -1683,6 +1693,48 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Removes subscriptions acquired during construction. Every operation
+        /// is null-safe because this action also runs for partially built
+        /// sessions.
+        /// </summary>
+        void DetachConstructionSubscriptions() {
+            if (shaderModuleManager != null) {
+                shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
+            }
+            EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
+            EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
+            EditorMeshModifierPickerService.PickRequested -= HandleMeshModifierPickRequested;
+            EditorSceneMutationService.SceneMutated -= HandleSceneMutated;
+            EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression;
+            if (titleBar != null) {
+                titleBar.NewMapRequested -= HandleNewMapRequested;
+                titleBar.OpenMapRequested -= HandleOpenMapRequested;
+                titleBar.SaveMapRequested -= HandleSaveMapRequested;
+                titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
+                titleBar.SceneSettingsRequested -= HandleSceneSettingsRequested;
+                titleBar.PreferencesRequested -= HandlePreferencesRequested;
+                titleBar.BuildRequested -= HandleBuildRequested;
+                titleBar.EnvironmentsRequested -= HandleEnvironmentsRequested;
+                titleBar.ExportSceneRequested -= HandleExportSceneRequested;
+                titleBar.PlatformsRequested -= HandlePlatformsRequested;
+                titleBar.ProfilesRequested -= HandleProfilesRequested;
+                titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
+                titleBar.OpenInIDERequested -= HandleOpenInIDERequested;
+                titleBar.ProjectMenuItemRequested -= HandleProjectMenuItemRequested;
+                titleBar.UiMenuActionRequested -= HandleUiMenuActionRequested;
+                titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
+                titleBar.AddCubeRequested -= HandleAddCubeRequested;
+                titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
+                titleBar.AddCameraRequested -= HandleAddCameraRequested;
+                titleBar.AddSpotLightRequested -= HandleAddSpotLightRequested;
+                titleBar.AddPointLightRequested -= HandleAddPointLightRequested;
+                titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested;
+                titleBar.AddAmbientLightRequested -= HandleAddAmbientLightRequested;
+            }
+            DetachScaleSensitiveDialogHandlers();
+        }
+
+        /// <summary>
         /// Disposes engine resources owned by the session.
         /// </summary>
         public void Dispose() {
@@ -2128,6 +2180,7 @@ namespace helengine.editor {
                 session.CurrentUiMetrics,
                 fileSystemFontResolver,
                 session.projectPath);
+            panel.SetAssetReferenceResolver(session.authoredAssetReferenceResolver);
             panel.ShaderPackageService = session.shaderPackageService;
             panel.HistoryMutationService = session.HistoryMutationService;
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
@@ -4320,7 +4373,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
 
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(core.RenderManager3D, shaderFileName);
+            ShaderAsset shaderAsset = builtInShaderAssetLibrary.Load(
+                core.RenderManager3D is IShaderCompileTargetProvider targetProvider
+                    ? targetProvider.ShaderCompileTarget
+                    : throw new InvalidOperationException("Unsupported renderer backend for editor built-in shaders."),
+                shaderFileName);
             string shaderName = Path.GetFileNameWithoutExtension(shaderFileName);
             if (string.IsNullOrWhiteSpace(shaderName)) {
                 throw new InvalidOperationException("Built-in shader name could not be resolved.");

@@ -1,8 +1,11 @@
+using helengine.directx11;
+using helengine.vulkan;
+
 namespace helengine.editor {
     /// <summary>
     /// Loads and caches built-in editor shader assets from disk so editor runtime materials use the same file-based HLSL flow as authored shaders.
     /// </summary>
-    public static class EditorBuiltInShaderAssetLibrary {
+    public sealed class EditorBuiltInShaderAssetLibrary {
         /// <summary>
         /// Directory name that stores built-in editor shader source files.
         /// </summary>
@@ -30,29 +33,30 @@ namespace helengine.editor {
         /// <summary>
         /// Synchronization object used to guard the in-memory shader cache.
         /// </summary>
-        static readonly object SyncRoot = new object();
+        readonly object SyncRoot = new object();
         /// <summary>
         /// Caches compiled built-in shader assets by target and absolute source path.
         /// </summary>
-        static readonly Dictionary<string, ShaderAsset> ShaderAssetsByKey = new Dictionary<string, ShaderAsset>(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, ShaderAsset> ShaderAssetsByKey = new Dictionary<string, ShaderAsset>(StringComparer.OrdinalIgnoreCase);
         /// <summary>
         /// Stores the shader backend registry configured by bootstrap code for built-in shader compilation.
         /// </summary>
-        static ShaderBackendRegistry ConfiguredShaderBackendRegistry;
+        readonly ShaderBackendRegistry ShaderBackendRegistry;
 
         /// <summary>
-        /// Configures the shader backend registry used when built-in shader sources are compiled on demand.
+        /// Creates an instance-bound built-in shader library. Compiled assets and
+        /// backend selection belong to this owner and are never shared globally.
         /// </summary>
-        /// <param name="shaderBackendRegistry">Registry populated by bootstrap code with the available shader backends.</param>
-        public static void ConfigureShaderBackends(ShaderBackendRegistry shaderBackendRegistry) {
-            if (shaderBackendRegistry == null) {
-                throw new ArgumentNullException(nameof(shaderBackendRegistry));
-            }
+        public EditorBuiltInShaderAssetLibrary(ShaderBackendRegistry shaderBackendRegistry) {
+            ShaderBackendRegistry = shaderBackendRegistry ?? throw new ArgumentNullException(nameof(shaderBackendRegistry));
+        }
 
-            lock (SyncRoot) {
-                ConfiguredShaderBackendRegistry = shaderBackendRegistry;
-                ShaderAssetsByKey.Clear();
-            }
+        /// <summary>Creates the standard desktop registry for an isolated library owner.</summary>
+        public static ShaderBackendRegistry CreateDefaultShaderBackendRegistry() {
+            ShaderBackendRegistry registry = new ShaderBackendRegistry();
+            registry.Register(new DirectX11ShaderBackend());
+            registry.Register(new VulkanShaderBackend());
+            return registry;
         }
 
         /// <summary>
@@ -77,6 +81,13 @@ namespace helengine.editor {
         /// <param name="shaderFileName">Built-in shader source file name.</param>
         /// <returns>Compiled shader asset for the requested backend.</returns>
         public static ShaderAsset LoadShaderAsset(ShaderCompileTarget target, string shaderFileName) {
+            return new EditorBuiltInShaderAssetLibrary(CreateDefaultShaderBackendRegistry()).Load(target, shaderFileName);
+        }
+
+        /// <summary>
+        /// Loads one built-in shader through this isolated library instance.
+        /// </summary>
+        public ShaderAsset Load(ShaderCompileTarget target, string shaderFileName) {
             if (string.IsNullOrWhiteSpace(shaderFileName)) {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
@@ -102,6 +113,29 @@ namespace helengine.editor {
         /// <param name="shaderAsset">Resolved built-in shader asset when the id maps to a built-in shader source file.</param>
         /// <returns>True when the shader id mapped to a built-in shader source file; otherwise false.</returns>
         public static bool TryLoadShaderAssetById(ShaderCompileTarget target, string shaderId, out ShaderAsset shaderAsset) {
+            return new EditorBuiltInShaderAssetLibrary(CreateDefaultShaderBackendRegistry()).TryLoadById(target, shaderId, out shaderAsset);
+        }
+
+        /// <summary>
+        /// Adds a compiled asset to this owner's cache. This is used by package
+        /// hosts that already materialized a built-in shader and keeps that
+        /// cache scoped to the host instance.
+        /// </summary>
+        public void RegisterCompiledAsset(ShaderCompileTarget target, string shaderFileName, ShaderAsset shaderAsset) {
+            if (shaderAsset == null) {
+                throw new ArgumentNullException(nameof(shaderAsset));
+            }
+            if (string.IsNullOrWhiteSpace(shaderFileName)) {
+                throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
+            }
+            string shaderPath = ResolveShaderPath(shaderFileName);
+            lock (SyncRoot) {
+                ShaderAssetsByKey[BuildCacheKey(target, shaderPath)] = shaderAsset;
+            }
+        }
+
+        /// <summary>Attempts to load a built-in shader through this isolated library instance.</summary>
+        public bool TryLoadById(ShaderCompileTarget target, string shaderId, out ShaderAsset shaderAsset) {
             shaderAsset = null;
             if (string.IsNullOrWhiteSpace(shaderId)) {
                 return false;
@@ -109,7 +143,7 @@ namespace helengine.editor {
 
             string shaderFileName = shaderId + ".hlsl";
             try {
-                shaderAsset = LoadShaderAsset(target, shaderFileName);
+                shaderAsset = Load(target, shaderFileName);
                 return true;
             } catch (FileNotFoundException) {
                 shaderAsset = null;
@@ -167,7 +201,7 @@ namespace helengine.editor {
         /// <param name="target">Backend target that should consume the compiled shader asset.</param>
         /// <param name="shaderPath">Absolute path to the built-in shader source file.</param>
         /// <returns>Compiled shader asset.</returns>
-        static ShaderAsset CompileShaderAsset(ShaderCompileTarget target, string shaderPath) {
+        ShaderAsset CompileShaderAsset(ShaderCompileTarget target, string shaderPath) {
             if (string.IsNullOrWhiteSpace(shaderPath)) {
                 throw new ArgumentException("Shader path must be provided.", nameof(shaderPath));
             }
@@ -307,7 +341,7 @@ namespace helengine.editor {
         /// <param name="target">Backend target that should consume compiled shader bytecode.</param>
         /// <param name="includeRootPath">Directory used to resolve shader includes.</param>
         /// <returns>Configured shader compile service.</returns>
-        static ShaderCompileService CreateCompileService(ShaderCompileTarget target, string includeRootPath) {
+        ShaderCompileService CreateCompileService(ShaderCompileTarget target, string includeRootPath) {
             if (string.IsNullOrWhiteSpace(includeRootPath)) {
                 throw new ArgumentException("Include root path must be provided.", nameof(includeRootPath));
             }
@@ -449,17 +483,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="target">Target that will be compiled from the built-in shader source.</param>
         /// <returns>Configured registry that can service the requested target.</returns>
-        static ShaderBackendRegistry GetRequiredShaderBackendRegistry(ShaderCompileTarget target) {
+        ShaderBackendRegistry GetRequiredShaderBackendRegistry(ShaderCompileTarget target) {
             lock (SyncRoot) {
-                if (ConfiguredShaderBackendRegistry == null) {
-                    throw new InvalidOperationException("Editor built-in shader backends have not been configured.");
-                }
-
-                if (!ConfiguredShaderBackendRegistry.ContainsTarget(target)) {
+                if (!ShaderBackendRegistry.ContainsTarget(target)) {
                     throw new InvalidOperationException("No configured built-in shader backend matches the requested target.");
                 }
 
-                return ConfiguredShaderBackendRegistry;
+                return ShaderBackendRegistry;
             }
         }
 

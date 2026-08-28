@@ -22,7 +22,6 @@ public sealed class EditorWindowsBuildScenePackagerAudioTests : IDisposable {
 
         ShaderBackendRegistry shaderBackendRegistry = new();
         shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-        EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
     }
 
     /// <summary>

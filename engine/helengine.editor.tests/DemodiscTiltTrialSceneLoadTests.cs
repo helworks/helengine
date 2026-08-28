@@ -134,7 +134,6 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
         ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
         shaderBackendRegistry.Register(new DirectX11ShaderBackend());
         shaderBackendRegistry.Register(new VulkanShaderBackend());
-        EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
     }
 
     /// <summary>
@@ -204,7 +203,6 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
             Array.Empty<ShaderDefine>());
         ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
         shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-        EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
         ShaderModuleManagerOptions options = new ShaderModuleManagerOptions(
             shaderRootPath,
             packageOutputPath,
