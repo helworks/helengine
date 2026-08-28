@@ -59,10 +59,9 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
             core = CreateCore();
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             ConfigureShaderBackends();
-            EditorProjectPaths.Initialize(DemodiscProjectRootPath);
             shaderModuleManager = CreateShaderModuleManager();
             shaderModuleManager.Start();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, core.ContentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(DemodiscProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, core.ContentManager);
 
             ContentManager projectContentManager = CreateProjectContentManager();
             hotReloadService = CreateHotReloadService();
@@ -79,6 +78,7 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
                 modelResolver,
                 fontResolver,
                 textureResolver);
+            sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             SceneFileLoadService loadService = new SceneFileLoadService(
                 DemodiscProjectRootPath,
                 persistenceRegistry,

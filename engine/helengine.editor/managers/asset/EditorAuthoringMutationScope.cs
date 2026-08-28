@@ -202,6 +202,20 @@ namespace helengine.editor {
         /// <summary>Atomically moves a verified leaf into a destination leaf.</summary>
         internal void ReplaceLeaf(string sourcePath, string destinationPath, bool replaceExisting) {
             EnsureNotDisposed();
+            using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "replace", sourcePath, destinationPath);
+            ReplaceLeafCore(sourcePath, destinationPath, replaceExisting);
+            journal.Complete();
+        }
+
+        // Journal persistence itself uses the verified filesystem primitives,
+        // but cannot recursively journal its own document replacement.
+        internal void ReplaceLeafWithoutJournal(string sourcePath, string destinationPath, bool replaceExisting) {
+            using IDisposable ephemeralJournal = EditorAuthoringMutationJournal.EnterEphemeral(ProjectRootPath);
+            ReplaceLeafCore(sourcePath, destinationPath, replaceExisting);
+        }
+
+        void ReplaceLeafCore(string sourcePath, string destinationPath, bool replaceExisting) {
+            EnsureNotDisposed();
             string source = Path.GetFullPath(sourcePath);
             string destination = Path.GetFullPath(destinationPath);
             string sourceParent = Path.GetDirectoryName(source);
@@ -213,7 +227,6 @@ namespace helengine.editor {
 
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, ProjectRootPath);
-
             if (OperatingSystem.IsWindows()) {
                 using EditorAuthoringVerifiedFile sourceFile = OpenVerifiedFileCore(
                     source,
@@ -246,6 +259,9 @@ namespace helengine.editor {
             if (destinationExists) {
                 EnsureLinuxEntryType(destinationStatus, false, destinationPath);
             }
+            EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(
+                sourceIdentity.Describe(),
+                destinationExists ? new PosixEntryIdentity(destinationStatus).Describe() : "missing");
 
             // Keep the destination name continuously bound to either the old
             // or the new inode. The exchange is performed only after moving
@@ -262,6 +278,7 @@ namespace helengine.editor {
                     FsyncDirectory(parentFd, destinationPath);
                     EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
                     EnsureLinuxIdentity(parentFd, sourceQuarantineForExchange, destinationIdentity, destinationPath);
+                    EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
                     DeleteQuarantinedLinuxEntry(parentFd, sourceQuarantineForExchange, destinationIdentity, destinationPath);
                 } catch (Exception primary) {
                     List<Exception> exchangeRollbackFailures = new List<Exception>();
@@ -303,6 +320,7 @@ namespace helengine.editor {
                 published = true;
                 RenameLinuxNoReplace(parentFd, sourceQuarantine, parentFd, destinationName, destinationPath);
                 EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
+                EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 try {
                     if (published && TryGetLinuxEntry(parentFd, destinationName, out PosixStat publishedStatus) &&
@@ -329,6 +347,7 @@ namespace helengine.editor {
 
         static void MoveLinuxLeaf(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string destinationPath) {
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, false, destinationPath);
+            EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(sourceIdentity.Describe(), "missing");
             if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
                 EnsureLinuxEntryType(destinationStatus, false, destinationPath);
                 throw new IOException($"The verified destination '{destinationPath}' already exists.");
@@ -340,6 +359,7 @@ namespace helengine.editor {
                 published = true;
                 RenameLinuxNoReplace(sourceParentFd, sourceQuarantine, destinationParentFd, destinationName, destinationPath);
                 EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
+                EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
                 try {
@@ -367,6 +387,7 @@ namespace helengine.editor {
 
         static void MoveLinuxDirectory(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string destinationPath) {
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, true, destinationPath);
+            EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(sourceIdentity.Describe(), "missing");
             if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
                 EnsureLinuxEntryType(destinationStatus, true, destinationPath);
                 throw new IOException($"The verified destination '{destinationPath}' already exists.");
@@ -377,6 +398,7 @@ namespace helengine.editor {
                 published = true;
                 RenameLinuxNoReplace(sourceParentFd, quarantine, destinationParentFd, destinationName, destinationPath);
                 EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
+                EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
                 try {
@@ -404,6 +426,7 @@ namespace helengine.editor {
 
         static void DeleteLinuxDirectory(int parentFd, string name, string path) {
             PosixEntryIdentity identity = RequireLinuxEntry(parentFd, name, true, path);
+            EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(identity.Describe(), "missing");
             string quarantine = QuarantineLinuxEntry(parentFd, name, identity, path);
             try {
                 DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, path, true);
@@ -424,6 +447,7 @@ namespace helengine.editor {
                 return;
             }
             PosixEntryIdentity identity = RequireLinuxEntry(parentFd, name, false, path);
+            EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(identity.Describe(), "missing");
             string quarantine = QuarantineLinuxEntry(parentFd, name, identity, path);
             try {
                 DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, path);
@@ -441,7 +465,7 @@ namespace helengine.editor {
 
         static string QuarantineLinuxEntry(int parentFd, string name, PosixEntryIdentity expected, string path) {
             for (int attempt = 0; attempt < 32; attempt++) {
-                string quarantine = ".moving-" + Guid.NewGuid().ToString("N");
+                string quarantine = EditorAuthoringMutationJournal.ReserveTransientName(name);
                 try {
                     RenameLinuxNoReplace(parentFd, name, parentFd, quarantine, path);
                 } catch (Exception) when (Marshal.GetLastPInvokeError() == PosixAlreadyExists) {
@@ -467,6 +491,7 @@ namespace helengine.editor {
 
         static void DeleteQuarantinedLinuxEntry(int parentFd, string name, PosixEntryIdentity expected, string path) {
             EnsureLinuxIdentity(parentFd, name, expected, path);
+            EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             if (UnlinkAt(parentFd, name, 0) != 0) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified quarantine entry for '{path}'.");
             }
@@ -475,6 +500,7 @@ namespace helengine.editor {
 
         static void DeleteQuarantinedLinuxEntry(int parentFd, string name, PosixEntryIdentity expected, string path, bool directory) {
             EnsureLinuxIdentity(parentFd, name, expected, path);
+            EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             if (UnlinkAt(parentFd, name, directory ? PosixAtRemovedDirectory : 0) != 0) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified quarantine entry for '{path}'.");
             }
@@ -535,6 +561,18 @@ namespace helengine.editor {
         /// <summary>Deletes a verified regular-file leaf without following links.</summary>
         internal void DeleteLeaf(string filePath) {
             EnsureNotDisposed();
+            using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "delete", filePath, filePath);
+            DeleteLeafCore(filePath);
+            journal.Complete();
+        }
+
+        internal void DeleteLeafWithoutJournal(string filePath) {
+            using IDisposable ephemeralJournal = EditorAuthoringMutationJournal.EnterEphemeral(ProjectRootPath);
+            DeleteLeafCore(filePath);
+        }
+
+        void DeleteLeafCore(string filePath) {
+            EnsureNotDisposed();
             string fullPath = Path.GetFullPath(filePath);
             if (!string.Equals(Path.GetDirectoryName(fullPath), TargetDirectoryPath, PathComparison)) {
                 throw new InvalidDataException("Verified leaf deletion must use the pinned parent directory.");
@@ -575,11 +613,13 @@ namespace helengine.editor {
             string destination = Path.GetFullPath(destinationPath);
             string sourceParent = Path.GetDirectoryName(source);
             string destinationParent = Path.GetDirectoryName(destination);
+            using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "move", source, destination);
             using EditorAuthoringMutationScope sourceScope = AcquireForMutation(projectRootPath, sourceParent);
             using EditorAuthoringMutationScope destinationScope = string.Equals(sourceParent, destinationParent, PathComparison)
                 ? null
                 : AcquireForMutation(projectRootPath, destinationParent);
             sourceScope.MoveLeafToPinnedDestination(source, destination, destinationScope);
+            journal.Complete();
         }
 
         /// <summary>Copies one regular-file leaf through verified handles.</summary>
@@ -588,6 +628,7 @@ namespace helengine.editor {
             string destination = Path.GetFullPath(destinationPath);
             string sourceParent = Path.GetDirectoryName(source);
             string destinationParent = Path.GetDirectoryName(destination);
+            using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "copy", source, destination);
             using EditorAuthoringMutationScope sourceScope = AcquireForMutation(projectRootPath, sourceParent);
             using EditorAuthoringMutationScope destinationScope = string.Equals(sourceParent, destinationParent, PathComparison)
                 ? null
@@ -600,15 +641,27 @@ namespace helengine.editor {
                 FileShare.None);
             sourceFile.Stream.CopyTo(destinationFile.Stream);
             destinationFile.Stream.Flush(true);
+            journal.Complete();
         }
 
         /// <summary>Deletes one regular-file leaf through a pinned parent.</summary>
         internal static void DeleteLeaf(string projectRootPath, string filePath) {
             string fullPath = Path.GetFullPath(filePath);
+            using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "delete", fullPath, fullPath);
             using EditorAuthoringMutationScope scope = AcquireForMutation(
                 projectRootPath,
                 Path.GetDirectoryName(fullPath));
-            scope.DeleteLeaf(fullPath);
+            scope.DeleteLeafWithoutJournal(fullPath);
+            journal.Complete();
+        }
+
+        internal static void DeleteLeafWithoutJournal(string projectRootPath, string filePath) {
+            string fullPath = Path.GetFullPath(filePath);
+            using IDisposable ephemeralJournal = EditorAuthoringMutationJournal.EnterEphemeral(projectRootPath);
+            using EditorAuthoringMutationScope scope = AcquireForMutation(
+                projectRootPath,
+                Path.GetDirectoryName(fullPath));
+            scope.DeleteLeafWithoutJournal(fullPath);
         }
 
         /// <summary>Moves a directory entry while its parent remains pinned.</summary>
@@ -620,6 +673,7 @@ namespace helengine.editor {
             if (!string.Equals(sourceParent, destinationParent, PathComparison)) {
                 throw new InvalidDataException("Verified directory moves require one pinned parent.");
             }
+            using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "move-directory", source, destination);
             using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, sourceParent);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, projectRootPath);
@@ -636,6 +690,7 @@ namespace helengine.editor {
             } else if (!OperatingSystem.IsLinux()) {
                 throw CreateUnsupportedPlatformException();
             }
+            journal.Complete();
         }
 
         /// <summary>Creates and pins a directory tree beneath the project root.</summary>
@@ -650,13 +705,16 @@ namespace helengine.editor {
         /// </summary>
         internal static void DeleteDirectoryTree(string projectRootPath, string directoryPath, string containingRoot) {
             string fullPath = Path.GetFullPath(directoryPath);
+            using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "delete-directory", fullPath, fullPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
             if (!Directory.Exists(fullPath)) {
+                journal.Complete();
                 return;
             }
             EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(fullPath, containingRoot);
             DeleteDirectoryContents(projectRootPath, fullPath, containingRoot);
             DeleteEmptyDirectory(projectRootPath, fullPath, containingRoot);
+            journal.Complete();
         }
 
         static void DeleteDirectoryContents(string projectRootPath, string directoryPath, string containingRoot) {
@@ -824,17 +882,83 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures the identity of one verified current filesystem entry for a
+        /// mutation journal. The value is based on the opened entry rather than
+        /// mutable length/time metadata, and includes the entry kind.
+        /// </summary>
+        internal static string CaptureVerifiedIdentity(string projectRootPath, string path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                return "missing";
+            }
+
+            string fullPath = Path.GetFullPath(path);
+            string parent = Path.GetDirectoryName(fullPath);
+            if (string.IsNullOrWhiteSpace(parent)) {
+                return "missing";
+            }
+
+            try {
+                using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, parent);
+                if (OperatingSystem.IsWindows()) {
+                    FileAttributes attributes = File.GetAttributes(fullPath);
+                    if ((attributes & FileAttributes.Directory) != 0) {
+                        using SafeFileHandle directory = OpenAndVerifyWindowsDirectory(fullPath, true);
+                        if (!GetFileInformationByHandle(directory, out ByHandleFileInformation information)) {
+                            return "unavailable";
+                        }
+                        return $"windows:{information.VolumeSerialNumber:X8}:{information.FileIndexHigh:X8}{information.FileIndexLow:X8}:directory";
+                    }
+
+                    using SafeFileHandle file = OpenAndVerifyWindowsFile(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    if (!GetFileInformationByHandle(file, out ByHandleFileInformation fileInformation)) {
+                        return "unavailable";
+                    }
+                    return $"windows:{fileInformation.VolumeSerialNumber:X8}:{fileInformation.FileIndexHigh:X8}{fileInformation.FileIndexLow:X8}:file";
+                }
+
+                if (OperatingSystem.IsLinux()) {
+                    if (!TryGetLinuxEntry(scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(), Path.GetFileName(fullPath), out PosixStat status)) {
+                        return "missing";
+                    }
+                    return new PosixEntryIdentity(status).Describe();
+                }
+            } catch (FileNotFoundException) {
+                return "missing";
+            } catch (DirectoryNotFoundException) {
+                return "missing";
+            } catch {
+                return "unavailable";
+            }
+
+            return "unavailable";
+        }
+
+        /// <summary>
         /// Writes and atomically replaces a regular-file leaf through verified
         /// handles. The temporary leaf is always created exclusively.
         /// </summary>
         internal static void WriteAllBytesAtomically(string projectRootPath, string filePath, byte[] bytes) {
+            WriteAllBytesAtomically(projectRootPath, filePath, bytes, true, true);
+        }
+
+        internal static void WriteAllBytesAtomicallyWithoutJournal(string projectRootPath, string filePath, byte[] bytes, bool replaceExisting = true) {
+            WriteAllBytesAtomically(projectRootPath, filePath, bytes, replaceExisting, false);
+        }
+
+        static void WriteAllBytesAtomically(
+            string projectRootPath,
+            string filePath,
+            byte[] bytes,
+            bool replaceExisting,
+            bool journalOperation) {
             if (bytes == null) {
                 throw new ArgumentNullException(nameof(bytes));
             }
             string fullPath = Path.GetFullPath(filePath);
             string directoryPath = Path.GetDirectoryName(fullPath);
+            using IDisposable ephemeralJournal = journalOperation ? null : EditorAuthoringMutationJournal.EnterEphemeral(projectRootPath);
             using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, directoryPath);
-            string temporaryPath = Path.Combine(directoryPath, ".moving-" + Guid.NewGuid().ToString("N") + "-" + Path.GetFileName(fullPath) + ".tmp");
+            string temporaryPath = Path.Combine(directoryPath, ".authoring-mutation-temp-" + Guid.NewGuid().ToString("N") + "-" + Path.GetFileName(fullPath) + ".tmp");
             try {
                 using (EditorAuthoringVerifiedFile temporary = scope.OpenVerifiedFile(
                     temporaryPath,
@@ -844,9 +968,17 @@ namespace helengine.editor {
                     temporary.Stream.Write(bytes, 0, bytes.Length);
                     temporary.Stream.Flush(true);
                 }
-                scope.ReplaceLeaf(temporaryPath, fullPath, true);
+                if (journalOperation) {
+                    scope.ReplaceLeaf(temporaryPath, fullPath, replaceExisting);
+                } else {
+                    scope.ReplaceLeafWithoutJournal(temporaryPath, fullPath, replaceExisting);
+                }
             } finally {
-                scope.DeleteLeaf(temporaryPath);
+                if (journalOperation) {
+                    scope.DeleteLeaf(temporaryPath);
+                } else {
+                    scope.DeleteLeafWithoutJournal(temporaryPath);
+                }
             }
         }
 
@@ -1557,6 +1689,10 @@ namespace helengine.editor {
 
             internal bool Matches(PosixStat status) {
                 return Device == status.Device && Inode == status.Inode && Mode == (status.Mode & PosixFileTypeMask);
+            }
+
+            internal string Describe() {
+                return $"dev:{Device};inode:{Inode};type:{Mode:X}";
             }
         }
     }

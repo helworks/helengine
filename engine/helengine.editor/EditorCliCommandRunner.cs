@@ -68,7 +68,7 @@ namespace helengine.editor {
                 runtimeTarget,
                 shaderBackendRegistry,
                 250));
-            EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget, core.ContentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(bootstrap.ProjectRootPath, shaderModuleManager, runtimeTarget, core.ContentManager);
             shaderModuleManager.Start();
 
             EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(bootstrap.ProjectRootPath);

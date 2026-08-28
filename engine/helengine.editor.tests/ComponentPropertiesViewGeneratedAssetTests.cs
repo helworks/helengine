@@ -202,15 +202,17 @@ namespace helengine.editor.tests {
                 SupportedPlatforms = ["windows", "ps2"]
             });
             new EditorProjectLocalSettingsService(TempRootPath, ["windows", "ps2"]).SaveActivePlatform("ps2");
-            EditorProjectPaths.Initialize(TempRootPath);
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
 
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), contentManager);
+            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), contentManager, null, null, EditorLayerMasks.EditorUi, TempRootPath);
+            view.ShaderPackageService = shaderPackageService;
+            using EditorAssetReferenceResolver assetReferenceResolver = new EditorAssetReferenceResolver(TempRootPath);
+            view.SetAssetReferenceResolver(assetReferenceResolver);
             view.ShowComponents(entity);
 
             ComponentPropertyRow materialRow = FindMaterialRow(view);

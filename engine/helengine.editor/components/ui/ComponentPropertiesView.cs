@@ -8,6 +8,10 @@ namespace helengine.editor {
     /// </summary>
     public class ComponentPropertiesView {
         /// <summary>
+        /// Session-owned shader package service used by this view.
+        /// </summary>
+        internal EditorShaderPackageService ShaderPackageService { get; set; }
+        /// <summary>
         /// Height of header rows in pixels.
         /// </summary>
         const int HeaderHeight = 22;
@@ -3703,7 +3707,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material does not specify a shader asset id.");
             }
 
-            return EditorShaderPackageService.LoadShaderAsset(shaderId);
+            return (ShaderPackageService ?? throw new InvalidOperationException("Component properties view is not attached to an editor shader package service.")).LoadShaderAsset(shaderId);
         }
 
         /// <summary>

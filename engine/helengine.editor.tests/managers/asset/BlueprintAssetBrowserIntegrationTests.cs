@@ -16,7 +16,6 @@ namespace helengine.editor.tests.managers.asset {
         public BlueprintAssetBrowserIntegrationTests() {
             ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-blueprint-browser-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Blueprints"));
-            EditorProjectPaths.Initialize(ProjectRootPath);
         }
 
         /// <summary>

@@ -6,6 +6,10 @@ namespace helengine.editor {
     /// </summary>
     public class MaterialAssetView {
         /// <summary>
+        /// Session-owned shader package service used by this view.
+        /// </summary>
+        internal EditorShaderPackageService ShaderPackageService { get; set; }
+        /// <summary>
         /// Height of each visible row.
         /// </summary>
         const int RowHeight = 24;
@@ -743,7 +747,7 @@ namespace helengine.editor {
             }
 
             try {
-                ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(shaderId);
+                ShaderAsset shaderAsset = RequireShaderPackageService().LoadShaderAsset(shaderId);
                 Core.Instance.RenderManager3D.InvalidateShaderResources(shaderId, shaderAsset);
             } catch (Exception ex) {
                 Logger.WriteError($"Shader refresh failed for '{shaderId}': {ex.Message}");
@@ -778,6 +782,10 @@ namespace helengine.editor {
             }
 
             UpdateFieldControlsFromSettings(platformId);
+        }
+
+        EditorShaderPackageService RequireShaderPackageService() {
+            return ShaderPackageService ?? throw new InvalidOperationException("Material asset view is not attached to an editor shader package service.");
         }
 
         /// <summary>

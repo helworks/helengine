@@ -342,7 +342,7 @@ namespace helengine.editor {
         /// </summary>
         public TAsset LoadNativeAsset<TAsset>(string relativePath) where TAsset : Asset {
             ValidateRelativeAssetPath(relativePath);
-            string fullPath = Path.Combine(AssetImportManagerValue.AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string fullPath = ResolveNativeAssetPath(relativePath);
             if (!File.Exists(fullPath)) {
                 throw new FileNotFoundException($"Native asset '{relativePath}' was not found.", fullPath);
             }
@@ -383,6 +383,26 @@ namespace helengine.editor {
             } else if (Path.IsPathRooted(relativePath)) {
                 throw new ArgumentException("Asset relative path must not be rooted.", nameof(relativePath));
             }
+
+            string[] segments = relativePath.Split(new[] { '/', '\\' }, StringSplitOptions.None);
+            if (segments.Any(segment => string.IsNullOrWhiteSpace(segment) || string.Equals(segment, ".", StringComparison.Ordinal) || string.Equals(segment, "..", StringComparison.Ordinal))) {
+                throw new ArgumentException("Asset relative path must contain only named path segments.", nameof(relativePath));
+            }
+        }
+
+        string ResolveNativeAssetPath(string relativePath) {
+            string fullPath = Path.GetFullPath(Path.Combine(
+                AssetImportManagerValue.AssetsRootPath,
+                relativePath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar)));
+            string assetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            string prefix = assetsRootPath + Path.DirectorySeparatorChar;
+            if (!fullPath.StartsWith(prefix, comparison)) {
+                throw new InvalidOperationException("Native asset paths must remain beneath the project assets directory.");
+            }
+
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, AssetImportManagerValue.ProjectRootPath);
+            return fullPath;
         }
 
         /// <summary>

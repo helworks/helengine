@@ -281,10 +281,10 @@ namespace helengine.editor.tests.serialization.scene {
             string materialFullPath = WriteMaterialSettingsDocument(materialRelativePath, CreateCustomShaderMaterialSettings("ForwardStandardShader"));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
-            EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
+            resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
@@ -319,15 +319,15 @@ namespace helengine.editor.tests.serialization.scene {
                 SupportedPlatforms = ["windows"]
             });
             new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows"]).SaveActivePlatform("windows");
-            EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
                 contentManager,
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager),
                 new EditorFileSystemTextureResolver(assetImportManager));
+            resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
@@ -372,15 +372,15 @@ namespace helengine.editor.tests.serialization.scene {
                 SupportedPlatforms = ["windows"]
             });
             new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows"]).SaveActivePlatform("windows");
-            EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
                 contentManager,
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager),
                 new EditorFileSystemTextureResolver(assetImportManager));
+            resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
@@ -412,10 +412,10 @@ namespace helengine.editor.tests.serialization.scene {
             WriteMaterialSettingsDocument(materialRelativePath, CreateStandardMaterialSettings("#336699"));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
-            EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
+            resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
@@ -438,10 +438,10 @@ namespace helengine.editor.tests.serialization.scene {
             WriteMaterialSettingsDocument(materialRelativePath, CreateStandardMaterialSettings("#336699"));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
-            EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
+            resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
@@ -467,10 +467,10 @@ namespace helengine.editor.tests.serialization.scene {
             new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows", "ps2"]).SaveActivePlatform("ps2");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
-            EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
+            resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 
@@ -498,10 +498,10 @@ namespace helengine.editor.tests.serialization.scene {
             new EditorProjectLocalSettingsService(TempProjectRootPath, ["ps2"]).SaveActivePlatform("ps2");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
-            EditorProjectPaths.Initialize(TempProjectRootPath);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService.Initialize(shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath);
+            resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
 

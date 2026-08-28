@@ -422,6 +422,20 @@ namespace helengine.editor {
                 }
             }
         }
+
+        /// <summary>
+        /// Attaches the owning session's shader package service to all shader-backed inspector views.
+        /// </summary>
+        internal EditorShaderPackageService ShaderPackageService {
+            set {
+                if (MaterialView != null) {
+                    MaterialView.ShaderPackageService = value;
+                }
+                if (ComponentView != null) {
+                    ComponentView.ShaderPackageService = value;
+                }
+            }
+        }
         /// <summary>
         /// Currently selected asset entry, if any.
         /// </summary>

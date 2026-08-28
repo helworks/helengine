@@ -7,6 +7,10 @@ namespace helengine.editor {
     /// Coordinates editor core initialization, docked UI setup, and scene bootstrapping for a host window.
     /// </summary>
     public class EditorSession {
+        readonly object DisposeGate = new object();
+        bool IsDisposed;
+        bool IsDisposing;
+        int DisposeThreadId;
         /// <summary>
         /// Default debounce delay for shader rebuilds.
         /// </summary>
@@ -288,6 +292,10 @@ namespace helengine.editor {
         /// Shader module manager responsible for hot-reloading shader modules.
         /// </summary>
         readonly ShaderModuleManager shaderModuleManager;
+        /// <summary>
+        /// Session-owned shader package resolver bound to this project's module manager.
+        /// </summary>
+        readonly EditorShaderPackageService shaderPackageService;
         /// <summary>
         /// Asset import manager responsible for creating import settings and outputs.
         /// </summary>
@@ -831,7 +839,9 @@ namespace helengine.editor {
 
             ShaderCompileTarget runtimeTarget = ResolveRuntimeShaderTarget(render3D);
             shaderModuleManager = BuildShaderModuleManager(runtimeTarget);
-            EditorShaderPackageService.Initialize(shaderModuleManager, runtimeTarget, EditorContentManager);
+            shaderPackageService = new EditorShaderPackageService(this.projectPath, shaderModuleManager, runtimeTarget, EditorContentManager);
+            propertiesPanel.ShaderPackageService = shaderPackageService;
+            sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
             shaderModuleManager.Start();
             BuildStartScene();
@@ -1531,47 +1541,61 @@ namespace helengine.editor {
         /// Disposes the current scale-sensitive modal dialogs so stale entity trees are removed before recreation.
         /// </summary>
         void DisposeScaleSensitiveDialogs() {
+            List<Exception> failures = new List<Exception>();
+            void Attempt(Action action) {
+                try {
+                    action();
+                } catch (Exception exception) {
+                    failures.Add(exception);
+                }
+            }
             if (assetPickerModal != null) {
-                assetPickerModal.DisposeAuthoringResources();
-                assetPickerModal.Dispose();
+                Attempt(assetPickerModal.DisposeAuthoringResources);
+                Attempt(assetPickerModal.Dispose);
             }
             if (meshModifierPickerModal != null) {
-                meshModifierPickerModal.Dispose();
+                Attempt(meshModifierPickerModal.Dispose);
             }
             if (saveFileDialog != null) {
-                saveFileDialog.DisposeAuthoringResources();
-                saveFileDialog.Dispose();
+                Attempt(saveFileDialog.DisposeAuthoringResources);
+                Attempt(saveFileDialog.Dispose);
             }
             if (openFileDialog != null) {
-                openFileDialog.DisposeAuthoringResources();
-                openFileDialog.Dispose();
+                Attempt(openFileDialog.DisposeAuthoringResources);
+                Attempt(openFileDialog.Dispose);
             }
             if (reparentEntityDialog != null) {
-                reparentEntityDialog.Dispose();
+                Attempt(reparentEntityDialog.Dispose);
             }
             if (platformsDialog != null) {
-                platformsDialog.Dispose();
+                Attempt(platformsDialog.Dispose);
             }
             if (environmentsDialog != null) {
-                environmentsDialog.Dispose();
+                Attempt(environmentsDialog.Dispose);
             }
             if (profilesDialog != null) {
-                profilesDialog.Dispose();
+                Attempt(profilesDialog.Dispose);
             }
             if (buildDialog != null) {
-                buildDialog.Dispose();
+                Attempt(buildDialog.Dispose);
             }
             if (buildDialogCopySettingsDialog != null) {
-                buildDialogCopySettingsDialog.Dispose();
+                Attempt(buildDialogCopySettingsDialog.Dispose);
             }
             if (unsavedChangesDialog != null) {
-                unsavedChangesDialog.Dispose();
+                Attempt(unsavedChangesDialog.Dispose);
             }
             if (preferencesDialog != null) {
-                preferencesDialog.Dispose();
+                Attempt(preferencesDialog.Dispose);
             }
             if (sceneSettingsDialog != null) {
-                sceneSettingsDialog.Dispose();
+                Attempt(sceneSettingsDialog.Dispose);
+            }
+            if (failures.Count == 1) {
+                throw failures[0];
+            }
+            if (failures.Count > 1) {
+                throw new AggregateException("One or more scale-sensitive dialogs failed to dispose.", failures);
             }
         }
 
@@ -1643,8 +1667,37 @@ namespace helengine.editor {
         /// Disposes engine resources owned by the session.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
-            ClearSceneSelectionBeforeTeardown();
+            lock (DisposeGate) {
+                if (IsDisposed) {
+                    return;
+                }
+                if (IsDisposing) {
+                    if (DisposeThreadId == Environment.CurrentManagedThreadId) {
+                        return;
+                    }
+                    while (IsDisposing && !IsDisposed) {
+                        Monitor.Wait(DisposeGate);
+                    }
+                    if (IsDisposed) {
+                        return;
+                    }
+                }
+                IsDisposing = true;
+                DisposeThreadId = Environment.CurrentManagedThreadId;
+            }
+
+            List<Exception> disposalFailures = new List<Exception>();
+            void Attempt(Action action) {
+                try {
+                    action();
+                } catch (Exception exception) {
+                    disposalFailures.Add(exception);
+                }
+            }
+
+            try {
+                Attempt(EditorInputCaptureService.Reset);
+            Attempt(ClearSceneSelectionBeforeTeardown);
             assetBrowserPanel.AssetSelected -= HandleAssetSelected;
             assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared;
             propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
@@ -1653,8 +1706,8 @@ namespace helengine.editor {
             EditorMeshModifierPickerService.PickRequested -= HandleMeshModifierPickRequested;
             EditorSceneMutationService.SceneMutated -= HandleSceneMutated;
             EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression;
-            EditorEntityHistoryMutationService.Reset();
-            EditorComponentHistoryMutationService.Reset();
+            Attempt(EditorEntityHistoryMutationService.Reset);
+            Attempt(EditorComponentHistoryMutationService.Reset);
             sceneHierarchyPanel.ReparentRequested -= HandleSceneHierarchyReparentRequested;
             titleBar.NewMapRequested -= HandleNewMapRequested;
             titleBar.OpenMapRequested -= HandleOpenMapRequested;
@@ -1680,27 +1733,47 @@ namespace helengine.editor {
             titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested;
             titleBar.AddAmbientLightRequested -= HandleAddAmbientLightRequested;
             DetachScaleSensitiveDialogHandlers();
-            scriptHotReloadService.Dispose();
+            Attempt(scriptHotReloadService.Dispose);
             IReadOnlyList<EditorViewport> viewports = GetViewportPanels();
             for (int index = 0; index < viewports.Count; index++) {
                 viewports[index].ClearInputBlockers();
             }
-            HideScaleSensitiveDialogs();
+            Attempt(HideScaleSensitiveDialogs);
             shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
-            shaderModuleManager.Dispose();
+            Attempt(shaderModuleManager.Dispose);
             DetachTrackedWorkspacePanelsForDispose();
-            DisposeScaleSensitiveDialogs();
-            EditorKeyboardFocusService.Reset();
-            UntrackCurrentSceneFromSceneManager();
-            ClearUserSceneEntities();
-            FlushPendingOwnedAssetReleases();
-            ReleaseCurrentSceneOwnedAssets();
-            assetBrowserPanel.DisposeAuthoringResources();
-            sceneAssetReferenceResolver.Dispose();
-            SceneSaveService.Dispose();
-            SceneFileLoadService.Dispose();
-            AuthoringSession.Dispose();
-            core.Dispose();
+            Attempt(DisposeScaleSensitiveDialogs);
+            Attempt(EditorKeyboardFocusService.Reset);
+            Attempt(UntrackCurrentSceneFromSceneManager);
+            Attempt(ClearUserSceneEntities);
+            Attempt(FlushPendingOwnedAssetReleases);
+            Attempt(ReleaseCurrentSceneOwnedAssets);
+            Attempt(assetBrowserPanel.DisposeAuthoringResources);
+            Attempt(sceneAssetReferenceResolver.Dispose);
+            Attempt(SceneSaveService.Dispose);
+            Attempt(SceneFileLoadService.Dispose);
+            Attempt(AuthoringSession.Dispose);
+                Attempt(core.Dispose);
+            } catch (Exception exception) {
+                disposalFailures.Add(exception);
+            }
+
+            lock (DisposeGate) {
+                if (disposalFailures.Count == 0) {
+                    IsDisposed = true;
+                    IsDisposing = false;
+                } else {
+                    IsDisposing = false;
+                }
+                DisposeThreadId = 0;
+                Monitor.PulseAll(DisposeGate);
+            }
+            if (disposalFailures.Count == 1) {
+                throw disposalFailures[0];
+            }
+            if (disposalFailures.Count > 1) {
+                throw new AggregateException("Editor session disposal failed; retry disposal to complete cleanup.", disposalFailures);
+            }
         }
 
         /// <summary>
@@ -4544,7 +4617,7 @@ namespace helengine.editor {
                 try {
                     string shaderName = notification.Key;
                     string packagePath = notification.Value;
-                    ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAssetFromPackage(packagePath);
+                    ShaderAsset shaderAsset = shaderPackageService.LoadShaderAssetFromPackage(packagePath);
                     string shaderAssetId = string.IsNullOrWhiteSpace(shaderAsset.Id) ? shaderName : shaderAsset.Id;
                     core.RenderManager3D.InvalidateShaderResources(shaderAssetId, shaderAsset);
                 } catch (Exception ex) {

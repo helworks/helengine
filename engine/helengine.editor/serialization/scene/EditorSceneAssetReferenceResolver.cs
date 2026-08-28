@@ -7,6 +7,10 @@ namespace helengine.editor {
     /// </summary>
     public class EditorSceneAssetReferenceResolver : ISceneAssetReferenceResolver, IEditorOwnedAssetTrackingSceneAssetReferenceResolver, IEditorAssetReferenceHealingResolver, IDisposable {
         /// <summary>
+        /// Session-owned shader package service used by file-backed material resolution.
+        /// </summary>
+        internal EditorShaderPackageService ShaderPackageService { get; set; }
+        /// <summary>
         /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
         /// </summary>
         const string StandardShaderAssetId = "ForwardStandardShader";
@@ -508,7 +512,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material asset did not provide a shader asset id.");
             }
 
-            ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(materialAsset.ShaderAssetId);
+            ShaderAsset shaderAsset = RequireShaderPackageService().LoadShaderAsset(materialAsset.ShaderAssetId);
             runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
             ApplyMaterialImportedTexture(
                 runtimeMaterial,
@@ -527,6 +531,10 @@ namespace helengine.editor {
                 fullPath);
             TrackOwnedMaterial(runtimeMaterial);
             return runtimeMaterial;
+        }
+
+        EditorShaderPackageService RequireShaderPackageService() {
+            return ShaderPackageService ?? throw new InvalidOperationException("Scene asset resolver is not attached to an editor shader package service.");
         }
 
         /// <summary>
@@ -592,7 +600,7 @@ namespace helengine.editor {
                 ReceivesShadows = materialAsset.ReceivesShadows
             };
 
-            ShaderAsset shaderAsset = EditorShaderPackageService.LoadShaderAsset(StandardShaderAssetId);
+            ShaderAsset shaderAsset = RequireShaderPackageService().LoadShaderAsset(StandardShaderAssetId);
             RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(previewMaterialAsset, shaderAsset);
             StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(runtimeMaterial));
             return runtimeMaterial;

@@ -16,8 +16,10 @@ namespace helengine.editor {
 
             string canonicalProjectRoot = Path.GetFullPath(projectRootPath);
             string transactionRoot = GetTransactionRoot(canonicalProjectRoot);
-            ValidateTransactionContainer(canonicalProjectRoot);
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(canonicalProjectRoot);
+            // Resolve inode-bound namespace operations before transaction journals,
+            // identity indexing, or importer setup can observe a partially moved leaf.
+            EditorAuthoringMutationJournal.Recover(canonicalProjectRoot);
             // A transaction constructor creates its directory, lease, and first
             // manifest while holding this same lock. Recheck after acquiring it
             // so recovery cannot observe an incomplete construction and return
