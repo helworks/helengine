@@ -433,7 +433,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Asset directory could not be resolved.");
             }
 
-            EditorFileTemplateService.CreateFile(template, directory);
+            EditorFileTemplateService.CreateFile(template, directory, ProjectRootPath);
             BrowserView.RefreshEntries();
         }
 

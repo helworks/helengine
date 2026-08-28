@@ -233,6 +233,21 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures generated cache output cannot escape the authoritative cache root
+    /// through a traversal path.
+    /// </summary>
+    [Fact]
+    public void GeneratedCacheAuthoring_WhenPathTraversesOutsideCache_RejectsBeforeMutation() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        using EditorProjectAuthoringSession capability = CreateCapability(projectRootPath);
+
+        Assert.ThrowsAny<Exception>(() => capability.WriteGeneratedCacheAsset(
+            "../escaped.hasset",
+            CreatePublicApiModel()));
+        Assert.False(File.Exists(Path.Combine(projectRootPath, "escaped.hasset")));
+    }
+
+    /// <summary>
     /// Ensures project tools can canonicalize component references without constructing editor services.
     /// </summary>
     [Fact]

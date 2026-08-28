@@ -43,12 +43,7 @@ namespace helengine.editor {
             PathClassifier = new EditorAssetPathClassifier(ProjectRootPath);
         }
 
-        /// <summary>
-        /// Creates a standalone metadata service. Callers operating inside a project should use the rooted constructor.
-        /// </summary>
-        public AssetIdentityMetadataService() {
-            PathClassifier = new EditorAssetPathClassifier();
-        }
+        string ResolveProjectRootPath(string assetPath) => ProjectRootPath;
 
         /// <summary>
         /// Returns the metadata sidecar path for one authored asset.
@@ -183,14 +178,6 @@ namespace helengine.editor {
                     mutationScope.DeleteLeaf(temporaryPath);
                 }
             }
-        }
-
-        string ResolveProjectRootPath(string assetPath) {
-            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
-                return ProjectRootPath;
-            }
-
-            return EditorProjectPaths.ResolveStandaloneRoot(assetPath);
         }
 
         /// <summary>

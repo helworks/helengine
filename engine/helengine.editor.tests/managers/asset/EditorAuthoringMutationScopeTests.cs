@@ -1,4 +1,5 @@
 using Xunit;
+using System.Runtime.InteropServices;
 
 namespace helengine.editor.tests.managers.asset;
 
@@ -23,11 +24,55 @@ public sealed class EditorAuthoringMutationScopeTests : IDisposable {
     public void FilesystemBackend_UsesExplicitSupportedPlatformSelection() {
         string expected = OperatingSystem.IsWindows()
             ? "windows"
-            : OperatingSystem.IsLinux()
+            : OperatingSystem.IsLinux() && RuntimeInformation.ProcessArchitecture == Architecture.X64
                 ? "linux"
                 : "unsupported";
 
         Assert.Equal(expected, EditorAuthoringMutationScope.FilesystemBackendNameForTests);
+    }
+
+    [Fact]
+    public void PosixFStat_UsesIntegerNativeStatusContract() {
+        System.Reflection.MethodInfo fstat = typeof(EditorAuthoringMutationScope).GetMethod(
+            "PosixFStat",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        Assert.NotNull(fstat);
+        Assert.Equal(typeof(int), fstat.ReturnType);
+    }
+
+    [Fact]
+    public void AuthoringServices_RequireExplicitProjectRoot() {
+        Assert.DoesNotContain(
+            typeof(AssetFileHasher).GetConstructors(
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Instance),
+            constructor => constructor.GetParameters().Length == 0);
+        Assert.DoesNotContain(
+            typeof(AssetIdentityMetadataService).GetConstructors(
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Instance),
+            constructor => constructor.GetParameters().Length == 0);
+        Assert.DoesNotContain(
+            typeof(MaterialAssetSettingsService).GetConstructors(
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Instance),
+            constructor => constructor.GetParameters().Length == 0);
+        Assert.DoesNotContain(
+            typeof(EditorAssetPathClassifier).GetConstructors(
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Instance),
+            constructor => constructor.GetParameters().Length == 0);
+        Assert.DoesNotContain(
+            typeof(FileEditorAssetHashCacheStore).GetConstructors(
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic |
+                System.Reflection.BindingFlags.Instance),
+            constructor => constructor.GetParameters().Length == 0);
     }
 
     [Fact]

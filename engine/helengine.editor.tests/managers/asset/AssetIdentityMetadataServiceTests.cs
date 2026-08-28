@@ -34,7 +34,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     [Fact]
     public void LoadOrCreate_CreatesVersionedJsonSidecar() {
         string assetPath = CreateAsset("Textures/Shared.png");
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
 
         AssetIdentityMetadataDocument document = service.LoadOrCreate(assetPath, string.Empty);
         string json = File.ReadAllText(assetPath + ".hmeta");
@@ -52,7 +52,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     [Fact]
     public void LoadOrCreate_WithRequestedAssetId_PreservesRequestedId() {
         string assetPath = CreateAsset("Models/Shared.gltf");
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
 
         AssetIdentityMetadataDocument document = service.LoadOrCreate(assetPath, "00112233445566778899aabbccddeeff");
 
@@ -67,7 +67,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
         string assetPath = CreateAsset("Textures/Malformed.png");
         string metadataPath = assetPath + ".hmeta";
         File.WriteAllText(metadataPath, "{\"version\":1,\"assetId\":\"bad\",\"formerAssetIds\":[]}");
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.Load(assetPath));
 
@@ -81,7 +81,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     public void Load_RejectsUnsupportedVersionAndDuplicateFormerIds() {
         string assetPath = CreateAsset("Textures/Invalid.png");
         string metadataPath = assetPath + ".hmeta";
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
 
         File.WriteAllText(metadataPath, "{\"version\":2,\"assetId\":\"00112233445566778899aabbccddeeff\",\"formerAssetIds\":[]}");
         Assert.Throws<InvalidOperationException>(() => service.Load(assetPath));
@@ -96,7 +96,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     [Fact]
     public void LoadOrCreate_WhenSourceIsMissing_Throws() {
         string assetPath = Path.Combine(TempRootPath, "assets", "Missing.png");
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.LoadOrCreate(assetPath, string.Empty));
 
@@ -115,7 +115,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
         WriteNativeScene(scenePath);
         WriteNativeBlueprint(blueprintPath);
         WriteNativeMaterial(materialPath);
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
         AssetIdentityMetadataDocument expected = new AssetIdentityMetadataDocument {
             AssetId = "00112233445566778899aabbccddeeff",
             FormerAssetIds = new List<string> { "ffeeddccbbaa99887766554433221100" }
@@ -149,7 +149,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
             MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
         }
 
-        AssetIdentityMetadataDocument loaded = new AssetIdentityMetadataService().Load(materialPath);
+        AssetIdentityMetadataDocument loaded = new AssetIdentityMetadataService(TempRootPath).Load(materialPath);
 
         Assert.Equal(document.AuthoringAssetId, loaded.AssetId);
         Assert.False(File.Exists(materialPath + ".hmeta"));
@@ -162,7 +162,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
     public void LoadOrCreate_WhenNativeIdentityIsMissing_RejectsFile() {
         string scenePath = Path.Combine(TempRootPath, "assets", "MissingIdentity.helen");
         WriteNativeScene(scenePath);
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.LoadOrCreate(scenePath, string.Empty));
 
@@ -181,8 +181,8 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
         WriteNativeAnimation(animationPath, embeddedAssetId);
         string sidecarPath = animationPath + ".hmeta";
         File.WriteAllText(sidecarPath, $"{{\"version\":1,\"assetId\":\"{sidecarAssetId}\",\"formerAssetIds\":[]}}");
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
-        EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
+        EditorAssetPathClassifier classifier = new EditorAssetPathClassifier(TempRootPath);
 
         Assert.True(classifier.UsesEmbeddedIdentity(animationPath));
         Assert.True(classifier.IsAuthoredAsset(animationPath));
@@ -201,7 +201,7 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
         string animationPath = Path.Combine(TempRootPath, "assets", "Animations", "Generated.hanim");
         const string embeddedAssetId = "11223344556677889900aabbccddeeff";
         WriteNativeAnimation(animationPath, embeddedAssetId);
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
 
         AssetIdentityMetadataDocument loaded = service.LoadOrCreate(animationPath, string.Empty);
 
@@ -217,9 +217,9 @@ public sealed class AssetIdentityMetadataServiceTests : IDisposable {
         string materialPath = Path.Combine(TempRootPath, "assets", "Materials", "Native.helmat");
         const string embeddedAssetId = "223344556677889900aabbccddeeff11";
         WriteNativeHelmat(materialPath, embeddedAssetId);
-        EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
+        EditorAssetPathClassifier classifier = new EditorAssetPathClassifier(TempRootPath);
 
-        AssetIdentityMetadataDocument loaded = new AssetIdentityMetadataService().Load(materialPath);
+        AssetIdentityMetadataDocument loaded = new AssetIdentityMetadataService(TempRootPath).Load(materialPath);
 
         Assert.True(classifier.UsesEmbeddedIdentity(materialPath));
         Assert.Equal(AssetEntryKind.Material, classifier.Classify(materialPath));

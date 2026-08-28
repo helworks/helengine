@@ -132,7 +132,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
 
         Assert.Empty(EditorProjectWriteGeneration.ReadAfter(TempRootPath, 0));
         Assert.Empty(report.Records);
-        Assert.Equal("00112233445566778899aabbccddeeff", new AssetIdentityMetadataService().Load(duplicatePath).AssetId);
+        Assert.Equal("00112233445566778899aabbccddeeff", new AssetIdentityMetadataService(TempRootPath).Load(duplicatePath).AssetId);
     }
 
     /// <summary>
@@ -175,7 +175,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
         string ownerPath = CreateAsset("Models/Owner.fbx");
         string copyPath = CreateAsset("Models/Copy.fbx");
         const string copiedId = "00112233445566778899aabbccddeeff";
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         metadata.Save(ownerPath, new AssetIdentityMetadataDocument { AssetId = copiedId });
         EditorAssetRepairReport report = new EditorAssetRepairReport();
         CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
@@ -276,7 +276,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
 
         index.Initialize();
         string firstOwnerId = index.FindByPath("Models/A.fbx").AssetId;
-        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService(TempRootPath);
         metadataService.Save(firstPath, new AssetIdentityMetadataDocument {
             AssetId = "00112233445566778899aabbccddeeff",
             FormerAssetIds = new List<string>()
@@ -297,7 +297,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     [Fact]
     public void FindMethods_ReturnCurrentFormerPathAndCompatibleEntries() {
         string assetPath = CreateAsset("Models/Only.fbx");
-        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService(TempRootPath);
         metadataService.Save(assetPath, new AssetIdentityMetadataDocument {
             AssetId = "00112233445566778899aabbccddeeff",
             FormerAssetIds = new List<string> { "ffeeddccbbaa99887766554433221100" }
@@ -516,7 +516,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     public void ReconcileExternalChanges_ObservesMovedAuthoredFile() {
         CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
         string sourcePath = CreateAsset("Models/Before.fbx");
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string assetId = "00112233445566778899aabbccddeeff";
         metadata.Save(sourcePath, new AssetIdentityMetadataDocument { AssetId = assetId });
         EditorAssetIdentityIndex index = CreateIndex(catalog);
@@ -539,7 +539,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     public void ReconcileExternalChanges_ObservesRemovedAuthoredFile() {
         CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
         string assetPath = CreateAsset("Models/Removed.fbx");
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string assetId = "ffeeddccbbaa99887766554433221100";
         metadata.Save(assetPath, new AssetIdentityMetadataDocument { AssetId = assetId });
         EditorAssetIdentityIndex index = CreateIndex(catalog);
@@ -719,7 +719,7 @@ public sealed class EditorAssetIdentityIndexTests : IDisposable {
     /// <param name="destinationPath">Destination file receiving copied metadata.</param>
     /// <param name="assetId">Duplicated stable UUID.</param>
     void CopyMetadata(string sourcePath, string destinationPath, string assetId) {
-        AssetIdentityMetadataService service = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService service = new AssetIdentityMetadataService(TempRootPath);
         service.Save(sourcePath, new AssetIdentityMetadataDocument {
             AssetId = assetId,
             FormerAssetIds = new List<string>()

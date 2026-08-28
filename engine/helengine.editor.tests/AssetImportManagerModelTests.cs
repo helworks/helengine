@@ -121,7 +121,7 @@ namespace helengine.editor.tests {
 
             string firstMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.hasset");
             string secondMaterialPath = Path.Combine(AssetsRootPath, "sponza", "Wood.hasset");
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
             Assert.True(File.Exists(firstMaterialPath));
             Assert.True(File.Exists(secondMaterialPath));
             Assert.Equal("Textures/Fabric.png", settingsService.LoadMaterialAsset(firstMaterialPath, "windows").DiffuseTextureAssetId);
@@ -149,7 +149,7 @@ namespace helengine.editor.tests {
             manager.ImportModel(sourcePath);
 
             string materialPath = Path.Combine(AssetsRootPath, "sponza", "Fabric.hasset");
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
             Assert.True(File.Exists(materialPath));
             Assert.Equal("Textures/FabricB.png", settingsService.LoadMaterialAsset(materialPath, "windows").DiffuseTextureAssetId);
         }
@@ -418,7 +418,7 @@ namespace helengine.editor.tests {
             string materialSourcePath = WriteMaterialAsset("Generated/Cube00.hasset");
             AssetImportManager manager = CreateManager(new TestModelImporter());
             MaterialAssetImportSettings expectedSettings = CreateMaterialImportSettings("Materials/Generated/Cube00.hasset", "#FF4040FF");
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
 
             settingsService.Save(materialSourcePath, expectedSettings);
 
@@ -490,7 +490,7 @@ namespace helengine.editor.tests {
                 Directory.CreateDirectory(directoryPath);
             }
 
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
             settingsService.Save(sourcePath, CreateMaterialImportSettings("Materials/Generated/Cube00.hasset", "#FFFFFFFF"));
             return sourcePath;
         }

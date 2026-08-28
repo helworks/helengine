@@ -35,7 +35,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     [Fact]
     public void Resolve_CurrentAssetIdWinsOverStalePathAndHash() {
         string assetPath = CreateAsset("Models/Current.fbx", new byte[] { 1, 2, 3 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         metadata.Save(assetPath, new AssetIdentityMetadataDocument {
             AssetId = "00112233445566778899aabbccddeeff",
             FormerAssetIds = new List<string>()
@@ -90,7 +90,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     [Fact]
     public void Resolve_WhenPathAndHashAreStale_ReportsEachCanonicalRepair() {
         string assetPath = CreateAsset("Models/Reported.fbx", new byte[] { 1, 2, 3 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string assetId = "00112233445566778899aabbccddeeff";
         metadata.Save(assetPath, new AssetIdentityMetadataDocument { AssetId = assetId });
         EditorAssetRepairReport report = new EditorAssetRepairReport();
@@ -157,7 +157,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void Resolve_WhenSavedIdMatchesFormerAlias_DoesNotAdoptItAtAnotherPath() {
         string ownerPath = CreateAsset("Models/Owner.fbx", new byte[] { 1, 2, 3 });
         string targetPath = CreateAsset("Models/Target.fbx", new byte[] { 4, 5, 6 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string currentId = "00112233445566778899aabbccddeeff";
         const string formerId = "ffeeddccbbaa99887766554433221100";
         metadata.Save(ownerPath, new AssetIdentityMetadataDocument {
@@ -176,7 +176,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.Equal(ownerPath, result.FullPath);
         Assert.Equal(currentId, result.CanonicalReference.AssetId);
         Assert.DoesNotContain(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
-        Assert.NotEqual(formerId, new AssetIdentityMetadataService().Load(targetPath).AssetId);
+        Assert.NotEqual(formerId, new AssetIdentityMetadataService(TempRootPath).Load(targetPath).AssetId);
     }
 
     /// <summary>
@@ -197,7 +197,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
 
         Assert.Equal(firstId, firstResult.CanonicalReference.AssetId);
         Assert.Equal(firstId, secondResult.CanonicalReference.AssetId);
-        Assert.Equal(firstId, new AssetIdentityMetadataService().Load(targetPath).AssetId);
+        Assert.Equal(firstId, new AssetIdentityMetadataService(TempRootPath).Load(targetPath).AssetId);
         Assert.Single(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
     }
 
@@ -225,7 +225,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
             resolver.EndResolutionScope();
         }
 
-        Assert.Equal(firstId, new AssetIdentityMetadataService().Load(targetPath).AssetId);
+        Assert.Equal(firstId, new AssetIdentityMetadataService(TempRootPath).Load(targetPath).AssetId);
         Assert.Single(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
     }
 
@@ -235,7 +235,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     [Fact]
     public void Resolve_WhenBinaryReadContextHasDocument_RecordsOwningDocument() {
         string assetPath = CreateAsset("Models/Context.fbx", new byte[] { 1, 2, 3 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string assetId = "00112233445566778899aabbccddeeff";
         metadata.Save(assetPath, new AssetIdentityMetadataDocument { AssetId = assetId });
         EditorAssetRepairReport report = new EditorAssetRepairReport();
@@ -265,7 +265,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void Resolve_WhenSavedPathMetadataIsMissing_ExistingAssetIdOwnerStillWins() {
         string idOwnerPath = CreateAsset("Models/A.fbx", new byte[] { 1, 2, 3 });
         string savedPath = CreateAsset("Models/B.fbx", new byte[] { 4, 5, 6 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         metadata.Save(idOwnerPath, new AssetIdentityMetadataDocument {
             AssetId = "00112233445566778899aabbccddeeff",
             FormerAssetIds = new List<string>()
@@ -321,7 +321,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
 
         Assert.Equal(targetPath, result.FullPath);
-        Assert.NotEqual("00112233445566778899aabbccddeeff", new AssetIdentityMetadataService().Load(targetPath).AssetId);
+        Assert.NotEqual("00112233445566778899aabbccddeeff", new AssetIdentityMetadataService(TempRootPath).Load(targetPath).AssetId);
     }
 
     /// <summary>
@@ -331,7 +331,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void Resolve_WhenCurrentAndFormerIdentityCandidatesCompete_PrefersCurrentIdentity() {
         string firstPath = CreateAsset("Models/A.fbx", new byte[] { 1, 2, 3 });
         string secondPath = CreateAsset("Models/B.fbx", new byte[] { 4, 5, 6 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string copiedAssetId = "00112233445566778899aabbccddeeff";
         metadata.Save(firstPath, new AssetIdentityMetadataDocument { AssetId = copiedAssetId });
         metadata.Save(secondPath, new AssetIdentityMetadataDocument { AssetId = copiedAssetId });
@@ -353,7 +353,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void Resolve_IsolatedCurrentIdTierWinsBeforePathHashOwnerOrOrdinal() {
         string currentPath = CreateAsset("Models/CurrentTier.fbx", new byte[] { 1, 2, 3 });
         string formerPath = CreateAsset("Models/FormerTier.fbx", new byte[] { 4, 5, 6 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string savedId = "00112233445566778899aabbccddeeff";
         metadata.Save(currentPath, new AssetIdentityMetadataDocument { AssetId = savedId });
         metadata.Save(formerPath, new AssetIdentityMetadataDocument {
@@ -376,7 +376,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void Resolve_IsolatedSavedPathTierWinsWhenIdentityIsOnlyFormerAndHashDiffers() {
         string pathWinner = CreateAsset("Models/PathTier.fbx", new byte[] { 1, 2, 3 });
         string hashCandidate = CreateAsset("Models/HashTier.fbx", new byte[] { 4, 5, 6 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string savedId = "11223344556677889900aabbccddeeff";
         metadata.Save(pathWinner, new AssetIdentityMetadataDocument {
             AssetId = "00112233445566778899aabbccddeeff",
@@ -407,7 +407,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void Resolve_IsolatedSavedHashTierWinsWhenOnlyOneCandidateMatchesHash() {
         string nonMatch = CreateAsset("Models/HashNonMatch.fbx", new byte[] { 1, 2, 3 });
         string hashWinner = CreateAsset("Models/HashWinner.fbx", new byte[] { 4, 5, 6 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string savedId = "11223344556677889900aabbccddeeff";
         metadata.Save(nonMatch, new AssetIdentityMetadataDocument {
             AssetId = "00112233445566778899aabbccddeeff",
@@ -435,7 +435,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void Resolve_IsolatedRecordedOwnerTierWinsForFormerAliasCandidates() {
         string recordedPath = CreateAsset("Models/RecordedTier.fbx", new byte[] { 1, 2, 3 });
         string otherPath = CreateAsset("Models/OtherRecordedTier.fbx", new byte[] { 4, 5, 6 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string formerId = "00112233445566778899aabbccddeeff";
         metadata.Save(recordedPath, new AssetIdentityMetadataDocument { AssetId = formerId });
         using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(TempRootPath);
@@ -465,7 +465,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void Resolve_IsolatedOrdinalTierWinsWhenFormerAliasCandidatesTieAllStrongerEvidence() {
         string ordinalWinner = CreateAsset("Models/AOrdinalTier.fbx", new byte[] { 1, 2, 3 });
         string ordinalOther = CreateAsset("Models/BOrdinalTier.fbx", new byte[] { 4, 5, 6 });
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         const string formerId = "00112233445566778899aabbccddeeff";
         metadata.Save(ordinalWinner, new AssetIdentityMetadataDocument {
             AssetId = "ffeeddccbbaa99887766554433221100",
@@ -492,7 +492,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     public void CreateFileReference_WhenNewExternalCopyClaimsCurrentId_RekeysThroughPublicResolver() {
         string ownerPath = CreateAsset("Models/PublicOwner.fbx", new byte[] { 1, 2, 3 });
         const string copiedId = "00112233445566778899aabbccddeeff";
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
         metadata.Save(ownerPath, new AssetIdentityMetadataDocument { AssetId = copiedId });
         using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath);
         string copyPath = CreateAsset("Models/PublicCopy.fbx", new byte[] { 4, 5, 6 });
@@ -503,7 +503,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.Equal(copiedId, resolver.CreateFileReference(ownerPath, AssetEntryKind.Model).AssetId);
         Assert.NotEqual(copiedId, copyReference.AssetId);
         Assert.True(File.Exists(copyPath + ".hmeta"));
-        Assert.Equal(copyReference.AssetId, new AssetIdentityMetadataService().Load(copyPath).AssetId);
+        Assert.Equal(copyReference.AssetId, new AssetIdentityMetadataService(TempRootPath).Load(copyPath).AssetId);
     }
 
     [Fact]
@@ -519,7 +519,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.NotEqual("aabbccddeeff00112233445566778899", copyReference.AssetId);
         Assert.Contains(
             "aabbccddeeff00112233445566778899",
-            new AssetIdentityMetadataService().Load(copyPath).FormerAssetIds);
+            new AssetIdentityMetadataService(TempRootPath).Load(copyPath).FormerAssetIds);
         Assert.False(File.Exists(copyPath + ".hmeta"));
     }
 

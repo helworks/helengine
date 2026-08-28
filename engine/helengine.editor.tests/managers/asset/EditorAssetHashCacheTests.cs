@@ -34,8 +34,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     [Fact]
     public void GetContentHash_DefersPersistenceAndReusesMatchingFingerprint() {
         string assetPath = CreateAsset("Textures/Shared.png", new byte[] { 1, 2, 3 });
-        CountingAssetHashCacheStore firstStore = new CountingAssetHashCacheStore();
-        EditorAssetHashCache firstCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), firstStore);
+        CountingAssetHashCacheStore firstStore = new CountingAssetHashCacheStore(TempRootPath);
+        EditorAssetHashCache firstCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), firstStore);
 
         string firstHash = firstCache.GetContentHash(assetPath);
         Assert.Equal(0, firstStore.SaveCount);
@@ -44,8 +44,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         firstCache.Flush();
         Assert.Equal(1, firstStore.SaveCount);
 
-        CountingAssetHashCacheStore secondStore = new CountingAssetHashCacheStore();
-        CountingAssetFileHasher secondHasher = new CountingAssetFileHasher();
+        CountingAssetHashCacheStore secondStore = new CountingAssetHashCacheStore(TempRootPath);
+        CountingAssetFileHasher secondHasher = new CountingAssetFileHasher(TempRootPath);
         EditorAssetHashCache secondCache = new EditorAssetHashCache(TempRootPath, secondHasher, secondStore);
         string secondHash = secondCache.GetContentHash(assetPath);
 
@@ -78,7 +78,7 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
             secondCache.Flush();
         }
 
-        CountingAssetFileHasher finalHasher = new CountingAssetFileHasher();
+        CountingAssetFileHasher finalHasher = new CountingAssetFileHasher(TempRootPath);
         using EditorAssetHashCache finalCache = new EditorAssetHashCache(TempRootPath, finalHasher);
         Assert.Equal(firstHash, finalCache.GetContentHash(firstPath));
         Assert.Equal(secondHash, finalCache.GetContentHash(secondPath));
@@ -92,9 +92,9 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     public async Task Flush_WhenTwoCachesOverlapAtStoreBoundary_PreservesBothDirtyUpdates() {
         string firstPath = CreateAsset("Models/ConcurrentFirst.obj", new byte[] { 3, 4, 5 });
         string secondPath = CreateAsset("Models/ConcurrentSecond.obj", new byte[] { 6, 7, 8 });
-        OverlappingAssetHashCacheStore store = new OverlappingAssetHashCacheStore();
-        using EditorAssetHashCache firstCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
-        using EditorAssetHashCache secondCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        OverlappingAssetHashCacheStore store = new OverlappingAssetHashCacheStore(TempRootPath);
+        using EditorAssetHashCache firstCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), store);
+        using EditorAssetHashCache secondCache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), store);
 
         firstCache.GetContentHash(firstPath);
         secondCache.GetContentHash(secondPath);
@@ -102,10 +102,10 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         Task secondFlush = Task.Run(secondCache.Flush);
         await Task.WhenAll(firstFlush, secondFlush);
 
-        CountingAssetFileHasher finalHasher = new CountingAssetFileHasher();
+        CountingAssetFileHasher finalHasher = new CountingAssetFileHasher(TempRootPath);
         using EditorAssetHashCache finalCache = new EditorAssetHashCache(TempRootPath, finalHasher);
-        Assert.Equal("sha256:" + new AssetFileHasher().ComputeHash(firstPath), finalCache.GetContentHash(firstPath));
-        Assert.Equal("sha256:" + new AssetFileHasher().ComputeHash(secondPath), finalCache.GetContentHash(secondPath));
+        Assert.Equal("sha256:" + new AssetFileHasher(TempRootPath).ComputeHash(firstPath), finalCache.GetContentHash(firstPath));
+        Assert.Equal("sha256:" + new AssetFileHasher(TempRootPath).ComputeHash(secondPath), finalCache.GetContentHash(secondPath));
         Assert.Equal(0, finalHasher.FileHashCount);
     }
 
@@ -132,7 +132,7 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     [Fact]
     public void GetContentHash_WhenSourceBytesChange_RecomputesHash() {
         string assetPath = CreateAsset("Textures/Changed.png", new byte[] { 1, 2, 3 });
-        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), new CountingAssetHashCacheStore());
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), new CountingAssetHashCacheStore(TempRootPath));
         string firstHash = cache.GetContentHash(assetPath);
 
         File.WriteAllBytes(assetPath, new byte[] { 4, 5, 6, 7 });
@@ -147,8 +147,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     [Fact]
     public void InvalidateContentHash_WhenBytesChangeButFingerprintDoesNot_RecomputesHash() {
         string assetPath = CreateAsset("Textures/SameFingerprint.png", new byte[] { 1, 2, 3, 4 });
-        CountingAssetFileHasher hasher = new CountingAssetFileHasher();
-        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, hasher, new CountingAssetHashCacheStore());
+        CountingAssetFileHasher hasher = new CountingAssetFileHasher(TempRootPath);
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, hasher, new CountingAssetHashCacheStore(TempRootPath));
 
         string firstHash = cache.GetContentHash(assetPath);
         DateTime originalTimestamp = File.GetLastWriteTimeUtc(assetPath);
@@ -171,7 +171,7 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         string cachePath = Path.Combine(TempRootPath, "cache", "editor", "asset-identity-index.json");
         Directory.CreateDirectory(Path.GetDirectoryName(cachePath));
         File.WriteAllText(cachePath, "not-json");
-        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), new CountingAssetHashCacheStore());
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), new CountingAssetHashCacheStore(TempRootPath));
 
         string hash = cache.GetContentHash(assetPath);
         cache.Flush();
@@ -191,13 +191,13 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         string secondPath = Path.Combine(TempRootPath, "assets", "Second.helen");
         WriteNativeScene(firstPath);
         WriteNativeScene(secondPath);
-        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService(TempRootPath);
         metadataService.Save(firstPath, new AssetIdentityMetadataDocument { AssetId = "00112233445566778899aabbccddeeff" });
         metadataService.Save(secondPath, new AssetIdentityMetadataDocument { AssetId = "ffeeddccbbaa99887766554433221100" });
 
-        string firstRawHash = new AssetFileHasher().ComputeHash(firstPath);
-        string secondRawHash = new AssetFileHasher().ComputeHash(secondPath);
-        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), new CountingAssetHashCacheStore());
+        string firstRawHash = new AssetFileHasher(TempRootPath).ComputeHash(firstPath);
+        string secondRawHash = new AssetFileHasher(TempRootPath).ComputeHash(secondPath);
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), new CountingAssetHashCacheStore(TempRootPath));
 
         Assert.NotEqual(firstRawHash, secondRawHash);
         Assert.Equal(cache.GetContentHash(firstPath), cache.GetContentHash(secondPath));
@@ -211,8 +211,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         CreateAsset("Models/A.obj", new byte[] { 1, 2, 3 });
         CreateAsset("Models/B.obj", new byte[] { 4, 5, 6 });
         CountingAssetFileCatalog catalog = new CountingAssetFileCatalog();
-        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore();
-        CountingAssetFileHasher hasher = new CountingAssetFileHasher();
+        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore(TempRootPath);
+        CountingAssetFileHasher hasher = new CountingAssetFileHasher(TempRootPath);
         EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, hasher, store);
         EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempRootPath, null, null, cache, catalog);
         identityIndex.Initialize();
@@ -250,8 +250,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     public void Flush_WhenEntriesAreAddedInDifferentOrder_SavesSortedEntriesOnce() {
         string firstPath = CreateAsset("Models/B.obj", new byte[] { 1, 2, 3 });
         string secondPath = CreateAsset("Models/A.obj", new byte[] { 4, 5, 6 });
-        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore();
-        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore(TempRootPath);
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), store);
 
         cache.GetContentHash(firstPath);
         cache.GetContentHash(secondPath);
@@ -268,8 +268,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     [Fact]
     public void Flush_WhenStoreUpdateFails_RetainsDirtyState() {
         string assetPath = CreateAsset("Models/Retry.obj", new byte[] { 1, 2, 3 });
-        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore { FailNextUpdate = true };
-        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore(TempRootPath) { FailNextUpdate = true };
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), store);
         cache.GetContentHash(assetPath);
 
         Assert.Throws<IOException>(() => cache.Flush());
@@ -290,8 +290,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
             seedCache.GetContentHash(assetPath);
         }
 
-        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore { FailNextUpdate = true };
-        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore(TempRootPath) { FailNextUpdate = true };
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), store);
         cache.GetContentHash(assetPath);
         File.WriteAllBytes(assetPath, new byte[] { 4, 5, 6 });
         cache.InvalidateContentHash(assetPath);
@@ -307,8 +307,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     [Fact]
     public void SessionDispose_WhenCacheFlushFailsOnce_RetriesOnSecondDispose() {
         CreateAsset("Models/SessionRetry.obj", new byte[] { 1, 2, 3 });
-        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore { FailNextUpdate = true };
-        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+        CountingAssetHashCacheStore store = new CountingAssetHashCacheStore(TempRootPath) { FailNextUpdate = true };
+        EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), store);
         EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempRootPath, null, null, cache);
         identityIndex.Initialize();
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempRootPath, identityIndex, cache);
@@ -363,6 +363,12 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     /// Counts hash-cache document saves while preserving the real on-disk store behavior.
     /// </summary>
     sealed class CountingAssetHashCacheStore : IEditorAssetHashCacheStore {
+        readonly FileEditorAssetHashCacheStore InnerStore;
+
+        public CountingAssetHashCacheStore(string projectRootPath) {
+            InnerStore = new FileEditorAssetHashCacheStore(projectRootPath);
+        }
+
         /// <summary>
         /// Gets the number of document saves requested by the cache.
         /// </summary>
@@ -389,7 +395,7 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         /// <param name="cachePath">Absolute cache document path.</param>
         /// <returns>Loaded cache document, or null when no valid document exists.</returns>
         public EditorAssetHashCacheDocument Load(string cachePath) {
-            return new FileEditorAssetHashCacheStore().Load(cachePath);
+            return InnerStore.Load(cachePath);
         }
 
         /// <summary>
@@ -400,7 +406,7 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         public void Save(string cachePath, EditorAssetHashCacheDocument document) {
             SaveCount++;
             LastSavedDocument = document;
-            new FileEditorAssetHashCacheStore().Save(cachePath, document);
+            InnerStore.Save(cachePath, document);
         }
 
         /// <summary>
@@ -417,7 +423,7 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
             }
 
             SaveCount++;
-            EditorAssetHashCacheDocument document = new FileEditorAssetHashCacheStore().Update(cachePath, updates, removedPaths);
+            EditorAssetHashCacheDocument document = InnerStore.Update(cachePath, updates, removedPaths);
             LastSavedDocument = document;
             return document;
         }
@@ -428,7 +434,11 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     /// </summary>
     sealed class OverlappingAssetHashCacheStore : IEditorAssetHashCacheStore {
         readonly Barrier SaveBarrier = new Barrier(2);
-        readonly FileEditorAssetHashCacheStore InnerStore = new FileEditorAssetHashCacheStore();
+        readonly FileEditorAssetHashCacheStore InnerStore;
+
+        public OverlappingAssetHashCacheStore(string projectRootPath) {
+            InnerStore = new FileEditorAssetHashCacheStore(projectRootPath);
+        }
 
         /// <summary>
         /// Loads the current cache document.
@@ -461,6 +471,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     /// Counts path hashing calls while using the production SHA-256 implementation.
     /// </summary>
     sealed class CountingAssetFileHasher : AssetFileHasher {
+        public CountingAssetFileHasher(string projectRootPath) : base(projectRootPath) {
+        }
         /// <summary>
         /// Gets the number of file-path hashes requested by the cache.
         /// </summary>

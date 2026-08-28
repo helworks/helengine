@@ -180,7 +180,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
-        public MaterialAssetView(FontAsset font, ushort layerMask) : this(font, layerMask, null, EditorProjectPaths.ProjectRoot) {
+        public MaterialAssetView(FontAsset font, ushort layerMask) : this(font, layerMask, null, null) {
         }
 
         /// <summary>
@@ -190,7 +190,7 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
         /// <param name="overlayHost">Entity that should host non-scrolling overlay UI such as the color picker.</param>
         public MaterialAssetView(FontAsset font, ushort layerMask, EditorEntity overlayHost)
-            : this(font, layerMask, overlayHost, EditorProjectPaths.ProjectRoot) {
+            : this(font, layerMask, overlayHost, null) {
         }
 
         /// <summary>
@@ -213,7 +213,7 @@ namespace helengine.editor {
             SupportedPlatformIds = new List<string>(4);
             PlatformPanels = new Dictionary<string, MaterialAssetPlatformPanel>(StringComparer.OrdinalIgnoreCase);
             SettingsService = string.IsNullOrWhiteSpace(ProjectRootPath)
-                ? new MaterialAssetSettingsService()
+                ? null
                 : new MaterialAssetSettingsService(ProjectRootPath);
             SchemaSettingsService = new MaterialAssetSchemaSettingsService();
 
@@ -706,14 +706,14 @@ namespace helengine.editor {
         }
 
         /// <summary>Creates one canonical typed reference from a picked filesystem entry.</summary>
-        static SceneAssetReference CreatePickedAssetReference(AssetBrowserEntry entry) {
+        SceneAssetReference CreatePickedAssetReference(AssetBrowserEntry entry) {
             if (entry == null || entry.IsDirectory || string.IsNullOrWhiteSpace(entry.FullPath)) {
                 throw new InvalidOperationException("A picked material asset must be a filesystem file.");
             }
-            if (string.IsNullOrWhiteSpace(EditorProjectPaths.ProjectRoot)) {
+            if (string.IsNullOrWhiteSpace(ProjectRootPath)) {
                 throw new InvalidOperationException("Project paths must be initialized before assigning material assets.");
             }
-            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(EditorProjectPaths.ProjectRoot);
+            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
             return resolver.CreateFileReference(entry.FullPath, entry.EntryKind);
         }
 
@@ -723,6 +723,9 @@ namespace helengine.editor {
         void SaveCurrentMaterialState(string platformId) {
             if (CurrentEntry == null || CurrentAsset == null || CurrentSettings == null) {
                 throw new InvalidOperationException("Cannot save a material view that is not bound to an asset.");
+            }
+            if (SettingsService == null) {
+                throw new InvalidOperationException("A project-scoped material view is required for authored material saves.");
             }
 
             SettingsService.Save(CurrentEntry.FullPath, CurrentSettings);

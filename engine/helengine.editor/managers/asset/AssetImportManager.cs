@@ -108,6 +108,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ModelAssetProcessor ModelAssetProcessor;
 
+        static StringComparison PathComparison => OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
         /// <summary>
         /// Applies processor settings to imported texture assets before they are cached.
         /// </summary>
@@ -1431,8 +1435,18 @@ namespace helengine.editor {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
             }
 
+            ValidateRelativeImportAssetId(assetId);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(assetsRootPath, projectRootPath);
+
+            // Hold the same project boundary used by authored writes while
+            // walking the source tree. This keeps a linked-directory swap from
+            // changing the path between enumeration and verified opening.
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+
             string directPath = Path.GetFullPath(Path.Combine(assetsRootPath, assetId));
-            if (File.Exists(directPath)) {
+            EnsurePathBeneathRoot(assetsRootPath, directPath, "Imported texture source");
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directPath, projectRootPath);
+            if (IsVerifiedRegularFile(directPath)) {
                 sourcePath = directPath;
                 return true;
             }
@@ -1443,7 +1457,8 @@ namespace helengine.editor {
             }
 
             foreach (string candidatePath in EnumerateAssetSourceFiles()) {
-                if (string.Equals(Path.GetFileName(candidatePath), fileName, StringComparison.OrdinalIgnoreCase)) {
+                if (string.Equals(Path.GetFileName(candidatePath), fileName, StringComparison.OrdinalIgnoreCase) &&
+                    IsVerifiedRegularFile(candidatePath)) {
                     sourcePath = candidatePath;
                     return true;
                 }
@@ -1462,6 +1477,9 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
             }
+
+            ValidateRelativeImportAssetId(assetId);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(assetsRootPath, projectRootPath);
 
             foreach (string candidatePath in EnumerateAssetSourceFiles()) {
                 if (!IsTextureExtension(Path.GetExtension(candidatePath))) {
@@ -1878,15 +1896,15 @@ namespace helengine.editor {
             string normalizedAssetsRootPath = EnsureTrailingDirectorySeparator(assetsRootPath);
             string normalizedImportRootPath = EnsureTrailingDirectorySeparator(importRootPath);
             string normalizedFullPath = Path.GetFullPath(fullPath);
-            if (string.Equals(normalizedFullPath, assetsRootPath, StringComparison.OrdinalIgnoreCase) || normalizedFullPath.StartsWith(normalizedAssetsRootPath, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(normalizedFullPath, assetsRootPath, PathComparison) || normalizedFullPath.StartsWith(normalizedAssetsRootPath, PathComparison)) {
                 return "project-assets";
             }
 
-            if (string.Equals(normalizedFullPath, importRootPath, StringComparison.OrdinalIgnoreCase) || normalizedFullPath.StartsWith(normalizedImportRootPath, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(normalizedFullPath, importRootPath, PathComparison) || normalizedFullPath.StartsWith(normalizedImportRootPath, PathComparison)) {
                 return "project-cache";
             }
 
-            if (string.Equals(normalizedFullPath, projectRootPath, StringComparison.OrdinalIgnoreCase) || normalizedFullPath.StartsWith(normalizedProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(normalizedFullPath, projectRootPath, PathComparison) || normalizedFullPath.StartsWith(normalizedProjectRootPath, PathComparison)) {
                 return "project-root";
             }
 
@@ -4596,17 +4614,45 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Sequence of asset source file paths.</returns>
         IEnumerable<string> EnumerateAssetSourceFiles() {
-            IEnumerable<string> files = Directory.EnumerateFiles(assetsRootPath, "*", SearchOption.AllDirectories);
-            foreach (string filePath in files) {
-                if (IsSettingsFile(filePath)) {
-                    continue;
-                }
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(assetsRootPath, projectRootPath);
+            if (!Directory.Exists(assetsRootPath)) {
+                yield break;
+            }
 
-                if (IsUnderImportRoot(filePath)) {
-                    continue;
-                }
+            Stack<string> pendingDirectories = new Stack<string>();
+            pendingDirectories.Push(assetsRootPath);
+            while (pendingDirectories.Count != 0) {
+                string directoryPath = pendingDirectories.Pop();
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directoryPath, projectRootPath);
+                foreach (string entryPath in Directory.EnumerateFileSystemEntries(
+                    directoryPath,
+                    "*",
+                    SearchOption.TopDirectoryOnly)) {
+                    // Enumerate one level at a time and validate the entry
+                    // before deciding whether it is a directory. A recursive
+                    // pathname walk could follow a linked directory before
+                    // its reparse point is observed.
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(entryPath, projectRootPath);
+                    FileAttributes attributes;
+                    try {
+                        attributes = File.GetAttributes(entryPath);
+                    } catch (FileNotFoundException) {
+                        continue;
+                    } catch (DirectoryNotFoundException) {
+                        continue;
+                    }
 
-                yield return filePath;
+                    if ((attributes & FileAttributes.Directory) != 0) {
+                        pendingDirectories.Push(entryPath);
+                        continue;
+                    }
+
+                    if (IsSettingsFile(entryPath) || IsUnderImportRoot(entryPath)) {
+                        continue;
+                    }
+
+                    yield return entryPath;
+                }
             }
         }
 
@@ -4635,11 +4681,11 @@ namespace helengine.editor {
             }
 
             string fullPath = Path.GetFullPath(filePath);
-            if (string.Equals(fullPath, importRootPath, StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(fullPath, importRootPath, PathComparison)) {
                 return true;
             }
 
-            return fullPath.StartsWith(importRootPrefix, StringComparison.OrdinalIgnoreCase);
+            return fullPath.StartsWith(importRootPrefix, PathComparison);
         }
 
         /// <summary>
@@ -4657,11 +4703,7 @@ namespace helengine.editor {
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
         string GetTextureAssetPath(string assetId) {
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new ArgumentException("Asset id must be provided.", nameof(assetId));
-            }
-
-            return Path.Combine(importRootPath, assetId);
+            return GetImportAssetPath(assetId);
         }
 
         /// <summary>
@@ -4670,11 +4712,7 @@ namespace helengine.editor {
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
         string GetTextAssetPath(string assetId) {
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new ArgumentException("Asset id must be provided.", nameof(assetId));
-            }
-
-            return Path.Combine(importRootPath, assetId);
+            return GetImportAssetPath(assetId);
         }
 
         /// <summary>
@@ -4683,11 +4721,7 @@ namespace helengine.editor {
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
         string GetAudioAssetPath(string assetId) {
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new ArgumentException("Asset id must be provided.", nameof(assetId));
-            }
-
-            return Path.Combine(importRootPath, assetId);
+            return GetImportAssetPath(assetId);
         }
 
         /// <summary>
@@ -4696,11 +4730,7 @@ namespace helengine.editor {
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
         string GetFontAssetPath(string assetId) {
-            if (string.IsNullOrWhiteSpace(assetId)) {
-                throw new ArgumentException("Asset id must be provided.", nameof(assetId));
-            }
-
-            return Path.Combine(importRootPath, assetId);
+            return GetImportAssetPath(assetId);
         }
 
         /// <summary>
@@ -4709,11 +4739,63 @@ namespace helengine.editor {
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
         string GetModelAssetPath(string assetId) {
+            return GetImportAssetPath(assetId);
+        }
+
+        string GetImportAssetPath(string assetId) {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Asset id must be provided.", nameof(assetId));
             }
 
-            return Path.Combine(importRootPath, assetId);
+            ValidateRelativeImportAssetId(assetId);
+            string path = Path.GetFullPath(Path.Combine(importRootPath, assetId));
+            EnsurePathBeneathRoot(importRootPath, path, "Imported asset");
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, projectRootPath);
+            return path;
+        }
+
+        static void ValidateRelativeImportAssetId(string assetId) {
+            if (Path.IsPathRooted(assetId)) {
+                throw new InvalidDataException("Imported asset identifiers must be relative paths.");
+            }
+
+            string[] segments = assetId.Split(new[] { '/', '\\' }, StringSplitOptions.None);
+            for (int index = 0; index < segments.Length; index++) {
+                if (segments[index] == ".." || segments[index] == "." || string.IsNullOrWhiteSpace(segments[index])) {
+                    throw new InvalidDataException("Imported asset identifiers must not contain traversal or empty path segments.");
+                }
+            }
+        }
+
+        static void EnsurePathBeneathRoot(string rootPath, string candidatePath, string description) {
+            string root = Path.GetFullPath(rootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string candidate = Path.GetFullPath(candidatePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (!string.Equals(root, candidate, comparison) &&
+                !candidate.StartsWith(root + Path.DirectorySeparatorChar, comparison)) {
+                throw new InvalidDataException($"{description} path '{candidatePath}' escapes root '{rootPath}'.");
+            }
+        }
+
+        bool IsVerifiedRegularFile(string filePath) {
+            string directoryPath = Path.GetDirectoryName(filePath);
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                return false;
+            }
+
+            try {
+                using EditorAuthoringMutationScope scope = EditorAuthoringMutationScope.AcquireForMutation(projectRootPath, directoryPath);
+                using EditorAuthoringVerifiedFile file = scope.OpenVerifiedFile(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                return true;
+            } catch (FileNotFoundException) {
+                return false;
+            } catch (DirectoryNotFoundException) {
+                return false;
+            } catch (System.ComponentModel.Win32Exception exception) when (exception.NativeErrorCode == 2 || exception.NativeErrorCode == 3) {
+                return false;
+            }
         }
 
         /// <summary>

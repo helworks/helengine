@@ -127,7 +127,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "engine:material:standard",
             "material",
             "ps2");
-        EditorPlatformCookedArtifactPool artifactPool = new();
+        EditorPlatformCookedArtifactPool artifactPool = new(ProjectRootPath);
 
         artifactPool.AddDeclaredFile(fullPath, declaration);
 
@@ -680,7 +680,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             }
         };
 
-        MaterialAssetSettingsService settingsService = new();
+        MaterialAssetSettingsService settingsService = new(ProjectRootPath);
         settingsService.Save(materialPath, settings);
     }
 
@@ -802,7 +802,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             }
         };
 
-        MaterialAssetSettingsService settingsService = new();
+        MaterialAssetSettingsService settingsService = new(ProjectRootPath);
         settingsService.Save(materialPath, settings);
     }
 

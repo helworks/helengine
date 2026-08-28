@@ -35,7 +35,7 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
     public void Move_CarriesSourceImporterAndIdentitySidecars() {
         string sourcePath = CreateSource("Models/Source.fbx");
         File.WriteAllText(sourcePath + ".hasset", "importer");
-        new AssetIdentityMetadataService().LoadOrCreate(sourcePath, string.Empty);
+        new AssetIdentityMetadataService(TempRootPath).LoadOrCreate(sourcePath, string.Empty);
         string destinationPath = Path.Combine(TempRootPath, "assets", "Models", "Moved.fbx");
         EditorAssetFileOperationService service = new EditorAssetFileOperationService(TempRootPath);
 
@@ -54,13 +54,13 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
     public void Duplicate_CopiesImporterButMintsIndependentIdentity() {
         string sourcePath = CreateSource("Models/Source.fbx");
         File.WriteAllText(sourcePath + ".hasset", "importer");
-        AssetIdentityMetadataDocument sourceMetadata = new AssetIdentityMetadataService().LoadOrCreate(sourcePath, string.Empty);
+        AssetIdentityMetadataDocument sourceMetadata = new AssetIdentityMetadataService(TempRootPath).LoadOrCreate(sourcePath, string.Empty);
         string destinationPath = Path.Combine(TempRootPath, "assets", "Models", "Copy.fbx");
         EditorAssetFileOperationService service = new EditorAssetFileOperationService(TempRootPath);
 
         service.Duplicate(sourcePath, destinationPath);
 
-        AssetIdentityMetadataDocument destinationMetadata = new AssetIdentityMetadataService().Load(destinationPath);
+        AssetIdentityMetadataDocument destinationMetadata = new AssetIdentityMetadataService(TempRootPath).Load(destinationPath);
         Assert.True(File.Exists(destinationPath + ".hasset"));
         Assert.NotEqual(sourceMetadata.AssetId, destinationMetadata.AssetId);
         Assert.Empty(destinationMetadata.FormerAssetIds);
@@ -99,12 +99,12 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
     [InlineData(true)]
     public void Move_NativeMaterial_PreservesEmbeddedIdentity(bool useCommonSettingsContainer) {
         string sourcePath = CreateNativeMaterial("Source.hasset", useCommonSettingsContainer);
-        AssetIdentityMetadataDocument sourceIdentity = new AssetIdentityMetadataService().Load(sourcePath);
+        AssetIdentityMetadataDocument sourceIdentity = new AssetIdentityMetadataService(TempRootPath).Load(sourcePath);
         string destinationPath = Path.Combine(TempRootPath, "assets", "Moved.hasset");
 
         new EditorAssetFileOperationService(TempRootPath).Move(sourcePath, destinationPath);
 
-        AssetIdentityMetadataDocument destinationIdentity = new AssetIdentityMetadataService().Load(destinationPath);
+        AssetIdentityMetadataDocument destinationIdentity = new AssetIdentityMetadataService(TempRootPath).Load(destinationPath);
         Assert.Equal(sourceIdentity.AssetId, destinationIdentity.AssetId);
         Assert.False(File.Exists(destinationPath + ".hmeta"));
     }
@@ -117,12 +117,12 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
     [InlineData(true)]
     public void Duplicate_NativeMaterial_MintsIndependentEmbeddedIdentity(bool useCommonSettingsContainer) {
         string sourcePath = CreateNativeMaterial("Source.hasset", useCommonSettingsContainer);
-        AssetIdentityMetadataDocument sourceIdentity = new AssetIdentityMetadataService().Load(sourcePath);
+        AssetIdentityMetadataDocument sourceIdentity = new AssetIdentityMetadataService(TempRootPath).Load(sourcePath);
         string destinationPath = Path.Combine(TempRootPath, "assets", "Copy.hasset");
 
         new EditorAssetFileOperationService(TempRootPath).Duplicate(sourcePath, destinationPath);
 
-        AssetIdentityMetadataDocument destinationIdentity = new AssetIdentityMetadataService().Load(destinationPath);
+        AssetIdentityMetadataDocument destinationIdentity = new AssetIdentityMetadataService(TempRootPath).Load(destinationPath);
         Assert.NotEqual(sourceIdentity.AssetId, destinationIdentity.AssetId);
         Assert.Empty(destinationIdentity.FormerAssetIds);
         Assert.False(File.Exists(destinationPath + ".hmeta"));

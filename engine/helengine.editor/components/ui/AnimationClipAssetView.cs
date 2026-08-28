@@ -89,7 +89,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
         public AnimationClipAssetView(FontAsset font, ushort layerMask)
-            : this(font, layerMask, EditorProjectPaths.ProjectRoot) {
+            : this(font, layerMask, null) {
         }
 
         /// <summary>

@@ -52,7 +52,7 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     [Fact]
     public void StartupIdentityRepair_IsVisibleToPreopenedWriterWithoutFullRefresh() {
         string firstPath = CreateExternalAsset("Models/StartupOwner.fbx");
-        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(ProjectRootPath);
         const string duplicateId = "00112233445566778899aabbccddeeff";
         metadata.Save(firstPath, new AssetIdentityMetadataDocument { AssetId = duplicateId });
         using EditorAssetHashCache preopenedCache = new EditorAssetHashCache(ProjectRootPath);

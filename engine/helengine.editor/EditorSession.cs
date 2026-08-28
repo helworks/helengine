@@ -627,11 +627,13 @@ namespace helengine.editor {
             // Session construction completes current transaction recovery and
             // initializes the project identity graph before importer-owned files
             // are generated or cached.
-            assetImportManager.ImportTexturesMissingCache();
-            assetImportManager.ImportModelsMissingCache();
-            AuthoringSession = concreteAuthoringSession;
-            AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
-            authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
+            bool authoringSessionOwnershipTransferred = false;
+            try {
+                assetImportManager.ImportTexturesMissingCache();
+                assetImportManager.ImportModelsMissingCache();
+                AuthoringSession = concreteAuthoringSession;
+                AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
+                authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
             materialAssetSettingsService = new MaterialAssetSettingsService(this.projectPath);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
@@ -701,7 +703,7 @@ namespace helengine.editor {
             EditorAssetManager assetBrowserManager = new EditorAssetManager(this.projectPath, authoredAssetReferenceResolver);
             AssetBrowserDataSource assetBrowserDataSource = new AssetBrowserDataSource(assetBrowserManager);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics, assetBrowserDataSource);
-            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver);
+            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver, this.projectPath);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             LogAuthoringRepairReport();
@@ -838,6 +840,13 @@ namespace helengine.editor {
 
             UpdateLayout(renderWidth, renderHeight);
             PromptForPlatformSelectionIfRequired();
+            authoringSessionOwnershipTransferred = true;
+            } catch {
+                if (!authoringSessionOwnershipTransferred) {
+                    concreteAuthoringSession.Dispose();
+                }
+                throw;
+            }
         }
 
         /// <summary>
@@ -2026,7 +2035,8 @@ namespace helengine.editor {
                 session.titleBar.Entity,
                 session.scriptHotReloadService,
                 session.CurrentUiMetrics,
-                fileSystemFontResolver);
+                fileSystemFontResolver,
+                session.projectPath);
             panel.HistoryMutationService = session.HistoryMutationService;
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
         }

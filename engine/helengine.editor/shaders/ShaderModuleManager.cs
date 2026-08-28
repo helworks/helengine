@@ -129,7 +129,11 @@ namespace helengine.editor {
             entriesLock = new object();
             ActiveShaderChecks = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
             ActiveLock = new object();
-            SourceHasher = new AssetFileHasher();
+            string projectRootPath = Directory.GetParent(Path.GetFullPath(options.ShaderRootPath))?.FullName;
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new InvalidDataException("Shader root must be beneath an authoritative project root.");
+            }
+            SourceHasher = new AssetFileHasher(projectRootPath);
             MetadataStore = new ShaderCacheMetadataStore(options.PackageOutputPath, options.RuntimeTarget);
             MetadataLock = new object();
             buildSemaphore = new SemaphoreSlim(1, 1);

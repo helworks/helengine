@@ -20,11 +20,7 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
         }
 
-        /// <summary>
-        /// Creates a standalone classifier for callers that provide their own containing directory.
-        /// </summary>
-        public EditorAssetPathClassifier() {
-        }
+        string ResolveProjectRootPath(string authoredPath) => ProjectRootPath;
 
         /// <summary>
         /// Extension used for asset import settings sidecar files.
@@ -245,13 +241,6 @@ namespace helengine.editor {
                 default:
                     return AssetEntryKind.File;
             }
-        }
-
-        string ResolveProjectRootPath(string authoredPath) {
-            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
-                return ProjectRootPath;
-            }
-            return EditorProjectPaths.ResolveStandaloneRoot(authoredPath);
         }
 
         /// <summary>

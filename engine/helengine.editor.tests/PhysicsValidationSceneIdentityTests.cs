@@ -25,7 +25,7 @@ public sealed class PhysicsValidationSceneIdentityTests : IDisposable {
     [Fact]
     public void WriteScenes_EmbedsAndPreservesNativeIdentityWithoutSidecars() {
         PhysicsValidationSceneFactory factory = new PhysicsValidationSceneFactory();
-        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService();
+        AssetIdentityMetadataService metadataService = new AssetIdentityMetadataService(ProjectRootPath);
 
         factory.WriteScenes(ProjectRootPath);
         Dictionary<string, string> firstIds = ReadSceneIds(metadataService);

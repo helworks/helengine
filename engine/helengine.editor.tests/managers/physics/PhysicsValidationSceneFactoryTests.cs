@@ -276,7 +276,7 @@ namespace helengine.editor.tests.managers.physics {
             Assert.True(File.Exists(neutralMaterialPath));
             Assert.True(File.Exists(blueMaterialPath));
 
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(TempProjectRootPath);
             ShaderMaterialAsset groundMaterialAsset = settingsService.LoadMaterialAsset(groundMaterialPath, "windows");
             ShaderMaterialAsset blueMaterialAsset = settingsService.LoadMaterialAsset(blueMaterialPath, "windows");
             MaterialConstantBufferAsset baseColorBuffer = Assert.Single(blueMaterialAsset.ConstantBuffers, constantBuffer => string.Equals(constantBuffer.Name, "BaseColorBuffer", StringComparison.Ordinal));

@@ -471,7 +471,7 @@ namespace helengine.editor {
                 ? targetIds[0]
                 : "shared";
 
-            EditorPlatformCookedArtifactPool artifactPool = new(FileHasher);
+            EditorPlatformCookedArtifactPool artifactPool = new(ProjectRootPath, FileHasher);
             string[] cookedFilePaths = Directory.GetFiles(cookRootPath, "*", SearchOption.AllDirectories);
             Array.Sort(cookedFilePaths, StringComparer.OrdinalIgnoreCase);
             HashSet<string> builderOwnedOutputPaths = BuildBuilderOwnedOutputPathSet(platformCookWorkItems);

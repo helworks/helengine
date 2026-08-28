@@ -42,7 +42,7 @@ namespace helengine.editor.tests.managers.project {
                 "Images/logo.png",
                 "COOKED/I/LOGO.HAS",
                 CreateTextureImportSettings(TextureAssetColorFormat.Indexed8, TextureAssetIndexingMethod.QuantizedIndexed.ToString()),
-                new AssetFileHasher());
+                new AssetFileHasher(ProjectRootPath));
 
             Assert.Contains("\"indexingMethod\":\"QuantizedIndexed\"", workItem.SerializedPlatformSettings);
         }
@@ -60,7 +60,7 @@ namespace helengine.editor.tests.managers.project {
                 "cooked/fonts/demodiscbody.hetex",
                 "fonts/demodiscbody",
                 CreateFontImportSettings(),
-                new AssetFileHasher());
+                new AssetFileHasher(ProjectRootPath));
 
             Assert.Contains("\"colorFormat\":\"Indexed4\"", workItem.SerializedPlatformSettings);
             Assert.Contains("\"alphaPrecision\":\"Binary\"", workItem.SerializedPlatformSettings);
@@ -90,7 +90,7 @@ namespace helengine.editor.tests.managers.project {
                 "cooked/fonts/demodiscbody.hetex",
                 "fonts/demodiscbody",
                 settings,
-                new AssetFileHasher());
+                new AssetFileHasher(ProjectRootPath));
 
             Assert.Contains("\"colorFormat\":\"Indexed4\"", workItem.SerializedPlatformSettings);
             Assert.Contains("\"alphaPrecision\":\"Binary\"", workItem.SerializedPlatformSettings);

@@ -8,7 +8,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="template">Template to apply.</param>
         /// <param name="directory">Target directory for the new file.</param>
-        public static void CreateFile(EditorFileTemplate template, string directory) {
+        /// <param name="projectRootPath">Authoritative project root that contains the target assets directory.</param>
+        public static void CreateFile(EditorFileTemplate template, string directory, string projectRootPath) {
             if (template == null) {
                 throw new ArgumentNullException(nameof(template));
             }
@@ -16,10 +17,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Target directory must be provided.", nameof(directory));
             }
 
-            string projectRootPath = EditorProjectPaths.ProjectRoot;
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new InvalidOperationException("Project root path has not been initialized.");
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
+            projectRootPath = Path.GetFullPath(projectRootPath);
 
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
             EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, directory);
@@ -82,7 +83,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material base name could not be resolved.");
             }
 
-            string materialId = BuildMaterialAssetId(materialPath);
+            string materialId = BuildMaterialAssetId(materialPath, Path.Combine(projectRootPath, "assets"));
 
             var materialAsset = new MaterialAsset {
                 Id = materialId,
@@ -104,7 +105,7 @@ namespace helengine.editor {
             string blueprintPath = Path.Combine(directory, fileName);
 
             BlueprintAsset blueprintAsset = new BlueprintAsset {
-                Id = BuildBlueprintAssetId(blueprintPath),
+                Id = BuildBlueprintAssetId(blueprintPath, Path.Combine(projectRootPath, "assets")),
                 AuthoringAssetId = Guid.NewGuid().ToString("N"),
                 RootEntity = new SceneEntityAsset {
                     Id = 1u,
@@ -130,14 +131,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="materialPath">Absolute material asset path.</param>
         /// <returns>Material asset id derived from the path.</returns>
-        static string BuildMaterialAssetId(string materialPath) {
+        static string BuildMaterialAssetId(string materialPath, string assetsRoot) {
             if (string.IsNullOrWhiteSpace(materialPath)) {
                 throw new ArgumentException("Material path must be provided.", nameof(materialPath));
             }
 
-            string assetsRoot = EditorProjectPaths.AssetsRoot;
             if (string.IsNullOrWhiteSpace(assetsRoot)) {
-                throw new InvalidOperationException("Assets root path has not been initialized.");
+                throw new ArgumentException("Assets root path must be provided.", nameof(assetsRoot));
             }
 
             string fullMaterialPath = Path.GetFullPath(materialPath);
@@ -162,14 +162,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="blueprintPath">Absolute blueprint asset path.</param>
         /// <returns>Blueprint asset id derived from the path.</returns>
-        static string BuildBlueprintAssetId(string blueprintPath) {
+        static string BuildBlueprintAssetId(string blueprintPath, string assetsRoot) {
             if (string.IsNullOrWhiteSpace(blueprintPath)) {
                 throw new ArgumentException("Blueprint path must be provided.", nameof(blueprintPath));
             }
 
-            string assetsRoot = EditorProjectPaths.AssetsRoot;
             if (string.IsNullOrWhiteSpace(assetsRoot)) {
-                throw new InvalidOperationException("Assets root path has not been initialized.");
+                throw new ArgumentException("Assets root path must be provided.", nameof(assetsRoot));
             }
 
             string fullBlueprintPath = Path.GetFullPath(blueprintPath);

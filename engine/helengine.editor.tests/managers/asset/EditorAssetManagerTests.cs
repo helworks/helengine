@@ -71,8 +71,8 @@ public sealed class EditorAssetManagerTests : IDisposable {
     public void Dispose_WhenOwnedCacheFlushFails_RetriesOnNextDispose() {
         string assetPath = Path.Combine(TempRootPath, "assets", "Retry.png");
         File.WriteAllBytes(assetPath, new byte[] { 1, 2, 3 });
-        FailOnceAssetHashCacheStore store = new FailOnceAssetHashCacheStore();
-        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(), store);
+FailOnceAssetHashCacheStore store = new FailOnceAssetHashCacheStore(TempRootPath);
+        using EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, new AssetFileHasher(TempRootPath), store);
         EditorAssetManager manager = new EditorAssetManager(TempRootPath, cache, true);
         List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
 
@@ -119,7 +119,7 @@ public sealed class EditorAssetManagerTests : IDisposable {
     /// </summary>
     [Fact]
     public void EditorAssetPathClassifier_HidesMetadataAndUnrecognizedImporterSidecars() {
-        EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
+        EditorAssetPathClassifier classifier = new EditorAssetPathClassifier(TempRootPath);
         string metadataPath = Path.Combine(TempRootPath, "assets", "Texture.png.hmeta");
         string importerPath = Path.Combine(TempRootPath, "assets", "Texture.png.hasset");
         string materialPath = Path.Combine(TempRootPath, "assets", "materials", "Material.hasset");
@@ -153,7 +153,11 @@ public sealed class EditorAssetManagerTests : IDisposable {
     /// Fails the first cache update while delegating all subsequent updates to the file store.
     /// </summary>
     sealed class FailOnceAssetHashCacheStore : IEditorAssetHashCacheStore {
-        readonly FileEditorAssetHashCacheStore innerStore = new FileEditorAssetHashCacheStore();
+        readonly FileEditorAssetHashCacheStore innerStore;
+
+        public FailOnceAssetHashCacheStore(string projectRootPath) {
+            innerStore = new FileEditorAssetHashCacheStore(projectRootPath);
+        }
 
         public int UpdateAttempts { get; private set; }
 

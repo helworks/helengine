@@ -22,11 +22,7 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
         }
 
-        /// <summary>
-        /// Creates a standalone settings service. Project-owned composition supplies the rooted constructor.
-        /// </summary>
-        public MaterialAssetSettingsService() {
-        }
+        string ResolveProjectRootPath(string authoredPath) => ProjectRootPath;
 
         /// <summary>
         /// Importer identifier stored on material-settings sidecars.
@@ -1401,14 +1397,6 @@ namespace helengine.editor {
             List<string> overridePaths = Directory.EnumerateFiles(directoryPath, pattern, SearchOption.TopDirectoryOnly).ToList();
             overridePaths.Sort(StringComparer.OrdinalIgnoreCase);
             return overridePaths;
-        }
-
-        string ResolveProjectRootPath(string authoredPath) {
-            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
-                return ProjectRootPath;
-            }
-
-            return EditorProjectPaths.ResolveStandaloneRoot(authoredPath);
         }
 
         /// <summary>

@@ -17,7 +17,7 @@ namespace helengine.editor.tests {
                 writeService.WriteMaterial(tempDirectoryPath, "Materials/TestMaterial.hasset", definition);
 
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "assets", "Materials", "TestMaterial.hasset");
-                MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(tempDirectoryPath);
                 ShaderMaterialAsset loadedMaterialAsset = settingsService.LoadMaterialAsset(materialAssetPath, "windows");
 
                 Assert.Equal("Textures/GeneratedChecker", loadedMaterialAsset.DiffuseTextureAssetId);
@@ -56,7 +56,7 @@ namespace helengine.editor.tests {
                 writeService.WriteMaterial(tempDirectoryPath, "Materials/TestMaterial.hasset", definition);
 
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "assets", "Materials", "TestMaterial.hasset");
-                MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(tempDirectoryPath);
                 MaterialAssetProcessorSettings platformSettings;
                 bool loaded = settingsService.TryLoadPlatformSettings(materialAssetPath, "ps2", out platformSettings);
 

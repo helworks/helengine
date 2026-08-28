@@ -504,7 +504,8 @@ namespace helengine.editor {
             EditorEntity modalHost,
             IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider,
             EditorUiMetrics metrics,
-            EditorFileSystemFontResolver fileSystemFontResolver = null) : base(font, metrics) {
+            EditorFileSystemFontResolver fileSystemFontResolver = null,
+            string projectRootPath = null) : base(font, metrics) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -577,9 +578,9 @@ namespace helengine.editor {
             importSettingsView.LayoutInvalidated += LayoutLines;
             ScrollContentRoot.AddChild(importSettingsView.Root);
 
-            MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent, ModalHost, EditorProjectPaths.ProjectRoot);
+            MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent, ModalHost, projectRootPath);
             ScrollContentRoot.AddChild(MaterialView.Root);
-            AnimationClipView = new AnimationClipAssetView(font, EditorLayerMasks.PropertiesPanelContent, EditorProjectPaths.ProjectRoot);
+            AnimationClipView = new AnimationClipAssetView(font, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
             ScrollContentRoot.AddChild(AnimationClipView.Root);
 
             TransformRoot = new EditorEntity();
@@ -588,9 +589,9 @@ namespace helengine.editor {
             ScrollContentRoot.AddChild(TransformRoot);
 
             if (fileSystemModelResolver == null && fileSystemFontResolver == null) {
-                ComponentView = new ComponentPropertiesView(font, contentManager, null, null, EditorLayerMasks.PropertiesPanelContent);
+                ComponentView = new ComponentPropertiesView(font, contentManager, null, null, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
             } else {
-                ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.PropertiesPanelContent);
+                ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
             }
             ComponentView.HistoryMutationService = HistoryMutationServiceValue;
             TransformPlatformEditingService = new EntityPlatformTransformEditingService();

@@ -276,15 +276,26 @@ namespace helengine.editor {
             }
 
             string projectRootPath = ResolveProjectRootPath();
-            string fullPath = Path.Combine(projectRootPath, "cache", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string cacheRootPath = Path.GetFullPath(Path.Combine(projectRootPath, "cache"));
+            string fullPath = Path.GetFullPath(Path.Combine(cacheRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            string cachePrefix = cacheRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!string.Equals(fullPath, cacheRootPath, comparison) && !fullPath.StartsWith(cachePrefix, comparison)) {
+                throw new InvalidOperationException("Generated cache paths must remain beneath the project cache directory.");
+            }
+
             string directoryPath = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException("Generated cache path does not include a writable directory.");
             }
 
-            Directory.CreateDirectory(directoryPath);
-            using FileStream stream = File.Create(fullPath);
-            AssetSerializer.Serialize(stream, asset);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, directoryPath);
+            using MemoryStream bytes = new MemoryStream();
+            AssetSerializer.Serialize(bytes, asset);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, fullPath, bytes.ToArray());
         }
 
         /// <summary>

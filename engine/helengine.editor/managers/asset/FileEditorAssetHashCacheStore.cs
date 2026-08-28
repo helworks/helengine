@@ -8,10 +8,12 @@ namespace helengine.editor {
     sealed class FileEditorAssetHashCacheStore : IEditorAssetHashCacheStore {
         readonly string ProjectRootPath;
 
-        internal FileEditorAssetHashCacheStore(string projectRootPath = null) {
-            ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
-                ? null
-                : Path.GetFullPath(projectRootPath);
+        internal FileEditorAssetHashCacheStore(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
         }
 
         /// <summary>
@@ -229,14 +231,7 @@ namespace helengine.editor {
             : StringComparer.Ordinal;
 
         string ResolveProjectRoot(string cachePath) {
-            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
-                return ProjectRootPath;
-            }
-
-            // Standalone cache tools do not have a host-composed project
-            // service. Keep that fallback in the shared standalone resolver so
-            // nested assets folders cannot silently become a second project.
-            return EditorProjectPaths.ResolveStandaloneRoot(cachePath);
+            return ProjectRootPath;
         }
 
         /// <summary>

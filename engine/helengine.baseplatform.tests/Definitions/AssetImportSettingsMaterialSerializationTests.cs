@@ -174,7 +174,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
                     ])
             ]);
 
-        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService(TempRootPath);
         MaterialAssetImportSettings settings = service.LoadOrCreate(
             materialAssetPath,
             materialAsset,
@@ -295,7 +295,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
                     ])
             ]);
 
-        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService(TempRootPath);
         MaterialAssetImportSettings settings = service.LoadOrCreate(
             materialAssetPath,
             ["windows"],
@@ -336,7 +336,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(stream, overrideDocument);
         }
 
-        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService(TempRootPath);
 
         bool loaded = service.TryLoadPlatformSettings(materialAssetPath, "windows", out MaterialAssetProcessorSettings platformSettings);
 
@@ -373,7 +373,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
             }
         };
 
-        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService(TempRootPath);
         service.Save(materialAssetPath, authoredSettings);
 
         PlatformDefinition definition = new(
@@ -453,7 +453,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         settings.Processor.Platforms["windows"].FieldValues["casts-shadow"] = "false";
         settings.Processor.Platforms["windows"].FieldValues["receives-shadow"] = "false";
 
-        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService(TempRootPath);
 
         bool changed = service.ApplyPlatformMaterialFields(materialAsset, settings, "windows");
 
@@ -484,7 +484,7 @@ public sealed class AssetImportSettingsMaterialSerializationTests : IDisposable 
         settings.Processor.Platforms["ps2"].SchemaId = "fixed-textured";
         settings.Processor.Platforms["ps2"].FieldValues["texture-id"] = "Textures/Brick.png";
 
-        MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService service = new MaterialAssetSettingsService(TempRootPath);
 
         bool changed = service.ApplyPlatformMaterialFields(materialAsset, settings, "ps2");
 

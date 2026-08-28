@@ -21,12 +21,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates a standalone hasher for callers that provide a non-project file.
-        /// </summary>
-        public AssetFileHasher() {
-        }
-
-        /// <summary>
         /// Computes a SHA-256 hash for the specified file.
         /// </summary>
         /// <param name="filePath">Absolute or relative path to the file.</param>
@@ -41,21 +35,15 @@ namespace helengine.editor {
             }
 
             string fullPath = Path.GetFullPath(filePath);
-            string projectRootPath = ResolveProjectRootForAuthoredPath(fullPath);
-            if (!string.IsNullOrWhiteSpace(projectRootPath)) {
-                using EditorAuthoringMutationScope scope = EditorAuthoringMutationScope.AcquireForMutation(
-                    projectRootPath,
-                    Path.GetDirectoryName(fullPath));
-                using EditorAuthoringVerifiedFile verifiedFile = scope.OpenVerifiedFile(
-                    fullPath,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite);
-                return ComputeHash(verifiedFile.Stream);
-            }
-
-            using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return ComputeHash(stream);
+            using EditorAuthoringMutationScope scope = EditorAuthoringMutationScope.AcquireForMutation(
+                ProjectRootPath,
+                Path.GetDirectoryName(fullPath));
+            using EditorAuthoringVerifiedFile verifiedFile = scope.OpenVerifiedFile(
+                fullPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite);
+            return ComputeHash(verifiedFile.Stream);
         }
 
         /// <summary>
@@ -73,11 +61,5 @@ namespace helengine.editor {
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
-        string ResolveProjectRootForAuthoredPath(string fullPath) {
-            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
-                return ProjectRootPath;
-            }
-            return EditorProjectPaths.ResolveStandaloneRoot(fullPath);
-        }
     }
 }

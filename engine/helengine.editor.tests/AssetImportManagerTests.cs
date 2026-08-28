@@ -40,7 +40,6 @@ namespace helengine.editor.tests {
                 Directory.Delete(ProjectRootPath, true);
             }
         }
-        }
 
         /// <summary>
         /// Ensures constructing the importer does not mutate a project before the
@@ -110,6 +109,35 @@ namespace helengine.editor.tests {
             } finally {
                 if (File.Exists(linkPath)) {
                     File.Delete(linkPath);
+                }
+                if (Directory.Exists(outsideRoot)) {
+                    Directory.Delete(outsideRoot, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures imported-source recovery never enumerates through a linked
+        /// directory into an external tree.
+        /// </summary>
+        [global::helengine.editor.tests.managers.asset.DirectoryLinkFact]
+        public void TryResolveImportedTextureSourcePath_WhenAssetsContainsLinkedDirectory_RejectsBeforeExternalRead() {
+            string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-import-enumeration-outside-" + Guid.NewGuid().ToString("N"));
+            string linkedDirectory = Path.Combine(AssetsRootPath, "linked-assets");
+            Directory.CreateDirectory(outsideRoot);
+            string outsideSource = Path.Combine(outsideRoot, "external.png");
+            File.WriteAllBytes(outsideSource, new byte[] { 9, 8, 7 });
+            try {
+                Directory.CreateSymbolicLink(linkedDirectory, outsideRoot);
+                AssetImportManager manager = CreateManager();
+
+                Assert.ThrowsAny<Exception>(() => manager.TryResolveImportedTextureSourcePath(
+                    "external.png",
+                    out _));
+                Assert.False(File.Exists(outsideSource + AssetImportManager.SettingsExtension));
+            } finally {
+                if (Directory.Exists(linkedDirectory)) {
+                    Directory.Delete(linkedDirectory);
                 }
                 if (Directory.Exists(outsideRoot)) {
                     Directory.Delete(outsideRoot, true);

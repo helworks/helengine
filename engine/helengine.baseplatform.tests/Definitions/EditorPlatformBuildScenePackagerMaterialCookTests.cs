@@ -125,7 +125,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             "debug",
             "directx11");
         string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        ShaderMaterialAsset materialAsset = new MaterialAssetSettingsService().LoadMaterialAsset(materialPath, "windows");
+        ShaderMaterialAsset materialAsset = new MaterialAssetSettingsService(ProjectRootPath).LoadMaterialAsset(materialPath, "windows");
         MethodInfo loadMethod = typeof(EditorPlatformBuildScenePackager).GetMethod(
             "LoadMaterialSettingsForCook",
             BindingFlags.Instance | BindingFlags.NonPublic);

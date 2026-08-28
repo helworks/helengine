@@ -13,7 +13,7 @@ namespace helengine.editor {
 
             try {
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "Identity.hasset");
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 MaterialAssetImportSettings settings = CreateSharedTextureSettings("texture-id");
 
                 service.Save(materialAssetPath, settings);
@@ -49,7 +49,7 @@ namespace helengine.editor {
 
             try {
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "Cube00.hasset");
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
 
                 service.Save(materialAssetPath, settings);
@@ -90,7 +90,7 @@ namespace helengine.editor {
                 }
                 byte[] originalData = File.ReadAllBytes(materialAssetPath);
 
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                     () => service.TryLoad(materialAssetPath, out _));
 
@@ -140,7 +140,7 @@ namespace helengine.editor {
                 }
                 byte[] originalData = File.ReadAllBytes(materialAssetPath);
 
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.LoadMaterialAsset(materialAssetPath, "windows"));
                 Assert.Contains("obsolete", exception.Message, StringComparison.OrdinalIgnoreCase);
                 Assert.Contains("Regenerate", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -162,7 +162,7 @@ namespace helengine.editor {
 
             try {
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "TransparentPanel.hasset");
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
                 settings.Processor.Platforms["windows"].FieldValues["alpha-mode"] = "alpha-blend";
                 settings.Processor.Platforms["windows"].FieldValues["double-sided"] = "true";
@@ -191,7 +191,7 @@ namespace helengine.editor {
 
             try {
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "MarbleSphere.hasset");
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
                 settings.Processor.Platforms["windows"].FieldValues["roughness"] = "0.35";
                 settings.Processor.Platforms["windows"].FieldValues["roughness-texture-id"] = "imported-roughness-id";
@@ -222,7 +222,7 @@ namespace helengine.editor {
 
             try {
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "GlowCoin.hasset");
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
                 settings.Processor.Platforms["windows"].FieldValues["emissive-texture-id"] = "imported-emissive-id";
 
@@ -248,7 +248,7 @@ namespace helengine.editor {
 
             try {
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "GlowCoin.hasset");
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
                 settings.Processor.Platforms["windows"].FieldValues["emissive-color"] = "#FFD54A33";
 
@@ -279,7 +279,7 @@ namespace helengine.editor {
 
             try {
                 string materialAssetPath = Path.Combine(tempDirectoryPath, "MarbleSphere.hasset");
-                MaterialAssetSettingsService service = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(tempDirectoryPath);
                 MaterialAssetImportSettings settings = CreateSharedTextureSettings("imported-texture-id");
                 settings.Processor.Platforms["windows"].FieldValues["metallic"] = "0.25";
                 settings.Processor.Platforms["windows"].FieldValues["specular"] = "0.75";

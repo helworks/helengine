@@ -171,7 +171,7 @@ namespace helengine.editor.tests {
                 sourcePath,
                 customExtension,
                 AssetEntryKind.File);
-            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier().Classify(sourcePath));
+            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier(TempProjectRootPath).Classify(sourcePath));
             Assert.True(manager.IsTextureExtension(customExtension));
 
             InvokePrivate(session, "HandleAssetSelected", entry);
@@ -234,7 +234,7 @@ namespace helengine.editor.tests {
                 sourcePath,
                 customExtension,
                 AssetEntryKind.File);
-            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier().Classify(sourcePath));
+            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier(TempProjectRootPath).Classify(sourcePath));
             Assert.True(manager.IsModelExtension(customExtension));
 
             InvokePrivate(session, "HandleAssetSelected", entry);
@@ -299,7 +299,7 @@ namespace helengine.editor.tests {
                 customExtension,
                 AssetEntryKind.File);
 
-            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier().Classify(sourcePath));
+            Assert.Equal(AssetEntryKind.File, new EditorAssetPathClassifier(TempProjectRootPath).Classify(sourcePath));
             Assert.True(manager.IsAudioExtension(customExtension));
 
             InvokePrivate(session, "HandleAssetSelected", entry);

@@ -31,7 +31,7 @@ public sealed class EditorAssetHashCacheTombstoneTests : IDisposable {
             cache.Flush();
         }
 
-        EditorAssetHashCacheDocument document = new FileEditorAssetHashCacheStore().Load(
+        EditorAssetHashCacheDocument document = new FileEditorAssetHashCacheStore(ProjectRootPath).Load(
             Path.Combine(ProjectRootPath, "cache", "editor", "asset-identity-index.json"));
         Assert.DoesNotContain(document.Entries, entry => entry.RelativePath == "Deleted.obj");
     }

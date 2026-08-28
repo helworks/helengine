@@ -8,8 +8,12 @@ namespace helengine.editor {
         readonly AssetFileHasher FileHasher;
         readonly List<PlatformBuildArtifact> Artifacts;
 
-        public EditorPlatformCookedArtifactPool(AssetFileHasher fileHasher = null) {
-            FileHasher = fileHasher ?? new AssetFileHasher();
+        public EditorPlatformCookedArtifactPool(string projectRootPath, AssetFileHasher fileHasher = null) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            FileHasher = fileHasher ?? new AssetFileHasher(projectRootPath);
             Artifacts = new List<PlatformBuildArtifact>();
         }
 

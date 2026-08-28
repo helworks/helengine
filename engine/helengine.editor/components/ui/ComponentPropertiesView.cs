@@ -145,6 +145,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorFileSystemFontResolver FileSystemFontResolver;
         /// <summary>
+        /// Authoritative project root used by file-backed material preview operations.
+        /// </summary>
+        readonly string ProjectRootPath;
+        /// <summary>
         /// Root entity that hosts the component property rows.
         /// </summary>
         readonly EditorEntity RootEntity;
@@ -345,7 +349,8 @@ namespace helengine.editor {
             ContentManager contentManager,
             EditorFileSystemModelResolver fileSystemModelResolver,
             EditorFileSystemFontResolver fileSystemFontResolver,
-            ushort layerMask) {
+            ushort layerMask,
+            string projectRootPath = null) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -358,6 +363,9 @@ namespace helengine.editor {
             AssetReferenceFactory = new SceneAssetReferenceFactory();
             FileSystemModelResolver = fileSystemModelResolver;
             FileSystemFontResolver = fileSystemFontResolver;
+            ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
+                ? null
+                : Path.GetFullPath(projectRootPath);
             RootEntity = new EditorEntity();
             RootEntity.LayerMask = layerMask;
             RootEntity.Position = float3.Zero;
@@ -3592,10 +3600,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Material path must be provided.", nameof(path));
             }
 
-            string projectRootPath = EditorProjectPaths.ProjectRoot;
-            MaterialAssetSettingsService settingsService = string.IsNullOrWhiteSpace(projectRootPath)
-                ? new MaterialAssetSettingsService()
-                : new MaterialAssetSettingsService(projectRootPath);
+            if (string.IsNullOrWhiteSpace(ProjectRootPath)) {
+                throw new InvalidOperationException("A project-scoped component view is required for file-backed material preview.");
+            }
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
             string platformId = ResolveMaterialPreviewPlatformId(path, settingsService);
             return settingsService.LoadMaterialAsset(path, platformId);
         }
@@ -3614,7 +3622,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settingsService));
             }
 
-            string projectRootPath = EditorProjectPaths.ProjectRoot;
+            string projectRootPath = ProjectRootPath;
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new InvalidOperationException("The current project root must be initialized before file-backed materials can be loaded.");
             }

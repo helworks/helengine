@@ -14,7 +14,7 @@ public sealed class CityTiltTrialWalnutMaterialTests {
     /// </summary>
     [Fact]
     public void Tilt_trial_walnut_material_source_preserves_gamecube_runtime_texture_binding() {
-        MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(TiltTrialWalnutMaterialPath)!, "..", "..", "..", "..")));
 
         Assert.True(File.Exists(TiltTrialWalnutMaterialPath), $"Expected Tilt Trial walnut material at '{TiltTrialWalnutMaterialPath}'.");
 
@@ -34,7 +34,7 @@ public sealed class CityTiltTrialWalnutMaterialTests {
     /// </summary>
     [Fact]
     public void Tilt_trial_walnut_material_source_uses_double_sided_windows_render_state() {
-        MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(TiltTrialWalnutMaterialPath)!, "..", "..", "..", "..")));
 
         Assert.True(File.Exists(TiltTrialWalnutMaterialPath), $"Expected Tilt Trial walnut material at '{TiltTrialWalnutMaterialPath}'.");
 

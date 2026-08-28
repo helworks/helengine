@@ -91,7 +91,7 @@ namespace helengine.editor.tests.managers.asset {
             Assert.True(EditorFileTemplateRegistry.TryGetTemplate(EditorFileTemplateKind.Blueprint, out EditorFileTemplate template));
 
             string targetDirectory = Path.Combine(ProjectRootPath, "assets", "Blueprints");
-            EditorFileTemplateService.CreateFile(template, targetDirectory);
+            EditorFileTemplateService.CreateFile(template, targetDirectory, ProjectRootPath);
 
             string createdPath = Assert.Single(Directory.GetFiles(targetDirectory, "*" + BlueprintAsset.FileExtension));
             using FileStream stream = File.OpenRead(createdPath);

@@ -14,7 +14,7 @@ public sealed class CityTiltTrialMarbleMaterialTests {
     /// </summary>
     [Fact]
     public void Tilt_trial_marble_material_source_preserves_windows_metallic_specular_and_roughness_fields() {
-        MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+        MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(TiltTrialMarbleMaterialPath)!, "..", "..", "..", "..")));
 
         Assert.True(File.Exists(TiltTrialMarbleMaterialPath), $"Expected Tilt Trial marble material at '{TiltTrialMarbleMaterialPath}'.");
         Assert.True(settingsService.TryLoadPlatformSettings(TiltTrialMarbleMaterialPath, "windows", out MaterialAssetProcessorSettings platformSettings));

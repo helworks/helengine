@@ -413,7 +413,7 @@ namespace helengine.editor.tests {
             WriteCityStyleStandardMaterialAsset(materialRelativePath);
             WriteInvalidMaterialSettings(materialRelativePath);
 
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
             Assert.True(settingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings settings));
             ShaderMaterialAsset materialAsset = settingsService.LoadMaterialAsset(materialPath, "windows");
 
@@ -551,7 +551,7 @@ namespace helengine.editor.tests {
             WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
             WriteSceneAsset(sceneId, materialRelativePath);
 
-            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             ShaderMaterialAsset loadedMaterialAsset = materialSettingsService.LoadMaterialAsset(materialPath, "ps2");
             Assert.Equal(textureAssetId, loadedMaterialAsset.DiffuseTextureAssetId);
@@ -639,7 +639,7 @@ namespace helengine.editor.tests {
             WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
             WriteSceneAsset(sceneId, materialRelativePath);
 
-            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             ShaderMaterialAsset loadedMaterialAsset = materialSettingsService.LoadMaterialAsset(materialPath, "ds");
             Assert.Equal(textureAssetId, loadedMaterialAsset.DiffuseTextureAssetId);
@@ -693,7 +693,7 @@ namespace helengine.editor.tests {
             WriteCityStyleStandardMaterialAsset(materialRelativePath, textureAssetId);
             WriteSceneAsset(sceneId, materialRelativePath);
 
-            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService materialSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
             string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
             Assert.True(materialSettingsService.TryLoadPlatformSettings(materialPath, "windows", out MaterialAssetProcessorSettings windowsSettings));
             MaterialAssetImportSettings savedSettings = new MaterialAssetImportSettings();
@@ -3817,7 +3817,7 @@ namespace helengine.editor.tests {
                 useCustomShader: true,
                 "#FFFFFFFF");
 
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
             settingsService.Save(materialPath, settings);
         }
 
@@ -3872,7 +3872,7 @@ namespace helengine.editor.tests {
                 useCustomShader: false,
                 "#FFFFFFFF");
 
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
             settingsService.Save(materialPath, settings);
         }
 
@@ -3898,7 +3898,7 @@ namespace helengine.editor.tests {
                 useCustomShader: false,
                 "#FF4040FF");
 
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
             settingsService.Save(materialPath, settings);
         }
 

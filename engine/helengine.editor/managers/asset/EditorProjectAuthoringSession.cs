@@ -127,13 +127,15 @@ namespace helengine.editor {
             ReferenceResolver = dependencies.ReferenceResolver;
             Lifetime = dependencies.Lifetime;
             RepairReportValue = dependencies.RepairReport;
+            ProjectRootPath = Path.GetFullPath(AssetImportManagerValue.ProjectRootPath);
             AssetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath);
-            string projectRootPath = Path.GetDirectoryName(AssetsRootPath);
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new InvalidOperationException("The host asset import manager does not expose a canonical project root.");
+            string expectedAssetsRootPath = Path.Combine(ProjectRootPath, "assets");
+            StringComparison pathComparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (!string.Equals(AssetsRootPath, expectedAssetsRootPath, pathComparison)) {
+                throw new InvalidOperationException("The host asset import manager assets root does not belong to its canonical project root.");
             }
-
-            ProjectRootPath = Path.GetFullPath(projectRootPath);
             NativeAssetWriteService = dependencies.NativeAssetWriteService;
             ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService);
@@ -565,12 +567,15 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(assetImportManager));
             }
 
+            string projectRootPath = Path.GetFullPath(assetImportManager.ProjectRootPath);
             string assetsRootPath = Path.GetFullPath(assetImportManager.AssetsRootPath);
-            string projectRootPath = Path.GetDirectoryName(assetsRootPath);
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new InvalidOperationException("The host asset import manager does not expose a canonical project root.");
+            string expectedAssetsRootPath = Path.Combine(projectRootPath, "assets");
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (!string.Equals(assetsRootPath, expectedAssetsRootPath, comparison)) {
+                throw new InvalidOperationException("The host asset import manager assets root does not belong to its canonical project root.");
             }
-
             return projectRootPath;
         }
 
@@ -586,28 +591,69 @@ namespace helengine.editor {
             EditorAuthoringTransactionRecoveryService.Recover(projectRootPath);
             string assetsRootPath = Path.Combine(projectRootPath, "assets");
             EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, assetsRootPath);
-            EditorAssetHashCache hashCache = new EditorAssetHashCache(projectRootPath);
-            EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache, repairReport);
-            identityIndex.Initialize();
-            EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
-            EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(
-                projectRootPath,
-                identityIndex,
-                hashCache,
-                null,
-                null,
-                repairReport,
-                nativeAssetWriteService);
-            EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(
-                referenceResolver,
-                identityIndex,
-                hashCache,
-                nativeAssetWriteService);
-            IEditorAuthoringSessionLifetime lifetime = new EditorAuthoringSessionLifetime(resources);
-            // Importer settings are generated only after recovery and the first
-            // current-format identity index have been established.
-            assetImportManager.GenerateMissingImportSettings();
-            return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, nativeAssetWriteService, repairReport);
+            EditorAssetHashCache hashCache = null;
+            EditorAssetIdentityIndex identityIndex = null;
+            EditorNativeAssetWriteService nativeAssetWriteService = null;
+            EditorAssetReferenceResolver referenceResolver = null;
+            EditorProjectAuthoringSessionResources resources = null;
+            IEditorAuthoringSessionLifetime lifetime = null;
+            try {
+                hashCache = new EditorAssetHashCache(projectRootPath);
+                identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache, repairReport);
+                identityIndex.Initialize();
+                nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
+                referenceResolver = new EditorAssetReferenceResolver(
+                    projectRootPath,
+                    identityIndex,
+                    hashCache,
+                    null,
+                    null,
+                    repairReport,
+                    nativeAssetWriteService);
+                resources = new EditorProjectAuthoringSessionResources(
+                    referenceResolver,
+                    identityIndex,
+                    hashCache,
+                    nativeAssetWriteService);
+                lifetime = new EditorAuthoringSessionLifetime(resources);
+                // Importer settings are generated only after recovery and the first
+                // current-format identity index have been established.
+                assetImportManager.GenerateMissingImportSettings();
+                return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, nativeAssetWriteService, repairReport);
+            } catch (Exception primary) {
+                List<Exception> disposalFailures = new List<Exception>();
+                if (lifetime != null) {
+                    try {
+                        lifetime.Dispose();
+                    } catch (Exception exception) {
+                        disposalFailures.Add(exception);
+                    }
+                } else if (resources != null) {
+                    DisposeOwned(resources, disposalFailures);
+                } else {
+                    DisposeOwned(referenceResolver, disposalFailures);
+                    DisposeOwned(identityIndex, disposalFailures);
+                    DisposeOwned(hashCache, disposalFailures);
+                    DisposeOwned(nativeAssetWriteService, disposalFailures);
+                }
+
+                if (disposalFailures.Count == 0) {
+                    throw;
+                }
+                disposalFailures.Insert(0, primary);
+                throw new AggregateException("Project authoring services could not be released after startup failed.", disposalFailures);
+            }
+        }
+
+        static void DisposeOwned(IDisposable disposable, List<Exception> failures) {
+            if (disposable == null) {
+                return;
+            }
+            try {
+                disposable.Dispose();
+            } catch (Exception exception) {
+                failures.Add(exception);
+            }
         }
 
         /// <summary>

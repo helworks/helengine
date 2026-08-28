@@ -32,6 +32,7 @@ namespace helengine.editor {
         const int PosixCloseOnExec = 0x80000;
         const int PosixNonBlock = 0x800;
         const int PosixRenameNoReplace = 1;
+        const int PosixRenameExchange = 2;
         const int PosixAtRemovedDirectory = 0x200;
         const int PosixAtSymlinkNoFollow = 0x100;
         const int PosixFileTypeMask = 0xF000;
@@ -41,6 +42,9 @@ namespace helengine.editor {
         const int PosixFSetFlags = 4;
         const int PosixLockExclusive = 2;
         const int PosixLockNonBlocking = 4;
+        const int PosixInterrupted = 4;
+        const int PosixNotFound = 2;
+        const int PosixAlreadyExists = 17;
         static readonly StringComparison PathComparison = OperatingSystem.IsWindows()
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
@@ -54,7 +58,7 @@ namespace helengine.editor {
         /// </summary>
         internal static string FilesystemBackendNameForTests => OperatingSystem.IsWindows()
             ? "windows"
-            : OperatingSystem.IsLinux()
+            : OperatingSystem.IsLinux() && IsSupportedLinuxArchitecture()
                 ? "linux"
                 : "unsupported";
 
@@ -208,10 +212,6 @@ namespace helengine.editor {
 
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, ProjectRootPath);
-            VerifyExistingLeafIfPresent(source);
-            if (File.Exists(destination)) {
-                VerifyExistingLeafIfPresent(destination);
-            }
 
             if (OperatingSystem.IsWindows()) {
                 using EditorAuthoringVerifiedFile sourceFile = OpenVerifiedFileCore(
@@ -225,18 +225,264 @@ namespace helengine.editor {
                     Path.GetFileName(destination),
                     replaceExisting && File.Exists(destination));
             } else if (OperatingSystem.IsLinux()) {
-                SafeFileHandle parent = Handles[Handles.Count - 1];
-                int result = RenameAt2(
-                    parent.DangerousGetHandle().ToInt32(),
+                ReplaceLinuxLeaf(
+                    Handles[Handles.Count - 1].DangerousGetHandle().ToInt32(),
                     Path.GetFileName(source),
-                    parent.DangerousGetHandle().ToInt32(),
                     Path.GetFileName(destination),
-                    (uint)(replaceExisting ? 0 : PosixRenameNoReplace));
-                if (result != 0) {
-                    throw CreatePosixRenameException(destination);
-                }
+                    replaceExisting,
+                    destination);
             } else {
                 throw CreateUnsupportedPlatformException();
+            }
+        }
+
+        static void ReplaceLinuxLeaf(int parentFd, string sourceName, string destinationName, bool replaceExisting, string destinationPath) {
+            PosixEntryIdentity sourceIdentity = RequireLinuxEntry(parentFd, sourceName, false, destinationPath);
+            bool destinationExists = TryGetLinuxEntry(parentFd, destinationName, out PosixStat destinationStatus);
+            if (destinationExists && !replaceExisting) {
+                throw new IOException($"The verified destination '{destinationPath}' already exists.");
+            }
+            if (destinationExists) {
+                EnsureLinuxEntryType(destinationStatus, false, destinationPath);
+            }
+
+            string sourceQuarantine = QuarantineLinuxEntry(parentFd, sourceName, sourceIdentity, destinationPath);
+            string destinationQuarantine = null;
+            bool published = false;
+            List<Exception> rollbackFailures = new List<Exception>();
+            try {
+                if (destinationExists) {
+                    destinationQuarantine = QuarantineLinuxEntry(
+                        parentFd,
+                        destinationName,
+                        new PosixEntryIdentity(destinationStatus),
+                        destinationPath);
+                }
+
+                RenameLinuxNoReplace(parentFd, sourceQuarantine, parentFd, destinationName, destinationPath);
+                published = true;
+                EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
+
+                if (destinationQuarantine != null) {
+                    DeleteQuarantinedLinuxEntry(parentFd, destinationQuarantine, new PosixEntryIdentity(destinationStatus), destinationPath);
+                }
+            } catch (Exception primary) {
+                try {
+                    if (published) {
+                        RenameLinuxNoReplace(parentFd, destinationName, parentFd, sourceQuarantine, destinationPath);
+                    }
+                } catch (Exception exception) {
+                    rollbackFailures.Add(exception);
+                }
+                try {
+                    if (sourceQuarantine != null && TryGetLinuxEntry(parentFd, sourceQuarantine, out PosixStat ignoredSource)) {
+                        RenameLinuxNoReplace(parentFd, sourceQuarantine, parentFd, sourceName, destinationPath);
+                    }
+                } catch (Exception exception) {
+                    rollbackFailures.Add(exception);
+                }
+                try {
+                    if (destinationQuarantine != null && TryGetLinuxEntry(parentFd, destinationQuarantine, out PosixStat ignoredDestination)) {
+                        RenameLinuxNoReplace(parentFd, destinationQuarantine, parentFd, destinationName, destinationPath);
+                    }
+                } catch (Exception exception) {
+                    rollbackFailures.Add(exception);
+                }
+                if (rollbackFailures.Count != 0) {
+                    rollbackFailures.Insert(0, primary);
+                    throw new AggregateException($"Could not replace verified authoring leaf '{destinationPath}' and rollback failed.", rollbackFailures);
+                }
+                throw;
+            }
+        }
+
+        static void MoveLinuxLeaf(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string destinationPath) {
+            PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, false, destinationPath);
+            if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
+                EnsureLinuxEntryType(destinationStatus, false, destinationPath);
+                throw new IOException($"The verified destination '{destinationPath}' already exists.");
+            }
+
+            string sourceQuarantine = QuarantineLinuxEntry(sourceParentFd, sourceName, sourceIdentity, destinationPath);
+            bool published = false;
+            try {
+                RenameLinuxNoReplace(sourceParentFd, sourceQuarantine, destinationParentFd, destinationName, destinationPath);
+                published = true;
+                EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
+            } catch (Exception primary) {
+                List<Exception> rollbackFailures = new List<Exception>();
+                try {
+                    if (published) {
+                        RenameLinuxNoReplace(destinationParentFd, destinationName, sourceParentFd, sourceQuarantine, destinationPath);
+                    }
+                } catch (Exception exception) {
+                    rollbackFailures.Add(exception);
+                }
+                try {
+                    if (TryGetLinuxEntry(sourceParentFd, sourceQuarantine, out PosixStat ignored)) {
+                        RenameLinuxNoReplace(sourceParentFd, sourceQuarantine, sourceParentFd, sourceName, destinationPath);
+                    }
+                } catch (Exception exception) {
+                    rollbackFailures.Add(exception);
+                }
+                if (rollbackFailures.Count != 0) {
+                    rollbackFailures.Insert(0, primary);
+                    throw new AggregateException($"Could not move verified authoring leaf '{destinationPath}' and rollback failed.", rollbackFailures);
+                }
+                throw;
+            }
+        }
+
+        static void MoveLinuxDirectory(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string destinationPath) {
+            PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, true, destinationPath);
+            if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
+                EnsureLinuxEntryType(destinationStatus, true, destinationPath);
+                throw new IOException($"The verified destination '{destinationPath}' already exists.");
+            }
+            string quarantine = QuarantineLinuxEntry(sourceParentFd, sourceName, sourceIdentity, destinationPath);
+            bool published = false;
+            try {
+                RenameLinuxNoReplace(sourceParentFd, quarantine, destinationParentFd, destinationName, destinationPath);
+                published = true;
+                EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
+            } catch (Exception primary) {
+                List<Exception> rollbackFailures = new List<Exception>();
+                try {
+                    if (published) {
+                        RenameLinuxNoReplace(destinationParentFd, destinationName, sourceParentFd, quarantine, destinationPath);
+                    }
+                } catch (Exception exception) {
+                    rollbackFailures.Add(exception);
+                }
+                try {
+                    if (TryGetLinuxEntry(sourceParentFd, quarantine, out PosixStat ignored)) {
+                        RenameLinuxNoReplace(sourceParentFd, quarantine, sourceParentFd, sourceName, destinationPath);
+                    }
+                } catch (Exception exception) {
+                    rollbackFailures.Add(exception);
+                }
+                if (rollbackFailures.Count != 0) {
+                    rollbackFailures.Insert(0, primary);
+                    throw new AggregateException($"Could not move verified authoring directory '{destinationPath}' and rollback failed.", rollbackFailures);
+                }
+                throw;
+            }
+        }
+
+        static void DeleteLinuxDirectory(int parentFd, string name, string path) {
+            PosixEntryIdentity identity = RequireLinuxEntry(parentFd, name, true, path);
+            string quarantine = QuarantineLinuxEntry(parentFd, name, identity, path);
+            try {
+                DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, path, true);
+            } catch (Exception primary) {
+                try {
+                    if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
+                        RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, path);
+                    }
+                } catch (Exception rollback) {
+                    throw new AggregateException($"Could not delete verified authoring directory '{path}' and rollback failed.", primary, rollback);
+                }
+                throw;
+            }
+        }
+
+        static void DeleteLinuxLeaf(int parentFd, string name, string path) {
+            if (!TryGetLinuxEntry(parentFd, name, out PosixStat status)) {
+                return;
+            }
+            PosixEntryIdentity identity = RequireLinuxEntry(parentFd, name, false, path);
+            string quarantine = QuarantineLinuxEntry(parentFd, name, identity, path);
+            try {
+                DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, path);
+            } catch (Exception primary) {
+                try {
+                    if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
+                        RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, path);
+                    }
+                } catch (Exception rollback) {
+                    throw new AggregateException($"Could not delete verified authoring leaf '{path}' and rollback failed.", primary, rollback);
+                }
+                throw;
+            }
+        }
+
+        static string QuarantineLinuxEntry(int parentFd, string name, PosixEntryIdentity expected, string path) {
+            for (int attempt = 0; attempt < 32; attempt++) {
+                string quarantine = ".helengine-quarantine-" + Guid.NewGuid().ToString("N");
+                try {
+                    RenameLinuxNoReplace(parentFd, name, parentFd, quarantine, path);
+                } catch (Exception) when (Marshal.GetLastPInvokeError() == PosixAlreadyExists) {
+                    continue;
+                }
+
+                try {
+                    EnsureLinuxIdentity(parentFd, quarantine, expected, path);
+                    return quarantine;
+                } catch {
+                    try {
+                        if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
+                            RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, path);
+                        }
+                    } catch {
+                        // Preserve the quarantined inode when it cannot be restored.
+                    }
+                    throw;
+                }
+            }
+            throw new IOException($"Could not reserve a verified quarantine entry beneath '{path}'.");
+        }
+
+        static void DeleteQuarantinedLinuxEntry(int parentFd, string name, PosixEntryIdentity expected, string path) {
+            EnsureLinuxIdentity(parentFd, name, expected, path);
+            if (UnlinkAt(parentFd, name, 0) != 0) {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified quarantine entry for '{path}'.");
+            }
+        }
+
+        static void DeleteQuarantinedLinuxEntry(int parentFd, string name, PosixEntryIdentity expected, string path, bool directory) {
+            EnsureLinuxIdentity(parentFd, name, expected, path);
+            if (UnlinkAt(parentFd, name, directory ? PosixAtRemovedDirectory : 0) != 0) {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified quarantine entry for '{path}'.");
+            }
+        }
+
+        static PosixEntryIdentity RequireLinuxEntry(int parentFd, string name, bool directory, string path) {
+            if (!TryGetLinuxEntry(parentFd, name, out PosixStat status)) {
+                throw new FileNotFoundException($"The verified authoring entry '{path}' does not exist.");
+            }
+            EnsureLinuxEntryType(status, directory, path);
+            return new PosixEntryIdentity(status);
+        }
+
+        static bool TryGetLinuxEntry(int parentFd, string name, out PosixStat status) {
+            if (PosixFStatAt(parentFd, name, out status, PosixAtSymlinkNoFollow) == 0) {
+                return true;
+            }
+            int error = Marshal.GetLastPInvokeError();
+            if (error == PosixNotFound) {
+                status = default;
+                return false;
+            }
+            throw new Win32Exception(error, $"Could not inspect authoring entry '{name}'.");
+        }
+
+        static void EnsureLinuxEntryType(PosixStat status, bool directory, string path) {
+            int type = (int)(status.Mode & PosixFileTypeMask);
+            int expected = directory ? PosixDirectoryFileType : PosixRegularFileType;
+            if (type != expected) {
+                throw new InvalidDataException($"The authoring entry '{path}' is not a regular non-reparse {(directory ? "directory" : "file")}.");
+            }
+        }
+
+        static void EnsureLinuxIdentity(int parentFd, string name, PosixEntryIdentity expected, string path) {
+            if (!TryGetLinuxEntry(parentFd, name, out PosixStat actual) || !expected.Matches(actual)) {
+                throw new InvalidDataException($"The authoring entry '{path}' changed while it was being secured.");
+            }
+        }
+
+        static void RenameLinuxNoReplace(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string path) {
+            if (RenameAt2(sourceParentFd, sourceName, destinationParentFd, destinationName, PosixRenameNoReplace) != 0) {
+                throw CreatePosixRenameException(path);
             }
         }
 
@@ -247,13 +493,12 @@ namespace helengine.editor {
             if (!string.Equals(Path.GetDirectoryName(fullPath), TargetDirectoryPath, PathComparison)) {
                 throw new InvalidDataException("Verified leaf deletion must use the pinned parent directory.");
             }
-            if (!File.Exists(fullPath)) {
-                return;
-            }
-
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, ProjectRootPath);
-            VerifyExistingLeafIfPresent(fullPath);
             if (OperatingSystem.IsWindows()) {
+                if (!File.Exists(fullPath)) {
+                    return;
+                }
+                VerifyExistingLeafIfPresent(fullPath);
                 using EditorAuthoringVerifiedFile file = OpenVerifiedFileCore(
                     fullPath,
                     FileMode.Open,
@@ -261,11 +506,11 @@ namespace helengine.editor {
                     FileShare.ReadWrite,
                     true);
                 DeleteVerifiedWindowsLeaf(file.Stream.SafeFileHandle);
-            } else if (OperatingSystem.IsLinux() && UnlinkAt(
-                Handles[Handles.Count - 1].DangerousGetHandle().ToInt32(),
-                Path.GetFileName(fullPath),
-                0) != 0) {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not delete '{fullPath}'.");
+            } else if (OperatingSystem.IsLinux()) {
+                DeleteLinuxLeaf(
+                    Handles[Handles.Count - 1].DangerousGetHandle().ToInt32(),
+                    Path.GetFileName(fullPath),
+                    fullPath);
             } else if (!OperatingSystem.IsLinux()) {
                 throw CreateUnsupportedPlatformException();
             }
@@ -331,13 +576,13 @@ namespace helengine.editor {
             if (OperatingSystem.IsWindows()) {
                 using SafeFileHandle sourceDirectory = OpenAndVerifyWindowsDirectory(source, true);
                 scope.RenameVerifiedWindowsLeaf(sourceDirectory, Path.GetFileName(destination), false);
-            } else if (OperatingSystem.IsLinux() && RenameAt2(
-                scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
-                Path.GetFileName(source),
-                scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
-                Path.GetFileName(destination),
-                PosixRenameNoReplace) != 0) {
-                throw CreatePosixRenameException(destination);
+            } else if (OperatingSystem.IsLinux()) {
+                MoveLinuxDirectory(
+                    scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
+                    Path.GetFileName(source),
+                    scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
+                    Path.GetFileName(destination),
+                    destination);
             } else if (!OperatingSystem.IsLinux()) {
                 throw CreateUnsupportedPlatformException();
             }
@@ -409,24 +654,36 @@ namespace helengine.editor {
 
                     string childPath = Path.Combine(directoryPath, name);
                     int parentFd = directory.DangerousGetHandle().ToInt32();
-                    if (PosixFStatAt(parentFd, name, out PosixStat status, PosixAtSymlinkNoFollow) != 0) {
-                        throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not inspect directory entry '{childPath}'.");
+                    if (!TryGetLinuxEntry(parentFd, name, out PosixStat status)) {
+                        continue;
                     }
 
-                    int type = (int)(status.Mode & PosixFileTypeMask);
-                    if (type == PosixDirectoryFileType) {
-                        using SafeFileHandle childDirectory = OpenPosixDirectory(name, directory);
-                        DeleteDirectoryContentsLinux(childDirectory, childPath, containingRoot);
-                        if (UnlinkAt(parentFd, name, PosixAtRemovedDirectory) != 0) {
-                            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove directory '{childPath}'.");
-                        }
-                    } else if (type == PosixRegularFileType) {
-                        using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, name);
-                        if (UnlinkAt(parentFd, name, 0) != 0) {
-                            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove file '{childPath}'.");
-                        }
-                    } else {
+                    bool isDirectory = (status.Mode & PosixFileTypeMask) == PosixDirectoryFileType;
+                    bool isFile = (status.Mode & PosixFileTypeMask) == PosixRegularFileType;
+                    if (!isDirectory && !isFile) {
                         throw new InvalidDataException($"The authoring cleanup entry '{childPath}' is not a regular non-reparse file or directory.");
+                    }
+
+                    PosixEntryIdentity identity = new PosixEntryIdentity(status);
+                    string quarantine = QuarantineLinuxEntry(parentFd, name, identity, childPath);
+                    try {
+                        if (isDirectory) {
+                            using SafeFileHandle childDirectory = OpenPosixDirectory(quarantine, directory);
+                            DeleteDirectoryContentsLinux(childDirectory, Path.Combine(directoryPath, quarantine), containingRoot);
+                            DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, childPath, true);
+                        } else {
+                            using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, quarantine);
+                            DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, childPath);
+                        }
+                    } catch (Exception primary) {
+                        try {
+                            if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
+                                RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, childPath);
+                            }
+                        } catch (Exception rollback) {
+                            throw new AggregateException($"Could not clean verified entry '{childPath}' and rollback failed.", primary, rollback);
+                        }
+                        throw;
                     }
                 }
             } finally {
@@ -443,8 +700,12 @@ namespace helengine.editor {
 
             SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
             try {
-                if (!PosixFStat(fd, out PosixStat status) || (status.Mode & PosixFileTypeMask) != PosixRegularFileType) {
+                if (PosixFStat(fd, out PosixStat status) != 0 || (status.Mode & PosixFileTypeMask) != PosixRegularFileType) {
                     throw new InvalidDataException($"The authoring cleanup entry '{name}' is not a regular file.");
+                }
+                int fileFlags = PosixFcntl(fd, PosixFGetFlags, 0);
+                if (fileFlags < 0 || PosixFcntl(fd, PosixFSetFlags, fileFlags & ~PosixNonBlock) != 0) {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not configure verified cleanup file '{name}'.");
                 }
                 return handle;
             } catch {
@@ -456,18 +717,27 @@ namespace helengine.editor {
         static string ReadLinuxDirectoryEntryName(IntPtr entry) {
             // linux_dirent64 places d_name immediately after ino, offset, reclen, and d_type.
             const int nameOffset = 19;
-            StringBuilder name = new StringBuilder();
+            List<byte> name = new List<byte>();
             for (int index = 0; index < 256; index++) {
                 byte value = Marshal.ReadByte(entry, nameOffset + index);
                 if (value == 0) {
                     break;
                 }
-                name.Append((char)value);
+                name.Add(value);
             }
-            if (name.Length == 0 || name.ToString().IndexOf('\0') >= 0) {
+            if (name.Count == 0) {
                 throw new InvalidDataException("The Linux authoring directory contained an invalid entry name.");
             }
-            return name.ToString();
+            string decoded;
+            try {
+                decoded = new UTF8Encoding(false, true).GetString(name.ToArray());
+            } catch (DecoderFallbackException exception) {
+                throw new InvalidDataException("The Linux authoring directory contained a non-UTF8 entry name.", exception);
+            }
+            if (decoded.IndexOf('\0') >= 0 || decoded == "." || decoded == "..") {
+                throw new InvalidDataException("The Linux authoring directory contained an invalid entry name.");
+            }
+            return decoded;
         }
 
         static void DeleteEmptyDirectory(string projectRootPath, string directoryPath, string containingRoot) {
@@ -477,11 +747,11 @@ namespace helengine.editor {
             if (OperatingSystem.IsWindows()) {
                 using SafeFileHandle directory = OpenAndVerifyWindowsDirectory(directoryPath, true);
                 DeleteVerifiedWindowsLeaf(directory);
-            } else if (OperatingSystem.IsLinux() && UnlinkAt(
-                scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
-                Path.GetFileName(directoryPath),
-                0x200) != 0) {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not delete directory '{directoryPath}'.");
+            } else if (OperatingSystem.IsLinux()) {
+                DeleteLinuxDirectory(
+                    scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
+                    Path.GetFileName(directoryPath),
+                    directoryPath);
             } else if (!OperatingSystem.IsLinux()) {
                 throw CreateUnsupportedPlatformException();
             }
@@ -561,14 +831,12 @@ namespace helengine.editor {
             } else {
                 SafeFileHandle sourceDirectory = Handles[Handles.Count - 1];
                 SafeFileHandle destinationDirectory = destinationScope?.Handles[destinationScope.Handles.Count - 1] ?? sourceDirectory;
-                if (RenameAt2(
+                MoveLinuxLeaf(
                     sourceDirectory.DangerousGetHandle().ToInt32(),
                     Path.GetFileName(source),
                     destinationDirectory.DangerousGetHandle().ToInt32(),
                     Path.GetFileName(destination),
-                    PosixRenameNoReplace) != 0) {
-                    throw CreatePosixRenameException(destination);
-                }
+                    destination);
             }
         }
 
@@ -599,14 +867,22 @@ namespace helengine.editor {
         }
 
         static void EnsureSupportedPlatform() {
-            if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux()) {
+            if (!OperatingSystem.IsWindows() &&
+                (!OperatingSystem.IsLinux() || !IsSupportedLinuxArchitecture())) {
                 throw CreateUnsupportedPlatformException();
             }
         }
 
+        static bool IsSupportedLinuxArchitecture() {
+            // PosixStat below matches the Linux x64 ABI. Do not bind that
+            // layout to another architecture until its native offsets are
+            // supplied and verified.
+            return OperatingSystem.IsLinux() && RuntimeInformation.ProcessArchitecture == Architecture.X64;
+        }
+
         static PlatformNotSupportedException CreateUnsupportedPlatformException() {
             return new PlatformNotSupportedException(
-                $"Secure editor authoring filesystem mutations are not implemented for '{RuntimeInformation.OSDescription}'. Supported platforms are Windows and Linux.");
+                $"Secure editor authoring filesystem mutations are not implemented for '{RuntimeInformation.OSDescription}' on this architecture. Supported platforms are Windows and Linux x64.");
         }
 
         static Exception CreatePosixRenameException(string destination) {
@@ -673,7 +949,7 @@ namespace helengine.editor {
             }
             SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
             try {
-                if (!PosixFStat(fd, out PosixStat status) || (status.Mode & PosixFileTypeMask) != PosixDirectoryFileType) {
+                if (PosixFStat(fd, out PosixStat status) != 0 || (status.Mode & PosixFileTypeMask) != PosixDirectoryFileType) {
                     throw new InvalidDataException($"The POSIX authoring path '{path}' is not a directory.");
                 }
                 return handle;
@@ -702,7 +978,7 @@ namespace helengine.editor {
             }
             SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
             try {
-                if (!PosixFStat(fd, out PosixStat status)) {
+                if (PosixFStat(fd, out PosixStat status) != 0) {
                     throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not inspect verified file '{leafName}'.");
                 }
                 if ((status.Mode & PosixFileTypeMask) != PosixRegularFileType) {
@@ -895,6 +1171,129 @@ namespace helengine.editor {
             return path;
         }
 
+        static int PosixOpen(string path, int flags, uint mode) {
+            while (true) {
+                int result = NativePosixOpen(path, flags, mode);
+                if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static int PosixOpenAt(int directoryFd, string path, int flags, uint mode) {
+            while (true) {
+                int result = NativePosixOpenAt(directoryFd, path, flags, mode);
+                if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static int PosixDup(int fileDescriptor) {
+            while (true) {
+                int result = NativePosixDup(fileDescriptor);
+                if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static IntPtr PosixFdOpenDir(int fileDescriptor) {
+            while (true) {
+                IntPtr result = NativePosixFdOpenDir(fileDescriptor);
+                if (result != IntPtr.Zero || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static int MkdirAt(int directoryFd, string path, uint mode) {
+            while (true) {
+                int result = NativeMkdirAt(directoryFd, path, mode);
+                if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static int RenameAt2(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath, uint flags) {
+            try {
+                while (true) {
+                    int result = NativeRenameAt2(oldDirectoryFd, oldPath, newDirectoryFd, newPath, flags);
+                    if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                        return result;
+                    }
+                }
+            } catch (EntryPointNotFoundException exception) {
+                throw new PlatformNotSupportedException(
+                    "The Linux kernel interface renameat2 is unavailable; secure authoring entry mutations cannot continue.",
+                    exception);
+            }
+        }
+
+        static int UnlinkAt(int directoryFd, string path, int flags) {
+            while (true) {
+                int result = NativeUnlinkAt(directoryFd, path, flags);
+                if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static int Flock(int fileDescriptor, int operation) {
+            while (true) {
+                int result = NativeFlock(fileDescriptor, operation);
+                if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static int PosixFStatAt(int directoryFd, string path, out PosixStat status, int flags) {
+            while (true) {
+                int result = NativePosixFStatAt(directoryFd, path, out status, flags);
+                if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static int PosixFStat(int fileDescriptor, out PosixStat status) {
+            while (true) {
+                int result = NativePosixFStat(fileDescriptor, out status);
+                if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static int PosixFcntl(int fileDescriptor, int command, int argument) {
+            while (true) {
+                int result = NativePosixFcntl(fileDescriptor, command, argument);
+                if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    return result;
+                }
+            }
+        }
+
+        static IntPtr PosixReadDir(IntPtr directoryStream) {
+            while (true) {
+                Marshal.SetLastPInvokeError(0);
+                IntPtr result = NativePosixReadDir(directoryStream);
+                if (result != IntPtr.Zero) {
+                    return result;
+                }
+                int error = Marshal.GetLastPInvokeError();
+                if (error == PosixInterrupted) {
+                    continue;
+                }
+                if (error != 0) {
+                    throw new Win32Exception(error, "Could not read the pinned authoring directory.");
+                }
+                return IntPtr.Zero;
+            }
+        }
+
         static bool IsInside(string root, string candidate) {
             string normalizedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             string normalizedCandidate = candidate.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -979,47 +1378,46 @@ namespace helengine.editor {
         static extern bool SetEndOfFile(SafeFileHandle file);
 
         [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-        static extern int PosixOpen(string path, int flags, uint mode);
+        static extern int NativePosixOpen(string path, int flags, uint mode);
 
         [DllImport("libc", EntryPoint = "openat", SetLastError = true)]
-        static extern int PosixOpenAt(int directoryFd, string path, int flags, uint mode);
+        static extern int NativePosixOpenAt(int directoryFd, string path, int flags, uint mode);
 
         [DllImport("libc", EntryPoint = "mkdirat", SetLastError = true)]
-        static extern int MkdirAt(int directoryFd, string path, uint mode);
+        static extern int NativeMkdirAt(int directoryFd, string path, uint mode);
 
         [DllImport("libc", EntryPoint = "renameat2", SetLastError = true)]
-        static extern int RenameAt2(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath, uint flags);
+        static extern int NativeRenameAt2(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath, uint flags);
 
         [DllImport("libc", EntryPoint = "unlinkat", SetLastError = true)]
-        static extern int UnlinkAt(int directoryFd, string path, int flags);
+        static extern int NativeUnlinkAt(int directoryFd, string path, int flags);
 
         [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
-        static extern int Flock(int fileDescriptor, int operation);
+        static extern int NativeFlock(int fileDescriptor, int operation);
 
         [DllImport("libc", EntryPoint = "dup", SetLastError = true)]
-        static extern int PosixDup(int fileDescriptor);
+        static extern int NativePosixDup(int fileDescriptor);
 
         [DllImport("libc", EntryPoint = "close", SetLastError = true)]
         static extern int PosixClose(int fileDescriptor);
 
         [DllImport("libc", EntryPoint = "fdopendir", SetLastError = true)]
-        static extern IntPtr PosixFdOpenDir(int fileDescriptor);
+        static extern IntPtr NativePosixFdOpenDir(int fileDescriptor);
 
         [DllImport("libc", EntryPoint = "readdir", SetLastError = true)]
-        static extern IntPtr PosixReadDir(IntPtr directoryStream);
+        static extern IntPtr NativePosixReadDir(IntPtr directoryStream);
 
         [DllImport("libc", EntryPoint = "closedir", SetLastError = true)]
         static extern int PosixClosedDir(IntPtr directoryStream);
 
         [DllImport("libc", EntryPoint = "fstatat", SetLastError = true)]
-        static extern int PosixFStatAt(int directoryFd, string path, out PosixStat status, int flags);
+        static extern int NativePosixFStatAt(int directoryFd, string path, out PosixStat status, int flags);
 
         [DllImport("libc", EntryPoint = "fstat", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool PosixFStat(int fileDescriptor, out PosixStat status);
+        static extern int NativePosixFStat(int fileDescriptor, out PosixStat status);
 
         [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
-        static extern int PosixFcntl(int fileDescriptor, int command, int argument);
+        static extern int NativePosixFcntl(int fileDescriptor, int command, int argument);
 
         const int FileRenameInformation = 3;
         const int FileDispositionInformationEx = 21;
@@ -1064,6 +1462,22 @@ namespace helengine.editor {
             public int Reserved0;
             public int Reserved1;
             public int Reserved2;
+        }
+
+        readonly struct PosixEntryIdentity {
+            internal PosixEntryIdentity(PosixStat status) {
+                Device = status.Device;
+                Inode = status.Inode;
+                Mode = status.Mode & PosixFileTypeMask;
+            }
+
+            readonly ulong Device;
+            readonly ulong Inode;
+            readonly uint Mode;
+
+            internal bool Matches(PosixStat status) {
+                return Device == status.Device && Inode == status.Inode && Mode == (status.Mode & PosixFileTypeMask);
+            }
         }
     }
 

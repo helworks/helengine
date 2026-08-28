@@ -354,7 +354,7 @@ namespace helengine.editor.tests {
             }
 
             Directory.CreateDirectory(directoryPath);
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(TempRootPath);
             settingsService.Save(materialFullPath, settings);
             return materialFullPath;
         }
