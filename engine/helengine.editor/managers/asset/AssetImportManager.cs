@@ -175,7 +175,7 @@ namespace helengine.editor {
         /// Releases importer-manager state. Importer registrations and the
         /// content manager are owned by their explicit session ledger entries.
         /// </summary>
-        public void Dispose() {
+        public virtual void Dispose() {
             // The manager currently has no unmanaged resources. This explicit
             // owner boundary is intentionally idempotent and keeps disposal
             // ordering visible to the session construction ledger.

@@ -15,6 +15,11 @@ namespace helengine.editor {
         bool ConstructionCompleted;
         EditorSessionConstructionLedger ConstructionLedger;
         readonly HashSet<IEditorWorkspacePanelController> RegisteredWorkspaceControllers = new HashSet<IEditorWorkspacePanelController>();
+        List<EditorSessionCleanupItem> ScaleSensitiveDialogCleanupItems = new List<EditorSessionCleanupItem>();
+        List<EditorSessionCleanupItem> ScaleSensitiveDialogHideItems = new List<EditorSessionCleanupItem>();
+        List<EditorSessionCleanupItem> ScaleSensitiveDialogDetacherItems = new List<EditorSessionCleanupItem>();
+        List<EditorSessionCleanupItem> UserSceneEntityCleanupItems = new List<EditorSessionCleanupItem>();
+        bool RegisteringScaleSensitiveDialogHandlers;
         /// <summary>
         /// Default debounce delay for shader rebuilds.
         /// </summary>
@@ -73,9 +78,24 @@ namespace helengine.editor {
         internal static Action<string> ConstructionCheckpointForTests;
         /// <summary>
         /// Optional deterministic teardown fault seam used by lifecycle tests.
-        /// The argument is the zero-based aggregate-action sequence number.
+        /// The argument is the zero-based cleanup-action sequence number.
         /// </summary>
         internal static Action<int> DisposalCheckpointForTests;
+        /// <summary>
+        /// Optional importer-content factory used by lifecycle tests to exercise
+        /// the real failure-atomic initialization helper.
+        /// </summary>
+        internal static Func<string, ContentManager> ContentManagerFactoryForTests;
+        /// <summary>
+        /// Optional importer-manager factory used by lifecycle tests to exercise
+        /// the real failure-atomic initialization helper.
+        /// </summary>
+        internal static Func<string, ContentManager, AssetImportManager> AssetImportManagerFactoryForTests;
+        /// <summary>
+        /// Optional controller decorator used by lifecycle tests to observe
+        /// dynamic workspace ownership through the real session disposal path.
+        /// </summary>
+        internal static Func<IEditorWorkspacePanelController, IEditorWorkspacePanelController> WorkspacePanelControllerDecoratorForTests;
         /// <summary>
         /// Identifies the pending scene transition that should continue after the unsaved-changes guard resolves.
         /// </summary>
@@ -734,11 +754,6 @@ namespace helengine.editor {
             InitializePanelRegistry();
 
             dockingManager = new DockingManager();
-            // Dialogs are recreated during UI-scale changes and are not
-            // independently owned by the workspace registry. Register one
-            // null-safe aggregate action before the first dialog is built so
-            // partial construction cannot strand a browser/cache owner.
-            constructionLedger.Register(DisposeScaleSensitiveDialogs, EditorSessionCleanupPhase.Panel);
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
@@ -749,6 +764,7 @@ namespace helengine.editor {
             constructionLedger.Register(assetBrowserDataSource);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics, assetBrowserDataSource);
             constructionLedger.Register(assetBrowserPanel);
+            constructionLedger.Register(assetBrowserPanel.DisposeAuthoringResources);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver, this.projectPath);
             constructionLedger.Register(propertiesPanel);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
@@ -758,7 +774,9 @@ namespace helengine.editor {
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             constructionLedger.Register(previewPanel);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
             meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
             scriptHotReloadService = new EditorGameScriptHotReloadService(
@@ -783,16 +801,27 @@ namespace helengine.editor {
                 CreateBuildExecutorRouter());
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
             openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, openFileDialog.Dispose, openFileDialog.DisposeAuthoringResources, openFileDialog.Hide);
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
             platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, platformsDialog.Dispose, hide: platformsDialog.Hide);
             environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, environmentsDialog.Dispose, hide: environmentsDialog.Hide);
             profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, profilesDialog.Dispose, hide: profilesDialog.Hide);
             buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, buildDialog.Dispose, hide: buildDialog.Hide);
             buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, buildDialogCopySettingsDialog.Dispose, hide: buildDialogCopySettingsDialog.Hide);
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
             sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
             sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver, authoredAssetReferenceResolver);
             constructionLedger.Register(sceneAssetReferenceResolver);
@@ -820,6 +849,19 @@ namespace helengine.editor {
             PendingSceneTransition = SceneTransitionKind.None;
             IsSceneDirty = false;
             HasUntrackedSceneChangesSinceSave = false;
+            // Register scene state ownership as soon as its containers exist.
+            // The dedicated phase keeps these actions before renderer/core
+            // disposal while still allowing detachers, resets, and panels to
+            // finish first. Each action remains independently retryable in
+            // the shared ledger.
+            constructionLedger.Register(UntrackCurrentSceneFromSceneManager, EditorSessionCleanupPhase.OwnedState);
+            constructionLedger.Register(DisposeUserSceneEntitiesForTeardown, EditorSessionCleanupPhase.OwnedState);
+            constructionLedger.Register(FlushPendingOwnedAssetReleases, EditorSessionCleanupPhase.OwnedState);
+            constructionLedger.Register(() => {
+                if (CurrentSceneOwnedAssets != null) {
+                    ReleaseCurrentSceneOwnedAssets();
+                }
+            }, EditorSessionCleanupPhase.OwnedState);
             RefreshSceneDirtyState();
             // Register the detach action before acquiring the first event
             // subscription. Partial construction can therefore unwind even if
@@ -922,7 +964,7 @@ namespace helengine.editor {
             propertiesPanel.ShaderPackageService = shaderPackageService;
             sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             ConstructionCheckpointForTests?.Invoke("after-shader-package-initialized");
-            constructionLedger.Register(() => shaderModuleManager.ShaderBuilt -= HandleShaderBuilt);
+            RegisterDetacher(constructionLedger, () => shaderModuleManager.ShaderBuilt -= HandleShaderBuilt);
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
             shaderModuleManager.Start();
             BuildStartScene();
@@ -935,16 +977,6 @@ namespace helengine.editor {
             // Register teardown operations individually. They remain in the
             // same ledger after ownership transfer and therefore retry only
             // the operations that did not complete on a prior Dispose call.
-            constructionLedger.Register(HideScaleSensitiveDialogs, EditorSessionCleanupPhase.Panel);
-            constructionLedger.Register(UntrackCurrentSceneFromSceneManager);
-            constructionLedger.Register(ClearUserSceneEntities);
-            constructionLedger.Register(FlushPendingOwnedAssetReleases);
-            constructionLedger.Register(() => {
-                if (CurrentSceneOwnedAssets != null) {
-                    ReleaseCurrentSceneOwnedAssets();
-                }
-            });
-            constructionLedger.Register(() => assetBrowserPanel?.DisposeAuthoringResources());
             constructionLedger.TransferOwnership();
             } catch (Exception primaryException) {
                 try {
@@ -1248,6 +1280,7 @@ namespace helengine.editor {
         /// Created lazily because test harnesses construct sessions without running field initializers.
         /// </summary>
         List<RuntimeSceneOwnedAssetSet> PendingOwnedAssetReleases;
+        List<EditorSessionCleanupItem> PendingOwnedAssetReleaseCleanupItems;
 
         /// <summary>
         /// Queues one owned-asset set for release at the start of the next editor update.
@@ -1260,6 +1293,9 @@ namespace helengine.editor {
 
             PendingOwnedAssetReleases ??= new List<RuntimeSceneOwnedAssetSet>();
             PendingOwnedAssetReleases.Add(ownedAssets);
+            PendingOwnedAssetReleaseCleanupItems ??= new List<EditorSessionCleanupItem>();
+            PendingOwnedAssetReleaseCleanupItems.Add(new EditorSessionCleanupItem(
+                () => EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets)));
         }
 
         /// <summary>
@@ -1270,11 +1306,33 @@ namespace helengine.editor {
                 return;
             }
 
-            for (int index = 0; index < PendingOwnedAssetReleases.Count; index++) {
-                EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(PendingOwnedAssetReleases[index]);
+            PendingOwnedAssetReleaseCleanupItems ??= new List<EditorSessionCleanupItem>();
+            for (int index = PendingOwnedAssetReleaseCleanupItems.Count; index < PendingOwnedAssetReleases.Count; index++) {
+                RuntimeSceneOwnedAssetSet ownedAssets = PendingOwnedAssetReleases[index];
+                PendingOwnedAssetReleaseCleanupItems.Add(new EditorSessionCleanupItem(
+                    () => EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets)));
+            }
+
+            List<Exception> failures = new List<Exception>();
+            EditorSessionCleanupItem[] cleanupItems = PendingOwnedAssetReleaseCleanupItems.ToArray();
+            for (int index = 0; index < cleanupItems.Length; index++) {
+                try {
+                    cleanupItems[index].Execute();
+                } catch (Exception exception) {
+                    failures.Add(exception);
+                }
+            }
+
+            if (failures.Count > 0) {
+                if (failures.Count == 1) {
+                    throw failures[0];
+                }
+
+                throw new AggregateException("One or more pending scene-owned asset sets failed to release.", failures);
             }
 
             PendingOwnedAssetReleases.Clear();
+            PendingOwnedAssetReleaseCleanupItems.Clear();
         }
 
         /// <summary>
@@ -1462,56 +1520,167 @@ namespace helengine.editor {
         /// <summary>
         /// Attaches session event handlers to the scale-sensitive modal dialogs currently owned by the session.
         /// </summary>
-        void AttachScaleSensitiveDialogHandlers() {
-            // Register before the first subscription so each dialog graph is
-            // covered when it is created or recreated.
-            RegisterDetacher(ConstructionLedger, DetachScaleSensitiveDialogHandlers);
+        void RegisterScaleSensitiveDialogCleanup(
+            EditorSessionConstructionLedger ledger,
+            Action dispose,
+            Action disposeAuthoringResources = null,
+            Action hide = null) {
+            if (ledger == null || dispose == null) {
+                return;
+            }
+
+            if (ScaleSensitiveDialogCleanupItems == null) {
+                ScaleSensitiveDialogCleanupItems = new List<EditorSessionCleanupItem>();
+            }
+
+            // Register the final entity disposal first, then its authoring
+            // resource release, so the reverse ledger order preserves the
+            // required authoring-before-entity sequence. Each item has its
+            // own completion bit and can be retired during recreation without
+            // being repeated at final session teardown.
+            EditorSessionCleanupItem disposeItem = new EditorSessionCleanupItem(dispose);
+            ledger.Register(disposeItem.Execute, EditorSessionCleanupPhase.Panel);
+            if (disposeAuthoringResources != null) {
+                EditorSessionCleanupItem authoringItem = new EditorSessionCleanupItem(disposeAuthoringResources);
+                ledger.Register(authoringItem.Execute, EditorSessionCleanupPhase.Panel);
+                ScaleSensitiveDialogCleanupItems.Add(authoringItem);
+            }
+            ScaleSensitiveDialogCleanupItems.Add(disposeItem);
+            if (hide != null) {
+                EditorSessionCleanupItem hideItem = new EditorSessionCleanupItem(hide);
+                ledger.Register(hideItem.Execute, EditorSessionCleanupPhase.Panel);
+                if (ScaleSensitiveDialogHideItems == null) {
+                    ScaleSensitiveDialogHideItems = new List<EditorSessionCleanupItem>();
+                }
+                ScaleSensitiveDialogHideItems.Add(hideItem);
+            }
+        }
+
+        /// <summary>
+        /// Registers cleanup items for every currently assigned dialog. This
+        /// is used only by uninitialized integration fixtures that bypass the
+        /// constructor's immediate post-acquisition registrations.
+        /// </summary>
+        /// <param name="ledger">Fallback ownership ledger.</param>
+        void RegisterCurrentScaleSensitiveDialogCleanup(EditorSessionConstructionLedger ledger) {
+            if (assetPickerModal != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
+            }
+            if (meshModifierPickerModal != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
+            }
             if (saveFileDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
+            }
+            if (openFileDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, openFileDialog.Dispose, openFileDialog.DisposeAuthoringResources, openFileDialog.Hide);
+            }
+            if (reparentEntityDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
+            }
+            if (platformsDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, platformsDialog.Dispose, hide: platformsDialog.Hide);
+            }
+            if (environmentsDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, environmentsDialog.Dispose, hide: environmentsDialog.Hide);
+            }
+            if (profilesDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, profilesDialog.Dispose, hide: profilesDialog.Hide);
+            }
+            if (buildDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, buildDialog.Dispose, hide: buildDialog.Hide);
+            }
+            if (buildDialogCopySettingsDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, buildDialogCopySettingsDialog.Dispose, hide: buildDialogCopySettingsDialog.Hide);
+            }
+            if (unsavedChangesDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
+            }
+            if (preferencesDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
+            }
+            if (sceneSettingsDialog != null) {
+                RegisterScaleSensitiveDialogCleanup(ledger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
+            }
+        }
+
+        void AttachScaleSensitiveDialogHandlers() {
+            RegisteringScaleSensitiveDialogHandlers = true;
+            try {
+            if (saveFileDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => saveFileDialog.SaveRequested -= HandleSceneSaveRequested);
                 saveFileDialog.SaveRequested += HandleSceneSaveRequested;
             }
             if (openFileDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => openFileDialog.OpenRequested -= HandleSceneOpenRequested);
                 openFileDialog.OpenRequested += HandleSceneOpenRequested;
             }
             if (reparentEntityDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => reparentEntityDialog.ConfirmRequested -= HandleReparentEntityDialogConfirmed);
                 reparentEntityDialog.ConfirmRequested += HandleReparentEntityDialogConfirmed;
+                RegisterDetacher(ConstructionLedger, () => reparentEntityDialog.CancelRequested -= HandleReparentEntityDialogCancelRequested);
                 reparentEntityDialog.CancelRequested += HandleReparentEntityDialogCancelRequested;
             }
             if (platformsDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => platformsDialog.ConfirmRequested -= HandlePlatformsDialogConfirmed);
                 platformsDialog.ConfirmRequested += HandlePlatformsDialogConfirmed;
+                RegisterDetacher(ConstructionLedger, () => platformsDialog.CancelRequested -= HandlePlatformsDialogCancelRequested);
                 platformsDialog.CancelRequested += HandlePlatformsDialogCancelRequested;
             }
             if (environmentsDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => environmentsDialog.ConfirmRequested -= HandleEnvironmentsDialogConfirmed);
                 environmentsDialog.ConfirmRequested += HandleEnvironmentsDialogConfirmed;
+                RegisterDetacher(ConstructionLedger, () => environmentsDialog.CancelRequested -= HandleEnvironmentsDialogCancelRequested);
                 environmentsDialog.CancelRequested += HandleEnvironmentsDialogCancelRequested;
             }
             if (profilesDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => profilesDialog.ConfirmRequested -= HandleProfilesDialogConfirmed);
                 profilesDialog.ConfirmRequested += HandleProfilesDialogConfirmed;
+                RegisterDetacher(ConstructionLedger, () => profilesDialog.CancelRequested -= HandleProfilesDialogCancelRequested);
                 profilesDialog.CancelRequested += HandleProfilesDialogCancelRequested;
             }
             if (buildDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => buildDialog.AddRequested -= HandleBuildDialogAddRequested);
                 buildDialog.AddRequested += HandleBuildDialogAddRequested;
+                RegisterDetacher(ConstructionLedger, () => buildDialog.CopySettingsRequested -= HandleBuildDialogCopySettingsRequested);
                 buildDialog.CopySettingsRequested += HandleBuildDialogCopySettingsRequested;
+                RegisterDetacher(ConstructionLedger, () => buildDialog.BrowseOutputFolderRequested -= HandleBuildDialogBrowseOutputFolderRequested);
                 buildDialog.BrowseOutputFolderRequested += HandleBuildDialogBrowseOutputFolderRequested;
+                RegisterDetacher(ConstructionLedger, () => buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested);
                 buildDialog.BuildQueueRequested += HandleBuildDialogBuildQueueRequested;
+                RegisterDetacher(ConstructionLedger, () => buildDialog.RemoveQueueItemRequested -= HandleBuildDialogRemoveQueueItemRequested);
                 buildDialog.RemoveQueueItemRequested += HandleBuildDialogRemoveQueueItemRequested;
+                RegisterDetacher(ConstructionLedger, () => buildDialog.CancelRequested -= HandleBuildDialogCancelRequested);
                 buildDialog.CancelRequested += HandleBuildDialogCancelRequested;
             }
             if (buildDialogCopySettingsDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => buildDialogCopySettingsDialog.ConfirmRequested -= HandleBuildDialogCopySettingsConfirmed);
                 buildDialogCopySettingsDialog.ConfirmRequested += HandleBuildDialogCopySettingsConfirmed;
+                RegisterDetacher(ConstructionLedger, () => buildDialogCopySettingsDialog.CancelRequested -= HandleBuildDialogCopySettingsCanceled);
                 buildDialogCopySettingsDialog.CancelRequested += HandleBuildDialogCopySettingsCanceled;
             }
             if (unsavedChangesDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested);
                 unsavedChangesDialog.SaveRequested += HandleUnsavedChangesSaveRequested;
+                RegisterDetacher(ConstructionLedger, () => unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested);
                 unsavedChangesDialog.DontSaveRequested += HandleUnsavedChangesDontSaveRequested;
+                RegisterDetacher(ConstructionLedger, () => unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested);
                 unsavedChangesDialog.CancelRequested += HandleUnsavedChangesCancelRequested;
             }
             if (preferencesDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => preferencesDialog.ConfirmRequested -= HandlePreferencesDialogConfirmed);
                 preferencesDialog.ConfirmRequested += HandlePreferencesDialogConfirmed;
+                RegisterDetacher(ConstructionLedger, () => preferencesDialog.CancelRequested -= HandlePreferencesDialogCanceled);
                 preferencesDialog.CancelRequested += HandlePreferencesDialogCanceled;
             }
             if (sceneSettingsDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => sceneSettingsDialog.ConfirmRequested -= HandleSceneSettingsDialogConfirmed);
                 sceneSettingsDialog.ConfirmRequested += HandleSceneSettingsDialogConfirmed;
+                RegisterDetacher(ConstructionLedger, () => sceneSettingsDialog.CancelRequested -= HandleSceneSettingsDialogCanceled);
                 sceneSettingsDialog.CancelRequested += HandleSceneSettingsDialogCanceled;
+            }
+            } finally {
+                RegisteringScaleSensitiveDialogHandlers = false;
             }
         }
 
@@ -1519,95 +1688,49 @@ namespace helengine.editor {
         /// Detaches session event handlers from the current scale-sensitive modal dialogs.
         /// </summary>
         void DetachScaleSensitiveDialogHandlers() {
-            if (saveFileDialog != null) {
-                saveFileDialog.SaveRequested -= HandleSceneSaveRequested;
+            List<Exception> failures = new List<Exception>();
+            EditorSessionCleanupItem[] detacherItems = ScaleSensitiveDialogDetacherItems.ToArray();
+            for (int index = 0; index < detacherItems.Length; index++) {
+                try {
+                    detacherItems[index].Execute();
+                } catch (Exception exception) {
+                    failures.Add(exception);
+                }
             }
-            if (openFileDialog != null) {
-                openFileDialog.OpenRequested -= HandleSceneOpenRequested;
+
+            if (failures.Count == 1) {
+                throw failures[0];
             }
-            if (reparentEntityDialog != null) {
-                reparentEntityDialog.ConfirmRequested -= HandleReparentEntityDialogConfirmed;
-                reparentEntityDialog.CancelRequested -= HandleReparentEntityDialogCancelRequested;
+            if (failures.Count > 1) {
+                throw new AggregateException("One or more scale-sensitive dialog subscriptions failed to detach.", failures);
             }
-            if (platformsDialog != null) {
-                platformsDialog.ConfirmRequested -= HandlePlatformsDialogConfirmed;
-                platformsDialog.CancelRequested -= HandlePlatformsDialogCancelRequested;
-            }
-            if (environmentsDialog != null) {
-                environmentsDialog.ConfirmRequested -= HandleEnvironmentsDialogConfirmed;
-                environmentsDialog.CancelRequested -= HandleEnvironmentsDialogCancelRequested;
-            }
-            if (profilesDialog != null) {
-                profilesDialog.ConfirmRequested -= HandleProfilesDialogConfirmed;
-                profilesDialog.CancelRequested -= HandleProfilesDialogCancelRequested;
-            }
-            if (buildDialog != null) {
-                buildDialog.AddRequested -= HandleBuildDialogAddRequested;
-                buildDialog.CopySettingsRequested -= HandleBuildDialogCopySettingsRequested;
-                buildDialog.BrowseOutputFolderRequested -= HandleBuildDialogBrowseOutputFolderRequested;
-                buildDialog.BuildQueueRequested -= HandleBuildDialogBuildQueueRequested;
-                buildDialog.RemoveQueueItemRequested -= HandleBuildDialogRemoveQueueItemRequested;
-                buildDialog.CancelRequested -= HandleBuildDialogCancelRequested;
-            }
-            if (buildDialogCopySettingsDialog != null) {
-                buildDialogCopySettingsDialog.ConfirmRequested -= HandleBuildDialogCopySettingsConfirmed;
-                buildDialogCopySettingsDialog.CancelRequested -= HandleBuildDialogCopySettingsCanceled;
-            }
-            if (unsavedChangesDialog != null) {
-                unsavedChangesDialog.SaveRequested -= HandleUnsavedChangesSaveRequested;
-                unsavedChangesDialog.DontSaveRequested -= HandleUnsavedChangesDontSaveRequested;
-                unsavedChangesDialog.CancelRequested -= HandleUnsavedChangesCancelRequested;
-            }
-            if (preferencesDialog != null) {
-                preferencesDialog.ConfirmRequested -= HandlePreferencesDialogConfirmed;
-                preferencesDialog.CancelRequested -= HandlePreferencesDialogCanceled;
-            }
-            if (sceneSettingsDialog != null) {
-                sceneSettingsDialog.ConfirmRequested -= HandleSceneSettingsDialogConfirmed;
-                sceneSettingsDialog.CancelRequested -= HandleSceneSettingsDialogCanceled;
-            }
+
+            ScaleSensitiveDialogDetacherItems.Clear();
         }
 
         /// <summary>
         /// Hides currently owned scale-sensitive modal dialogs before disposal or recreation.
         /// </summary>
         void HideScaleSensitiveDialogs() {
-            if (assetPickerModal != null) {
-                assetPickerModal.Hide();
+            List<Exception> failures = new List<Exception>();
+            if (ScaleSensitiveDialogHideItems != null) {
+                EditorSessionCleanupItem[] hideItems = ScaleSensitiveDialogHideItems.ToArray();
+                for (int index = 0; index < hideItems.Length; index++) {
+                    try {
+                        hideItems[index].Execute();
+                    } catch (Exception exception) {
+                        failures.Add(exception);
+                    }
+                }
             }
-            if (meshModifierPickerModal != null) {
-                meshModifierPickerModal.Hide();
+
+            if (failures.Count == 1) {
+                throw failures[0];
             }
-            if (saveFileDialog != null) {
-                saveFileDialog.Hide();
+            if (failures.Count > 1) {
+                throw new AggregateException("One or more scale-sensitive dialogs failed to hide.", failures);
             }
-            if (openFileDialog != null) {
-                openFileDialog.Hide();
-            }
-            if (reparentEntityDialog != null) {
-                reparentEntityDialog.Hide();
-            }
-            if (platformsDialog != null) {
-                platformsDialog.Hide();
-            }
-            if (profilesDialog != null) {
-                profilesDialog.Hide();
-            }
-            if (buildDialog != null) {
-                buildDialog.Hide();
-            }
-            if (buildDialogCopySettingsDialog != null) {
-                buildDialogCopySettingsDialog.Hide();
-            }
-            if (unsavedChangesDialog != null) {
-                unsavedChangesDialog.Hide();
-            }
-            if (preferencesDialog != null) {
-                preferencesDialog.Hide();
-            }
-            if (sceneSettingsDialog != null) {
-                sceneSettingsDialog.Hide();
-            }
+            ScaleSensitiveDialogHideItems?.Clear();
         }
 
         /// <summary>
@@ -1624,23 +1747,36 @@ namespace helengine.editor {
 
             if (!string.IsNullOrWhiteSpace(projectPath)) {
                 assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
+                RegisterScaleSensitiveDialogCleanup(ConstructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
                 saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
+                RegisterScaleSensitiveDialogCleanup(ConstructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
                 openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
+                RegisterScaleSensitiveDialogCleanup(ConstructionLedger, openFileDialog.Dispose, openFileDialog.DisposeAuthoringResources, openFileDialog.Hide);
             } else {
                 assetPickerModal = null;
                 saveFileDialog = null;
                 openFileDialog = null;
             }
             meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
             platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, platformsDialog.Dispose, hide: platformsDialog.Hide);
             environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, environmentsDialog.Dispose, hide: environmentsDialog.Hide);
             profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, profilesDialog.Dispose, hide: profilesDialog.Hide);
             buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, buildDialog.Dispose, hide: buildDialog.Hide);
             buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, buildDialogCopySettingsDialog.Dispose, hide: buildDialogCopySettingsDialog.Hide);
             unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
             sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             AttachScaleSensitiveDialogHandlers();
         }
 
@@ -1649,54 +1785,18 @@ namespace helengine.editor {
         /// </summary>
         void DisposeScaleSensitiveDialogs() {
             List<Exception> failures = new List<Exception>();
-            void Attempt(Action action) {
+            void Attempt(EditorSessionCleanupItem cleanupItem) {
                 try {
-                    action();
+                    cleanupItem.Execute();
                 } catch (Exception exception) {
                     failures.Add(exception);
                 }
             }
-            if (assetPickerModal != null) {
-                Attempt(assetPickerModal.DisposeAuthoringResources);
-                Attempt(assetPickerModal.Dispose);
-            }
-            if (meshModifierPickerModal != null) {
-                Attempt(meshModifierPickerModal.Dispose);
-            }
-            if (saveFileDialog != null) {
-                Attempt(saveFileDialog.DisposeAuthoringResources);
-                Attempt(saveFileDialog.Dispose);
-            }
-            if (openFileDialog != null) {
-                Attempt(openFileDialog.DisposeAuthoringResources);
-                Attempt(openFileDialog.Dispose);
-            }
-            if (reparentEntityDialog != null) {
-                Attempt(reparentEntityDialog.Dispose);
-            }
-            if (platformsDialog != null) {
-                Attempt(platformsDialog.Dispose);
-            }
-            if (environmentsDialog != null) {
-                Attempt(environmentsDialog.Dispose);
-            }
-            if (profilesDialog != null) {
-                Attempt(profilesDialog.Dispose);
-            }
-            if (buildDialog != null) {
-                Attempt(buildDialog.Dispose);
-            }
-            if (buildDialogCopySettingsDialog != null) {
-                Attempt(buildDialogCopySettingsDialog.Dispose);
-            }
-            if (unsavedChangesDialog != null) {
-                Attempt(unsavedChangesDialog.Dispose);
-            }
-            if (preferencesDialog != null) {
-                Attempt(preferencesDialog.Dispose);
-            }
-            if (sceneSettingsDialog != null) {
-                Attempt(sceneSettingsDialog.Dispose);
+            if (ScaleSensitiveDialogCleanupItems != null) {
+                EditorSessionCleanupItem[] cleanupItems = ScaleSensitiveDialogCleanupItems.ToArray();
+                for (int index = 0; index < cleanupItems.Length; index++) {
+                    Attempt(cleanupItems[index]);
+                }
             }
             if (failures.Count == 1) {
                 throw failures[0];
@@ -1704,6 +1804,7 @@ namespace helengine.editor {
             if (failures.Count > 1) {
                 throw new AggregateException("One or more scale-sensitive dialogs failed to dispose.", failures);
             }
+            ScaleSensitiveDialogCleanupItems?.Clear();
         }
 
         /// <summary>
@@ -1794,9 +1895,6 @@ namespace helengine.editor {
             ledger.Register(EditorViewportToolService.Reset, EditorSessionCleanupPhase.Reset);
             ledger.Register(TransformGizmoSnapSettingsService.ResetDefaults, EditorSessionCleanupPhase.Reset);
             ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);
-            // This fallback covers subscriptions acquired after the first
-            // publisher is constructed; its phase outranks every disposer.
-            ledger.Register(DetachConstructionSubscriptions, EditorSessionCleanupPhase.Detach);
         }
 
         /// <summary>
@@ -1810,133 +1908,15 @@ namespace helengine.editor {
             if (ledger == null) {
                 return;
             }
+
+            if (RegisteringScaleSensitiveDialogHandlers) {
+                EditorSessionCleanupItem item = new EditorSessionCleanupItem(detacher);
+                ledger.Register(item.Execute, EditorSessionCleanupPhase.Detach);
+                ScaleSensitiveDialogDetacherItems.Add(item);
+                return;
+            }
+
             ledger.Register(detacher, EditorSessionCleanupPhase.Detach);
-        }
-
-        /// <summary>
-        /// Removes subscriptions acquired during construction. Every operation
-        /// is null-safe because this action also runs for partially built
-        /// sessions.
-        /// </summary>
-        void DetachConstructionSubscriptions() {
-            List<Exception> failures = new List<Exception>();
-            void Attempt(Action action) {
-                try {
-                    action();
-                } catch (Exception exception) {
-                    failures.Add(exception);
-                }
-            }
-
-            Attempt(() => {
-                if (shaderModuleManager != null) {
-                    shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
-                }
-            });
-            Attempt(() => EditorSelectionService.SelectionChanged -= HandleSelectionChanged);
-            Attempt(() => EditorAssetPickerService.PickRequested -= HandleAssetPickRequested);
-            Attempt(() => EditorMeshModifierPickerService.PickRequested -= HandleMeshModifierPickRequested);
-            Attempt(() => EditorSceneMutationService.SceneMutated -= HandleSceneMutated);
-            Attempt(() => EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression);
-            Attempt(() => {
-                if (titleBar == null) {
-                    return;
-                }
-
-                titleBar.NewMapRequested -= HandleNewMapRequested;
-                titleBar.OpenMapRequested -= HandleOpenMapRequested;
-                titleBar.SaveMapRequested -= HandleSaveMapRequested;
-                titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
-                titleBar.SceneSettingsRequested -= HandleSceneSettingsRequested;
-                titleBar.PreferencesRequested -= HandlePreferencesRequested;
-                titleBar.BuildRequested -= HandleBuildRequested;
-                titleBar.EnvironmentsRequested -= HandleEnvironmentsRequested;
-                titleBar.ExportSceneRequested -= HandleExportSceneRequested;
-                titleBar.PlatformsRequested -= HandlePlatformsRequested;
-                titleBar.ProfilesRequested -= HandleProfilesRequested;
-                titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
-                titleBar.OpenInIDERequested -= HandleOpenInIDERequested;
-                titleBar.ProjectMenuItemRequested -= HandleProjectMenuItemRequested;
-                titleBar.UiMenuActionRequested -= HandleUiMenuActionRequested;
-                titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
-                titleBar.AddCubeRequested -= HandleAddCubeRequested;
-                titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
-                titleBar.AddCameraRequested -= HandleAddCameraRequested;
-                titleBar.AddSpotLightRequested -= HandleAddSpotLightRequested;
-                titleBar.AddPointLightRequested -= HandleAddPointLightRequested;
-                titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested;
-                titleBar.AddAmbientLightRequested -= HandleAddAmbientLightRequested;
-            });
-            Attempt(() => {
-                if (assetBrowserPanel == null) {
-                    return;
-                }
-
-                assetBrowserPanel.AssetSelected -= HandleAssetSelected;
-                assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared;
-                assetBrowserPanel.AddToSceneRequested -= HandleAddToSceneRequested;
-            });
-            Attempt(() => {
-                if (propertiesPanel != null) {
-                    propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
-                }
-            });
-            Attempt(() => {
-                if (sceneHierarchyPanel != null) {
-                    sceneHierarchyPanel.ReparentRequested -= HandleSceneHierarchyReparentRequested;
-                }
-            });
-            if (PanelInstances != null) {
-                EditorWorkspacePanelInstance[] instances = PanelInstances.ToArray();
-                for (int index = 0; index < instances.Length; index++) {
-                    EditorWorkspacePanelInstance instance = instances[index];
-                    Attempt(() => UnwireWorkspacePanelEvents(instance));
-                }
-            }
-            Attempt(DetachScaleSensitiveDialogHandlers);
-
-            if (failures.Count == 1) {
-                throw failures[0];
-            }
-            if (failures.Count > 1) {
-                throw new AggregateException("Editor session subscription teardown failed.", failures);
-            }
-        }
-
-        /// <summary>
-        /// Resets every process-wide interaction surface that can be touched by
-        /// an editor session. Each reset is independent so one faulty reset
-        /// cannot strand a later static service.
-        /// </summary>
-        void ResetSessionInteractionState() {
-            List<Exception> failures = new List<Exception>();
-            void Attempt(Action reset) {
-                try {
-                    reset();
-                } catch (Exception exception) {
-                    failures.Add(exception);
-                }
-            }
-
-            Attempt(EditorInputCaptureService.Reset);
-            Attempt(EditorKeyboardFocusService.Reset);
-            Attempt(EditorSelectionService.Reset);
-            Attempt(EditorSceneMutationService.Reset);
-            Attempt(EditorAssetPickerService.Reset);
-            Attempt(EditorMeshModifierPickerService.Reset);
-            Attempt(EntityPlatformExistenceEditingService.ResetExistenceChangedSubscribers);
-            Attempt(EditorEntityHistoryMutationService.Reset);
-            Attempt(EditorComponentHistoryMutationService.Reset);
-            Attempt(EditorGizmoHoverService.Reset);
-            Attempt(EditorGizmoDragService.Reset);
-            Attempt(EditorViewportToolService.Reset);
-            Attempt(TransformGizmoSnapSettingsService.ResetDefaults);
-            if (failures.Count == 1) {
-                throw failures[0];
-            }
-            if (failures.Count > 1) {
-                throw new AggregateException("Editor session interaction-state reset failed.", failures);
-            }
         }
 
         /// <summary>
@@ -1961,19 +1941,16 @@ namespace helengine.editor {
             ledger.Register(EditorViewportToolService.Reset, EditorSessionCleanupPhase.Reset);
             ledger.Register(TransformGizmoSnapSettingsService.ResetDefaults, EditorSessionCleanupPhase.Reset);
             ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);
-            ledger.Register(DetachConstructionSubscriptions, EditorSessionCleanupPhase.Detach);
-            ledger.Register(DetachTrackedWorkspacePanelsForDispose, EditorSessionCleanupPhase.Detach);
-            ledger.Register(HideScaleSensitiveDialogs, EditorSessionCleanupPhase.Panel);
-            ledger.Register(DisposeScaleSensitiveDialogs, EditorSessionCleanupPhase.Panel);
+            RegisterCurrentScaleSensitiveDialogCleanup(ledger);
             ledger.Register(() => shaderModuleManager?.Dispose(), EditorSessionCleanupPhase.Dispose);
-            ledger.Register(UntrackCurrentSceneFromSceneManager, EditorSessionCleanupPhase.Dispose);
-            ledger.Register(ClearUserSceneEntities, EditorSessionCleanupPhase.Dispose);
-            ledger.Register(FlushPendingOwnedAssetReleases, EditorSessionCleanupPhase.Dispose);
+            ledger.Register(UntrackCurrentSceneFromSceneManager, EditorSessionCleanupPhase.OwnedState);
+            ledger.Register(DisposeUserSceneEntitiesForTeardown, EditorSessionCleanupPhase.OwnedState);
+            ledger.Register(FlushPendingOwnedAssetReleases, EditorSessionCleanupPhase.OwnedState);
             ledger.Register(() => {
                 if (CurrentSceneOwnedAssets != null) {
                     ReleaseCurrentSceneOwnedAssets();
                 }
-            }, EditorSessionCleanupPhase.Dispose);
+            }, EditorSessionCleanupPhase.OwnedState);
             ledger.Register(() => assetBrowserPanel?.DisposeAuthoringResources(), EditorSessionCleanupPhase.Dispose);
             ledger.Register(() => sceneAssetReferenceResolver?.Dispose(), EditorSessionCleanupPhase.Dispose);
             ledger.Register(() => SceneSaveService?.Dispose(), EditorSessionCleanupPhase.Dispose);
@@ -2174,6 +2151,10 @@ namespace helengine.editor {
         EditorWorkspacePanelInstance CreateWorkspacePanelInstance(string panelTypeId, string instanceId) {
             EditorWorkspacePanelTypeDescriptor descriptor = PanelRegistry.GetDescriptor(panelTypeId);
             IEditorWorkspacePanelController controller = descriptor.CreateController(this);
+            if (WorkspacePanelControllerDecoratorForTests != null) {
+                controller = WorkspacePanelControllerDecoratorForTests(controller)
+                    ?? throw new InvalidOperationException("The workspace controller test decorator returned null.");
+            }
             RegisterWorkspaceController(controller);
             Action closeRequestedHandler = () => HandleWorkspacePanelCloseRequested(controller.Dockable);
             EditorWorkspacePanelInstance instance = new EditorWorkspacePanelInstance(
@@ -2290,25 +2271,27 @@ namespace helengine.editor {
             }
 
             if (string.Equals(instance.PanelTypeId, SceneHierarchyPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
-                RegisterDetacher(ConstructionLedger, () => UnwireWorkspacePanelEvents(instance));
+                RegisterDetacher(ConstructionLedger, () => ((SceneHierarchyPanel)instance.Dockable).ReparentRequested -= HandleSceneHierarchyReparentRequested);
                 ((SceneHierarchyPanel)instance.Dockable).ReparentRequested += HandleSceneHierarchyReparentRequested;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, AssetBrowserPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
                 AssetBrowserPanel panel = (AssetBrowserPanel)instance.Dockable;
-                RegisterDetacher(ConstructionLedger, () => UnwireWorkspacePanelEvents(instance));
+                RegisterDetacher(ConstructionLedger, () => panel.AssetSelected -= HandleAssetSelected);
                 panel.AssetSelected += HandleAssetSelected;
+                RegisterDetacher(ConstructionLedger, () => panel.SelectionCleared -= HandleAssetSelectionCleared);
                 panel.SelectionCleared += HandleAssetSelectionCleared;
+                RegisterDetacher(ConstructionLedger, () => panel.AddToSceneRequested -= HandleAddToSceneRequested);
                 panel.AddToSceneRequested += HandleAddToSceneRequested;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
-                RegisterDetacher(ConstructionLedger, () => UnwireWorkspacePanelEvents(instance));
+                RegisterDetacher(ConstructionLedger, () => ((EditorViewport)instance.Dockable).ViewportContentFocusedChanged -= HandleViewportContentFocusedChanged);
                 ((EditorViewport)instance.Dockable).ViewportContentFocusedChanged += HandleViewportContentFocusedChanged;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
-                RegisterDetacher(ConstructionLedger, () => UnwireWorkspacePanelEvents(instance));
+                RegisterDetacher(ConstructionLedger, () => ((PropertiesPanel)instance.Dockable).ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested);
                 ((PropertiesPanel)instance.Dockable).ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
             }
         }
@@ -2580,35 +2563,6 @@ namespace helengine.editor {
             EditorWorkspacePanelInstance[] instances = PanelInstances.ToArray();
             for (int index = 0; index < instances.Length; index++) {
                 CloseWorkspacePanel(instances[index].Dockable);
-            }
-        }
-
-        /// <summary>
-        /// Detaches every still-tracked workspace panel instance during session disposal.
-        /// </summary>
-        void DetachTrackedWorkspacePanelsForDispose() {
-            EditorWorkspacePanelInstance[] instances = PanelInstances == null
-                ? Array.Empty<EditorWorkspacePanelInstance>()
-                : PanelInstances.ToArray();
-            List<Exception> failures = new List<Exception>();
-            void Attempt(Action action) {
-                try {
-                    action();
-                } catch (Exception exception) {
-                    failures.Add(exception);
-                }
-            }
-            for (int index = 0; index < instances.Length; index++) {
-                EditorWorkspacePanelInstance instance = instances[index];
-                Attempt(() => UnwireWorkspacePanelEvents(instance));
-                Attempt(() => EditorKeyboardFocusService.UnregisterGroup(instance.Dockable));
-                Attempt(() => instance.Controller?.Dispose());
-            }
-            if (failures.Count == 1) {
-                throw failures[0];
-            }
-            if (failures.Count > 1) {
-                throw new AggregateException("Workspace panel teardown failed.", failures);
             }
         }
 
@@ -4371,6 +4325,50 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Releases the user-scene roots owned by session teardown as
+        /// independent retryable actions. A failure in one root never causes
+        /// already released siblings to run again on the next Dispose call.
+        /// </summary>
+        void DisposeUserSceneEntitiesForTeardown() {
+            if (UserSceneEntityCleanupItems == null) {
+                UserSceneEntityCleanupItems = new List<EditorSessionCleanupItem>();
+            }
+
+            if (UserSceneEntityCleanupItems.Count == 0) {
+                IReadOnlyList<EditorEntity> entities = CaptureUserSceneEntities();
+                for (int index = 0; index < entities.Count; index++) {
+                    EditorEntity entity = entities[index];
+                    if (entity == null || !IsUserSceneRootEntity(entity)) {
+                        continue;
+                    }
+
+                    UserSceneEntityCleanupItems.Add(new EditorSessionCleanupItem(
+                        () => NativeOwnership.DisposeAndDelete(entity)));
+                }
+            }
+
+            List<Exception> failures = new List<Exception>();
+            EditorSessionCleanupItem[] cleanupItems = UserSceneEntityCleanupItems.ToArray();
+            for (int index = 0; index < cleanupItems.Length; index++) {
+                try {
+                    cleanupItems[index].Execute();
+                } catch (Exception exception) {
+                    failures.Add(exception);
+                }
+            }
+
+            if (failures.Count > 0) {
+                if (failures.Count == 1) {
+                    throw failures[0];
+                }
+
+                throw new AggregateException("One or more user scene entities failed to release.", failures);
+            }
+
+            UserSceneEntityCleanupItems.Clear();
+        }
+
+        /// <summary>
         /// Clears the current editor scene selection before authored scene entities start tearing down.
         /// </summary>
         void ClearSceneSelectionBeforeTeardown() {
@@ -4421,8 +4419,10 @@ namespace helengine.editor {
             }
 
             RuntimeSceneOwnedAssetSet ownedAssets = CurrentSceneOwnedAssets;
-            CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
             EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);
+            // Keep the ownership marker until every release succeeds so a
+            // failed ledger action can retry the same set without losing it.
+            CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
         }
 
         /// <summary>
@@ -6510,8 +6510,10 @@ namespace helengine.editor {
             ContentManager projectContentManager = null;
             AssetImportManager manager = null;
             try {
-                projectContentManager = new ContentManager(new HostFileSystemContentStreamSource(projectAssetsRootPath));
-                manager = new AssetImportManager(projectRootPath, projectContentManager);
+                projectContentManager = ContentManagerFactoryForTests?.Invoke(projectAssetsRootPath)
+                    ?? new ContentManager(new HostFileSystemContentStreamSource(projectAssetsRootPath));
+                manager = AssetImportManagerFactoryForTests?.Invoke(projectRootPath, projectContentManager)
+                    ?? new AssetImportManager(projectRootPath, projectContentManager);
                 manager.CurrentPlatformId = ActiveProjectPlatform;
                 for (int i = 0; i < importers.Count; i++) {
                     IAssetImporterRegistration registration = importers[i];

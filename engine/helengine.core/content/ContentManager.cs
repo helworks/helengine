@@ -46,7 +46,7 @@ namespace helengine {
         /// source is borrowed by this manager, so it is intentionally not
         /// disposed here.
         /// </summary>
-        public void Dispose() {
+        public virtual void Dispose() {
             // Processor registrations are managed objects supplied by the
             // caller and are not owned by the content manager. Keeping this
             // boundary explicit lets session construction transfer ownership

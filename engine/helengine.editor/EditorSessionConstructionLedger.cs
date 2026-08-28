@@ -1,13 +1,37 @@
 namespace helengine.editor {
     /// <summary>
+    /// Represents one independently retryable teardown operation. It is also
+    /// safe for callers that must retire an owned object before the session's
+    /// final ledger pass, such as scale-sensitive dialog recreation.
+    /// </summary>
+    internal sealed class EditorSessionCleanupItem {
+        readonly Action Cleanup;
+        bool Completed;
+
+        internal EditorSessionCleanupItem(Action cleanup) {
+            Cleanup = cleanup ?? throw new ArgumentNullException(nameof(cleanup));
+        }
+
+        internal void Execute() {
+            if (Completed) {
+                return;
+            }
+
+            Cleanup();
+            Completed = true;
+        }
+    }
+
+    /// <summary>
     /// Groups editor-session teardown actions so detachment and process-wide
     /// state reset always run before owned resources are released.
     /// </summary>
     internal enum EditorSessionCleanupPhase {
         Dispose = 0,
-        Panel = 1,
-        Reset = 2,
-        Detach = 3
+        OwnedState = 1,
+        Panel = 2,
+        Reset = 3,
+        Detach = 4
     }
 
     /// <summary>
