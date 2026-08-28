@@ -19,5 +19,12 @@ namespace helengine.editor {
 
             PickRequested?.Invoke(new MeshModifierPickerRequest(onPicked));
         }
+
+        /// <summary>
+        /// Clears modifier-picker callbacks when the owning editor session leaves the process.
+        /// </summary>
+        public static void Reset() {
+            PickRequested = null;
+        }
     }
 }

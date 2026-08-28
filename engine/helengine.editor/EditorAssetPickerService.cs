@@ -32,5 +32,12 @@ namespace helengine.editor {
 
             PickRequested?.Invoke(new AssetPickerRequest(onPicked, extensionFilter ?? string.Empty));
         }
+
+        /// <summary>
+        /// Clears picker callbacks when the owning editor session leaves the process.
+        /// </summary>
+        public static void Reset() {
+            PickRequested = null;
+        }
     }
 }

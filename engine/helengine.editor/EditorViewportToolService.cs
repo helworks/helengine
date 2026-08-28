@@ -55,5 +55,12 @@ namespace helengine.editor {
 
             ToolModesByCamera.Remove(camera);
         }
+
+        /// <summary>
+        /// Clears all per-viewport tool selections owned by an editor session.
+        /// </summary>
+        public static void Reset() {
+            ToolModesByCamera.Clear();
+        }
     }
 }

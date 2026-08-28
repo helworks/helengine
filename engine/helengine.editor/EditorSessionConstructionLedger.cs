@@ -30,6 +30,21 @@ namespace helengine.editor {
             CleanupActions.Clear();
         }
 
+        /// <summary>
+        /// Replaces construction-only registrations with the single teardown
+        /// action owned by the successfully constructed session.
+        /// </summary>
+        /// <param name="ownerCleanup">Aggregate teardown action for the session.</param>
+        internal void TransferOwnership(Action ownerCleanup) {
+            if (ownerCleanup == null) {
+                throw new ArgumentNullException(nameof(ownerCleanup));
+            }
+
+            CleanupActions.Clear();
+            CleanupActions.Add(ownerCleanup);
+            Transferred = true;
+        }
+
         internal void Dispose() {
             List<Exception> failures = new List<Exception>();
             for (int index = CleanupActions.Count - 1; index >= 0; index--) {

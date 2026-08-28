@@ -39,6 +39,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Clears drag state for every viewport when a session is torn down.
+        /// </summary>
+        public static void Reset() {
+            DraggedEntityByCamera.Clear();
+        }
+
+        /// <summary>
         /// Determines whether the provided viewport camera currently has an active gizmo drag.
         /// </summary>
         /// <param name="camera">Viewport camera to query.</param>

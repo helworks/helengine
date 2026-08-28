@@ -112,6 +112,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Clears all process-wide hover state owned by an editor session.
+        /// </summary>
+        public static void Reset() {
+            ClearHoveredHandle();
+        }
+
+        /// <summary>
         /// Clears the current hovered gizmo handle when it belongs to the specified viewport camera.
         /// </summary>
         /// <param name="camera">Viewport camera requesting the clear.</param>
