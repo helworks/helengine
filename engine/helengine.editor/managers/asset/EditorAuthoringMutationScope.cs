@@ -773,6 +773,8 @@ namespace helengine.editor {
         }
 
         static void ReplaceLinuxLeaf(int parentFd, string sourceName, string destinationName, bool replaceExisting, string sourcePath, string destinationPath) {
+            EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.CurrentValue
+                ?? throw new InvalidOperationException("A publication journal is required for Linux leaf replacement.");
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(parentFd, sourceName, false, destinationPath);
             bool destinationExists = TryGetLinuxEntry(parentFd, destinationName, out PosixStat destinationStatus);
             if (destinationExists && !replaceExisting) {
@@ -802,12 +804,14 @@ namespace helengine.editor {
                         destinationName,
                         destinationIdentity,
                         destinationPath,
+                        expectedHash: journal.ExpectedDestinationHashValue,
                         recoveryIntent: "RestoreOriginal");
                     sourceQuarantine = QuarantineLinuxEntry(
                         parentFd,
                         sourceName,
                         sourceIdentity,
                         sourcePath,
+                        expectedHash: journal.ExpectedSourceHashValue,
                         recoveryIntent: "RollbackPublication",
                         intendedDestinationPath: destinationPath);
                     EnsureLinuxIdentity(parentFd, sourceQuarantine, sourceIdentity, destinationPath);
@@ -861,6 +865,7 @@ namespace helengine.editor {
                 sourceName,
                 sourceIdentity,
                 sourcePath,
+                expectedHash: journal.ExpectedSourceHashValue,
                 recoveryIntent: "RollbackPublication",
                 intendedDestinationPath: destinationPath);
             bool published = false;
@@ -900,6 +905,8 @@ namespace helengine.editor {
         }
 
         static void MoveLinuxLeaf(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string sourcePath, string destinationPath) {
+            EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.CurrentValue
+                ?? throw new InvalidOperationException("A publication journal is required for Linux leaf movement.");
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, false, destinationPath);
             EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(sourceIdentity.Describe(), "missing");
             if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
@@ -912,6 +919,7 @@ namespace helengine.editor {
                 sourceName,
                 sourceIdentity,
                 sourcePath,
+                expectedHash: journal.ExpectedSourceHashValue,
                 recoveryIntent: "RollbackPublication",
                 intendedDestinationPath: destinationPath);
             bool published = false;
@@ -1160,9 +1168,19 @@ namespace helengine.editor {
             }
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "delete", filePath, filePath);
             string deletingPath = journal.CreateDeletingPath(filePath);
-            EditorAuthoringMutationScope.FixedRenameNoReplace(ProjectRootPath, filePath, deletingPath, journal.ExpectedSourceIdentityValue, "missing");
+            EditorAuthoringMutationScope.FixedRenameNoReplace(
+                ProjectRootPath,
+                filePath,
+                deletingPath,
+                journal.ExpectedSourceIdentityValue,
+                "missing",
+                journal.ExpectedSourceHashValue);
             journal.MarkPhase("Published");
-            EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(ProjectRootPath, deletingPath, journal.ExpectedSourceIdentityValue);
+            EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(
+                ProjectRootPath,
+                deletingPath,
+                journal.ExpectedSourceIdentityValue,
+                journal.ExpectedSourceHashValue);
             journal.Complete();
         }
 
@@ -1289,9 +1307,19 @@ namespace helengine.editor {
             string fullPath = Path.GetFullPath(filePath);
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "delete", fullPath, fullPath);
             string deletingPath = journal.CreateDeletingPath(fullPath);
-            FixedRenameNoReplace(projectRootPath, fullPath, deletingPath, journal.ExpectedSourceIdentityValue, "missing");
+            FixedRenameNoReplace(
+                projectRootPath,
+                fullPath,
+                deletingPath,
+                journal.ExpectedSourceIdentityValue,
+                "missing",
+                journal.ExpectedSourceHashValue);
             journal.MarkPhase("Published");
-            FixedDeleteVerifiedLeaf(projectRootPath, deletingPath, journal.ExpectedSourceIdentityValue);
+            FixedDeleteVerifiedLeaf(
+                projectRootPath,
+                deletingPath,
+                journal.ExpectedSourceIdentityValue,
+                journal.ExpectedSourceHashValue);
             journal.Complete();
         }
 
