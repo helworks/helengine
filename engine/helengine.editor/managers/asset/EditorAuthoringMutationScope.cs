@@ -384,7 +384,7 @@ namespace helengine.editor {
                             projectRootPath,
                             expectedSourceHash,
                             destination,
-                            "PublishIntendedDestination");
+                            "RollbackPublication");
                     string publicationSourceName = sourceQuarantine ?? sourceName;
                     try {
                         EnsureLinuxIdentity(sourceParentFd, publicationSourceName, verifiedSourceIdentity, source);
@@ -765,13 +765,14 @@ namespace helengine.editor {
                     Path.GetFileName(source),
                     Path.GetFileName(destination),
                     replaceExisting,
+                    source,
                     destination);
             } else {
                 throw CreateUnsupportedPlatformException();
             }
         }
 
-        static void ReplaceLinuxLeaf(int parentFd, string sourceName, string destinationName, bool replaceExisting, string destinationPath) {
+        static void ReplaceLinuxLeaf(int parentFd, string sourceName, string destinationName, bool replaceExisting, string sourcePath, string destinationPath) {
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(parentFd, sourceName, false, destinationPath);
             bool destinationExists = TryGetLinuxEntry(parentFd, destinationName, out PosixStat destinationStatus);
             if (destinationExists && !replaceExisting) {
@@ -806,8 +807,8 @@ namespace helengine.editor {
                         parentFd,
                         sourceName,
                         sourceIdentity,
-                        destinationPath,
-                        recoveryIntent: "PublishIntendedDestination",
+                        sourcePath,
+                        recoveryIntent: "RollbackPublication",
                         intendedDestinationPath: destinationPath);
                     EnsureLinuxIdentity(parentFd, sourceQuarantine, sourceIdentity, destinationPath);
                     EnsureLinuxIdentity(parentFd, destinationQuarantine, destinationIdentity, destinationPath);
@@ -819,7 +820,7 @@ namespace helengine.editor {
                     }
                     RenameLinuxNoReplace(parentFd, sourceQuarantine, parentFd, destinationName, destinationPath, sourceIdentity);
                     EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
-                    EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(destinationPath), sourceQuarantine));
+                    EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(sourcePath), sourceQuarantine));
                     EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
                 } catch (Exception primary) {
                     List<Exception> replacementRollbackFailures = new List<Exception>();
@@ -859,8 +860,8 @@ namespace helengine.editor {
                 parentFd,
                 sourceName,
                 sourceIdentity,
-                destinationPath,
-                recoveryIntent: "PublishIntendedDestination",
+                sourcePath,
+                recoveryIntent: "RollbackPublication",
                 intendedDestinationPath: destinationPath);
             bool published = false;
             List<Exception> rollbackFailures = new List<Exception>();
@@ -872,7 +873,7 @@ namespace helengine.editor {
                 published = true;
                 RenameLinuxNoReplace(parentFd, sourceQuarantineForCreate, parentFd, destinationName, destinationPath, sourceIdentity);
                 EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
-                EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(destinationPath), sourceQuarantineForCreate));
+                EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(sourcePath), sourceQuarantineForCreate));
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 try {
@@ -911,7 +912,7 @@ namespace helengine.editor {
                 sourceName,
                 sourceIdentity,
                 sourcePath,
-                recoveryIntent: "PublishIntendedDestination",
+                recoveryIntent: "RollbackPublication",
                 intendedDestinationPath: destinationPath);
             bool published = false;
             try {
@@ -963,14 +964,14 @@ namespace helengine.editor {
                 sourceName,
                 sourceIdentity,
                 sourcePath,
-                recoveryIntent: "PublishIntendedDestination",
+                recoveryIntent: "RollbackPublication",
                 intendedDestinationPath: destinationPath);
             bool published = false;
             try {
                 published = true;
                 RenameLinuxNoReplace(sourceParentFd, quarantine, destinationParentFd, destinationName, destinationPath, sourceIdentity);
                 EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
-                EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(destinationPath), quarantine));
+                EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(sourcePath), quarantine));
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
