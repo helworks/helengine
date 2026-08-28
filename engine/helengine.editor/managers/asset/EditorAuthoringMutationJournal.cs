@@ -15,20 +15,25 @@ namespace helengine.editor {
         readonly string JournalPath;
         readonly MutationDocument Document;
         readonly EditorAuthoringMutationJournal PreviousCurrent;
+        readonly EditorProjectWriteLock ProjectWriteLock;
         readonly bool Ephemeral;
+        readonly bool SuppressOuterEvents;
         bool Completed;
         int TransientSequence;
 
-        EditorAuthoringMutationJournal(string projectRootPath, string journalPath, MutationDocument document) {
+        EditorAuthoringMutationJournal(string projectRootPath, string journalPath, MutationDocument document, EditorAuthoringMutationJournal previousCurrent, EditorProjectWriteLock projectWriteLock) {
             ProjectRootPath = projectRootPath;
             JournalPath = journalPath;
             Document = document;
+            PreviousCurrent = previousCurrent;
+            ProjectWriteLock = projectWriteLock;
         }
 
-        EditorAuthoringMutationJournal(string projectRootPath, EditorAuthoringMutationJournal previousCurrent) {
+        EditorAuthoringMutationJournal(string projectRootPath, EditorAuthoringMutationJournal previousCurrent, bool suppressOuterEvents) {
             ProjectRootPath = projectRootPath;
             PreviousCurrent = previousCurrent;
             Ephemeral = true;
+            SuppressOuterEvents = suppressOuterEvents;
             Document = new MutationDocument {
                 OperationId = Guid.NewGuid().ToString("N"),
                 Phase = "Prepared",
@@ -36,10 +41,58 @@ namespace helengine.editor {
             };
         }
 
-        internal static IDisposable EnterEphemeral(string projectRootPath) {
-            EditorAuthoringMutationJournal operation = new EditorAuthoringMutationJournal(projectRootPath, Current.Value);
+        internal static IDisposable EnterEphemeral(string projectRootPath, bool suppressOuterEvents = true) {
+            EditorAuthoringMutationJournal operation = new EditorAuthoringMutationJournal(projectRootPath, Current.Value, suppressOuterEvents);
             Current.Value = operation;
             return operation;
+        }
+
+        internal string OperationDirectoryPath => Path.GetDirectoryName(JournalPath);
+
+        internal string CreateDeletingPath(string originalPath) {
+            if (Completed) {
+                throw new InvalidOperationException("The authoring mutation journal is already complete.");
+            }
+            string original = Path.GetFullPath(originalPath);
+            string parent = Path.GetDirectoryName(original);
+            string deletingPath = Path.Combine(parent, ".deleting-" + Document.OperationId + "-" + Path.GetFileName(original));
+            Document.DestinationRelativePath = NormalizeRelativePath(ProjectRootPath, deletingPath);
+            Persist();
+            return deletingPath;
+        }
+
+        internal string CreateStagedPayloadPath(string fileName) {
+            if (Completed) {
+                throw new InvalidOperationException("The authoring mutation journal is already complete.");
+            }
+            if (string.IsNullOrWhiteSpace(fileName) ||
+                fileName.IndexOfAny(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }) >= 0 ||
+                fileName == "." || fileName == "..") {
+                throw new InvalidDataException("The staged authoring payload must be one contained file name.");
+            }
+            string stagedDirectory = Path.Combine(OperationDirectoryPath, "staged");
+            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, stagedDirectory);
+            string stagedPath = Path.Combine(stagedDirectory, fileName);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(stagedPath, OperationDirectoryPath);
+            Document.StagedRelativePath = Path.Combine("staged", fileName).Replace(Path.DirectorySeparatorChar, '/');
+            return stagedPath;
+        }
+
+        internal void RecordStagedPayload(string stagedPath, string exactHash) {
+            if (string.IsNullOrWhiteSpace(exactHash)) {
+                throw new ArgumentException("The staged payload hash must be provided.", nameof(exactHash));
+            }
+            string fullPath = Path.GetFullPath(stagedPath);
+            string stagedPrefix = Path.Combine(OperationDirectoryPath, "staged") + Path.DirectorySeparatorChar;
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!fullPath.StartsWith(stagedPrefix, comparison) || Path.GetDirectoryName(fullPath).Equals(OperationDirectoryPath, comparison)) {
+                throw new InvalidDataException("The staged authoring payload escaped its operation staging directory.");
+            }
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, OperationDirectoryPath);
+            Document.StagedRelativePath = Path.GetRelativePath(OperationDirectoryPath, fullPath).Replace(Path.DirectorySeparatorChar, '/');
+            Document.StagedExactHash = exactHash;
+            Document.Phase = "Staged";
+            Persist();
         }
 
         internal static EditorAuthoringMutationJournal Begin(string projectRootPath, string kind, string sourcePath, string destinationPath) {
@@ -48,33 +101,58 @@ namespace helengine.editor {
             }
             string root = Path.GetFullPath(projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(root, root);
-            string sourceRelativePath = NormalizeRelativePath(root, sourcePath);
-            string destinationRelativePath = NormalizeRelativePath(root, destinationPath);
-            string journalDirectory = Path.Combine(root, "cache", "editor", JournalDirectoryName);
-            EditorAuthoringMutationScope.EnsureDirectory(root, journalDirectory);
-            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(journalDirectory, root);
-            string operationId = Guid.NewGuid().ToString("N");
-            string journalPath = Path.Combine(journalDirectory, operationId + ".json");
-            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(journalPath, journalDirectory);
-            MutationDocument document = new MutationDocument {
-                Version = CurrentVersion,
-                OperationId = operationId,
-                Kind = kind ?? string.Empty,
-                SourceRelativePath = sourceRelativePath,
-                DestinationRelativePath = destinationRelativePath,
-                ExpectedSourceIdentity = CaptureIdentity(root, sourcePath),
-                ExpectedDestinationIdentity = CaptureIdentity(root, destinationPath),
-                Phase = "Prepared",
-                TransientEntries = new List<string>()
-            };
-            WriteDocument(journalPath, document, root, createNew: true);
-            EditorAuthoringMutationJournal journal = new EditorAuthoringMutationJournal(root, journalPath, document);
-            Current.Value = journal;
-            return journal;
+            EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(root);
+            try {
+                string sourceRelativePath = NormalizeRelativePath(root, sourcePath);
+                string destinationRelativePath = NormalizeRelativePath(root, destinationPath);
+                string journalDirectory = Path.Combine(root, "cache", "editor", JournalDirectoryName);
+                EditorAuthoringMutationScope.EnsureDirectory(root, journalDirectory);
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(journalDirectory, root);
+                string operationId = Guid.NewGuid().ToString("N");
+                string operationDirectory = Path.Combine(journalDirectory, operationId);
+                EditorAuthoringMutationScope.EnsureDirectory(root, operationDirectory);
+                string journalPath = Path.Combine(operationDirectory, "document.json");
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(journalPath, operationDirectory);
+                MutationDocument document = new MutationDocument {
+                    Version = CurrentVersion,
+                    OperationId = operationId,
+                    Kind = kind ?? string.Empty,
+                    SourceRelativePath = sourceRelativePath,
+                    DestinationRelativePath = destinationRelativePath,
+                    ExpectedSourceIdentity = CaptureIdentity(root, sourcePath),
+                    ExpectedDestinationIdentity = CaptureIdentity(root, destinationPath),
+                    Phase = "Prepared",
+                    TransientEntries = new List<string>()
+                };
+                try {
+                    WriteDocument(journalPath, document, root, createNew: true);
+                } catch (Exception primaryException) {
+                    try {
+                        EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, operationDirectory, journalDirectory);
+                    } catch (Exception cleanupException) {
+                        throw new AggregateException("Authoring mutation journal construction failed and cleanup failed.", primaryException, cleanupException);
+                    }
+                    throw;
+                }
+                EditorAuthoringMutationJournal journal = new EditorAuthoringMutationJournal(root, journalPath, document, Current.Value, projectWriteLock);
+                Current.Value = journal;
+                projectWriteLock = null;
+                return journal;
+            } catch (Exception primaryException) {
+                try {
+                    projectWriteLock?.Dispose();
+                } catch (Exception cleanupException) {
+                    throw new AggregateException("Authoring mutation journal construction failed and lock cleanup failed.", primaryException, cleanupException);
+                }
+                throw;
+            }
         }
 
         internal static string ReserveTransientName(string originalName) {
-            EditorAuthoringMutationJournal journal = Current.Value;
+            if (Current.Value?.Ephemeral == true && Current.Value.SuppressOuterEvents) {
+                return ".deleting-ephemeral-" + Guid.NewGuid().ToString("N") + "-" + Path.GetFileName(originalName);
+            }
+            EditorAuthoringMutationJournal journal = DurableCurrent;
             if (journal == null) {
                 return ".authoring-mutation-untracked-" + Guid.NewGuid().ToString("N");
             }
@@ -95,11 +173,11 @@ namespace helengine.editor {
         }
 
         internal static void MarkCurrentPhase(string phase) {
-            Current.Value?.MarkPhase(phase);
+            DurableCurrent?.MarkPhase(phase);
         }
 
         internal static void SetCurrentExpectedIdentities(string sourceIdentity, string destinationIdentity = null) {
-            EditorAuthoringMutationJournal journal = Current.Value;
+            EditorAuthoringMutationJournal journal = DurableCurrent;
             if (journal == null || journal.Completed) {
                 return;
             }
@@ -110,63 +188,111 @@ namespace helengine.editor {
             journal.Persist();
         }
 
+        static EditorAuthoringMutationJournal DurableCurrent {
+            get {
+                EditorAuthoringMutationJournal journal = Current.Value;
+                if (journal?.Ephemeral == true && journal.SuppressOuterEvents) {
+                    return null;
+                }
+                while (journal != null && journal.Ephemeral) {
+                    journal = journal.PreviousCurrent;
+                }
+                return journal;
+            }
+        }
+
         internal void Complete() {
             if (Completed) {
                 return;
             }
-            Document.Phase = "Completed";
-            Persist();
-            Completed = true;
-            if (ReferenceEquals(Current.Value, this)) {
-                Current.Value = null;
-            }
-            // The completed document is a recoverable cleanup marker. A failed
-            // retirement must not make a successful namespace mutation appear
-            // unsuccessful or re-enter this journal while deleting itself.
             try {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(JournalPath, ProjectRootPath);
-                EditorAuthoringMutationScope.DeleteLeafWithoutJournal(ProjectRootPath, JournalPath);
-            } catch {
-                // Startup recovery removes completed documents after validating
-                // their contained journal path.
+                Document.Phase = "Completed";
+                Persist();
+                Completed = true;
+                if (ReferenceEquals(Current.Value, this)) {
+                    Current.Value = PreviousCurrent;
+                }
+                // The completed document is a recoverable cleanup marker. A failed
+                // retirement must not make a successful namespace mutation appear
+                // unsuccessful or re-enter this journal while deleting itself.
+                try {
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(JournalPath, ProjectRootPath);
+                    RetireDocument(ProjectRootPath, JournalPath);
+                } catch {
+                    // Startup recovery removes completed documents after validating
+                    // their contained journal path.
+                }
+            } finally {
+                ProjectWriteLock?.Dispose();
             }
         }
 
         internal static void Recover(string projectRootPath) {
             string root = Path.GetFullPath(projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(root, root);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(root);
             string journalDirectory = Path.Combine(root, "cache", "editor", JournalDirectoryName);
             if (!Directory.Exists(journalDirectory)) {
                 return;
             }
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(journalDirectory, root);
-            string[] files = Directory.GetFiles(journalDirectory, "*.json", SearchOption.TopDirectoryOnly);
-            Array.Sort(files, StringComparer.Ordinal);
-            foreach (string path in files) {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, journalDirectory);
+            string[] operationEntries = Directory.GetFileSystemEntries(journalDirectory, "*", SearchOption.TopDirectoryOnly);
+            Array.Sort(operationEntries, StringComparer.Ordinal);
+            foreach (string operationDirectory in operationEntries) {
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(operationDirectory, journalDirectory);
+                if (!Directory.Exists(operationDirectory) || !Guid.TryParseExact(Path.GetFileName(operationDirectory), "N", out _)) {
+                    throw new InvalidDataException($"The authoring mutation root contains an unexpected entry '{operationDirectory}'.");
+                }
+                string path = Path.Combine(operationDirectory, "document.json");
+                string nextPath = Path.Combine(operationDirectory, "document.next");
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, operationDirectory);
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(nextPath, operationDirectory);
+                bool hasDocument = EntryExists(root, path);
+                bool hasNextDocument = EntryExists(root, nextPath);
+                if (!hasDocument && !hasNextDocument) {
+                    throw new InvalidDataException($"The authoring mutation operation '{operationDirectory}' has no document.");
+                }
+                if (hasNextDocument) {
+                    MutationDocument nextDocument = TryReadDocument(nextPath, root, allowNextDocument: true);
+                    if (nextDocument == null) {
+                        if (hasDocument) {
+                            EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, nextPath);
+                        } else {
+                            throw new InvalidDataException($"The authoring mutation operation '{operationDirectory}' has no valid document.");
+                        }
+                    } else if (!hasDocument) {
+                        using EditorAuthoringMutationScope operationScope = EditorAuthoringMutationScope.AcquireForMutation(root, operationDirectory);
+                        operationScope.ReplaceLeafWithoutJournal(nextPath, path, false);
+                    } else {
+                        EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, nextPath);
+                    }
+                }
                 MutationDocument document;
                 try {
-                    document = JsonSerializer.Deserialize<MutationDocument>(
-                        Encoding.UTF8.GetString(EditorAuthoringMutationScope.ReadAllBytes(root, path)));
+                    document = ReadDocument(path, root);
                 } catch (Exception exception) {
                     throw new InvalidDataException($"The authoring mutation journal '{path}' is malformed.", exception);
                 }
-                ValidateDocument(document, path, root);
+                ValidateDocument(document, path, root, allowNextDocument: false);
+                ValidateOperationEntries(root, operationDirectory, document);
                 if (string.Equals(document.Phase, "Prepared", StringComparison.Ordinal)) {
-                    EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, path);
+                    if (document.Kind.StartsWith("delete", StringComparison.Ordinal) &&
+                        TryRecoverDeleteBeforePublished(root, path, document)) {
+                        continue;
+                    }
+                    RetireDocument(root, path);
+                    continue;
+                }
+                if (string.Equals(document.Phase, "Staged", StringComparison.Ordinal)) {
+                    RecoverStagedDocument(root, path, document);
                     continue;
                 }
                 if (string.Equals(document.Phase, "Quarantining", StringComparison.Ordinal)) {
-                    string sourcePath = Path.Combine(root, document.SourceRelativePath.Replace('/', Path.DirectorySeparatorChar));
-                    string sourceParent = Path.GetDirectoryName(sourcePath);
-                    for (int transientIndex = 0; transientIndex < document.TransientEntries.Count; transientIndex++) {
-                        string transientPath = Path.Combine(sourceParent, document.TransientEntries[transientIndex]);
-                        if (File.Exists(transientPath) && !File.Exists(sourcePath)) {
-                            EditorAuthoringMutationScope.MoveLeaf(root, transientPath, sourcePath);
-                        }
+                    if (document.Kind.StartsWith("delete", StringComparison.Ordinal) &&
+                        TryRecoverDeleteBeforePublished(root, path, document)) {
+                        continue;
                     }
-                    if (File.Exists(sourcePath)) {
-                        EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, path);
+                    if (TryRecoverQuarantiningDocument(root, path, document)) {
                         continue;
                     }
                 }
@@ -182,6 +308,134 @@ namespace helengine.editor {
             }
         }
 
+        static bool EntryExists(string root, string path) {
+            string identity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, path);
+            if (identity == "unavailable") {
+                throw new InvalidDataException($"Could not verify authoring mutation entry '{path}'.");
+            }
+            return identity != "missing";
+        }
+
+        static void ValidateOperationEntries(string root, string operationDirectory, MutationDocument document) {
+            foreach (string entry in Directory.GetFileSystemEntries(operationDirectory, "*", SearchOption.TopDirectoryOnly)) {
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(entry, operationDirectory);
+                string name = Path.GetFileName(entry);
+                if (!string.Equals(name, "document.json", StringComparison.Ordinal) &&
+                    !string.Equals(name, "document.next", StringComparison.Ordinal) &&
+                    !string.Equals(name, "staged", StringComparison.Ordinal) &&
+                    !string.Equals(name, "backups", StringComparison.Ordinal) &&
+                    !string.Equals(name, "deleting", StringComparison.Ordinal)) {
+                    throw new InvalidDataException($"The authoring mutation operation contains an unexpected artifact '{entry}'.");
+                }
+                if (name is "staged" or "backups" or "deleting") {
+                    if (!Directory.Exists(entry)) {
+                        throw new InvalidDataException($"The authoring mutation artifact '{entry}' must be a directory.");
+                    }
+                    EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(entry, operationDirectory);
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(document.StagedRelativePath)) {
+                string stagedPath = Path.GetFullPath(Path.Combine(operationDirectory, document.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+                string stagedPrefix = Path.Combine(operationDirectory, "staged") + Path.DirectorySeparatorChar;
+                StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                if (!stagedPath.StartsWith(stagedPrefix, comparison)) {
+                    throw new InvalidDataException("The staged authoring payload escaped its operation directory.");
+                }
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(stagedPath, operationDirectory);
+                string stagedDirectory = Path.Combine(operationDirectory, "staged");
+                if (Directory.Exists(stagedDirectory)) {
+                    foreach (string stagedEntry in Directory.GetFileSystemEntries(stagedDirectory, "*", SearchOption.TopDirectoryOnly)) {
+                        if (!string.Equals(Path.GetFullPath(stagedEntry), stagedPath, comparison)) {
+                            throw new InvalidDataException($"The staged authoring operation contains an unexpected payload '{stagedEntry}'.");
+                        }
+                    }
+                }
+            } else {
+                string stagedDirectory = Path.Combine(operationDirectory, "staged");
+                if (Directory.Exists(stagedDirectory) && Directory.GetFileSystemEntries(stagedDirectory).Length != 0) {
+                    throw new InvalidDataException("The staged authoring operation contains an unrecorded payload.");
+                }
+            }
+        }
+
+        static bool TryRecoverDeleteBeforePublished(string root, string journalPath, MutationDocument document) {
+            string sourcePath = Path.Combine(root, document.SourceRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string deletingPath = Path.Combine(root, document.DestinationRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string sourceIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, sourcePath);
+            string deletingIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, deletingPath);
+            if (sourceIdentity == document.ExpectedSourceIdentity && deletingIdentity == "missing") {
+                RetireDocument(root, journalPath);
+                return true;
+            }
+            if (sourceIdentity == "missing" && deletingIdentity == document.ExpectedSourceIdentity) {
+                if (document.Kind.Equals("delete-directory", StringComparison.Ordinal)) {
+                    EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, deletingPath, Path.GetDirectoryName(deletingPath));
+                } else {
+                    EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, deletingPath);
+                }
+                RetireDocument(root, journalPath);
+                return true;
+            }
+            if (sourceIdentity == "missing" && deletingIdentity == "missing") {
+                throw new InvalidOperationException($"The authoring deletion '{journalPath}' lost its source and deleting entry.");
+            }
+            throw new InvalidOperationException($"The authoring deletion '{journalPath}' found conflicting source and deleting entries.");
+        }
+
+        static bool TryRecoverQuarantiningDocument(string root, string journalPath, MutationDocument document) {
+            string sourcePath = Path.Combine(root, document.SourceRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string destinationPath = Path.Combine(root, document.DestinationRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string sourceIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, sourcePath);
+            string destinationIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationPath);
+
+            // A rename/exchange may have completed before the durable phase
+            // update. Treat the destination as published only when its inode
+            // is exactly the one proved before the operation; no name-only
+            // recovery is allowed.
+            if (sourceIdentity == "missing" && destinationIdentity == document.ExpectedSourceIdentity) {
+                string sourceParent = Path.GetDirectoryName(sourcePath);
+                for (int transientIndex = 0; transientIndex < document.TransientEntries.Count; transientIndex++) {
+                    string transientPath = Path.Combine(sourceParent, document.TransientEntries[transientIndex]);
+                    string transientIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, transientPath);
+                    if (transientIdentity == "missing") {
+                        continue;
+                    }
+                    if (transientIdentity != document.ExpectedDestinationIdentity) {
+                        throw new InvalidOperationException($"The authoring mutation '{journalPath}' found a changed quarantine entry.");
+                    }
+                    EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, transientPath);
+                }
+                RetireDocument(root, journalPath);
+                return true;
+            }
+
+            // If the operation stopped after quarantine but before publication,
+            // return the verified source inode to its original name.
+            if (sourceIdentity == "missing") {
+                string sourceParent = Path.GetDirectoryName(sourcePath);
+                for (int transientIndex = 0; transientIndex < document.TransientEntries.Count; transientIndex++) {
+                    string transientPath = Path.Combine(sourceParent, document.TransientEntries[transientIndex]);
+                    string transientIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, transientPath);
+                    if (transientIdentity == "missing") {
+                        continue;
+                    }
+                    if (transientIdentity != document.ExpectedSourceIdentity) {
+                        throw new InvalidOperationException($"The authoring mutation '{journalPath}' found a changed quarantine entry.");
+                    }
+                    EditorAuthoringMutationScope.MoveLeaf(root, transientPath, sourcePath);
+                }
+                sourceIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, sourcePath);
+            }
+
+            if (sourceIdentity == document.ExpectedSourceIdentity &&
+                (destinationIdentity == document.ExpectedDestinationIdentity ||
+                 string.Equals(document.SourceRelativePath, document.DestinationRelativePath, StringComparison.Ordinal))) {
+                RetireDocument(root, journalPath);
+                return true;
+            }
+            throw new InvalidOperationException($"The authoring mutation '{journalPath}' is unresolved; startup is blocked until it is repaired.");
+        }
+
         void Persist() {
             if (Ephemeral) {
                 return;
@@ -193,12 +447,33 @@ namespace helengine.editor {
             if (ReferenceEquals(Current.Value, this)) {
                 Current.Value = PreviousCurrent;
             }
+            // Complete normally releases this handle in its finally block;
+            // retry it here as well when release itself reported a failure so
+            // a using-boundary can make disposal retryable.
+            ProjectWriteLock?.Dispose();
         }
 
         static void WriteDocument(string path, MutationDocument document, string root, bool createNew) {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, Path.GetDirectoryName(path));
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(document, new JsonSerializerOptions { WriteIndented = false });
-            EditorAuthoringMutationScope.WriteAllBytesAtomicallyWithoutJournal(root, path, bytes, !createNew);
+            string operationDirectory = Path.GetDirectoryName(path);
+            string nextPath = Path.Combine(operationDirectory, "document.next");
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(nextPath, operationDirectory);
+            // Keep the operation namespace limited to its fixed artifacts. The
+            // next document is written through its verified handle and then
+            // atomically promoted; an incomplete next document is discarded
+            // only after the current document has been proved valid by Recover.
+            using (EditorAuthoringMutationScope operationWriteScope = EditorAuthoringMutationScope.AcquireForMutation(root, operationDirectory))
+            using (EditorAuthoringVerifiedFile nextDocument = operationWriteScope.OpenVerifiedFile(
+                nextPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None)) {
+                nextDocument.Stream.Write(bytes, 0, bytes.Length);
+                nextDocument.Stream.Flush(true);
+            }
+            using EditorAuthoringMutationScope operationScope = EditorAuthoringMutationScope.AcquireForMutation(root, operationDirectory);
+            operationScope.ReplaceLeafWithoutJournal(nextPath, path, replaceExisting: !createNew);
         }
 
         static string NormalizeRelativePath(string root, string path) {
@@ -225,7 +500,7 @@ namespace helengine.editor {
             }
         }
 
-        static void ValidateDocument(MutationDocument document, string path, string root) {
+        static void ValidateDocument(MutationDocument document, string path, string root, bool allowNextDocument = false) {
             if (document == null || document.Version != CurrentVersion || string.IsNullOrWhiteSpace(document.OperationId) ||
                 !Guid.TryParseExact(document.OperationId, "N", out _) || string.IsNullOrWhiteSpace(document.Kind) ||
                 string.IsNullOrWhiteSpace(document.Phase) ||
@@ -239,6 +514,7 @@ namespace helengine.editor {
                 throw new InvalidDataException($"The authoring mutation journal '{path}' is missing entry identity proofs.");
             }
             if (!string.Equals(document.Phase, "Prepared", StringComparison.Ordinal) &&
+                !string.Equals(document.Phase, "Staged", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Quarantining", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Published", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Completed", StringComparison.Ordinal)) {
@@ -246,7 +522,12 @@ namespace helengine.editor {
             }
             string journalDirectory = Path.Combine(root, "cache", "editor", JournalDirectoryName);
             string expectedPrefix = Path.GetFullPath(journalDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (!Path.GetFullPath(path).StartsWith(expectedPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) {
+            string operationDirectory = Path.GetDirectoryName(Path.GetFullPath(path));
+            StringComparison pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!operationDirectory.StartsWith(expectedPrefix, pathComparison) ||
+                !Guid.TryParseExact(Path.GetFileName(operationDirectory), "N", out _) ||
+                !(string.Equals(Path.GetFileName(path), "document.json", StringComparison.Ordinal) ||
+                  (allowNextDocument && string.Equals(Path.GetFileName(path), "document.next", StringComparison.Ordinal)))) {
                 throw new InvalidDataException("The authoring mutation journal escaped its project journal directory.");
             }
             foreach (string transient in document.TransientEntries) {
@@ -278,19 +559,20 @@ namespace helengine.editor {
             string destinationPath = Path.Combine(root, document.DestinationRelativePath.Replace('/', Path.DirectorySeparatorChar));
             string destinationIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationPath);
             if (document.Kind.StartsWith("delete", StringComparison.Ordinal)) {
-                if (destinationIdentity != "missing") {
-                    throw new InvalidOperationException($"The published authoring deletion '{journalPath}' found an unexpected destination entry.");
+                if (destinationIdentity == "missing") {
+                    if (EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, sourcePath) != "missing") {
+                        throw new InvalidOperationException($"The published authoring deletion '{journalPath}' found the original entry alongside its deleting entry.");
+                    }
+                    RetireDocument(root, journalPath);
+                    return;
                 }
-                for (int index = 0; index < document.TransientEntries.Count; index++) {
-                    string transientPath = Path.Combine(Path.GetDirectoryName(sourcePath), document.TransientEntries[index]);
-                    string transientIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, transientPath);
-                    if (transientIdentity == "missing") {
-                        continue;
-                    }
-                    if (!string.Equals(transientIdentity, document.ExpectedSourceIdentity, StringComparison.Ordinal)) {
-                        throw new InvalidOperationException($"The published authoring deletion '{journalPath}' found a changed quarantine entry.");
-                    }
-                    EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, transientPath);
+                if (!string.Equals(destinationIdentity, document.ExpectedSourceIdentity, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException($"The published authoring deletion '{journalPath}' found a changed deleting entry.");
+                }
+                if (document.Kind.Equals("delete-directory", StringComparison.Ordinal)) {
+                    EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, destinationPath, Path.GetDirectoryName(destinationPath));
+                } else {
+                    EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, destinationPath);
                 }
                 RetireDocument(root, journalPath);
                 return;
@@ -317,8 +599,56 @@ namespace helengine.editor {
             RetireDocument(root, journalPath);
         }
 
+        static void RecoverStagedDocument(string root, string journalPath, MutationDocument document) {
+            if (string.IsNullOrWhiteSpace(document.StagedRelativePath) || string.IsNullOrWhiteSpace(document.StagedExactHash)) {
+                throw new InvalidDataException($"The staged authoring mutation '{journalPath}' has no staged payload proof.");
+            }
+            string operationDirectory = Path.GetDirectoryName(journalPath);
+            string stagedPath = Path.GetFullPath(Path.Combine(operationDirectory, document.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            string stagedPrefix = Path.Combine(operationDirectory, "staged") + Path.DirectorySeparatorChar;
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!stagedPath.StartsWith(stagedPrefix, comparison)) {
+                throw new InvalidDataException($"The staged authoring mutation '{journalPath}' escaped its staging directory.");
+            }
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(stagedPath, operationDirectory);
+            string stagedHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, stagedPath);
+            string destinationPath = Path.Combine(root, document.DestinationRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            string destinationHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationPath);
+            if (string.Equals(stagedHash, document.StagedExactHash, StringComparison.Ordinal) &&
+                string.Equals(destinationHash, document.StagedExactHash, StringComparison.Ordinal)) {
+                RetireDocument(root, journalPath);
+                return;
+            }
+            if (string.Equals(stagedHash, document.StagedExactHash, StringComparison.Ordinal) && destinationHash == "missing") {
+                using (EditorAuthoringMutationScope stagedScope = EditorAuthoringMutationScope.AcquireForMutation(root, Path.GetDirectoryName(stagedPath)))
+                using (EditorAuthoringMutationScope destinationScope = EditorAuthoringMutationScope.AcquireForMutation(root, Path.GetDirectoryName(destinationPath))) {
+                    stagedScope.MoveLeafToPinnedDestination(stagedPath, destinationPath, destinationScope);
+                }
+                RetireDocument(root, journalPath);
+                return;
+            }
+            throw new InvalidOperationException($"The staged authoring mutation '{journalPath}' has an ambiguous destination state.");
+        }
+
         static void RetireDocument(string root, string journalPath) {
-            EditorAuthoringMutationScope.DeleteLeafWithoutJournal(root, journalPath);
+            string operationDirectory = Path.GetDirectoryName(journalPath);
+            string journalDirectory = Path.GetDirectoryName(operationDirectory);
+            EditorAuthoringMutationScope.DeleteDirectoryTreeWithoutJournal(root, operationDirectory, journalDirectory);
+        }
+
+        static MutationDocument ReadDocument(string path, string root) {
+            return JsonSerializer.Deserialize<MutationDocument>(
+                Encoding.UTF8.GetString(EditorAuthoringMutationScope.ReadAllBytes(root, path)));
+        }
+
+        static MutationDocument TryReadDocument(string path, string root, bool allowNextDocument = false) {
+            try {
+                MutationDocument document = ReadDocument(path, root);
+                ValidateDocument(document, path, root, allowNextDocument);
+                return document;
+            } catch {
+                return null;
+            }
         }
 
         sealed class MutationDocument {
@@ -329,6 +659,8 @@ namespace helengine.editor {
             public string DestinationRelativePath { get; set; }
             public string ExpectedSourceIdentity { get; set; }
             public string ExpectedDestinationIdentity { get; set; }
+            public string StagedRelativePath { get; set; }
+            public string StagedExactHash { get; set; }
             public string Phase { get; set; }
             public List<string> TransientEntries { get; set; }
         }

@@ -850,9 +850,28 @@ namespace helengine.editor {
             UpdateLayout(renderWidth, renderHeight);
             PromptForPlatformSelectionIfRequired();
             authoringSessionOwnershipTransferred = true;
-            } catch {
+            } catch (Exception primaryException) {
                 if (!authoringSessionOwnershipTransferred) {
-                    concreteAuthoringSession.Dispose();
+                    List<Exception> cleanupFailures = new List<Exception>();
+                    void AttemptConstructionCleanup(Action cleanup) {
+                        try {
+                            cleanup();
+                        } catch (Exception cleanupException) {
+                            cleanupFailures.Add(cleanupException);
+                        }
+                    }
+
+                    AttemptConstructionCleanup(() => shaderModuleManager?.Dispose());
+                    AttemptConstructionCleanup(() => scriptHotReloadService?.Dispose());
+                    AttemptConstructionCleanup(() => sceneAssetReferenceResolver?.Dispose());
+                    AttemptConstructionCleanup(() => SceneSaveService?.Dispose());
+                    AttemptConstructionCleanup(() => SceneFileLoadService?.Dispose());
+                    AttemptConstructionCleanup(() => concreteAuthoringSession.Dispose());
+                    AttemptConstructionCleanup(() => core.Dispose());
+                    if (cleanupFailures.Count > 0) {
+                        cleanupFailures.Insert(0, primaryException);
+                        throw new AggregateException("Editor session construction failed and cleanup also failed.", cleanupFailures);
+                    }
                 }
                 throw;
             }
@@ -1698,50 +1717,50 @@ namespace helengine.editor {
             try {
                 Attempt(EditorInputCaptureService.Reset);
             Attempt(ClearSceneSelectionBeforeTeardown);
-            assetBrowserPanel.AssetSelected -= HandleAssetSelected;
-            assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared;
-            propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;
-            EditorSelectionService.SelectionChanged -= HandleSelectionChanged;
-            EditorAssetPickerService.PickRequested -= HandleAssetPickRequested;
-            EditorMeshModifierPickerService.PickRequested -= HandleMeshModifierPickRequested;
-            EditorSceneMutationService.SceneMutated -= HandleSceneMutated;
-            EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression;
+                Attempt(() => { if (assetBrowserPanel != null) assetBrowserPanel.AssetSelected -= HandleAssetSelected; });
+                Attempt(() => { if (assetBrowserPanel != null) assetBrowserPanel.SelectionCleared -= HandleAssetSelectionCleared; });
+                Attempt(() => { if (propertiesPanel != null) propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested; });
+                Attempt(() => EditorSelectionService.SelectionChanged -= HandleSelectionChanged);
+                Attempt(() => EditorAssetPickerService.PickRequested -= HandleAssetPickRequested);
+                Attempt(() => EditorMeshModifierPickerService.PickRequested -= HandleMeshModifierPickRequested);
+                Attempt(() => EditorSceneMutationService.SceneMutated -= HandleSceneMutated);
+                Attempt(() => EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression);
             Attempt(EditorEntityHistoryMutationService.Reset);
             Attempt(EditorComponentHistoryMutationService.Reset);
-            sceneHierarchyPanel.ReparentRequested -= HandleSceneHierarchyReparentRequested;
-            titleBar.NewMapRequested -= HandleNewMapRequested;
-            titleBar.OpenMapRequested -= HandleOpenMapRequested;
-            titleBar.SaveMapRequested -= HandleSaveMapRequested;
-            titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested;
-            titleBar.SceneSettingsRequested -= HandleSceneSettingsRequested;
-            titleBar.PreferencesRequested -= HandlePreferencesRequested;
-            titleBar.BuildRequested -= HandleBuildRequested;
-            titleBar.EnvironmentsRequested -= HandleEnvironmentsRequested;
-            titleBar.ExportSceneRequested -= HandleExportSceneRequested;
-            titleBar.PlatformsRequested -= HandlePlatformsRequested;
-            titleBar.ProfilesRequested -= HandleProfilesRequested;
-            titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested;
-            titleBar.OpenInIDERequested -= HandleOpenInIDERequested;
-            titleBar.ProjectMenuItemRequested -= HandleProjectMenuItemRequested;
-            titleBar.UiMenuActionRequested -= HandleUiMenuActionRequested;
-            titleBar.AddEmptyRequested -= HandleAddEmptyRequested;
-            titleBar.AddCubeRequested -= HandleAddCubeRequested;
-            titleBar.AddPlaneRequested -= HandleAddPlaneRequested;
-            titleBar.AddCameraRequested -= HandleAddCameraRequested;
-            titleBar.AddSpotLightRequested -= HandleAddSpotLightRequested;
-            titleBar.AddPointLightRequested -= HandleAddPointLightRequested;
-            titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested;
-            titleBar.AddAmbientLightRequested -= HandleAddAmbientLightRequested;
-            DetachScaleSensitiveDialogHandlers();
+                Attempt(() => { if (sceneHierarchyPanel != null) sceneHierarchyPanel.ReparentRequested -= HandleSceneHierarchyReparentRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.NewMapRequested -= HandleNewMapRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.OpenMapRequested -= HandleOpenMapRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.SaveMapRequested -= HandleSaveMapRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.SceneSettingsRequested -= HandleSceneSettingsRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.PreferencesRequested -= HandlePreferencesRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.BuildRequested -= HandleBuildRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.EnvironmentsRequested -= HandleEnvironmentsRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.ExportSceneRequested -= HandleExportSceneRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.PlatformsRequested -= HandlePlatformsRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.ProfilesRequested -= HandleProfilesRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.OpenInIDERequested -= HandleOpenInIDERequested; });
+                Attempt(() => { if (titleBar != null) titleBar.ProjectMenuItemRequested -= HandleProjectMenuItemRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.UiMenuActionRequested -= HandleUiMenuActionRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.AddEmptyRequested -= HandleAddEmptyRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.AddCubeRequested -= HandleAddCubeRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.AddPlaneRequested -= HandleAddPlaneRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.AddCameraRequested -= HandleAddCameraRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.AddSpotLightRequested -= HandleAddSpotLightRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.AddPointLightRequested -= HandleAddPointLightRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested; });
+                Attempt(() => { if (titleBar != null) titleBar.AddAmbientLightRequested -= HandleAddAmbientLightRequested; });
+                Attempt(DetachScaleSensitiveDialogHandlers);
             Attempt(scriptHotReloadService.Dispose);
             IReadOnlyList<EditorViewport> viewports = GetViewportPanels();
             for (int index = 0; index < viewports.Count; index++) {
                 viewports[index].ClearInputBlockers();
             }
             Attempt(HideScaleSensitiveDialogs);
-            shaderModuleManager.ShaderBuilt -= HandleShaderBuilt;
-            Attempt(shaderModuleManager.Dispose);
-            DetachTrackedWorkspacePanelsForDispose();
+                Attempt(() => { if (shaderModuleManager != null) shaderModuleManager.ShaderBuilt -= HandleShaderBuilt; });
+                Attempt(() => shaderModuleManager?.Dispose());
+                Attempt(DetachTrackedWorkspacePanelsForDispose);
             Attempt(DisposeScaleSensitiveDialogs);
             Attempt(EditorKeyboardFocusService.Reset);
             Attempt(UntrackCurrentSceneFromSceneManager);
@@ -2109,6 +2128,7 @@ namespace helengine.editor {
                 session.CurrentUiMetrics,
                 fileSystemFontResolver,
                 session.projectPath);
+            panel.ShaderPackageService = session.shaderPackageService;
             panel.HistoryMutationService = session.HistoryMutationService;
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
         }

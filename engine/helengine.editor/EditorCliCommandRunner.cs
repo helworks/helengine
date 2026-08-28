@@ -50,6 +50,10 @@ namespace helengine.editor {
             core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
+            // Authoring startup owns recovery and importer/index initialization.
+            // Keep it ahead of shader workers so no background scan can observe
+            // an unresolved project namespace.
+            using IEditorProjectAuthoringSession authoring = AuthoringSessionFactory.CreateSession(bootstrap.ProjectRootPath);
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
             EditorBuiltInShaderAssetLibrary.ConfigureShaderBackends(shaderBackendRegistry);
             ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
@@ -61,14 +65,13 @@ namespace helengine.editor {
                 false,
                 false,
                 Array.Empty<ShaderDefine>());
-            ShaderModuleManager shaderModuleManager = new ShaderModuleManager(new ShaderModuleManagerOptions(
+            using ShaderModuleManager shaderModuleManager = new ShaderModuleManager(new ShaderModuleManagerOptions(
                 Path.Combine(bootstrap.ProjectRootPath, "assets"),
                 Path.Combine(bootstrap.ProjectRootPath, "cache", "shader-cache"),
                 shaderPackageBuildOptions,
                 runtimeTarget,
                 shaderBackendRegistry,
                 250));
-            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(bootstrap.ProjectRootPath, shaderModuleManager, runtimeTarget, core.ContentManager);
             shaderModuleManager.Start();
 
             EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(bootstrap.ProjectRootPath);
@@ -90,7 +93,6 @@ namespace helengine.editor {
                 return buildResult;
             }
 
-            using IEditorProjectAuthoringSession authoring = AuthoringSessionFactory.CreateSession(bootstrap.ProjectRootPath);
             EditorCommandContext commandContext = new EditorCommandContext(
                 bootstrap.ProjectRootPath,
                 assemblyHost.ScriptTypeResolver,

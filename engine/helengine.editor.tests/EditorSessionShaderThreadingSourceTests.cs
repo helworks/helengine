@@ -9,7 +9,7 @@ public sealed class EditorSessionShaderThreadingSourceTests {
     /// </summary>
     [Fact]
     public void Editor_session_shader_reload_source_queues_renderer_invalidations_to_the_frame_thread() {
-        string sourcePath = @"C:\dev\helworks\helengine\engine\helengine.editor\EditorSession.cs";
+        string sourcePath = ResolveCurrentWorktreeSource("helengine.editor", "EditorSession.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("ProcessPendingShaderBuildNotifications();", source, StringComparison.Ordinal);
@@ -19,5 +19,18 @@ public sealed class EditorSessionShaderThreadingSourceTests {
             "void HandleShaderBuilt(string shaderName, string packagePath) {\r\n            if (string.IsNullOrWhiteSpace(packagePath)) {\r\n                return;\r\n            }\r\n\r\n            try {\r\n                ShaderAsset shaderAsset = shaderPackageService.LoadShaderAssetFromPackage(packagePath);\r\n                string shaderAssetId = string.IsNullOrWhiteSpace(shaderAsset.Id) ? shaderName : shaderPackageService.LoadShaderAssetFromPackage(packagePath).Id;\r\n                core.RenderManager3D.InvalidateShaderResources(shaderAssetId, shaderAsset);",
             source,
             StringComparison.Ordinal);
+    }
+
+    static string ResolveCurrentWorktreeSource(string projectDirectoryName, string fileName) {
+        DirectoryInfo current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current != null) {
+            string candidate = Path.Combine(current.FullName, projectDirectoryName, fileName);
+            if (File.Exists(candidate)) {
+                return candidate;
+            }
+            current = current.Parent;
+        }
+
+        throw new FileNotFoundException($"Could not locate '{projectDirectoryName}/{fileName}' from the current test worktree.");
     }
 }

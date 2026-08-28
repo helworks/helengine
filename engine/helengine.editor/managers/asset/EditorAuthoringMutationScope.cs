@@ -1,6 +1,7 @@
 using Microsoft.Win32.SafeHandles;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace helengine.editor {
@@ -204,6 +205,7 @@ namespace helengine.editor {
             EnsureNotDisposed();
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "replace", sourcePath, destinationPath);
             ReplaceLeafCore(sourcePath, destinationPath, replaceExisting);
+            journal.MarkPhase("Published");
             journal.Complete();
         }
 
@@ -561,8 +563,14 @@ namespace helengine.editor {
         /// <summary>Deletes a verified regular-file leaf without following links.</summary>
         internal void DeleteLeaf(string filePath) {
             EnsureNotDisposed();
+            if (CaptureVerifiedIdentity(ProjectRootPath, filePath) == "missing") {
+                return;
+            }
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "delete", filePath, filePath);
-            DeleteLeafCore(filePath);
+            string deletingPath = journal.CreateDeletingPath(filePath);
+            MoveLeafToPinnedDestination(filePath, deletingPath, this);
+            journal.MarkPhase("Published");
+            DeleteLeafCore(deletingPath);
             journal.Complete();
         }
 
@@ -615,32 +623,50 @@ namespace helengine.editor {
             string destinationParent = Path.GetDirectoryName(destination);
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "move", source, destination);
             using EditorAuthoringMutationScope sourceScope = AcquireForMutation(projectRootPath, sourceParent);
-            using EditorAuthoringMutationScope destinationScope = string.Equals(sourceParent, destinationParent, PathComparison)
-                ? null
-                : AcquireForMutation(projectRootPath, destinationParent);
+            // The source is in the operation's staging directory, so the
+            // destination parent must always be pinned explicitly even when
+            // the caller's original source and destination share a folder.
+            using EditorAuthoringMutationScope destinationScope = AcquireForMutation(projectRootPath, destinationParent);
             sourceScope.MoveLeafToPinnedDestination(source, destination, destinationScope);
+            journal.MarkPhase("Published");
             journal.Complete();
         }
 
         /// <summary>Copies one regular-file leaf through verified handles.</summary>
         internal static void CopyLeaf(string projectRootPath, string sourcePath, string destinationPath) {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
             string source = Path.GetFullPath(sourcePath);
             string destination = Path.GetFullPath(destinationPath);
             string sourceParent = Path.GetDirectoryName(source);
             string destinationParent = Path.GetDirectoryName(destination);
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "copy", source, destination);
+            string stagedPath = journal.CreateStagedPayloadPath(Path.GetFileName(destination));
             using EditorAuthoringMutationScope sourceScope = AcquireForMutation(projectRootPath, sourceParent);
-            using EditorAuthoringMutationScope destinationScope = string.Equals(sourceParent, destinationParent, PathComparison)
-                ? null
-                : AcquireForMutation(projectRootPath, destinationParent);
-            using EditorAuthoringVerifiedFile sourceFile = sourceScope.OpenVerifiedFile(source, FileMode.Open, FileAccess.Read, FileShare.Read);
-            using EditorAuthoringVerifiedFile destinationFile = (destinationScope ?? sourceScope).OpenVerifiedFile(
-                destination,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None);
-            sourceFile.Stream.CopyTo(destinationFile.Stream);
-            destinationFile.Stream.Flush(true);
+            using EditorAuthoringMutationScope stagedScope = AcquireForMutation(projectRootPath, Path.GetDirectoryName(stagedPath));
+            {
+                using EditorAuthoringVerifiedFile sourceFile = sourceScope.OpenVerifiedFile(source, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using EditorAuthoringVerifiedFile stagedFile = stagedScope.OpenVerifiedFile(
+                    stagedPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None);
+                using IncrementalHash hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = sourceFile.Stream.Read(buffer, 0, buffer.Length)) > 0) {
+                    stagedFile.Stream.Write(buffer, 0, read);
+                    hasher.AppendData(buffer, 0, read);
+                }
+                stagedFile.Stream.Flush(true);
+                journal.RecordStagedPayload(stagedPath, Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant());
+            }
+
+            // The staged source lives below the operation directory even when
+            // the caller's source and destination originally shared a parent.
+            // Always pin the actual destination parent before publishing it.
+            using EditorAuthoringMutationScope destinationScope = AcquireForMutation(projectRootPath, destinationParent);
+            stagedScope.MoveLeafToPinnedDestination(stagedPath, destination, destinationScope);
+            journal.MarkPhase("Published");
             journal.Complete();
         }
 
@@ -651,7 +677,10 @@ namespace helengine.editor {
             using EditorAuthoringMutationScope scope = AcquireForMutation(
                 projectRootPath,
                 Path.GetDirectoryName(fullPath));
-            scope.DeleteLeafWithoutJournal(fullPath);
+            string deletingPath = journal.CreateDeletingPath(fullPath);
+            scope.MoveLeafToPinnedDestination(fullPath, deletingPath, scope);
+            journal.MarkPhase("Published");
+            scope.DeleteLeafWithoutJournal(deletingPath);
             journal.Complete();
         }
 
@@ -674,6 +703,24 @@ namespace helengine.editor {
                 throw new InvalidDataException("Verified directory moves require one pinned parent.");
             }
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "move-directory", source, destination);
+            MoveDirectoryCore(projectRootPath, source, destination, sourceParent);
+            journal.MarkPhase("Published");
+            journal.Complete();
+        }
+
+        internal static void MoveDirectoryWithoutJournal(string projectRootPath, string sourcePath, string destinationPath) {
+            using IDisposable ephemeralJournal = EditorAuthoringMutationJournal.EnterEphemeral(projectRootPath);
+            string source = Path.GetFullPath(sourcePath);
+            string destination = Path.GetFullPath(destinationPath);
+            string sourceParent = Path.GetDirectoryName(source);
+            string destinationParent = Path.GetDirectoryName(destination);
+            if (!string.Equals(sourceParent, destinationParent, PathComparison)) {
+                throw new InvalidDataException("Verified directory moves require one pinned parent.");
+            }
+            MoveDirectoryCore(projectRootPath, source, destination, sourceParent);
+        }
+
+        static void MoveDirectoryCore(string projectRootPath, string source, string destination, string sourceParent) {
             using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, sourceParent);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, projectRootPath);
@@ -690,7 +737,6 @@ namespace helengine.editor {
             } else if (!OperatingSystem.IsLinux()) {
                 throw CreateUnsupportedPlatformException();
             }
-            journal.Complete();
         }
 
         /// <summary>Creates and pins a directory tree beneath the project root.</summary>
@@ -705,16 +751,30 @@ namespace helengine.editor {
         /// </summary>
         internal static void DeleteDirectoryTree(string projectRootPath, string directoryPath, string containingRoot) {
             string fullPath = Path.GetFullPath(directoryPath);
+            if (CaptureVerifiedIdentity(projectRootPath, fullPath) == "missing") {
+                return;
+            }
             using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(projectRootPath, "delete-directory", fullPath, fullPath);
+            string deletingPath = journal.CreateDeletingPath(fullPath);
+            MoveDirectoryCore(projectRootPath, fullPath, deletingPath, Path.GetDirectoryName(fullPath));
+            journal.MarkPhase("Published");
+            DeleteDirectoryTreeWithoutJournal(projectRootPath, deletingPath, containingRoot);
+            journal.Complete();
+        }
+
+        internal static void DeleteDirectoryTreeWithoutJournal(string projectRootPath, string directoryPath, string containingRoot) {
+            using IDisposable ephemeralJournal = EditorAuthoringMutationJournal.EnterEphemeral(projectRootPath);
+            DeleteDirectoryTreeCore(projectRootPath, Path.GetFullPath(directoryPath), containingRoot);
+        }
+
+        static void DeleteDirectoryTreeCore(string projectRootPath, string fullPath, string containingRoot) {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
             if (!Directory.Exists(fullPath)) {
-                journal.Complete();
                 return;
             }
             EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(fullPath, containingRoot);
             DeleteDirectoryContents(projectRootPath, fullPath, containingRoot);
             DeleteEmptyDirectory(projectRootPath, fullPath, containingRoot);
-            journal.Complete();
         }
 
         static void DeleteDirectoryContents(string projectRootPath, string directoryPath, string containingRoot) {
@@ -730,7 +790,7 @@ namespace helengine.editor {
                     DeleteDirectoryContents(projectRootPath, child, containingRoot);
                     DeleteEmptyDirectory(projectRootPath, child, containingRoot);
                 } else {
-                    scope.DeleteLeaf(child);
+                    scope.DeleteLeafWithoutJournal(child);
                 }
             }
         }
@@ -881,6 +941,18 @@ namespace helengine.editor {
             return bytes.ToArray();
         }
 
+        internal static string TryGetVerifiedSha256(string projectRootPath, string filePath) {
+            try {
+                return Convert.ToHexString(SHA256.HashData(ReadAllBytes(projectRootPath, filePath))).ToLowerInvariant();
+            } catch (FileNotFoundException) {
+                return "missing";
+            } catch (DirectoryNotFoundException) {
+                return "missing";
+            } catch (Win32Exception exception) when (exception.NativeErrorCode == 2 || exception.NativeErrorCode == 3) {
+                return "missing";
+            }
+        }
+
         /// <summary>
         /// Captures the identity of one verified current filesystem entry for a
         /// mutation journal. The value is based on the opened entry rather than
@@ -938,7 +1010,16 @@ namespace helengine.editor {
         /// handles. The temporary leaf is always created exclusively.
         /// </summary>
         internal static void WriteAllBytesAtomically(string projectRootPath, string filePath, byte[] bytes) {
+            string fullPath = Path.GetFullPath(filePath);
+            using EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(
+                projectRootPath,
+                "replace",
+                fullPath,
+                fullPath);
+            journal.MarkPhase("Quarantining");
             WriteAllBytesAtomically(projectRootPath, filePath, bytes, true, true);
+            journal.MarkPhase("Published");
+            journal.Complete();
         }
 
         internal static void WriteAllBytesAtomicallyWithoutJournal(string projectRootPath, string filePath, byte[] bytes, bool replaceExisting = true) {
@@ -974,15 +1055,14 @@ namespace helengine.editor {
                     scope.ReplaceLeafWithoutJournal(temporaryPath, fullPath, replaceExisting);
                 }
             } finally {
-                if (journalOperation) {
-                    scope.DeleteLeaf(temporaryPath);
-                } else {
-                    scope.DeleteLeafWithoutJournal(temporaryPath);
-                }
+                // The replace moves the temporary entry into place. Cleanup
+                // must therefore be a direct verified delete of a possibly
+                // already-absent leaf, not a second journaled operation.
+                scope.DeleteLeafCore(temporaryPath);
             }
         }
 
-        void MoveLeafToPinnedDestination(
+        internal void MoveLeafToPinnedDestination(
             string source,
             string destination,
             EditorAuthoringMutationScope destinationScope) {
@@ -993,7 +1073,11 @@ namespace helengine.editor {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, ProjectRootPath);
             VerifyExistingLeafIfPresent(source);
-            if (File.Exists(destination)) {
+            string destinationIdentity = CaptureVerifiedIdentity(ProjectRootPath, destination);
+            if (destinationIdentity == "unavailable") {
+                throw new InvalidDataException($"Could not verify the destination '{destination}'.");
+            }
+            if (destinationIdentity != "missing") {
                 throw new IOException($"The verified destination '{destination}' already exists.");
             }
             if (OperatingSystem.IsWindows()) {
@@ -1008,6 +1092,9 @@ namespace helengine.editor {
                     Path.GetFileName(destination),
                     false,
                     destinationScope);
+                if (CaptureVerifiedIdentity(ProjectRootPath, destination) == "missing") {
+                    throw new IOException($"Verified rename did not publish '{destination}'.");
+                }
             } else {
                 SafeFileHandle sourceDirectory = Handles[Handles.Count - 1];
                 SafeFileHandle destinationDirectory = destinationScope?.Handles[destinationScope.Handles.Count - 1] ?? sourceDirectory;
@@ -1034,7 +1121,11 @@ namespace helengine.editor {
         }
 
         void VerifyExistingLeafIfPresent(string path) {
-            if (!File.Exists(path)) {
+            string identity = CaptureVerifiedIdentity(ProjectRootPath, path);
+            if (identity == "unavailable") {
+                throw new InvalidDataException($"Could not verify the source '{path}'.");
+            }
+            if (identity == "missing") {
                 return;
             }
             using EditorAuthoringVerifiedFile file = OpenVerifiedFile(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -1357,7 +1448,10 @@ namespace helengine.editor {
         static int PosixOpen(string path, int flags, uint mode) {
             while (true) {
                 int result = NativePosixOpen(path, flags, mode);
-                if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                if (result >= 0) {
+                    return NormalizePosixFileDescriptor(result);
+                }
+                if (Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
             }
@@ -1366,10 +1460,35 @@ namespace helengine.editor {
         static int PosixOpenAt(int directoryFd, string path, int flags, uint mode) {
             while (true) {
                 int result = NativePosixOpenAt(directoryFd, path, flags, mode);
-                if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                if (result >= 0) {
+                    return NormalizePosixFileDescriptor(result);
+                }
+                if (Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
             }
+        }
+
+        static int NormalizePosixFileDescriptor(int fileDescriptor) {
+            if (fileDescriptor < 0 || fileDescriptor >= 3) {
+                return fileDescriptor;
+            }
+            int duplicate;
+            while (true) {
+                duplicate = NativePosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
+                if (duplicate >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
+                    break;
+                }
+            }
+            int closeResult = PosixClose(fileDescriptor);
+            if (duplicate < 0) {
+                return duplicate;
+            }
+            if (closeResult != 0) {
+                PosixClose(duplicate);
+                throw new Win32Exception(Marshal.GetLastPInvokeError(), "Could not normalize the POSIX authoring descriptor.");
+            }
+            return duplicate;
         }
 
         static int PosixDup(int fileDescriptor) {

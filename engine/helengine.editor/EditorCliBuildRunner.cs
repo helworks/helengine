@@ -66,14 +66,13 @@ namespace helengine.editor {
                 false,
                 false,
                 Array.Empty<ShaderDefine>());
-            ShaderModuleManager shaderModuleManager = new ShaderModuleManager(new ShaderModuleManagerOptions(
+            using ShaderModuleManager shaderModuleManager = new ShaderModuleManager(new ShaderModuleManagerOptions(
                 Path.Combine(bootstrap.ProjectRootPath, "assets"),
                 Path.Combine(bootstrap.ProjectRootPath, "cache", "shader-cache"),
                 shaderPackageBuildOptions,
                 runtimeTarget,
                 shaderBackendRegistry,
                 250));
-            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(bootstrap.ProjectRootPath, shaderModuleManager, runtimeTarget, core.ContentManager);
             shaderModuleManager.Start();
 
             Console.WriteLine($"[build] building project scripts for '{options.PlatformId}'");
