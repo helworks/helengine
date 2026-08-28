@@ -381,7 +381,9 @@ namespace helengine.editor {
                             verifiedSourceIdentity,
                             source,
                             projectRootPath,
-                            expectedSourceHash);
+                            expectedSourceHash,
+                            destination,
+                            "PublishIntendedDestination");
                     string publicationSourceName = sourceQuarantine ?? sourceName;
                     try {
                         EnsureLinuxIdentity(sourceParentFd, publicationSourceName, verifiedSourceIdentity, source);
@@ -403,6 +405,9 @@ namespace helengine.editor {
                             destination,
                             verifiedSourceIdentity,
                             null);
+                        if (sourceQuarantine != null) {
+                            EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(sourceParent, sourceQuarantine));
+                        }
                     } catch (Exception primary) {
                         // A post-syscall durability failure leaves the exact
                         // source inode at the destination and the quarantine
@@ -518,7 +523,9 @@ namespace helengine.editor {
                     candidateIdentity,
                     fullPath,
                     projectRootPath,
-                    expectedHash);
+                    expectedHash,
+                    intendedDestinationPath: null,
+                    recoveryIntent: "FinishDelete");
                 try {
                     EnsureLinuxIdentity(parentFd, quarantine, candidateIdentity, fullPath);
                     VerifyExpectedHash(projectRootPath, Path.Combine(parent, quarantine), expectedHash, "quarantined leaf");
@@ -643,7 +650,8 @@ namespace helengine.editor {
                     parentFd,
                     Path.GetFileName(fullPath),
                     candidateIdentity,
-                    fullPath);
+                    fullPath,
+                    recoveryIntent: "FinishDelete");
                 try {
                     using SafeFileHandle directory = OpenPosixDirectory(quarantine, parentScope.Handles[parentScope.Handles.Count - 1]);
                     EnsureLinuxHandleIdentity(directory, candidateIdentity, fullPath);
@@ -755,7 +763,12 @@ namespace helengine.editor {
                             FsyncDirectory(parentFd, directoryPath);
                             continue;
                         }
-                        string quarantine = QuarantineLinuxEntry(parentFd, name, childIdentity, childPath);
+                        string quarantine = QuarantineLinuxEntry(
+                            parentFd,
+                            name,
+                            childIdentity,
+                            childPath,
+                            recoveryIntent: "FinishDelete");
                         try {
                             using SafeFileHandle childDirectory = OpenPosixDirectory(quarantine, directory);
                             EnsureLinuxHandleIdentity(childDirectory, childIdentity, childPath);
@@ -791,7 +804,12 @@ namespace helengine.editor {
                             FsyncDirectory(parentFd, directoryPath);
                             continue;
                         }
-                        string quarantine = QuarantineLinuxEntry(parentFd, name, childIdentity, childPath);
+                        string quarantine = QuarantineLinuxEntry(
+                            parentFd,
+                            name,
+                            childIdentity,
+                            childPath,
+                            recoveryIntent: "FinishDelete");
                         try {
                             using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, quarantine);
                             EnsureLinuxIdentity(parentFd, quarantine, childIdentity, childPath);
@@ -885,10 +903,21 @@ namespace helengine.editor {
             // published and the old inode has been verified for deletion.
             if (destinationExists) {
                 PosixEntryIdentity destinationIdentity = new PosixEntryIdentity(destinationStatus);
-                string sourceQuarantine = QuarantineLinuxEntry(parentFd, sourceName, sourceIdentity, destinationPath);
+                string sourceQuarantine = QuarantineLinuxEntry(
+                    parentFd,
+                    sourceName,
+                    sourceIdentity,
+                    destinationPath,
+                    recoveryIntent: "PublishIntendedDestination",
+                    intendedDestinationPath: destinationPath);
                 string destinationQuarantine = null;
                 try {
-                    destinationQuarantine = QuarantineLinuxEntry(parentFd, destinationName, destinationIdentity, destinationPath);
+                    destinationQuarantine = QuarantineLinuxEntry(
+                        parentFd,
+                        destinationName,
+                        destinationIdentity,
+                        destinationPath,
+                        recoveryIntent: "FinishDelete");
                     EnsureLinuxIdentity(parentFd, sourceQuarantine, sourceIdentity, destinationPath);
                     EnsureLinuxIdentity(parentFd, destinationQuarantine, destinationIdentity, destinationPath);
                     InvokeMutationHook("FixedRename.AfterQuarantineProof");
@@ -899,6 +928,7 @@ namespace helengine.editor {
                     }
                     RenameLinuxNoReplace(parentFd, sourceQuarantine, parentFd, destinationName, destinationPath, sourceIdentity);
                     EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
+                    EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(destinationPath), sourceQuarantine));
                     EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
                     DeleteQuarantinedLinuxEntry(parentFd, destinationQuarantine, destinationIdentity, destinationPath);
                 } catch (Exception primary) {
@@ -934,7 +964,13 @@ namespace helengine.editor {
                 return;
             }
 
-            string sourceQuarantineForCreate = QuarantineLinuxEntry(parentFd, sourceName, sourceIdentity, destinationPath);
+            string sourceQuarantineForCreate = QuarantineLinuxEntry(
+                parentFd,
+                sourceName,
+                sourceIdentity,
+                destinationPath,
+                recoveryIntent: "PublishIntendedDestination",
+                intendedDestinationPath: destinationPath);
             bool published = false;
             List<Exception> rollbackFailures = new List<Exception>();
             try {
@@ -945,6 +981,7 @@ namespace helengine.editor {
                 published = true;
                 RenameLinuxNoReplace(parentFd, sourceQuarantineForCreate, parentFd, destinationName, destinationPath, sourceIdentity);
                 EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
+                EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(destinationPath), sourceQuarantineForCreate));
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 try {
@@ -970,7 +1007,7 @@ namespace helengine.editor {
             }
         }
 
-        static void MoveLinuxLeaf(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string destinationPath) {
+        static void MoveLinuxLeaf(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string sourcePath, string destinationPath) {
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, false, destinationPath);
             EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(sourceIdentity.Describe(), "missing");
             if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
@@ -978,12 +1015,19 @@ namespace helengine.editor {
                 throw new IOException($"The verified destination '{destinationPath}' already exists.");
             }
 
-            string sourceQuarantine = QuarantineLinuxEntry(sourceParentFd, sourceName, sourceIdentity, destinationPath);
+            string sourceQuarantine = QuarantineLinuxEntry(
+                sourceParentFd,
+                sourceName,
+                sourceIdentity,
+                destinationPath,
+                recoveryIntent: "PublishIntendedDestination",
+                intendedDestinationPath: destinationPath);
             bool published = false;
             try {
                 published = true;
                 RenameLinuxNoReplace(sourceParentFd, sourceQuarantine, destinationParentFd, destinationName, destinationPath, sourceIdentity);
                 EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
+                EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(sourcePath), sourceQuarantine));
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
@@ -1017,12 +1061,19 @@ namespace helengine.editor {
                 EnsureLinuxEntryType(destinationStatus, true, destinationPath);
                 throw new IOException($"The verified destination '{destinationPath}' already exists.");
             }
-            string quarantine = QuarantineLinuxEntry(sourceParentFd, sourceName, sourceIdentity, destinationPath);
+            string quarantine = QuarantineLinuxEntry(
+                sourceParentFd,
+                sourceName,
+                sourceIdentity,
+                destinationPath,
+                recoveryIntent: "PublishIntendedDestination",
+                intendedDestinationPath: destinationPath);
             bool published = false;
             try {
                 published = true;
                 RenameLinuxNoReplace(sourceParentFd, quarantine, destinationParentFd, destinationName, destinationPath, sourceIdentity);
                 EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
+                EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(destinationPath), quarantine));
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
@@ -1052,7 +1103,12 @@ namespace helengine.editor {
         static void DeleteLinuxDirectory(int parentFd, string name, string path) {
             PosixEntryIdentity identity = RequireLinuxEntry(parentFd, name, true, path);
             EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(identity.Describe(), "missing");
-            string quarantine = QuarantineLinuxEntry(parentFd, name, identity, path);
+            string quarantine = QuarantineLinuxEntry(
+                parentFd,
+                name,
+                identity,
+                path,
+                recoveryIntent: "FinishDelete");
             try {
                 DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, path, true);
             } catch (Exception primary) {
@@ -1073,7 +1129,12 @@ namespace helengine.editor {
             }
             PosixEntryIdentity identity = RequireLinuxEntry(parentFd, name, false, path);
             EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(identity.Describe(), "missing");
-            string quarantine = QuarantineLinuxEntry(parentFd, name, identity, path);
+            string quarantine = QuarantineLinuxEntry(
+                parentFd,
+                name,
+                identity,
+                path,
+                recoveryIntent: "FinishDelete");
             try {
                 DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, path);
             } catch (Exception primary) {
@@ -1094,19 +1155,23 @@ namespace helengine.editor {
             PosixEntryIdentity expected,
             string path,
             string projectRootPath = null,
-            string expectedHash = null) {
+            string expectedHash = null,
+            string intendedDestinationPath = null,
+            string recoveryIntent = null) {
             for (int attempt = 0; attempt < 32; attempt++) {
                 string mutationRoot = projectRootPath ?? EditorAuthoringMutationJournal.CurrentProjectRootPath;
                 string proofHash = expectedHash;
                 if (string.IsNullOrWhiteSpace(proofHash) && mutationRoot != null && !expected.IsDirectory) {
                     proofHash = TryGetVerifiedSha256(mutationRoot, path);
                 }
-                string quarantine = EditorAuthoringMutationJournal.ReserveTransientName(
-                    name,
+                string quarantine = EditorAuthoringMutationJournal.ReserveTransient(
+                    path,
                     Path.GetDirectoryName(path),
+                    intendedDestinationPath,
                     expected.Describe(),
-                    proofHash ?? (expected.IsDirectory ? "directory" : null),
-                    "quarantine");
+                    expected.IsDirectory ? null : proofHash,
+                    expected.IsDirectory ? "Directory" : "File",
+                    recoveryIntent ?? (expected.IsDirectory ? "FinishDelete" : "RestoreOriginal"));
                 try {
                     RenameLinuxNoReplace(parentFd, name, parentFd, quarantine, path, expected);
                 } catch (Exception exception) {
@@ -1116,6 +1181,7 @@ namespace helengine.editor {
                     // retain that operation-owned inode for recovery.
                     bool sourceStillPresent = TryGetLinuxEntry(parentFd, name, out _);
                     if (sourceStillPresent && Marshal.GetLastPInvokeError() == PosixAlreadyExists) {
+                        EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(path), quarantine));
                         continue;
                     }
                     throw;
@@ -1126,11 +1192,13 @@ namespace helengine.editor {
                     if (mutationRoot != null) {
                         VerifyExpectedHash(mutationRoot, Path.Combine(Path.GetDirectoryName(path), quarantine), proofHash, "quarantined entry");
                     }
+                    EditorAuthoringMutationJournal.RecordTransientOccupied(Path.Combine(Path.GetDirectoryName(path), quarantine));
                     return quarantine;
                 } catch {
                     try {
                         if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
                             RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, path, expected);
+                            EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(path), quarantine));
                         }
                     } catch {
                         // Preserve the quarantined inode when it cannot be restored.
@@ -1167,6 +1235,7 @@ namespace helengine.editor {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified quarantine entry for '{path}'.");
             }
             FsyncDirectory(parentFd, path);
+            EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(path), name));
         }
 
         static void DeleteQuarantinedLinuxEntry(
@@ -1193,6 +1262,7 @@ namespace helengine.editor {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified quarantine entry for '{path}'.");
             }
             FsyncDirectory(parentFd, path);
+            EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(path), name));
         }
 
         static PosixEntryIdentity RequireLinuxEntry(int parentFd, string name, bool directory, string path) {
@@ -1527,7 +1597,12 @@ namespace helengine.editor {
                     }
 
                     PosixEntryIdentity identity = new PosixEntryIdentity(status);
-                    string quarantine = QuarantineLinuxEntry(parentFd, name, identity, childPath);
+                    string quarantine = QuarantineLinuxEntry(
+                        parentFd,
+                        name,
+                        identity,
+                        childPath,
+                        recoveryIntent: "FinishDelete");
                     try {
                         if (isDirectory) {
                             using SafeFileHandle childDirectory = OpenPosixDirectory(quarantine, directory);
@@ -1801,6 +1876,7 @@ namespace helengine.editor {
                     Path.GetFileName(source),
                     destinationDirectory.DangerousGetHandle().ToInt32(),
                     Path.GetFileName(destination),
+                    source,
                     destination);
             }
         }
