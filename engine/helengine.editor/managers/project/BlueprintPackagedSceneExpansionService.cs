@@ -309,7 +309,9 @@ namespace helengine.editor {
             AssetReferenceResolution resolution = AssetReferenceResolver.Resolve(instanceComponent.BlueprintAssetReference, AssetEntryKind.Blueprint);
             string fullPath = resolution.FullPath;
             string blueprintAssetPath = resolution.CanonicalReference.RelativePath;
-            using FileStream stream = File.OpenRead(fullPath);
+            using MemoryStream stream = new MemoryStream(
+                EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath),
+                writable: false);
             Asset asset = AssetSerializer.Deserialize(stream);
             if (asset is BlueprintAsset blueprintAsset) {
                 BlueprintValidationService.ValidateAsset(blueprintAsset);

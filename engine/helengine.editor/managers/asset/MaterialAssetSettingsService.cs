@@ -257,6 +257,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material settings must include processor platform settings.");
             }
 
+            string projectRootPath = FindProjectRootPath(materialAssetPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+
             AssetIdentityMetadataDocument identity;
             if (!string.IsNullOrWhiteSpace(authoringAssetId)) {
                 identity = new AssetIdentityMetadataDocument {
@@ -575,7 +578,9 @@ namespace helengine.editor {
             }
 
             try {
-                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(FindProjectRootPath(materialAssetPath), settingsPath),
+                    writable: false);
                 document = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
                 return true;
             } catch (Exception exception) when (IsExpectedMaterialSettingsFormatException(exception)) {
@@ -597,7 +602,9 @@ namespace helengine.editor {
             }
 
             try {
-                using FileStream stream = new FileStream(overridePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(FindProjectRootPath(overridePath), overridePath),
+                    writable: false);
                 document = MaterialAssetPlatformOverrideDocumentBinarySerializer.Deserialize(stream);
                 return true;
             } catch (Exception exception) when (IsExpectedMaterialSettingsFormatException(exception)) {
@@ -947,13 +954,12 @@ namespace helengine.editor {
         /// <param name="document">Shared material settings document to persist.</param>
         void SaveCommonDocument(string materialAssetPath, MaterialAssetCommonSettingsDocument document) {
             string settingsPath = GetCommonSettingsPath(materialAssetPath);
-            string directoryPath = Path.GetDirectoryName(settingsPath);
-            if (!string.IsNullOrWhiteSpace(directoryPath)) {
-                Directory.CreateDirectory(directoryPath);
-            }
-
-            using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(stream, document);
+            using MemoryStream bytes = new MemoryStream();
+            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(bytes, document);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                FindProjectRootPath(settingsPath),
+                settingsPath,
+                bytes.ToArray());
         }
 
         /// <summary>
@@ -971,13 +977,12 @@ namespace helengine.editor {
                 string overridePath = string.IsNullOrWhiteSpace(entry.Value.EnvironmentId)
                     ? GetPlatformOverridePath(materialAssetPath, entry.Value.PlatformId)
                     : GetPlatformOverridePath(materialAssetPath, entry.Value.PlatformId, entry.Value.EnvironmentId);
-                string directoryPath = Path.GetDirectoryName(overridePath);
-                if (!string.IsNullOrWhiteSpace(directoryPath)) {
-                    Directory.CreateDirectory(directoryPath);
-                }
-
-                using FileStream stream = new FileStream(overridePath, FileMode.Create, FileAccess.Write, FileShare.None);
-                MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(stream, entry.Value);
+                using MemoryStream bytes = new MemoryStream();
+                MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(bytes, entry.Value);
+                EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                    FindProjectRootPath(overridePath),
+                    overridePath,
+                    bytes.ToArray());
                 writtenPaths.Add(overridePath);
             }
 
@@ -988,7 +993,9 @@ namespace helengine.editor {
                     continue;
                 }
 
-                File.Delete(existingOverridePath);
+                EditorAuthoringMutationScope.DeleteLeaf(
+                    FindProjectRootPath(existingOverridePath),
+                    existingOverridePath);
             }
         }
 
@@ -1371,6 +1378,27 @@ namespace helengine.editor {
             List<string> overridePaths = Directory.EnumerateFiles(directoryPath, pattern, SearchOption.TopDirectoryOnly).ToList();
             overridePaths.Sort(StringComparer.OrdinalIgnoreCase);
             return overridePaths;
+        }
+
+        static string FindProjectRootPath(string authoredPath) {
+            string fullPath = Path.GetFullPath(authoredPath);
+            DirectoryInfo current = Directory.GetParent(fullPath);
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            while (current != null) {
+                if (string.Equals(current.Name, "assets", comparison)) {
+                    return current.Parent?.FullName
+                        ?? throw new InvalidDataException($"The authored path '{authoredPath}' has no project root.");
+                }
+                current = current.Parent;
+            }
+
+            // Standalone settings callers may operate on an isolated file that
+            // is not attached to an initialized project. Pin its immediate
+            // parent rather than reopening the leaf by path.
+            return Directory.GetParent(fullPath)?.FullName
+                ?? throw new InvalidDataException($"The authored path '{authoredPath}' has no containing directory.");
         }
 
         /// <summary>

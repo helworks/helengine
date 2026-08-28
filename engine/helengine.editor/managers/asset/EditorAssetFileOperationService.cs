@@ -26,9 +26,9 @@ namespace helengine.editor {
         /// <param name="sourcePath">Existing source path.</param>
         /// <param name="destinationPath">Unused destination path.</param>
         public void Move(string sourcePath, string destinationPath) {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
             string source = ValidateSource(sourcePath);
             string destination = ValidateDestination(destinationPath, PathClassifier.Classify(source));
-            Directory.CreateDirectory(Path.GetDirectoryName(destination));
             List<Tuple<string, string>> moved = new List<Tuple<string, string>>();
             try {
                 MoveIfPresent(source, destination, moved, true);
@@ -39,7 +39,7 @@ namespace helengine.editor {
             } catch {
                 for (int index = moved.Count - 1; index >= 0; index--) {
                     if (File.Exists(moved[index].Item2) && !File.Exists(moved[index].Item1)) {
-                        File.Move(moved[index].Item2, moved[index].Item1);
+                        EditorAuthoringMutationScope.MoveLeaf(ProjectRootPath, moved[index].Item2, moved[index].Item1);
                     }
                 }
                 throw;
@@ -50,13 +50,13 @@ namespace helengine.editor {
         /// <param name="sourcePath">Existing source path.</param>
         /// <param name="destinationPath">Unused destination path.</param>
         public void Duplicate(string sourcePath, string destinationPath) {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
             string source = ValidateSource(sourcePath);
             string destination = ValidateDestination(destinationPath, PathClassifier.Classify(source));
-            Directory.CreateDirectory(Path.GetDirectoryName(destination));
-            File.Copy(source, destination);
+            EditorAuthoringMutationScope.CopyLeaf(ProjectRootPath, source, destination);
             try {
                 if (File.Exists(source + ".hasset")) {
-                    File.Copy(source + ".hasset", destination + ".hasset");
+                    EditorAuthoringMutationScope.CopyLeaf(ProjectRootPath, source + ".hasset", destination + ".hasset");
                 }
                 if (PathClassifier.UsesEmbeddedIdentity(destination)) {
                     MetadataService.Save(destination, new AssetIdentityMetadataDocument {
@@ -74,7 +74,7 @@ namespace helengine.editor {
         }
 
         /// <summary>Moves one optional sidecar and records it for rollback.</summary>
-        static void MoveIfPresent(string source, string destination, ICollection<Tuple<string, string>> moved, bool required) {
+        void MoveIfPresent(string source, string destination, ICollection<Tuple<string, string>> moved, bool required) {
             if (!File.Exists(source)) {
                 if (required) {
                     throw new InvalidOperationException($"Required asset source '{source}' does not exist.");
@@ -84,7 +84,7 @@ namespace helengine.editor {
             if (File.Exists(destination)) {
                 throw new InvalidOperationException($"Asset destination '{destination}' already exists.");
             }
-            File.Move(source, destination);
+            EditorAuthoringMutationScope.MoveLeaf(ProjectRootPath, source, destination);
             moved.Add(Tuple.Create(source, destination));
         }
 
@@ -160,9 +160,9 @@ namespace helengine.editor {
         }
 
         /// <summary>Deletes one file if present.</summary>
-        static void DeleteIfPresent(string path) {
+        void DeleteIfPresent(string path) {
             if (File.Exists(path)) {
-                File.Delete(path);
+                EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, path);
             }
         }
     }

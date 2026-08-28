@@ -4838,7 +4838,9 @@ namespace helengine.editor {
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 EngineBinaryReadContext.CurrentAssetPath = path;
-                using FileStream stream = File.OpenRead(path);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(projectPath, path),
+                    writable: false);
                 Asset asset = AssetSerializer.Deserialize(stream);
                 if (asset is not AnimationClipAsset animationClipAsset) {
                     throw new InvalidOperationException($"Animation clip '{path}' did not deserialize into an animation clip asset.");

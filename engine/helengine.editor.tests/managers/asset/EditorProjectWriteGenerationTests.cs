@@ -177,7 +177,7 @@ public sealed class EditorProjectWriteGenerationTests : IDisposable {
         Assert.NotNull(inner);
     }
 
-    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
+    [DirectoryLinkFact]
     public void ProjectWriteLock_WhenRootIsReachedThroughDirectoryLink_RejectsTheLinkedRoot() {
         string linkRoot = Path.Combine(Path.GetTempPath(), "helengine-write-generation-tests", Guid.NewGuid().ToString("N"));
         try {

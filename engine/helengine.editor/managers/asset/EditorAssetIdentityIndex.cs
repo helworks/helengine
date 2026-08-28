@@ -248,7 +248,7 @@ namespace helengine.editor {
             Dictionary<string, string> previousOwners = new Dictionary<string, string>(PreviousOwners, StringComparer.Ordinal);
             try {
                 if (!Directory.Exists(AssetsRootPath)) {
-                    Directory.CreateDirectory(AssetsRootPath);
+                    EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, AssetsRootPath);
                 }
                 ValidateNoReparseTraversal(AssetsRootPath);
 
@@ -1049,6 +1049,7 @@ namespace helengine.editor {
         /// </summary>
         sealed class PendingIdentityRepair {
             readonly bool UsesEmbeddedIdentity;
+            readonly string ProjectRootPath;
             byte[] OriginalBytes;
             bool OriginalMetadataExists;
             byte[] OriginalMetadataBytes;
@@ -1057,6 +1058,8 @@ namespace helengine.editor {
                 FullPath = fullPath;
                 Document = document;
                 Report = report;
+                ProjectRootPath = Directory.GetParent(Path.GetFullPath(assetsRootPath))?.FullName
+                    ?? throw new InvalidDataException("The assets root has no project parent.");
                 RelativePath = NormalizeRelativePath(Path.GetRelativePath(assetsRootPath, fullPath));
                 UsesEmbeddedIdentity = new EditorAssetPathClassifier().UsesEmbeddedIdentity(fullPath);
             }
@@ -1072,57 +1075,26 @@ namespace helengine.editor {
             public void CaptureOriginalState() {
                 string metadataPath = UsesEmbeddedIdentity ? FullPath : FullPath + ".hmeta";
                 if (UsesEmbeddedIdentity) {
-                    OriginalBytes = File.ReadAllBytes(FullPath);
+                    OriginalBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, FullPath);
                 } else {
                     OriginalMetadataExists = File.Exists(metadataPath);
-                    OriginalMetadataBytes = OriginalMetadataExists ? File.ReadAllBytes(metadataPath) : null;
+                    OriginalMetadataBytes = OriginalMetadataExists
+                        ? EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, metadataPath)
+                        : null;
                 }
             }
 
             public void RestoreOriginalState() {
                 string metadataPath = UsesEmbeddedIdentity ? FullPath : FullPath + ".hmeta";
                 if (UsesEmbeddedIdentity) {
-                    AtomicReplace(FullPath, OriginalBytes);
+                    EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, FullPath, OriginalBytes);
                     return;
                 }
 
                 if (OriginalMetadataExists) {
-                    AtomicReplace(metadataPath, OriginalMetadataBytes);
+                    EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, metadataPath, OriginalMetadataBytes);
                 } else if (File.Exists(metadataPath)) {
-                    AtomicDelete(metadataPath);
-                }
-            }
-
-            static void AtomicReplace(string targetPath, byte[] bytes) {
-                string temporaryPath = targetPath + "." + Guid.NewGuid().ToString("N") + ".repair.tmp";
-                try {
-                    using (FileStream stream = new FileStream(
-                        temporaryPath,
-                        FileMode.CreateNew,
-                        FileAccess.Write,
-                        FileShare.None,
-                        4096,
-                        FileOptions.WriteThrough)) {
-                        stream.Write(bytes, 0, bytes.Length);
-                        stream.Flush(true);
-                    }
-                    File.Move(temporaryPath, targetPath, true);
-                } finally {
-                    if (File.Exists(temporaryPath)) {
-                        File.Delete(temporaryPath);
-                    }
-                }
-            }
-
-            static void AtomicDelete(string targetPath) {
-                string temporaryPath = targetPath + "." + Guid.NewGuid().ToString("N") + ".repair-delete.tmp";
-                try {
-                    File.Move(targetPath, temporaryPath);
-                    File.Delete(temporaryPath);
-                } finally {
-                    if (File.Exists(temporaryPath)) {
-                        File.Delete(temporaryPath);
-                    }
+                    EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, metadataPath);
                 }
             }
         }

@@ -131,7 +131,7 @@ public sealed class EditorAssetFileOperationServiceTests : IDisposable {
     /// <summary>
     /// Ensures a destination directory link cannot redirect a move outside the assets root.
     /// </summary>
-    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
+    [DirectoryLinkFact]
     public void Move_WhenDestinationDirectoryIsReparsePoint_RejectsWithoutExternalMutation() {
         string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-file-operation-outside-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(outsideRoot);

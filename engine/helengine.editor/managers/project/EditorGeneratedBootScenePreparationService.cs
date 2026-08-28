@@ -90,10 +90,11 @@ namespace helengine.editor {
                 mappings);
             string directoryPath = Path.GetDirectoryName(scenePath)
                 ?? throw new InvalidOperationException("Generated boot scene path did not include a writable directory.");
-            Directory.CreateDirectory(directoryPath);
-
-            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, directoryPath);
+            using MemoryStream stream = new MemoryStream();
             AssetSerializer.Serialize(stream, sceneAsset);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, scenePath, stream.ToArray());
             return true;
         }
 

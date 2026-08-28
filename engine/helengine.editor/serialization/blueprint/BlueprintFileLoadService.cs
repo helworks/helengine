@@ -56,7 +56,9 @@ namespace helengine.editor {
                 }
 
                 EngineBinaryReadContext.CurrentAssetPath = normalizedPath;
-                using FileStream stream = new FileStream(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, normalizedPath),
+                    writable: false);
                 Asset deserializedAsset = AssetSerializer.Deserialize(stream);
                 if (deserializedAsset is not BlueprintAsset blueprintAsset) {
                     throw new InvalidOperationException("Blueprint file did not deserialize into a BlueprintAsset.");

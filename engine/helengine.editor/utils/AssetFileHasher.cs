@@ -17,7 +17,21 @@ namespace helengine.editor {
                 throw new FileNotFoundException("Asset file was not found.", filePath);
             }
 
-            using FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            string fullPath = Path.GetFullPath(filePath);
+            string projectRootPath = FindProjectRootForAuthoredPath(fullPath);
+            if (!string.IsNullOrWhiteSpace(projectRootPath)) {
+                using EditorAuthoringMutationScope scope = EditorAuthoringMutationScope.AcquireForMutation(
+                    projectRootPath,
+                    Path.GetDirectoryName(fullPath));
+                using EditorAuthoringVerifiedFile verifiedFile = scope.OpenVerifiedFile(
+                    fullPath,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite);
+                return ComputeHash(verifiedFile.Stream);
+            }
+
+            using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return ComputeHash(stream);
         }
 
@@ -34,6 +48,20 @@ namespace helengine.editor {
             using var hasher = System.Security.Cryptography.SHA256.Create();
             byte[] hash = hasher.ComputeHash(stream);
             return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        static string FindProjectRootForAuthoredPath(string fullPath) {
+            DirectoryInfo current = Directory.GetParent(fullPath);
+            while (current != null) {
+                if (string.Equals(current.Name, "assets", OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal)) {
+                    return current.Parent?.FullName;
+                }
+                current = current.Parent;
+            }
+
+            return null;
         }
     }
 }

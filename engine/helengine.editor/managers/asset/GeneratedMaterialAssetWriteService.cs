@@ -39,6 +39,8 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Generated material assets must include a stable asset id.");
             }
 
+            string canonicalProjectRoot = Path.GetFullPath(projectRootPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(canonicalProjectRoot);
             string fullPath = Path.GetFullPath(Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar)));
             if (string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {
                 ReuseExistingEmbeddedIdentity(fullPath, definition.MaterialAsset);
@@ -53,7 +55,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Could not resolve a material directory for '{relativePath}'.");
             }
 
-            Directory.CreateDirectory(directoryPath);
+            EditorAuthoringMutationScope.EnsureDirectory(canonicalProjectRoot, directoryPath);
             MaterialAssetImportSettings importSettings = BuildImportSettings(definition);
             MaterialAssetSettingsServiceValue.Save(
                 fullPath,

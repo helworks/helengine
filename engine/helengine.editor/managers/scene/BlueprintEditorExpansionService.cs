@@ -57,7 +57,9 @@ namespace helengine.editor {
             RemoveExpandedChildren(instanceRoot);
 
             string blueprintFullPath = ResolveBlueprintFullPath(instanceComponent);
-            using FileStream stream = new FileStream(blueprintFullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using MemoryStream stream = new MemoryStream(
+                EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, blueprintFullPath),
+                writable: false);
             Asset asset = AssetSerializer.Deserialize(stream);
             if (asset is not BlueprintAsset blueprintAsset) {
                 throw new InvalidOperationException("Blueprint instance reference did not deserialize into a BlueprintAsset.");

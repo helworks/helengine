@@ -69,7 +69,7 @@ namespace helengine.editor {
         /// <param name="projectRootPath">Project root path.</param>
         /// <param name="fileHasher">Optional file hashing implementation.</param>
         public EditorAssetHashCache(string projectRootPath, AssetFileHasher fileHasher = null)
-            : this(projectRootPath, fileHasher, new FileEditorAssetHashCacheStore()) {
+            : this(projectRootPath, fileHasher, new FileEditorAssetHashCacheStore(projectRootPath)) {
         }
 
         /// <summary>
@@ -268,7 +268,9 @@ namespace helengine.editor {
                 return FileHasher.ComputeHash(fullPath);
             }
 
-            using FileStream input = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using MemoryStream input = new MemoryStream(
+                EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath),
+                writable: false);
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(input);
             input.Position = 0;
             using MemoryStream canonical = new MemoryStream();

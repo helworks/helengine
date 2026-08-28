@@ -523,7 +523,10 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         entry.ExpectedAssetKind = "ModelAsset";
         entry.StagedSerializedHash = "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Combine(transactionDirectory, entry.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar))))).ToLowerInvariant();
         entry.Changed = true;
-        entry.Progress = EditorAuthoringTransactionEntryProgress.Applied;
+        // Keep the crash cut in Applying while the staged bytes are already
+        // visible at the destination. Recovery must prove the replacement
+        // from bytes, not infer it from a later journal state.
+        entry.Progress = EditorAuthoringTransactionEntryProgress.Applying;
         File.Copy(Path.Combine(transactionDirectory, entry.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar)), original.FullPath, true);
         document.State = EditorAuthoringTransactionState.Committing;
         entry.State = document.State;
@@ -616,7 +619,8 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
             markerPath,
             "{\"version\":1,\"transactionId\":\"" + document.TransactionId + "\",\"relativePaths\":[\"models/safe.hasset\"]}");
 
-        Assert.Throws<InvalidDataException>(() => CreateSession(ProjectRootPath));
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => CreateSession(ProjectRootPath));
+        Assert.Contains("escapes its containing root", exception.Message, StringComparison.Ordinal);
         Assert.True(Directory.Exists(transactionDirectory));
         Assert.False(File.Exists(Path.Combine(ProjectRootPath, "outside.hasset")));
     }
@@ -690,7 +694,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         Assert.False(Directory.Exists(deletingDirectory));
     }
 
-    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
+    [DirectoryLinkFact]
     public void Session_WhenTransactionContainerIsReparsePoint_RejectsBeforeOutsideMutation() {
         string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-authoring-transaction-outside-" + Guid.NewGuid().ToString("N"));
         string cacheRoot = Path.Combine(ProjectRootPath, "cache");

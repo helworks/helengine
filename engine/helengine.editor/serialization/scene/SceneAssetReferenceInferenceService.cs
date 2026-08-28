@@ -433,7 +433,9 @@ namespace helengine.editor {
 
             settings = null;
             try {
-                using FileStream stream = File.OpenRead(settingsPath);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, settingsPath),
+                    writable: false);
                 settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return settings != null;
             } catch {

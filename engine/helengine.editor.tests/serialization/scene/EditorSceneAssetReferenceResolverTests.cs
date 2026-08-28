@@ -1,4 +1,5 @@
 using helengine.directx11;
+using helengine.editor.tests.managers.asset;
 using helengine.editor.tests.testing;
 using System.Reflection;
 using Xunit;
@@ -244,7 +245,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// <summary>
         /// Ensures imported cache path containment rejects a linked directory that escapes the cache root.
         /// </summary>
-        [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
+        [DirectoryLinkFact]
         public void ResolveImportedTextureAssetPath_WhenDirectoryLinkEscapesCache_RejectsWithoutOutsideAccess() {
             string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-import-cache-outside-" + Guid.NewGuid().ToString("N"));
             string linkPath = Path.Combine(TempProjectRootPath, "cache", "linked");

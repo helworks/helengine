@@ -725,7 +725,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     /// <summary>
     /// Ensures a link beneath assets cannot redirect reference creation outside the project.
     /// </summary>
-    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
+    [DirectoryLinkFact]
     public void CreateFileReference_WhenPathTraversesReparsePoint_RejectsWithoutCreatingMetadata() {
         string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-resolver-outside-" + Guid.NewGuid().ToString("N"));
         string linkPath = Path.Combine(TempRootPath, "assets", "Linked");
@@ -752,7 +752,7 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     /// <summary>
     /// Ensures initial indexing rejects a linked authored path before consuming or creating external metadata.
     /// </summary>
-    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
+    [DirectoryLinkFact]
     public void Initialize_WhenCatalogContainsReparsePath_RejectsWithoutExternalMetadataMutation() {
         string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-index-outside-" + Guid.NewGuid().ToString("N"));
         string linkPath = Path.Combine(TempRootPath, "assets", "Linked");

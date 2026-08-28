@@ -321,8 +321,29 @@ namespace helengine.editor {
         /// Saves the current clip payload back to disk after one editor-side override-mode change.
         /// </summary>
         void SaveCurrentClip() {
-            using FileStream stream = new(CurrentEntry.FullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            using MemoryStream stream = new MemoryStream();
             AssetSerializer.Serialize(stream, CurrentClip);
+            string projectRootPath = FindProjectRoot(CurrentEntry.FullPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                projectRootPath,
+                CurrentEntry.FullPath,
+                stream.ToArray());
+        }
+
+        static string FindProjectRoot(string assetPath) {
+            DirectoryInfo current = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(assetPath)));
+            while (current != null) {
+                if (string.Equals(current.Name, "assets", OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal)) {
+                    return current.Parent?.FullName
+                        ?? throw new InvalidDataException("The animation asset has no project root.");
+                }
+                current = current.Parent;
+            }
+
+            throw new InvalidDataException($"Animation asset '{assetPath}' is not beneath a project assets directory.");
         }
 
         /// <summary>

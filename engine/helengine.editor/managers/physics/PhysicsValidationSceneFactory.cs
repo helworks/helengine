@@ -290,6 +290,7 @@ namespace helengine.editor {
             WriteSupportAssets(projectRootPath);
 
             ExportProjectRootPath = Path.GetFullPath(projectRootPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ExportProjectRootPath);
             ExportReferenceResolver = new EditorAssetReferenceResolver(ExportProjectRootPath);
             bool resolutionScopeActive = false;
             try {
@@ -311,9 +312,13 @@ namespace helengine.editor {
                         throw new InvalidOperationException($"Could not resolve the directory path for scene '{sceneId}'.");
                     }
 
-                    Directory.CreateDirectory(directoryPath);
-                    using FileStream stream = File.Create(fullPath);
-                    AssetSerializer.Serialize(stream, sceneAsset);
+                    EditorAuthoringMutationScope.EnsureDirectory(ExportProjectRootPath, directoryPath);
+                    using MemoryStream bytes = new MemoryStream();
+                    AssetSerializer.Serialize(bytes, sceneAsset);
+                    EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                        ExportProjectRootPath,
+                        fullPath,
+                        bytes.ToArray());
                 }
             } finally {
                 if (ExportReferenceResolver != null) {

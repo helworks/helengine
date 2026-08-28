@@ -16,19 +16,25 @@ namespace helengine.editor {
                 throw new ArgumentException("Target directory must be provided.", nameof(directory));
             }
 
-            Directory.CreateDirectory(directory);
+            string projectRootPath = EditorProjectPaths.ProjectRoot;
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new InvalidOperationException("Project root path has not been initialized.");
+            }
+
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, directory);
             switch (template.Kind) {
                 case EditorFileTemplateKind.Text:
-                    CreateTextFile(template, directory);
+                    CreateTextFile(template, directory, projectRootPath);
                     break;
                 case EditorFileTemplateKind.Shader:
-                    CreateShaderFile(template, directory);
+                    CreateShaderFile(template, directory, projectRootPath);
                     break;
                 case EditorFileTemplateKind.Material:
-                    CreateMaterialFile(template, directory);
+                    CreateMaterialFile(template, directory, projectRootPath);
                     break;
                 case EditorFileTemplateKind.Blueprint:
-                    CreateBlueprintFile(template, directory);
+                    CreateBlueprintFile(template, directory, projectRootPath);
                     break;
                 default:
                     throw new InvalidOperationException("Unsupported file template kind.");
@@ -40,10 +46,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="template">Template to apply.</param>
         /// <param name="directory">Target directory.</param>
-        static void CreateTextFile(EditorFileTemplate template, string directory) {
+        static void CreateTextFile(EditorFileTemplate template, string directory, string projectRootPath) {
             string fileName = AssetCreationUtils.BuildUniqueFileName(directory, template.DefaultName, template.Extension);
             string path = Path.Combine(directory, fileName);
-            File.WriteAllText(path, template.DefaultContents ?? string.Empty);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                projectRootPath,
+                path,
+                System.Text.Encoding.UTF8.GetBytes(template.DefaultContents ?? string.Empty));
         }
 
         /// <summary>
@@ -51,10 +60,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="template">Template to apply.</param>
         /// <param name="directory">Target directory.</param>
-        static void CreateShaderFile(EditorFileTemplate template, string directory) {
+        static void CreateShaderFile(EditorFileTemplate template, string directory, string projectRootPath) {
             string fileName = AssetCreationUtils.BuildUniqueFileName(directory, template.DefaultName, template.Extension);
             string path = Path.Combine(directory, fileName);
-            File.WriteAllText(path, template.DefaultContents ?? string.Empty);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                projectRootPath,
+                path,
+                System.Text.Encoding.UTF8.GetBytes(template.DefaultContents ?? string.Empty));
         }
 
         /// <summary>
@@ -62,7 +74,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="template">Template to apply.</param>
         /// <param name="directory">Target directory.</param>
-        static void CreateMaterialFile(EditorFileTemplate template, string directory) {
+        static void CreateMaterialFile(EditorFileTemplate template, string directory, string projectRootPath) {
             string fileName = AssetCreationUtils.BuildUniqueFileName(directory, template.DefaultName, template.Extension);
             string materialPath = Path.Combine(directory, fileName);
             string baseName = Path.GetFileNameWithoutExtension(fileName);
@@ -77,9 +89,9 @@ namespace helengine.editor {
                 AuthoringAssetId = Guid.NewGuid().ToString("N")
             };
 
-            using (FileStream stream = new FileStream(materialPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetSerializer.Serialize(stream, materialAsset);
-            }
+            using MemoryStream bytes = new MemoryStream();
+            AssetSerializer.Serialize(bytes, materialAsset);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, materialPath, bytes.ToArray());
         }
 
         /// <summary>
@@ -87,7 +99,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="template">Template to apply.</param>
         /// <param name="directory">Target directory.</param>
-        static void CreateBlueprintFile(EditorFileTemplate template, string directory) {
+        static void CreateBlueprintFile(EditorFileTemplate template, string directory, string projectRootPath) {
             string fileName = AssetCreationUtils.BuildUniqueFileName(directory, template.DefaultName, template.Extension);
             string blueprintPath = Path.Combine(directory, fileName);
 
@@ -108,8 +120,9 @@ namespace helengine.editor {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             };
 
-            using FileStream stream = new FileStream(blueprintPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetSerializer.Serialize(stream, blueprintAsset);
+            using MemoryStream bytes = new MemoryStream();
+            AssetSerializer.Serialize(bytes, blueprintAsset);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, blueprintPath, bytes.ToArray());
         }
 
         /// <summary>

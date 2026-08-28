@@ -149,7 +149,9 @@ namespace helengine.editor {
             }
 
             try {
-                using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(FindProjectRootPath(fullPath), fullPath),
+                    writable: false);
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 return header.FormatId == global::helengine.files.EditorAssetBinarySerializer.FormatId &&
                      (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset ||
@@ -173,7 +175,9 @@ namespace helengine.editor {
             }
 
             try {
-                using FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(FindProjectRootPath(filePath), filePath),
+                    writable: false);
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId) {
                     entryKind = AssetEntryKind.File;
@@ -218,6 +222,23 @@ namespace helengine.editor {
                 default:
                     return AssetEntryKind.File;
             }
+        }
+
+        static string FindProjectRootPath(string authoredPath) {
+            string fullPath = Path.GetFullPath(authoredPath);
+            DirectoryInfo current = Directory.GetParent(fullPath);
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            while (current != null) {
+                if (string.Equals(current.Name, "assets", comparison)) {
+                    return current.Parent?.FullName ?? current.FullName;
+                }
+                current = current.Parent;
+            }
+
+            return Directory.GetParent(fullPath)?.FullName
+                ?? throw new InvalidDataException($"The authored path '{authoredPath}' has no containing directory.");
         }
 
         /// <summary>

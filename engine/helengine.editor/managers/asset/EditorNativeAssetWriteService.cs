@@ -176,7 +176,7 @@ namespace helengine.editor {
             EditorAssetWriteDisposition disposition = destinationExists
                 ? EditorAssetWriteDisposition.Changed
                 : EditorAssetWriteDisposition.Created;
-            if (destinationExists && File.ReadAllBytes(fullPath).AsSpan().SequenceEqual(serializedBytes)) {
+            if (destinationExists && EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath).AsSpan().SequenceEqual(serializedBytes)) {
                 disposition = EditorAssetWriteDisposition.Unchanged;
             } else {
                 long publishedGeneration = ChangeLog.PublishChange(normalizedRelativePath);
@@ -234,7 +234,7 @@ namespace helengine.editor {
             }
 
             byte[] serializedBytes = AssetSerializer.SerializeToBytes(asset);
-            byte[] priorBytes = priorExists ? File.ReadAllBytes(fullPath) : null;
+            byte[] priorBytes = priorExists ? EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath) : null;
             bool unchanged = priorExists && priorBytes.AsSpan().SequenceEqual(serializedBytes);
             string priorContentHash = priorExists ? HashCache.ComputeContentHashFresh(fullPath) : null;
             string stagedContentHash = HashCache.ComputeCanonicalAssetHash(asset);
@@ -603,8 +603,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fullPath">Existing destination path.</param>
         /// <param name="asset">Incoming asset payload.</param>
-        static void ValidateExistingNativeContainer(string fullPath, Asset asset) {
-            using FileStream stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        void ValidateExistingNativeContainer(string fullPath, Asset asset) {
+            using MemoryStream stream = new MemoryStream(EditorAuthoringMutationScope.ReadAllBytes(
+                ProjectRootPath,
+                fullPath), false);
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             EditorAssetBinaryValueKind expectedValueKind = GetExpectedValueKind(asset);
             if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId ||
@@ -673,27 +675,9 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Native asset destination does not include a writable directory.");
             }
 
-            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
-                projectRootPath,
-                directoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directoryPath, containingRoot);
-            Directory.CreateDirectory(directoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
-            string temporaryPath = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, containingRoot);
-                using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
-                    stream.Write(serializedBytes, 0, serializedBytes.Length);
-                    stream.Flush(true);
-                }
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, containingRoot);
-                File.Move(temporaryPath, fullPath, true);
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, containingRoot);
-                    File.Delete(temporaryPath);
-                }
-            }
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, fullPath, serializedBytes);
         }
 
         /// <summary>

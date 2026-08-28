@@ -15,6 +15,8 @@ namespace helengine.editor {
         readonly Dictionary<string, EditorPreparedAssetWrite> PreparedByPath;
         readonly object StateGate = new object();
         FileStream LeaseStream;
+        EditorAuthoringVerifiedFile LeaseFile;
+        EditorAuthoringMutationScope LeaseMutationScope;
         EditorAuthoringTransactionDocument Document;
         EditorAuthoringTransactionOutcome OutcomeValue = EditorAuthoringTransactionOutcome.Active;
         bool IsDisposed;
@@ -44,7 +46,7 @@ namespace helengine.editor {
                 transactionRoot);
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(transactionRoot, ProjectRootPath);
-            Directory.CreateDirectory(transactionRoot);
+            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, transactionRoot);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(transactionRoot, ProjectRootPath);
             string transactionId = Guid.NewGuid().ToString("N");
             string creatingDirectoryPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
@@ -60,21 +62,21 @@ namespace helengine.editor {
             bool publishedDirectory = false;
             try {
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(TransactionDirectoryPath, transactionRoot);
-                Directory.CreateDirectory(TransactionDirectoryPath);
+                EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, TransactionDirectoryPath);
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(TransactionDirectoryPath, transactionRoot);
                 EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "staged", "staged-root");
                 EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "backups", "backup-root");
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
                     Path.Combine(TransactionDirectoryPath, "staged"),
                     TransactionDirectoryPath);
-                Directory.CreateDirectory(Path.Combine(TransactionDirectoryPath, "staged"));
+                EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, Path.Combine(TransactionDirectoryPath, "staged"));
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
                     Path.Combine(TransactionDirectoryPath, "staged"),
                     TransactionDirectoryPath);
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
                     Path.Combine(TransactionDirectoryPath, "backups"),
                     TransactionDirectoryPath);
-                Directory.CreateDirectory(Path.Combine(TransactionDirectoryPath, "backups"));
+                EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, Path.Combine(TransactionDirectoryPath, "backups"));
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
                     Path.Combine(TransactionDirectoryPath, "backups"),
                     TransactionDirectoryPath);
@@ -85,9 +87,7 @@ namespace helengine.editor {
                 // the directory rename: Windows denies moving a directory that
                 // contains an open non-shareable handle. Reacquire the handle
                 // in the final directory while the project lock is still held.
-                using (FileStream leaseArtifact = new FileStream(leasePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 1, FileOptions.WriteThrough)) {
-                    leaseArtifact.Flush(true);
-                }
+                EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, leasePath, Array.Empty<byte>());
                 Document = new EditorAuthoringTransactionDocument {
                     TransactionId = transactionId,
                     State = EditorAuthoringTransactionState.Staging
@@ -96,17 +96,14 @@ namespace helengine.editor {
                 WriteDocument();
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(TransactionDirectoryPath, transactionRoot);
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(publishedDirectoryPath, transactionRoot);
-                Directory.Move(TransactionDirectoryPath, publishedDirectoryPath);
+                EditorAuthoringMutationScope.MoveDirectory(ProjectRootPath, TransactionDirectoryPath, publishedDirectoryPath);
                 publishedDirectory = true;
                 TransactionDirectoryPath = publishedDirectoryPath;
                 ManifestPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "transaction.json", "manifest");
-                leasePath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, "lease", "lease");
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(leasePath, TransactionDirectoryPath);
-                LeaseStream = new FileStream(leasePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
+                OpenLease();
             } catch (Exception primaryException) {
                 try {
-                    LeaseStream?.Dispose();
-                    LeaseStream = null;
+                    CloseLease();
                     string cleanupDirectory = publishedDirectory ? publishedDirectoryPath : creatingDirectoryPath;
                     if (Directory.Exists(cleanupDirectory)) {
                         EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(cleanupDirectory, transactionRoot);
@@ -116,11 +113,11 @@ namespace helengine.editor {
                                 ".deleting-" + transactionId,
                                 "construction retirement");
                             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(deletingDirectory, transactionRoot);
-                            Directory.Move(cleanupDirectory, deletingDirectory);
+                            EditorAuthoringMutationScope.MoveDirectory(ProjectRootPath, cleanupDirectory, deletingDirectory);
                             EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(deletingDirectory, transactionRoot);
-                            Directory.Delete(deletingDirectory, true);
+                            EditorAuthoringMutationScope.DeleteDirectoryTree(ProjectRootPath, deletingDirectory, transactionRoot);
                         } else {
-                            Directory.Delete(cleanupDirectory, true);
+                            EditorAuthoringMutationScope.DeleteDirectoryTree(ProjectRootPath, cleanupDirectory, transactionRoot);
                         }
                     }
                 } catch (Exception cleanupException) {
@@ -247,7 +244,7 @@ namespace helengine.editor {
                                 TransactionDirectoryPath,
                                 entry.BackupRelativePath,
                                 "backup");
-                            byte[] priorBytes = File.ReadAllBytes(prepared.FullPath);
+                            byte[] priorBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, prepared.FullPath);
                             if (!string.Equals(NativeWriter.ComputeCurrentContentHash(prepared.FullPath), entry.PriorContentHash, StringComparison.Ordinal) ||
                                 !string.Equals(NativeWriter.ComputeSerializedHash(priorBytes), entry.PriorSerializedHash, StringComparison.Ordinal)) {
                                 throw new IOException($"The authoring transaction destination '{prepared.FullPath}' changed after validation.");
@@ -279,7 +276,7 @@ namespace helengine.editor {
                             TransactionDirectoryPath,
                             entry.StagedRelativePath,
                             "staged");
-                        byte[] stagedBytes = File.ReadAllBytes(stagedPath);
+                        byte[] stagedBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, stagedPath);
                         NativeWriter.ValidatePreparedPayload(
                             stagedBytes,
                             prepared.FullPath,
@@ -436,7 +433,7 @@ namespace helengine.editor {
 
                 EditorAuthoringTransactionRecoveryService.ResolveContainedPath(AssetsRootPath, entry.DestinationRelativePath, "destination");
                 string stagedPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, entry.StagedRelativePath, "staged");
-                byte[] stagedBytes = File.ReadAllBytes(stagedPath);
+                byte[] stagedBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, stagedPath);
                 NativeWriter.ValidatePreparedPayload(
                     stagedBytes,
                     prepared.FullPath,
@@ -449,7 +446,7 @@ namespace helengine.editor {
                     throw new IOException($"The authoring transaction destination '{prepared.FullPath}' changed after staging.");
                 }
                 if (currentExists) {
-                    byte[] currentBytes = File.ReadAllBytes(prepared.FullPath);
+                    byte[] currentBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, prepared.FullPath);
                     string currentHash = NativeWriter.ComputeCurrentContentHash(prepared.FullPath);
                     string currentSerializedHash = NativeWriter.ComputeSerializedHash(currentBytes);
                     if (!string.Equals(currentHash, entry.PriorContentHash, StringComparison.Ordinal) ||
@@ -472,7 +469,9 @@ namespace helengine.editor {
                 try {
                     EditorPreparedAssetWrite prepared = PreparedByPath[entry.DestinationRelativePath];
                     EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(prepared.FullPath, AssetsRootPath);
-                    byte[] currentBytes = File.Exists(prepared.FullPath) ? File.ReadAllBytes(prepared.FullPath) : null;
+                    byte[] currentBytes = File.Exists(prepared.FullPath)
+                        ? EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, prepared.FullPath)
+                        : null;
                     bool replacementApplied = false;
                     if (currentBytes != null) {
                         string currentHash = NativeWriter.ComputeSerializedHash(currentBytes);
@@ -491,7 +490,7 @@ namespace helengine.editor {
                             TransactionDirectoryPath,
                             entry.BackupRelativePath,
                             "backup");
-                        backupBytes = File.ReadAllBytes(backupPath);
+                        backupBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, backupPath);
                         EditorNativeAssetWriteService.ValidateNativePayloadIntegrity(
                             backupBytes,
                             prepared.FullPath,
@@ -515,7 +514,7 @@ namespace helengine.editor {
                         if (operation.ReplacementApplied) {
                             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(operation.Prepared.FullPath, AssetsRootPath);
                             byte[] currentBytes = File.Exists(operation.Prepared.FullPath)
-                                ? File.ReadAllBytes(operation.Prepared.FullPath)
+                                ? EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, operation.Prepared.FullPath)
                                 : null;
                             if (currentBytes == null) {
                                 if (operation.Entry.PriorExists) {
@@ -542,7 +541,7 @@ namespace helengine.editor {
                                     ProjectRootPath,
                                     Path.GetDirectoryName(operation.Prepared.FullPath));
                                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(operation.Prepared.FullPath, AssetsRootPath);
-                                File.Delete(operation.Prepared.FullPath);
+                                EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, operation.Prepared.FullPath);
                             }
                         }
                         NativeWriter.RestorePublishedAssetUnderLock(operation.Prepared);
@@ -594,7 +593,7 @@ namespace helengine.editor {
                 }
 
                 EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(TransactionDirectoryPath, transactionRoot);
-                Directory.Delete(TransactionDirectoryPath, true);
+                EditorAuthoringMutationScope.DeleteDirectoryTree(ProjectRootPath, TransactionDirectoryPath, transactionRoot);
                 return;
             }
 
@@ -616,7 +615,7 @@ namespace helengine.editor {
             // remains the sole owner and Dispose can retry deterministically.
             CloseLease();
             try {
-                Directory.Move(TransactionDirectoryPath, deletingDirectory);
+                EditorAuthoringMutationScope.MoveDirectory(ProjectRootPath, TransactionDirectoryPath, deletingDirectory);
             } catch (Exception renameException) {
                 try {
                     OpenLease();
@@ -629,15 +628,30 @@ namespace helengine.editor {
             TransactionDirectoryPath = deletingDirectory;
             Hooks.AfterRetireRename?.Invoke();
             EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(TransactionDirectoryPath, transactionRoot);
-            Directory.Delete(TransactionDirectoryPath, true);
+            EditorAuthoringMutationScope.DeleteDirectoryTree(ProjectRootPath, TransactionDirectoryPath, transactionRoot);
         }
 
         void CloseLease() {
-            if (LeaseStream == null) {
+            if (LeaseFile == null && LeaseMutationScope == null) {
                 return;
             }
 
-            LeaseStream.Dispose();
+            List<Exception> failures = new List<Exception>();
+            try {
+                LeaseFile?.Dispose();
+            } catch (Exception exception) {
+                failures.Add(exception);
+            }
+            try {
+                LeaseMutationScope?.Dispose();
+            } catch (Exception exception) {
+                failures.Add(exception);
+            }
+            if (failures.Count > 0) {
+                throw new AggregateException("The authoring transaction lease could not be released.", failures);
+            }
+            LeaseFile = null;
+            LeaseMutationScope = null;
             LeaseStream = null;
         }
 
@@ -647,7 +661,28 @@ namespace helengine.editor {
                 "lease",
                 "lease");
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(leasePath, TransactionDirectoryPath);
-            LeaseStream = new FileStream(leasePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.WriteThrough);
+            EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
+                ProjectRootPath,
+                TransactionDirectoryPath);
+            EditorAuthoringVerifiedFile leaseFile = null;
+            try {
+                leaseFile = mutationScope.OpenVerifiedFile(
+                    leasePath,
+                    FileMode.Open,
+                    FileAccess.ReadWrite,
+                    FileShare.None);
+                if (!mutationScope.TryAcquireExclusiveFileLock(leaseFile)) {
+                    throw new IOException("The authoring transaction lease is held by another owner.");
+                }
+                LeaseMutationScope = mutationScope;
+                LeaseFile = leaseFile;
+                LeaseStream = leaseFile.Stream;
+                mutationScope = null;
+                leaseFile = null;
+            } finally {
+                leaseFile?.Dispose();
+                mutationScope?.Dispose();
+            }
         }
 
         internal void ReleaseLeaseForTesting() {
@@ -666,9 +701,6 @@ namespace helengine.editor {
         }
 
         void WriteDocument() {
-            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
-                ProjectRootPath,
-                TransactionDirectoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(ProjectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
                 TransactionDirectoryPath,
@@ -676,48 +708,14 @@ namespace helengine.editor {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
                 ManifestPath,
                 TransactionDirectoryPath);
-            string temporaryPath = ManifestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(Document, EditorAuthoringTransactionDocument.JsonOptions);
-            try {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, TransactionDirectoryPath);
-                using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
-                    stream.Write(bytes, 0, bytes.Length);
-                    stream.Flush(true);
-                }
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(ManifestPath, TransactionDirectoryPath);
-                File.Move(temporaryPath, ManifestPath, true);
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, TransactionDirectoryPath);
-                    File.Delete(temporaryPath);
-                }
-            }
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, ManifestPath, bytes);
         }
 
         void WriteBytesDurably(string path, byte[] bytes, string containingRoot) {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, containingRoot);
-            string directoryPath = Path.GetDirectoryName(path);
-            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
-                ProjectRootPath,
-                directoryPath);
-            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directoryPath, containingRoot);
-            Directory.CreateDirectory(directoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, containingRoot);
-            string temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, containingRoot);
-                using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
-                    stream.Write(bytes, 0, bytes.Length);
-                    stream.Flush(true);
-                }
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, containingRoot);
-                File.Move(temporaryPath, path, true);
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, containingRoot);
-                    File.Delete(temporaryPath);
-                }
-            }
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, path, bytes);
         }
 
         static string NormalizeRelativePath(string relativePath) {

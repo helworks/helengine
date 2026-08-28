@@ -109,6 +109,12 @@ namespace helengine.editor {
         string assetsRootPath;
 
         /// <summary>
+        /// Absolute project root used for verified browser reads and directory
+        /// creation.
+        /// </summary>
+        string projectRootPath;
+
+        /// <summary>
         /// Current directory path relative to the assets root.
         /// </summary>
         string currentRelativePath;
@@ -158,9 +164,9 @@ namespace helengine.editor {
         /// <param name="identityIndex">Borrowed shared identity index, or null for metadata-only browsing.</param>
         void Initialize(string projectPath, EditorAssetHashCache hashCache, EditorAssetIdentityIndex identityIndexValue) {
             assetsRootPath = ResolveAssetsRoot(projectPath);
+            projectRootPath = Path.GetDirectoryName(assetsRootPath) ?? Directory.GetCurrentDirectory();
             currentRelativePath = string.Empty;
             pathClassifier = new EditorAssetPathClassifier();
-            string projectRootPath = Path.GetDirectoryName(assetsRootPath) ?? Directory.GetCurrentDirectory();
             identityMetadataService = new AssetIdentityMetadataService();
             identityHashCache = hashCache ?? new EditorAssetHashCache(projectRootPath);
             ownsIdentityHashCache = hashCache == null;
@@ -236,6 +242,7 @@ namespace helengine.editor {
                 var directories = Directory.GetDirectories(currentPath);
                 for (int i = 0; i < directories.Length; i++) {
                     string dirPath = directories[i];
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(dirPath, assetsRootPath);
                     string name = Path.GetFileName(dirPath);
                     if (string.IsNullOrWhiteSpace(name)) {
                         continue;
@@ -248,6 +255,7 @@ namespace helengine.editor {
                 var files = Directory.GetFiles(currentPath);
                 for (int i = 0; i < files.Length; i++) {
                     string filePath = files[i];
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(filePath, assetsRootPath);
                     string name = Path.GetFileName(filePath);
                     if (string.IsNullOrWhiteSpace(name)) {
                         continue;
@@ -374,7 +382,7 @@ namespace helengine.editor {
         /// </summary>
         void EnsureAssetsRootExists() {
             if (!Directory.Exists(assetsRootPath)) {
-                Directory.CreateDirectory(assetsRootPath);
+                EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, assetsRootPath);
             }
         }
 
@@ -418,7 +426,7 @@ namespace helengine.editor {
 
             string assetsPath = Path.Combine(rootPath, AssetsFolderName);
             if (!Directory.Exists(assetsPath)) {
-                Directory.CreateDirectory(assetsPath);
+                EditorAuthoringMutationScope.EnsureDirectory(rootPath, assetsPath);
             }
 
             return assetsPath;
@@ -545,7 +553,9 @@ namespace helengine.editor {
             }
 
             try {
-                using FileStream stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, filePath),
+                    writable: false);
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
                     entryKind = AssetEntryKind.File;

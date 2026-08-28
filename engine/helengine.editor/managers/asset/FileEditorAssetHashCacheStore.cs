@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 namespace helengine.editor {
@@ -5,6 +6,14 @@ namespace helengine.editor {
     /// Persists hash-cache documents as atomically replaced JSON files.
     /// </summary>
     sealed class FileEditorAssetHashCacheStore : IEditorAssetHashCacheStore {
+        readonly string ProjectRootPath;
+
+        internal FileEditorAssetHashCacheStore(string projectRootPath = null) {
+            ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
+                ? null
+                : Path.GetFullPath(projectRootPath);
+        }
+
         /// <summary>
         /// Maximum number of short attempts made to acquire a cache-path lock.
         /// </summary>
@@ -34,7 +43,8 @@ namespace helengine.editor {
             }
 
             try {
-                string json = File.ReadAllText(cachePath);
+                string json = Encoding.UTF8.GetString(
+                    EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRoot(cachePath), cachePath));
                 EditorAssetHashCacheDocument document = JsonSerializer.Deserialize<EditorAssetHashCacheDocument>(json, JsonOptions);
                 if (document == null || document.Entries == null) {
                     return null;
@@ -143,17 +153,12 @@ namespace helengine.editor {
                 throw new ArgumentException("Cache path must include a writable directory.", nameof(cachePath));
             }
 
-            Directory.CreateDirectory(directoryPath);
-            string temporaryPath = cachePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                string json = JsonSerializer.Serialize(document, JsonOptions);
-                File.WriteAllText(temporaryPath, json, new System.Text.UTF8Encoding(false));
-                File.Move(temporaryPath, cachePath, true);
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    File.Delete(temporaryPath);
-                }
-            }
+            string projectRootPath = ResolveProjectRoot(cachePath);
+            string json = JsonSerializer.Serialize(document, JsonOptions);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                projectRootPath,
+                cachePath,
+                new UTF8Encoding(false).GetBytes(json));
         }
 
         /// <summary>
@@ -171,23 +176,38 @@ namespace helengine.editor {
                 throw new ArgumentException("Cache path must include a writable directory.", nameof(cachePath));
             }
 
-            Directory.CreateDirectory(directoryPath);
+            string projectRootPath = ResolveProjectRoot(cachePath);
+            EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, directoryPath);
             string lockPath = cachePath + ".lock";
             IOException lastFailure = null;
             for (int attempt = 0; attempt < LockAttemptCount; attempt++) {
-                FileStream lockHandle = null;
+                EditorAuthoringMutationScope mutationScope = null;
+                EditorAuthoringVerifiedFile lockHandle = null;
                 try {
-                    lockHandle = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.SequentialScan);
+                    mutationScope = EditorAuthoringMutationScope.AcquireForMutation(projectRootPath, directoryPath);
+                    lockHandle = mutationScope.OpenVerifiedFile(
+                        lockPath,
+                        FileMode.OpenOrCreate,
+                        FileAccess.ReadWrite,
+                        FileShare.None);
+                    if (!mutationScope.TryAcquireExclusiveFileLock(lockHandle)) {
+                        throw new IOException($"Unable to acquire the editor asset hash cache lock '{lockPath}'.");
+                    }
                 } catch (IOException exception) {
                     lastFailure = exception;
+                    lockHandle?.Dispose();
+                    mutationScope?.Dispose();
                     if (attempt + 1 < LockAttemptCount) {
                         Thread.Sleep(LockRetryMilliseconds);
                     }
                     continue;
                 }
 
-                using (lockHandle) {
+                try {
                     return operation();
+                } finally {
+                    lockHandle.Dispose();
+                    mutationScope.Dispose();
                 }
             }
 
@@ -207,6 +227,22 @@ namespace helengine.editor {
         static StringComparer PathComparer => OperatingSystem.IsWindows()
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal;
+
+        string ResolveProjectRoot(string cachePath) {
+            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
+                return ProjectRootPath;
+            }
+
+            DirectoryInfo current = Directory.GetParent(Path.GetFullPath(cachePath));
+            while (current != null) {
+                if (Directory.Exists(Path.Combine(current.FullName, "assets"))) {
+                    return current.FullName;
+                }
+                current = current.Parent;
+            }
+
+            throw new InvalidDataException($"The hash cache path '{cachePath}' is not beneath a project root.");
+        }
 
         /// <summary>
         /// Checks one persisted SHA-256 value.

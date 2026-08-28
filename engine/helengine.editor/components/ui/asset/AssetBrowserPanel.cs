@@ -17,6 +17,11 @@ namespace helengine.editor {
         const int FileMenuSpacing = 6;
 
         /// <summary>
+        /// Absolute project root used by verified asset-directory mutations.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
         /// Font used to render toolbar and row labels.
         /// </summary>
         FontAsset Font;
@@ -116,6 +121,7 @@ namespace helengine.editor {
             }
 
             Font = font;
+            ProjectRootPath = Path.GetFullPath(projectPath);
             Title = "Assets";
             MinSize = new int2(UiMetrics.ScalePixels(260), UiMetrics.ScalePixels(180));
             OpenFolderAction = openFolderAction;
@@ -354,10 +360,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Asset directory could not be resolved.");
             }
 
-            Directory.CreateDirectory(directory);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, directory);
             string folderName = AssetCreationUtils.BuildUniqueFolderName(directory, "New Folder");
             string folderPath = Path.Combine(directory, folderName);
-            Directory.CreateDirectory(folderPath);
+            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, folderPath);
             BrowserView.RefreshEntries();
         }
 

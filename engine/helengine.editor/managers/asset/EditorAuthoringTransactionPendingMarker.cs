@@ -106,14 +106,16 @@ namespace helengine.editor {
                 canonicalRoot,
                 Path.GetDirectoryName(markerPath));
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, canonicalRoot);
-            File.Delete(markerPath);
+            mutationScope.DeleteLeaf(markerPath);
         }
 
         static PendingMarker ReadAndValidate(string markerPath, string projectRootPath) {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(markerPath, projectRootPath);
             PendingMarker marker;
             try {
-                marker = JsonSerializer.Deserialize<PendingMarker>(File.ReadAllText(markerPath), JsonOptions);
+                marker = JsonSerializer.Deserialize<PendingMarker>(
+                    EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, markerPath),
+                    JsonOptions);
             } catch (JsonException exception) {
                 throw new InvalidDataException($"The authoring transaction pending marker '{markerPath}' is malformed.", exception);
             }
@@ -152,29 +154,12 @@ namespace helengine.editor {
 
         static void WriteAtomically(string projectRootPath, string path, PendingMarker marker) {
             string directory = Path.GetDirectoryName(path);
-            using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
-                projectRootPath,
-                directory);
-            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRootPath);
-            Directory.CreateDirectory(directory);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, projectRootPath);
-            string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporary, projectRootPath);
-                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(marker, JsonOptions);
-                using (FileStream stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)) {
-                    stream.Write(bytes, 0, bytes.Length);
-                    stream.Flush(true);
-                }
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, projectRootPath);
-                File.Move(temporary, path, true);
-            } finally {
-                if (File.Exists(temporary)) {
-                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporary, projectRootPath);
-                    File.Delete(temporary);
-                }
-            }
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                projectRootPath,
+                path,
+                JsonSerializer.SerializeToUtf8Bytes(marker, JsonOptions));
         }
 
         sealed class OwnerScope : IDisposable {

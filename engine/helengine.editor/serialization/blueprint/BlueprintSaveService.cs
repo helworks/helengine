@@ -88,12 +88,14 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Blueprint files must be stored inside the project assets folder.");
             }
 
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+
             string directoryPath = Path.GetDirectoryName(normalizedPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException("Blueprint path does not include a writable directory.");
             }
 
-            Directory.CreateDirectory(directoryPath);
+            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, directoryPath);
 
             string tempScenePath = Path.Combine(
                 AssetsRootPath,
@@ -106,11 +108,13 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Blueprint temporary save directory could not be resolved.");
                 }
 
-                Directory.CreateDirectory(tempDirectoryPath);
+                EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, tempDirectoryPath);
                 SceneSaveService.Save(tempScenePath);
 
                 SceneAsset sceneAsset;
-                using (FileStream stream = File.OpenRead(tempScenePath)) {
+                using (MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, tempScenePath),
+                    writable: false)) {
                     sceneAsset = AssertSceneAsset(AssetSerializer.Deserialize(stream));
                 }
 
@@ -132,11 +136,15 @@ namespace helengine.editor {
                 blueprintAsset.AuthoringAssetId = identity.AssetId;
                 blueprintAsset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
 
-                using FileStream outputStream = new FileStream(normalizedPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                AssetSerializer.Serialize(outputStream, blueprintAsset);
+                using MemoryStream bytes = new MemoryStream();
+                AssetSerializer.Serialize(bytes, blueprintAsset);
+                EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                    ProjectRootPath,
+                    normalizedPath,
+                    bytes.ToArray());
             } finally {
                 if (File.Exists(tempScenePath)) {
-                    File.Delete(tempScenePath);
+                    EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, tempScenePath);
                 }
             }
         }
@@ -177,14 +185,17 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 return false;
             }
-            if (string.Equals(fullPath, AssetsRootPath, StringComparison.OrdinalIgnoreCase)) {
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (string.Equals(fullPath, AssetsRootPath, comparison)) {
                 return true;
             }
 
             string rootWithSeparator = AssetsRootPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
                 ? AssetsRootPath
                 : AssetsRootPath + Path.DirectorySeparatorChar;
-            return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+            return fullPath.StartsWith(rootWithSeparator, comparison);
         }
     }
 }

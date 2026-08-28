@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 
 namespace helengine.editor {
     /// <summary>
@@ -58,7 +59,9 @@ namespace helengine.editor {
             }
 
             try {
-                string json = File.ReadAllText(metadataPath);
+                string json = Encoding.UTF8.GetString(EditorAuthoringMutationScope.ReadAllBytes(
+                    FindProjectRoot(assetPath),
+                    metadataPath));
                 using JsonDocument shape = JsonDocument.Parse(json);
                 ValidateJsonShape(shape, metadataPath);
                 AssetIdentityMetadataDocument document = JsonSerializer.Deserialize<AssetIdentityMetadataDocument>(json, JsonOptions);
@@ -124,6 +127,7 @@ namespace helengine.editor {
             }
 
             string projectRootPath = FindProjectRoot(assetPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
             using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
                 projectRootPath,
                 Path.GetDirectoryName(Path.GetFullPath(assetPath)));
@@ -139,11 +143,19 @@ namespace helengine.editor {
             string temporaryPath = metadataPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try {
                 string json = JsonSerializer.Serialize(document, JsonOptions);
-                File.WriteAllText(temporaryPath, json, new System.Text.UTF8Encoding(false));
-                File.Move(temporaryPath, metadataPath, true);
+                using (EditorAuthoringVerifiedFile temporary = mutationScope.OpenVerifiedFile(
+                    temporaryPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None)) {
+                    byte[] bytes = new UTF8Encoding(false).GetBytes(json);
+                    temporary.Stream.Write(bytes, 0, bytes.Length);
+                    temporary.Stream.Flush(true);
+                }
+                mutationScope.ReplaceLeaf(temporaryPath, metadataPath, true);
             } finally {
                 if (File.Exists(temporaryPath)) {
-                    File.Delete(temporaryPath);
+                    mutationScope.DeleteLeaf(temporaryPath);
                 }
             }
         }
@@ -169,7 +181,9 @@ namespace helengine.editor {
         /// <returns>Validated embedded identity metadata.</returns>
         AssetIdentityMetadataDocument LoadEmbedded(string assetPath) {
             try {
-                using FileStream stream = new FileStream(assetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = new MemoryStream(EditorAuthoringMutationScope.ReadAllBytes(
+                    FindProjectRoot(assetPath),
+                    assetPath), false);
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 stream.Position = 0;
                 AssetIdentityMetadataDocument document;
@@ -213,7 +227,9 @@ namespace helengine.editor {
         void SaveEmbedded(string assetPath, AssetIdentityMetadataDocument document) {
             Asset asset = null;
             MaterialAssetCommonSettingsDocument material = null;
-            using (FileStream input = new FileStream(assetPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            using (MemoryStream input = new MemoryStream(EditorAuthoringMutationScope.ReadAllBytes(
+                FindProjectRoot(assetPath),
+                assetPath), false)) {
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(input);
                 input.Position = 0;
                 if (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset) {
@@ -233,20 +249,16 @@ namespace helengine.editor {
                 }
             }
 
-            string temporaryPath = assetPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                using (FileStream output = File.Create(temporaryPath)) {
-                    if (asset != null) {
-                        AssetSerializer.Serialize(output, asset);
-                    } else {
-                        MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(output, material);
-                    }
+            using (MemoryStream output = new MemoryStream()) {
+                if (asset != null) {
+                    AssetSerializer.Serialize(output, asset);
+                } else {
+                    MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(output, material);
                 }
-                File.Move(temporaryPath, assetPath, true);
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    File.Delete(temporaryPath);
-                }
+                EditorAuthoringMutationScope.WriteAllBytesAtomically(
+                    FindProjectRoot(assetPath),
+                    assetPath,
+                    output.ToArray());
             }
         }
 

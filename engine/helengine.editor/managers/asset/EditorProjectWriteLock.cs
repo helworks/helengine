@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 
 namespace helengine.editor {
     /// <summary>
@@ -10,6 +11,7 @@ namespace helengine.editor {
         [ThreadStatic]
         static Dictionary<string, EditorProjectWriteLock> HeldLocks;
         readonly FileStream LockStream;
+        readonly EditorAuthoringVerifiedFile VerifiedLockFile;
         readonly EditorAuthoringMutationScope MutationScope;
         readonly string ProjectRootPath;
         readonly bool OwnsHandle;
@@ -17,10 +19,12 @@ namespace helengine.editor {
 
         EditorProjectWriteLock(
             FileStream lockStream,
+            EditorAuthoringVerifiedFile verifiedLockFile,
             EditorAuthoringMutationScope mutationScope,
             string projectRootPath,
             bool ownsHandle) {
             LockStream = lockStream;
+            VerifiedLockFile = verifiedLockFile;
             MutationScope = mutationScope;
             ProjectRootPath = projectRootPath;
             OwnsHandle = ownsHandle;
@@ -56,7 +60,7 @@ namespace helengine.editor {
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(lockDirectoryPath, fullProjectRootPath);
             string canonicalLockPath = CanonicalizeLockPath(lockPath);
             if (HeldLocks != null && HeldLocks.TryGetValue(canonicalLockPath, out EditorProjectWriteLock heldLock)) {
-                return new EditorProjectWriteLock(heldLock.LockStream, null, canonicalLockPath, false);
+                return new EditorProjectWriteLock(heldLock.LockStream, null, null, canonicalLockPath, false);
             }
 
             EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
@@ -65,33 +69,45 @@ namespace helengine.editor {
             IOException lastIOException = null;
             try {
                 DateTime deadlineUtc = DateTime.UtcNow + maximumWait;
+                EditorAuthoringVerifiedFile verifiedLockFile = null;
                 while (DateTime.UtcNow <= deadlineUtc) {
                     try {
                         EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(lockPath, fullProjectRootPath);
-                        FileStream lockStream = new FileStream(
+                        verifiedLockFile = mutationScope.OpenVerifiedFile(
                             lockPath,
                             FileMode.OpenOrCreate,
                             FileAccess.ReadWrite,
-                            FileShare.None,
-                            1,
-                            FileOptions.SequentialScan);
+                            FileShare.None);
+                        if (!mutationScope.TryAcquireExclusiveFileLock(verifiedLockFile)) {
+                            throw new IOException($"The project authoring write lock at '{lockPath}' is held by another process.");
+                        }
+                        FileStream lockStream = verifiedLockFile.Stream;
                         EditorProjectWriteLock acquiredLock = new EditorProjectWriteLock(
                             lockStream,
+                            verifiedLockFile,
                             mutationScope,
                             canonicalLockPath,
                             true);
                         (HeldLocks ??= new Dictionary<string, EditorProjectWriteLock>(
                             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))[canonicalLockPath] = acquiredLock;
+                        verifiedLockFile = null;
                         mutationScope = null;
                         return acquiredLock;
                     } catch (IOException exception) {
+                        verifiedLockFile?.Dispose();
+                        verifiedLockFile = null;
                         lastIOException = exception;
                         Thread.Sleep(RetryDelayMilliseconds);
+                    } catch {
+                        verifiedLockFile?.Dispose();
+                        throw;
                     }
                 }
 
                 throw new IOException($"Could not acquire the project authoring write lock at '{lockPath}'.", lastIOException);
             } finally {
+                // The temporary verified leaf must never survive a failed
+                // acquisition and its parent scope remains retryable.
                 mutationScope?.Dispose();
             }
         }
@@ -150,7 +166,11 @@ namespace helengine.editor {
             // closed successfully, so a failed release can be retried safely.
             List<Exception> failures = null;
             try {
-                LockStream.Dispose();
+                if (VerifiedLockFile != null) {
+                    VerifiedLockFile.Dispose();
+                } else {
+                    LockStream.Dispose();
+                }
             } catch (Exception exception) {
                 failures = new List<Exception> { exception };
             }
@@ -380,7 +400,7 @@ namespace helengine.editor {
             using EditorAuthoringMutationScope generationScope = EditorAuthoringMutationScope.AcquireForMutation(
                 projectRootPath,
                 generationDirectoryPath);
-            Directory.CreateDirectory(generationDirectoryPath);
+            EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, generationDirectoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationDirectoryPath, projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
 
@@ -517,7 +537,7 @@ namespace helengine.editor {
             using EditorAuthoringMutationScope generationScope = EditorAuthoringMutationScope.AcquireForMutation(
                 projectRootPath,
                 generationDirectoryPath);
-            Directory.CreateDirectory(generationDirectoryPath);
+            EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, generationDirectoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationDirectoryPath, projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
             ProjectWriteGenerationSnapshot snapshot = ReadSnapshot(projectRootPath);
@@ -607,7 +627,9 @@ namespace helengine.editor {
 
             string json;
             try {
-                json = File.ReadAllText(generationPath);
+                json = Encoding.UTF8.GetString(EditorAuthoringMutationScope.ReadAllBytes(
+                    Path.GetFullPath(projectRootPath),
+                    generationPath));
             } catch (FileNotFoundException) {
                 return new ProjectWriteGenerationSnapshot {
                     Version = CurrentVersion,
@@ -716,37 +738,12 @@ namespace helengine.editor {
                 projectRootPath,
                 generationDirectoryPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
-            string temporaryPath = generationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, projectRootPath);
-                ValidateSnapshot(snapshot, generationPath, projectRootPath);
-                byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions);
-                if (bytes.Length > MaximumSnapshotBytes) {
-                    throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' exceeds the current size limit.");
-                }
-                using (FileStream stream = new FileStream(
-                    temporaryPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    4096,
-                    FileOptions.WriteThrough)) {
-                    stream.Write(bytes, 0, bytes.Length);
-                    stream.Flush(true);
-                }
-
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(generationPath, projectRootPath);
-                if (File.Exists(generationPath)) {
-                    File.Move(temporaryPath, generationPath, true);
-                } else {
-                    File.Move(temporaryPath, generationPath);
-                }
-            } finally {
-                if (File.Exists(temporaryPath)) {
-                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(temporaryPath, projectRootPath);
-                    File.Delete(temporaryPath);
-                }
+            ValidateSnapshot(snapshot, generationPath, projectRootPath);
+            byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions);
+            if (bytes.Length > MaximumSnapshotBytes) {
+                throw new InvalidDataException($"The project authoring generation snapshot '{generationPath}' exceeds the current size limit.");
             }
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, generationPath, bytes);
         }
 
         /// <summary>

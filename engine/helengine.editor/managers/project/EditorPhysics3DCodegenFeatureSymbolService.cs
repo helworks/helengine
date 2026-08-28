@@ -123,7 +123,9 @@ namespace helengine.editor {
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 EngineBinaryReadContext.CurrentAssetPath = fullScenePath;
-                using FileStream stream = File.OpenRead(fullScenePath);
+                using MemoryStream stream = new MemoryStream(
+                    EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullScenePath),
+                    writable: false);
                 Asset asset = AssetSerializer.Deserialize(stream);
                 if (asset is not SceneAsset sceneAsset) {
                     throw new InvalidOperationException($"Scene '{sceneId}' did not deserialize into a SceneAsset.");

@@ -253,7 +253,7 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     /// <summary>
     /// Ensures a directory link cannot redirect a native write outside the project assets root.
     /// </summary>
-    [Fact(Skip = "Requires Windows directory-link privilege to exercise reparse rejection.")]
+    [DirectoryLinkFact]
     public void WriteAsset_WhenDirectoryLinkEscapesAssetsRoot_RejectsWithoutMutation() {
         string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-native-write-outside-" + Guid.NewGuid().ToString("N"));
         string linkPath = Path.Combine(ProjectRootPath, "assets", "linked");

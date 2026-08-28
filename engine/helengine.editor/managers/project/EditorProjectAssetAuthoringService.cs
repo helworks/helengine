@@ -329,7 +329,9 @@ namespace helengine.editor {
                 throw new FileNotFoundException($"Native asset '{relativePath}' was not found.", fullPath);
             }
 
-            using FileStream stream = File.OpenRead(fullPath);
+            using MemoryStream stream = new MemoryStream(
+                EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(), fullPath),
+                writable: false);
             if (AssetSerializer.Deserialize(stream) is not TAsset asset) {
                 throw new InvalidOperationException($"Native asset '{relativePath}' is not a {typeof(TAsset).Name}.");
             }

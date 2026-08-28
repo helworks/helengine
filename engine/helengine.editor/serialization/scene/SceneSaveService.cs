@@ -136,23 +136,30 @@ namespace helengine.editor {
                 throw new ArgumentException("Scene authoring asset id must be a lowercase 32-character hexadecimal value.", nameof(authoringAssetId));
             }
 
+            string normalizedPath = Path.GetFullPath(fullPath);
+            if (!IsPathInsideAssetsRoot(normalizedPath)) {
+                throw new InvalidOperationException("Scene files must be stored inside the project assets folder.");
+            }
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+
             EntityReferenceTable.Clear();
-            SceneAsset asset = BuildSceneAsset(fullPath, sceneSettings, roots);
+            SceneAsset asset = BuildSceneAsset(normalizedPath, sceneSettings, roots);
             AssetIdentityMetadataDocument identity = !string.IsNullOrWhiteSpace(authoringAssetId)
                 ? new AssetIdentityMetadataDocument { AssetId = authoringAssetId }
-                : File.Exists(fullPath)
-                    ? new AssetIdentityMetadataService().Load(fullPath)
+                : File.Exists(normalizedPath)
+                    ? new AssetIdentityMetadataService().Load(normalizedPath)
                     : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
             asset.AuthoringAssetId = identity.AssetId;
             asset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
-            string directoryPath = Path.GetDirectoryName(fullPath);
+            string directoryPath = Path.GetDirectoryName(normalizedPath);
             if (string.IsNullOrWhiteSpace(directoryPath)) {
                 throw new InvalidOperationException("Scene path does not include a writable directory.");
             }
 
-            Directory.CreateDirectory(directoryPath);
-            using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AssetSerializer.Serialize(stream, asset);
+            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, directoryPath);
+            using MemoryStream bytes = new MemoryStream();
+            AssetSerializer.Serialize(bytes, asset);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, normalizedPath, bytes.ToArray());
         }
 
         /// <summary>
@@ -662,14 +669,17 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (string.Equals(fullPath, AssetsRootPath, StringComparison.OrdinalIgnoreCase)) {
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            if (string.Equals(fullPath, AssetsRootPath, comparison)) {
                 return true;
             }
 
             string rootWithSeparator = AssetsRootPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
                 ? AssetsRootPath
                 : AssetsRootPath + Path.DirectorySeparatorChar;
-            return fullPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
+            return fullPath.StartsWith(rootWithSeparator, comparison);
         }
 
         /// <summary>
