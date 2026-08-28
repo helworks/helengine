@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Manages asset importer registration and sidecar import settings.
     /// </summary>
-    public class AssetImportManager {
+    public class AssetImportManager : IDisposable {
         /// <summary>
         /// File extension for import settings sidecar files.
         /// </summary>
@@ -170,6 +170,16 @@ namespace helengine.editor {
         /// Gets the root path where imported assets are stored.
         /// </summary>
         public string ImportRootPath => importRootPath;
+
+        /// <summary>
+        /// Releases importer-manager state. Importer registrations and the
+        /// content manager are owned by their explicit session ledger entries.
+        /// </summary>
+        public void Dispose() {
+            // The manager currently has no unmanaged resources. This explicit
+            // owner boundary is intentionally idempotent and keeps disposal
+            // ordering visible to the session construction ledger.
+        }
 
         /// <summary>
         /// Gets the project content manager used to load source assets and importer outputs.

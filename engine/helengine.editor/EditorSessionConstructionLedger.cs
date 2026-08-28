@@ -1,68 +1,105 @@
 namespace helengine.editor {
     /// <summary>
-    /// Records each resource acquired during session construction in acquisition
-    /// order. A failed construction attempts every cleanup action in reverse
-    /// order and preserves all failures so a later owner cannot be stranded by
-    /// an earlier disposal error.
+    /// Groups editor-session teardown actions so detachment and process-wide
+    /// state reset always run before owned resources are released.
+    /// </summary>
+    internal enum EditorSessionCleanupPhase {
+        Dispose = 0,
+        Panel = 1,
+        Reset = 2,
+        Detach = 3
+    }
+
+    /// <summary>
+    /// Records resources acquired during construction and retains the same
+    /// individual actions for the live session after ownership transfer.
+    /// Successful actions are completed permanently; failed actions remain
+    /// available for a later retry.
     /// </summary>
     internal sealed class EditorSessionConstructionLedger {
-        readonly List<Action> CleanupActions = new List<Action>();
+        sealed class CleanupEntry {
+            internal readonly Action Cleanup;
+            internal readonly EditorSessionCleanupPhase Phase;
+            internal bool Completed;
+
+            internal CleanupEntry(Action cleanup, EditorSessionCleanupPhase phase) {
+                Cleanup = cleanup;
+                Phase = phase;
+            }
+        }
+
+        readonly List<CleanupEntry> CleanupEntries = new List<CleanupEntry>();
         bool Transferred;
 
+        /// <summary>
+        /// Optional test seam invoked immediately before each unresolved
+        /// cleanup item. A throwing callback leaves that item pending while
+        /// allowing all later items to be attempted.
+        /// </summary>
+        internal Action<int> BeforeCleanupAction { get; set; }
+
         internal void Register(object resource) {
+            Register(resource, EditorSessionCleanupPhase.Dispose);
+        }
+
+        internal void Register(object resource, EditorSessionCleanupPhase phase) {
             if (resource is IDisposable disposable) {
-                Register(disposable.Dispose);
+                Register(disposable.Dispose, phase);
             }
         }
 
         internal void Register(Action cleanup) {
+            Register(cleanup, EditorSessionCleanupPhase.Dispose);
+        }
+
+        internal void Register(Action cleanup, EditorSessionCleanupPhase phase) {
             if (cleanup == null) {
                 throw new ArgumentNullException(nameof(cleanup));
             }
-            if (Transferred) {
-                throw new InvalidOperationException("The editor session construction ledger has already transferred ownership.");
-            }
-            CleanupActions.Add(cleanup);
-        }
 
-        internal void TransferOwnership() {
-            Transferred = true;
-            CleanupActions.Clear();
+            // Dynamic workspace factories add resources to this same ledger
+            // after construction has transferred ownership.
+            CleanupEntries.Add(new CleanupEntry(cleanup, phase));
         }
 
         /// <summary>
-        /// Replaces construction-only registrations with the single teardown
-        /// action owned by the successfully constructed session.
+        /// Transfers all individually tracked entries to the live session.
         /// </summary>
-        /// <param name="ownerCleanup">Aggregate teardown action for the session.</param>
-        internal void TransferOwnership(Action ownerCleanup) {
-            if (ownerCleanup == null) {
-                throw new ArgumentNullException(nameof(ownerCleanup));
-            }
-
-            CleanupActions.Clear();
-            CleanupActions.Add(ownerCleanup);
+        internal void TransferOwnership() {
             Transferred = true;
         }
 
+        internal bool HasTransferredOwnership => Transferred;
+
+        /// <summary>
+        /// Attempts every unresolved entry. Higher-priority phases run first,
+        /// while entries within a phase retain reverse acquisition order.
+        /// </summary>
         internal void Dispose() {
             List<Exception> failures = new List<Exception>();
-            for (int index = CleanupActions.Count - 1; index >= 0; index--) {
-                try {
-                    CleanupActions[index]();
-                    // Retain only actions that failed. A second cleanup pass
-                    // must retry the unresolved owner without invoking already
-                    // completed teardown actions a second time.
-                    CleanupActions.RemoveAt(index);
-                } catch (Exception exception) {
-                    failures.Add(exception);
+            int cleanupActionIndex = 0;
+            for (int phaseValue = (int)EditorSessionCleanupPhase.Detach; phaseValue >= (int)EditorSessionCleanupPhase.Dispose; phaseValue--) {
+                EditorSessionCleanupPhase phase = (EditorSessionCleanupPhase)phaseValue;
+                for (int index = CleanupEntries.Count - 1; index >= 0; index--) {
+                    CleanupEntry entry = CleanupEntries[index];
+                    if (entry.Completed || entry.Phase != phase) {
+                        continue;
+                    }
+
+                    try {
+                        BeforeCleanupAction?.Invoke(cleanupActionIndex++);
+                        entry.Cleanup();
+                        entry.Completed = true;
+                    } catch (Exception exception) {
+                        failures.Add(exception);
+                    }
                 }
             }
             if (failures.Count == 1) {
                 throw failures[0];
             }
             if (failures.Count > 1) {
-                throw new AggregateException("Editor session construction cleanup failed.", failures);
+                throw new AggregateException("Editor session cleanup failed; retry disposal to complete cleanup.", failures);
             }
         }
     }

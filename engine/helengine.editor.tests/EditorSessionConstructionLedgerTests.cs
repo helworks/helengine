@@ -16,11 +16,115 @@ public sealed class EditorSessionConstructionLedgerTests {
         int disposeCount = 0;
         ledger.Register(() => disposeCount++);
 
-        ledger.TransferOwnership(() => disposeCount++);
+        ledger.TransferOwnership();
         ledger.Dispose();
         ledger.Dispose();
 
         Assert.Equal(1, disposeCount);
+    }
+
+    [Fact]
+    public void TransferOwnership_WithMiddleFailure_RetriesOnlyTheFailedEntry() {
+        EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
+        List<string> calls = new List<string>();
+        bool failOnce = true;
+        ledger.Register(() => calls.Add("first"));
+        ledger.Register(() => {
+            calls.Add("middle");
+            if (failOnce) {
+                failOnce = false;
+                throw new InvalidOperationException("middle failed once");
+            }
+        });
+        ledger.Register(() => calls.Add("last"));
+        ledger.TransferOwnership();
+
+        Assert.Throws<InvalidOperationException>(() => ledger.Dispose());
+        ledger.Dispose();
+        ledger.Dispose();
+
+        Assert.Equal(new[] { "last", "middle", "first", "middle" }, calls);
+    }
+
+    [Fact]
+    public void Dispose_RunsDetachPhaseBeforeResetAndDisposePhases() {
+        EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
+        List<string> calls = new List<string>();
+        ledger.Register(() => calls.Add("publisher"), EditorSessionCleanupPhase.Dispose);
+        ledger.Register(() => calls.Add("reset"), EditorSessionCleanupPhase.Reset);
+        ledger.Register(() => calls.Add("detacher"), EditorSessionCleanupPhase.Detach);
+        ledger.TransferOwnership();
+
+        ledger.Dispose();
+
+        Assert.Equal(new[] { "detacher", "reset", "publisher" }, calls);
+    }
+
+    [Fact]
+    public void Dispose_WhenDetachFails_RetriesOnlyTheUnresolvedDetacher() {
+        EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
+        List<string> calls = new List<string>();
+        bool failOnce = true;
+        ledger.Register(() => calls.Add("publisher"), EditorSessionCleanupPhase.Dispose);
+        ledger.Register(() => {
+            calls.Add("first-detacher");
+            if (failOnce) {
+                failOnce = false;
+                throw new InvalidOperationException("detacher failed once");
+            }
+        }, EditorSessionCleanupPhase.Detach);
+        ledger.Register(() => calls.Add("second-detacher"), EditorSessionCleanupPhase.Detach);
+        ledger.TransferOwnership();
+
+        Assert.Throws<InvalidOperationException>(() => ledger.Dispose());
+        ledger.Dispose();
+        ledger.Dispose();
+
+        Assert.Equal(
+            new[] { "second-detacher", "first-detacher", "publisher", "first-detacher" },
+            calls);
+    }
+
+    [Fact]
+    public void Dispose_WhenMultipleActionsFail_PreservesEveryFailureForInspection() {
+        EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
+        ledger.Register(() => throw new InvalidOperationException("first cleanup"));
+        ledger.Register(() => throw new ArgumentException("second cleanup"));
+        ledger.TransferOwnership();
+
+        AggregateException exception = Assert.Throws<AggregateException>(() => ledger.Dispose());
+
+        Assert.Equal(2, exception.Flatten().InnerExceptions.Count);
+        Assert.Contains(exception.Flatten().InnerExceptions, failure => failure.Message == "first cleanup");
+        Assert.Contains(exception.Flatten().InnerExceptions, failure => failure.Message == "second cleanup");
+    }
+
+    [Fact]
+    public void InitializeAssetImports_SourceUsesFailureAtomicOwnerCleanup() {
+        string sourcePath = ResolveSourcePath("EditorSession.cs");
+        string source = File.ReadAllText(sourcePath);
+        int methodStart = source.IndexOf("AssetImportManager InitializeAssetImports(", StringComparison.Ordinal);
+        Assert.True(methodStart >= 0);
+        int methodEnd = source.IndexOf("\n        }", methodStart, StringComparison.Ordinal);
+        Assert.True(methodEnd > methodStart);
+        string method = source.Substring(methodStart, methodEnd - methodStart);
+
+        Assert.Contains("try", method, StringComparison.Ordinal);
+        Assert.Contains("manager.Dispose()", method, StringComparison.Ordinal);
+        Assert.Contains("projectContentManager.Dispose()", method, StringComparison.Ordinal);
+    }
+
+    static string ResolveSourcePath(string fileName) {
+        DirectoryInfo current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current != null) {
+            string candidate = Path.Combine(current.FullName, "helengine.editor", fileName);
+            if (File.Exists(candidate)) {
+                return candidate;
+            }
+            current = current.Parent;
+        }
+
+        throw new FileNotFoundException(fileName);
     }
 
     [Fact]

@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Loads processed or raw content using processors selected by output type and file extension.
     /// </summary>
-    public class ContentManager {
+    public class ContentManager : IDisposable {
         /// <summary>
         /// Processor id used for the built-in raw-byte loader.
         /// </summary>
@@ -39,6 +39,18 @@ namespace helengine {
             ProcessorRegistrationsById = new Dictionary<string, ContentProcessorRegistration>(StringComparer.OrdinalIgnoreCase);
             DefaultProcessorsByTypeAndExtension = new Dictionary<Type, Dictionary<string, ContentProcessorRegistration>>();
             RegisterBuiltInProcessors();
+        }
+
+        /// <summary>
+        /// Releases content-manager-owned registrations. The current stream
+        /// source is borrowed by this manager, so it is intentionally not
+        /// disposed here.
+        /// </summary>
+        public void Dispose() {
+            // Processor registrations are managed objects supplied by the
+            // caller and are not owned by the content manager. Keeping this
+            // boundary explicit lets session construction transfer ownership
+            // and retry teardown without inventing hidden source ownership.
         }
 
         /// <summary>

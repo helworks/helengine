@@ -13,7 +13,8 @@ namespace helengine.editor {
         bool IsDisposing;
         int DisposeThreadId;
         bool ConstructionCompleted;
-        readonly EditorSessionConstructionLedger ConstructionLedger;
+        EditorSessionConstructionLedger ConstructionLedger;
+        readonly HashSet<IEditorWorkspacePanelController> RegisteredWorkspaceControllers = new HashSet<IEditorWorkspacePanelController>();
         /// <summary>
         /// Default debounce delay for shader rebuilds.
         /// </summary>
@@ -610,11 +611,12 @@ namespace helengine.editor {
             Func<string> browseOutputFolderResolver,
             ShaderBackendRegistry shaderBackendRegistry) {
             EditorSessionConstructionLedger constructionLedger = new EditorSessionConstructionLedger();
+            constructionLedger.BeforeCleanupAction = sequence => DisposalCheckpointForTests?.Invoke(sequence);
             ConstructionLedger = constructionLedger;
-            // Register this before touching static interaction state or event
-            // publishers so a failed partial construction is fully reset.
-            constructionLedger.Register(ResetSessionInteractionState);
             try {
+            // Register process-wide resets and the detachment boundary before
+            // touching static interaction state or event publishers.
+            RegisterSessionCleanupActions(constructionLedger);
             this.core = core ?? throw new ArgumentNullException(nameof(core));
             constructionLedger.Register(this.core);
             ConstructionCheckpointForTests?.Invoke("after-core-acquired");
@@ -655,6 +657,7 @@ namespace helengine.editor {
             core.Input.SetKeyboardActive(true);
 
             assetImportManager = InitializeAssetImports(Importers);
+            constructionLedger.Register(assetImportManager.ContentManager);
             constructionLedger.Register(assetImportManager);
             EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(assetImportManager);
             constructionLedger.Register(concreteAuthoringSession);
@@ -692,7 +695,7 @@ namespace helengine.editor {
             modalUiCameraEntity.AddComponent(modalUiCameraComponent);
 
             ViewportWorkspacePanelController primaryViewportController = CreatePrimaryViewportController();
-            constructionLedger.Register(primaryViewportController);
+            RegisterWorkspaceController(primaryViewportController);
             ConstructionCheckpointForTests?.Invoke("after-primary-viewport-acquired");
             EditorViewportWorkspaceState primaryViewportState = primaryViewportController.ViewportState;
             mainViewport = primaryViewportState.Viewport;
@@ -720,9 +723,7 @@ namespace helengine.editor {
             keyboardFocusEntity.InitializeHierarchy();
 
             PlatformExistenceSyncService = new EditorPlatformExistenceViewportSyncService();
-            // Register before subscribing to the static publisher so the
-            // partially-built session can always detach this callback.
-            constructionLedger.Register(DetachConstructionSubscriptions);
+            RegisterDetacher(constructionLedger, () => EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression);
             EntityPlatformExistenceEditingService.ExistenceChanged += ApplyPlatformExistenceSuppression;
 
             titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
@@ -737,7 +738,7 @@ namespace helengine.editor {
             // independently owned by the workspace registry. Register one
             // null-safe aggregate action before the first dialog is built so
             // partial construction cannot strand a browser/cache owner.
-            constructionLedger.Register(DisposeScaleSensitiveDialogs);
+            constructionLedger.Register(DisposeScaleSensitiveDialogs, EditorSessionCleanupPhase.Panel);
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
@@ -823,33 +824,60 @@ namespace helengine.editor {
             // Register the detach action before acquiring the first event
             // subscription. Partial construction can therefore unwind even if
             // one later subscription or dialog handler fails.
+            RegisterDetacher(constructionLedger, () => EditorSelectionService.SelectionChanged -= HandleSelectionChanged);
             EditorSelectionService.SelectionChanged += HandleSelectionChanged;
             ConstructionCheckpointForTests?.Invoke("after-first-subscription");
+            RegisterDetacher(constructionLedger, () => EditorAssetPickerService.PickRequested -= HandleAssetPickRequested);
             EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
+            RegisterDetacher(constructionLedger, () => EditorMeshModifierPickerService.PickRequested -= HandleMeshModifierPickRequested);
             EditorMeshModifierPickerService.PickRequested += HandleMeshModifierPickRequested;
+            RegisterDetacher(constructionLedger, () => EditorSceneMutationService.SceneMutated -= HandleSceneMutated);
             EditorSceneMutationService.SceneMutated += HandleSceneMutated;
+            RegisterDetacher(constructionLedger, () => titleBar.NewMapRequested -= HandleNewMapRequested);
             titleBar.NewMapRequested += HandleNewMapRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.OpenMapRequested -= HandleOpenMapRequested);
             titleBar.OpenMapRequested += HandleOpenMapRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.SaveMapRequested -= HandleSaveMapRequested);
             titleBar.SaveMapRequested += HandleSaveMapRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.SaveMapAsRequested -= HandleSaveMapAsRequested);
             titleBar.SaveMapAsRequested += HandleSaveMapAsRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.SceneSettingsRequested -= HandleSceneSettingsRequested);
             titleBar.SceneSettingsRequested += HandleSceneSettingsRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.PreferencesRequested -= HandlePreferencesRequested);
             titleBar.PreferencesRequested += HandlePreferencesRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.BuildRequested -= HandleBuildRequested);
             titleBar.BuildRequested += HandleBuildRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.EnvironmentsRequested -= HandleEnvironmentsRequested);
             titleBar.EnvironmentsRequested += HandleEnvironmentsRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.ExportSceneRequested -= HandleExportSceneRequested);
             titleBar.ExportSceneRequested += HandleExportSceneRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.PlatformsRequested -= HandlePlatformsRequested);
             titleBar.PlatformsRequested += HandlePlatformsRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.ProfilesRequested -= HandleProfilesRequested);
             titleBar.ProfilesRequested += HandleProfilesRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested);
             titleBar.BuildScriptsRequested += HandleBuildScriptsRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.OpenInIDERequested -= HandleOpenInIDERequested);
             titleBar.OpenInIDERequested += HandleOpenInIDERequested;
+            RegisterDetacher(constructionLedger, () => titleBar.ProjectMenuItemRequested -= HandleProjectMenuItemRequested);
             titleBar.ProjectMenuItemRequested += HandleProjectMenuItemRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.UiMenuActionRequested -= HandleUiMenuActionRequested);
             titleBar.UiMenuActionRequested += HandleUiMenuActionRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.AddEmptyRequested -= HandleAddEmptyRequested);
             titleBar.AddEmptyRequested += HandleAddEmptyRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.AddCubeRequested -= HandleAddCubeRequested);
             titleBar.AddCubeRequested += HandleAddCubeRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.AddPlaneRequested -= HandleAddPlaneRequested);
             titleBar.AddPlaneRequested += HandleAddPlaneRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.AddCameraRequested -= HandleAddCameraRequested);
             titleBar.AddCameraRequested += HandleAddCameraRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.AddSpotLightRequested -= HandleAddSpotLightRequested);
             titleBar.AddSpotLightRequested += HandleAddSpotLightRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.AddPointLightRequested -= HandleAddPointLightRequested);
             titleBar.AddPointLightRequested += HandleAddPointLightRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.AddDirectionalLightRequested -= HandleAddDirectionalLightRequested);
             titleBar.AddDirectionalLightRequested += HandleAddDirectionalLightRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.AddAmbientLightRequested -= HandleAddAmbientLightRequested);
             titleBar.AddAmbientLightRequested += HandleAddAmbientLightRequested;
             AttachScaleSensitiveDialogHandlers();
             EditorBuildExecutionResult startupProjectLibraryLoadResult = LoadProjectLibrariesOnStartup(
@@ -904,12 +932,31 @@ namespace helengine.editor {
             PromptForPlatformSelectionIfRequired();
             ConstructionCheckpointForTests?.Invoke("late");
             ConstructionCompleted = true;
-            constructionLedger.TransferOwnership(DisposeOwnedResources);
+            // Register teardown operations individually. They remain in the
+            // same ledger after ownership transfer and therefore retry only
+            // the operations that did not complete on a prior Dispose call.
+            constructionLedger.Register(HideScaleSensitiveDialogs, EditorSessionCleanupPhase.Panel);
+            constructionLedger.Register(UntrackCurrentSceneFromSceneManager);
+            constructionLedger.Register(ClearUserSceneEntities);
+            constructionLedger.Register(FlushPendingOwnedAssetReleases);
+            constructionLedger.Register(() => {
+                if (CurrentSceneOwnedAssets != null) {
+                    ReleaseCurrentSceneOwnedAssets();
+                }
+            });
+            constructionLedger.Register(() => assetBrowserPanel?.DisposeAuthoringResources());
+            constructionLedger.TransferOwnership();
             } catch (Exception primaryException) {
                 try {
                     constructionLedger.Dispose();
                 } catch (Exception cleanupException) {
-                    throw new AggregateException("Editor session construction failed and cleanup also failed.", primaryException, cleanupException);
+                    List<Exception> failures = new List<Exception> { primaryException };
+                    if (cleanupException is AggregateException aggregateCleanupException) {
+                        failures.AddRange(aggregateCleanupException.Flatten().InnerExceptions);
+                    } else {
+                        failures.Add(cleanupException);
+                    }
+                    throw new AggregateException("Editor session construction failed and cleanup also failed.", failures);
                 }
                 throw;
             }
@@ -1416,6 +1463,9 @@ namespace helengine.editor {
         /// Attaches session event handlers to the scale-sensitive modal dialogs currently owned by the session.
         /// </summary>
         void AttachScaleSensitiveDialogHandlers() {
+            // Register before the first subscription so each dialog graph is
+            // covered when it is created or recreated.
+            RegisterDetacher(ConstructionLedger, DetachScaleSensitiveDialogHandlers);
             if (saveFileDialog != null) {
                 saveFileDialog.SaveRequested += HandleSceneSaveRequested;
             }
@@ -1721,6 +1771,49 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Installs the process-wide reset and subscription-detachment actions
+        /// before construction can mutate any shared editor state.
+        /// </summary>
+        /// <param name="ledger">Construction/live ownership ledger.</param>
+        void RegisterSessionCleanupActions(EditorSessionConstructionLedger ledger) {
+            if (ledger == null) {
+                throw new ArgumentNullException(nameof(ledger));
+            }
+
+            ledger.Register(EditorInputCaptureService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorKeyboardFocusService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorSelectionService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorSceneMutationService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorAssetPickerService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorMeshModifierPickerService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EntityPlatformExistenceEditingService.ResetExistenceChangedSubscribers, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorEntityHistoryMutationService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorComponentHistoryMutationService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorGizmoHoverService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorGizmoDragService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorViewportToolService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(TransformGizmoSnapSettingsService.ResetDefaults, EditorSessionCleanupPhase.Reset);
+            ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);
+            // This fallback covers subscriptions acquired after the first
+            // publisher is constructed; its phase outranks every disposer.
+            ledger.Register(DetachConstructionSubscriptions, EditorSessionCleanupPhase.Detach);
+        }
+
+        /// <summary>
+        /// Registers one detacher before its corresponding publisher is
+        /// mutated. The action remains independently retryable if that
+        /// publisher rejects an unsubscribe during teardown.
+        /// </summary>
+        /// <param name="ledger">Session ownership ledger.</param>
+        /// <param name="detacher">Single subscription or publisher detacher.</param>
+        void RegisterDetacher(EditorSessionConstructionLedger ledger, Action detacher) {
+            if (ledger == null) {
+                return;
+            }
+            ledger.Register(detacher, EditorSessionCleanupPhase.Detach);
+        }
+
+        /// <summary>
         /// Removes subscriptions acquired during construction. Every operation
         /// is null-safe because this action also runs for partially built
         /// sessions.
@@ -1847,104 +1940,47 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resets interaction state during normal teardown after its explicit
-        /// input-capture reset has run at the public disposal boundary.
+        /// Creates the same individually retryable teardown graph for
+        /// lightweight uninitialized integration fixtures that bypass the
+        /// public constructor.
         /// </summary>
-        void ResetSessionInteractionStateWithoutInputCapture() {
-            List<Exception> failures = new List<Exception>();
-            void Attempt(Action reset) {
-                try {
-                    reset();
-                } catch (Exception exception) {
-                    failures.Add(exception);
+        /// <returns>Cleanup ledger owned by this session.</returns>
+        EditorSessionConstructionLedger CreateUninitializedCleanupLedger() {
+            EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
+            ledger.BeforeCleanupAction = sequence => DisposalCheckpointForTests?.Invoke(sequence);
+            ledger.Register(EditorKeyboardFocusService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorSelectionService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorSceneMutationService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorAssetPickerService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorMeshModifierPickerService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EntityPlatformExistenceEditingService.ResetExistenceChangedSubscribers, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorEntityHistoryMutationService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorComponentHistoryMutationService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorGizmoHoverService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorGizmoDragService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(EditorViewportToolService.Reset, EditorSessionCleanupPhase.Reset);
+            ledger.Register(TransformGizmoSnapSettingsService.ResetDefaults, EditorSessionCleanupPhase.Reset);
+            ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);
+            ledger.Register(DetachConstructionSubscriptions, EditorSessionCleanupPhase.Detach);
+            ledger.Register(DetachTrackedWorkspacePanelsForDispose, EditorSessionCleanupPhase.Detach);
+            ledger.Register(HideScaleSensitiveDialogs, EditorSessionCleanupPhase.Panel);
+            ledger.Register(DisposeScaleSensitiveDialogs, EditorSessionCleanupPhase.Panel);
+            ledger.Register(() => shaderModuleManager?.Dispose(), EditorSessionCleanupPhase.Dispose);
+            ledger.Register(UntrackCurrentSceneFromSceneManager, EditorSessionCleanupPhase.Dispose);
+            ledger.Register(ClearUserSceneEntities, EditorSessionCleanupPhase.Dispose);
+            ledger.Register(FlushPendingOwnedAssetReleases, EditorSessionCleanupPhase.Dispose);
+            ledger.Register(() => {
+                if (CurrentSceneOwnedAssets != null) {
+                    ReleaseCurrentSceneOwnedAssets();
                 }
-            }
-
-            Attempt(EditorKeyboardFocusService.Reset);
-            Attempt(EditorSelectionService.Reset);
-            Attempt(EditorSceneMutationService.Reset);
-            Attempt(EditorAssetPickerService.Reset);
-            Attempt(EditorMeshModifierPickerService.Reset);
-            Attempt(EntityPlatformExistenceEditingService.ResetExistenceChangedSubscribers);
-            Attempt(EditorEntityHistoryMutationService.Reset);
-            Attempt(EditorComponentHistoryMutationService.Reset);
-            Attempt(EditorGizmoHoverService.Reset);
-            Attempt(EditorGizmoDragService.Reset);
-            Attempt(EditorViewportToolService.Reset);
-            Attempt(TransformGizmoSnapSettingsService.ResetDefaults);
-            if (failures.Count == 1) {
-                throw failures[0];
-            }
-            if (failures.Count > 1) {
-                throw new AggregateException("Editor session interaction-state reset failed.", failures);
-            }
-        }
-
-        /// <summary>
-        /// Disposes all resources acquired by the session. The construction
-        /// ledger invokes this aggregate action after ownership transfers to
-        /// the fully-created session.
-        /// </summary>
-        void DisposeOwnedResources() {
-            List<Exception> disposalFailures = new List<Exception>();
-            int disposalActionIndex = 0;
-            void Attempt(Action action) {
-                try {
-                    DisposalCheckpointForTests?.Invoke(disposalActionIndex++);
-                    action();
-                } catch (Exception exception) {
-                    disposalFailures.Add(exception);
-                }
-            }
-
-            try {
-                // Lightweight integration fixtures may inject an editor shell
-                // without running the constructor's hierarchy initialization.
-                // Their core remains the owner of those detached UI entities;
-                // avoid treating their partial dialog graph as a teardown
-                // failure while still resetting all process-wide state.
-                bool hasCompleteConstructionGraph = ConstructionCompleted || ConstructionLedger != null;
-                Attempt(DetachConstructionSubscriptions);
-                Attempt(ResetSessionInteractionStateWithoutInputCapture);
-                Attempt(ClearSceneSelectionBeforeTeardown);
-                Attempt(DetachTrackedWorkspacePanelsForDispose);
-                Attempt(() => scriptHotReloadService?.Dispose());
-                Attempt(() => {
-                    IReadOnlyList<EditorViewport> viewports = GetViewportPanels();
-                    for (int index = 0; index < viewports.Count; index++) {
-                        EditorViewport viewport = viewports[index];
-                        Attempt(() => viewport?.ClearInputBlockers());
-                    }
-                });
-                Attempt(HideScaleSensitiveDialogs);
-                Attempt(() => shaderModuleManager?.Dispose());
-                if (hasCompleteConstructionGraph) {
-                    Attempt(DisposeScaleSensitiveDialogs);
-                }
-                Attempt(UntrackCurrentSceneFromSceneManager);
-                Attempt(ClearUserSceneEntities);
-                Attempt(FlushPendingOwnedAssetReleases);
-                Attempt(() => {
-                    if (CurrentSceneOwnedAssets != null) {
-                        ReleaseCurrentSceneOwnedAssets();
-                    }
-                });
-                Attempt(() => assetBrowserPanel?.DisposeAuthoringResources());
-                Attempt(() => sceneAssetReferenceResolver?.Dispose());
-                Attempt(() => SceneSaveService?.Dispose());
-                Attempt(() => SceneFileLoadService?.Dispose());
-                Attempt(() => AuthoringSession?.Dispose());
-                Attempt(() => core?.Dispose());
-            } catch (Exception exception) {
-                disposalFailures.Add(exception);
-            }
-
-            if (disposalFailures.Count == 1) {
-                throw disposalFailures[0];
-            }
-            if (disposalFailures.Count > 1) {
-                throw new AggregateException("Editor session disposal failed; retry disposal to complete cleanup.", disposalFailures);
-            }
+            }, EditorSessionCleanupPhase.Dispose);
+            ledger.Register(() => assetBrowserPanel?.DisposeAuthoringResources(), EditorSessionCleanupPhase.Dispose);
+            ledger.Register(() => sceneAssetReferenceResolver?.Dispose(), EditorSessionCleanupPhase.Dispose);
+            ledger.Register(() => SceneSaveService?.Dispose(), EditorSessionCleanupPhase.Dispose);
+            ledger.Register(() => SceneFileLoadService?.Dispose(), EditorSessionCleanupPhase.Dispose);
+            ledger.Register(() => AuthoringSession?.Dispose(), EditorSessionCleanupPhase.Dispose);
+            ledger.Register(() => core?.Dispose(), EditorSessionCleanupPhase.Dispose);
+            return ledger;
         }
 
         /// <summary>
@@ -1980,20 +2016,20 @@ namespace helengine.editor {
                 }
             }
 
-            // Keep input capture reset at the public lifecycle boundary while
-            // still routing it through the same aggregate action semantics as
-            // every other teardown operation.
+            // Fully constructed sessions own the input reset as one ledger
+            // action. Uninitialized integration fixtures get an equivalent
+            // individually tracked action before their fallback ledger is
+            // transferred.
+            if (ConstructionLedger == null) {
+                EditorSessionConstructionLedger uninitializedLedger = CreateUninitializedCleanupLedger();
+                uninitializedLedger.Register(() => {
+                    EditorInputCaptureService.Reset();
+                }, EditorSessionCleanupPhase.Reset);
+                ConstructionLedger = uninitializedLedger;
+                ConstructionLedger.TransferOwnership();
+            }
             Attempt(() => {
-                EditorInputCaptureService.Reset();
-            });
-            Attempt(() => {
-                if (ConstructionLedger != null) {
-                    ConstructionLedger.Dispose();
-                } else {
-                    // A few editor integration fixtures intentionally create
-                    // an uninitialized session shell and inject its fields.
-                    DisposeOwnedResources();
-                }
+                ConstructionLedger.Dispose();
             });
 
             lock (disposeGate) {
@@ -2138,6 +2174,7 @@ namespace helengine.editor {
         EditorWorkspacePanelInstance CreateWorkspacePanelInstance(string panelTypeId, string instanceId) {
             EditorWorkspacePanelTypeDescriptor descriptor = PanelRegistry.GetDescriptor(panelTypeId);
             IEditorWorkspacePanelController controller = descriptor.CreateController(this);
+            RegisterWorkspaceController(controller);
             Action closeRequestedHandler = () => HandleWorkspacePanelCloseRequested(controller.Dockable);
             EditorWorkspacePanelInstance instance = new EditorWorkspacePanelInstance(
                 instanceId,
@@ -2163,6 +2200,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(controller));
             }
 
+            RegisterWorkspaceController(controller);
             EditorWorkspacePanelTypeDescriptor descriptor = PanelRegistry.GetDescriptor(panelTypeId);
             Action closeRequestedHandler = () => HandleWorkspacePanelCloseRequested(controller.Dockable);
             EditorWorkspacePanelInstance instance = new EditorWorkspacePanelInstance(
@@ -2190,6 +2228,7 @@ namespace helengine.editor {
             instance.Dockable.Title = instance.DisplayTitle;
             instance.Dockable.Size = size;
             instance.Dockable.Enabled = true;
+            RegisterDetacher(ConstructionLedger, () => instance.Dockable.CloseRequested -= instance.CloseRequestedHandler);
             instance.Dockable.CloseRequested += instance.CloseRequestedHandler;
             WireWorkspacePanelEvents(instance);
             if (addToLayout) {
@@ -2199,6 +2238,20 @@ namespace helengine.editor {
             EditorKeyboardFocusService.RegisterGroup(instance.Dockable);
             PanelInstances.Add(instance);
             RefreshWorkspaceDockOrder();
+        }
+
+        /// <summary>
+        /// Registers each workspace controller exactly once with the shared
+        /// construction/live ownership ledger.
+        /// </summary>
+        /// <param name="controller">Controller whose runtime stack is owned by the session.</param>
+        void RegisterWorkspaceController(IEditorWorkspacePanelController controller) {
+            if (controller == null || ConstructionLedger == null || RegisteredWorkspaceControllers == null) {
+                return;
+            }
+            if (RegisteredWorkspaceControllers.Add(controller)) {
+                ConstructionLedger.Register(controller, EditorSessionCleanupPhase.Panel);
+            }
         }
 
         /// <summary>
@@ -2237,21 +2290,25 @@ namespace helengine.editor {
             }
 
             if (string.Equals(instance.PanelTypeId, SceneHierarchyPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                RegisterDetacher(ConstructionLedger, () => UnwireWorkspacePanelEvents(instance));
                 ((SceneHierarchyPanel)instance.Dockable).ReparentRequested += HandleSceneHierarchyReparentRequested;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, AssetBrowserPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
                 AssetBrowserPanel panel = (AssetBrowserPanel)instance.Dockable;
+                RegisterDetacher(ConstructionLedger, () => UnwireWorkspacePanelEvents(instance));
                 panel.AssetSelected += HandleAssetSelected;
                 panel.SelectionCleared += HandleAssetSelectionCleared;
                 panel.AddToSceneRequested += HandleAddToSceneRequested;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, ViewportPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                RegisterDetacher(ConstructionLedger, () => UnwireWorkspacePanelEvents(instance));
                 ((EditorViewport)instance.Dockable).ViewportContentFocusedChanged += HandleViewportContentFocusedChanged;
                 return;
             }
             if (string.Equals(instance.PanelTypeId, PropertiesPanelTypeId, StringComparison.OrdinalIgnoreCase)) {
+                RegisterDetacher(ConstructionLedger, () => UnwireWorkspacePanelEvents(instance));
                 ((PropertiesPanel)instance.Dockable).ImportSettingsApplyRequested += HandleImportSettingsApplyRequested;
             }
         }
@@ -6450,19 +6507,46 @@ namespace helengine.editor {
 
             string projectRootPath = ResolveProjectRootPath(projectPath);
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
-            ContentManager projectContentManager = new ContentManager(new HostFileSystemContentStreamSource(projectAssetsRootPath));
-            var manager = new AssetImportManager(projectRootPath, projectContentManager);
-            manager.CurrentPlatformId = ActiveProjectPlatform;
-            for (int i = 0; i < importers.Count; i++) {
-                IAssetImporterRegistration registration = importers[i];
-                if (registration == null) {
-                    throw new InvalidOperationException("Importer registrations must not be null.");
+            ContentManager projectContentManager = null;
+            AssetImportManager manager = null;
+            try {
+                projectContentManager = new ContentManager(new HostFileSystemContentStreamSource(projectAssetsRootPath));
+                manager = new AssetImportManager(projectRootPath, projectContentManager);
+                manager.CurrentPlatformId = ActiveProjectPlatform;
+                for (int i = 0; i < importers.Count; i++) {
+                    IAssetImporterRegistration registration = importers[i];
+                    if (registration == null) {
+                        throw new InvalidOperationException("Importer registrations must not be null.");
+                    }
+
+                    registration.Register(manager);
                 }
 
-                registration.Register(manager);
-            }
+                return manager;
+            } catch (Exception primaryException) {
+                List<Exception> cleanupFailures = new List<Exception>();
+                try {
+                    if (manager != null) {
+                        manager.Dispose();
+                    }
+                } catch (Exception cleanupException) {
+                    cleanupFailures.Add(cleanupException);
+                }
+                try {
+                    if (projectContentManager != null) {
+                        projectContentManager.Dispose();
+                    }
+                } catch (Exception cleanupException) {
+                    cleanupFailures.Add(cleanupException);
+                }
 
-            return manager;
+                if (cleanupFailures.Count == 0) {
+                    throw;
+                }
+
+                cleanupFailures.Insert(0, primaryException);
+                throw new AggregateException("Asset importer initialization and cleanup failed.", cleanupFailures);
+            }
         }
 
     }

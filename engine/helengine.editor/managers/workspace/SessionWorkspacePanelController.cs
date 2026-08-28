@@ -98,8 +98,10 @@ namespace helengine.editor {
                 return;
             }
 
-            isDisposed = true;
             disposeAction();
+            // Keep the controller retryable when panel-owned cleanup fails.
+            // A successful cleanup is the only terminal transition.
+            isDisposed = true;
         }
     }
 }
