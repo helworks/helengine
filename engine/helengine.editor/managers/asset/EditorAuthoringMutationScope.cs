@@ -246,8 +246,9 @@ namespace helengine.editor {
             string sourcePath,
             string destinationPath,
             string expectedSourceIdentity = null,
-            string expectedDestinationIdentity = null) {
-            FixedRename(projectRootPath, sourcePath, destinationPath, false, false, expectedSourceIdentity, expectedDestinationIdentity);
+            string expectedDestinationIdentity = null,
+            string expectedSourceHash = null) {
+            FixedRename(projectRootPath, sourcePath, destinationPath, false, false, expectedSourceIdentity, expectedDestinationIdentity, expectedSourceHash, null);
         }
 
         internal static void FixedRenameExchange(
@@ -255,8 +256,10 @@ namespace helengine.editor {
             string sourcePath,
             string destinationPath,
             string expectedSourceIdentity = null,
-            string expectedDestinationIdentity = null) {
-            FixedRename(projectRootPath, sourcePath, destinationPath, true, true, expectedSourceIdentity, expectedDestinationIdentity);
+            string expectedDestinationIdentity = null,
+            string expectedSourceHash = null,
+            string expectedDestinationHash = null) {
+            FixedRename(projectRootPath, sourcePath, destinationPath, true, true, expectedSourceIdentity, expectedDestinationIdentity, expectedSourceHash, expectedDestinationHash);
         }
 
         static void FixedRename(
@@ -266,7 +269,9 @@ namespace helengine.editor {
             bool replaceExisting,
             bool exchange,
             string expectedSourceIdentity,
-            string expectedDestinationIdentity) {
+            string expectedDestinationIdentity,
+            string expectedSourceHash,
+            string expectedDestinationHash) {
             string source = Path.GetFullPath(sourcePath);
             string destination = Path.GetFullPath(destinationPath);
             string sourceParent = Path.GetDirectoryName(source);
@@ -299,11 +304,14 @@ namespace helengine.editor {
                     !string.Equals(destinationIdentityBefore, expectedDestinationIdentity, StringComparison.Ordinal)) {
                     throw new InvalidDataException($"The fixed authoring destination '{destination}' failed identity verification.");
                 }
+                VerifyExpectedHash(projectRootPath, source, expectedSourceHash, "source");
+                VerifyExpectedHash(projectRootPath, destination, expectedDestinationHash, "destination");
 
                 // The first check records the durable proof. The hook is
                 // deliberately between that proof and the handles/fstat used
                 // by the namespace syscall so tests can exercise the race.
                 InvokeMutationHook("FixedRename.BeforeSyscall");
+                InvokeMutationHook($"FixedRename.BeforeSyscall:{Path.GetFileName(source)}->{Path.GetFileName(destination)}");
 
                 if (OperatingSystem.IsWindows()) {
                     using SafeFileHandle sourceHandle = OpenWindowsIdentityHandle(source, sourceIdentityBefore);
@@ -312,6 +320,7 @@ namespace helengine.editor {
                         (expectedSourceIdentity != null && !string.Equals(sourceHandleIdentity, expectedSourceIdentity, StringComparison.Ordinal))) {
                         throw new InvalidDataException($"The fixed authoring source '{source}' changed after identity proof.");
                     }
+                    VerifyExpectedHash(sourceHandle, expectedSourceHash, "source");
 
                     SafeFileHandle destinationHandle = null;
                     bool destinationIsDirectory = false;
@@ -323,12 +332,14 @@ namespace helengine.editor {
                                 (expectedDestinationIdentity != null && !string.Equals(destinationHandleIdentity, expectedDestinationIdentity, StringComparison.Ordinal))) {
                                 throw new InvalidDataException($"The fixed authoring destination '{destination}' changed after identity proof.");
                             }
+                            VerifyExpectedHash(destinationHandle, expectedDestinationHash, "destination");
                             destinationIsDirectory = (GetWindowsFileAttributes(destinationHandle) & (uint)FileAttributes.Directory) != 0;
-                            // Windows replacement rejects a destination handle
-                            // even when it was opened with delete sharing on
-                            // some filesystem providers. The identity has
-                            // been verified on this exact handle; release it
-                            // immediately before the source-handle rename.
+                            // Windows file providers reject a replacement
+                            // while the destination handle remains open even
+                            // when delete sharing was requested. The exact
+                            // destination handle has been verified immediately
+                            // before the handle-bound source rename; release it
+                            // only for this OS operation.
                             destinationHandle.Dispose();
                             destinationHandle = null;
                         } else if (expectedDestinationIdentity != null && expectedDestinationIdentity != "missing") {
@@ -341,12 +352,14 @@ namespace helengine.editor {
                                 throw new InvalidDataException($"The fixed authoring rename source and destination kinds differ.");
                             }
                         }
-                        sourceScope.RenameVerifiedWindowsLeaf(
+                    sourceScope.RenameVerifiedWindowsLeaf(
                             sourceHandle,
                             Path.GetFileName(destination),
                             replaceExisting,
                             destinationScope);
                     InvokeMutationHook("FixedRename.AfterSyscallBeforeFsync");
+                    InvokeMutationHook($"FixedRename.AfterSyscallBeforeFsync:{Path.GetFileName(source)}->{Path.GetFileName(destination)}");
+                    VerifyExpectedHash(sourceHandle, expectedSourceHash, "published destination");
                     } finally {
                         destinationHandle?.Dispose();
                     }
@@ -361,16 +374,26 @@ namespace helengine.editor {
                     (expectedSourceIdentity != null && !string.Equals(sourceStatusIdentity, expectedSourceIdentity, StringComparison.Ordinal))) {
                     throw new InvalidDataException($"The fixed authoring source '{source}' changed after identity proof.");
                 }
+                VerifyExpectedHash(projectRootPath, source, expectedSourceHash, "source");
                 bool sourceIsDirectory = (sourceStatus.Mode & PosixFileTypeMask) == PosixDirectoryFileType;
                 EnsureLinuxEntryType(sourceStatus, sourceIsDirectory, source);
+                if (!sourceIsDirectory && HasContentProof(expectedSourceHash)) {
+                    using SafeFileHandle sourceFile = OpenPosixRegularFileAt(sourceScope.Handles[sourceScope.Handles.Count - 1], Path.GetFileName(source));
+                    VerifyExpectedHash(sourceFile, expectedSourceHash, "source");
+                }
                 bool destinationExists = TryGetLinuxEntry(destinationParentFd, Path.GetFileName(destination), out PosixStat destinationStatus);
                 string destinationStatusIdentity = destinationExists ? new PosixEntryIdentity(destinationStatus).Describe() : "missing";
                 if (!string.Equals(destinationStatusIdentity, destinationIdentityBefore, StringComparison.Ordinal) ||
                     (expectedDestinationIdentity != null && !string.Equals(destinationStatusIdentity, expectedDestinationIdentity, StringComparison.Ordinal))) {
                     throw new InvalidDataException($"The fixed authoring destination '{destination}' changed after identity proof.");
                 }
+                VerifyExpectedHash(projectRootPath, destination, expectedDestinationHash, "destination");
                 if (destinationExists) {
                     EnsureLinuxEntryType(destinationStatus, sourceIsDirectory, destination);
+                    if (!sourceIsDirectory && HasContentProof(expectedDestinationHash)) {
+                        using SafeFileHandle destinationFile = OpenPosixRegularFileAt(destinationScope.Handles[destinationScope.Handles.Count - 1], Path.GetFileName(destination));
+                        VerifyExpectedHash(destinationFile, expectedDestinationHash, "destination");
+                    }
                 }
                 if (exchange) {
                     RenameLinuxExchangeRaw(
@@ -391,6 +414,7 @@ namespace helengine.editor {
                 // callers can reconcile both names if fsync reports failure.
                 try {
                     InvokeMutationHook("FixedRename.AfterSyscallBeforeFsync");
+                    InvokeMutationHook($"FixedRename.AfterSyscallBeforeFsync:{Path.GetFileName(source)}->{Path.GetFileName(destination)}");
                     FsyncDirectory(sourceParentFd, sourceParent);
                     if (destinationParentFd != sourceParentFd) {
                         FsyncDirectory(destinationParentFd, destinationParent);
@@ -401,6 +425,7 @@ namespace helengine.editor {
                     if (!destinationPublished) {
                         throw new IOException($"The fixed authoring rename durability outcome could not be reconciled for '{destination}'.", exception);
                     }
+                    VerifyExpectedHash(projectRootPath, destination, expectedSourceHash, "published destination");
                     throw;
                 }
                 } else {
@@ -408,9 +433,11 @@ namespace helengine.editor {
                 }
 
                 string destinationIdentityAfter = CaptureVerifiedIdentity(projectRootPath, destination);
-                if (destinationIdentityAfter == "missing" || destinationIdentityAfter == "unavailable") {
-                    throw new IOException($"The fixed authoring rename did not publish '{destination}'.");
+                if (destinationIdentityAfter == "missing" || destinationIdentityAfter == "unavailable" ||
+                    (sourceIdentityBefore != "unavailable" && !string.Equals(destinationIdentityAfter, sourceIdentityBefore, StringComparison.Ordinal))) {
+                    throw new IOException($"The fixed authoring rename did not publish the verified source at '{destination}'.");
                 }
+                VerifyExpectedHash(projectRootPath, destination, expectedSourceHash, "published destination");
             } finally {
                 if (!ReferenceEquals(destinationScope, sourceScope)) {
                     destinationScope?.Dispose();
@@ -421,7 +448,8 @@ namespace helengine.editor {
         internal static void FixedDeleteVerifiedLeaf(
             string projectRootPath,
             string filePath,
-            string expectedIdentity = null) {
+            string expectedIdentity = null,
+            string expectedHash = null) {
             string fullPath = Path.GetFullPath(filePath);
             string parent = Path.GetDirectoryName(fullPath);
             using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, parent);
@@ -433,6 +461,7 @@ namespace helengine.editor {
             if (actualIdentity == "unavailable" || (expectedIdentity != null && !string.Equals(actualIdentity, expectedIdentity, StringComparison.Ordinal))) {
                 throw new InvalidDataException($"The fixed authoring leaf '{fullPath}' failed identity verification.");
             }
+            VerifyExpectedHash(projectRootPath, fullPath, expectedHash, "leaf");
             InvokeMutationHook("FixedDelete.BeforeSyscall");
             if (OperatingSystem.IsWindows()) {
                 using SafeFileHandle file = OpenAndVerifyWindowsFile(
@@ -446,6 +475,7 @@ namespace helengine.editor {
                     (expectedIdentity != null && !string.Equals(handleIdentity, expectedIdentity, StringComparison.Ordinal))) {
                     throw new InvalidDataException($"The fixed authoring leaf '{fullPath}' changed after identity proof.");
                 }
+                VerifyExpectedHash(file, expectedHash, "leaf");
                 DeleteVerifiedWindowsLeaf(file);
                 InvokeMutationHook("FixedDelete.AfterSyscallBeforeFsync");
             } else if (OperatingSystem.IsLinux()) {
@@ -457,6 +487,11 @@ namespace helengine.editor {
                 if (!string.Equals(statusIdentity, actualIdentity, StringComparison.Ordinal) ||
                     (expectedIdentity != null && !string.Equals(statusIdentity, expectedIdentity, StringComparison.Ordinal))) {
                     throw new InvalidDataException($"The fixed authoring leaf '{fullPath}' changed after identity proof.");
+                }
+                VerifyExpectedHash(projectRootPath, fullPath, expectedHash, "leaf");
+                if (HasContentProof(expectedHash)) {
+                    using SafeFileHandle file = OpenPosixRegularFileAt(scope.Handles[scope.Handles.Count - 1], Path.GetFileName(fullPath));
+                    VerifyExpectedHash(file, expectedHash, "leaf");
                 }
                 EnsureLinuxEntryType(status, false, fullPath);
                 if (UnlinkAt(parentFd, Path.GetFileName(fullPath), 0) != 0) {
@@ -476,6 +511,40 @@ namespace helengine.editor {
                 throw CreateUnsupportedPlatformException();
             }
         }
+
+        static void VerifyExpectedHash(string projectRootPath, string path, string expectedHash, string label) {
+            if (!HasContentProof(expectedHash)) {
+                return;
+            }
+            string actualHash = TryGetVerifiedSha256(projectRootPath, path);
+            if (!string.Equals(actualHash, expectedHash, StringComparison.Ordinal)) {
+                throw new InvalidDataException($"The fixed authoring {label} '{path}' failed content verification.");
+            }
+        }
+
+        static void VerifyExpectedHash(SafeFileHandle handle, string expectedHash, string label) {
+            if (!HasContentProof(expectedHash)) {
+                return;
+            }
+            using IncrementalHash hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] buffer = new byte[64 * 1024];
+            long offset = 0;
+            int read;
+            do {
+                read = RandomAccess.Read(handle, buffer, offset);
+                if (read > 0) {
+                    hasher.AppendData(buffer, 0, read);
+                    offset += read;
+                }
+            } while (read > 0);
+            string actualHash = Convert.ToHexString(hasher.GetHashAndReset()).ToLowerInvariant();
+            if (!string.Equals(actualHash, expectedHash, StringComparison.Ordinal)) {
+                throw new InvalidDataException($"The fixed authoring {label} content failed handle-bound verification.");
+            }
+        }
+
+        static bool HasContentProof(string expectedHash) =>
+            !string.IsNullOrWhiteSpace(expectedHash) && expectedHash is not ("missing" or "unavailable" or "directory");
 
         internal static void FixedDeleteVerifiedDirectoryTree(
             string projectRootPath,
@@ -523,28 +592,32 @@ namespace helengine.editor {
             if (!OperatingSystem.IsWindows()) {
                 throw CreateUnsupportedPlatformException();
             }
-            using (SafeFileHandle verifiedDirectory = OpenAndVerifyWindowsDirectory(fullPath, true)) {
+            using (SafeFileHandle verifiedDirectory = OpenAndVerifyWindowsDirectory(fullPath, false)) {
                 string verifiedIdentity = DescribeWindowsHandle(verifiedDirectory);
                 if (expectedIdentity != null && !string.Equals(verifiedIdentity, expectedIdentity, StringComparison.Ordinal)) {
                     throw new InvalidDataException($"The fixed authoring directory '{fullPath}' changed after identity proof.");
                 }
-            }
-            foreach (string child in Directory.GetFileSystemEntries(fullPath, "*", SearchOption.TopDirectoryOnly).ToArray()) {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(child, containingRoot);
-                string childIdentity = CaptureVerifiedIdentity(projectRootPath, child);
-                if (childIdentity == "missing") {
-                    continue;
+                // Keep the verified directory handle open while enumerating
+                // and retiring every child. This pins the directory entry
+                // against a concurrent parent swap for the full operation.
+                foreach (string child in Directory.GetFileSystemEntries(fullPath, "*", SearchOption.TopDirectoryOnly).ToArray()) {
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(child, containingRoot);
+                    string childIdentity = CaptureVerifiedIdentity(projectRootPath, child);
+                    if (childIdentity == "missing") {
+                        continue;
+                    }
+                    if (childIdentity.EndsWith(":directory", StringComparison.Ordinal)) {
+                        FixedDeleteDirectoryTreeCore(projectRootPath, child, containingRoot, childIdentity);
+                    } else {
+                        FixedDeleteVerifiedLeaf(projectRootPath, child, childIdentity);
+                    }
                 }
-                if (childIdentity.EndsWith(":directory", StringComparison.Ordinal)) {
-                    FixedDeleteDirectoryTreeCore(projectRootPath, child, containingRoot, childIdentity);
-                } else {
-                    FixedDeleteVerifiedLeaf(projectRootPath, child, childIdentity);
-                }
             }
-            string windowsParent = Path.GetDirectoryName(fullPath);
-            using EditorAuthoringMutationScope windowsParentScope = AcquireForMutation(projectRootPath, windowsParent);
-            using SafeFileHandle windowsDirectory = OpenAndVerifyWindowsDirectory(fullPath, true);
-            DeleteVerifiedWindowsLeaf(windowsDirectory);
+            // The read-pinned handle protects the enumeration and child
+            // deletes. Reopen the now-empty directory with delete access only
+            // for its final entry removal.
+            using SafeFileHandle deleteDirectory = OpenAndVerifyWindowsDirectory(fullPath, true);
+            DeleteVerifiedWindowsLeaf(deleteDirectory);
         }
 
         static void FixedDeleteDirectoryContentsLinux(
@@ -1124,9 +1197,18 @@ namespace helengine.editor {
             journal.RecordStagedPayload(stagedPath, stagedHash);
             journal.ValidateStagedPayload();
 
-            // The staged payload remains the operation's publication source.
-            // Publishing is an explicit durable intent followed by one fixed
-            // no-replace/exchange namespace operation.
+            // First move the proven payload to its fixed publication name.
+            // The destination is never exchanged by name: while a replacement
+            // is pending, the journal owns the former destination inode.
+            string publishingPath = journal.CreatePublishingPayloadPath();
+            EditorAuthoringMutationScope.FixedRenameNoReplace(
+                projectRootPath,
+                stagedPath,
+                publishingPath,
+                journal.StagedIdentityValue,
+                "missing",
+                stagedHash);
+            journal.RecordPublishingPayload(publishingPath);
             journal.MarkPhase("Publishing");
             using EditorAuthoringMutationScope destinationScope = AcquireForMutation(projectRootPath, destinationParent);
             string destinationIdentity;
@@ -1138,13 +1220,14 @@ namespace helengine.editor {
             }
             if (destinationIdentity == "missing") {
                 try {
-                    EditorAuthoringMutationScope.FixedRenameNoReplace(
-                        projectRootPath,
-                        stagedPath,
-                        destination,
-                        journal.StagedIdentityValue,
-                        "missing");
-                } catch (IOException) {
+                EditorAuthoringMutationScope.FixedRenameNoReplace(
+                    projectRootPath,
+                    publishingPath,
+                    destination,
+                    journal.PublishingPayloadIdentityValue,
+                    "missing",
+                    journal.PublishingPayloadHashValue);
+            } catch (IOException) {
                     // A strict copy never overwrites a concurrently-created
                     // destination. Retire this unpublished operation so its
                     // staged payload cannot become a future blocker.
@@ -1157,6 +1240,7 @@ namespace helengine.editor {
                 journal.Complete();
                 throw new IOException($"The copy destination '{destination}' appeared before publication.");
             }
+            journal.ValidatePublishedPayload(destination);
             journal.MarkPhase("Published");
             journal.Complete();
         }
@@ -1510,6 +1594,15 @@ namespace helengine.editor {
             string stagedHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             journal.RecordStagedPayload(stagedPath, stagedHash);
             journal.ValidateStagedPayload();
+            string publishingPath = journal.CreatePublishingPayloadPath();
+            EditorAuthoringMutationScope.FixedRenameNoReplace(
+                projectRootPath,
+                stagedPath,
+                publishingPath,
+                journal.StagedIdentityValue,
+                "missing",
+                stagedHash);
+            journal.RecordPublishingPayload(publishingPath);
             journal.MarkPhase("Publishing");
             string destinationIdentity;
             try {
@@ -1521,19 +1614,37 @@ namespace helengine.editor {
             if (destinationIdentity == "missing") {
                 EditorAuthoringMutationScope.FixedRenameNoReplace(
                     projectRootPath,
-                    stagedPath,
+                    publishingPath,
                     fullPath,
-                    journal.StagedIdentityValue,
-                    journal.ExpectedDestinationIdentityValue);
+                    journal.PublishingPayloadIdentityValue,
+                    journal.ExpectedDestinationIdentityValue,
+                    journal.PublishingPayloadHashValue);
             } else {
-                EditorAuthoringMutationScope.FixedRenameExchange(
+                string destinationOldPath = journal.CreateDestinationOldPath();
+                EditorAuthoringMutationScope.FixedRenameNoReplace(
                     projectRootPath,
-                    stagedPath,
                     fullPath,
-                    journal.StagedIdentityValue,
-                    journal.ExpectedDestinationIdentityValue);
-                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(projectRootPath, stagedPath, journal.ExpectedDestinationIdentityValue);
+                    destinationOldPath,
+                    journal.ExpectedDestinationIdentityValue,
+                    "missing",
+                    journal.ExpectedDestinationHashValue);
+                journal.RecordDestinationOld(destinationOldPath);
+                journal.MarkPhase("Publishing");
+                EditorAuthoringMutationScope.FixedRenameNoReplace(
+                    projectRootPath,
+                    publishingPath,
+                    fullPath,
+                    journal.PublishingPayloadIdentityValue,
+                    "missing",
+                    journal.PublishingPayloadHashValue);
+                journal.ValidatePublishedPayload(fullPath);
+                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(
+                    projectRootPath,
+                    destinationOldPath,
+                    journal.DestinationOldIdentityValue,
+                    journal.DestinationOldHashValue);
             }
+            journal.ValidatePublishedPayload(fullPath);
             journal.MarkPhase("Published");
             journal.Complete();
         }
