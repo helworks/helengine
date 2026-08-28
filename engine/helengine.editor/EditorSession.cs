@@ -624,10 +624,15 @@ namespace helengine.editor {
 
             assetImportManager = InitializeAssetImports(Importers);
             EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(assetImportManager);
+            // Session construction completes current transaction recovery and
+            // initializes the project identity graph before importer-owned files
+            // are generated or cached.
+            assetImportManager.ImportTexturesMissingCache();
+            assetImportManager.ImportModelsMissingCache();
             AuthoringSession = concreteAuthoringSession;
             AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
             authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
-            materialAssetSettingsService = new MaterialAssetSettingsService();
+            materialAssetSettingsService = new MaterialAssetSettingsService(this.projectPath);
             GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             PendingShaderBuildNotificationLock = new object();
@@ -6115,9 +6120,6 @@ namespace helengine.editor {
                 registration.Register(manager);
             }
 
-            manager.GenerateMissingImportSettings();
-            manager.ImportTexturesMissingCache();
-            manager.ImportModelsMissingCache();
             return manager;
         }
 

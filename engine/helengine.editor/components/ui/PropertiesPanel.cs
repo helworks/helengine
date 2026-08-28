@@ -577,9 +577,9 @@ namespace helengine.editor {
             importSettingsView.LayoutInvalidated += LayoutLines;
             ScrollContentRoot.AddChild(importSettingsView.Root);
 
-            MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent, ModalHost);
+            MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent, ModalHost, EditorProjectPaths.ProjectRoot);
             ScrollContentRoot.AddChild(MaterialView.Root);
-            AnimationClipView = new AnimationClipAssetView(font, EditorLayerMasks.PropertiesPanelContent);
+            AnimationClipView = new AnimationClipAssetView(font, EditorLayerMasks.PropertiesPanelContent, EditorProjectPaths.ProjectRoot);
             ScrollContentRoot.AddChild(AnimationClipView.Root);
 
             TransformRoot = new EditorEntity();

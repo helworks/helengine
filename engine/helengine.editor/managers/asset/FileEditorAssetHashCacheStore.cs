@@ -233,15 +233,10 @@ namespace helengine.editor {
                 return ProjectRootPath;
             }
 
-            DirectoryInfo current = Directory.GetParent(Path.GetFullPath(cachePath));
-            while (current != null) {
-                if (Directory.Exists(Path.Combine(current.FullName, "assets"))) {
-                    return current.FullName;
-                }
-                current = current.Parent;
-            }
-
-            throw new InvalidDataException($"The hash cache path '{cachePath}' is not beneath a project root.");
+            // Standalone cache tools do not have a host-composed project
+            // service. Keep that fallback in the shared standalone resolver so
+            // nested assets folders cannot silently become a second project.
+            return EditorProjectPaths.ResolveStandaloneRoot(cachePath);
         }
 
         /// <summary>

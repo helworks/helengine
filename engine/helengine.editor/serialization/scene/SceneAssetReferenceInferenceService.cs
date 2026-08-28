@@ -53,7 +53,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
-            MaterialAssetSettingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
             AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
             OwnsAssetReferenceResolver = true;
         }
@@ -76,7 +76,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
-            MaterialAssetSettingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
             AssetReferenceResolver = referenceResolver;
             OwnsAssetReferenceResolver = false;
         }

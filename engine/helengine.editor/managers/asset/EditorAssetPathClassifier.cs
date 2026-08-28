@@ -4,6 +4,29 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorAssetPathClassifier {
         /// <summary>
+        /// Authoritative project root used for current-format embedded payload reads.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
+        /// Creates a classifier scoped to one project root.
+        /// </summary>
+        /// <param name="projectRootPath">Canonical project root.</param>
+        public EditorAssetPathClassifier(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+        }
+
+        /// <summary>
+        /// Creates a standalone classifier for callers that provide their own containing directory.
+        /// </summary>
+        public EditorAssetPathClassifier() {
+        }
+
+        /// <summary>
         /// Extension used for asset import settings sidecar files.
         /// </summary>
         const string ImportSettingsExtension = ".hasset";
@@ -150,7 +173,7 @@ namespace helengine.editor {
 
             try {
                 using MemoryStream stream = new MemoryStream(
-                    EditorAuthoringMutationScope.ReadAllBytes(FindProjectRootPath(fullPath), fullPath),
+                    EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(fullPath), fullPath),
                     writable: false);
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 return header.FormatId == global::helengine.files.EditorAssetBinarySerializer.FormatId &&
@@ -176,7 +199,7 @@ namespace helengine.editor {
 
             try {
                 using MemoryStream stream = new MemoryStream(
-                    EditorAuthoringMutationScope.ReadAllBytes(FindProjectRootPath(filePath), filePath),
+                    EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(filePath), filePath),
                     writable: false);
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId) {
@@ -224,21 +247,11 @@ namespace helengine.editor {
             }
         }
 
-        static string FindProjectRootPath(string authoredPath) {
-            string fullPath = Path.GetFullPath(authoredPath);
-            DirectoryInfo current = Directory.GetParent(fullPath);
-            StringComparison comparison = OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
-            while (current != null) {
-                if (string.Equals(current.Name, "assets", comparison)) {
-                    return current.Parent?.FullName ?? current.FullName;
-                }
-                current = current.Parent;
+        string ResolveProjectRootPath(string authoredPath) {
+            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
+                return ProjectRootPath;
             }
-
-            return Directory.GetParent(fullPath)?.FullName
-                ?? throw new InvalidDataException($"The authored path '{authoredPath}' has no containing directory.");
+            return EditorProjectPaths.ResolveStandaloneRoot(authoredPath);
         }
 
         /// <summary>

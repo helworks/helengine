@@ -110,7 +110,7 @@ namespace helengine.editor {
             AssetsRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "assets"));
             ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
-            MaterialSettingsService = new MaterialAssetSettingsService();
+            MaterialSettingsService = new MaterialAssetSettingsService(fullProjectRootPath);
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = true;
         }
@@ -138,7 +138,7 @@ namespace helengine.editor {
             ImportRootPath = Path.GetFullPath(Path.Combine(fullProjectRootPath, "cache"));
             AssetContentManager = assetContentManager;
             FileSystemModelResolver = fileSystemModelResolver;
-            MaterialSettingsService = new MaterialAssetSettingsService();
+            MaterialSettingsService = new MaterialAssetSettingsService(fullProjectRootPath);
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = true;
         }
@@ -175,7 +175,7 @@ namespace helengine.editor {
             AssetContentManager = assetContentManager;
             FileSystemModelResolver = fileSystemModelResolver;
             FileSystemFontResolver = fileSystemFontResolver;
-            MaterialSettingsService = new MaterialAssetSettingsService();
+            MaterialSettingsService = new MaterialAssetSettingsService(fullProjectRootPath);
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = true;
         }
@@ -219,7 +219,7 @@ namespace helengine.editor {
             FileSystemModelResolver = fileSystemModelResolver;
             FileSystemFontResolver = fileSystemFontResolver;
             FileSystemTextureResolver = fileSystemTextureResolver;
-            MaterialSettingsService = new MaterialAssetSettingsService();
+            MaterialSettingsService = new MaterialAssetSettingsService(fullProjectRootPath);
             IdentityReferenceResolver = identityReferenceResolver ?? new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = identityReferenceResolver == null;
         }

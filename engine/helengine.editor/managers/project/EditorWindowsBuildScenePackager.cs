@@ -524,7 +524,7 @@ namespace helengine.editor {
                 effectiveTargetPlatformId = DefaultTargetPlatformId;
             }
             TargetPlatformId = effectiveTargetPlatformId;
-            MaterialAssetSettingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
             MaterialBuilder = materialBuilder;
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
@@ -553,7 +553,7 @@ namespace helengine.editor {
             CookedArtifactDeclarationsByPath = new Dictionary<string, PlatformCookedArtifactDeclaration>(StringComparer.OrdinalIgnoreCase);
             PlatformId = effectiveTargetPlatformId;
             PlatformDefinition = platformDefinition;
-            FileHasher = new AssetFileHasher();
+            FileHasher = new AssetFileHasher(ProjectRootPath);
             AnimationClipPlatformResolutionService = new AnimationClipPlatformResolutionService();
             ComponentSupportRulesByTypeId = BuildEffectiveSupportRuleLookup(platformDefinition?.ComponentSupportRules);
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);

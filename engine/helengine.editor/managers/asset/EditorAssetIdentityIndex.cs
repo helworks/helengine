@@ -106,8 +106,8 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
-            MetadataService = metadataService ?? new AssetIdentityMetadataService();
-            PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
+            MetadataService = metadataService ?? new AssetIdentityMetadataService(ProjectRootPath);
+            PathClassifier = pathClassifier ?? new EditorAssetPathClassifier(ProjectRootPath);
             HashCache = hashCache ?? new EditorAssetHashCache(ProjectRootPath);
             OwnsHashCache = hashCache == null;
             FileCatalog = new FileEditorAssetFileCatalog();
@@ -1061,7 +1061,7 @@ namespace helengine.editor {
                 ProjectRootPath = Directory.GetParent(Path.GetFullPath(assetsRootPath))?.FullName
                     ?? throw new InvalidDataException("The assets root has no project parent.");
                 RelativePath = NormalizeRelativePath(Path.GetRelativePath(assetsRootPath, fullPath));
-                UsesEmbeddedIdentity = new EditorAssetPathClassifier().UsesEmbeddedIdentity(fullPath);
+                UsesEmbeddedIdentity = new EditorAssetPathClassifier(ProjectRootPath).UsesEmbeddedIdentity(fullPath);
             }
 
             public string FullPath { get; }

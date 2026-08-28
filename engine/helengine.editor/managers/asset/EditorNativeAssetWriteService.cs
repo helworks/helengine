@@ -73,7 +73,7 @@ namespace helengine.editor {
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
             ChangeLog = new FileEditorProjectWriteChangeLog(ProjectRootPath);
-            MetadataService = new AssetIdentityMetadataService();
+            MetadataService = new AssetIdentityMetadataService(ProjectRootPath);
             InitializeObservedState();
         }
 
@@ -94,7 +94,7 @@ namespace helengine.editor {
             IdentityIndex = identityIndex ?? throw new ArgumentNullException(nameof(identityIndex));
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
             ChangeLog = changeLog ?? throw new ArgumentNullException(nameof(changeLog));
-            MetadataService = new AssetIdentityMetadataService();
+            MetadataService = new AssetIdentityMetadataService(ProjectRootPath);
             InitializeObservedState();
         }
 
@@ -584,7 +584,7 @@ namespace helengine.editor {
                 EditorProjectWriteChange change = changes[index];
                 string fullPath = ResolveDestination(change.RelativePath, out _);
                 ValidateNoReparseTraversal(fullPath);
-                if (File.Exists(fullPath) && new EditorAssetPathClassifier().IsAuthoredAsset(fullPath)) {
+                if (File.Exists(fullPath) && new EditorAssetPathClassifier(ProjectRootPath).IsAuthoredAsset(fullPath)) {
                     bool metadataWasMissing = IdentityIndex.WasMetadataMissing(fullPath);
                     IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
                     if (metadataWasMissing) {

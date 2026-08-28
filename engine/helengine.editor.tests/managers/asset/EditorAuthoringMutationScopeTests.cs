@@ -20,6 +20,17 @@ public sealed class EditorAuthoringMutationScopeTests : IDisposable {
     }
 
     [Fact]
+    public void FilesystemBackend_UsesExplicitSupportedPlatformSelection() {
+        string expected = OperatingSystem.IsWindows()
+            ? "windows"
+            : OperatingSystem.IsLinux()
+                ? "linux"
+                : "unsupported";
+
+        Assert.Equal(expected, EditorAuthoringMutationScope.FilesystemBackendNameForTests);
+    }
+
+    [Fact]
     public void AcquireForMutation_PinsProjectAndAssetsChainOnSupportedOperatingSystems() {
         using EditorAuthoringMutationScope scope = EditorAuthoringMutationScope.AcquireForMutation(
             ProjectRootPath,

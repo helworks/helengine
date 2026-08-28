@@ -66,6 +66,11 @@ namespace helengine.editor {
         const string PixelProgramFieldId = "pixel-program";
 
         /// <summary>
+        /// Canonical project root used by the settings service.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
         /// Font used for text elements.
         /// </summary>
         readonly FontAsset Font;
@@ -175,7 +180,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
-        public MaterialAssetView(FontAsset font, ushort layerMask) : this(font, layerMask, null) {
+        public MaterialAssetView(FontAsset font, ushort layerMask) : this(font, layerMask, null, EditorProjectPaths.ProjectRoot) {
         }
 
         /// <summary>
@@ -184,16 +189,32 @@ namespace helengine.editor {
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
         /// <param name="overlayHost">Entity that should host non-scrolling overlay UI such as the color picker.</param>
-        public MaterialAssetView(FontAsset font, ushort layerMask, EditorEntity overlayHost) {
+        public MaterialAssetView(FontAsset font, ushort layerMask, EditorEntity overlayHost)
+            : this(font, layerMask, overlayHost, EditorProjectPaths.ProjectRoot) {
+        }
+
+        /// <summary>
+        /// Initializes one material view with an authoritative project root.
+        /// </summary>
+        /// <param name="font">Font used for text rendering.</param>
+        /// <param name="layerMask">Layer mask applied to the view entities.</param>
+        /// <param name="overlayHost">Entity that should host non-scrolling overlay UI.</param>
+        /// <param name="projectRootPath">Canonical project root used by settings persistence.</param>
+        public MaterialAssetView(FontAsset font, ushort layerMask, EditorEntity overlayHost, string projectRootPath) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
             Font = font;
+            ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
+                ? null
+                : Path.GetFullPath(projectRootPath);
             TextOrder = RenderOrder2D.PanelForeground;
             SupportedPlatformIds = new List<string>(4);
             PlatformPanels = new Dictionary<string, MaterialAssetPlatformPanel>(StringComparer.OrdinalIgnoreCase);
-            SettingsService = new MaterialAssetSettingsService();
+            SettingsService = string.IsNullOrWhiteSpace(ProjectRootPath)
+                ? new MaterialAssetSettingsService()
+                : new MaterialAssetSettingsService(ProjectRootPath);
             SchemaSettingsService = new MaterialAssetSchemaSettingsService();
 
             RootEntity = new EditorEntity();

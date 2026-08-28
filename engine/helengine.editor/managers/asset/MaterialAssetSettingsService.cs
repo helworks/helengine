@@ -6,6 +6,29 @@ namespace helengine.editor {
     /// </summary>
     public class MaterialAssetSettingsService {
         /// <summary>
+        /// Authoritative project root used for material settings and reference operations.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
+        /// Creates a settings service scoped to one project root.
+        /// </summary>
+        /// <param name="projectRootPath">Canonical project root.</param>
+        public MaterialAssetSettingsService(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+        }
+
+        /// <summary>
+        /// Creates a standalone settings service. Project-owned composition supplies the rooted constructor.
+        /// </summary>
+        public MaterialAssetSettingsService() {
+        }
+
+        /// <summary>
         /// Importer identifier stored on material-settings sidecars.
         /// </summary>
         const string MaterialImporterId = "helengine.material";
@@ -257,7 +280,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material settings must include processor platform settings.");
             }
 
-            string projectRootPath = FindProjectRootPath(materialAssetPath);
+            string projectRootPath = ResolveProjectRootPath(materialAssetPath);
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
 
             AssetIdentityMetadataDocument identity;
@@ -579,7 +602,7 @@ namespace helengine.editor {
 
             try {
                 using MemoryStream stream = new MemoryStream(
-                    EditorAuthoringMutationScope.ReadAllBytes(FindProjectRootPath(materialAssetPath), settingsPath),
+                    EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(materialAssetPath), settingsPath),
                     writable: false);
                 document = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
                 return true;
@@ -603,7 +626,7 @@ namespace helengine.editor {
 
             try {
                 using MemoryStream stream = new MemoryStream(
-                    EditorAuthoringMutationScope.ReadAllBytes(FindProjectRootPath(overridePath), overridePath),
+                    EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(overridePath), overridePath),
                     writable: false);
                 document = MaterialAssetPlatformOverrideDocumentBinarySerializer.Deserialize(stream);
                 return true;
@@ -957,7 +980,7 @@ namespace helengine.editor {
             using MemoryStream bytes = new MemoryStream();
             MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(bytes, document);
             EditorAuthoringMutationScope.WriteAllBytesAtomically(
-                FindProjectRootPath(settingsPath),
+                ResolveProjectRootPath(settingsPath),
                 settingsPath,
                 bytes.ToArray());
         }
@@ -980,7 +1003,7 @@ namespace helengine.editor {
                 using MemoryStream bytes = new MemoryStream();
                 MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(bytes, entry.Value);
                 EditorAuthoringMutationScope.WriteAllBytesAtomically(
-                    FindProjectRootPath(overridePath),
+                    ResolveProjectRootPath(overridePath),
                     overridePath,
                     bytes.ToArray());
                 writtenPaths.Add(overridePath);
@@ -994,7 +1017,7 @@ namespace helengine.editor {
                 }
 
                 EditorAuthoringMutationScope.DeleteLeaf(
-                    FindProjectRootPath(existingOverridePath),
+                    ResolveProjectRootPath(existingOverridePath),
                     existingOverridePath);
             }
         }
@@ -1380,25 +1403,12 @@ namespace helengine.editor {
             return overridePaths;
         }
 
-        static string FindProjectRootPath(string authoredPath) {
-            string fullPath = Path.GetFullPath(authoredPath);
-            DirectoryInfo current = Directory.GetParent(fullPath);
-            StringComparison comparison = OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
-            while (current != null) {
-                if (string.Equals(current.Name, "assets", comparison)) {
-                    return current.Parent?.FullName
-                        ?? throw new InvalidDataException($"The authored path '{authoredPath}' has no project root.");
-                }
-                current = current.Parent;
+        string ResolveProjectRootPath(string authoredPath) {
+            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
+                return ProjectRootPath;
             }
 
-            // Standalone settings callers may operate on an isolated file that
-            // is not attached to an initialized project. Pin its immediate
-            // parent rather than reopening the leaf by path.
-            return Directory.GetParent(fullPath)?.FullName
-                ?? throw new InvalidDataException($"The authored path '{authoredPath}' has no containing directory.");
+            return EditorProjectPaths.ResolveStandaloneRoot(authoredPath);
         }
 
         /// <summary>
@@ -1823,11 +1833,10 @@ namespace helengine.editor {
             if (!hasReferences) {
                 return false;
             }
-            string assetsRootPath = FindAssetsRoot(materialAssetPath);
-            string projectRootPath = Directory.GetParent(assetsRootPath)?.FullName
-                ?? throw new InvalidOperationException($"Material asset '{materialAssetPath}' does not have a project root.");
+            string projectRootPath = ResolveProjectRootPath(materialAssetPath);
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
             using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
-            EditorAssetPathClassifier classifier = new EditorAssetPathClassifier();
+            EditorAssetPathClassifier classifier = new EditorAssetPathClassifier(projectRootPath);
             bool changed = false;
             resolver.BeginResolutionScope();
             try {
@@ -1854,13 +1863,12 @@ namespace helengine.editor {
             if (!HasAssetReferences(settings)) {
                 return false;
             }
-            string assetsRootPath = FindAssetsRoot(materialAssetPath);
-            string projectRootPath = Directory.GetParent(assetsRootPath)?.FullName
-                ?? throw new InvalidOperationException($"Material asset '{materialAssetPath}' does not have a project root.");
+            string projectRootPath = ResolveProjectRootPath(materialAssetPath);
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
             using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(projectRootPath);
             resolver.BeginResolutionScope();
             try {
-                return ResolveAssetReferences(assetsRootPath, settings, resolver, new EditorAssetPathClassifier());
+                return ResolveAssetReferences(assetsRootPath, settings, resolver, new EditorAssetPathClassifier(projectRootPath));
             } finally {
                 resolver.EndResolutionScope();
             }
@@ -1895,18 +1903,6 @@ namespace helengine.editor {
                 }
             }
             return changed;
-        }
-
-        /// <summary>Finds the owning project assets directory for one material path.</summary>
-        static string FindAssetsRoot(string materialAssetPath) {
-            DirectoryInfo directory = new FileInfo(Path.GetFullPath(materialAssetPath)).Directory;
-            while (directory != null && !string.Equals(directory.Name, "assets", StringComparison.OrdinalIgnoreCase)) {
-                directory = directory.Parent;
-            }
-            if (directory == null || directory.Parent == null) {
-                throw new InvalidOperationException($"Material asset '{materialAssetPath}' must be inside a project assets directory.");
-            }
-            return directory.FullName;
         }
 
         /// <summary>

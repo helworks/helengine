@@ -50,7 +50,7 @@ namespace helengine.editor {
             Importers = importers ?? throw new ArgumentNullException(nameof(importers));
             DefaultFontAsset = defaultFontAsset;
             ScriptTypeResolver = scriptTypeResolver;
-            FileHasher = fileHasher ?? new AssetFileHasher();
+            FileHasher = fileHasher ?? new AssetFileHasher(ProjectRootPath);
             SceneCatalogService = new EditorProjectSceneCatalogService(ProjectRootPath);
             ProfileSettingsService = new EditorProfileSettingsService(ProjectRootPath);
             StandardPlatformInputConfigurationFactory = new EditorStandardPlatformInputConfigurationFactory();

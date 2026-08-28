@@ -89,9 +89,9 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             CacheFilePath = Path.Combine(ProjectRootPath, "cache", "editor", "asset-identity-index.json");
-            FileHasher = fileHasher ?? new AssetFileHasher();
+            FileHasher = fileHasher ?? new AssetFileHasher(ProjectRootPath);
             CacheStore = cacheStore ?? throw new ArgumentNullException(nameof(cacheStore));
-            PathClassifier = new EditorAssetPathClassifier();
+            PathClassifier = new EditorAssetPathClassifier(ProjectRootPath);
             Entries = new Dictionary<string, EditorAssetHashCacheEntry>(PathComparer);
             DirtyPaths = new HashSet<string>(PathComparer);
             RemovedPaths = new HashSet<string>(PathComparer);

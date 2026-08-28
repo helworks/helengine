@@ -142,16 +142,20 @@ namespace helengine.editor {
             audioImporterIdsByExtension = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             ModelImportersById = new Dictionary<string, IModelImporter>(StringComparer.OrdinalIgnoreCase);
             DefaultModelImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            fileHasher = new AssetFileHasher();
+            fileHasher = new AssetFileHasher(this.projectRootPath);
             AssetContentManager = contentManager;
             ModelAssetProcessor = new ModelAssetProcessor();
             TextureAssetProcessor = new TextureAssetProcessor();
             EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
-            Directory.CreateDirectory(this.projectRootPath);
-            Directory.CreateDirectory(assetsRootPath);
-            Directory.CreateDirectory(importRootPath);
+            // Directory creation is deferred to the owning authoring boundary.
+            // Construction only validates/configures importer state.
         }
+
+        /// <summary>
+        /// Gets the authoritative project root used by all importer file operations.
+        /// </summary>
+        public string ProjectRootPath => projectRootPath;
 
         /// <summary>
         /// Gets the project assets root path.
@@ -773,7 +777,9 @@ namespace helengine.editor {
             EnsureTextureImportSettingsValid(settings);
 
             EnsureTextureImporterExists(settings.Importer.ImporterId);
-            TextureAsset asset = AssetContentManager.Load<TextureAsset>(sourcePath, settings.Importer.ImporterId);
+            TextureAsset asset = LoadVerifiedSource(
+                sourcePath,
+                stream => GetTextureImporter(settings.Importer.ImporterId).ImportTexture(stream));
 
             if (asset == null) {
                 throw new InvalidOperationException($"Texture importer '{settings.Importer.ImporterId}' did not return an asset.");
@@ -787,10 +793,7 @@ namespace helengine.editor {
             asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
 
             string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
-            EnsureDirectoryForFile(outputPath);
-            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetSerializer.Serialize(stream, asset);
-            }
+            WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveTextureImportSettings(sourcePath, settings);
             return asset;
@@ -818,7 +821,9 @@ namespace helengine.editor {
                 return false;
             }
 
-            TextureAsset asset = AssetContentManager.Load<TextureAsset>(sourcePath, settings.Importer.ImporterId);
+            TextureAsset asset = LoadVerifiedSource(
+                sourcePath,
+                stream => GetTextureImporter(settings.Importer.ImporterId).ImportTexture(stream));
             if (asset == null) {
                 return false;
             }
@@ -847,7 +852,9 @@ namespace helengine.editor {
             EnsureImportSettingsValid(settings);
 
             EnsureTextImporterExists(settings.Importer.ImporterId);
-            TextAsset asset = AssetContentManager.Load<TextAsset>(sourcePath, settings.Importer.ImporterId);
+            TextAsset asset = LoadVerifiedSource(
+                sourcePath,
+                stream => GetTextImporter(settings.Importer.ImporterId).ImportText(stream));
 
             if (asset == null) {
                 throw new InvalidOperationException($"Text importer '{settings.Importer.ImporterId}' did not return an asset.");
@@ -857,10 +864,7 @@ namespace helengine.editor {
             asset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(settings.Importer.AssetId);
 
             string outputPath = GetTextAssetPath(settings.Importer.AssetId);
-            EnsureDirectoryForFile(outputPath);
-            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetSerializer.Serialize(stream, asset);
-            }
+            WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveImportSettings(sourcePath, settings);
             return asset;
@@ -886,10 +890,7 @@ namespace helengine.editor {
             FontAsset asset = BuildImportedFontAsset(sourcePath, settings, platformId, settings.Importer.AssetId);
 
             string outputPath = GetFontAssetPath(settings.Importer.AssetId);
-            EnsureDirectoryForFile(outputPath);
-            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                FontAssetBinarySerializer.Serialize(stream, asset);
-            }
+            WriteSerializedFile(outputPath, stream => FontAssetBinarySerializer.Serialize(stream, asset));
 
             SaveImportSettings(sourcePath, settings);
             return asset;
@@ -915,7 +916,7 @@ namespace helengine.editor {
             EnsureAudioImporterExists(settings.Importer.ImporterId);
             IAudioImporter importer = GetAudioImporter(settings.Importer.ImporterId);
             ImportedAudioSource importedAudio;
-            using (FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            using (MemoryStream stream = OpenVerifiedRead(sourcePath)) {
                 importedAudio = importer.ImportAudio(stream);
             }
 
@@ -927,10 +928,7 @@ namespace helengine.editor {
             AudioAsset asset = BuildImportedAudioAsset(importedAudio, processorSettings, settings.Importer.AssetId);
 
             string outputPath = GetAudioAssetPath(settings.Importer.AssetId);
-            EnsureDirectoryForFile(outputPath);
-            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetSerializer.Serialize(stream, asset);
-            }
+            WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveAudioImportSettings(sourcePath, settings);
             return asset;
@@ -980,7 +978,7 @@ namespace helengine.editor {
             IFontImporter importer = GetFontImporter(settings.Importer.ImporterId);
             FontAssetProcessorSettings fontProcessorSettings = GetFontProcessorSettings(settings, platformId);
             FontAsset asset;
-            using (FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            using (MemoryStream stream = OpenVerifiedRead(sourcePath)) {
                 asset = importer.ImportFont(stream, fontProcessorSettings);
             }
 
@@ -1022,7 +1020,9 @@ namespace helengine.editor {
             EnsureModelImportSettingsValid(settings);
 
             EnsureModelImporterExists(settings.Importer.ImporterId);
-            ImportedModelAssetSet importedModel = AssetContentManager.Load<ImportedModelAssetSet>(sourcePath, settings.Importer.ImporterId);
+            ImportedModelAssetSet importedModel = LoadVerifiedSource(
+                sourcePath,
+                stream => GetModelImporter(settings.Importer.ImporterId).ImportModel(stream));
             if (importedModel == null || importedModel.ModelAsset == null) {
                 throw new InvalidOperationException($"Model importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
@@ -1035,10 +1035,7 @@ namespace helengine.editor {
             WriteGeneratedModelMaterials(sourcePath, importedModel.GeneratedMaterials);
 
             string outputPath = GetModelAssetPath(settings.Importer.AssetId);
-            EnsureDirectoryForFile(outputPath);
-            using (FileStream stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                AssetSerializer.Serialize(stream, asset);
-            }
+            WriteSerializedFile(outputPath, stream => AssetSerializer.Serialize(stream, asset));
 
             SaveModelImportSettings(sourcePath, settings);
             return asset;
@@ -1056,6 +1053,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(generatedMaterials));
             }
 
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+
             string sourceDirectoryPath = Path.GetDirectoryName(sourcePath);
             if (string.IsNullOrWhiteSpace(sourceDirectoryPath)) {
                 throw new InvalidOperationException("Source model directory could not be resolved.");
@@ -1069,7 +1068,7 @@ namespace helengine.editor {
 
                 string materialPath = Path.Combine(sourceDirectoryPath, generatedMaterial.RelativeMaterialPath);
                 EnsureDirectoryForFile(materialPath);
-                MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+                MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(projectRootPath);
                 MaterialAssetImportSettings settings = CreateGeneratedMaterialSettings(generatedMaterial);
                 settingsService.Save(materialPath, settings);
             }
@@ -1176,10 +1175,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            EnsureDirectoryForFile(settingsPath);
-            using (FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings);
-            }
+            WriteSerializedFile(settingsPath, stream => SectionedAssetImportSettingsBinarySerializer.Serialize(stream, settings));
         }
 
         /// <summary>
@@ -1187,6 +1183,8 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Paths to settings files created during the scan.</returns>
         public List<string> GenerateMissingImportSettings() {
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(assetsRootPath, projectRootPath);
             List<string> createdSettings = new List<string>();
             foreach (string sourcePath in EnumerateAssetSourceFiles()) {
                 string settingsPath = GetSettingsPath(sourcePath);
@@ -1799,7 +1797,7 @@ namespace helengine.editor {
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 EngineBinaryReadContext.CurrentAssetPath = sourcePath;
-                using FileStream stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = OpenVerifiedRead(sourcePath);
                 Asset serializedAsset = AssetSerializer.Deserialize(stream);
                 if (serializedAsset is ModelAsset modelAsset) {
                     asset = modelAsset;
@@ -2004,7 +2002,7 @@ namespace helengine.editor {
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 EngineBinaryReadContext.CurrentAssetPath = outputPath;
-                using FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = OpenVerifiedRead(outputPath);
                 asset = RestoreRuntimeTextureForCachedFontAsset(FontAssetBinarySerializer.Deserialize(stream));
                 return true;
             } catch {
@@ -2083,7 +2081,7 @@ namespace helengine.editor {
         /// <param name="outputPath">Absolute path to the cached asset file.</param>
         /// <returns>True when the cache file should be regenerated using the current serializer version.</returns>
         bool IsStaleEditorAssetCache(string outputPath) {
-            using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            using (MemoryStream stream = OpenVerifiedRead(outputPath)) {
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 return header.FormatId == EditorAssetBinarySerializer.FormatId &&
                     header.Version != EditorAssetBinarySerializer.CurrentVersion;
@@ -2095,7 +2093,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="outputPath">Absolute path to the cached asset file.</param>
         void DeleteCacheFile(string outputPath) {
-            File.Delete(outputPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            EditorAuthoringMutationScope.DeleteLeaf(projectRootPath, outputPath);
         }
 
         /// <summary>
@@ -2120,7 +2119,7 @@ namespace helengine.editor {
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 EngineBinaryReadContext.CurrentAssetPath = outputPath;
-                using (FileStream stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                using (MemoryStream stream = OpenVerifiedRead(outputPath)) {
                     asset = AssetSerializer.Deserialize(stream);
                 }
                 return true;
@@ -2149,7 +2148,7 @@ namespace helengine.editor {
             }
 
             try {
-                using (FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                using (MemoryStream stream = OpenVerifiedRead(settingsPath)) {
                     settings = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
                 }
                 return true;
@@ -2290,7 +2289,7 @@ namespace helengine.editor {
             }
 
             try {
-                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = OpenVerifiedRead(settingsPath);
                 settings = TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
             } catch (Exception ex) when (IsExpectedImportSettingsFormatException(ex)) {
@@ -2318,7 +2317,7 @@ namespace helengine.editor {
             }
 
             try {
-                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = OpenVerifiedRead(settingsPath);
                 settings = ModelAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
             } catch (Exception ex) when (IsExpectedImportSettingsFormatException(ex)) {
@@ -2346,7 +2345,7 @@ namespace helengine.editor {
             }
 
             try {
-                using FileStream stream = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using MemoryStream stream = OpenVerifiedRead(settingsPath);
                 settings = AudioAssetImportSettingsBinarySerializer.Deserialize(stream);
                 return true;
             } catch (Exception ex) when (IsExpectedImportSettingsFormatException(ex)) {
@@ -2645,9 +2644,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            EnsureDirectoryForFile(settingsPath);
-            using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            WriteSerializedFile(settingsPath, stream => TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings));
         }
 
         /// <summary>
@@ -2759,9 +2756,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            EnsureDirectoryForFile(settingsPath);
-            using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            WriteSerializedFile(settingsPath, stream => ModelAssetImportSettingsBinarySerializer.Serialize(stream, settings));
         }
 
         /// <summary>
@@ -2777,9 +2772,7 @@ namespace helengine.editor {
             }
 
             string settingsPath = GetSettingsPath(sourcePath);
-            EnsureDirectoryForFile(settingsPath);
-            using FileStream stream = new FileStream(settingsPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            AudioAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            WriteSerializedFile(settingsPath, stream => AudioAssetImportSettingsBinarySerializer.Serialize(stream, settings));
         }
 
         /// <summary>
@@ -4737,7 +4730,58 @@ namespace helengine.editor {
                 throw new InvalidOperationException("File directory could not be resolved.");
             }
 
-            Directory.CreateDirectory(directory);
+            EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, directory);
+        }
+
+        /// <summary>
+        /// Serializes one importer output or settings document and publishes it
+        /// through the project lock and verified atomic leaf boundary.
+        /// </summary>
+        void WriteSerializedFile(string filePath, Action<Stream> serializer) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("File path must be provided.", nameof(filePath));
+            } else if (serializer == null) {
+                throw new ArgumentNullException(nameof(serializer));
+            }
+
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            EnsureDirectoryForFile(filePath);
+            using MemoryStream bytes = new MemoryStream();
+            serializer(bytes);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, filePath, bytes.ToArray());
+        }
+
+        /// <summary>
+        /// Opens one importer source or cache payload through the verified
+        /// project-root leaf boundary without reopening it by path.
+        /// </summary>
+        MemoryStream OpenVerifiedRead(string filePath) {
+            return new MemoryStream(
+                EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, filePath),
+                writable: false);
+        }
+
+        /// <summary>
+        /// Runs one source importer against bytes read from a pinned,
+        /// no-follow authored-file handle. This keeps importer input detached
+        /// from pathname traversal after validation.
+        /// </summary>
+        T LoadVerifiedSource<T>(string sourcePath, Func<Stream, T> importer) {
+            if (importer == null) {
+                throw new ArgumentNullException(nameof(importer));
+            }
+
+            using MemoryStream stream = OpenVerifiedRead(sourcePath);
+            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
+            string previousReadStage = EngineBinaryReadContext.CurrentReadStage;
+            EngineBinaryReadContext.CurrentAssetPath = sourcePath;
+            EngineBinaryReadContext.CurrentReadStage = "AssetImportManager:VerifiedSourceRead";
+            try {
+                return importer(stream);
+            } finally {
+                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
+                EngineBinaryReadContext.CurrentReadStage = previousReadStage;
+            }
         }
 
         /// <summary>

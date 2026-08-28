@@ -18,8 +18,8 @@ namespace helengine.editor {
             }
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
-            MetadataService = metadataService ?? new AssetIdentityMetadataService();
-            PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
+            MetadataService = metadataService ?? new AssetIdentityMetadataService(ProjectRootPath);
+            PathClassifier = pathClassifier ?? new EditorAssetPathClassifier(ProjectRootPath);
         }
 
         /// <summary>Moves an authored asset and any adjacent editor sidecars.</summary>

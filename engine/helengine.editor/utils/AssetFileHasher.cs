@@ -4,6 +4,29 @@ namespace helengine.editor {
     /// </summary>
     public class AssetFileHasher {
         /// <summary>
+        /// Authoritative project root used for secure authored-file reads.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
+        /// Creates a hasher scoped to one project root.
+        /// </summary>
+        /// <param name="projectRootPath">Canonical project root.</param>
+        public AssetFileHasher(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+        }
+
+        /// <summary>
+        /// Creates a standalone hasher for callers that provide a non-project file.
+        /// </summary>
+        public AssetFileHasher() {
+        }
+
+        /// <summary>
         /// Computes a SHA-256 hash for the specified file.
         /// </summary>
         /// <param name="filePath">Absolute or relative path to the file.</param>
@@ -18,7 +41,7 @@ namespace helengine.editor {
             }
 
             string fullPath = Path.GetFullPath(filePath);
-            string projectRootPath = FindProjectRootForAuthoredPath(fullPath);
+            string projectRootPath = ResolveProjectRootForAuthoredPath(fullPath);
             if (!string.IsNullOrWhiteSpace(projectRootPath)) {
                 using EditorAuthoringMutationScope scope = EditorAuthoringMutationScope.AcquireForMutation(
                     projectRootPath,
@@ -50,18 +73,11 @@ namespace helengine.editor {
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
-        static string FindProjectRootForAuthoredPath(string fullPath) {
-            DirectoryInfo current = Directory.GetParent(fullPath);
-            while (current != null) {
-                if (string.Equals(current.Name, "assets", OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal)) {
-                    return current.Parent?.FullName;
-                }
-                current = current.Parent;
+        string ResolveProjectRootForAuthoredPath(string fullPath) {
+            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
+                return ProjectRootPath;
             }
-
-            return null;
+            return EditorProjectPaths.ResolveStandaloneRoot(fullPath);
         }
     }
 }

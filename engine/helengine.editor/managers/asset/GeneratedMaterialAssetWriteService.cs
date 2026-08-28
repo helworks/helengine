@@ -11,13 +11,12 @@ namespace helengine.editor {
         /// <summary>
         /// Shared material-settings service used to persist generated per-platform data.
         /// </summary>
-        readonly MaterialAssetSettingsService MaterialAssetSettingsServiceValue;
+        MaterialAssetSettingsService MaterialAssetSettingsServiceValue;
 
         /// <summary>
         /// Initializes one generated material writer.
         /// </summary>
         public GeneratedMaterialAssetWriteService() {
-            MaterialAssetSettingsServiceValue = new MaterialAssetSettingsService();
         }
 
         /// <summary>
@@ -40,10 +39,11 @@ namespace helengine.editor {
             }
 
             string canonicalProjectRoot = Path.GetFullPath(projectRootPath);
+            MaterialAssetSettingsServiceValue = new MaterialAssetSettingsService(canonicalProjectRoot);
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(canonicalProjectRoot);
             string fullPath = Path.GetFullPath(Path.Combine(projectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar)));
             if (string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {
-                ReuseExistingEmbeddedIdentity(fullPath, definition.MaterialAsset);
+                ReuseExistingEmbeddedIdentity(canonicalProjectRoot, fullPath, definition.MaterialAsset);
             }
             if (string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {
                 definition.MaterialAsset.AuthoringAssetId = Guid.NewGuid().ToString("N");
@@ -70,13 +70,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fullPath">Absolute generated material path.</param>
         /// <param name="material">Material definition receiving the existing identity.</param>
-        static void ReuseExistingEmbeddedIdentity(string fullPath, MaterialAsset material) {
+        static void ReuseExistingEmbeddedIdentity(string projectRootPath, string fullPath, MaterialAsset material) {
             if (!File.Exists(fullPath)) {
                 return;
             }
 
             try {
-                AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataService().Load(fullPath);
+                AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataService(projectRootPath).Load(fullPath);
                 material.AuthoringAssetId = metadata.AssetId;
                 material.FormerAuthoringAssetIds = metadata.FormerAssetIds.ToArray();
             } catch (InvalidOperationException) {

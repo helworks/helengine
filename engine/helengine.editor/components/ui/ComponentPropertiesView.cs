@@ -3592,7 +3592,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Material path must be provided.", nameof(path));
             }
 
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            string projectRootPath = EditorProjectPaths.ProjectRoot;
+            MaterialAssetSettingsService settingsService = string.IsNullOrWhiteSpace(projectRootPath)
+                ? new MaterialAssetSettingsService()
+                : new MaterialAssetSettingsService(projectRootPath);
             string platformId = ResolveMaterialPreviewPlatformId(path, settingsService);
             return settingsService.LoadMaterialAsset(path, platformId);
         }

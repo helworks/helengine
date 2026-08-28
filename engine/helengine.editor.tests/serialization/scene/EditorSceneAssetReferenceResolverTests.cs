@@ -632,7 +632,7 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             Directory.CreateDirectory(directoryPath);
-            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(TempProjectRootPath);
             settingsService.Save(materialFullPath, settings);
             return materialFullPath;
         }

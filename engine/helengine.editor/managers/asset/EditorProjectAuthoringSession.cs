@@ -581,8 +581,11 @@ namespace helengine.editor {
         /// <returns>Explicit project service composition.</returns>
         static SessionDependencies CreateDependencies(AssetImportManager assetImportManager) {
             string projectRootPath = ResolveProjectRootPath(assetImportManager);
-            EditorAuthoringTransactionRecoveryService.Recover(projectRootPath);
             EditorAssetRepairReport repairReport = new EditorAssetRepairReport();
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            EditorAuthoringTransactionRecoveryService.Recover(projectRootPath);
+            string assetsRootPath = Path.Combine(projectRootPath, "assets");
+            EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, assetsRootPath);
             EditorAssetHashCache hashCache = new EditorAssetHashCache(projectRootPath);
             EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache, repairReport);
             identityIndex.Initialize();
@@ -601,6 +604,9 @@ namespace helengine.editor {
                 hashCache,
                 nativeAssetWriteService);
             IEditorAuthoringSessionLifetime lifetime = new EditorAuthoringSessionLifetime(resources);
+            // Importer settings are generated only after recovery and the first
+            // current-format identity index have been established.
+            assetImportManager.GenerateMissingImportSettings();
             return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, nativeAssetWriteService, repairReport);
         }
 
@@ -663,7 +669,6 @@ namespace helengine.editor {
                 importer.Register(manager);
             }
 
-            manager.GenerateMissingImportSettings();
             return manager;
         }
 

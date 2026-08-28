@@ -296,7 +296,7 @@ namespace helengine.editor {
             try {
                 ExportReferenceResolver.BeginResolutionScope();
                 resolutionScopeActive = true;
-                AssetIdentityMetadataService identityMetadataService = new AssetIdentityMetadataService();
+                AssetIdentityMetadataService identityMetadataService = new AssetIdentityMetadataService(ExportProjectRootPath);
                 string[] sceneIds = PhysicsValidationSceneCatalog.GetSceneIds();
                 for (int index = 0; index < sceneIds.Length; index++) {
                     string sceneId = sceneIds[index];

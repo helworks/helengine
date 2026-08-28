@@ -327,7 +327,7 @@ namespace helengine.editor {
             FileSystemModelResolver = fileSystemModelResolver ?? throw new ArgumentNullException(nameof(fileSystemModelResolver));
             FileSystemFontResolver = new EditorFileSystemFontResolver(AssetImportManager);
             FileSystemTextureResolver = new EditorFileSystemTextureResolver(AssetImportManager);
-            MaterialAssetSettingsService = new MaterialAssetSettingsService();
+            MaterialAssetSettingsService = new MaterialAssetSettingsService(AssetImportManager.ProjectRootPath);
             string effectiveTargetPlatformId = targetPlatformId;
             if (string.IsNullOrWhiteSpace(effectiveTargetPlatformId) && !string.IsNullOrWhiteSpace(platformDefinition?.PlatformId)) {
                 effectiveTargetPlatformId = platformDefinition.PlatformId;
@@ -347,7 +347,7 @@ namespace helengine.editor {
             CookedArtifactDeclarationSink = cookedArtifactDeclarationSink;
             ShaderDependencySink = shaderDependencySink;
             PlatformDefinition = platformDefinition;
-            FileHasher = new AssetFileHasher();
+            FileHasher = new AssetFileHasher(AssetImportManager.ProjectRootPath);
             TextComponentSpriteBakeService = textComponentSpriteBakeService;
             StaticMeshCookProcessorRegistry = staticMeshCookProcessorRegistry ?? StaticMeshCollisionCookProcessorRegistry.Shared;
             MeshTessellationVariantReferencesByIdentity = new Dictionary<string, SceneAssetReference>(StringComparer.Ordinal);

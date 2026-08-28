@@ -166,8 +166,8 @@ namespace helengine.editor {
             assetsRootPath = ResolveAssetsRoot(projectPath);
             projectRootPath = Path.GetDirectoryName(assetsRootPath) ?? Directory.GetCurrentDirectory();
             currentRelativePath = string.Empty;
-            pathClassifier = new EditorAssetPathClassifier();
-            identityMetadataService = new AssetIdentityMetadataService();
+            pathClassifier = new EditorAssetPathClassifier(projectRootPath);
+            identityMetadataService = new AssetIdentityMetadataService(projectRootPath);
             identityHashCache = hashCache ?? new EditorAssetHashCache(projectRootPath);
             ownsIdentityHashCache = hashCache == null;
             identityIndex = identityIndexValue;

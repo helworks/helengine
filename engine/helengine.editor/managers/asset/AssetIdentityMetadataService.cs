@@ -23,7 +23,32 @@ namespace helengine.editor {
         /// <summary>
         /// Shared classifier that selects embedded identity storage for engine-native authored formats.
         /// </summary>
-        readonly EditorAssetPathClassifier PathClassifier = new EditorAssetPathClassifier();
+        readonly EditorAssetPathClassifier PathClassifier;
+
+        /// <summary>
+        /// Authoritative project root used for all metadata reads and writes.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
+        /// Creates a metadata service for an explicitly scoped project.
+        /// </summary>
+        /// <param name="projectRootPath">Canonical project root.</param>
+        public AssetIdentityMetadataService(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            PathClassifier = new EditorAssetPathClassifier(ProjectRootPath);
+        }
+
+        /// <summary>
+        /// Creates a standalone metadata service. Callers operating inside a project should use the rooted constructor.
+        /// </summary>
+        public AssetIdentityMetadataService() {
+            PathClassifier = new EditorAssetPathClassifier();
+        }
 
         /// <summary>
         /// Returns the metadata sidecar path for one authored asset.
@@ -60,7 +85,7 @@ namespace helengine.editor {
 
             try {
                 string json = Encoding.UTF8.GetString(EditorAuthoringMutationScope.ReadAllBytes(
-                    FindProjectRoot(assetPath),
+                    ResolveProjectRootPath(assetPath),
                     metadataPath));
                 using JsonDocument shape = JsonDocument.Parse(json);
                 ValidateJsonShape(shape, metadataPath);
@@ -126,7 +151,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(document));
             }
 
-            string projectRootPath = FindProjectRoot(assetPath);
+            string projectRootPath = ResolveProjectRootPath(assetPath);
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
             using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
                 projectRootPath,
@@ -160,17 +185,12 @@ namespace helengine.editor {
             }
         }
 
-        static string FindProjectRoot(string assetPath) {
-            DirectoryInfo current = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(assetPath)));
-            while (current != null) {
-                if (string.Equals(current.Name, "assets", OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal)) {
-                    return current.Parent?.FullName ?? current.FullName;
-                }
-                current = current.Parent;
+        string ResolveProjectRootPath(string assetPath) {
+            if (!string.IsNullOrWhiteSpace(ProjectRootPath)) {
+                return ProjectRootPath;
             }
-            return Path.GetDirectoryName(Path.GetFullPath(assetPath));
+
+            return EditorProjectPaths.ResolveStandaloneRoot(assetPath);
         }
 
         /// <summary>
@@ -182,7 +202,7 @@ namespace helengine.editor {
         AssetIdentityMetadataDocument LoadEmbedded(string assetPath) {
             try {
                 using MemoryStream stream = new MemoryStream(EditorAuthoringMutationScope.ReadAllBytes(
-                    FindProjectRoot(assetPath),
+                    ResolveProjectRootPath(assetPath),
                     assetPath), false);
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 stream.Position = 0;
@@ -228,7 +248,7 @@ namespace helengine.editor {
             Asset asset = null;
             MaterialAssetCommonSettingsDocument material = null;
             using (MemoryStream input = new MemoryStream(EditorAuthoringMutationScope.ReadAllBytes(
-                FindProjectRoot(assetPath),
+                ResolveProjectRootPath(assetPath),
                 assetPath), false)) {
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(input);
                 input.Position = 0;
@@ -256,7 +276,7 @@ namespace helengine.editor {
                     MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(output, material);
                 }
                 EditorAuthoringMutationScope.WriteAllBytesAtomically(
-                    FindProjectRoot(assetPath),
+                ResolveProjectRootPath(assetPath),
                     assetPath,
                     output.ToArray());
             }

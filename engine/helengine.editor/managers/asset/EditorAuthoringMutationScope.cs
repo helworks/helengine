@@ -30,6 +30,15 @@ namespace helengine.editor {
         const int PosixDirectory = 0x10000;
         const int PosixNoFollow = 0x20000;
         const int PosixCloseOnExec = 0x80000;
+        const int PosixNonBlock = 0x800;
+        const int PosixRenameNoReplace = 1;
+        const int PosixAtRemovedDirectory = 0x200;
+        const int PosixAtSymlinkNoFollow = 0x100;
+        const int PosixFileTypeMask = 0xF000;
+        const int PosixRegularFileType = 0x8000;
+        const int PosixDirectoryFileType = 0x4000;
+        const int PosixFGetFlags = 3;
+        const int PosixFSetFlags = 4;
         const int PosixLockExclusive = 2;
         const int PosixLockNonBlocking = 4;
         static readonly StringComparison PathComparison = OperatingSystem.IsWindows()
@@ -39,6 +48,15 @@ namespace helengine.editor {
         readonly string ProjectRootPath;
         readonly string TargetDirectoryPath;
         bool IsDisposed;
+
+        /// <summary>
+        /// Identifies the secure filesystem backend selected for the current process.
+        /// </summary>
+        internal static string FilesystemBackendNameForTests => OperatingSystem.IsWindows()
+            ? "windows"
+            : OperatingSystem.IsLinux()
+                ? "linux"
+                : "unsupported";
 
         EditorAuthoringMutationScope(
             List<SafeFileHandle> handles,
@@ -55,6 +73,7 @@ namespace helengine.editor {
         /// directory handles and verifies each handle's final path.
         /// </summary>
         internal static EditorAuthoringMutationScope AcquireForMutation(string projectRootPath, string targetDirectoryPath) {
+            EnsureSupportedPlatform();
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -116,8 +135,10 @@ namespace helengine.editor {
                         EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRoot);
                         handles.Add(OpenAndVerifyWindowsDirectory(directory));
                     }
-                } else {
+                } else if (OperatingSystem.IsLinux()) {
                     OpenPosixDirectoryChain(projectRoot, existingChain, missingDirectories, handles);
+                } else {
+                    throw CreateUnsupportedPlatformException();
                 }
 
                 return new EditorAuthoringMutationScope(handles, projectRoot, targetDirectory);
@@ -158,7 +179,9 @@ namespace helengine.editor {
                 : mode;
             SafeFileHandle handle = OperatingSystem.IsWindows()
                 ? OpenAndVerifyWindowsFile(fullPath, openMode, access, share, includeDelete)
-                : OpenAndVerifyPosixFile(Path.GetFileName(fullPath), openMode, access);
+                : OperatingSystem.IsLinux()
+                    ? OpenAndVerifyPosixFile(Path.GetFileName(fullPath), openMode, access)
+                    : throw CreateUnsupportedPlatformException();
             try {
                 FileStream stream = new FileStream(handle, access, 4096, false);
                 if (mode == FileMode.Create || mode == FileMode.Truncate) {
@@ -201,16 +224,19 @@ namespace helengine.editor {
                     sourceFile.Stream.SafeFileHandle,
                     Path.GetFileName(destination),
                     replaceExisting && File.Exists(destination));
-            } else {
+            } else if (OperatingSystem.IsLinux()) {
                 SafeFileHandle parent = Handles[Handles.Count - 1];
-                int result = RenameAt(
+                int result = RenameAt2(
                     parent.DangerousGetHandle().ToInt32(),
                     Path.GetFileName(source),
                     parent.DangerousGetHandle().ToInt32(),
-                    Path.GetFileName(destination));
+                    Path.GetFileName(destination),
+                    (uint)(replaceExisting ? 0 : PosixRenameNoReplace));
                 if (result != 0) {
-                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not atomically replace '{destination}'.");
+                    throw CreatePosixRenameException(destination);
                 }
+            } else {
+                throw CreateUnsupportedPlatformException();
             }
         }
 
@@ -235,11 +261,13 @@ namespace helengine.editor {
                     FileShare.ReadWrite,
                     true);
                 DeleteVerifiedWindowsLeaf(file.Stream.SafeFileHandle);
-            } else if (UnlinkAt(
+            } else if (OperatingSystem.IsLinux() && UnlinkAt(
                 Handles[Handles.Count - 1].DangerousGetHandle().ToInt32(),
                 Path.GetFileName(fullPath),
                 0) != 0) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not delete '{fullPath}'.");
+            } else if (!OperatingSystem.IsLinux()) {
+                throw CreateUnsupportedPlatformException();
             }
         }
 
@@ -303,12 +331,15 @@ namespace helengine.editor {
             if (OperatingSystem.IsWindows()) {
                 using SafeFileHandle sourceDirectory = OpenAndVerifyWindowsDirectory(source, true);
                 scope.RenameVerifiedWindowsLeaf(sourceDirectory, Path.GetFileName(destination), false);
-            } else if (RenameAt(
+            } else if (OperatingSystem.IsLinux() && RenameAt2(
                 scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
                 Path.GetFileName(source),
                 scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
-                Path.GetFileName(destination)) != 0) {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not move directory '{source}' to '{destination}'.");
+                Path.GetFileName(destination),
+                PosixRenameNoReplace) != 0) {
+                throw CreatePosixRenameException(destination);
+            } else if (!OperatingSystem.IsLinux()) {
+                throw CreateUnsupportedPlatformException();
             }
         }
 
@@ -335,6 +366,11 @@ namespace helengine.editor {
 
         static void DeleteDirectoryContents(string projectRootPath, string directoryPath, string containingRoot) {
             using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, directoryPath);
+            if (OperatingSystem.IsLinux()) {
+                DeleteDirectoryContentsLinux(scope.Handles[scope.Handles.Count - 1], directoryPath, containingRoot);
+                return;
+            }
+
             foreach (string child in Directory.EnumerateFileSystemEntries(directoryPath, "*", SearchOption.TopDirectoryOnly).ToArray()) {
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(child, containingRoot);
                 if ((File.GetAttributes(child) & FileAttributes.Directory) != 0) {
@@ -346,6 +382,94 @@ namespace helengine.editor {
             }
         }
 
+        static void DeleteDirectoryContentsLinux(SafeFileHandle directory, string directoryPath, string containingRoot) {
+            int duplicateFd = PosixDup(directory.DangerousGetHandle().ToInt32());
+            if (duplicateFd < 0) {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not enumerate pinned directory '{directoryPath}'.");
+            }
+
+            IntPtr directoryStream = PosixFdOpenDir(duplicateFd);
+            if (directoryStream == IntPtr.Zero) {
+                int error = Marshal.GetLastWin32Error();
+                PosixClose(duplicateFd);
+                throw new Win32Exception(error, $"Could not enumerate pinned directory '{directoryPath}'.");
+            }
+
+            try {
+                while (true) {
+                    IntPtr entry = PosixReadDir(directoryStream);
+                    if (entry == IntPtr.Zero) {
+                        break;
+                    }
+
+                    string name = ReadLinuxDirectoryEntryName(entry);
+                    if (name == "." || name == "..") {
+                        continue;
+                    }
+
+                    string childPath = Path.Combine(directoryPath, name);
+                    int parentFd = directory.DangerousGetHandle().ToInt32();
+                    if (PosixFStatAt(parentFd, name, out PosixStat status, PosixAtSymlinkNoFollow) != 0) {
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not inspect directory entry '{childPath}'.");
+                    }
+
+                    int type = (int)(status.Mode & PosixFileTypeMask);
+                    if (type == PosixDirectoryFileType) {
+                        using SafeFileHandle childDirectory = OpenPosixDirectory(name, directory);
+                        DeleteDirectoryContentsLinux(childDirectory, childPath, containingRoot);
+                        if (UnlinkAt(parentFd, name, PosixAtRemovedDirectory) != 0) {
+                            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove directory '{childPath}'.");
+                        }
+                    } else if (type == PosixRegularFileType) {
+                        using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, name);
+                        if (UnlinkAt(parentFd, name, 0) != 0) {
+                            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove file '{childPath}'.");
+                        }
+                    } else {
+                        throw new InvalidDataException($"The authoring cleanup entry '{childPath}' is not a regular non-reparse file or directory.");
+                    }
+                }
+            } finally {
+                PosixClosedDir(directoryStream);
+            }
+        }
+
+        static SafeFileHandle OpenPosixRegularFileAt(SafeFileHandle parent, string name) {
+            int flags = PosixReadOnly | PosixNoFollow | PosixCloseOnExec | PosixNonBlock;
+            int fd = PosixOpenAt(parent.DangerousGetHandle().ToInt32(), name, flags, 0);
+            if (fd < 0) {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not open cleanup file '{name}'.");
+            }
+
+            SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
+            try {
+                if (!PosixFStat(fd, out PosixStat status) || (status.Mode & PosixFileTypeMask) != PosixRegularFileType) {
+                    throw new InvalidDataException($"The authoring cleanup entry '{name}' is not a regular file.");
+                }
+                return handle;
+            } catch {
+                handle.Dispose();
+                throw;
+            }
+        }
+
+        static string ReadLinuxDirectoryEntryName(IntPtr entry) {
+            // linux_dirent64 places d_name immediately after ino, offset, reclen, and d_type.
+            const int nameOffset = 19;
+            StringBuilder name = new StringBuilder();
+            for (int index = 0; index < 256; index++) {
+                byte value = Marshal.ReadByte(entry, nameOffset + index);
+                if (value == 0) {
+                    break;
+                }
+                name.Append((char)value);
+            }
+            if (name.Length == 0 || name.ToString().IndexOf('\0') >= 0) {
+                throw new InvalidDataException("The Linux authoring directory contained an invalid entry name.");
+            }
+            return name.ToString();
+        }
+
         static void DeleteEmptyDirectory(string projectRootPath, string directoryPath, string containingRoot) {
             string parentPath = Path.GetDirectoryName(directoryPath);
             using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, parentPath);
@@ -353,11 +477,13 @@ namespace helengine.editor {
             if (OperatingSystem.IsWindows()) {
                 using SafeFileHandle directory = OpenAndVerifyWindowsDirectory(directoryPath, true);
                 DeleteVerifiedWindowsLeaf(directory);
-            } else if (UnlinkAt(
+            } else if (OperatingSystem.IsLinux() && UnlinkAt(
                 scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
                 Path.GetFileName(directoryPath),
                 0x200) != 0) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not delete directory '{directoryPath}'.");
+            } else if (!OperatingSystem.IsLinux()) {
+                throw CreateUnsupportedPlatformException();
             }
         }
 
@@ -435,12 +561,13 @@ namespace helengine.editor {
             } else {
                 SafeFileHandle sourceDirectory = Handles[Handles.Count - 1];
                 SafeFileHandle destinationDirectory = destinationScope?.Handles[destinationScope.Handles.Count - 1] ?? sourceDirectory;
-                if (RenameAt(
+                if (RenameAt2(
                     sourceDirectory.DangerousGetHandle().ToInt32(),
                     Path.GetFileName(source),
                     destinationDirectory.DangerousGetHandle().ToInt32(),
-                    Path.GetFileName(destination)) != 0) {
-                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not move '{source}' to '{destination}'.");
+                    Path.GetFileName(destination),
+                    PosixRenameNoReplace) != 0) {
+                    throw CreatePosixRenameException(destination);
                 }
             }
         }
@@ -450,6 +577,9 @@ namespace helengine.editor {
             EnsureNotDisposed();
             if (OperatingSystem.IsWindows()) {
                 return true;
+            }
+            if (!OperatingSystem.IsLinux()) {
+                throw CreateUnsupportedPlatformException();
             }
 
             return Flock(file.Stream.SafeFileHandle.DangerousGetHandle().ToInt32(), PosixLockExclusive | PosixLockNonBlocking) == 0;
@@ -468,6 +598,26 @@ namespace helengine.editor {
             }
         }
 
+        static void EnsureSupportedPlatform() {
+            if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux()) {
+                throw CreateUnsupportedPlatformException();
+            }
+        }
+
+        static PlatformNotSupportedException CreateUnsupportedPlatformException() {
+            return new PlatformNotSupportedException(
+                $"Secure editor authoring filesystem mutations are not implemented for '{RuntimeInformation.OSDescription}'. Supported platforms are Windows and Linux.");
+        }
+
+        static Exception CreatePosixRenameException(string destination) {
+            int error = Marshal.GetLastWin32Error();
+            if (error == 38) {
+                return new PlatformNotSupportedException(
+                    "The Linux kernel does not expose renameat2; secure no-replace authoring moves are unavailable.");
+            }
+            return new Win32Exception(error, $"Could not atomically move authoring entry to '{destination}'.");
+        }
+
         static void OpenPosixDirectoryChain(
             string projectRoot,
             List<string> existingChain,
@@ -478,9 +628,25 @@ namespace helengine.editor {
                 throw new InvalidDataException("The POSIX mutation chain does not start at the project root.");
             }
 
-            handles.Add(OpenPosixDirectory(projectRoot, null));
-            for (int index = 1; index < existingChain.Count; index++) {
-                handles.Add(OpenPosixDirectory(Path.GetFileName(existingChain[index]), handles[index - 1]));
+            // Anchor the walk at the filesystem root. Opening the absolute project
+            // path in one call would leave an ancestor swap outside the pinned chain.
+            handles.Add(OpenPosixDirectory(Path.GetPathRoot(projectRoot) ?? "/", null));
+            string relativeProjectRoot = projectRoot.Substring((Path.GetPathRoot(projectRoot) ?? "/").Length)
+                .Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            foreach (string component in relativeProjectRoot.Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries)) {
+                handles.Add(OpenPosixDirectory(component, handles[handles.Count - 1]));
+            }
+
+            string existingRelativePath = Path.GetRelativePath(projectRoot, existingChain[existingChain.Count - 1]);
+            foreach (string component in existingRelativePath.Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries)) {
+                if (component == ".") {
+                    continue;
+                }
+                handles.Add(OpenPosixDirectory(component, handles[handles.Count - 1]));
             }
 
             missingDirectories.Reverse();
@@ -505,12 +671,21 @@ namespace helengine.editor {
             if (fd < 0) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not pin directory '{path}'.");
             }
-            return new SafeFileHandle(new IntPtr(fd), true);
+            SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
+            try {
+                if (!PosixFStat(fd, out PosixStat status) || (status.Mode & PosixFileTypeMask) != PosixDirectoryFileType) {
+                    throw new InvalidDataException($"The POSIX authoring path '{path}' is not a directory.");
+                }
+                return handle;
+            } catch {
+                handle.Dispose();
+                throw;
+            }
         }
 
         SafeFileHandle OpenAndVerifyPosixFile(string leafName, FileMode mode, FileAccess access) {
             int flags = access == FileAccess.Read ? PosixReadOnly : access == FileAccess.Write ? PosixWriteOnly : PosixReadWrite;
-            flags |= PosixNoFollow | PosixCloseOnExec;
+            flags |= PosixNoFollow | PosixCloseOnExec | PosixNonBlock;
             switch (mode) {
                 case FileMode.CreateNew:
                     flags |= PosixCreate | PosixExclusive;
@@ -525,7 +700,23 @@ namespace helengine.editor {
             if (fd < 0) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not open verified file '{leafName}'.");
             }
-            return new SafeFileHandle(new IntPtr(fd), true);
+            SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
+            try {
+                if (!PosixFStat(fd, out PosixStat status)) {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not inspect verified file '{leafName}'.");
+                }
+                if ((status.Mode & PosixFileTypeMask) != PosixRegularFileType) {
+                    throw new InvalidDataException($"The POSIX authoring leaf '{leafName}' is not a regular file.");
+                }
+                int fileFlags = PosixFcntl(fd, PosixFGetFlags, 0);
+                if (fileFlags < 0 || PosixFcntl(fd, PosixFSetFlags, fileFlags & ~PosixNonBlock) != 0) {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not configure verified file '{leafName}'.");
+                }
+                return handle;
+            } catch {
+                handle.Dispose();
+                throw;
+            }
         }
 
         static SafeFileHandle OpenAndVerifyWindowsDirectory(string directoryPath, bool includeDelete = false) {
@@ -796,14 +987,39 @@ namespace helengine.editor {
         [DllImport("libc", EntryPoint = "mkdirat", SetLastError = true)]
         static extern int MkdirAt(int directoryFd, string path, uint mode);
 
-        [DllImport("libc", EntryPoint = "renameat", SetLastError = true)]
-        static extern int RenameAt(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath);
+        [DllImport("libc", EntryPoint = "renameat2", SetLastError = true)]
+        static extern int RenameAt2(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath, uint flags);
 
         [DllImport("libc", EntryPoint = "unlinkat", SetLastError = true)]
         static extern int UnlinkAt(int directoryFd, string path, int flags);
 
         [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
         static extern int Flock(int fileDescriptor, int operation);
+
+        [DllImport("libc", EntryPoint = "dup", SetLastError = true)]
+        static extern int PosixDup(int fileDescriptor);
+
+        [DllImport("libc", EntryPoint = "close", SetLastError = true)]
+        static extern int PosixClose(int fileDescriptor);
+
+        [DllImport("libc", EntryPoint = "fdopendir", SetLastError = true)]
+        static extern IntPtr PosixFdOpenDir(int fileDescriptor);
+
+        [DllImport("libc", EntryPoint = "readdir", SetLastError = true)]
+        static extern IntPtr PosixReadDir(IntPtr directoryStream);
+
+        [DllImport("libc", EntryPoint = "closedir", SetLastError = true)]
+        static extern int PosixClosedDir(IntPtr directoryStream);
+
+        [DllImport("libc", EntryPoint = "fstatat", SetLastError = true)]
+        static extern int PosixFStatAt(int directoryFd, string path, out PosixStat status, int flags);
+
+        [DllImport("libc", EntryPoint = "fstat", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool PosixFStat(int fileDescriptor, out PosixStat status);
+
+        [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
+        static extern int PosixFcntl(int fileDescriptor, int command, int argument);
 
         const int FileRenameInformation = 3;
         const int FileDispositionInformationEx = 21;
@@ -820,6 +1036,34 @@ namespace helengine.editor {
         [StructLayout(LayoutKind.Sequential)]
         struct FileDispositionInfoEx {
             public uint Flags;
+        }
+
+        // Linux x64 struct stat layout. Only the file-type bits in st_mode are
+        // consumed; the complete prefix keeps native offsets intact.
+        [StructLayout(LayoutKind.Sequential)]
+        struct PosixStat {
+            public ulong Device;
+            public ulong Inode;
+            public ulong LinkCount;
+            public uint Mode;
+            public uint UserId;
+            public uint GroupId;
+            public uint Padding;
+            public ulong SpecialDevice;
+            public long Size;
+            public long BlockSize;
+            public long Blocks;
+            public long AccessTime;
+            public ulong AccessTimeNanoseconds;
+            public long ModifyTime;
+            public ulong ModifyTimeNanoseconds;
+            public long ChangeTime;
+            public ulong ChangeTimeNanoseconds;
+            public long BirthTime;
+            public ulong BirthTimeNanoseconds;
+            public int Reserved0;
+            public int Reserved1;
+            public int Reserved2;
         }
     }
 

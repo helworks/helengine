@@ -111,8 +111,8 @@ namespace helengine.editor {
             }
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
-            MetadataService = metadataService ?? new AssetIdentityMetadataService();
-            PathClassifier = pathClassifier ?? new EditorAssetPathClassifier();
+            MetadataService = metadataService ?? new AssetIdentityMetadataService(ProjectRootPath);
+            PathClassifier = pathClassifier ?? new EditorAssetPathClassifier(ProjectRootPath);
             EditorAssetRepairReport indexedRepairReport = identityIndex?.RepairReportValue;
             if (indexedRepairReport != null && repairReport != null && !ReferenceEquals(indexedRepairReport, repairReport)) {
                 throw new ArgumentException("An injected identity index and resolver must share one repair report.", nameof(repairReport));

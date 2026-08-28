@@ -34,6 +34,11 @@ namespace helengine.editor {
         static readonly string[] OverrideModeItems = ["Inherit Base", "Replace Whole", "Override Frames"];
 
         /// <summary>
+        /// Canonical project root used by the clip writer.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
         /// Font used for panel labels.
         /// </summary>
         readonly FontAsset Font;
@@ -133,8 +138,21 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the panel entities.</param>
-        public AnimationClipAssetPlatformPanel(FontAsset font, ushort layerMask) {
+        public AnimationClipAssetPlatformPanel(FontAsset font, ushort layerMask)
+            : this(font, layerMask, EditorProjectPaths.ProjectRoot) {
+        }
+
+        /// <summary>
+        /// Initializes one platform panel with an authoritative project root.
+        /// </summary>
+        /// <param name="font">Font used for text rendering.</param>
+        /// <param name="layerMask">Layer mask applied to the panel entities.</param>
+        /// <param name="projectRootPath">Canonical project root used for clip writes.</param>
+        public AnimationClipAssetPlatformPanel(FontAsset font, ushort layerMask, string projectRootPath) {
             Font = font ?? throw new ArgumentNullException(nameof(font));
+            ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
+                ? null
+                : Path.GetFullPath(projectRootPath);
             TextOrder = RenderOrder2D.PanelForeground;
 
             RootEntity = new EditorEntity();
@@ -323,27 +341,16 @@ namespace helengine.editor {
         void SaveCurrentClip() {
             using MemoryStream stream = new MemoryStream();
             AssetSerializer.Serialize(stream, CurrentClip);
-            string projectRootPath = FindProjectRoot(CurrentEntry.FullPath);
+            if (string.IsNullOrWhiteSpace(ProjectRootPath)) {
+                throw new InvalidOperationException("The current project root must be initialized before animation assets can be saved.");
+            }
+
+            string projectRootPath = ProjectRootPath;
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
             EditorAuthoringMutationScope.WriteAllBytesAtomically(
                 projectRootPath,
                 CurrentEntry.FullPath,
                 stream.ToArray());
-        }
-
-        static string FindProjectRoot(string assetPath) {
-            DirectoryInfo current = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(assetPath)));
-            while (current != null) {
-                if (string.Equals(current.Name, "assets", OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal)) {
-                    return current.Parent?.FullName
-                        ?? throw new InvalidDataException("The animation asset has no project root.");
-                }
-                current = current.Parent;
-            }
-
-            throw new InvalidDataException($"Animation asset '{assetPath}' is not beneath a project assets directory.");
         }
 
         /// <summary>

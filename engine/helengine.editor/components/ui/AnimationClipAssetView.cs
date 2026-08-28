@@ -24,6 +24,11 @@ namespace helengine.editor {
         const int PanelSpacing = 8;
 
         /// <summary>
+        /// Canonical project root used by platform clip panels.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
         /// Root entity that owns all view visuals.
         /// </summary>
         readonly EditorEntity RootEntity;
@@ -83,8 +88,21 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
-        public AnimationClipAssetView(FontAsset font, ushort layerMask) {
+        public AnimationClipAssetView(FontAsset font, ushort layerMask)
+            : this(font, layerMask, EditorProjectPaths.ProjectRoot) {
+        }
+
+        /// <summary>
+        /// Initializes one animation clip view with an authoritative project root.
+        /// </summary>
+        /// <param name="font">Font used for text rendering.</param>
+        /// <param name="layerMask">Layer mask applied to the view entities.</param>
+        /// <param name="projectRootPath">Canonical project root passed to clip panels.</param>
+        public AnimationClipAssetView(FontAsset font, ushort layerMask, string projectRootPath) {
             Font = font ?? throw new ArgumentNullException(nameof(font));
+            ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
+                ? null
+                : Path.GetFullPath(projectRootPath);
             LayerMask = layerMask;
             SupportedPlatformIds = new List<string>(4);
             PlatformPanels = new Dictionary<string, AnimationClipAssetPlatformPanel>(StringComparer.OrdinalIgnoreCase);
@@ -248,7 +266,7 @@ namespace helengine.editor {
             for (int index = 0; index < SupportedPlatformIds.Count; index++) {
                 string platformId = SupportedPlatformIds[index];
                 if (!PlatformPanels.TryGetValue(platformId, out AnimationClipAssetPlatformPanel panel)) {
-                    panel = new AnimationClipAssetPlatformPanel(Font, LayerMask);
+                    panel = new AnimationClipAssetPlatformPanel(Font, LayerMask, ProjectRootPath);
                     PlatformPanels.Add(platformId, panel);
                     RootEntity.AddChild(panel.Root);
                 }

@@ -147,7 +147,7 @@ namespace helengine.editor {
             AssetIdentityMetadataDocument identity = !string.IsNullOrWhiteSpace(authoringAssetId)
                 ? new AssetIdentityMetadataDocument { AssetId = authoringAssetId }
                 : File.Exists(normalizedPath)
-                    ? new AssetIdentityMetadataService().Load(normalizedPath)
+                    ? new AssetIdentityMetadataService(ProjectRootPath).Load(normalizedPath)
                     : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
             asset.AuthoringAssetId = identity.AssetId;
             asset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();

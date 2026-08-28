@@ -40,6 +40,82 @@ namespace helengine.editor.tests {
                 Directory.Delete(ProjectRootPath, true);
             }
         }
+        }
+
+        /// <summary>
+        /// Ensures constructing the importer does not mutate a project before the
+        /// owning session has completed recovery and acquired its startup boundary.
+        /// </summary>
+        [Fact]
+        public void Constructor_DoesNotCreateProjectAssetOrImportDirectories() {
+            string projectRootPath = Path.Combine(
+                Path.GetTempPath(),
+                "helengine-asset-import-construction-tests",
+                Guid.NewGuid().ToString("N"));
+            try {
+                ContentManager contentManager = new ContentManager(
+                    new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
+
+                _ = new AssetImportManager(projectRootPath, contentManager);
+
+                Assert.False(Directory.Exists(projectRootPath));
+                Assert.False(Directory.Exists(Path.Combine(projectRootPath, "assets")));
+                Assert.False(Directory.Exists(Path.Combine(projectRootPath, "cache")));
+            } finally {
+                if (Directory.Exists(projectRootPath)) {
+                    Directory.Delete(projectRootPath, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void SaveImportSettings_RoundTripsPlatformFontTextureSettingsThroughVerifiedLeaves() {
+            string sourcePath = WriteSourceFont("round-trip-font.ttf");
+            AssetImportManager manager = CreateFontManager();
+            AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
+            settings.Processor.Platforms["ds"] = new AssetPlatformProcessorSettings {
+                Texture = new TextureAssetProcessorSettings {
+                    MaxResolution = 128,
+                    ColorFormat = TextureAssetColorFormat.Rgba4444
+                },
+                Model = new ModelAssetProcessorSettings(),
+                Material = new MaterialAssetProcessorSettings()
+            };
+
+            manager.SaveImportSettings(sourcePath, settings);
+            AssetImportSettings loaded = manager.LoadOrCreateImportSettings(sourcePath);
+
+            Assert.Equal(128, loaded.Processor.Platforms["ds"].Texture.MaxResolution);
+            Assert.Equal(TextureAssetColorFormat.Rgba4444, loaded.Processor.Platforms["ds"].Texture.ColorFormat);
+        }
+
+        /// <summary>
+        /// Ensures importer source input cannot follow a linked asset into an
+        /// external directory or create settings beside that external file.
+        /// </summary>
+        [global::helengine.editor.tests.managers.asset.DirectoryLinkFact]
+        public void ImportTexture_WhenSourceLeafIsReparsePoint_RejectsBeforeOutsideMutation() {
+            string outsideRoot = Path.Combine(Path.GetTempPath(), "helengine-import-source-outside-" + Guid.NewGuid().ToString("N"));
+            string linkPath = Path.Combine(AssetsRootPath, "linked.png");
+            string outsidePath = Path.Combine(outsideRoot, "source.png");
+            Directory.CreateDirectory(outsideRoot);
+            File.WriteAllBytes(outsidePath, new byte[] { 4, 5, 6, 7 });
+            try {
+                File.CreateSymbolicLink(linkPath, outsidePath);
+                AssetImportManager manager = CreateManager();
+
+                Assert.ThrowsAny<Exception>(() => manager.ImportTexture(linkPath));
+
+                Assert.False(File.Exists(outsidePath + AssetImportManager.SettingsExtension));
+            } finally {
+                if (File.Exists(linkPath)) {
+                    File.Delete(linkPath);
+                }
+                if (Directory.Exists(outsideRoot)) {
+                    Directory.Delete(outsideRoot, true);
+                }
+            }
+        }
 
         /// <summary>
         /// Ensures a current import-settings sidecar is consumed and the texture cache is generated.

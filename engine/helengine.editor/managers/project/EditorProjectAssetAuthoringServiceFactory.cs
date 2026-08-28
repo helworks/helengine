@@ -48,7 +48,6 @@ namespace helengine.editor {
                 importer.Register(assetImportManager);
             }
 
-            assetImportManager.GenerateMissingImportSettings();
             return assetImportManager;
         }
     }
