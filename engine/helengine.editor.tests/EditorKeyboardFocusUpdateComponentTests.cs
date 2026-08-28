@@ -32,7 +32,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_when_ctrl_z_is_pressed_invokes_the_undo_callback() {
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent();
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input);
             int undoCount = 0;
             int redoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;
@@ -54,7 +54,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_loop_runs_the_component_when_the_owning_entity_hierarchy_is_initialized() {
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent();
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input);
             int undoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;
             EditorEntity ownerEntity = new EditorEntity {
@@ -77,7 +77,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_when_ctrl_y_is_pressed_invokes_the_redo_callback() {
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent();
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input);
             int undoCount = 0;
             int redoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;
@@ -98,7 +98,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_when_ctrl_shift_z_is_pressed_invokes_the_redo_callback() {
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent();
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input);
             int undoCount = 0;
             int redoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;

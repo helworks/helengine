@@ -418,11 +418,7 @@ namespace helengine.editor {
                 }
 
                 runtimeModel = renderManager3D.BuildModelFromRaw(importedModel.ModelAsset);
-                RuntimeTexture neutralTexture = rendererResources.RenderManager2D.BuildTextureFromRaw(new TextureAsset {
-                    Width = 1,
-                    Height = 1,
-                    Colors = new byte[] { 192, 198, 208, 255 }
-                });
+                RuntimeTexture neutralTexture = BuildNeutralPreviewTexture(rendererResources.RenderManager2D);
                 RuntimeMaterial[] previewMaterials = BuildPreviewMaterials(
                     runtimeModel.Submeshes,
                     importedModel.GeneratedMaterials,
@@ -895,12 +891,25 @@ namespace helengine.editor {
                 return neutralPreviewTexture;
             }
 
-            neutralPreviewTexture = renderManager2D.BuildTextureFromRaw(new TextureAsset {
+            neutralPreviewTexture = BuildNeutralPreviewTexture(renderManager2D);
+            return neutralPreviewTexture;
+        }
+
+        static RuntimeTexture BuildNeutralPreviewTexture(RenderManager2D renderManager2D) {
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
+            }
+
+            TextureAsset rawTexture = new TextureAsset {
                 Width = 1,
                 Height = 1,
                 Colors = new byte[] { 192, 198, 208, 255 }
-            });
-            return neutralPreviewTexture;
+            };
+            try {
+                return renderManager2D.BuildTextureFromRaw(rawTexture);
+            } finally {
+                NativeOwnership.DisposeAndDelete(rawTexture);
+            }
         }
 
         /// <summary>

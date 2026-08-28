@@ -11,16 +11,18 @@ namespace helengine.editor {
         /// Collector that resolves the viewport-owned gizmo drawables.
         /// </summary>
         readonly EditorViewportGizmoDrawableCollector DrawableCollector;
+        readonly ObjectManager ObjectManager;
 
         /// <summary>
         /// Initializes one queue rebuilder for a viewport-local gizmo camera.
         /// </summary>
         /// <param name="gizmoCamera">Gizmo overlay camera that renders viewport-owned gizmos.</param>
         /// <param name="drawableCollector">Collector that resolves viewport-owned gizmo drawables.</param>
-        public EditorViewportGizmoRenderQueueComponent(CameraComponent gizmoCamera, EditorViewportGizmoDrawableCollector drawableCollector) {
+        public EditorViewportGizmoRenderQueueComponent(CameraComponent gizmoCamera, EditorViewportGizmoDrawableCollector drawableCollector, ObjectManager objectManager) {
             GizmoCamera = gizmoCamera ?? throw new ArgumentNullException(nameof(gizmoCamera));
             DrawableCollector = drawableCollector ?? throw new ArgumentNullException(nameof(drawableCollector));
-            UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(Core.Instance.ObjectManager.UpdateOrderLayers - 1);
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            UpdateOrder = ObjectManager.GetUpdateOrderForLayer(ObjectManager.UpdateOrderLayers - 1);
         }
 
         /// <summary>

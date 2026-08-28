@@ -13,7 +13,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void SetGroupActive_WhenTrue_ShowsTheDockOutline() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
             DockableEntity dock = new DockableEntity(CreateFont());
             layout.DockAsRoot(dock);
 

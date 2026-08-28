@@ -543,8 +543,9 @@ namespace helengine.editor.tests {
                 CreateToolbarIcons(),
                 new EditorSceneCanvasProfileState(),
                 EditorUiMetrics.Default,
-                GeneratedAssetGraph.ShaderLibrary);
-            viewport.CameraController = new EditorViewportCameraController(camera);
+                GeneratedAssetGraph.ShaderLibrary,
+                GeneratedAssetGraph.RendererResources);
+            viewport.CameraController = new EditorViewportCameraController(camera, Core.Instance.Input);
             viewport.Position = new float3(20f, 20f, 0f);
             viewport.Size = new int2(400, 280);
             return viewport;

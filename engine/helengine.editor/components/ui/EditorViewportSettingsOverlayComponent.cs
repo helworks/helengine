@@ -112,6 +112,7 @@ namespace helengine.editor {
         /// Owner key used by the input-capture service for the overlay rectangle.
         /// </summary>
         readonly object InputBlockerOwner;
+        InputSystem Input;
 
         /// <summary>
         /// Viewport entity that owns this overlay component.
@@ -308,6 +309,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Binds overlay interaction to the owning session's input source.
+        /// </summary>
+        internal void SetInput(InputSystem input) {
+            Input = input ?? throw new ArgumentNullException(nameof(input));
+        }
+
+        /// <summary>
         /// Raised when the overlay open state changes so the owning viewport can refresh button visuals.
         /// </summary>
         public event Action<bool> OpenStateChanged;
@@ -454,7 +462,7 @@ namespace helengine.editor {
 
             UpdateInputBlocker();
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
             if (input == null) {
                 return;
             }

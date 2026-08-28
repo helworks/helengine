@@ -179,7 +179,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Keyboard_focus_update_component_routes_keyboard_shortcuts_into_session_history() {
             EditorSession session = CreateSessionForUndoRedo();
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent {
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input) {
                 UndoShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalUndoShortcut"),
                 RedoShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalRedoShortcut")
             };
@@ -433,7 +433,7 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity selectedEntity = CreateUserSceneEntity(303u, "Delete Key");
             EditorSelectionService.SetSelectedEntity(selectedEntity);
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent {
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input) {
                 DeleteShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalDeleteShortcut")
             };
 

@@ -87,6 +87,10 @@ namespace helengine.editor {
         /// Wheel-scrolling controller for the filtered component list.
         /// </summary>
         readonly ScrollComponent ListScrollComponent;
+        /// <summary>
+        /// Object manager owned by the editor session hosting this dialog.
+        /// </summary>
+        ObjectManager ObjectManager;
 
         /// <summary>
         /// Host entity for the footer action button.
@@ -205,7 +209,6 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(ListHost);
 
             ListScrollComponent = new ScrollComponent();
-            ListScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             ListScrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
             ListHost.AddComponent(ListScrollComponent);
 
@@ -239,6 +242,14 @@ namespace helengine.editor {
             EmptyStateHost.AddComponent(EmptyStateText);
             Enabled = false;
             IsInitialized = true;
+        }
+
+        /// <summary>
+        /// Binds list scrolling to the owning session's object manager.
+        /// </summary>
+        internal void SetObjectManager(ObjectManager objectManager) {
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            ListScrollComponent.UpdateOrder = ObjectManager.GetUpdateOrderForLayer(1);
         }
 
         /// <summary>

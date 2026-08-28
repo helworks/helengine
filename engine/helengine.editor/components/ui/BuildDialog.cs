@@ -4,7 +4,8 @@ namespace helengine.editor {
     /// <summary>
     /// Floating modal dialog used to prepare local per-platform build selections and queued builds.
     /// </summary>
-    public class BuildDialog : EditorDialogBase {
+public class BuildDialog : EditorDialogBase {
+        ObjectManager ObjectManager;
         /// <summary>
         /// Fixed panel width used by the dialog.
         /// </summary>
@@ -549,7 +550,6 @@ namespace helengine.editor {
             SceneListRoot.AddChild(SceneListItemsRoot);
 
             SceneListScrollComponent = new ScrollComponent();
-            SceneListScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             SceneListScrollComponent.ScrollOffsetChanged += HandleSceneListScrollOffsetChanged;
             SceneListItemsRoot.AddComponent(SceneListScrollComponent);
 
@@ -610,7 +610,6 @@ namespace helengine.editor {
             QueueSectionRoot.AddChild(QueueItemsRoot);
 
             QueueScrollComponent = new ScrollComponent();
-            QueueScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             QueueScrollComponent.ScrollOffsetChanged += HandleQueueScrollOffsetChanged;
             QueueItemsRoot.AddComponent(QueueScrollComponent);
 
@@ -796,9 +795,21 @@ namespace helengine.editor {
             BuildLogsTextHost.AddComponent(BuildLogsText);
 
             BuildLogsScrollComponent = new ScrollComponent();
-            BuildLogsScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             BuildLogsScrollComponent.ScrollOffsetChanged += HandleBuildLogsScrollOffsetChanged;
             BuildLogsTextHost.AddComponent(BuildLogsScrollComponent);
+        }
+
+        /// <summary>Binds generated arrow textures to the session-owned 2D renderer.</summary>
+        internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            ObjectManager = rendererResources.ObjectManager;
+            byte updateOrder = (byte)ObjectManager.GetUpdateOrderForLayer(1);
+            SceneListScrollComponent.UpdateOrder = updateOrder;
+            QueueScrollComponent.UpdateOrder = updateOrder;
+            BuildLogsScrollComponent.UpdateOrder = updateOrder;
+            PlatformTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
         }
 
         /// <summary>

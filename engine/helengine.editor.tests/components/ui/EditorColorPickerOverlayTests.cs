@@ -16,7 +16,7 @@ public sealed class EditorColorPickerOverlayTests {
         InitializeCore();
 
         EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
 
         overlay.Open(new byte4(32, 64, 96, 255));
@@ -38,7 +38,7 @@ public sealed class EditorColorPickerOverlayTests {
         InitializeCore();
 
         EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
         overlay.Open(new byte4(255, 0, 0, 255));
 
@@ -55,7 +55,7 @@ public sealed class EditorColorPickerOverlayTests {
         InitializeCore();
 
         EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
         overlay.Open(new byte4(255, 255, 255, 255));
 
@@ -73,7 +73,7 @@ public sealed class EditorColorPickerOverlayTests {
         InitializeCore();
 
         EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
         overlay.Open(new byte4(32, 64, 96, 255));
 
@@ -90,7 +90,7 @@ public sealed class EditorColorPickerOverlayTests {
         InitializeCore();
 
         EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1);
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
         overlay.Open(new byte4(255, 255, 255, 255));
 

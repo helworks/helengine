@@ -53,7 +53,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetPreviewSource_WhenNewSourceIsAssigned_DisposesThePreviousSource() {
-            PreviewPanel panel = new PreviewPanel(CreateFont());
+            PreviewPanel panel = CreatePanel();
             TestPreviewSource first = new TestPreviewSource(new TestRuntimeTexture {
                 Width = 32,
                 Height = 32
@@ -76,9 +76,8 @@ namespace helengine.editor.tests {
         [Fact]
         public void SetPreviewSource_WithScaledMetrics_UsesScaledTitleBarOffsetAndFullBodySize() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            PreviewPanel panel = new PreviewPanel(CreateFont(), metrics) {
-                Size = new int2(300, 240)
-            };
+            PreviewPanel panel = CreatePanel(null, metrics);
+            panel.Size = new int2(300, 240);
             TestPreviewSource source = new TestPreviewSource(new TestRuntimeTexture {
                 Width = 100,
                 Height = 50
@@ -101,7 +100,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetPreviewSource_WhenTexturePreviewIsAssigned_ShowsTheResolutionLabel() {
-            PreviewPanel panel = new PreviewPanel(CreateFont());
+            PreviewPanel panel = CreatePanel();
             TexturePreviewSource source = new TexturePreviewSource(new TestRuntimeTexture {
                 Width = 120,
                 Height = 80
@@ -121,7 +120,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetPreviewSource_WhenNonTexturePreviewIsAssigned_HidesTheResolutionLabel() {
-            PreviewPanel panel = new PreviewPanel(CreateFont());
+            PreviewPanel panel = CreatePanel();
 
             panel.SetPreviewSource(new TexturePreviewSource(new TestRuntimeTexture {
                 Width = 120,
@@ -144,9 +143,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetPreviewSource_WhenModelPreviewIsAssigned_ShowsGridToolbarOnlyForTheModel() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             ModelPreviewSource modelSource = CreateModelPreviewSource();
 
             panel.SetPreviewSource(modelSource);
@@ -167,9 +165,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GridToolbarButton_WhenActivated_PersistsThePanelGridPreferenceAcrossModelPreviews() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             ModelPreviewSource firstSource = CreateModelPreviewSource();
             ModelPreviewSource secondSource = CreateModelPreviewSource();
             panel.SetPreviewSource(firstSource);
@@ -192,9 +189,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BoundsToolbarButton_WhenActivated_CyclesThroughBoxSphereAndNone() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             ModelPreviewSource source = CreateModelPreviewSource();
             panel.SetPreviewSource(source);
             InteractableComponent boundsButtonInteractable = GetPrivateField<InteractableComponent>(panel, "boundsButtonInteractable");
@@ -219,9 +215,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BoundsToolbarButton_WhenModelPreviewChanges_PersistsThePanelBoundsPreference() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             ModelPreviewSource firstSource = CreateModelPreviewSource();
             ModelPreviewSource secondSource = CreateModelPreviewSource();
             panel.SetPreviewSource(firstSource);
@@ -246,9 +241,8 @@ namespace helengine.editor.tests {
         [Fact]
         public void SetPreviewSource_WhenBoundsBoxIsActivated_ConfiguresDimensionLabelsWithThePanelFont() {
             FontAsset font = CreateFont();
-            PreviewPanel panel = new PreviewPanel(font) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel(font);
+            panel.Size = new int2(416, 312);
             ModelPreviewSource source = CreateModelPreviewSource();
 
             panel.SetPreviewSource(source);
@@ -265,9 +259,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdatePreviewSource_WhenPointerDragsOverModelToolbar_DoesNotOrbitTheModel() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             ModelPreviewSource source = CreateModelPreviewSource();
             panel.SetPreviewSource(source);
             EditorEntity gridButtonRoot = GetPrivateField<EditorEntity>(panel, "gridButtonRoot");
@@ -306,9 +299,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdatePreviewSource_WhenWheelScrollsOverTexturePreview_ZoomsAroundTheCursor() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             panel.SetPreviewSource(new TexturePreviewSource(new TestRuntimeTexture {
                 Width = 100,
                 Height = 50
@@ -359,9 +351,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdatePreviewSource_WhenMiddleMouseDragsTexturePreview_PansTheTexture() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             panel.SetPreviewSource(new TexturePreviewSource(new TestRuntimeTexture {
                 Width = 100,
                 Height = 50
@@ -401,9 +392,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdatePreviewSource_WhenInteractivePreviewIsAssigned_ForwardsWheelAndDragInput() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             TestInteractivePreviewSource source = new TestInteractivePreviewSource(new TestRuntimeTexture {
                 Width = 64,
                 Height = 64
@@ -447,9 +437,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdatePreviewSource_WhenInteractivePreviewReceivesMiddleMouseDrag_ForwardsTheDrag() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             TestInteractivePreviewSource source = new TestInteractivePreviewSource(new TestRuntimeTexture {
                 Width = 64,
                 Height = 64
@@ -492,9 +481,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void PreviewPanelUpdater_WhenInteractivePreviewIsAssigned_ForwardsInputDuringEngineUpdate() {
-            PreviewPanel panel = new PreviewPanel(CreateFont()) {
-                Size = new int2(416, 312)
-            };
+            PreviewPanel panel = CreatePanel();
+            panel.Size = new int2(416, 312);
             TestInteractivePreviewSource source = new TestInteractivePreviewSource(new TestRuntimeTexture {
                 Width = 64,
                 Height = 64
@@ -530,6 +518,21 @@ namespace helengine.editor.tests {
             Assert.Equal(1, source.UpdateCount);
             Assert.Equal(1, source.WheelCount);
             Assert.Equal(1, source.DragCount);
+        }
+
+        /// <summary>
+        /// Creates a preview panel bound to the explicit renderer/input graph owned by this test fixture.
+        /// </summary>
+        /// <param name="font">Font to use, or null to create the fixture font.</param>
+        /// <param name="metrics">Metrics to use, or null for default metrics.</param>
+        /// <returns>Initialized preview panel bound to the fixture graph.</returns>
+        PreviewPanel CreatePanel(FontAsset font = null, EditorUiMetrics metrics = null) {
+            PreviewPanel panel = metrics == null
+                ? new PreviewPanel(font ?? CreateFont())
+                : new PreviewPanel(font ?? CreateFont(), metrics);
+            panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
+            panel.InitializeHierarchy();
+            return panel;
         }
 
         /// <summary>

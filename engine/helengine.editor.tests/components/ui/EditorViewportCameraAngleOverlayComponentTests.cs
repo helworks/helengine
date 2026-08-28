@@ -24,7 +24,7 @@ namespace helengine.editor.tests.components.ui {
             InitializeCore();
             CameraComponent sceneCamera = new CameraComponent();
             FontAsset font = CreateTestFont();
-            var overlayComponent = new EditorViewportCameraAngleOverlayComponent(sceneCamera, font, 0, false, GeneratedAssetGraph.ShaderLibrary);
+            var overlayComponent = new EditorViewportCameraAngleOverlayComponent(sceneCamera, font, 0, false, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
 
             float3 selectedPosition = float3.Zero;
             float3 cameraPosition = new float3(8f, 2f, 0f);

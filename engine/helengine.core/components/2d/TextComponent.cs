@@ -485,7 +485,14 @@ namespace helengine {
             IsSelectingTextValue = false;
 
             if (SelectionUpdateComponentValue != null && entity != null) {
-                entity.RemoveComponent(SelectionUpdateComponentValue);
+                // Entity disposal removes components in reverse attachment
+                // order. The selection helper can therefore already have
+                // been detached before the text component receives its
+                // removal callback; only ask the owner to remove it while
+                // it is still attached, then always clear our reference.
+                if (SelectionUpdateComponentValue.ParentUnsafe == entity) {
+                    entity.RemoveComponent(SelectionUpdateComponentValue);
+                }
                 SelectionUpdateComponentValue = null;
             }
 

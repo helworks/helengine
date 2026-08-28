@@ -35,7 +35,7 @@ namespace helengine.editor {
         readonly EngineGeneratedModelCache GeneratedModelCache;
         /// <summary>Session-owned generated material cache used for identity inference.</summary>
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
-        readonly FontAsset EditorFontAsset;
+        readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Cached authored model source paths keyed by their stable imported model asset id.
@@ -58,7 +58,7 @@ namespace helengine.editor {
             EditorAssetReferenceResolver referenceResolver,
             EngineGeneratedModelCache generatedModelCache,
             EngineGeneratedMaterialCache generatedMaterialCache,
-            FontAsset editorFontAsset) {
+            EditorSessionRendererResources rendererResources) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -74,7 +74,7 @@ namespace helengine.editor {
             OwnsAssetReferenceResolver = false;
             GeneratedModelCache = generatedModelCache ?? throw new ArgumentNullException(nameof(generatedModelCache));
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
-            EditorFontAsset = editorFontAsset;
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
         }
 
         /// <summary>
@@ -159,7 +159,7 @@ namespace helengine.editor {
             if (font == null) {
                 return;
             }
-            if (FontAssetScenePersistenceSupport.TryResolveEditorCoreFont(font, EditorFontAsset, out SceneAssetReference fontReference)) {
+            if (FontAssetScenePersistenceSupport.TryResolveEditorCoreFont(font, RendererResources.DefaultFontAsset, out SceneAssetReference fontReference)) {
                 saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, fontReference);
                 return;
             }

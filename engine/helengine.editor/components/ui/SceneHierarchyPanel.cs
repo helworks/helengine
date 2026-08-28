@@ -31,6 +31,11 @@ namespace helengine.editor {
         /// Scroll controller that pages through hierarchy rows inside the panel viewport.
         /// </summary>
         readonly ScrollComponent scrollComponent;
+        /// <summary>
+        /// Object manager owned by the editor session hosting this panel.
+        /// </summary>
+        ObjectManager objectManager;
+        InputSystem Input;
         readonly List<SceneHierarchyRow> rows;
         readonly List<NodeInfo> nodes;
         /// <summary>
@@ -122,7 +127,6 @@ namespace helengine.editor {
             contentRoot.AddChild(scrollContentRoot);
 
             scrollComponent = new ScrollComponent();
-            scrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             // The content camera clips hierarchy rows to the panel body, so the trailing partial row renders
             // cut off instead of leaving empty space at the end of the scrolled range.
             scrollComponent.ShowsPartialTrailingItem = true;
@@ -150,6 +154,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Binds hierarchy refresh and scrolling to the owning session's object manager.
+        /// </summary>
+        internal void SetObjectManager(ObjectManager manager) {
+            objectManager = manager ?? throw new ArgumentNullException(nameof(manager));
+            scrollComponent.UpdateOrder = objectManager.GetUpdateOrderForLayer(1);
+        }
+
+        /// <summary>
+        /// Binds hierarchy menu interaction to the owning session's input source.
+        /// </summary>
+        internal new void SetInput(InputSystem input) {
+            Input = input ?? throw new ArgumentNullException(nameof(input));
+            hierarchyContextMenu.SetInput(Input);
+            base.SetInput(input);
+        }
+
+        /// <summary>
         /// Rebuilds the hierarchy view from the current object manager state.
         /// </summary>
         public void RefreshHierarchy() {
@@ -157,7 +178,7 @@ namespace helengine.editor {
                 return;
             }
 
-            var manager = Core.Instance?.ObjectManager;
+            var manager = objectManager;
             if (manager == null) {
                 return;
             }
@@ -294,7 +315,10 @@ namespace helengine.editor {
         /// Updates hierarchy context-menu input each frame.
         /// </summary>
         internal void UpdateContextMenuInput() {
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             if (!input.WasMouseRightButtonPressed()) {
                 return;
             }

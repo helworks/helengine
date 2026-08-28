@@ -108,9 +108,14 @@ namespace helengine.editor {
             EngineGeneratedModelCache generatedModelCache,
             EngineGeneratedMaterialCache generatedMaterialCache,
             EditorSessionRendererResources rendererResources)
-            : this(CreateDependencies(
-                CreateAssetImportManager(projectRootPath, importers, contentManager, rendererResources),
-                manager => RegisterImporters(manager, importers)),
+            : this(CreatePublicDependencies(
+                    projectRootPath,
+                    importers,
+                    contentManager,
+                    generatedAssetProviders,
+                    generatedModelCache,
+                    generatedMaterialCache,
+                    rendererResources),
                 generatedAssetProviders,
                 generatedModelCache,
                 generatedMaterialCache,
@@ -135,13 +140,20 @@ namespace helengine.editor {
             EditorSessionRendererResources rendererResources,
             Action<AssetImportManager> configureImporters = null,
             bool ownsAssetImportManager = false) {
-            return new EditorProjectAuthoringSession(
-                CreateDependencies(assetImportManager, configureImporters),
-                generatedAssetProviders,
-                generatedModelCache,
-                generatedMaterialCache,
-                rendererResources,
-                ownsAssetImportManager);
+            ValidateGeneratedAssetGraph(generatedAssetProviders, generatedModelCache, generatedMaterialCache, rendererResources);
+            SessionDependencies dependencies = CreateDependencies(assetImportManager, configureImporters, generatedAssetProviders, generatedModelCache, generatedMaterialCache, rendererResources);
+            try {
+                return new EditorProjectAuthoringSession(
+                    dependencies,
+                    generatedAssetProviders,
+                    generatedModelCache,
+                    generatedMaterialCache,
+                    rendererResources,
+                    ownsAssetImportManager);
+            } catch {
+                DisposeOwned(dependencies.Lifetime, new List<Exception>());
+                throw;
+            }
         }
 
         /// <summary>
@@ -659,7 +671,12 @@ namespace helengine.editor {
         /// <returns>Explicit project service composition.</returns>
         static SessionDependencies CreateDependencies(
             AssetImportManager assetImportManager,
-            Action<AssetImportManager> configureImporters = null) {
+            Action<AssetImportManager> configureImporters,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
+            ValidateGeneratedAssetGraph(generatedAssetProviders, generatedModelCache, generatedMaterialCache, rendererResources);
             string projectRootPath = ResolveProjectRootPath(assetImportManager);
             EditorAssetRepairReport repairReport = new EditorAssetRepairReport();
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
@@ -718,6 +735,67 @@ namespace helengine.editor {
                 }
                 disposalFailures.Insert(0, primary);
                 throw new AggregateException("Project authoring services could not be released after startup failed.", disposalFailures);
+            }
+        }
+
+        static void ValidateGeneratedAssetGraph(
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
+            }
+            if (generatedModelCache == null) {
+                throw new ArgumentNullException(nameof(generatedModelCache));
+            }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+        }
+
+        /// <summary>
+        /// Validates the borrowed graph before allocating the public constructor's
+        /// import manager, and releases every owned allocation if composition fails.
+        /// </summary>
+        static SessionDependencies CreatePublicDependencies(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            ContentManager contentManager,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
+            ValidateGeneratedAssetGraph(generatedAssetProviders, generatedModelCache, generatedMaterialCache, rendererResources);
+
+            AssetImportManager assetImportManager = null;
+            bool dependenciesCreated = false;
+            try {
+                assetImportManager = CreateAssetImportManager(projectRootPath, importers, contentManager, rendererResources);
+                SessionDependencies dependencies = CreateDependencies(
+                    assetImportManager,
+                    manager => RegisterImporters(manager, importers),
+                    generatedAssetProviders,
+                    generatedModelCache,
+                    generatedMaterialCache,
+                    rendererResources);
+                dependenciesCreated = true;
+                return dependencies;
+            } catch (Exception primaryException) {
+                if (!dependenciesCreated) {
+                    List<Exception> cleanupFailures = new List<Exception>();
+                    DisposeOwned(assetImportManager, cleanupFailures);
+                    DisposeOwned(contentManager, cleanupFailures);
+                    if (cleanupFailures.Count != 0) {
+                        cleanupFailures.Insert(0, primaryException);
+                        throw new AggregateException("Public authoring session allocation and cleanup failed.", cleanupFailures);
+                    }
+                }
+
+                throw;
             }
         }
 

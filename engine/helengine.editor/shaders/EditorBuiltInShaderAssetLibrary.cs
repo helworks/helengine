@@ -35,6 +35,8 @@ namespace helengine.editor {
         /// Caches compiled built-in shader assets by target and absolute source path.
         /// </summary>
         readonly Dictionary<string, ShaderAsset> ShaderAssetsByKey = new Dictionary<string, ShaderAsset>(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Assets whose disposal failed and must be retried before this owner can close.</summary>
+        readonly HashSet<ShaderAsset> PendingDisposals = new HashSet<ShaderAsset>();
         /// <summary>
         /// Stores the shader backend registry configured by bootstrap code for built-in shader compilation.
         /// </summary>
@@ -75,10 +77,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
 
-            string shaderPath = ResolveShaderPath(shaderFileName);
-            string cacheKey = BuildCacheKey(target, shaderPath);
             lock (SyncRoot) {
                 EnsureNotDisposed();
+                string shaderPath = ResolveShaderPathCore(shaderFileName);
+                string cacheKey = BuildCacheKey(target, shaderPath);
                 if (ShaderAssetsByKey.TryGetValue(cacheKey, out ShaderAsset cachedShaderAsset)) {
                     return cachedShaderAsset;
                 }
@@ -109,9 +111,9 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(shaderFileName)) {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
-            string shaderPath = ResolveShaderPath(shaderFileName);
             lock (SyncRoot) {
                 EnsureNotDisposed();
+                string shaderPath = ResolveShaderPathCore(shaderFileName);
                 string cacheKey = BuildCacheKey(target, shaderPath);
                 if (ShaderAssetsByKey.TryGetValue(cacheKey, out ShaderAsset previousShaderAsset)) {
                     if (ReferenceEquals(previousShaderAsset, shaderAsset)) {
@@ -127,7 +129,13 @@ namespace helengine.editor {
                         }
                     }
                     if (!retainedByAnotherKey) {
-                        previousShaderAsset.Dispose();
+                        try {
+                            previousShaderAsset.Dispose();
+                            PendingDisposals.Remove(previousShaderAsset);
+                        } catch {
+                            PendingDisposals.Add(previousShaderAsset);
+                            throw;
+                        }
                     }
                     return;
                 }
@@ -168,8 +176,11 @@ namespace helengine.editor {
 
             lock (SyncRoot) {
                 EnsureNotDisposed();
+                return ResolveShaderPathCore(shaderFileName);
             }
+        }
 
+        string ResolveShaderPathCore(string shaderFileName) {
             string baseDirectory = AppContext.BaseDirectory;
             if (string.IsNullOrWhiteSpace(baseDirectory)) {
                 throw new InvalidOperationException("Application base directory could not be resolved.");
@@ -506,31 +517,47 @@ namespace helengine.editor {
         /// Releases compiled built-in shader assets owned by this library.
         /// </summary>
         public void Dispose() {
-            List<Exception> failures = new List<Exception>();
             lock (SyncRoot) {
                 if (IsDisposed) {
                     return;
                 }
-                IsDisposed = true;
-                HashSet<ShaderAsset> disposedAssets = new HashSet<ShaderAsset>();
+                List<Exception> failures = new List<Exception>();
+                HashSet<ShaderAsset> assets = new HashSet<ShaderAsset>(PendingDisposals);
                 foreach (ShaderAsset shaderAsset in ShaderAssetsByKey.Values) {
-                    if (shaderAsset == null || !disposedAssets.Add(shaderAsset)) {
-                        continue;
+                    if (shaderAsset != null) {
+                        assets.Add(shaderAsset);
                     }
+                }
 
+                HashSet<ShaderAsset> failedAssets = new HashSet<ShaderAsset>();
+                foreach (ShaderAsset shaderAsset in assets) {
                     try {
                         shaderAsset.Dispose();
+                        PendingDisposals.Remove(shaderAsset);
                     } catch (Exception exception) {
+                        PendingDisposals.Add(shaderAsset);
+                        failedAssets.Add(shaderAsset);
                         failures.Add(exception);
                     }
                 }
-                ShaderAssetsByKey.Clear();
-            }
 
-            if (failures.Count == 1) {
-                throw failures[0];
-            }
-            if (failures.Count > 1) {
+                foreach (string cacheKey in ShaderAssetsByKey.Keys.ToArray()) {
+                    ShaderAsset shaderAsset = ShaderAssetsByKey[cacheKey];
+                    if (shaderAsset == null || !failedAssets.Contains(shaderAsset)) {
+                        ShaderAssetsByKey.Remove(cacheKey);
+                    }
+                }
+
+                if (failures.Count == 0) {
+                    PendingDisposals.Clear();
+                    ShaderAssetsByKey.Clear();
+                    IsDisposed = true;
+                    return;
+                }
+
+                if (failures.Count == 1) {
+                    throw failures[0];
+                }
                 throw new AggregateException("Built-in shader asset disposal failed.", failures);
             }
         }

@@ -133,6 +133,9 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// Font used for the overlay text.
     /// </summary>
     readonly FontAsset Font;
+    readonly RenderManager3D RenderManager3D;
+    readonly RenderManager2D RenderManager2D;
+    readonly InputSystem Input;
 
     /// <summary>
     /// Host entity for the preview square.
@@ -199,13 +202,16 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// </summary>
     /// <param name="font">Font used for overlay labels and button text.</param>
     /// <param name="overlayLayerMask">Layer mask applied to overlay visuals.</param>
-    public EditorColorPickerOverlayComponent(FontAsset font, ushort overlayLayerMask)
+    public EditorColorPickerOverlayComponent(FontAsset font, ushort overlayLayerMask, RenderManager3D renderManager3D, RenderManager2D renderManager2D, InputSystem input)
         : base("EditorColorPickerOverlay", "Color Picker", font, EditorUiMetrics.Default, PanelWidth, PanelHeight + DialogHeaderHeight, DialogHeaderHeight) {
         if (font == null) {
             throw new ArgumentNullException(nameof(font));
         }
 
         Font = font;
+        RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
+        RenderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
+        Input = input;
         CurrentColor = new byte4(255, 255, 255, 255);
         DialogIsResizable = false;
         SetDialogMinimumSize(PanelWidth, PanelHeight + DialogHeaderHeight);
@@ -359,24 +365,21 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
             return;
         }
 
-        int2 windowSize = Core.Instance != null && Core.Instance.RenderManager3D != null
-            ? Core.Instance.RenderManager3D.MainWindowSize
-            : int2.Zero;
+        int2 windowSize = RenderManager3D.MainWindowSize;
 
         UpdateDialogFrame(windowSize.X, windowSize.Y);
 
-        InputSystem input = Core.Instance != null ? Core.Instance.Input : null;
-        if (input == null) {
+        if (Input == null) {
             return;
         }
 
-        if (input.WasKeyPressed(Keys.Escape)) {
+        if (Input.WasKeyPressed(Keys.Escape)) {
             Close();
             return;
         }
 
-        if (input.WasMouseLeftButtonPressed() || input.WasMouseRightButtonPressed()) {
-            HandleOutsidePointerPressed(input.GetMousePosition());
+        if (Input.WasMouseLeftButtonPressed() || Input.WasMouseRightButtonPressed()) {
+            HandleOutsidePointerPressed(Input.GetMousePosition());
         }
     }
 
@@ -549,12 +552,12 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// Creates the wheel and triangle controls inside the picker area.
     /// </summary>
     void CreateColorControls() {
-        HueWheelControl = new EditorColorWheelControl(LayerMask);
+        HueWheelControl = new EditorColorWheelControl(LayerMask, RenderManager2D);
         HueWheelControl.HueChanged += HandleHueChanged;
         HueWheelControl.Position = new float3(WheelLeft, WheelTop, 0.2f);
         DialogContentRoot.AddChild(HueWheelControl);
 
-        SaturationValueTriangleControl = new EditorColorTriangleControl(LayerMask, TriangleSize);
+        SaturationValueTriangleControl = new EditorColorTriangleControl(LayerMask, TriangleSize, RenderManager2D);
         SaturationValueTriangleControl.SelectionChanged += HandleTriangleSelectionChanged;
         SaturationValueTriangleControl.Position = new float3(TriangleLeft, TriangleTop, 0.25f);
         DialogContentRoot.AddChild(SaturationValueTriangleControl);
@@ -658,9 +661,7 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// Positions the overlay panel and its child controls inside the active viewport.
     /// </summary>
     void LayoutOverlay() {
-        int2 windowSize = Core.Instance != null && Core.Instance.RenderManager3D != null
-            ? Core.Instance.RenderManager3D.MainWindowSize
-            : int2.Zero;
+        int2 windowSize = RenderManager3D.MainWindowSize;
 
         float panelLeft = AnchorX;
         float panelTop = AnchorY + AnchorHeight + OverlayMargin;

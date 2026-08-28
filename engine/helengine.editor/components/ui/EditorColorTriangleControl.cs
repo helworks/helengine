@@ -33,6 +33,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     /// Pointer hit region that receives triangle dragging input.
     /// </summary>
     readonly InteractableComponent TriangleInteractable;
+    readonly RenderManager2D RenderManager2D;
 
     /// <summary>
     /// Tracks whether the pointer is actively dragging inside the triangle.
@@ -63,7 +64,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     /// Initializes a new saturation/value triangle control.
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
-    public EditorColorTriangleControl(ushort layerMask) : this(layerMask, 124) {
+    public EditorColorTriangleControl(ushort layerMask, RenderManager2D renderManager2D) : this(layerMask, 124, renderManager2D) {
     }
 
     /// <summary>
@@ -71,7 +72,8 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
     /// <param name="triangleSize">Square control size used by the triangle texture and hit area.</param>
-    public EditorColorTriangleControl(ushort layerMask, int triangleSize) {
+    public EditorColorTriangleControl(ushort layerMask, int triangleSize, RenderManager2D renderManager2D) {
+        RenderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
         if (triangleSize <= 0) {
             throw new ArgumentOutOfRangeException(nameof(triangleSize), "Triangle size must be greater than zero.");
         }
@@ -86,7 +88,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
 
         TriangleSprite = new SpriteComponent {
             Size = new int2(TriangleSizeValue, TriangleSizeValue),
-            Texture = EditorColorUtils.BuildTriangleTexture(TriangleSizeValue, HueValue),
+            Texture = EditorColorUtils.BuildTriangleTexture(TriangleSizeValue, HueValue, RenderManager2D),
             RenderOrder2D = RenderOrder2D.ModalOverlayForeground
         };
         TriangleHost.AddComponent(TriangleSprite);
@@ -195,7 +197,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
         }
 
         HueValue = normalizedHue;
-        TriangleSprite.Texture = EditorColorUtils.BuildTriangleTexture(TriangleSizeValue, HueValue);
+        TriangleSprite.Texture = EditorColorUtils.BuildTriangleTexture(TriangleSizeValue, HueValue, RenderManager2D);
         UpdateMarker();
     }
 

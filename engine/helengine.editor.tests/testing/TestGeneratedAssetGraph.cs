@@ -32,7 +32,7 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         MaterialCache = new EngineGeneratedMaterialCache(core, ShaderLibrary);
         SceneEntityIdAllocatorValue = (core as EditorCore)?.SceneEntityIdAllocator ?? new EditorSceneEntityIdAllocator();
         IEntityFactory entityFactory = core.EntityFactory ?? new EditorEntityFactory(SceneEntityIdAllocatorValue);
-        RendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, entityFactory, SceneEntityIdAllocatorValue, core is EditorCore editorCore ? editorCore.DefaultFontAssetForEditor : null);
+        RendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, entityFactory, SceneEntityIdAllocatorValue, core.Input, () => core.FrameDeltaSeconds, core is EditorCore editorCore ? editorCore.DefaultFontAssetForEditor : null);
         Registry = new GeneratedAssetProviderRegistry();
     }
 

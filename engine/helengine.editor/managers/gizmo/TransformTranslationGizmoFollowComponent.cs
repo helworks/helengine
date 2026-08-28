@@ -60,6 +60,7 @@ namespace helengine.editor {
         /// Reusable preview entity that visualizes active translation snapping.
         /// </summary>
         readonly EditorEntity SnapPreviewEntity;
+        InputSystem Input;
         /// <summary>
         /// Mesh component used by the reusable translation snap-preview entity.
         /// </summary>
@@ -127,6 +128,10 @@ namespace helengine.editor {
             BaseHandleOrientations = new Dictionary<Entity, float4>();
             HandleBaseTransformsCached = false;
             CurrentYawFacingOrientationValue = float4.Identity;
+        }
+
+        internal void SetInput(InputSystem input) {
+            Input = input ?? throw new ArgumentNullException(nameof(input));
         }
 
         /// <summary>
@@ -620,7 +625,7 @@ namespace helengine.editor {
         /// <param name="selectedPosition">World-space gizmo origin at the selected entity.</param>
         /// <param name="cameraPosition">World-space camera position used for axis-plane orientation.</param>
         void UpdateSnapPreview(float3 selectedPosition, float3 cameraPosition) {
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
             if (input == null) {
                 SetSnapPreviewVisible(false);
                 return;

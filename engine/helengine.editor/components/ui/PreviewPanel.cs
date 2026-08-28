@@ -69,6 +69,7 @@ namespace helengine.editor {
         /// </summary>
         readonly RuntimeTexture modelGridIcon;
         RenderManager2D RenderManager2D;
+        InputSystem Input;
         /// <summary>
         /// Root entity hosting preview content.
         /// </summary>
@@ -405,6 +406,8 @@ namespace helengine.editor {
             }
 
             RenderManager2D = rendererResources.RenderManager2D ?? throw new InvalidOperationException("Preview panel resources must provide a 2D renderer.");
+            Input = rendererResources.Input ?? throw new InvalidOperationException("Preview panel resources must provide input.");
+            SetInput(Input);
         }
 
         /// <summary>
@@ -860,7 +863,10 @@ namespace helengine.editor {
                 return;
             }
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             int wheelDelta = input.GetMouseScrollWheelDelta();
             if (wheelDelta == 0) {
                 return;
@@ -917,7 +923,10 @@ namespace helengine.editor {
                 return;
             }
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             int2 pointer = input.GetMousePosition();
             if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
                 IsMiddleMouseDragging = false;
@@ -960,7 +969,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(interactionSource));
             }
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             int2 pointer = input.GetMousePosition();
             if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
                 IsLeftMouseDragging = false;

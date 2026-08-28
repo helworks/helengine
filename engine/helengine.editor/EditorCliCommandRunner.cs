@@ -53,7 +53,7 @@ namespace helengine.editor {
             using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
-            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, DefaultFontAsset);
+            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, DefaultFontAsset);
             // Renderer binding is supplied to the authoring factory before recovery restores cached assets.
             // The registry is declared after its borrowed caches so reverse
             // using-declaration disposal retires the provider graph first.
@@ -67,6 +67,36 @@ namespace helengine.editor {
                 generatedMaterialCache,
                 rendererResources);
             generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
+            return RunInSessionGraph(bootstrap, options, authoring, shaderBackendRegistry);
+        }
+
+        /// <summary>
+        /// Executes one command using an already initialized invocation graph.
+        /// Nested build precommands use this path so they cannot replace the
+        /// outer build's Core or renderer ownership.
+        /// </summary>
+        internal EditorBuildExecutionResult RunInSessionGraph(
+            EditorProjectBootstrapContext bootstrap,
+            EditorCliCommandOptions options,
+            IEditorProjectAuthoringSession authoring,
+            ShaderBackendRegistry shaderBackendRegistry) {
+            if (bootstrap == null) {
+                throw new ArgumentNullException(nameof(bootstrap));
+            }
+            if (options == null) {
+                throw new ArgumentNullException(nameof(options));
+            }
+            if (authoring == null) {
+                throw new ArgumentNullException(nameof(authoring));
+            }
+            if (shaderBackendRegistry == null) {
+                throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+            string optionsProjectRootPath = Path.GetFullPath(options.ProjectPath);
+            if (!string.Equals(optionsProjectRootPath, bootstrap.ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Nested editor commands must use the outer invocation project root.");
+            }
+
             ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(

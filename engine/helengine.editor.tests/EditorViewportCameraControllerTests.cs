@@ -417,7 +417,7 @@ namespace helengine.editor.tests {
         /// <param name="camera">Camera component managed by the controller.</param>
         /// <returns>Controller attached to the camera entity.</returns>
         EditorViewportCameraController CreateController(EditorEntity cameraEntity, CameraComponent camera) {
-            EditorViewportCameraController controller = new EditorViewportCameraController(camera);
+            EditorViewportCameraController controller = new EditorViewportCameraController(camera, Core.Instance.Input);
             cameraEntity.AddComponent(controller);
             return controller;
         }

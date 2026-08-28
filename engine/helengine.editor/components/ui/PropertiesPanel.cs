@@ -573,7 +573,6 @@ namespace helengine.editor {
             ContentRenderQueueSynchronizer = new EditorSubtreeRenderQueue2DSynchronizer(ContentCameraComponent, ScrollContentRoot);
 
             ContentScrollComponent = new ScrollComponent();
-            ContentScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             ContentScrollComponent.ScrollOffsetChanged += HandleContentScrollOffsetChanged;
             contentRoot.AddComponent(ContentScrollComponent);
 
@@ -715,8 +714,18 @@ namespace helengine.editor {
         /// Binds this panel and its component inspector to one editor-session renderer graph.
         /// </summary>
         internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+
+            ContentScrollComponent.UpdateOrder = rendererResources.ObjectManager.GetUpdateOrderForLayer(1);
+            AddComponentDialog.SetObjectManager(rendererResources.ObjectManager);
             ComponentView.SetRendererResources(rendererResources);
             MaterialView.SetRendererResources(rendererResources);
+            importSettingsView.SetRendererResources(rendererResources);
+            AnimationClipView.SetRendererResources(rendererResources);
+            ComponentPlatformTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
+            ComponentEnvironmentTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
         }
 
         /// <summary>

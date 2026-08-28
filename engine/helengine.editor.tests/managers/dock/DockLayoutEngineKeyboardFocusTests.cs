@@ -13,7 +13,7 @@ namespace helengine.editor.tests.managers.dock {
         [Fact]
         public void GetVisibleDockablesInTraversalOrder_WhenTabsAndSplitsExist_ReturnsVisibleActiveDockablesInLeafOrder() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
             DockableEntity left = CreateDock("Left");
             DockableEntity top = CreateDock("Top");
             DockableEntity topReplacement = CreateDock("TopReplacement");
@@ -39,7 +39,7 @@ namespace helengine.editor.tests.managers.dock {
         [Fact]
         public void DockLayoutEngine_WhenTabbedPanelIsRemoved_DisposesTabFocusTargets() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
             DockableEntity first = CreateDock("First");
             DockableEntity second = CreateDock("Second");
 
@@ -61,7 +61,7 @@ namespace helengine.editor.tests.managers.dock {
         public void Layout_WhenTabbedPanelUsesScaledMetrics_PinsTabStripToOnePixelSeparator() {
             InitializeCore();
             EditorUiMetrics scaledMetrics = new EditorUiMetrics(1.5d);
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
             DockableEntity first = CreateDock("First", scaledMetrics);
             DockableEntity second = CreateDock("Second", scaledMetrics);
 

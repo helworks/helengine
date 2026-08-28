@@ -38,7 +38,7 @@ public sealed class GeneratedSessionIsolationSourceTests {
     }
 
     static string ResolveSourcePath(string fileName) {
-        string editorRoot = new helengine.editor.EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string editorRoot = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string[] candidates = {
             Path.Combine(editorRoot, "engine", "helengine.editor", fileName),
             Path.Combine(editorRoot, "engine", "helengine.editor", "shaders", fileName),

@@ -20,6 +20,7 @@ namespace helengine {
         /// Cached runtime model for the shared unit quad.
         /// </summary>
         readonly RenderManager3D RenderManager3D;
+        readonly object SyncRoot = new object();
         RuntimeModel RuntimeModelValue;
         /// <summary>
         /// Cached runtime model for the shared viewport-space unit quad.
@@ -43,11 +44,13 @@ namespace helengine {
         /// </summary>
         /// <returns>Shared runtime model for preview proxies.</returns>
         public RuntimeModel GetRuntimeModel() {
-            EnsureNotDisposed();
-            if (RuntimeModelValue == null) {
-                RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
+            lock (SyncRoot) {
+                EnsureNotDisposed();
+                if (RuntimeModelValue == null) {
+                    RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
+                }
+                return RuntimeModelValue;
             }
-            return RuntimeModelValue;
         }
 
         /// <summary>
@@ -55,11 +58,13 @@ namespace helengine {
         /// </summary>
         /// <returns>Shared runtime model whose local rectangle spans positive X and negative Y from the authored entity origin.</returns>
         public RuntimeModel GetViewportRuntimeModel() {
-            EnsureNotDisposed();
-            if (ViewportRuntimeModelValue == null) {
-                ViewportRuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateViewportModelAsset());
+            lock (SyncRoot) {
+                EnsureNotDisposed();
+                if (ViewportRuntimeModelValue == null) {
+                    ViewportRuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateViewportModelAsset());
+                }
+                return ViewportRuntimeModelValue;
             }
-            return ViewportRuntimeModelValue;
         }
 
         /// <summary>
@@ -67,25 +72,46 @@ namespace helengine {
         /// </summary>
         /// <returns>Shared runtime model whose local rectangle spans positive X and negative Y while preserving render-target top-edge sampling.</returns>
         public RuntimeModel GetViewportRenderTargetRuntimeModel() {
-            EnsureNotDisposed();
-            if (ViewportRenderTargetRuntimeModelValue == null) {
-                ViewportRenderTargetRuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateViewportRenderTargetModelAsset());
+            lock (SyncRoot) {
+                EnsureNotDisposed();
+                if (ViewportRenderTargetRuntimeModelValue == null) {
+                    ViewportRenderTargetRuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateViewportRenderTargetModelAsset());
+                }
+                return ViewportRenderTargetRuntimeModelValue;
             }
-            return ViewportRenderTargetRuntimeModelValue;
         }
 
         /// <summary>Releases all renderer-owned preview mesh models.</summary>
         public void Dispose() {
-            if (IsDisposed) {
+            lock (SyncRoot) {
+                if (IsDisposed) {
+                    return;
+                }
+                List<Exception> failures = new List<Exception>();
+                DisposeModel(ref RuntimeModelValue, failures);
+                DisposeModel(ref ViewportRuntimeModelValue, failures);
+                DisposeModel(ref ViewportRenderTargetRuntimeModelValue, failures);
+                if (failures.Count != 0) {
+                    throw failures.Count == 1
+                        ? failures[0]
+                        : new AggregateException("World-space preview mesh disposal failed.", failures);
+                }
+
+                IsDisposed = true;
+            }
+        }
+
+        static void DisposeModel(ref RuntimeModel model, List<Exception> failures) {
+            if (model == null) {
                 return;
             }
-            RuntimeModelValue?.Dispose();
-            ViewportRuntimeModelValue?.Dispose();
-            ViewportRenderTargetRuntimeModelValue?.Dispose();
-            RuntimeModelValue = null;
-            ViewportRuntimeModelValue = null;
-            ViewportRenderTargetRuntimeModelValue = null;
-            IsDisposed = true;
+
+            try {
+                model.Dispose();
+                model = null;
+            } catch (Exception exception) {
+                failures.Add(exception);
+            }
         }
 
         void EnsureNotDisposed() {

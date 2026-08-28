@@ -46,7 +46,7 @@ namespace helengine.editor.tests {
             FontAsset font = CreateFont();
             AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(font, TempProjectRootPath, new GeneratedAssetProviderRegistry());
             LoggerPanel loggerPanel = new LoggerPanel(font);
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
 
             layout.DockAsRoot(assetBrowserPanel);
             layout.DockRelative(loggerPanel, assetBrowserPanel, DockInsertDirection.Fill);
@@ -107,7 +107,7 @@ namespace helengine.editor.tests {
             File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Alpha.txt"), "alpha");
             File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Beta.txt"), "beta");
             AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
             layout.DockAsRoot(assetBrowserPanel);
             layout.Layout(new int2(320, 240));
 
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
         public void UpdateContextMenuInput_WhenRightClickHitsTheSelectedRow_DoesNotDuplicateSelectionEvents() {
             File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Alpha.txt"), "alpha");
             AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
             layout.DockAsRoot(assetBrowserPanel);
             layout.Layout(new int2(320, 240));
 

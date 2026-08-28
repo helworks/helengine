@@ -3,6 +3,7 @@ namespace helengine.editor {
     /// Translates the selected entity while the user drags a hovered translation gizmo handle.
     /// </summary>
     public class TransformTranslationGizmoDragComponent : UpdateComponent {
+        InputSystem Input;
         /// <summary>
         /// Smallest squared vector magnitude treated as non-zero during normalization.
         /// </summary>
@@ -77,6 +78,10 @@ namespace helengine.editor {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
         }
 
+        internal void SetInput(InputSystem input) {
+            Input = input ?? throw new ArgumentNullException(nameof(input));
+        }
+
         /// <summary>
         /// Updates drag activation and applies translation while dragging.
         /// </summary>
@@ -88,7 +93,10 @@ namespace helengine.editor {
                 return;
             }
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             if (IsDragging) {
                 UpdateActiveDrag(input);
                 if (IsDragging) {

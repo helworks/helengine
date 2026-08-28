@@ -239,6 +239,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Binds the panel menu to the owning session's input source.
+        /// </summary>
+        internal void SetInput(InputSystem input) {
+            PanelMenu.SetInput(input ?? throw new ArgumentNullException(nameof(input)));
+        }
+
+        /// <summary>
         /// Applies the current size to the dock chrome visuals. Runs when the size changes and when scaled
         /// metrics change the title-bar height while the size value stays the same.
         /// </summary>

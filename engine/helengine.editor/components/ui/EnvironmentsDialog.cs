@@ -57,6 +57,10 @@ namespace helengine.editor {
         /// Scroll controller for the environment list.
         /// </summary>
         readonly ScrollComponent EnvironmentListScrollComponent;
+        /// <summary>
+        /// Object manager owned by the editor session hosting this dialog.
+        /// </summary>
+        ObjectManager ObjectManager;
 
         /// <summary>
         /// Scrollbar for the environment list.
@@ -168,9 +172,7 @@ namespace helengine.editor {
 
             EnvironmentListRoot = CreateInternalHost();
             DialogPanelRoot.AddChild(EnvironmentListRoot);
-            EnvironmentListScrollComponent = new ScrollComponent {
-                UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1)
-            };
+            EnvironmentListScrollComponent = new ScrollComponent();
             EnvironmentListScrollComponent.ScrollOffsetChanged += HandleEnvironmentListScrollOffsetChanged;
             EnvironmentListRoot.AddComponent(EnvironmentListScrollComponent);
 
@@ -221,6 +223,14 @@ namespace helengine.editor {
             Enabled = false;
             IsInitialized = true;
             LayoutContent();
+        }
+
+        /// <summary>
+        /// Binds list scrolling to the owning session's object manager.
+        /// </summary>
+        internal void SetObjectManager(ObjectManager objectManager) {
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            EnvironmentListScrollComponent.UpdateOrder = ObjectManager.GetUpdateOrderForLayer(1);
         }
 
         /// <summary>

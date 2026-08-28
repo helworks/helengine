@@ -122,6 +122,8 @@ namespace helengine.editor {
         readonly bool ShowCameraStats;
         /// <summary>Session-owned built-in shader library used by axis-label materials.</summary>
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        /// <summary>Renderer resources owned by the editor session that owns this overlay.</summary>
+        readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Overlay root entity positioned in viewport-local coordinates.
@@ -169,7 +171,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for overlay text.</param>
         /// <param name="viewportTopOffset">Offset in pixels from title bar top to viewport content top.</param>
         /// <param name="showCameraStats">True to render the top-left camera diagnostics text.</param>
-        public EditorViewportCameraAngleOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset, bool showCameraStats, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+        public EditorViewportCameraAngleOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset, bool showCameraStats, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EditorSessionRendererResources rendererResources) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
             if (viewportTopOffset < 0) {
@@ -179,6 +181,7 @@ namespace helengine.editor {
             ViewportTopOffset = viewportTopOffset;
             ShowCameraStats = showCameraStats;
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
             OverlayBackgroundRenderOrder = RenderOrder2D.OverlayBackground;
             OverlayTextRenderOrder = RenderOrder2D.OverlayForeground;
         }
@@ -398,10 +401,7 @@ namespace helengine.editor {
         /// Creates the world-space billboard entities used for translation-axis labels.
         /// </summary>
         void CreateAxisLabelEntities() {
-            RenderManager3D render3D = Core.Instance.RenderManager3D;
-            if (render3D == null) {
-                throw new InvalidOperationException("A 3D renderer must be initialized before creating gizmo axis labels.");
-            }
+            RenderManager3D render3D = RendererResources.RenderManager3D;
 
             RuntimeMaterial axisLabelMaterial = TransformGizmoAxisLabelMaterialFactory.Create(render3D, Font, BuiltInShaderLibrary);
             AxisLabelModels = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);

@@ -89,7 +89,8 @@ namespace helengine.editor.tests {
                 CreateToolbarIcons(),
                 new EditorSceneCanvasProfileState(),
                 EditorUiMetrics.Default,
-                GeneratedAssetGraph.ShaderLibrary);
+                GeneratedAssetGraph.ShaderLibrary,
+                GeneratedAssetGraph.RendererResources);
             viewport.Position = new float3(20f, 20f, 0f);
             viewport.Size = new int2(400, 280);
             return viewport;

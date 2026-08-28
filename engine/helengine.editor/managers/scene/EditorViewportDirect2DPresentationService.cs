@@ -748,10 +748,8 @@ namespace helengine.editor {
         /// <param name="fitComponent">Fit component whose live canvas origin should be reconstructed.</param>
         /// <returns>Current fitted canvas origin in local viewport-owner space.</returns>
         static float2 ResolveCurrentCanvasOrigin(ReferenceCanvasFitComponent fitComponent) {
-            int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
-            return new float2(
-                (float)((mainWindowSize.X - fitComponent.AnchorSpace.Size.X) * 0.5d),
-                (float)((mainWindowSize.Y - fitComponent.AnchorSpace.Size.Y) * 0.5d));
+            float2 viewportAnchorOrigin = fitComponent.ViewportAnchorOrigin;
+            return new float2(-viewportAnchorOrigin.X, -viewportAnchorOrigin.Y);
         }
     }
 }

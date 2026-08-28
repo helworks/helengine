@@ -92,6 +92,10 @@ namespace helengine.editor {
         /// Scroll controller used to page through platform rows beyond the visible row count.
         /// </summary>
         readonly ScrollComponent PlatformListScrollComponent;
+        /// <summary>
+        /// Object manager owned by the editor session hosting this dialog.
+        /// </summary>
+        ObjectManager ObjectManager;
 
         /// <summary>
         /// Host entity for the platform list's vertical scrollbar.
@@ -223,7 +227,6 @@ namespace helengine.editor {
             DialogPanelRoot.AddChild(PlatformListRoot);
 
             PlatformListScrollComponent = new ScrollComponent();
-            PlatformListScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             PlatformListScrollComponent.ScrollOffsetChanged += HandlePlatformListScrollOffsetChanged;
             PlatformListRoot.AddComponent(PlatformListScrollComponent);
 
@@ -271,6 +274,14 @@ namespace helengine.editor {
 
             Enabled = false;
             IsInitialized = true;
+        }
+
+        /// <summary>
+        /// Binds list scrolling to the owning session's object manager.
+        /// </summary>
+        internal void SetObjectManager(ObjectManager objectManager) {
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            PlatformListScrollComponent.UpdateOrder = ObjectManager.GetUpdateOrderForLayer(1);
         }
 
         /// <summary>

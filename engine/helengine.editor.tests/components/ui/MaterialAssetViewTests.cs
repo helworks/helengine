@@ -14,6 +14,8 @@ public sealed class MaterialAssetViewTests : IDisposable {
     /// Temporary content root used to initialize the editor runtime services for the view test.
     /// </summary>
     readonly string TempRootPath;
+    readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+    readonly Core CoreValue;
 
     /// <summary>
     /// Initializes the core services required by the material view.
@@ -22,19 +24,28 @@ public sealed class MaterialAssetViewTests : IDisposable {
         TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-material-asset-view-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(TempRootPath);
         Directory.CreateDirectory(Path.Combine(TempRootPath, "assets"));
-        Core core = new Core(new CoreInitializationOptions {
+        CoreValue = new Core(new CoreInitializationOptions {
             ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
         });
-        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
     }
 
     /// <summary>
     /// Deletes the temporary directory used by the current test.
     /// </summary>
     public void Dispose() {
+        GeneratedAssetGraph.Dispose();
+        CoreValue.Dispose();
         if (Directory.Exists(TempRootPath)) {
             Directory.Delete(TempRootPath, true);
         }
+    }
+
+    MaterialAssetView CreateView(EditorEntity overlayHost = null) {
+        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, overlayHost, TempRootPath);
+        view.SetRendererResources(GeneratedAssetGraph.RendererResources);
+        return view;
     }
 
     /// <summary>
@@ -42,7 +53,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     /// </summary>
     [Fact]
     public void Show_when_multiple_platforms_are_available_renders_separate_panels_for_each_platform() {
-        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, null, TempRootPath);
+        MaterialAssetView view = CreateView();
         string materialPath = Path.Combine(TempRootPath, "Test.hasset");
         new MaterialAssetSettingsService(TempRootPath).Save(materialPath, CreateSettings(useCustomShader: false));
 
@@ -125,7 +136,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
         EditorEntity modalHost = new EditorEntity {
             LayerMask = 1
         };
-        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, modalHost, TempRootPath);
+        MaterialAssetView view = CreateView(modalHost);
         string materialPath = Path.Combine(TempRootPath, "Test.hasset");
         new MaterialAssetSettingsService(TempRootPath).Save(materialPath, CreateSettings(useCustomShader: false));
 
@@ -164,7 +175,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     /// </summary>
     [Fact]
     public void Show_when_custom_shader_is_disabled_does_not_leave_stale_interactables() {
-        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, null, TempRootPath);
+        MaterialAssetView view = CreateView();
         string materialPath = Path.Combine(TempRootPath, "Test.hasset");
         new MaterialAssetSettingsService(TempRootPath).Save(materialPath, CreateSettings(useCustomShader: true));
 
@@ -203,7 +214,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
         MaterialAssetImportSettings settings = CreateSettings(useCustomShader: false);
         MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(TempRootPath);
         settingsService.Save(materialPath, settings);
-        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, null, TempRootPath);
+        MaterialAssetView view = CreateView();
         view.Show(
             AssetBrowserEntry.CreateFileSystemFile("Test", "Materials/Test.hasset", materialPath, ".hasset", AssetEntryKind.Material),
             new ShaderMaterialAsset { Id = "Materials/Test.hasset" },

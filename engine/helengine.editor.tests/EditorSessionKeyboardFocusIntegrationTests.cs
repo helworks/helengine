@@ -295,7 +295,16 @@ namespace helengine.editor.tests {
             CameraComponent gizmoCameraComponent = new CameraComponent();
             sceneCameraEntity.AddComponent(gizmoCameraComponent);
             EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
-            mainViewport = new EditorViewport(sceneCameraComponent, font, font, CreateToolbarIcons(), new EditorSceneCanvasProfileState(), EditorUiMetrics.Default, shaderLibrary);
+            EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(
+                core.RenderManager3D,
+                core.RenderManager2D,
+                core.ObjectManager,
+                core.EntityFactory,
+                core.SceneEntityIdAllocator,
+                core.Input,
+                () => core.FrameDeltaSeconds,
+                null);
+            mainViewport = new EditorViewport(sceneCameraComponent, font, font, CreateToolbarIcons(), new EditorSceneCanvasProfileState(), EditorUiMetrics.Default, shaderLibrary, rendererResources);
             mainViewport.Size = new int2(640, 360);
             SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(font);
             PropertiesPanel propertiesPanel = new PropertiesPanel(font, core.GetContentManager());
@@ -310,7 +319,7 @@ namespace helengine.editor.tests {
             EditorKeyboardFocusService.RegisterGroup(propertiesPanel);
             EditorKeyboardFocusService.RegisterGroup(assetBrowserPanel);
 
-            dockingManager = new DockingManager();
+            dockingManager = new DockingManager(core.RenderManager2D, core.ObjectManager);
             dockingManager.Layout.Add(mainViewport);
             dockingManager.Layout.Add(sceneHierarchyPanel);
             dockingManager.Layout.Add(propertiesPanel);
@@ -325,7 +334,7 @@ namespace helengine.editor.tests {
                 Enabled = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
-            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent {
+            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(core.Input) {
                 UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1)
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);

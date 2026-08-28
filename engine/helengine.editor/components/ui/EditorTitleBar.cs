@@ -536,6 +536,27 @@ namespace helengine.editor {
         public EditorEntity Entity => RootEntity;
 
         /// <summary>
+        /// Binds all title-bar context menus to the owning session's input source.
+        /// </summary>
+        internal void SetInput(InputSystem input) {
+            if (input == null) {
+                throw new ArgumentNullException(nameof(input));
+            }
+            FileMenu.SetInput(input);
+            AddMenu.SetInput(input);
+            LightMenu.SetInput(input);
+            BuildMenu.SetInput(input);
+            ToolsMenu.SetInput(input);
+            UiMenu.SetInput(input);
+            UiShowMenu.SetInput(input);
+            UiSaveMenu.SetInput(input);
+            UiLoadMenu.SetInput(input);
+            for (int index = 0; index < ProjectMenuStates.Count; index++) {
+                ProjectMenuStates[index].Menu.SetInput(input);
+            }
+        }
+
+        /// <summary>
         /// Gets or sets the visible window title text.
         /// </summary>
         public string Title {

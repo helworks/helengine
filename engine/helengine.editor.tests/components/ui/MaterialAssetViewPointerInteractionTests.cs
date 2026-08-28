@@ -20,26 +20,45 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     readonly TestInputBackend Input;
 
     /// <summary>
+    /// Core explicitly owned by this pointer-interaction fixture.
+    /// </summary>
+    readonly Core CoreValue;
+
+    /// <summary>
+    /// Generated-asset and renderer graph explicitly owned by this fixture.
+    /// </summary>
+    readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+
+    /// <summary>
     /// Initializes the core services required by the pointer interaction test.
     /// </summary>
     public MaterialAssetViewPointerInteractionTests() {
         TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-material-asset-pointer-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(TempRootPath);
 
-        Core core = new Core(new CoreInitializationOptions {
+        CoreValue = new Core(new CoreInitializationOptions {
             ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
         });
         Input = new TestInputBackend();
-        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+        CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+        GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
     }
 
     /// <summary>
     /// Deletes the temporary directory used by the current test.
     /// </summary>
     public void Dispose() {
+        GeneratedAssetGraph.Dispose();
+        CoreValue.Dispose();
         if (Directory.Exists(TempRootPath)) {
             Directory.Delete(TempRootPath, true);
         }
+    }
+
+    MaterialAssetView CreateView() {
+        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, null, TempRootPath);
+        view.SetRendererResources(GeneratedAssetGraph.RendererResources);
+        return view;
     }
 
     /// <summary>
@@ -49,7 +68,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     public void Show_when_custom_shader_is_disabled_through_pointer_updates_stays_on_life_interactables() {
         CreateUiCamera(1280, 720);
 
-        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
+        MaterialAssetView view = CreateView();
         string materialPath = Path.Combine(TempRootPath, "Test.hasset");
         new MaterialAssetSettingsService(TempRootPath).Save(materialPath, CreateSettings(useCustomShader: true));
 
@@ -87,7 +106,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
         Input.EarlyUpdate();
         Input.Update();
 
-        Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, candidate => candidate.Parent == null);
+        Assert.DoesNotContain(CoreValue.ObjectManager.Interactables, candidate => candidate.Parent == null);
     }
 
     /// <summary>
@@ -95,7 +114,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     /// </summary>
     [Fact]
     public void Show_when_color_picker_is_opened_allows_pointer_input_on_the_hue_wheel() {
-        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1);
+        MaterialAssetView view = CreateView();
         EditorColorPickerOverlayComponent overlay = GetPrivateField<EditorColorPickerOverlayComponent>(view, "ColorPickerOverlay");
         overlay.SetAnchorPosition(80f, 80f, 24);
         overlay.Open(new byte4(0, 0, 255, 255));

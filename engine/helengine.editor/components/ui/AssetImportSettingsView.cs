@@ -692,6 +692,14 @@ namespace helengine.editor {
         /// </summary>
         public PlatformTabStripView PlatformTabStripView => PlatformTabStrip;
 
+        internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            PlatformTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
+            EnvironmentTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
+        }
+
         /// <summary>
         /// Gets a value indicating whether model processor controls are visible.
         /// </summary>

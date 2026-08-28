@@ -83,7 +83,7 @@ namespace helengine.editor {
             PersistenceRegistry = persistenceRegistry;
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
-            AssetReferenceInferenceService = new SceneAssetReferenceInferenceService(ProjectRootPath, referenceResolver, generatedModelCache, generatedMaterialCache, rendererResources.DefaultFontAsset);
+            AssetReferenceInferenceService = new SceneAssetReferenceInferenceService(ProjectRootPath, referenceResolver, generatedModelCache, generatedMaterialCache, rendererResources);
             AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(referenceResolver);
             TransformEditingService = new EntityPlatformTransformEditingService();
             ComponentEditingService = new ComponentPlatformEditingService();

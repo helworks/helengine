@@ -135,7 +135,7 @@ public static class EditorColorUtils {
     /// </summary>
     /// <param name="size">Square texture size in pixels.</param>
     /// <returns>Runtime texture containing the hue wheel.</returns>
-    public static RuntimeTexture BuildHueWheelTexture(int size) {
+    public static RuntimeTexture BuildHueWheelTexture(int size, RenderManager2D renderManager2D) {
         if (size <= 0) {
             throw new ArgumentOutOfRangeException(nameof(size), "Wheel texture size must be greater than zero.");
         }
@@ -165,7 +165,7 @@ public static class EditorColorUtils {
             }
         }
 
-        return BuildRuntimeTexture(size, size, colors);
+        return BuildRuntimeTexture(size, size, colors, renderManager2D);
     }
 
     /// <summary>
@@ -174,7 +174,7 @@ public static class EditorColorUtils {
     /// <param name="size">Square texture size in pixels.</param>
     /// <param name="hue">Hue angle used by the triangle fill.</param>
     /// <returns>Runtime texture containing the triangle.</returns>
-    public static RuntimeTexture BuildTriangleTexture(int size, double hue) {
+    public static RuntimeTexture BuildTriangleTexture(int size, double hue, RenderManager2D renderManager2D) {
         if (size <= 0) {
             throw new ArgumentOutOfRangeException(nameof(size), "Triangle texture size must be greater than zero.");
         }
@@ -200,7 +200,7 @@ public static class EditorColorUtils {
             }
         }
 
-        return BuildRuntimeTexture(size, size, colors);
+        return BuildRuntimeTexture(size, size, colors, renderManager2D);
     }
 
     /// <summary>
@@ -495,14 +495,21 @@ public static class EditorColorUtils {
     /// <param name="height">Texture height in pixels.</param>
     /// <param name="colors">Pixel data in RGBA order.</param>
     /// <returns>Runtime texture created by the active 2D renderer.</returns>
-    static RuntimeTexture BuildRuntimeTexture(int width, int height, byte[] colors) {
+    static RuntimeTexture BuildRuntimeTexture(int width, int height, byte[] colors, RenderManager2D renderManager2D) {
+        if (renderManager2D == null) {
+            throw new ArgumentNullException(nameof(renderManager2D));
+        }
         TextureAsset textureAsset = new TextureAsset {
             Width = (ushort)width,
             Height = (ushort)height,
             Colors = colors
         };
 
-        return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+        try {
+            return renderManager2D.BuildTextureFromRaw(textureAsset);
+        } finally {
+            NativeOwnership.DisposeAndDelete(textureAsset);
+        }
     }
 
     /// <summary>

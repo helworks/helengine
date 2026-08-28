@@ -705,7 +705,7 @@ namespace helengine.editor {
             constructionLedger.Register(generatedModelCache);
             generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
             constructionLedger.Register(generatedMaterialCache);
-            rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, uiFont);
+            rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, uiFont);
             constructionLedger.Register(rendererResources);
             EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(
                 assetImportManager,
@@ -754,6 +754,7 @@ namespace helengine.editor {
             ConstructionCheckpointForTests?.Invoke("after-primary-viewport-acquired");
             EditorViewportWorkspaceState primaryViewportState = primaryViewportController.ViewportState;
             mainViewport = primaryViewportState.Viewport;
+            mainViewport.SetInput(core.Input);
             sceneCameraEntity = primaryViewportState.SceneCameraEntity;
             sceneCameraComponent = primaryViewportState.SceneCamera;
             gizmoCameraComponent = primaryViewportState.GizmoCamera;
@@ -766,7 +767,7 @@ namespace helengine.editor {
                 Enabled = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
-            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent {
+            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(core.Input) {
                 UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1),
                 SaveShortcutRequested = HandleGlobalSaveShortcut,
                 UndoShortcutRequested = HandleGlobalUndoShortcut,
@@ -782,35 +783,42 @@ namespace helengine.editor {
             EntityPlatformExistenceEditingService.ExistenceChanged += ApplyPlatformExistenceSuppression;
 
             titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
+            titleBar.SetInput(core.Input);
             PanelRegistry = new EditorWorkspacePanelRegistry();
             PanelInstances = new List<EditorWorkspacePanelInstance>();
             WorkspaceLayoutService = new EditorWorkspaceLayoutService(ResolveProjectRootPath(this.projectPath));
             sessionStateService = new EditorSessionStateService(ResolveProjectRootPath(this.projectPath));
             InitializePanelRegistry();
 
-            dockingManager = new DockingManager();
+            dockingManager = new DockingManager(core.RenderManager2D, core.ObjectManager);
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             fileSystemModelResolver.SetRenderManager(core.RenderManager3D);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
+            sceneHierarchyPanel.SetObjectManager(core.ObjectManager);
+            sceneHierarchyPanel.RefreshHierarchy();
             constructionLedger.Register(sceneHierarchyPanel);
             EditorAssetManager assetBrowserManager = new EditorAssetManager(this.projectPath, authoredAssetReferenceResolver);
             AssetBrowserDataSource assetBrowserDataSource = new AssetBrowserDataSource(assetBrowserManager, generatedAssetProviderRegistry);
             constructionLedger.Register(assetBrowserDataSource);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics, assetBrowserDataSource);
+            assetBrowserPanel.SetRendererResources(rendererResources);
             constructionLedger.Register(assetBrowserPanel);
             constructionLedger.Register(assetBrowserPanel.DisposeAuthoringResources);
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver, this.projectPath);
+            propertiesPanel.SetInput(core.Input);
             constructionLedger.Register(propertiesPanel);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             propertiesPanel.SetGeneratedAssetProviderRegistry(generatedAssetProviderRegistry);
             propertiesPanel.SetRendererResources(rendererResources);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
+            loggerPanel.SetInputServices(core.Input, core.TextClipboardService);
             constructionLedger.Register(loggerPanel);
             LogAuthoringRepairReport();
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             previewPanel.SetRendererResources(rendererResources);
+            previewPanel.SetInput(core.Input);
             constructionLedger.Register(previewPanel);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
@@ -846,12 +854,15 @@ namespace helengine.editor {
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
             platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
+            platformsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, platformsDialog.Dispose, hide: platformsDialog.Hide);
             environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
+            environmentsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, environmentsDialog.Dispose, hide: environmentsDialog.Hide);
             profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, profilesDialog.Dispose, hide: profilesDialog.Hide);
             buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
+            buildDialog.SetRendererResources(rendererResources);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, buildDialog.Dispose, hide: buildDialog.Hide);
             buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, buildDialogCopySettingsDialog.Dispose, hide: buildDialogCopySettingsDialog.Hide);
@@ -1539,6 +1550,7 @@ namespace helengine.editor {
             if (core != null) {
                 core.SetDefaultFontAssetForEditor(uiFont);
             }
+            rendererResources.SetDefaultFontAsset(uiFont);
             if (titleBar != null) {
                 titleBar.ApplyUiMetrics(uiFont, metrics);
             }
@@ -1745,6 +1757,10 @@ namespace helengine.editor {
         /// Detaches session event handlers from the current scale-sensitive modal dialogs.
         /// </summary>
         void DetachScaleSensitiveDialogHandlers() {
+            if (ScaleSensitiveDialogDetacherItems == null) {
+                return;
+            }
+
             List<Exception> failures = new List<Exception>();
             EditorSessionCleanupItem[] detacherItems = ScaleSensitiveDialogDetacherItems.ToArray();
             for (int index = 0; index < detacherItems.Length; index++) {
@@ -1802,6 +1818,14 @@ namespace helengine.editor {
                 return;
             }
 
+            // A partially materialized session used by preference-shell tests has no editor core or
+            // project environment service. Keep the already-created preference dialog current while
+            // leaving full dialog recreation to the production composition root.
+            if (core == null || projectEnvironmentsService == null) {
+                preferencesDialog?.ApplyUiMetrics(uiFont, CurrentUiMetrics);
+                return;
+            }
+
             if (!string.IsNullOrWhiteSpace(projectPath)) {
                 assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
@@ -1819,12 +1843,15 @@ namespace helengine.editor {
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
             platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
+            platformsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, platformsDialog.Dispose, hide: platformsDialog.Hide);
             environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
+            environmentsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, environmentsDialog.Dispose, hide: environmentsDialog.Hide);
             profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, profilesDialog.Dispose, hide: profilesDialog.Hide);
             buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
+            buildDialog.SetRendererResources(rendererResources);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, buildDialog.Dispose, hide: buildDialog.Hide);
             buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, buildDialogCopySettingsDialog.Dispose, hide: buildDialogCopySettingsDialog.Hide);
@@ -2416,6 +2443,9 @@ namespace helengine.editor {
         /// <returns>Created scene hierarchy panel controller.</returns>
         IEditorWorkspacePanelController CreateSceneHierarchyPanelController(EditorSession session) {
             SceneHierarchyPanel panel = new SceneHierarchyPanel(session.uiFont, session.CurrentUiMetrics);
+            panel.SetObjectManager(session.core.ObjectManager);
+            panel.SetInput(session.core.Input);
+            panel.RefreshHierarchy();
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.Detach);
         }
 
@@ -2428,6 +2458,7 @@ namespace helengine.editor {
             EditorAssetManager manager = new EditorAssetManager(session.projectPath, session.authoredAssetReferenceResolver);
             AssetBrowserDataSource dataSource = new AssetBrowserDataSource(manager, session.generatedAssetProviderRegistry);
             AssetBrowserPanel panel = new AssetBrowserPanel(session.uiFont, session.projectPath, session.CurrentUiMetrics, dataSource);
+            panel.SetRendererResources(session.rendererResources);
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.DisposeAuthoringResources);
         }
 
@@ -2452,6 +2483,7 @@ namespace helengine.editor {
             panel.SetAssetReferenceResolver(session.authoredAssetReferenceResolver);
             panel.SetGeneratedAssetProviderRegistry(session.generatedAssetProviderRegistry);
             panel.SetRendererResources(session.rendererResources);
+            panel.SetInput(session.core.Input);
             panel.ShaderPackageService = session.shaderPackageService;
             panel.HistoryMutationService = session.HistoryMutationService;
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
@@ -2464,6 +2496,7 @@ namespace helengine.editor {
         /// <returns>Created logger panel controller.</returns>
         IEditorWorkspacePanelController CreateLoggerPanelController(EditorSession session) {
             LoggerPanel panel = new LoggerPanel(session.uiFont, session.CurrentUiMetrics);
+            panel.SetInputServices(session.core.Input, session.core.TextClipboardService);
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.Detach);
         }
 
@@ -4333,11 +4366,11 @@ namespace helengine.editor {
         /// New sessions begin empty and wait for the user to add scene entities explicitly.
         /// </summary>
         void BuildStartScene() {
-            if (core == null || core.RenderManager3D == null) {
+            if (rendererResources == null || rendererResources.RenderManager3D == null) {
                 throw new InvalidOperationException("Viewport grid initialization requires an active 3D render manager.");
             }
 
-            EditorViewportGridFactory.Create(core.RenderManager3D, builtInShaderAssetLibrary);
+            EditorViewportGridFactory.Create(rendererResources.RenderManager3D, builtInShaderAssetLibrary);
         }
 
         /// <summary>

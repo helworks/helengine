@@ -218,6 +218,8 @@ namespace helengine.editor {
         readonly EditorSceneCanvasProfileState SceneCanvasProfileStateValue;
         /// <summary>Session-owned built-in shader library used by viewport overlays.</summary>
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        /// <summary>Renderer resources owned by the editor session that owns this viewport.</summary>
+        readonly EditorSessionRendererResources RendererResources;
         /// <summary>
         /// Viewport-local simulated canvas settings used by the world-space 2D preview plane.
         /// </summary>
@@ -336,7 +338,7 @@ namespace helengine.editor {
         /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used by viewport previews.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
-        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics, EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
+        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EditorSessionRendererResources rendererResources)
             : base(font, metrics) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
@@ -344,6 +346,7 @@ namespace helengine.editor {
             ToolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
             SceneCanvasProfileStateValue = sceneCanvasProfileState ?? throw new ArgumentNullException(nameof(sceneCanvasProfileState));
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
             CanvasPreviewSettingsValue = new EditorViewportCanvasPreviewSettings();
             Title = "Viewport";
             SetContentBackgroundColor(new byte4(0, 0, 0, 0));
@@ -423,7 +426,7 @@ namespace helengine.editor {
             InitializeStatsButton();
             InitializeStatsOverlay();
             InitializeSnapControls();
-            CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false, BuiltInShaderLibrary);
+            CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false, BuiltInShaderLibrary, RendererResources);
             AddComponent(CameraAngleOverlayComponentValue);
             ToolMode = EditorViewportToolService.GetToolMode(Camera);
             RefreshRenderOrderBias();
@@ -671,6 +674,7 @@ namespace helengine.editor {
                 CanvasPreviewSettingsValue,
                 SetGridVisible,
                 IsGridVisible);
+            SettingsOverlayComponent.SetInput(RendererResources.Input);
             SettingsOverlayComponent.OpenStateChanged += HandleSettingsOverlayOpenStateChanged;
             AddComponent(SettingsOverlayComponent);
             SettingsOverlayComponent.SetSettingsButtonFocusTarget(SettingsButtonFocusTarget);
@@ -741,7 +745,7 @@ namespace helengine.editor {
         /// Initializes the viewport stats overlay component toggled by the stats button.
         /// </summary>
         void InitializeStatsOverlay() {
-            StatsOverlayComponent = new EditorViewportStatsOverlayComponent(Camera, Font, ToolbarHeight);
+            StatsOverlayComponent = new EditorViewportStatsOverlayComponent(Camera, Font, ToolbarHeight, RendererResources.ObjectManager, RendererResources.FrameDeltaSecondsProvider);
             AddComponent(StatsOverlayComponent);
         }
 
@@ -1480,7 +1484,7 @@ namespace helengine.editor {
         /// <param name="key">Activation key to evaluate.</param>
         /// <returns>True when the content target should activate for the key.</returns>
         bool CanActivateViewportContentKey(Keys key) {
-            InputSystem inputManager = Core.Instance.Input;
+            InputSystem inputManager = RendererResources.Input;
             if (inputManager != null && inputManager.GetMouseRightButtonState() == ButtonState.Pressed) {
                 return false;
             }

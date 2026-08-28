@@ -47,6 +47,7 @@ namespace helengine.editor {
         /// Reusable preview entity that visualizes active rotation snapping.
         /// </summary>
         readonly EditorEntity SnapPreviewEntity;
+        InputSystem Input;
         /// <summary>
         /// Mesh component used by the reusable rotation snap-preview entity.
         /// </summary>
@@ -80,6 +81,10 @@ namespace helengine.editor {
             SnapPreviewEntity = snapPreviewEntity ?? throw new ArgumentNullException(nameof(snapPreviewEntity));
             SnapPreviewMesh = FindMeshComponent(snapPreviewEntity) ?? throw new InvalidOperationException("Rotation snap-preview entity must include a mesh component.");
             PreviewModelsBySnapDegrees = new Dictionary<double, RuntimeModel>();
+        }
+
+        internal void SetInput(InputSystem input) {
+            Input = input ?? throw new ArgumentNullException(nameof(input));
         }
 
         /// <summary>
@@ -284,7 +289,7 @@ namespace helengine.editor {
         /// Updates the reusable snap-preview entity from the active modifier keys and hovered rotation ring.
         /// </summary>
         void UpdateSnapPreview() {
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
             if (input == null) {
                 SetSnapPreviewVisible(false);
                 return;

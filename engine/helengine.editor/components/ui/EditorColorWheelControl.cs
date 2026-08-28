@@ -38,6 +38,7 @@ public sealed class EditorColorWheelControl : EditorEntity {
     /// Pointer hit region that receives wheel dragging input.
     /// </summary>
     readonly InteractableComponent WheelInteractable;
+    readonly RenderManager2D RenderManager2D;
 
     /// <summary>
     /// Tracks whether the pointer is actively dragging the wheel.
@@ -53,7 +54,8 @@ public sealed class EditorColorWheelControl : EditorEntity {
     /// Initializes a new hue wheel control.
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
-    public EditorColorWheelControl(ushort layerMask) {
+    public EditorColorWheelControl(ushort layerMask, RenderManager2D renderManager2D) {
+        RenderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
         LayerMask = layerMask;
         InternalEntity = true;
         Name = "Color Wheel";
@@ -63,7 +65,7 @@ public sealed class EditorColorWheelControl : EditorEntity {
 
         WheelSprite = new SpriteComponent {
             Size = new int2(WheelSize, WheelSize),
-            Texture = EditorColorUtils.BuildHueWheelTexture(WheelSize),
+            Texture = EditorColorUtils.BuildHueWheelTexture(WheelSize, RenderManager2D),
             RenderOrder2D = RenderOrder2D.ModalOverlayBackground
         };
         WheelHost.AddComponent(WheelSprite);

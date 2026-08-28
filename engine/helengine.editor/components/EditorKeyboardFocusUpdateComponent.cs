@@ -3,6 +3,12 @@ namespace helengine.editor {
     /// Polls editor input and forwards keyboard-focus commands into the shared focus service.
     /// </summary>
     public class EditorKeyboardFocusUpdateComponent : UpdateComponent {
+        readonly InputSystem Input;
+
+        public EditorKeyboardFocusUpdateComponent(InputSystem input) {
+            Input = input ?? throw new ArgumentNullException(nameof(input));
+        }
+
         /// <summary>
         /// Callback invoked when the editor-global save shortcut is pressed.
         /// </summary>
@@ -32,10 +38,7 @@ namespace helengine.editor {
         /// Routes per-frame input into the shared keyboard-focus service.
         /// </summary>
         public override void Update() {
-            InputSystem input = Core.Instance.Input;
-            if (input == null) {
-                return;
-            }
+            InputSystem input = Input;
 
             if (input.WasMouseLeftButtonPressed()) {
                 EditorKeyboardFocusService.HandlePointerPressed(input.GetMousePosition(), false);

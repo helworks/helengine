@@ -88,6 +88,10 @@ namespace helengine.editor {
         /// </summary>
         readonly List<ContextMenuItem> ActiveItems;
         /// <summary>
+        /// Input source owned by the session that hosts this menu.
+        /// </summary>
+        InputSystem Input;
+        /// <summary>
         /// Scroll controller used when the menu contains more items than the host can display at once.
         /// </summary>
         readonly ScrollComponent ScrollComponent;
@@ -189,6 +193,13 @@ namespace helengine.editor {
         /// Gets the root entity for the context menu.
         /// </summary>
         public EditorEntity Entity => Root;
+
+        /// <summary>
+        /// Binds menu interaction to the owning session's input source.
+        /// </summary>
+        internal void SetInput(InputSystem input) {
+            Input = input ?? throw new ArgumentNullException(nameof(input));
+        }
 
         /// <summary>
         /// Gets or sets the shared text appended to rows that open another menu.
@@ -297,7 +308,10 @@ namespace helengine.editor {
 
             UpdateInputBlocker();
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             bool leftPressed = input.WasMouseLeftButtonPressed();
             bool rightPressed = input.WasMouseRightButtonPressed();
             if (!leftPressed && !rightPressed) {

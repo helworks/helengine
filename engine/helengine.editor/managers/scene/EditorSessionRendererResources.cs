@@ -6,6 +6,8 @@ namespace helengine.editor {
         public RenderManager3D RenderManager3D { get; }
         public RenderManager2D RenderManager2D { get; }
         public ObjectManager ObjectManager { get; }
+        public InputSystem Input { get; }
+        public Func<double> FrameDeltaSecondsProvider { get; }
         public IEntityFactory EntityFactory { get; }
         public EditorSceneEntityIdAllocator SceneEntityIdAllocator { get; }
         public FontAsset DefaultFontAsset { get; private set; }
@@ -16,14 +18,17 @@ namespace helengine.editor {
         public EditorWorldSpace2DPreviewMeshResources WorldSpace2DPreviewMeshes { get; }
         public EditorViewportBorderGizmoMeshResources ViewportBorderGizmoMeshes { get; }
 
+        readonly object SyncRoot = new object();
         bool IsDisposed;
 
         /// <summary>Creates all renderer-backed editor resources for one renderer owner.</summary>
-        public EditorSessionRendererResources(RenderManager3D renderManager3D, RenderManager2D renderManager2D, ObjectManager objectManager, IEntityFactory entityFactory, EditorSceneEntityIdAllocator sceneEntityIdAllocator, FontAsset defaultFontAsset = null) {
+        public EditorSessionRendererResources(RenderManager3D renderManager3D, RenderManager2D renderManager2D, ObjectManager objectManager, IEntityFactory entityFactory, EditorSceneEntityIdAllocator sceneEntityIdAllocator, InputSystem input, Func<double> frameDeltaSecondsProvider, FontAsset defaultFontAsset) {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            Input = input ?? throw new ArgumentNullException(nameof(input));
+            FrameDeltaSecondsProvider = frameDeltaSecondsProvider ?? throw new ArgumentNullException(nameof(frameDeltaSecondsProvider));
             EntityFactory = entityFactory ?? throw new ArgumentNullException(nameof(entityFactory));
             SceneEntityIdAllocator = sceneEntityIdAllocator ?? throw new ArgumentNullException(nameof(sceneEntityIdAllocator));
             RenderManager3D = renderManager3D;
@@ -43,33 +48,37 @@ namespace helengine.editor {
             if (defaultFontAsset == null) {
                 throw new ArgumentNullException(nameof(defaultFontAsset));
             }
-            if (IsDisposed) {
-                throw new ObjectDisposedException(nameof(EditorSessionRendererResources));
+            lock (SyncRoot) {
+                if (IsDisposed) {
+                    throw new ObjectDisposedException(nameof(EditorSessionRendererResources));
+                }
+                DefaultFontAsset = defaultFontAsset;
             }
-            DefaultFontAsset = defaultFontAsset;
         }
 
         /// <summary>Releases all models allocated by this renderer resource graph.</summary>
         public void Dispose() {
-            if (IsDisposed) {
-                return;
-            }
+            lock (SyncRoot) {
+                if (IsDisposed) {
+                    return;
+                }
 
-            IsDisposed = true;
+                List<Exception> failures = new List<Exception>();
+                DisposeOwner(ViewportBorderGizmoMeshes, failures);
+                DisposeOwner(WorldSpace2DPreviewMeshes, failures);
+                DisposeOwner(SpotLightVisuals, failures);
+                DisposeOwner(PointLightVisuals, failures);
+                DisposeOwner(DirectionalLightVisuals, failures);
+                DisposeOwner(CameraVisuals, failures);
+                if (failures.Count == 0) {
+                    IsDisposed = true;
+                    return;
+                }
 
-            List<Exception> failures = new List<Exception>();
-            DisposeOwner(ViewportBorderGizmoMeshes, failures);
-            DisposeOwner(WorldSpace2DPreviewMeshes, failures);
-            DisposeOwner(SpotLightVisuals, failures);
-            DisposeOwner(PointLightVisuals, failures);
-            DisposeOwner(DirectionalLightVisuals, failures);
-            DisposeOwner(CameraVisuals, failures);
-            if (failures.Count > 0) {
                 throw failures.Count == 1
                     ? failures[0]
                     : new AggregateException("Editor renderer resource disposal failed.", failures);
             }
-
         }
 
         static void DisposeOwner(IDisposable owner, List<Exception> failures) {

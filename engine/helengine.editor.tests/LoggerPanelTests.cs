@@ -15,6 +15,10 @@ namespace helengine.editor.tests {
         /// Deterministic input backend used by logger panel keyboard tests.
         /// </summary>
         readonly TestInputBackend InputBackend;
+        /// <summary>
+        /// Clipboard service explicitly bound to each logger panel created by this fixture.
+        /// </summary>
+        readonly TestTextClipboardService ClipboardService;
 
         /// <summary>
         /// Initializes the core services required by the logger panel tests.
@@ -27,7 +31,9 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             InputBackend = new TestInputBackend();
+            ClipboardService = new TestTextClipboardService();
             core.Initialize(null, new TestRenderManager2D(), InputBackend, new PlatformInfo("test", "test-version"));
+            core.SetTextClipboardService(ClipboardService);
         }
 
         /// <summary>
@@ -176,6 +182,7 @@ namespace helengine.editor.tests {
             LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
             TestTextClipboardService clipboardService = new TestTextClipboardService();
             Core.Instance.SetTextClipboardService(clipboardService);
+            panel.SetInputServices(Core.Instance.Input, clipboardService);
 
             try {
                 InvokePrivate(panel, "HandleRowPressed", 1, false, false);
@@ -225,6 +232,7 @@ namespace helengine.editor.tests {
             LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
             TestTextClipboardService clipboardService = new TestTextClipboardService();
             Core.Instance.SetTextClipboardService(clipboardService);
+            panel.SetInputServices(Core.Instance.Input, clipboardService);
 
             try {
                 InvokePrivate(panel, "HandleRowPressed", 1, false, false);
@@ -339,6 +347,7 @@ namespace helengine.editor.tests {
             LoggerPanel panel = CreatePanelWithEntries("row-0", "row-1", "row-2", "row-3");
             TestTextClipboardService clipboardService = new TestTextClipboardService();
             Core.Instance.SetTextClipboardService(clipboardService);
+            panel.SetInputServices(Core.Instance.Input, clipboardService);
 
             try {
                 InvokePrivate(panel, "HandleRowPressed", 2, false, false);
@@ -520,6 +529,7 @@ namespace helengine.editor.tests {
             LoggerPanel panel = new LoggerPanel(CreateFont()) {
                 Size = new int2(320, 240)
             };
+            panel.SetInputServices(Core.Instance.Input, ClipboardService);
 
             for (int messageIndex = 0; messageIndex < messages.Length; messageIndex++) {
                 Logger.WriteLine(messages[messageIndex]);

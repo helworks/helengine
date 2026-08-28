@@ -12,6 +12,7 @@ namespace helengine.editor {
         /// Cached runtime model for the shared authored-viewport gizmo plane.
         /// </summary>
         readonly RenderManager3D RenderManager3D;
+        readonly object SyncRoot = new object();
         RuntimeModel RuntimeModelValue;
         bool IsDisposed;
 
@@ -27,23 +28,27 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Shared runtime model for authored viewport border gizmos.</returns>
         public RuntimeModel GetRuntimeModel() {
-            if (IsDisposed) {
-                throw new ObjectDisposedException(nameof(EditorViewportBorderGizmoMeshResources));
+            lock (SyncRoot) {
+                if (IsDisposed) {
+                    throw new ObjectDisposedException(nameof(EditorViewportBorderGizmoMeshResources));
+                }
+                if (RuntimeModelValue == null) {
+                    RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
+                }
+                return RuntimeModelValue;
             }
-            if (RuntimeModelValue == null) {
-                RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
-            }
-            return RuntimeModelValue;
         }
 
         /// <summary>Releases the renderer-owned viewport border model.</summary>
         public void Dispose() {
-            if (IsDisposed) {
-                return;
+            lock (SyncRoot) {
+                if (IsDisposed) {
+                    return;
+                }
+                RuntimeModelValue?.Dispose();
+                RuntimeModelValue = null;
+                IsDisposed = true;
             }
-            RuntimeModelValue?.Dispose();
-            RuntimeModelValue = null;
-            IsDisposed = true;
         }
 
         /// <summary>

@@ -162,9 +162,9 @@ namespace helengine.editor.tests {
             TextComponent pathText = GetPrivateField<TextComponent>(browserView, "PathText");
             ButtonComponent upButton = GetPrivateField<ButtonComponent>(browserView, "UpButton");
             TextComponent[] snapLabelModifierTexts = GetPrivateField<TextComponent[]>(mainViewport, "SnapLabelModifierTexts");
-            TextComponent[] snapValueTexts = GetPrivateField<TextComponent[]>(mainViewport, "SnapValueTexts");
+            TextBoxComponent[] snapValueTextBoxes = GetPrivateField<TextBoxComponent[]>(mainViewport, "SnapValueTextBoxes");
 
-            Assert.Equal(41, titleBar.Height);
+            Assert.Equal(scaledMetrics.HostTitleBarHeight, titleBar.Height);
             Assert.Equal(
                 new int2(
                     scaledMetrics.ScalePixels(EditorPreferencesDialog.PanelWidth),
@@ -183,8 +183,9 @@ namespace helengine.editor.tests {
             Assert.Equal(42f + scaledMetrics.DockTitleBarHeight + 24f, mainViewport.Camera.Viewport.Y, 3);
             Assert.Same(scaledSnapModifierFont, snapLabelModifierTexts[0].Font);
             Assert.Same(scaledSnapModifierFont, snapLabelModifierTexts[1].Font);
-            Assert.Same(scaledUiFont, snapValueTexts[0].Font);
-            Assert.Same(scaledUiFont, snapValueTexts[1].Font);
+            Assert.Same(scaledUiFont, snapValueTextBoxes[0].Font);
+            Assert.Same(scaledUiFont, snapValueTextBoxes[1].Font);
+            Assert.Same(scaledUiFont, GeneratedAssetGraph.RendererResources.DefaultFontAsset);
         }
 
         /// <summary>
@@ -213,6 +214,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "CurrentThemeId", EditorThemeCatalog.DefaultThemeId);
             SetPrivateField(session, "CurrentEditorPreferences", new EditorPreferencesSettings(new EditorUiScaleSettings(EditorUiScaleMode.Auto, 100), EditorThemeCatalog.DefaultThemeId));
             SetPrivateField(session, "CurrentUiMetrics", metrics);
+            SetPrivateField(session, "rendererResources", GeneratedAssetGraph.RendererResources);
             return session;
         }
 
@@ -246,7 +248,8 @@ namespace helengine.editor.tests {
                 CreateToolbarIcons(),
                 new EditorSceneCanvasProfileState(),
                 metrics,
-                GeneratedAssetGraph.ShaderLibrary);
+                GeneratedAssetGraph.ShaderLibrary,
+                GeneratedAssetGraph.RendererResources);
             viewport.Position = new float3(18f, 42f, 0f);
             viewport.Size = new int2(640, 360);
             return viewport;

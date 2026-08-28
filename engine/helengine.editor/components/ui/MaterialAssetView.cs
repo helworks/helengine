@@ -117,7 +117,7 @@ namespace helengine.editor {
         /// <summary>
         /// Shared color picker overlay reused by all material color fields.
         /// </summary>
-        readonly EditorColorPickerOverlayComponent ColorPickerOverlay;
+        EditorColorPickerOverlayComponent ColorPickerOverlay;
         /// <summary>
         /// Session-owned 3D renderer used to invalidate shader resources after a material save.
         /// </summary>
@@ -243,11 +243,6 @@ namespace helengine.editor {
                 ColorPickerOverlayLayerMask = layerMask;
             }
 
-            ColorPickerOverlay = new EditorColorPickerOverlayComponent(font, ColorPickerOverlayLayerMask);
-            ColorPickerOverlay.ColorChanged += HandleSharedColorPickerChanged;
-            ColorPickerOverlay.Closed += HandleSharedColorPickerClosed;
-            ColorPickerHost.AddChild(ColorPickerOverlay);
-
             Hide();
         }
 
@@ -265,6 +260,18 @@ namespace helengine.editor {
             }
 
             RenderManager3D = rendererResources.RenderManager3D;
+            PlatformTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
+            if (ColorPickerOverlay == null) {
+                ColorPickerOverlay = new EditorColorPickerOverlayComponent(
+                    Font,
+                    ColorPickerOverlayLayerMask,
+                    rendererResources.RenderManager3D,
+                    rendererResources.RenderManager2D,
+                    rendererResources.Input);
+                ColorPickerOverlay.ColorChanged += HandleSharedColorPickerChanged;
+                ColorPickerOverlay.Closed += HandleSharedColorPickerClosed;
+                ColorPickerHost.AddChild(ColorPickerOverlay);
+            }
         }
 
         /// <summary>

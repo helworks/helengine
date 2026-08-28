@@ -75,6 +75,7 @@ namespace helengine.editor {
         /// Shared editor-only bounds resolver used to derive adaptive speed from the current selection.
         /// </summary>
         readonly EditorViewportSelectionFramingService selectionFramingService;
+        readonly InputSystem input;
 
         /// <summary>
         /// Tracks whether a right-click started inside the viewport.
@@ -165,8 +166,9 @@ namespace helengine.editor {
         /// Initializes a new controller for the specified camera.
         /// </summary>
         /// <param name="camera">Camera to move.</param>
-        public EditorViewportCameraController(CameraComponent camera) {
+        public EditorViewportCameraController(CameraComponent camera, InputSystem input) {
             this.camera = camera ?? throw new ArgumentNullException(nameof(camera));
+            this.input = input ?? throw new ArgumentNullException(nameof(input));
             selectionFramingService = new EditorViewportSelectionFramingService();
             SpeedMode = EditorViewportCameraSpeedMode.AutoFromSelection;
             ManualSpeedOverride = DefaultMoveSpeed;
@@ -267,7 +269,7 @@ namespace helengine.editor {
         /// Updates camera position based on right-click state and keyboard input.
         /// </summary>
         public override void Update() {
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = this.input;
             bool isPointerBlocked = EditorInputCaptureService.IsPointerBlocked(input.GetMousePosition());
             UpdateEffectiveSpeeds(selectionFramingService);
 

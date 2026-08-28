@@ -72,19 +72,20 @@ namespace helengine.editor {
         /// <summary>
         /// Generated left-pointing triangle texture shown on the left arrow button.
         /// </summary>
-        readonly RuntimeTexture LeftArrowIconTexture;
+        RuntimeTexture LeftArrowIconTexture;
         /// <summary>
         /// Generated right-pointing triangle texture shown on the right arrow button.
         /// </summary>
-        readonly RuntimeTexture RightArrowIconTexture;
+        RuntimeTexture RightArrowIconTexture;
         /// <summary>
         /// Sprite that renders the left arrow icon.
         /// </summary>
-        readonly SpriteComponent LeftArrowIconSprite;
+        SpriteComponent LeftArrowIconSprite;
         /// <summary>
         /// Sprite that renders the right arrow icon.
         /// </summary>
-        readonly SpriteComponent RightArrowIconSprite;
+        SpriteComponent RightArrowIconSprite;
+        RenderManager2D RenderManager2D;
         /// <summary>
         /// Host entity for the optional nested-environment add button.
         /// </summary>
@@ -222,8 +223,6 @@ namespace helengine.editor {
 
             LeftArrowButton = CreateArrowButton(string.Empty, HandleLeftArrowClicked);
             LeftArrowHost.AddComponent(LeftArrowButton);
-            LeftArrowIconTexture = BuildArrowIconTexture(true);
-            LeftArrowIconSprite = AttachArrowIcon(LeftArrowHost, LeftArrowIconTexture);
 
             ViewportRoot = new EditorEntity {
                 LayerMask = layerMask,
@@ -256,8 +255,6 @@ namespace helengine.editor {
 
             RightArrowButton = CreateArrowButton(string.Empty, HandleRightArrowClicked);
             RightArrowHost.AddComponent(RightArrowButton);
-            RightArrowIconTexture = BuildArrowIconTexture(false);
-            RightArrowIconSprite = AttachArrowIcon(RightArrowHost, RightArrowIconTexture);
 
             EnvironmentAddHost = new EditorEntity {
                 LayerMask = layerMask,
@@ -276,6 +273,25 @@ namespace helengine.editor {
         /// Gets the root entity that owns the strip visuals.
         /// </summary>
         public EditorEntity Root => RootValue;
+
+        /// <summary>Binds the strip's generated arrow textures to its owning session renderer.</summary>
+        public void SetRenderManager2D(RenderManager2D renderManager2D) {
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
+            }
+            if (RenderManager2D != null) {
+                if (!ReferenceEquals(RenderManager2D, renderManager2D)) {
+                    throw new InvalidOperationException("A platform tab strip cannot change renderer owners.");
+                }
+                return;
+            }
+
+            RenderManager2D = renderManager2D;
+            LeftArrowIconTexture = BuildArrowIconTexture(true);
+            LeftArrowIconSprite = AttachArrowIcon(LeftArrowHost, LeftArrowIconTexture);
+            RightArrowIconTexture = BuildArrowIconTexture(false);
+            RightArrowIconSprite = AttachArrowIcon(RightArrowHost, RightArrowIconTexture);
+        }
 
         /// <summary>
         /// Gets the number of currently rendered platform tabs.
@@ -456,8 +472,10 @@ namespace helengine.editor {
             TextRenderOrder = textOrder;
             LeftArrowButton.SetRenderOrders(backgroundOrder, textOrder);
             RightArrowButton.SetRenderOrders(backgroundOrder, textOrder);
-            LeftArrowIconSprite.RenderOrder2D = textOrder;
-            RightArrowIconSprite.RenderOrder2D = textOrder;
+            if (LeftArrowIconSprite != null) {
+                LeftArrowIconSprite.RenderOrder2D = textOrder;
+                RightArrowIconSprite.RenderOrder2D = textOrder;
+            }
             EnvironmentAddButton.SetRenderOrders(backgroundOrder, textOrder);
 
             for (int i = 0; i < Tabs.Count; i++) {
@@ -521,7 +539,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="pointsLeft">True for a left-pointing triangle; false for right-pointing.</param>
         /// <returns>Generated white triangle texture tinted later through the sprite color.</returns>
-        static RuntimeTexture BuildArrowIconTexture(bool pointsLeft) {
+        RuntimeTexture BuildArrowIconTexture(bool pointsLeft) {
             const int size = 8;
             byte[] colors = new byte[size * size * 4];
             for (int y = 0; y < size; y++) {
@@ -546,7 +564,7 @@ namespace helengine.editor {
                 Height = size
             };
             try {
-                return Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTexture);
+                return RenderManager2D.BuildTextureFromRaw(rawTexture);
             } finally {
                 NativeOwnership.DisposeAndDelete(rawTexture);
             }
@@ -870,6 +888,9 @@ namespace helengine.editor {
         /// Dims each arrow icon when its scroll direction has nothing left to reveal.
         /// </summary>
         void UpdateArrowScrollStateVisuals() {
+            if (LeftArrowIconSprite == null || RightArrowIconSprite == null) {
+                return;
+            }
             byte4 activeColor = ThemeManager.Colors.AccentQuaternary;
             byte4 idleColor = new byte4(activeColor.X, activeColor.Y, activeColor.Z, 90);
             LeftArrowIconSprite.Color = CanScrollLeft ? activeColor : idleColor;

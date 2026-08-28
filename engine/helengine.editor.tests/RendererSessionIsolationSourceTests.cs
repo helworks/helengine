@@ -44,6 +44,52 @@ public sealed class RendererSessionIsolationSourceTests {
     }
 
     [Fact]
+    public void RemainingSessionRendererConsumers_UseExplicitOwners() {
+        string[] sourceFiles = {
+            Path.Combine("managers", "dock", "DockLayoutEngine.cs"),
+            Path.Combine("managers", "scene", "EditorViewportDirect2DPresentationService.cs"),
+            Path.Combine("components", "ui", "EditorViewportCameraAngleOverlayComponent.cs"),
+            Path.Combine("components", "ui", "EditorColorUtils.cs"),
+            Path.Combine("components", "ui", "PlatformTabStripView.cs")
+        };
+
+        foreach (string relativePath in sourceFiles) {
+            string source = File.ReadAllText(ResolveSourcePath(relativePath));
+            Assert.DoesNotContain("Core.Instance.RenderManager", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Core.Instance.ObjectManager", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ProductionEditorSources_DoNotReadTheProcessCoreSingleton() {
+        string editorRoot = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.editor");
+        string[] sourceFiles = Directory.GetFiles(editorRoot, "*.cs", SearchOption.AllDirectories);
+
+        Assert.NotEmpty(sourceFiles);
+        foreach (string sourcePath in sourceFiles) {
+            string source = File.ReadAllText(sourcePath);
+            Assert.DoesNotContain("Core.Instance", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void SessionResourceDisposal_RetainsRetryStateUntilEveryChildSucceeds() {
+        string source = File.ReadAllText(ResolveSourcePath("managers/scene/EditorSessionRendererResources.cs"));
+        string normalized = source.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("if (failures.Count == 0) {\n                    IsDisposed = true;", normalized, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsDisposed = true;\n\n            List<Exception> failures", normalized, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CliPrebuildCommands_BorrowTheOuterInvocationGraph() {
+        string source = File.ReadAllText(ResolveSourcePath("EditorCliBuildRunner.cs"));
+
+        Assert.Contains("RunInSessionGraph", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new EditorCliCommandRunner(\n                    DefaultFontAsset,\n                    new EditorProjectAssetAuthoringSession", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SaveGraph_RequiresExplicitGeneratedCachesAndNeverFallsBackToNull() {
         string sceneSaveSource = File.ReadAllText(ResolveSourcePath("serialization/scene/SceneSaveService.cs"));
         string blueprintSaveSource = File.ReadAllText(ResolveSourcePath("serialization/blueprint/BlueprintSaveService.cs"));
@@ -58,6 +104,28 @@ public sealed class RendererSessionIsolationSourceTests {
         Assert.DoesNotContain("public SceneAssetReferenceInferenceService(string projectRootPath)", inferenceSource, StringComparison.Ordinal);
         Assert.DoesNotContain("GeneratedModelCache != null", inferenceSource, StringComparison.Ordinal);
         Assert.DoesNotContain("GeneratedMaterialCache?.", inferenceSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UiScaleAndSaveInference_ResolveTheCurrentRendererFontAtUseTime() {
+        string sessionSource = File.ReadAllText(ResolveSourcePath("EditorSession.cs"));
+        string inferenceSource = File.ReadAllText(ResolveSourcePath("serialization/scene/SceneAssetReferenceInferenceService.cs"));
+
+        Assert.Contains("rendererResources.SetDefaultFontAsset(uiFont)", sessionSource, StringComparison.Ordinal);
+        Assert.Contains("RendererResources.DefaultFontAsset", inferenceSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("FontAsset EditorFontAsset", inferenceSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AuthoringFactory_ValidatesBorrowedGraphBeforeAllocatingImportManager() {
+        string factorySource = File.ReadAllText(ResolveSourcePath("managers/project/EditorProjectAssetAuthoringServiceFactory.cs"));
+        int validationIndex = factorySource.IndexOf("ValidateGeneratedAssetGraph(", StringComparison.Ordinal);
+        int managerIndex = factorySource.IndexOf("CreateAssetImportManager(projectRootPath)", StringComparison.Ordinal);
+
+        Assert.True(validationIndex >= 0);
+        Assert.True(managerIndex >= 0);
+        Assert.True(validationIndex < managerIndex);
+        Assert.Contains("contentManager.Dispose()", factorySource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -82,7 +150,7 @@ public sealed class RendererSessionIsolationSourceTests {
     }
 
     static string ResolveSourcePath(string relativePath) {
-        string editorRoot = new helengine.editor.EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string editorRoot = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourcePath = Path.Combine(editorRoot, "engine", "helengine.editor", relativePath);
         if (!File.Exists(sourcePath)) {
             throw new FileNotFoundException(relativePath, sourcePath);

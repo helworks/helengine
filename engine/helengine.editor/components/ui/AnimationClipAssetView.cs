@@ -38,6 +38,13 @@ namespace helengine.editor {
         /// </summary>
         readonly PlatformTabStripView PlatformTabStrip;
 
+        internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            PlatformTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
+        }
+
         /// <summary>
         /// Supported platform identifiers shown in the tab strip.
         /// </summary>

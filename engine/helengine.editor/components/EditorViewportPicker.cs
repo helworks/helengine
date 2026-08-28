@@ -146,7 +146,7 @@ namespace helengine.editor {
         /// Checks pointer state and queues picker renders for click selection and gizmo hover detection.
         /// </summary>
         public override void Update() {
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = RendererResources.Input ?? throw new InvalidOperationException("The session renderer graph must provide input.");
             if (PickReadbackPending) {
                 ResolvePick();
             }

@@ -14,6 +14,8 @@ namespace helengine.editor {
         const int ResizeHandleThreshold = 5;
 
         readonly List<DockableEntity> dockables;
+        readonly RenderManager2D renderManager2D;
+        readonly ObjectManager objectManager;
         readonly int padding;
         readonly int gap;
         /// <summary>
@@ -32,7 +34,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="padding">Space to leave around the host bounds.</param>
         /// <param name="gap">Space inserted between docked panels.</param>
-        public DockLayoutEngine(int padding = 0, int gap = 0) {
+        public DockLayoutEngine(RenderManager2D renderManager2D, ObjectManager objectManager, int padding = 0, int gap = 0) {
+            this.renderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
+            this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             this.padding = padding;
             this.gap = gap;
             dockables = new List<DockableEntity>(8);
@@ -519,7 +523,9 @@ namespace helengine.editor {
                     split.IsVertical,
                     split.SplitFraction,
                     RestoreNode(split.First, dockResolver),
-                    RestoreNode(split.Second, dockResolver));
+                    RestoreNode(split.Second, dockResolver),
+                    renderManager2D,
+                    objectManager);
             }
 
             throw new InvalidOperationException("Unknown dock snapshot node type.");
@@ -720,16 +726,16 @@ namespace helengine.editor {
             LayoutNode replacement;
             switch (hint.Direction) {
                 case DockInsertDirection.Left:
-                    replacement = new SplitNode(isVertical: true, hint.SplitFraction, newPanel, anchorNode);
+                    replacement = new SplitNode(isVertical: true, hint.SplitFraction, newPanel, anchorNode, renderManager2D, objectManager);
                     break;
                 case DockInsertDirection.Right:
-                    replacement = new SplitNode(isVertical: true, hint.SplitFraction, anchorNode, newPanel);
+                    replacement = new SplitNode(isVertical: true, hint.SplitFraction, anchorNode, newPanel, renderManager2D, objectManager);
                     break;
                 case DockInsertDirection.Top:
-                    replacement = new SplitNode(isVertical: false, hint.SplitFraction, newPanel, anchorNode);
+                    replacement = new SplitNode(isVertical: false, hint.SplitFraction, newPanel, anchorNode, renderManager2D, objectManager);
                     break;
                 case DockInsertDirection.Bottom:
-                    replacement = new SplitNode(isVertical: false, hint.SplitFraction, anchorNode, newPanel);
+                    replacement = new SplitNode(isVertical: false, hint.SplitFraction, anchorNode, newPanel, renderManager2D, objectManager);
                     break;
                 case DockInsertDirection.Fill:
                 default:
@@ -1026,8 +1032,13 @@ namespace helengine.editor {
             /// </summary>
             int cachedGap;
 
-            public SplitNode(bool isVertical, float splitFraction, LayoutNode first, LayoutNode second) {
+            readonly RenderManager2D renderManager2D;
+            readonly ObjectManager objectManager;
+
+            public SplitNode(bool isVertical, float splitFraction, LayoutNode first, LayoutNode second, RenderManager2D renderManager2D, ObjectManager objectManager) {
                 this.isVertical = isVertical;
+                this.renderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
+                this.objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
                 SplitFraction = Math.Clamp(splitFraction, 0.05f, 0.95f);
                 First = first;
                 Second = second;
@@ -1039,7 +1050,7 @@ namespace helengine.editor {
                 };
 
                 separatorSprite = new SpriteComponent {
-                    Texture = TextureUtils.PixelTexture,
+                    Texture = CreateSeparatorTexture(renderManager2D),
                     Color = SeparatorColor,
                     RenderOrder2D = RenderOrder2D.PanelForeground
                 };
@@ -1218,7 +1229,21 @@ namespace helengine.editor {
                 }
 
                 separatorEntity.Enabled = false;
-                Core.Instance.ObjectManager.RemoveEntity(separatorEntity);
+                objectManager.RemoveEntity(separatorEntity);
+            }
+
+            static RuntimeTexture CreateSeparatorTexture(RenderManager2D renderManager2D) {
+                TextureAsset rawTexture = new TextureAsset {
+                    Colors = [255, 255, 255, 255],
+                    Width = 1,
+                    Height = 1,
+                    IsEngineOwned = true
+                };
+                try {
+                    return renderManager2D.BuildTextureFromRaw(rawTexture);
+                } finally {
+                    NativeOwnership.DisposeAndDelete(rawTexture);
+                }
             }
 
             public override PanelNode? Find(DockableEntity entity) {

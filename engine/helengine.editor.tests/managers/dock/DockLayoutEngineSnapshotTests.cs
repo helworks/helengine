@@ -12,7 +12,7 @@ namespace helengine.editor.tests.managers.dock {
         [Fact]
         public void CaptureSnapshot_WhenLayoutContainsSplitAndTabs_ReturnsTreeWithActiveTabAndFractions() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
             DockableEntity viewport = CreateDock("Viewport");
             DockableEntity logger = CreateDock("Logger");
             DockableEntity preview = CreateDock("Preview");
@@ -39,7 +39,7 @@ namespace helengine.editor.tests.managers.dock {
         [Fact]
         public void RestoreSnapshot_WhenDockablesAreProvided_RebuildsVisibleTraversalOrder() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine();
+            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
             DockableEntity viewport = CreateDock("Viewport");
             DockableEntity logger = CreateDock("Logger");
 

@@ -40,6 +40,14 @@ namespace helengine.editor {
         /// Rolling tracker producing smoothed FPS values.
         /// </summary>
         readonly EditorViewportFrameRateTracker FrameRateTracker;
+        /// <summary>
+        /// Object manager owned by the viewport's renderer/session graph.
+        /// </summary>
+        readonly ObjectManager ObjectManager;
+        /// <summary>
+        /// Session-owned frame timing source.
+        /// </summary>
+        readonly Func<double> FrameDeltaSecondsProvider;
 
         /// <summary>
         /// Overlay root entity positioned in viewport-local coordinates.
@@ -76,9 +84,11 @@ namespace helengine.editor {
         /// <param name="sceneCamera">Scene camera whose visible drawables are reported.</param>
         /// <param name="font">Font used for overlay text.</param>
         /// <param name="viewportTopOffset">Offset in pixels from title bar top to viewport content top.</param>
-        public EditorViewportStatsOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset) {
+        public EditorViewportStatsOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset, ObjectManager objectManager, Func<double> frameDeltaSecondsProvider) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            FrameDeltaSecondsProvider = frameDeltaSecondsProvider ?? throw new ArgumentNullException(nameof(frameDeltaSecondsProvider));
             if (viewportTopOffset < 0) {
                 throw new ArgumentOutOfRangeException(nameof(viewportTopOffset), "Viewport top offset must be zero or greater.");
             }
@@ -172,7 +182,7 @@ namespace helengine.editor {
                 return;
             }
 
-            FrameRateTracker.Record(Core.Instance.FrameDeltaSeconds);
+            FrameRateTracker.Record(FrameDeltaSecondsProvider());
             if (!IsVisible) {
                 return;
             }
@@ -192,20 +202,19 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Populated stats snapshot.</returns>
         EditorViewportStatsSnapshot BuildSnapshot() {
-            ObjectManager objectManager = Core.Instance.ObjectManager;
             EditorViewportStatsGroup scene = new EditorViewportStatsGroup();
             EditorViewportStatsGroup editor = new EditorViewportStatsGroup();
 
-            for (int index = 0; index < objectManager.Entities.Count; index++) {
-                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.Entities[index])) {
+            for (int index = 0; index < ObjectManager.Entities.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(ObjectManager.Entities[index])) {
                     scene.EntityCount++;
                 } else {
                     editor.EntityCount++;
                 }
             }
 
-            for (int index = 0; index < objectManager.Drawables3D.Count; index++) {
-                IDrawable3D drawable = objectManager.Drawables3D[index];
+            for (int index = 0; index < ObjectManager.Drawables3D.Count; index++) {
+                IDrawable3D drawable = ObjectManager.Drawables3D[index];
                 Entity owner = drawable.Parent;
                 bool isVisible = owner != null && (owner.LayerMask & SceneCamera.LayerMask) != 0;
                 if (EditorViewportStatsSceneClassifier.IsSceneEntity(owner)) {
@@ -221,40 +230,40 @@ namespace helengine.editor {
                 }
             }
 
-            for (int index = 0; index < objectManager.Drawables2D.Count; index++) {
-                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.Drawables2D[index].Parent)) {
+            for (int index = 0; index < ObjectManager.Drawables2D.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(ObjectManager.Drawables2D[index].Parent)) {
                     scene.TotalDrawables2D++;
                 } else {
                     editor.TotalDrawables2D++;
                 }
             }
 
-            for (int index = 0; index < objectManager.DirectionalLights.Count; index++) {
-                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.DirectionalLights[index].Parent)) {
+            for (int index = 0; index < ObjectManager.DirectionalLights.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(ObjectManager.DirectionalLights[index].Parent)) {
                     scene.DirectionalLightCount++;
                 } else {
                     editor.DirectionalLightCount++;
                 }
             }
 
-            for (int index = 0; index < objectManager.PointLights.Count; index++) {
-                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.PointLights[index].Parent)) {
+            for (int index = 0; index < ObjectManager.PointLights.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(ObjectManager.PointLights[index].Parent)) {
                     scene.PointLightCount++;
                 } else {
                     editor.PointLightCount++;
                 }
             }
 
-            for (int index = 0; index < objectManager.SpotLights.Count; index++) {
-                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.SpotLights[index].Parent)) {
+            for (int index = 0; index < ObjectManager.SpotLights.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(ObjectManager.SpotLights[index].Parent)) {
                     scene.SpotLightCount++;
                 } else {
                     editor.SpotLightCount++;
                 }
             }
 
-            for (int index = 0; index < objectManager.AmbientLights.Count; index++) {
-                if (EditorViewportStatsSceneClassifier.IsSceneEntity(objectManager.AmbientLights[index].Parent)) {
+            for (int index = 0; index < ObjectManager.AmbientLights.Count; index++) {
+                if (EditorViewportStatsSceneClassifier.IsSceneEntity(ObjectManager.AmbientLights[index].Parent)) {
                     scene.AmbientLightCount++;
                 } else {
                     editor.AmbientLightCount++;
@@ -266,7 +275,7 @@ namespace helengine.editor {
                 FrameMilliseconds = FrameRateTracker.AverageFrameMilliseconds,
                 Scene = scene,
                 Editor = editor,
-                UpdateableCount = objectManager.Updateables.Count
+                UpdateableCount = ObjectManager.Updateables.Count
             };
         }
 

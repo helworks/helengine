@@ -238,8 +238,9 @@ namespace helengine.editor {
             sceneCameraEntity.AddComponent(viewportBorderGizmoSyncComponent);
             sceneCameraEntity.AddComponent(new ComponentSceneSelectionEditorSyncComponent(render3D, GeneratedMaterialCache));
             CameraComponent gizmoCamera = CreateGizmoCamera(sceneCameraEntity, sceneCamera);
-            EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics, BuiltInShaderLibrary);
-            EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera);
+            EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics, BuiltInShaderLibrary, RendererResources);
+            viewport.SetInput(RendererResources.Input);
+            EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera, RendererResources.Input);
             viewport.CameraController = cameraController;
             sceneCameraEntity.AddComponent(cameraController);
             viewport.FocusSelectionRequested = HandleFocusSelectionRequested;
@@ -257,12 +258,22 @@ namespace helengine.editor {
                 BuiltInShaderLibrary);
             EditorEntity rotationGizmoRoot = TransformRotationGizmoFactory.Create(render3D, sceneCamera, transformGizmoMaterial, transformGizmoHighlightMaterial, BuiltInShaderLibrary);
             EditorEntity scaleGizmoRoot = TransformScaleGizmoFactory.Create(render3D, sceneCamera, transformGizmoMaterial, transformGizmoHighlightMaterial);
+            foreach (Component gizmoComponent in translationGizmoRoot.Components) {
+                if (gizmoComponent is TransformTranslationGizmoFollowComponent translationFollow) {
+                    translationFollow.SetInput(RendererResources.Input);
+                }
+            }
+            foreach (Component gizmoComponent in rotationGizmoRoot.Components) {
+                if (gizmoComponent is TransformRotationGizmoFollowComponent rotationFollow) {
+                    rotationFollow.SetInput(RendererResources.Input);
+                }
+            }
             EditorViewportGizmoDrawableCollector gizmoDrawableCollector = new EditorViewportGizmoDrawableCollector(
                 viewport.GetOwnedSceneGizmoEntities,
                 translationGizmoRoot,
                 rotationGizmoRoot,
                 scaleGizmoRoot);
-            sceneCameraEntity.AddComponent(new EditorViewportGizmoRenderQueueComponent(gizmoCamera, gizmoDrawableCollector));
+            sceneCameraEntity.AddComponent(new EditorViewportGizmoRenderQueueComponent(gizmoCamera, gizmoDrawableCollector, RendererResources.ObjectManager));
             EditorEntity pickerCameraEntity = CreatePickerCameraEntity(sceneCameraEntity);
             CameraComponent pickerCamera = CreatePickerCamera();
             pickerCameraEntity.AddComponent(pickerCamera);
@@ -344,9 +355,15 @@ namespace helengine.editor {
             sceneCamera.FarPlaneDistance = DefaultSceneCameraFarPlaneDistance;
             sceneCamera.ClearSettings = new CameraClearSettings(true, new float4(0.39215687f, 0.58431375f, 0.92941177f, 1f), true, 1.0f, false, 0);
             sceneCameraEntity.AddComponent(sceneCamera);
-            sceneCameraEntity.AddComponent(new TransformTranslationGizmoDragComponent(sceneCamera));
-            sceneCameraEntity.AddComponent(new TransformRotationGizmoDragComponent(sceneCamera));
-            sceneCameraEntity.AddComponent(new TransformScaleGizmoDragComponent(sceneCamera));
+            TransformTranslationGizmoDragComponent translationDrag = new TransformTranslationGizmoDragComponent(sceneCamera);
+            translationDrag.SetInput(RendererResources.Input);
+            sceneCameraEntity.AddComponent(translationDrag);
+            TransformRotationGizmoDragComponent rotationDrag = new TransformRotationGizmoDragComponent(sceneCamera);
+            rotationDrag.SetInput(RendererResources.Input);
+            sceneCameraEntity.AddComponent(rotationDrag);
+            TransformScaleGizmoDragComponent scaleDrag = new TransformScaleGizmoDragComponent(sceneCamera);
+            scaleDrag.SetInput(RendererResources.Input);
+            sceneCameraEntity.AddComponent(scaleDrag);
             return sceneCamera;
         }
 

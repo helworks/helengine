@@ -41,6 +41,7 @@ namespace helengine {
         /// Cached runtime model shared by all editor camera visuals.
         /// </summary>
         readonly RenderManager3D RenderManager3D;
+        readonly object SyncRoot = new object();
         RuntimeModel RuntimeModelValue;
         bool IsDisposed;
 
@@ -56,23 +57,27 @@ namespace helengine {
         /// </summary>
         /// <returns>Cached runtime model instance.</returns>
         public RuntimeModel GetRuntimeModel() {
-            if (IsDisposed) {
-                throw new ObjectDisposedException(nameof(EditorCameraVisualResources));
+            lock (SyncRoot) {
+                if (IsDisposed) {
+                    throw new ObjectDisposedException(nameof(EditorCameraVisualResources));
+                }
+                if (RuntimeModelValue == null) {
+                    RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
+                }
+                return RuntimeModelValue;
             }
-            if (RuntimeModelValue == null) {
-                RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
-            }
-            return RuntimeModelValue;
         }
 
         /// <summary>Releases the renderer-owned camera visual model.</summary>
         public void Dispose() {
-            if (IsDisposed) {
-                return;
+            lock (SyncRoot) {
+                if (IsDisposed) {
+                    return;
+                }
+                RuntimeModelValue?.Dispose();
+                RuntimeModelValue = null;
+                IsDisposed = true;
             }
-            RuntimeModelValue?.Dispose();
-            RuntimeModelValue = null;
-            IsDisposed = true;
         }
 
         /// <summary>

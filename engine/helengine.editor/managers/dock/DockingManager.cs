@@ -37,8 +37,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="padding">Space to leave around the host bounds.</param>
         /// <param name="gap">Space inserted between docked panels.</param>
-        public DockingManager(int padding = 0, int gap = 0) {
-            layout = new DockLayoutEngine(padding, gap);
+        public DockingManager(RenderManager2D renderManager2D, ObjectManager objectManager, int padding = 0, int gap = 0) {
+            layout = new DockLayoutEngine(renderManager2D, objectManager, padding, gap);
             previewOverlay = new DockPreviewOverlay();
         }
 

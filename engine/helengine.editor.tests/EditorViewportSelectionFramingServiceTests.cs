@@ -161,7 +161,7 @@ namespace helengine.editor.tests {
             cameraEntity = new EditorEntity();
             cameraEntity.AddComponent(camera);
 
-            EditorViewportCameraController controller = new EditorViewportCameraController(camera);
+            EditorViewportCameraController controller = new EditorViewportCameraController(camera, Core.Instance.Input);
             cameraEntity.AddComponent(controller);
             return controller;
         }

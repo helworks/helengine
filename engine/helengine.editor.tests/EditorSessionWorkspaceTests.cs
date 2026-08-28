@@ -828,7 +828,7 @@ namespace helengine.editor.tests {
                     GeneratedAssetGraph.RendererResources);
                 Session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
-                SetPrivateField(Session, "dockingManager", new DockingManager());
+                SetPrivateField(Session, "dockingManager", new DockingManager(Core.Instance.RenderManager2D, Core.Instance.ObjectManager));
                 SetPrivateField(Session, "core", CoreValue);
                 SetPrivateField(Session, "projectPath", TempProjectRootPath);
                 SetPrivateField(Session, "uiFont", Font);

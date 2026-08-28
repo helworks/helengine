@@ -298,6 +298,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Reapplies the shared dialog font and metrics after a live editor UI-scale change.
+        /// </summary>
+        /// <param name="font">Updated dialog font.</param>
+        /// <param name="metrics">Updated scaled editor metrics.</param>
+        public void ApplyUiMetrics(FontAsset font, EditorUiMetrics metrics) {
+            ApplyDialogMetrics(font, metrics);
+            SetDialogMinimumSize(PanelWidth, PanelHeight);
+            LayoutContent();
+        }
+
+        /// <summary>
         /// Raises the dialog cancel flow when the shared close button is pressed.
         /// </summary>
         protected override void OnCloseRequested() {

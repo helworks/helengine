@@ -54,6 +54,10 @@ namespace helengine.editor {
         /// </summary>
         readonly List<ContextMenuItem> FileTemplateItems;
         /// <summary>
+        /// Input source owned by the editor session that hosts this panel.
+        /// </summary>
+        InputSystem Input;
+        /// <summary>
         /// Gets or sets a value indicating whether the panel has completed initialization.
         /// </summary>
         bool IsInitialized;
@@ -195,6 +199,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Binds the panel to the owning session's renderer/input graph.
+        /// </summary>
+        internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+
+            Input = rendererResources.Input ?? throw new ArgumentException("The session renderer graph must provide input.", nameof(rendererResources));
+            BrowserView.SetObjectManager(rendererResources.ObjectManager);
+            AssetContextMenu.SetInput(Input);
+            FileTemplateMenu.SetInput(Input);
+            SetInput(Input);
+        }
+
+        /// <summary>
         /// Handles layout updates when the dockable size changes.
         /// </summary>
         protected override void OnSizeChanged() {
@@ -240,7 +259,7 @@ namespace helengine.editor {
         /// Updates context menu input each frame.
         /// </summary>
         internal void UpdateContextMenuInput() {
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input ?? throw new InvalidOperationException("Asset browser renderer resources have not been assigned.");
             if (!AssetContextMenu.IsVisible && FileTemplateMenu.IsVisible) {
                 FileTemplateMenu.Hide();
             }

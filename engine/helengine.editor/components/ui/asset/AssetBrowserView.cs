@@ -346,7 +346,6 @@ namespace helengine.editor {
             ListHitHost.AddChild(ListRoot);
 
             ListScrollComponent = new ScrollComponent();
-            ListScrollComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
             ListScrollComponent.ContentRoot = ListRoot;
             ListHitHost.AddComponent(ListScrollComponent);
 
@@ -363,6 +362,17 @@ namespace helengine.editor {
         /// Gets the root entity for attaching the view to a parent.
         /// </summary>
         public EditorEntity Entity => Root;
+
+        /// <summary>
+        /// Binds list scrolling to the owning session's object manager.
+        /// </summary>
+        internal void SetObjectManager(ObjectManager objectManager) {
+            if (objectManager == null) {
+                throw new ArgumentNullException(nameof(objectManager));
+            }
+
+            ListScrollComponent.UpdateOrder = objectManager.GetUpdateOrderForLayer(1);
+        }
 
         /// <summary>
         /// Gets the absolute path of the current folder displayed by the view.

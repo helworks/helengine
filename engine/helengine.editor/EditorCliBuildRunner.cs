@@ -53,7 +53,7 @@ namespace helengine.editor {
             using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
-            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, DefaultFontAsset);
+            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, DefaultFontAsset);
             // Renderer binding is supplied to the authoring factory before recovery restores cached assets.
             // The registry is declared after its borrowed caches so reverse
             // using-declaration disposal retires the provider graph first.
@@ -67,11 +67,11 @@ namespace helengine.editor {
                     generatedModelCache,
                     generatedMaterialCache,
                     rendererResources);
-            EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options);
+            generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
+            EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options, authoringSession, shaderBackendRegistry);
             if (!prebuildResult.Succeeded) {
                 return prebuildResult;
             }
-            generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
             ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(
@@ -217,12 +217,22 @@ namespace helengine.editor {
         /// <param name="bootstrap">Bootstrap context for the active project.</param>
         /// <param name="options">Parsed native platform build request.</param>
         /// <returns>Success when all declared prebuild commands complete; otherwise the first command failure.</returns>
-        EditorBuildExecutionResult ExecuteEditorPrebuildCommands(EditorProjectBootstrapContext bootstrap, EditorCliBuildOptions options) {
+        EditorBuildExecutionResult ExecuteEditorPrebuildCommands(
+            EditorProjectBootstrapContext bootstrap,
+            EditorCliBuildOptions options,
+            IEditorProjectAuthoringSession authoringSession,
+            ShaderBackendRegistry shaderBackendRegistry) {
             if (bootstrap == null) {
                 throw new ArgumentNullException(nameof(bootstrap));
             }
             if (options == null) {
                 throw new ArgumentNullException(nameof(options));
+            }
+            if (authoringSession == null) {
+                throw new ArgumentNullException(nameof(authoringSession));
+            }
+            if (shaderBackendRegistry == null) {
+                throw new ArgumentNullException(nameof(shaderBackendRegistry));
             }
 
             EditorBuildConfigDocument buildConfig = bootstrap.BuildConfigService.TryLoadExisting();
@@ -250,8 +260,11 @@ namespace helengine.editor {
                 Console.WriteLine($"[build] executing editor prebuild command '{commandId}' for profile '{buildProfileId}'");
                 EditorBuildExecutionResult commandResult = new EditorCliCommandRunner(
                     DefaultFontAsset,
-                    new EditorProjectAssetAuthoringServiceFactory(Importers)).Run(
-                    new EditorCliCommandOptions(bootstrap.ProjectRootPath, commandId));
+                    new EditorProjectAssetAuthoringServiceFactory(Importers)).RunInSessionGraph(
+                        bootstrap,
+                        new EditorCliCommandOptions(bootstrap.ProjectRootPath, commandId),
+                        authoringSession,
+                        shaderBackendRegistry);
                 if (!commandResult.Succeeded) {
                     return EditorBuildExecutionResult.Failure($"Editor prebuild command '{commandId}' for profile '{buildProfileId}' failed: {commandResult.Message}");
                 }

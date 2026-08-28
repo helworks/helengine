@@ -43,6 +43,14 @@ namespace helengine.editor {
         public EditorEntity Root => RootValue;
         /// <summary>Gets the platform-level strip.</summary>
         public PlatformTabStripView PlatformTabs => PlatformTabsValue;
+
+        public void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            PlatformTabsValue.SetRenderManager2D(rendererResources.RenderManager2D);
+            EnvironmentTabsValue.SetRenderManager2D(rendererResources.RenderManager2D);
+        }
         /// <summary>Gets the nested environment-level strip.</summary>
         public PlatformTabStripView EnvironmentTabs => EnvironmentTabsValue;
         /// <summary>Gets the selected platform identifier.</summary>

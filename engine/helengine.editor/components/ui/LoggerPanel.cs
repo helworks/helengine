@@ -80,6 +80,14 @@ namespace helengine.editor {
         /// Keyboard-focus target that routes logger keyboard commands while the panel is focused.
         /// </summary>
         readonly EditorFocusTarget FocusTarget;
+        /// <summary>
+        /// Input source owned by the session hosting this panel.
+        /// </summary>
+        InputSystem Input;
+        /// <summary>
+        /// Clipboard service owned by the session host.
+        /// </summary>
+        ITextClipboardService TextClipboardService;
 
         /// <summary>
         /// Synchronizes access to pending entries.
@@ -181,6 +189,16 @@ namespace helengine.editor {
             Logger.MessageLogged += HandleMessageLogged;
 
             isInitialized = true;
+        }
+
+        /// <summary>
+        /// Binds logger interaction to the owning session's input and clipboard services.
+        /// </summary>
+        internal void SetInputServices(InputSystem input, ITextClipboardService textClipboardService) {
+            Input = input ?? throw new ArgumentNullException(nameof(input));
+            TextClipboardService = textClipboardService ?? throw new ArgumentNullException(nameof(textClipboardService));
+            RowContextMenu.SetInput(Input);
+            SetInput(Input);
         }
 
         /// <summary>
@@ -460,7 +478,10 @@ namespace helengine.editor {
 
             PressedRowIndex = -1;
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             bool isShiftPressed = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
             bool isControlPressed = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
             HandleRowPressed(row.RowIndex, isControlPressed, isShiftPressed);
@@ -561,7 +582,7 @@ namespace helengine.editor {
         /// Copies the currently selected rows to the host clipboard.
         /// </summary>
         void CopySelection() {
-            Core.Instance.TextClipboardService.WriteText(BuildSelectedRowsText());
+            (TextClipboardService ?? throw new InvalidOperationException("Logger input services have not been assigned.")).WriteText(BuildSelectedRowsText());
         }
 
         /// <summary>
@@ -639,7 +660,10 @@ namespace helengine.editor {
                 return;
             }
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             bool isShiftPressed = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
             bool isControlPressed = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
 
@@ -658,7 +682,10 @@ namespace helengine.editor {
         /// Updates logger context-menu visibility from right-click input.
         /// </summary>
         internal void UpdateContextMenuInput() {
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = Input;
+            if (input == null) {
+                return;
+            }
             if (!input.WasMouseRightButtonPressed()) {
                 return;
             }

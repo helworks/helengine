@@ -52,7 +52,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ClickingContextMenuRow_InvokesMenuItemAction() {
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             menu.Show(
                 new[] {
                     new ContextMenuItem("Open", HandleMenuItemActivated)
@@ -77,7 +77,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenHostHasPartialRemainingRow_RoundsVisibleRowsUp() {
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             menu.Show(
                 new[] {
                     new ContextMenuItem("One", HandleMenuItemActivated),
@@ -105,7 +105,7 @@ namespace helengine.editor.tests {
                 Position = new float3(32f, 40f, 0f)
             };
 
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             host.AddChild(menu.Entity);
             menu.Show(
                 new[] {
@@ -139,7 +139,7 @@ namespace helengine.editor.tests {
             renderManager.OnWindowResize(IntPtr.Zero, 320, 240);
             CreateNormalizedUiCamera(0b0000000000000010);
 
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             menu.Show(
                 new[] {
                     new ContextMenuItem("Open", HandleMenuItemActivated)
@@ -163,7 +163,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenMultipleRowsAreVisible_LaysOutMenuStripsWithoutGaps() {
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             menu.Show(
                 new[] {
                     new ContextMenuItem("Open", HandleMenuItemActivated),
@@ -185,7 +185,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Show_WhenItemOpensSubmenu_RendersDefaultIndicatorOnTheRight() {
             ContextMenuItem item = new ContextMenuItem("Light", HandleMenuItemActivated, HandleMenuItemActivated, false);
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             menu.Show(
                 new[] {
                     item
@@ -210,7 +210,7 @@ namespace helengine.editor.tests {
         public void Show_WhenGlobalSubmenuIndicatorChanges_UsesCustomizedRightIndicator() {
             ContextMenu.SubmenuIndicator = ">>";
             ContextMenuItem item = new ContextMenuItem("Light", HandleMenuItemActivated, HandleMenuItemActivated, false);
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             menu.Show(
                 new[] {
                     item
@@ -229,7 +229,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenMenuExceedsHostHeight_ClampsHeightAndScrollsVisibleRows() {
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             ContextMenuItem[] items = Enumerable.Range(0, 6)
                 .Select(index => new ContextMenuItem("Open", HandleMenuItemActivated))
                 .ToArray();
@@ -256,7 +256,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenMenuRowsAreVisible_PlacesTheBlockerBehindTheRows() {
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             menu.Show(
                 new[] {
                     new ContextMenuItem("Open", HandleMenuItemActivated)
@@ -276,8 +276,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenPointerClicksInsideAnotherVisibleMenu_KeepsTheParentMenuOpenAndAllowsActivation() {
-            ContextMenu parentMenu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
-            ContextMenu childMenu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu parentMenu = CreateMenu();
+            ContextMenu childMenu = CreateMenu();
 
             parentMenu.Show(
                 new[] {
@@ -311,7 +311,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenMenuRelayoutsBetweenHoverPressAndRelease_PreservesRowActivation() {
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = CreateMenu();
             int2 hostSize = new int2(320, 240);
             menu.Show(
                 new[] {
@@ -395,6 +395,17 @@ namespace helengine.editor.tests {
         /// </summary>
         void HandleMenuItemActivated() {
             ActivationCount++;
+        }
+
+        /// <summary>
+        /// Creates a context menu bound to the explicit input service owned by this test core.
+        /// </summary>
+        /// <returns>Input-bound context menu.</returns>
+        ContextMenu CreateMenu() {
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            menu.SetInput(Core.Instance.Input);
+            menu.Entity.InitializeHierarchy();
+            return menu;
         }
 
         /// <summary>

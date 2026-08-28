@@ -21,7 +21,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void SceneHierarchyPanel_WhenRowIsActivated_SelectsTheRepresentedEntity() {
             InitializeCore();
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel panel = CreatePanel();
             EditorEntity cube = new EditorEntity {
                 Name = "Cube"
             };
@@ -41,7 +41,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void SceneHierarchyPanel_WhenRowsAreRelaidOut_ReusesExistingFocusTargetsAndUpdatesTabIndex() {
             InitializeCore();
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel panel = CreatePanel();
             EditorEntity first = new EditorEntity {
                 Name = "First"
             };
@@ -72,7 +72,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void SceneHierarchyPanel_WhenSelectionChanges_MarksTheMatchingRowAsSelected() {
             InitializeCore();
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel panel = CreatePanel();
             EditorEntity first = new EditorEntity {
                 Name = "First"
             };
@@ -100,9 +100,8 @@ namespace helengine.editor.tests {
         public void SceneHierarchyPanel_WhenViewportHasPartialRemainingRow_RoundsVisibleRowsUp() {
             InitializeCore();
             int panelHeight = (SceneHierarchyPanel.RowHeight * 7) + (SceneHierarchyPanel.RowHeight / 2);
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
-                Size = new int2(280, panelHeight)
-            };
+            SceneHierarchyPanel panel = CreatePanel();
+            panel.Size = new int2(280, panelHeight);
             new EditorEntity {
                 Name = "First"
             };
@@ -269,10 +268,11 @@ namespace helengine.editor.tests {
                 Enabled = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
-            EditorKeyboardFocusUpdateComponent keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent {
+            EditorKeyboardFocusUpdateComponent keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input) {
                 UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1)
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
+            keyboardFocusEntity.InitializeHierarchy();
 
             return input;
         }
@@ -338,8 +338,20 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Registered hierarchy panel.</returns>
         SceneHierarchyPanel CreateRegisteredPanel() {
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel panel = CreatePanel();
             EditorKeyboardFocusService.RegisterGroup(panel);
+            return panel;
+        }
+
+        /// <summary>
+        /// Creates a hierarchy panel and binds the explicit core-owned services used by its refresh and input paths.
+        /// </summary>
+        /// <returns>Panel bound to the current test core graph.</returns>
+        SceneHierarchyPanel CreatePanel() {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            panel.SetObjectManager(Core.Instance.ObjectManager);
+            panel.SetInput(Core.Instance.Input);
+            panel.InitializeHierarchy();
             return panel;
         }
 

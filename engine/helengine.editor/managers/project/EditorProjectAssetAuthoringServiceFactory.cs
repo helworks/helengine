@@ -27,6 +27,7 @@ namespace helengine.editor {
             EngineGeneratedModelCache generatedModelCache,
             EngineGeneratedMaterialCache generatedMaterialCache,
             EditorSessionRendererResources rendererResources) {
+            ValidateGeneratedAssetGraph(generatedAssetProviders, generatedModelCache, generatedMaterialCache, rendererResources);
             AssetImportManager assetImportManager = CreateAssetImportManager(projectRootPath);
             try {
                 if (rendererResources == null) {
@@ -79,8 +80,31 @@ namespace helengine.editor {
             ValidateImporters();
             string assetsRootPath = Path.Combine(fullProjectRootPath, "assets");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(assetsRootPath));
-            AssetImportManager assetImportManager = new AssetImportManager(fullProjectRootPath, contentManager);
-            return assetImportManager;
+            try {
+                return new AssetImportManager(fullProjectRootPath, contentManager);
+            } catch {
+                contentManager.Dispose();
+                throw;
+            }
+        }
+
+        static void ValidateGeneratedAssetGraph(
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
+            }
+            if (generatedModelCache == null) {
+                throw new ArgumentNullException(nameof(generatedModelCache));
+            }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
         }
 
         /// <summary>
