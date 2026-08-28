@@ -4,6 +4,7 @@ using System.Runtime.Versioning;
 using SharpDX;
 using SharpDX.Direct3D11;
 using helengine.directx11;
+using helengine.editor;
 
 namespace helengine.editor.windows.tests.rendering {
     /// <summary>
@@ -40,7 +41,9 @@ namespace helengine.editor.windows.tests.rendering {
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
             using Form window = new Form();
             using Font font = new Font(FontFamily.GenericSansSerif, 32f, FontStyle.Regular, GraphicsUnit.Pixel);
-            Core core = new Core();
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
 
             window.ClientSize = new Size(256, 256);
             window.ShowInTaskbar = false;
@@ -51,6 +54,9 @@ namespace helengine.editor.windows.tests.rendering {
 
             renderer.AddWindow(window.Handle, window.ClientSize.Width, window.ClientSize.Height);
             core.Initialize(renderer, renderer.Render2D, null, new PlatformInfo("windows", "test"));
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
             try {
                 FontAsset importedFontAsset = GDIFontProcessor.ImportFont(font);
@@ -76,7 +82,7 @@ namespace helengine.editor.windows.tests.rendering {
                 };
                 sourceEntity.AddComponent(sourceComponent);
 
-                using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderer);
+                using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderer, core.ObjectManager, shaderLibrary);
                 service.CaptureTextPreview(sourceEntity, sourceComponent, new int2(128, 64));
 
                 renderer.Draw();

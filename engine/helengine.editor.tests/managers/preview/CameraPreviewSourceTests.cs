@@ -12,6 +12,7 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the camera preview tests.
         /// </summary>
         readonly string TempRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required by the camera preview tests.
@@ -27,12 +28,14 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Deletes temporary test content after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -45,9 +48,9 @@ namespace helengine.editor.tests {
         public void Update_WhenSuppressionStateExists_MirrorsAuthoredCameraState() {
             EditorEntity cameraEntity = CreateCameraEntity();
             CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
-            EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity);
+            EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity, GeneratedAssetGraph.ObjectManager);
 
-            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D);
+            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D, GeneratedAssetGraph.RendererResources);
             source.Update();
 
             Assert.Equal(new float3(3f, 4f, -9f), source.PreviewCamera.Parent.Position);
@@ -63,7 +66,7 @@ namespace helengine.editor.tests {
         public void Resize_WhenPanelSizeChanges_RebuildsTheRenderTarget() {
             EditorEntity cameraEntity = CreateCameraEntity();
             CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
-            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D);
+            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D, GeneratedAssetGraph.RendererResources);
             RenderTarget initialRenderTarget = source.RenderTarget;
 
             source.Resize(new int2(320, 180));
@@ -83,9 +86,9 @@ namespace helengine.editor.tests {
         public void Resize_WhenSuppressedSceneCameraUsesAuthoredViewport_PreservesAuthoredViewportDimensions() {
             EditorEntity cameraEntity = CreateCameraEntity(new float4(0f, 0f, 1280f, 720f));
             CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
-            EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity);
+            EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity, GeneratedAssetGraph.ObjectManager);
 
-            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D);
+            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D, GeneratedAssetGraph.RendererResources);
             source.Resize(new int2(320, 180));
 
             TestRenderTarget resizedRenderTarget = Assert.IsType<TestRenderTarget>(source.RenderTarget);

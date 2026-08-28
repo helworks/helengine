@@ -14,6 +14,7 @@ namespace helengine {
         readonly ViewportComponent SourceViewportComponentValue;
         /// <summary>Session-owned built-in shader library used by the border material.</summary>
         readonly helengine.editor.EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        readonly helengine.editor.EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Runtime material owned by this border gizmo.
@@ -25,10 +26,11 @@ namespace helengine {
         /// </summary>
         /// <param name="sourceEntity">Authored entity that owns the viewport component.</param>
         /// <param name="sourceViewportComponent">Viewport component mirrored by the gizmo.</param>
-        public EditorViewportBorderGizmoComponent(Entity sourceEntity, ViewportComponent sourceViewportComponent, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+        public EditorViewportBorderGizmoComponent(Entity sourceEntity, ViewportComponent sourceViewportComponent, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary, helengine.editor.EditorSessionRendererResources rendererResources) {
             SourceEntityValue = sourceEntity ?? throw new ArgumentNullException(nameof(sourceEntity));
             SourceViewportComponentValue = sourceViewportComponent ?? throw new ArgumentNullException(nameof(sourceViewportComponent));
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
         }
 
         /// <summary>
@@ -49,8 +51,8 @@ namespace helengine {
             EditorEntity gizmoEntity = ResolveEditorEntity(entity);
             gizmoEntity.InternalEntity = true;
             gizmoEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
-            Model = helengine.editor.EditorViewportBorderGizmoMeshResources.GetRuntimeModel();
-            BorderMaterialValue = helengine.editor.EditorViewportBorderGizmoMaterialFactory.Create(Core.Instance.RenderManager3D, BuiltInShaderLibrary);
+            Model = RendererResources.ViewportBorderGizmoMeshes.GetRuntimeModel();
+            BorderMaterialValue = helengine.editor.EditorViewportBorderGizmoMaterialFactory.Create(RendererResources.RenderManager3D, BuiltInShaderLibrary);
             Materials = new[] { BorderMaterialValue };
             base.ComponentAdded(entity);
             SynchronizeFromSource();
@@ -63,9 +65,8 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
 
-            Core core = Core.Instance;
-            if (core != null && core.RenderManager3D != null && BorderMaterialValue != null) {
-                core.RenderManager3D.ReleaseMaterial(BorderMaterialValue);
+            if (BorderMaterialValue != null) {
+                RendererResources.RenderManager3D.ReleaseMaterial(BorderMaterialValue);
             }
 
             BorderMaterialValue = null;

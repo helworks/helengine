@@ -47,8 +47,8 @@ namespace helengine.editor {
             }
 
             IInteractable2D interactable = PointerInteractableHitResolver.ResolveTopInteractableAt(
-                Core.Instance.ObjectManager.Interactables,
-                Core.Instance.ObjectManager.Drawables2D,
+                previewComponent.ObjectManagerForSelection.Interactables,
+                previewComponent.ObjectManagerForSelection.Drawables2D,
                 previewCamera,
                 canvasPoint.X,
                 canvasPoint.Y);

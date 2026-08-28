@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Builds and caches the shared corner-origin XY-plane mesh used by editor viewport border gizmos.
     /// </summary>
-    public static class EditorViewportBorderGizmoMeshResources {
+    public sealed class EditorViewportBorderGizmoMeshResources : IDisposable {
         /// <summary>
         /// Stable raw asset id used by the shared authored-viewport gizmo plane.
         /// </summary>
@@ -11,33 +11,39 @@ namespace helengine.editor {
         /// <summary>
         /// Cached runtime model for the shared authored-viewport gizmo plane.
         /// </summary>
-        static RuntimeModel RuntimeModelValue;
+        readonly RenderManager3D RenderManager3D;
+        RuntimeModel RuntimeModelValue;
+        bool IsDisposed;
 
         /// <summary>
-        /// Clears cached gizmo mesh resources so tests can start from a known state.
+        /// Initializes one viewport border mesh resource owner for one renderer.
         /// </summary>
-        public static void ResetForTests() {
-            RuntimeModelValue = null;
+        public EditorViewportBorderGizmoMeshResources(RenderManager3D renderManager3D) {
+            RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
         }
 
         /// <summary>
         /// Gets the shared corner-origin XY-plane runtime model used by authored viewport border gizmos.
         /// </summary>
         /// <returns>Shared runtime model for authored viewport border gizmos.</returns>
-        public static RuntimeModel GetRuntimeModel() {
-            if (RuntimeModelValue != null) {
-                return RuntimeModelValue;
+        public RuntimeModel GetRuntimeModel() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorViewportBorderGizmoMeshResources));
             }
-
-            Core core = Core.Instance;
-            if (core == null) {
-                throw new InvalidOperationException("Core must be initialized before editor viewport border meshes can be built.");
-            } else if (core.RenderManager3D == null) {
-                throw new InvalidOperationException("A 3D render manager is required before editor viewport border meshes can be built.");
+            if (RuntimeModelValue == null) {
+                RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
             }
-
-            RuntimeModelValue = core.RenderManager3D.BuildModelFromRaw(CreateModelAsset());
             return RuntimeModelValue;
+        }
+
+        /// <summary>Releases the renderer-owned viewport border model.</summary>
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+            RuntimeModelValue?.Dispose();
+            RuntimeModelValue = null;
+            IsDisposed = true;
         }
 
         /// <summary>

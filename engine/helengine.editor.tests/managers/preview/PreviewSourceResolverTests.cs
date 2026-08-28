@@ -161,7 +161,8 @@ namespace helengine.editor.tests {
                 new EditorSceneCanvasProfileState(),
                 GeneratedAssetGraph.Registry,
                 GeneratedAssetGraph.MaterialCache,
-                GeneratedAssetGraph.ShaderLibrary);
+                GeneratedAssetGraph.ShaderLibrary,
+                GeneratedAssetGraph.RendererResources);
         }
 
         /// <summary>

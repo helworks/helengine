@@ -87,6 +87,7 @@ public sealed class EditorCommandExecutionServiceTests {
         /// Session created when this test context owns its asset-authoring surface.
         /// </summary>
         readonly EditorProjectAuthoringSession OwnedAuthoringSession;
+        readonly TestGeneratedAssetGraph OwnedGeneratedAssetGraph;
         /// <summary>
         /// Initializes one fake editor command context.
         /// </summary>
@@ -99,8 +100,14 @@ public sealed class EditorCommandExecutionServiceTests {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             ScriptTypeResolver = scriptTypeResolver ?? throw new ArgumentNullException(nameof(scriptTypeResolver));
             OwnedAuthoringSession = null;
+            OwnedGeneratedAssetGraph = null;
             if (assetAuthoring == null) {
-                OwnedAuthoringSession = CreateAssetAuthoringCapability(ProjectRootPath);
+                Core core = new Core(new CoreInitializationOptions {
+                    ContentStreamSource = new HostFileSystemContentStreamSource(Path.Combine(ProjectRootPath, "assets"))
+                });
+                core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+                OwnedGeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+                OwnedAuthoringSession = CreateAssetAuthoringCapability(ProjectRootPath, OwnedGeneratedAssetGraph);
                 AssetAuthoring = OwnedAuthoringSession;
             } else {
                 AssetAuthoring = assetAuthoring;
@@ -113,9 +120,14 @@ public sealed class EditorCommandExecutionServiceTests {
         /// </summary>
         /// <param name="projectRootPath">Project root used by the context.</param>
         /// <returns>Directly composed authoring capability.</returns>
-        static EditorProjectAuthoringSession CreateAssetAuthoringCapability(string projectRootPath) {
+        static EditorProjectAuthoringSession CreateAssetAuthoringCapability(string projectRootPath, TestGeneratedAssetGraph graph) {
             return Assert.IsType<EditorProjectAuthoringSession>(
-                new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(projectRootPath));
+                new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(
+                    projectRootPath,
+                    graph.Registry,
+                    graph.ModelCache,
+                    graph.MaterialCache,
+                    graph.RendererResources));
         }
 
         /// <summary>
@@ -143,6 +155,7 @@ public sealed class EditorCommandExecutionServiceTests {
         /// </summary>
         public void Dispose() {
             OwnedAuthoringSession?.Dispose();
+            OwnedGeneratedAssetGraph?.Dispose();
         }
     }
 

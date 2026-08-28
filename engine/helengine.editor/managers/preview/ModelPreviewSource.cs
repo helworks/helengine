@@ -60,13 +60,15 @@ namespace helengine.editor {
         /// Owning renderer used to allocate the preview render target.
         /// </summary>
         readonly RenderManager3D renderManager3D;
+        readonly RenderManager2D renderManager2D;
+        readonly ObjectManager objectManager;
         readonly GeneratedAssetProviderRegistry GeneratedAssetProviders;
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
         /// <summary>
         /// Shared neutral diffuse texture used by preview materials that do not have an authored diffuse map.
         /// </summary>
-        static RuntimeTexture neutralPreviewTexture;
+        RuntimeTexture neutralPreviewTexture;
         /// <summary>
         /// Root entity that owns the preview model, light, and camera hierarchy.
         /// </summary>
@@ -169,8 +171,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="runtimeModel">Runtime model to preview.</param>
         /// <param name="renderManager3D">Renderer used to allocate the offscreen render target.</param>
-        public ModelPreviewSource(RuntimeModel runtimeModel, RenderManager3D renderManager3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache)
-            : this(runtimeModel, Array.Empty<RuntimeMaterial>(), renderManager3D, null, generatedMaterialCache, builtInShaderLibrary) {
+        public ModelPreviewSource(RuntimeModel runtimeModel, RenderManager3D renderManager3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache, EditorSessionRendererResources rendererResources)
+            : this(runtimeModel, Array.Empty<RuntimeMaterial>(), renderManager3D, null, generatedMaterialCache, builtInShaderLibrary, rendererResources) {
         }
 
         /// <summary>
@@ -179,8 +181,8 @@ namespace helengine.editor {
         /// <param name="runtimeModel">Runtime model to preview.</param>
         /// <param name="previewMaterials">Runtime materials ordered by submesh slot.</param>
         /// <param name="renderManager3D">Renderer used to allocate the offscreen render target.</param>
-        public ModelPreviewSource(RuntimeModel runtimeModel, RuntimeMaterial[] previewMaterials, RenderManager3D renderManager3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache)
-            : this(runtimeModel, previewMaterials, renderManager3D, null, generatedMaterialCache, builtInShaderLibrary) {
+        public ModelPreviewSource(RuntimeModel runtimeModel, RuntimeMaterial[] previewMaterials, RenderManager3D renderManager3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache, EditorSessionRendererResources rendererResources)
+            : this(runtimeModel, previewMaterials, renderManager3D, null, generatedMaterialCache, builtInShaderLibrary, rendererResources) {
         }
 
         internal ModelPreviewSource(
@@ -189,7 +191,9 @@ namespace helengine.editor {
             RenderManager3D renderManager3D,
             GeneratedAssetProviderRegistry generatedAssetProviders,
             EngineGeneratedMaterialCache generatedMaterialCache,
-            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
+            EditorSessionRendererResources rendererResources,
+            RuntimeTexture neutralPreviewTexture = null) {
             if (runtimeModel == null) {
                 throw new ArgumentNullException(nameof(runtimeModel));
             }
@@ -202,12 +206,21 @@ namespace helengine.editor {
             if (builtInShaderLibrary == null) {
                 throw new ArgumentNullException(nameof(builtInShaderLibrary));
             }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (!ReferenceEquals(renderManager3D, rendererResources.RenderManager3D)) {
+                throw new InvalidOperationException("Model preview resources must belong to the supplied 3D renderer.");
+            }
 
             this.runtimeModel = runtimeModel;
             this.renderManager3D = renderManager3D;
+            renderManager2D = rendererResources.RenderManager2D ?? throw new InvalidOperationException("Model preview resources must provide a 2D renderer.");
+            objectManager = rendererResources.ObjectManager ?? throw new InvalidOperationException("Model preview resources must provide an object manager.");
             GeneratedAssetProviders = generatedAssetProviders;
             GeneratedMaterialCache = generatedMaterialCache;
             BuiltInShaderLibrary = builtInShaderLibrary;
+            this.neutralPreviewTexture = neutralPreviewTexture;
             boundsMin = runtimeModel.BoundsMin;
             boundsMax = runtimeModel.BoundsMax;
 
@@ -358,6 +371,7 @@ namespace helengine.editor {
             GeneratedAssetProviderRegistry generatedAssetProviders,
             EngineGeneratedMaterialCache generatedMaterialCache,
             EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
+            EditorSessionRendererResources rendererResources,
             out ModelPreviewSource source) {
             if (entry == null) {
                 throw new ArgumentNullException(nameof(entry));
@@ -373,6 +387,12 @@ namespace helengine.editor {
             }
             if (generatedMaterialCache == null) {
                 throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (!ReferenceEquals(renderManager3D, rendererResources.RenderManager3D)) {
+                throw new InvalidOperationException("Model preview resources must belong to the supplied 3D renderer.");
             }
 
             source = null;
@@ -398,18 +418,25 @@ namespace helengine.editor {
                 }
 
                 runtimeModel = renderManager3D.BuildModelFromRaw(importedModel.ModelAsset);
+                RuntimeTexture neutralTexture = rendererResources.RenderManager2D.BuildTextureFromRaw(new TextureAsset {
+                    Width = 1,
+                    Height = 1,
+                    Colors = new byte[] { 192, 198, 208, 255 }
+                });
                 RuntimeMaterial[] previewMaterials = BuildPreviewMaterials(
                     runtimeModel.Submeshes,
                     importedModel.GeneratedMaterials,
                     assetImportManager,
                     renderManager3D,
                     entry.FullPath,
-                    generatedMaterialCache);
-                source = new ModelPreviewSource(runtimeModel, previewMaterials, renderManager3D, generatedAssetProviders, generatedMaterialCache, builtInShaderLibrary);
+                    generatedMaterialCache,
+                    rendererResources.RenderManager2D,
+                    neutralTexture);
+                source = new ModelPreviewSource(runtimeModel, previewMaterials, renderManager3D, generatedAssetProviders, generatedMaterialCache, builtInShaderLibrary, rendererResources, neutralTexture);
                 return true;
             }
 
-            source = new ModelPreviewSource(runtimeModel, Array.Empty<RuntimeMaterial>(), renderManager3D, generatedAssetProviders, generatedMaterialCache, builtInShaderLibrary);
+            source = new ModelPreviewSource(runtimeModel, Array.Empty<RuntimeMaterial>(), renderManager3D, generatedAssetProviders, generatedMaterialCache, builtInShaderLibrary, rendererResources);
             return true;
         }
 
@@ -504,8 +531,10 @@ namespace helengine.editor {
 
             isDisposed = true;
             DisposeRenderTarget();
-            Core.Instance.ObjectManager.RemoveCamera(previewCameraComponent);
-            Core.Instance.ObjectManager.RemoveEntity(previewEntity);
+            objectManager.RemoveCamera(previewCameraComponent);
+            objectManager.RemoveEntity(previewEntity);
+            neutralPreviewTexture?.Dispose();
+            neutralPreviewTexture = null;
             previewEntity.Dispose();
         }
 
@@ -697,7 +726,9 @@ namespace helengine.editor {
             AssetImportManager assetImportManager,
             RenderManager3D renderManager3D,
             string modelSourcePath,
-            EngineGeneratedMaterialCache generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            RenderManager2D renderManager2D,
+            RuntimeTexture neutralPreviewTexture) {
             if (submeshes == null) {
                 throw new ArgumentNullException(nameof(submeshes));
             }
@@ -728,7 +759,9 @@ namespace helengine.editor {
                     renderManager3D,
                     fallbackMaterial,
                     modelSourcePath,
-                    generatedMaterialCache);
+                    generatedMaterialCache,
+                    renderManager2D,
+                    neutralPreviewTexture);
             }
 
             return previewMaterials;
@@ -750,7 +783,9 @@ namespace helengine.editor {
             RenderManager3D renderManager3D,
             RuntimeMaterial fallbackMaterial,
             string modelSourcePath,
-            EngineGeneratedMaterialCache generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            RenderManager2D renderManager2D,
+            RuntimeTexture neutralPreviewTexture) {
             if (submesh == null) {
                 throw new ArgumentNullException(nameof(submesh));
             }
@@ -781,7 +816,7 @@ namespace helengine.editor {
                         continue;
                     }
 
-                    return CreateImportedPreviewMaterial(generatedMaterial, assetImportManager, renderManager3D, modelSourcePath, generatedMaterialCache);
+                    return CreateImportedPreviewMaterial(generatedMaterial, assetImportManager, renderManager3D, modelSourcePath, generatedMaterialCache, renderManager2D, neutralPreviewTexture);
                 }
             }
 
@@ -800,7 +835,9 @@ namespace helengine.editor {
             AssetImportManager assetImportManager,
             RenderManager3D renderManager3D,
             string modelSourcePath,
-            EngineGeneratedMaterialCache generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            RenderManager2D renderManager2D,
+            RuntimeTexture neutralPreviewTexture) {
             if (generatedMaterial == null) {
                 throw new ArgumentNullException(nameof(generatedMaterial));
             }
@@ -809,6 +846,9 @@ namespace helengine.editor {
             }
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
+            }
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
             }
             if (string.IsNullOrWhiteSpace(modelSourcePath)) {
                 throw new ArgumentException("Model source path must be provided.", nameof(modelSourcePath));
@@ -822,10 +862,13 @@ namespace helengine.editor {
 
             if (!string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId)) {
                 TextureAsset textureAsset = LoadImportedTextureAsset(assetImportManager, modelSourcePath, materialAsset.DiffuseTextureAssetId);
-                RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+                RuntimeTexture runtimeTexture = renderManager2D.BuildTextureFromRaw(textureAsset);
                 ShaderRuntimeMaterialAccess.Require(previewMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, runtimeTexture);
             } else {
-                ShaderRuntimeMaterialAccess.Require(previewMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ResolveNeutralPreviewTexture());
+                if (neutralPreviewTexture == null) {
+                    throw new ArgumentNullException(nameof(neutralPreviewTexture));
+                }
+                ShaderRuntimeMaterialAccess.Require(previewMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, neutralPreviewTexture);
             }
 
             StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(previewMaterial));
@@ -847,16 +890,12 @@ namespace helengine.editor {
         /// Resolves the shared neutral preview swatch used for untextured imported model previews.
         /// </summary>
         /// <returns>Shared runtime texture used as the untextured preview diffuse map.</returns>
-        static RuntimeTexture ResolveNeutralPreviewTexture() {
+        RuntimeTexture ResolveNeutralPreviewTexture() {
             if (neutralPreviewTexture != null) {
                 return neutralPreviewTexture;
             }
 
-            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
-                throw new InvalidOperationException("A render manager must be initialized before preview materials can create neutral diffuse textures.");
-            }
-
-            neutralPreviewTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(new TextureAsset {
+            neutralPreviewTexture = renderManager2D.BuildTextureFromRaw(new TextureAsset {
                 Width = 1,
                 Height = 1,
                 Colors = new byte[] { 192, 198, 208, 255 }

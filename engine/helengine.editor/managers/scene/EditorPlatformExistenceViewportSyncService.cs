@@ -9,12 +9,14 @@ namespace helengine.editor {
         /// Service that resolves per-platform entity existence overrides.
         /// </summary>
         readonly EntityPlatformExistenceEditingService ExistenceService;
+        readonly ObjectManager ObjectManager;
 
         /// <summary>
         /// Initializes one platform-existence viewport sync service.
         /// </summary>
-        public EditorPlatformExistenceViewportSyncService() {
+        public EditorPlatformExistenceViewportSyncService(ObjectManager objectManager) {
             ExistenceService = new EntityPlatformExistenceEditingService();
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
         }
 
         /// <summary>
@@ -26,7 +28,7 @@ namespace helengine.editor {
                 return;
             }
 
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = ObjectManager.Entities;
             for (int index = 0; index < entities.Count; index++) {
                 if (entities[index] is not EditorEntity editorEntity
                     || editorEntity.IsDisposed

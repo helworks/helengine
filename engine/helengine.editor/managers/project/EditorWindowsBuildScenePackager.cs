@@ -661,18 +661,6 @@ namespace helengine.editor {
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
             BlueprintExpansionService = new BlueprintPackagedSceneExpansionService(ProjectRootPath, PersistenceRegistry);
             ITextComponentSpriteBakeService effectiveTextComponentSpriteBakeService = textComponentSpriteBakeService;
-            if (effectiveTextComponentSpriteBakeService == null &&
-                DefaultFontAsset != null &&
-                Core.Instance?.RenderManager3D != null) {
-                effectiveTextComponentSpriteBakeService = new TextComponentSpriteBakeService(
-                    Core.Instance.RenderManager3D,
-                    new DirectX11RenderTargetTextureAssetReader(),
-                    AssetsRootPath,
-                    ProjectContentManager,
-                    AssetImportManager,
-                    DefaultFontAsset,
-                    BuiltInShaderAssetLibrary);
-            }
             TransformService = new SceneComponentPackagingTransformService(
                 AssetsRootPath,
                 ProjectContentManager,

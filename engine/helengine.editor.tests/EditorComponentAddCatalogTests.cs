@@ -18,7 +18,6 @@ namespace helengine.editor.tests {
         public EditorComponentAddCatalogTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-component-add-catalog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            EditorCameraVisualResources.ResetForTests();
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
@@ -32,7 +31,6 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            EditorCameraVisualResources.ResetForTests();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -58,7 +56,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void GetAvailableComponents_WhenEntityHasEditorCameraVisualComponent_StillIncludesMeshDescriptor() {
             EditorEntity entity = new EditorEntity();
-            EditorCameraVisualAttachmentService.Attach(entity, GeneratedAssetGraph.MaterialCache);
+            EditorCameraVisualAttachmentService.Attach(entity, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources.CameraVisuals);
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
 

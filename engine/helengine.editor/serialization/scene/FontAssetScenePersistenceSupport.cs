@@ -25,7 +25,7 @@ namespace helengine.editor {
             if (saveState != null && saveState.TryGetAssetReference(FontReferenceName, out SceneAssetReference storedReference)) {
                 return storedReference;
             }
-            if (TryResolveEditorCoreFont(font, out SceneAssetReference editorFontReference)) {
+            if (TryResolveEditorCoreFont(font, null, out SceneAssetReference editorFontReference)) {
                 if (saveState != null) {
                     saveState.SetAssetReference(FontReferenceName, editorFontReference);
                 }
@@ -42,18 +42,15 @@ namespace helengine.editor {
         /// <param name="font">Runtime font currently assigned to a component.</param>
         /// <param name="reference">Resolved generated editor-font reference when the font belongs to the active editor core.</param>
         /// <returns>True when the font belongs to the active editor core.</returns>
-        internal static bool TryResolveEditorCoreFont(FontAsset font, out SceneAssetReference reference) {
+        internal static bool TryResolveEditorCoreFont(FontAsset font, FontAsset editorFont, out SceneAssetReference reference) {
             reference = null;
             if (font == null) {
                 return false;
             }
-            if (Core.Instance is not EditorCore editorCore) {
+            if (editorFont == null) {
                 return false;
             }
-            if (editorCore.DefaultFontAssetForEditor == null) {
-                return false;
-            }
-            if (!ReferenceEquals(font, editorCore.DefaultFontAssetForEditor)) {
+            if (!ReferenceEquals(font, editorFont)) {
                 return false;
             }
 

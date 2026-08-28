@@ -229,15 +229,17 @@ namespace helengine.editor {
         /// Rebuilds the scene camera 2D queue so only viewport-owned scene content remains on the screen-space path.
         /// </summary>
         /// <param name="sceneCamera">Scene camera whose 2D queue should retain only viewport-owned content.</param>
-        public static void SynchronizeViewportOwnedSceneQueue(CameraComponent sceneCamera) {
+        public static void SynchronizeViewportOwnedSceneQueue(CameraComponent sceneCamera, ObjectManager objectManager) {
             if (sceneCamera == null) {
                 throw new ArgumentNullException(nameof(sceneCamera));
             }
-
+            if (objectManager == null) {
+                throw new ArgumentNullException(nameof(objectManager));
+            }
             IRenderQueue2D renderQueue2D = sceneCamera.RenderQueue2D;
             renderQueue2D.Clear();
 
-            List<IDrawable2D> drawables2D = Core.Instance.ObjectManager.Drawables2D;
+            List<IDrawable2D> drawables2D = objectManager.Drawables2D;
             for (int drawableIndex = 0; drawableIndex < drawables2D.Count; drawableIndex++) {
                 IDrawable2D drawable = drawables2D[drawableIndex];
                 if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
@@ -296,18 +298,20 @@ namespace helengine.editor {
         /// <param name="viewport">Viewport rectangle in window coordinates.</param>
         /// <param name="pointer">Pointer position in window coordinates.</param>
         /// <returns>Selectable 2D scene entity when one is hit; otherwise null.</returns>
-        public static Entity ResolveSelectableEntityAtPointer(CameraComponent sceneCamera, float4 viewport, int2 pointer) {
+        public static Entity ResolveSelectableEntityAtPointer(CameraComponent sceneCamera, float4 viewport, int2 pointer, ObjectManager objectManager) {
             if (sceneCamera == null) {
                 throw new ArgumentNullException(nameof(sceneCamera));
             }
-
+            if (objectManager == null) {
+                throw new ArgumentNullException(nameof(objectManager));
+            }
             if (!IsPointerInsideViewport(pointer, viewport)) {
                 return null;
             }
 
             IInteractable2D interactable = PointerInteractableHitResolver.ResolveTopInteractableAt(
-                Core.Instance.ObjectManager.Interactables,
-                Core.Instance.ObjectManager.Drawables2D,
+                objectManager.Interactables,
+                objectManager.Drawables2D,
                 sceneCamera,
                 pointer.X,
                 pointer.Y);
@@ -325,11 +329,13 @@ namespace helengine.editor {
         /// <param name="viewport">Viewport rectangle in window coordinates.</param>
         /// <param name="pointer">Pointer position in window coordinates.</param>
         /// <returns>Selectable world-preview 2D scene entity when one is hit; otherwise null.</returns>
-        public static Entity ResolveSelectableWorldPreviewEntityAtPointer(CameraComponent sceneCamera, float4 viewport, int2 pointer) {
+        public static Entity ResolveSelectableWorldPreviewEntityAtPointer(CameraComponent sceneCamera, float4 viewport, int2 pointer, ObjectManager objectManager) {
             if (sceneCamera == null) {
                 throw new ArgumentNullException(nameof(sceneCamera));
             }
-
+            if (objectManager == null) {
+                throw new ArgumentNullException(nameof(objectManager));
+            }
             if (!IsPointerInsideViewport(pointer, viewport)) {
                 return null;
             }
@@ -342,7 +348,7 @@ namespace helengine.editor {
             byte resolvedRenderOrder = 0;
             double resolvedDistance = double.MaxValue;
 
-            List<IDrawable3D> drawables3D = Core.Instance.ObjectManager.Drawables3D;
+            List<IDrawable3D> drawables3D = objectManager.Drawables3D;
             for (int drawableIndex = 0; drawableIndex < drawables3D.Count; drawableIndex++) {
                 IDrawable3D drawable = drawables3D[drawableIndex];
                 if (!TryResolveWorldPreviewHit(drawable, rayOrigin, rayDirection, out Entity sourceEntity, out byte renderOrder, out double distanceAlongRay)) {

@@ -9,11 +9,14 @@ namespace helengine.editor.tests.testing;
 /// </summary>
 public sealed class TestGeneratedAssetGraph : IDisposable {
     readonly Core CoreValue;
+    readonly EditorSceneEntityIdAllocator SceneEntityIdAllocatorValue;
 
     public GeneratedAssetProviderRegistry Registry { get; }
     public EngineGeneratedModelCache ModelCache { get; }
     public EngineGeneratedMaterialCache MaterialCache { get; }
     public EditorBuiltInShaderAssetLibrary ShaderLibrary { get; }
+    public EditorSessionRendererResources RendererResources { get; }
+    public ObjectManager ObjectManager => CoreValue.ObjectManager;
 
     public TestGeneratedAssetGraph(Core core) {
         CoreValue = core ?? throw new ArgumentNullException(nameof(core));
@@ -27,6 +30,9 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         ShaderLibrary = new EditorBuiltInShaderAssetLibrary(backendRegistry);
         ModelCache = new EngineGeneratedModelCache(core);
         MaterialCache = new EngineGeneratedMaterialCache(core, ShaderLibrary);
+        SceneEntityIdAllocatorValue = (core as EditorCore)?.SceneEntityIdAllocator ?? new EditorSceneEntityIdAllocator();
+        IEntityFactory entityFactory = core.EntityFactory ?? new EditorEntityFactory(SceneEntityIdAllocatorValue);
+        RendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, entityFactory, SceneEntityIdAllocatorValue, core is EditorCore editorCore ? editorCore.DefaultFontAssetForEditor : null);
         Registry = new GeneratedAssetProviderRegistry();
     }
 
@@ -50,11 +56,12 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         if (CoreValue.EntityFactory == null) {
             throw new InvalidOperationException("EntityFactory must be initialized for generated scene tests.");
         }
-        return new EditorSceneCreationService(CoreValue.EntityFactory, ModelCache, MaterialCache);
+        return new EditorSceneCreationService(CoreValue.EntityFactory, CoreValue.ObjectManager, ModelCache, MaterialCache, RendererResources);
     }
 
     public void Dispose() {
         Registry.Dispose();
+        RendererResources.Dispose();
         MaterialCache.Dispose();
         ModelCache.Dispose();
         ShaderLibrary.Dispose();

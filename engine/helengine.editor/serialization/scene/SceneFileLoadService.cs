@@ -13,6 +13,8 @@ namespace helengine.editor {
         readonly ISceneAssetReferenceResolver ReferenceResolver;
         /// <summary>Session-owned generated material cache used by editor-only scene visuals.</summary>
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly ObjectManager ObjectManager;
+        readonly EditorSessionRendererResources RendererResources;
         /// <summary>
         /// Scene-load service that reconstructs entities from scene assets.
         /// </summary>
@@ -28,7 +30,8 @@ namespace helengine.editor {
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
             ISceneAssetReferenceResolver referenceResolver,
-            EngineGeneratedMaterialCache generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -41,11 +44,16 @@ namespace helengine.editor {
             if (generatedMaterialCache == null) {
                 throw new ArgumentNullException(nameof(generatedMaterialCache));
             }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             ReferenceResolver = referenceResolver;
             GeneratedMaterialCache = generatedMaterialCache;
-            SceneLoadService = new SceneLoadService(ProjectRootPath, persistenceRegistry, referenceResolver, generatedMaterialCache);
+            RendererResources = rendererResources;
+            ObjectManager = rendererResources.ObjectManager ?? throw new InvalidOperationException("Scene loading resources must provide an object manager.");
+            SceneLoadService = new SceneLoadService(ProjectRootPath, persistenceRegistry, referenceResolver, generatedMaterialCache, rendererResources);
         }
 
         /// <summary>
@@ -74,7 +82,7 @@ namespace helengine.editor {
             }
 
             string normalizedPath = Path.GetFullPath(fullPath);
-            HashSet<Entity> existingEntities = new HashSet<Entity>(Core.Instance.ObjectManager.Entities);
+            HashSet<Entity> existingEntities = new HashSet<Entity>(ObjectManager.Entities);
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 if (!normalizedPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
@@ -118,7 +126,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("History scene materialization must stay inside the current project.");
             }
 
-            HashSet<Entity> existingEntities = new HashSet<Entity>(Core.Instance.ObjectManager.Entities);
+            HashSet<Entity> existingEntities = new HashSet<Entity>(ObjectManager.Entities);
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 return LoadSceneAsset(sceneAsset, normalizedPath, existingEntities);
@@ -159,7 +167,7 @@ namespace helengine.editor {
             }
 
             List<EditorEntity> newRootEntities = new List<EditorEntity>();
-            List<Entity> liveEntities = new List<Entity>(Core.Instance.ObjectManager.Entities);
+            List<Entity> liveEntities = new List<Entity>(ObjectManager.Entities);
             for (int i = 0; i < liveEntities.Count; i++) {
                 if (liveEntities[i] is not EditorEntity editorEntity) {
                     continue;
@@ -246,7 +254,7 @@ namespace helengine.editor {
                 }
                 if (ownedAssetTrackingStarted) {
                     RuntimeSceneOwnedAssetSet ownedAssets = ownedAssetTrackingResolver.CancelOwnedAssetTracking();
-                    EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);
+                    EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets, RendererResources);
                 }
 
                 throw;

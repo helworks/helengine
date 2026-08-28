@@ -17,38 +17,44 @@ namespace helengine.editor {
         /// Shared scene-save service reused to serialize the blueprint subtree payload.
         /// </summary>
         readonly SceneSaveService SceneSaveService;
+        readonly ObjectManager ObjectManager;
 
         /// <summary>
         /// Initializes a new blueprint save service for one project root.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
         /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
-        public BlueprintSaveService(string projectRootPath, ComponentPersistenceRegistry persistenceRegistry)
-            : this(projectRootPath, persistenceRegistry, null) {
-        }
-
         /// <summary>
-        /// Initializes a blueprint save service over a host-owned reference resolver.
+        /// Initializes a blueprint save service over the complete session-owned graph.
         /// </summary>
-        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
-        /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
-        /// <param name="referenceResolver">Resolver shared by the owning authoring session.</param>
-        internal BlueprintSaveService(
+        public BlueprintSaveService(
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
-            EditorAssetReferenceResolver referenceResolver) {
+            EditorAssetReferenceResolver referenceResolver,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
             if (persistenceRegistry == null) {
                 throw new ArgumentNullException(nameof(persistenceRegistry));
             }
+            if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
+            }
+            if (generatedModelCache == null) {
+                throw new ArgumentNullException(nameof(generatedModelCache));
+            }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            rendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            ObjectManager = rendererResources.ObjectManager;
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
-            SceneSaveService = referenceResolver == null
-                ? new SceneSaveService(ProjectRootPath, persistenceRegistry)
-                : new SceneSaveService(ProjectRootPath, persistenceRegistry, referenceResolver);
+            SceneSaveService = new SceneSaveService(ProjectRootPath, persistenceRegistry, referenceResolver, generatedModelCache, generatedMaterialCache, rendererResources);
         }
 
         /// <summary>
@@ -80,7 +86,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Blueprint authoring asset ids must be lowercase 32-character hexadecimal values.", nameof(authoringAssetId));
             }
 
-            EditorEntity rootEntity = BlueprintValidationService.ResolveSingleEditableRoot(Core.Instance.ObjectManager.Entities);
+            EditorEntity rootEntity = BlueprintValidationService.ResolveSingleEditableRoot(ObjectManager.Entities);
             BlueprintValidationService.ValidateRootForSave(rootEntity);
 
             string normalizedPath = Path.GetFullPath(fullPath);

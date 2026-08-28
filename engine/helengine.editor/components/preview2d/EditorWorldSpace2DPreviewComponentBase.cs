@@ -9,14 +9,16 @@ namespace helengine {
         RuntimeMaterial PreviewMaterialValue;
         /// <summary>Session-owned built-in shader library used by preview materials.</summary>
         protected readonly helengine.editor.EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        protected readonly helengine.editor.EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Initializes one world-space preview component bound to the supplied authored source entity.
         /// </summary>
         /// <param name="sourceEntity">Authored source entity mirrored by the preview proxy.</param>
-        protected EditorWorldSpace2DPreviewComponentBase(Entity sourceEntity, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+        protected EditorWorldSpace2DPreviewComponentBase(Entity sourceEntity, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary, helengine.editor.EditorSessionRendererResources rendererResources) {
             SourceEntity = sourceEntity ?? throw new ArgumentNullException(nameof(sourceEntity));
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
         }
 
         /// <summary>
@@ -38,11 +40,7 @@ namespace helengine {
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
             Model = ResolvePreviewModel();
-            Core core = Core.Instance;
-            if (core == null || core.RenderManager3D == null) {
-                throw new InvalidOperationException("World-space previews require an initialized core with a 3D renderer.");
-            }
-            PreviewMaterialValue = CreatePreviewMaterial(core.RenderManager3D, BuiltInShaderLibrary);
+            PreviewMaterialValue = CreatePreviewMaterial(RendererResources.RenderManager3D, BuiltInShaderLibrary);
             Materials = new[] { PreviewMaterialValue };
             base.ComponentAdded(entity);
             SynchronizeFromSource();
@@ -55,9 +53,8 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
 
-            Core core = Core.Instance;
-            if (core != null && core.RenderManager3D != null && PreviewMaterialValue != null) {
-                ReleasePreviewMaterial(core.RenderManager3D, PreviewMaterialValue);
+            if (PreviewMaterialValue != null) {
+                ReleasePreviewMaterial(RendererResources.RenderManager3D, PreviewMaterialValue);
             }
 
             PreviewMaterialValue = null;
@@ -116,10 +113,10 @@ namespace helengine {
         /// <returns>Runtime model whose local rectangle matches the authored coordinate convention.</returns>
         protected virtual RuntimeModel ResolvePreviewModel() {
             if (helengine.editor.EditorViewportDirect2DPresentationService.TryResolveViewportOwner(SourceEntity, out _, out _)) {
-                return EditorWorldSpace2DPreviewMeshResources.GetViewportRuntimeModel();
+                return RendererResources.WorldSpace2DPreviewMeshes.GetViewportRuntimeModel();
             }
 
-            return EditorWorldSpace2DPreviewMeshResources.GetRuntimeModel();
+            return RendererResources.WorldSpace2DPreviewMeshes.GetRuntimeModel();
         }
 
         /// <summary>

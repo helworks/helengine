@@ -134,7 +134,8 @@ namespace helengine.editor.tests {
                 contentManager,
                 assetImportManager,
                 CreateDefaultFontAsset(),
-                BuiltInShaderLibrary);
+                BuiltInShaderLibrary,
+                Core.Instance.ObjectManager);
         }
 
         /// <summary>

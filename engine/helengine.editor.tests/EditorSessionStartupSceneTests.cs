@@ -1,7 +1,9 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.directx11;
+using helengine.editor;
 using helengine.editor.tests.testing;
+using helengine.ui;
 using helengine.vulkan;
 using Xunit;
 
@@ -14,6 +16,8 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the core instance created for each test.
         /// </summary>
         readonly string TempRootPath;
+        readonly EditorCore CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required to exercise editor-session scene bootstrap behavior.
@@ -22,19 +26,25 @@ namespace helengine.editor.tests {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-session-startup-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new EditorCore(new Project {
+                Name = "Startup Scene",
+                Path = TempRootPath
+            });
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Deletes temporary test content after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -46,7 +56,9 @@ namespace helengine.editor.tests {
         [Fact]
         public void BuildStartScene_WhenCalled_LeavesSceneEmpty() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            ObjectManager objectManager = Core.Instance.ObjectManager;
+            SetPrivateField(session, "core", CoreValue);
+            SetPrivateField(session, "builtInShaderAssetLibrary", GeneratedAssetGraph.ShaderLibrary);
+            ObjectManager objectManager = CoreValue.ObjectManager;
 
             MethodInfo method = typeof(EditorSession).GetMethod("BuildStartScene", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
 
@@ -55,6 +67,7 @@ namespace helengine.editor.tests {
             method.Invoke(session, Array.Empty<object>());
 
             Assert.Empty(GetUserSceneEntities(objectManager));
+            DisposeViewportGrid(objectManager);
         }
 
         /// <summary>
@@ -63,6 +76,8 @@ namespace helengine.editor.tests {
         [Fact]
         public void BuildStartScene_WhenCalled_CreatesInternalViewportGrid() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
+            SetPrivateField(session, "core", CoreValue);
+            SetPrivateField(session, "builtInShaderAssetLibrary", GeneratedAssetGraph.ShaderLibrary);
 
             MethodInfo method = typeof(EditorSession).GetMethod("BuildStartScene", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
 
@@ -70,8 +85,21 @@ namespace helengine.editor.tests {
 
             method.Invoke(session, Array.Empty<object>());
 
-            EditorEntity gridEntity = Assert.Single(GetInternalSceneEntities(Core.Instance.ObjectManager), entity => string.Equals(entity.Name, "Viewport Grid", StringComparison.Ordinal));
+            EditorEntity gridEntity = Assert.Single(GetInternalSceneEntities(CoreValue.ObjectManager), entity => string.Equals(entity.Name, "Viewport Grid", StringComparison.Ordinal));
             Assert.Equal(EditorLayerMasks.SceneGrid, gridEntity.LayerMask);
+            gridEntity.Dispose();
+        }
+
+        static void SetPrivateField(EditorSession session, string fieldName, object value) {
+            FieldInfo field = typeof(EditorSession).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            field.SetValue(session, value);
+        }
+
+        static void DisposeViewportGrid(ObjectManager objectManager) {
+            EditorEntity gridEntity = GetInternalSceneEntities(objectManager)
+                .FirstOrDefault(entity => string.Equals(entity.Name, "Viewport Grid", StringComparison.Ordinal));
+            gridEntity?.Dispose();
         }
 
         /// <summary>
@@ -101,7 +129,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="objectManager">Object manager whose entities should be filtered.</param>
         /// <returns>List of internal scene entities.</returns>
-        IReadOnlyList<EditorEntity> GetInternalSceneEntities(ObjectManager objectManager) {
+        static IReadOnlyList<EditorEntity> GetInternalSceneEntities(ObjectManager objectManager) {
             if (objectManager == null) {
                 throw new ArgumentNullException(nameof(objectManager));
             }

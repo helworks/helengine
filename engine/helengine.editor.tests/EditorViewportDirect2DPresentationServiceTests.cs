@@ -6,20 +6,21 @@ namespace helengine.editor.tests {
     /// Verifies editor-side world-presentation coordinate conversions for authored 2D content.
     /// </summary>
     public sealed class EditorViewportDirect2DPresentationServiceTests : IDisposable {
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by direct 2D presentation tests.
         /// </summary>
         public EditorViewportDirect2DPresentationServiceTests() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Clears shared editor preview state and disposes the active core instance after each test.
         /// </summary>
         public void Dispose() {
-            EditorWorldSpace2DPreviewRegistry.Clear();
-            EditorWorldSpace2DPreviewMeshResources.ResetForTests();
+            GeneratedAssetGraph.Dispose();
             Core.Instance?.Dispose();
         }
 

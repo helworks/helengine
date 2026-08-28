@@ -35,6 +35,7 @@ namespace helengine.editor {
         readonly EngineGeneratedModelCache GeneratedModelCache;
         /// <summary>Session-owned generated material cache used for identity inference.</summary>
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly FontAsset EditorFontAsset;
 
         /// <summary>
         /// Cached authored model source paths keyed by their stable imported model asset id.
@@ -47,31 +48,17 @@ namespace helengine.editor {
         Dictionary<string, string> MaterialRelativePathsByAssetId;
 
         /// <summary>
-        /// Initializes a new save-time scene asset reference inference service.
-        /// </summary>
-        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
-        public SceneAssetReferenceInferenceService(string projectRootPath) {
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
-            }
-
-            ProjectRootPath = Path.GetFullPath(projectRootPath);
-            AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
-            MaterialAssetSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
-            AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
-            OwnsAssetReferenceResolver = true;
-        }
-
-        /// <summary>
-        /// Initializes a save-time inference service over a host-owned reference resolver.
+        /// Initializes a save-time inference service over a host-owned reference
+        /// resolver and the complete generated-asset cache pair for one session.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
         /// <param name="referenceResolver">Resolver shared by the owning authoring session.</param>
         internal SceneAssetReferenceInferenceService(
             string projectRootPath,
             EditorAssetReferenceResolver referenceResolver,
-            EngineGeneratedModelCache generatedModelCache = null,
-            EngineGeneratedMaterialCache generatedMaterialCache = null) {
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            FontAsset editorFontAsset) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -85,8 +72,9 @@ namespace helengine.editor {
             MaterialAssetSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
             AssetReferenceResolver = referenceResolver;
             OwnsAssetReferenceResolver = false;
-            GeneratedModelCache = generatedModelCache;
-            GeneratedMaterialCache = generatedMaterialCache;
+            GeneratedModelCache = generatedModelCache ?? throw new ArgumentNullException(nameof(generatedModelCache));
+            GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
+            EditorFontAsset = editorFontAsset;
         }
 
         /// <summary>
@@ -171,7 +159,7 @@ namespace helengine.editor {
             if (font == null) {
                 return;
             }
-            if (FontAssetScenePersistenceSupport.TryResolveEditorCoreFont(font, out SceneAssetReference fontReference)) {
+            if (FontAssetScenePersistenceSupport.TryResolveEditorCoreFont(font, EditorFontAsset, out SceneAssetReference fontReference)) {
                 saveState.SetAssetReference(FontAssetScenePersistenceSupport.FontReferenceName, fontReference);
                 return;
             }
@@ -254,15 +242,15 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(runtimeModel));
             }
 
-            if (GeneratedModelCache != null && ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId))) {
+            if (ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId))) {
                 reference = global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel();
                 return true;
             }
-            if (GeneratedModelCache != null && ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.PlaneAssetId))) {
+            if (ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.PlaneAssetId))) {
                 reference = global::helengine.EngineSceneAssetReferenceFactory.CreatePlaneModel();
                 return true;
             }
-            if (GeneratedModelCache != null && ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.SphereAssetId))) {
+            if (ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.SphereAssetId))) {
                 reference = global::helengine.EngineSceneAssetReferenceFactory.CreateSphereModel();
                 return true;
             }
@@ -310,7 +298,7 @@ namespace helengine.editor {
             }
 
             RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
-            RuntimeMaterial standardMaterial = GeneratedMaterialCache?.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+            RuntimeMaterial standardMaterial = GeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
             if (standardMaterial != null && (ReferenceEquals(rootMaterial, standardMaterial) ||
                 ReferenceEquals(runtimeMaterial, standardMaterial) ||
                 string.Equals(rootMaterial.Id, BuiltInMaterialIds.StandardRuntimeMaterialAssetId, StringComparison.Ordinal))) {

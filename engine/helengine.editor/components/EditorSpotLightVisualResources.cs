@@ -4,7 +4,7 @@ namespace helengine {
     /// <summary>
     /// Builds and caches the shared runtime resources used by editor-only spot light visuals.
     /// </summary>
-    public static class EditorSpotLightVisualResources {
+    public sealed class EditorSpotLightVisualResources : IDisposable {
         /// <summary>
         /// Radius of the cone base used for the editor spot-light icon.
         /// </summary>
@@ -20,34 +20,39 @@ namespace helengine {
         /// <summary>
         /// Cached runtime model shared by all editor spot-light visuals.
         /// </summary>
-        static RuntimeModel RuntimeModelValue;
+        readonly RenderManager3D RenderManager3D;
+        RuntimeModel RuntimeModelValue;
+        bool IsDisposed;
 
         /// <summary>
-        /// Clears cached runtime resources so tests can start from a known state.
+        /// Initializes one spot-light visual resource owner for one renderer.
         /// </summary>
-        public static void ResetForTests() {
-            RuntimeModelValue = null;
+        public EditorSpotLightVisualResources(RenderManager3D renderManager3D) {
+            RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
         }
 
         /// <summary>
         /// Gets the shared runtime model used by editor spot-light visuals.
         /// </summary>
         /// <returns>Cached runtime model instance.</returns>
-        public static RuntimeModel GetRuntimeModel() {
-            if (RuntimeModelValue != null) {
-                return RuntimeModelValue;
+        public RuntimeModel GetRuntimeModel() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorSpotLightVisualResources));
             }
-
-            Core core = Core.Instance;
-            if (core == null) {
-                throw new InvalidOperationException("Core must be initialized before editor spot-light visuals can be built.");
+            if (RuntimeModelValue == null) {
+                RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
             }
-            if (core.RenderManager3D == null) {
-                throw new InvalidOperationException("A 3D render manager is required before editor spot-light visuals can be built.");
-            }
-
-            RuntimeModelValue = core.RenderManager3D.BuildModelFromRaw(CreateModelAsset());
             return RuntimeModelValue;
+        }
+
+        /// <summary>Releases the renderer-owned spot-light visual model.</summary>
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+            RuntimeModelValue?.Dispose();
+            RuntimeModelValue = null;
+            IsDisposed = true;
         }
 
         /// <summary>

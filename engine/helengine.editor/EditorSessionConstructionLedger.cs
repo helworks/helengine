@@ -37,13 +37,14 @@ namespace helengine.editor {
     /// </summary>
     internal enum EditorSessionCleanupPhase {
         Dispose = 0,
-        OwnedState = 1,
-        OwnedPendingAssetFlush = 2,
-        OwnedSceneEntities = 3,
-        OwnedSceneUntrack = 4,
-        Panel = 5,
-        Reset = 6,
-        Detach = 7
+        GeneratedProviderGraph = 1,
+        OwnedState = 2,
+        OwnedPendingAssetFlush = 3,
+        OwnedSceneEntities = 4,
+        OwnedSceneUntrack = 5,
+        Panel = 6,
+        Reset = 7,
+        Detach = 8
     }
 
     /// <summary>

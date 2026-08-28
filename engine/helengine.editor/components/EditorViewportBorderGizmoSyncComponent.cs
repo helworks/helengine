@@ -9,13 +9,15 @@ namespace helengine {
         readonly Dictionary<Entity, EditorEntity> OwnedGizmoEntitiesBySourceEntity;
         /// <summary>Session-owned built-in shader library used by border gizmos.</summary>
         readonly helengine.editor.EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        readonly helengine.editor.EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Initializes one authored viewport border gizmo synchronizer.
         /// </summary>
-        public EditorViewportBorderGizmoSyncComponent(helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+        public EditorViewportBorderGizmoSyncComponent(helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary, helengine.editor.EditorSessionRendererResources rendererResources) {
             OwnedGizmoEntitiesBySourceEntity = new Dictionary<Entity, EditorEntity>();
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
         }
 
         /// <summary>
@@ -96,7 +98,7 @@ namespace helengine {
                 InternalEntity = true,
                 LayerMask = helengine.editor.EditorLayerMasks.SceneObjects
             };
-            gizmoEntity.AddComponent(new EditorViewportBorderGizmoComponent(sourceEntity, sourceViewportComponent, BuiltInShaderLibrary));
+            gizmoEntity.AddComponent(new EditorViewportBorderGizmoComponent(sourceEntity, sourceViewportComponent, BuiltInShaderLibrary, RendererResources));
             return gizmoEntity;
         }
 
@@ -147,7 +149,7 @@ namespace helengine {
         bool IsSourceEntityStillPreviewable(Entity sourceEntity) {
             if (sourceEntity == null) {
                 return false;
-            } else if (!Core.Instance.ObjectManager.Entities.Contains(sourceEntity)) {
+            } else if (!RendererResources.ObjectManager.Entities.Contains(sourceEntity)) {
                 return false;
             }
 
@@ -182,7 +184,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Snapshot of the current object-manager entities.</returns>
         Entity[] CreateEntitySnapshot() {
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = RendererResources.ObjectManager.Entities;
             Entity[] snapshot = new Entity[entities.Count];
             entities.CopyTo(snapshot);
             return snapshot;

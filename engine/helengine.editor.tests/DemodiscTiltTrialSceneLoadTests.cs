@@ -78,13 +78,13 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
                 fontResolver,
                 textureResolver,
                 null,
-                generatedAssetGraph.Registry);
+                generatedAssetGraph.Registry, generatedAssetGraph.RendererResources);
             sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             SceneFileLoadService loadService = new SceneFileLoadService(
                 DemodiscProjectRootPath,
                 persistenceRegistry,
                 sceneAssetReferenceResolver,
-                generatedAssetGraph.MaterialCache);
+                generatedAssetGraph.MaterialCache, generatedAssetGraph.RendererResources);
 
             LoadedEditorSceneDocument loaded = loadService.Load(TiltTrialScenePath);
             EditorEntity startPad = FindRequiredEntityByName(loaded.RootEntities, StartPadEntityName);

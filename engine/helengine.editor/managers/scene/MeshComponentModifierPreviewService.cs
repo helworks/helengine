@@ -3,6 +3,7 @@ namespace helengine.editor {
     /// Applies and restores live editor-viewport previews of MeshComponent modifier results.
     /// </summary>
     public sealed class MeshComponentModifierPreviewService {
+        RenderManager3D RenderManager3D;
         /// <summary>
         /// Original runtime models keyed by the mesh components whose previews replaced them.
         /// </summary>
@@ -12,6 +13,13 @@ namespace helengine.editor {
         /// Live preview models keyed by their owning mesh components so replaced previews can be disposed.
         /// </summary>
         readonly Dictionary<MeshComponent, RuntimeModel> PreviewModelsByComponent = new Dictionary<MeshComponent, RuntimeModel>();
+
+        /// <summary>
+        /// Binds preview-model materialization to the owning editor-session renderer.
+        /// </summary>
+        public void SetRenderManager(RenderManager3D renderManager3D) {
+            RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
+        }
 
         /// <summary>
         /// Applies one preview model built by running every preview-enabled modifier over the supplied source geometry in stack order.
@@ -29,8 +37,8 @@ namespace helengine.editor {
             if (modifiers == null) {
                 throw new ArgumentNullException(nameof(modifiers));
             }
-            if (Core.Instance?.RenderManager3D == null) {
-                throw new InvalidOperationException("Modifier previews require an active 3D render manager.");
+            if (RenderManager3D == null) {
+                throw new InvalidOperationException("Modifier previews require session-owned renderer resources.");
             }
 
             bool hasPreviewModifiers = false;
@@ -65,7 +73,7 @@ namespace helengine.editor {
                 return;
             }
 
-            RuntimeModel previewModel = Core.Instance.RenderManager3D.BuildModelFromRaw(preparedAsset);
+            RuntimeModel previewModel = RenderManager3D.BuildModelFromRaw(preparedAsset);
             if (!OriginalModelsByComponent.ContainsKey(meshComponent)) {
                 OriginalModelsByComponent[meshComponent] = meshComponent.Model;
             }

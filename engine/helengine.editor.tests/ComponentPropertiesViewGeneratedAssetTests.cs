@@ -14,6 +14,8 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the test content manager.
         /// </summary>
         readonly string TempRootPath;
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         readonly GeneratedAssetProviderRegistry Registry;
         readonly EditorBuiltInShaderAssetLibrary ShaderLibrary;
 
@@ -24,15 +26,13 @@ namespace helengine.editor.tests {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-model-picker-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
-            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            shaderBackendRegistry.Register(new VulkanShaderBackend());
-            ShaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
-            Registry = new GeneratedAssetProviderRegistry();
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+            ShaderLibrary = GeneratedAssetGraph.ShaderLibrary;
+            Registry = GeneratedAssetGraph.Registry;
             EditorSceneMutationService.Reset();
         }
 
@@ -41,8 +41,8 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             EditorSceneMutationService.Reset();
-            Registry.Dispose();
-            ShaderLibrary.Dispose();
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -65,6 +65,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.SetGeneratedAssetProviderRegistry(Registry);
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
             view.ShowComponents(entity);
 
             ComponentPropertyRow modelRow = FindModelRow(view);
@@ -103,6 +104,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.SetGeneratedAssetProviderRegistry(Registry);
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
             view.ShowComponents(entity);
 
             ComponentPropertyRow modelRow = FindModelRow(view);
@@ -141,6 +143,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.SetGeneratedAssetProviderRegistry(Registry);
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
             view.ShowComponents(entity);
 
             ComponentPropertyRow materialRow = FindMaterialRow(view);
@@ -186,6 +189,7 @@ namespace helengine.editor.tests {
 
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             view.SetGeneratedAssetProviderRegistry(Registry);
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
             view.ShowComponents(entity, "windows");
 
             ComponentPropertyRow materialRow = FindMaterialRow(view);
@@ -224,6 +228,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), contentManager, null, null, EditorLayerMasks.EditorUi, TempRootPath);
             view.ShaderPackageService = shaderPackageService;
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
             using EditorAssetReferenceResolver assetReferenceResolver = new EditorAssetReferenceResolver(TempRootPath);
             view.SetAssetReferenceResolver(assetReferenceResolver);
             view.ShowComponents(entity);

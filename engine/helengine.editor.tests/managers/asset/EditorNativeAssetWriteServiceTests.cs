@@ -1,5 +1,7 @@
 namespace helengine.editor.tests.managers.asset;
 
+using helengine.editor.tests.testing;
+
 /// <summary>
 /// Verifies stable, idempotent native asset writes through the project authoring session.
 /// </summary>
@@ -8,6 +10,8 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     /// Temporary project root used by this test fixture.
     /// </summary>
     readonly string ProjectRootPath;
+    readonly Core CoreValue;
+    readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
     /// <summary>
     /// Initializes one isolated current-format project.
@@ -15,12 +19,19 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     public EditorNativeAssetWriteServiceTests() {
         ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-native-write-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
+        CoreValue = new Core(new CoreInitializationOptions {
+            ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
+        });
+        CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
     }
 
     /// <summary>
     /// Removes the isolated project after each test.
     /// </summary>
     public void Dispose() {
+        GeneratedAssetGraph.Dispose();
+        CoreValue.Dispose();
         if (Directory.Exists(ProjectRootPath)) {
             Directory.Delete(ProjectRootPath, true);
         }
@@ -564,7 +575,12 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     /// </summary>
     /// <returns>Disposable project authoring session.</returns>
     IEditorProjectAuthoringSession CreateSession() {
-        return new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(ProjectRootPath);
+        return new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(
+            ProjectRootPath,
+            GeneratedAssetGraph.Registry,
+            GeneratedAssetGraph.ModelCache,
+            GeneratedAssetGraph.MaterialCache,
+            GeneratedAssetGraph.RendererResources);
     }
 
     /// <summary>

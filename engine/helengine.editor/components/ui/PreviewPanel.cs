@@ -68,6 +68,7 @@ namespace helengine.editor {
         /// Runtime texture used by the model-grid toolbar button.
         /// </summary>
         readonly RuntimeTexture modelGridIcon;
+        RenderManager2D RenderManager2D;
         /// <summary>
         /// Root entity hosting preview content.
         /// </summary>
@@ -396,6 +397,17 @@ namespace helengine.editor {
         public bool IsLocked => IsLockedValue;
 
         /// <summary>
+        /// Binds texture materialization to one editor-session renderer graph.
+        /// </summary>
+        internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+
+            RenderManager2D = rendererResources.RenderManager2D ?? throw new InvalidOperationException("Preview panel resources must provide a 2D renderer.");
+        }
+
+        /// <summary>
         /// Reapplies scaled dock metrics after one live UI scale change.
         /// </summary>
         /// <param name="font">Updated dock title font.</param>
@@ -413,7 +425,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(asset));
             }
 
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(asset);
+            if (RenderManager2D == null) {
+                throw new InvalidOperationException("Texture preview requires session-owned renderer resources.");
+            }
+
+            RuntimeTexture runtimeTexture = RenderManager2D.BuildTextureFromRaw(asset);
             SetPreviewSource(new TexturePreviewSource(runtimeTexture));
         }
 

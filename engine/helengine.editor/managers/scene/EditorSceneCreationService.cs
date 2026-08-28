@@ -7,8 +7,10 @@ namespace helengine.editor {
         /// Factory used to create authored scene entities for the active editor host.
         /// </summary>
         readonly IEntityFactory EntityFactory;
+        readonly ObjectManager ObjectManager;
         readonly EngineGeneratedModelCache ModelCache;
         readonly EngineGeneratedMaterialCache MaterialCache;
+        readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Stable save-state slot name used by mesh persistence for model references.
@@ -24,10 +26,17 @@ namespace helengine.editor {
         /// Initializes one editor scene creation service.
         /// </summary>
         /// <param name="entityFactory">Factory used to create authored scene entities for the active editor host.</param>
-        public EditorSceneCreationService(IEntityFactory entityFactory, EngineGeneratedModelCache modelCache, EngineGeneratedMaterialCache materialCache) {
+        public EditorSceneCreationService(
+            IEntityFactory entityFactory,
+            ObjectManager objectManager,
+            EngineGeneratedModelCache modelCache,
+            EngineGeneratedMaterialCache materialCache,
+            EditorSessionRendererResources rendererResources) {
             EntityFactory = entityFactory ?? throw new ArgumentNullException(nameof(entityFactory));
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             ModelCache = modelCache ?? throw new ArgumentNullException(nameof(modelCache));
             MaterialCache = materialCache ?? throw new ArgumentNullException(nameof(materialCache));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
         }
 
         /// <summary>
@@ -116,7 +125,7 @@ namespace helengine.editor {
                 return entity;
             } catch {
                 entity.Enabled = false;
-                Core.Instance.ObjectManager.RemoveEntity(entity);
+                ObjectManager.RemoveEntity(entity);
                 throw;
             }
         }
@@ -155,8 +164,8 @@ namespace helengine.editor {
                 ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0)
             };
             entity.AddComponent(cameraComponent);
-            EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
-            EditorCameraVisualAttachmentService.Attach(entity, MaterialCache);
+            EditorSceneCameraSuppressionService.AttachAndSuppress(entity, ObjectManager);
+            EditorCameraVisualAttachmentService.Attach(entity, MaterialCache, RendererResources.CameraVisuals);
             return entity;
         }
 
@@ -167,7 +176,7 @@ namespace helengine.editor {
         public EditorEntity CreatePointLight() {
             EditorEntity entity = CreateBaseEntity("Point Light");
             entity.AddComponent(new PointLightComponent());
-            EditorPointLightVisualAttachmentService.Attach(entity, MaterialCache);
+            EditorPointLightVisualAttachmentService.Attach(entity, MaterialCache, RendererResources.PointLightVisuals);
             return entity;
         }
 
@@ -178,7 +187,7 @@ namespace helengine.editor {
         public EditorEntity CreateDirectionalLight() {
             EditorEntity entity = CreateBaseEntity("Directional Light");
             entity.AddComponent(new DirectionalLightComponent());
-            EditorDirectionalLightVisualAttachmentService.Attach(entity, MaterialCache);
+            EditorDirectionalLightVisualAttachmentService.Attach(entity, MaterialCache, RendererResources.DirectionalLightVisuals);
             return entity;
         }
 
@@ -199,7 +208,7 @@ namespace helengine.editor {
         public EditorEntity CreateSpotLight() {
             EditorEntity entity = CreateBaseEntity("Spot Light");
             entity.AddComponent(new SpotLightComponent());
-            EditorSpotLightVisualAttachmentService.Attach(entity, MaterialCache);
+            EditorSpotLightVisualAttachmentService.Attach(entity, MaterialCache, RendererResources.SpotLightVisuals);
             return entity;
         }
 
@@ -237,7 +246,7 @@ namespace helengine.editor {
                 return entity;
             } catch {
                 entity.Enabled = false;
-                Core.Instance.ObjectManager.RemoveEntity(entity);
+                ObjectManager.RemoveEntity(entity);
                 throw;
             }
         }

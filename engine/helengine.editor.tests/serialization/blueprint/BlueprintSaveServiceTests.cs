@@ -41,13 +41,18 @@ namespace helengine.editor.tests.serialization.blueprint {
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
             CoreValue.Dispose();
-            EditorCameraVisualResources.ResetForTests();
-            EditorPointLightVisualResources.ResetForTests();
-            EditorDirectionalLightVisualResources.ResetForTests();
-            EditorSpotLightVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
+        }
+
+        BlueprintSaveService CreateBlueprintSaveService(ComponentPersistenceRegistry registry) {
+            return new BlueprintSaveService(
+                TempProjectRootPath,
+                registry,
+                new EditorAssetReferenceResolver(TempProjectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
         }
 
         /// <summary>
@@ -56,7 +61,7 @@ namespace helengine.editor.tests.serialization.blueprint {
         [Fact]
         public void Save_WhenBlueprintIsSavedRepeatedly_PreservesEmbeddedIdentityWithoutSidecar() {
             CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
-            BlueprintSaveService saveService = new BlueprintSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());
+            BlueprintSaveService saveService = CreateBlueprintSaveService(new ComponentPersistenceRegistry());
             string blueprintPath = Path.Combine(TempProjectRootPath, "assets", "Blueprints", "Identity.hblueprint");
 
             saveService.Save(blueprintPath);
@@ -107,7 +112,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             AttachPlatformOverridePayload(root, meshComponent, "windows", new byte[] { 9, 8, 7, 6 });
 
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            BlueprintSaveService saveService = new BlueprintSaveService(TempProjectRootPath, registry);
+            BlueprintSaveService saveService = CreateBlueprintSaveService(registry);
             string blueprintPath = Path.Combine(TempProjectRootPath, "assets", "Blueprints", "RoundTrip.hblueprint");
 
             saveService.Save(blueprintPath);
@@ -133,7 +138,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             TestRuntimeMaterial loadedMaterial = new TestRuntimeMaterial();
             resolver.RegisterModel(modelReference, loadedModel);
             resolver.RegisterMaterial(materialReference, loadedMaterial);
-            BlueprintLoadService loadService = new BlueprintLoadService(registry, resolver, GeneratedAssetGraph.MaterialCache);
+            BlueprintLoadService loadService = new BlueprintLoadService(registry, resolver, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
 
             LoadedEditorBlueprintDocument loaded = loadService.Load(asset);
 
@@ -165,7 +170,7 @@ namespace helengine.editor.tests.serialization.blueprint {
         /// </summary>
         [Fact]
         public void Save_WhenBlueprintContainsNoEditableRoot_ThrowsInvalidOperationException() {
-            BlueprintSaveService saveService = new BlueprintSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());
+            BlueprintSaveService saveService = CreateBlueprintSaveService(new ComponentPersistenceRegistry());
             string blueprintPath = Path.Combine(TempProjectRootPath, "assets", "Blueprints", "Empty.hblueprint");
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => saveService.Save(blueprintPath));
@@ -180,7 +185,7 @@ namespace helengine.editor.tests.serialization.blueprint {
         public void Save_WhenBlueprintContainsMultipleEditableRoots_ThrowsInvalidOperationException() {
             CreateUserEntity("Root A", float3.Zero, float3.One, float4.Identity);
             CreateUserEntity("Root B", float3.Zero, float3.One, float4.Identity);
-            BlueprintSaveService saveService = new BlueprintSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());
+            BlueprintSaveService saveService = CreateBlueprintSaveService(new ComponentPersistenceRegistry());
             string blueprintPath = Path.Combine(TempProjectRootPath, "assets", "Blueprints", "Multi.hblueprint");
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => saveService.Save(blueprintPath));
@@ -198,7 +203,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             child.AddComponent(new BlueprintInstanceComponent());
             root.AddChild(child);
 
-            BlueprintSaveService saveService = new BlueprintSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());
+            BlueprintSaveService saveService = CreateBlueprintSaveService(new ComponentPersistenceRegistry());
             string blueprintPath = Path.Combine(TempProjectRootPath, "assets", "Blueprints", "NestedInstance.hblueprint");
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => saveService.Save(blueprintPath));

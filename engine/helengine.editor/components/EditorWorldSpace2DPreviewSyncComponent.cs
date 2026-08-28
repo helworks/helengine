@@ -9,13 +9,15 @@ namespace helengine {
         readonly Dictionary<Entity, EditorEntity> OwnedPreviewEntitiesBySourceEntity;
         /// <summary>Session-owned built-in shader library used by preview proxies.</summary>
         readonly helengine.editor.EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        readonly helengine.editor.EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Initializes one world-space preview synchronizer.
         /// </summary>
-        public EditorWorldSpace2DPreviewSyncComponent(helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+        public EditorWorldSpace2DPreviewSyncComponent(helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary, helengine.editor.EditorSessionRendererResources rendererResources) {
             OwnedPreviewEntitiesBySourceEntity = new Dictionary<Entity, EditorEntity>();
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
         }
 
         /// <summary>
@@ -117,11 +119,11 @@ namespace helengine {
         /// <returns>Typed preview component ready to attach to the preview entity.</returns>
         EditorWorldSpace2DPreviewComponentBase CreatePreviewComponent(Entity sourceEntity, Component sourceComponent) {
             if (sourceComponent is SpriteComponent spriteComponent) {
-                return new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, BuiltInShaderLibrary);
+                return new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, BuiltInShaderLibrary, RendererResources);
             } else if (sourceComponent is TextComponent textComponent) {
-                return new EditorTextWorldPreviewComponent(sourceEntity, textComponent, BuiltInShaderLibrary);
+                return new EditorTextWorldPreviewComponent(sourceEntity, textComponent, BuiltInShaderLibrary, RendererResources);
             } else if (sourceComponent is RoundedRectComponent roundedRectComponent) {
-                return new EditorRoundedRectWorldPreviewComponent(sourceEntity, roundedRectComponent, BuiltInShaderLibrary);
+                return new EditorRoundedRectWorldPreviewComponent(sourceEntity, roundedRectComponent, BuiltInShaderLibrary, RendererResources);
             }
 
             throw new InvalidOperationException($"Unsupported 2D preview source component type '{sourceComponent.GetType().FullName}'.");
@@ -148,11 +150,11 @@ namespace helengine {
         /// <param name="sourceEntity">Authored source entity to evaluate.</param>
         /// <returns>True when the entity remains registered and still exposes a supported preview component.</returns>
         bool IsSourceEntityStillPreviewable(Entity sourceEntity) {
-            if (sourceEntity == null || Core.Instance == null || Core.Instance.ObjectManager == null) {
+            if (sourceEntity == null || RendererResources.ObjectManager == null) {
                 return false;
             }
 
-            if (!Core.Instance.ObjectManager.Entities.Contains(sourceEntity)) {
+            if (!RendererResources.ObjectManager.Entities.Contains(sourceEntity)) {
                 return false;
             }
 
@@ -192,7 +194,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Snapshot of the current registered entities.</returns>
         Entity[] CreateEntitySnapshot() {
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = RendererResources.ObjectManager.Entities;
             Entity[] snapshot = new Entity[entities.Count];
             for (int index = 0; index < entities.Count; index++) {
                 snapshot[index] = entities[index];

@@ -38,25 +38,19 @@ public sealed class GeneratedSessionIsolationSourceTests {
     }
 
     static string ResolveSourcePath(string fileName) {
-        DirectoryInfo current = new DirectoryInfo(AppContext.BaseDirectory);
-            while (current != null) {
-                string candidate = Path.Combine(current.FullName, "helengine.editor", fileName);
-                if (File.Exists(candidate)) {
-                    return candidate;
-                }
-
-                string editorRoot = Path.Combine(current.FullName, "engine", "helengine.editor");
-                string[] subdirectories = { string.Empty, "shaders", "managers", Path.Combine("managers", "asset") };
-                for (int subdirectoryIndex = 0; subdirectoryIndex < subdirectories.Length; subdirectoryIndex++) {
-                    candidate = Path.Combine(editorRoot, subdirectories[subdirectoryIndex], fileName);
-                    if (File.Exists(candidate)) {
-                        return candidate;
-                    }
-                }
-
-            current = current.Parent;
+        string editorRoot = new helengine.editor.EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string[] candidates = {
+            Path.Combine(editorRoot, "engine", "helengine.editor", fileName),
+            Path.Combine(editorRoot, "engine", "helengine.editor", "shaders", fileName),
+            Path.Combine(editorRoot, "engine", "helengine.editor", "managers", fileName),
+            Path.Combine(editorRoot, "engine", "helengine.editor", "managers", "asset", fileName)
+        };
+        for (int index = 0; index < candidates.Length; index++) {
+            if (File.Exists(candidates[index])) {
+                return candidates[index];
+            }
         }
 
-        throw new FileNotFoundException(fileName);
+        throw new FileNotFoundException(fileName, editorRoot);
     }
 }

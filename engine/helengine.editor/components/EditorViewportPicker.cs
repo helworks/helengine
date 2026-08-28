@@ -49,6 +49,8 @@ namespace helengine.editor {
         /// Renderer used to execute picker passes.
         /// </summary>
         readonly helengine.directx11.DirectX11Renderer3D PickerRenderer;
+        /// <summary>Session-owned object and preview graph used for selection resolution.</summary>
+        readonly EditorSessionRendererResources RendererResources;
         /// <summary>
         /// Cached pick colors for the current picker pass.
         /// </summary>
@@ -105,7 +107,8 @@ namespace helengine.editor {
             EditorViewportGizmoDrawableCollector gizmoDrawableCollector,
             EditorEntity pickerEntity,
             CameraComponent pickerCamera,
-            helengine.directx11.DirectX11Renderer3D pickerRenderer) {
+            helengine.directx11.DirectX11Renderer3D pickerRenderer,
+            EditorSessionRendererResources rendererResources) {
             if (sceneCamera == null) {
                 throw new ArgumentNullException(nameof(sceneCamera));
             }
@@ -124,6 +127,9 @@ namespace helengine.editor {
             if (pickerRenderer == null) {
                 throw new ArgumentNullException(nameof(pickerRenderer));
             }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
 
             SceneCamera = sceneCamera;
             GizmoCamera = gizmoCamera;
@@ -131,6 +137,7 @@ namespace helengine.editor {
             PickerEntity = pickerEntity;
             PickerCamera = pickerCamera;
             PickerRenderer = pickerRenderer;
+            RendererResources = rendererResources;
             PickColors = new Dictionary<IDrawable3D, byte4>();
             PickEntitiesById = new Dictionary<int, Entity>();
         }
@@ -373,7 +380,7 @@ namespace helengine.editor {
                 return;
             }
 
-            List<IDrawable3D> drawables = Core.Instance.ObjectManager.Drawables3D;
+            List<IDrawable3D> drawables = RendererResources.ObjectManager.Drawables3D;
             for (int i = 0; i < drawables.Count; i++) {
                 IDrawable3D drawable = drawables[i];
                 if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
@@ -402,7 +409,7 @@ namespace helengine.editor {
                 return;
             }
 
-            List<IDrawable3D> drawables = Core.Instance.ObjectManager.Drawables3D;
+            List<IDrawable3D> drawables = RendererResources.ObjectManager.Drawables3D;
             int colorIndex = 1;
             for (int i = 0; i < drawables.Count; i++) {
                 IDrawable3D drawable = drawables[i];
@@ -803,7 +810,11 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Selectable screen-space 2D scene entity under the pointer, or null when no screen-space 2D scene entity is hit.</returns>
         Entity ResolveScreenSpace2DSelection() {
-            return EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(SceneCamera, PendingViewport, PendingPointer);
+            return EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(
+                SceneCamera,
+                PendingViewport,
+                PendingPointer,
+                RendererResources.ObjectManager);
         }
 
         /// <summary>
@@ -811,7 +822,11 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Selectable world-preview 2D scene entity under the pointer, or null when no world-preview entity is hit.</returns>
         Entity ResolveWorldPreview2DSelection() {
-            return EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(SceneCamera, PendingViewport, PendingPointer);
+            return EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(
+                SceneCamera,
+                PendingViewport,
+                PendingPointer,
+                RendererResources.ObjectManager);
         }
 
         /// <summary>

@@ -15,6 +15,7 @@ namespace helengine.editor {
         /// Session-scoped generated provider registry used to resolve virtual model and material entries.
         /// </summary>
         internal GeneratedAssetProviderRegistry GeneratedAssetProviders { get; private set; }
+        EditorSessionRendererResources RendererResources;
         /// <summary>
         /// Height of header rows in pixels.
         /// </summary>
@@ -416,6 +417,15 @@ namespace helengine.editor {
         /// </summary>
         internal void SetGeneratedAssetProviderRegistry(GeneratedAssetProviderRegistry generatedAssetProviders) {
             GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+        }
+
+        /// <summary>
+        /// Binds this inspector to the renderer resources owned by its editor session.
+        /// </summary>
+        internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            MeshComponentModifierPreviewService.SetRenderManager(RendererResources.RenderManager3D);
+            FileSystemModelResolver?.SetRenderManager(rendererResources.RenderManager3D);
         }
 
         /// <summary>
@@ -3399,7 +3409,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(row));
             }
             if (row.TargetComponent is CameraComponent cameraComponent) {
-                EditorSceneCameraSuppressionService.RefreshSuppressedRuntimeState(cameraComponent);
+                if (RendererResources == null) {
+                    throw new InvalidOperationException("Camera property editing requires session renderer resources.");
+                }
+                EditorSceneCameraSuppressionService.RefreshSuppressedRuntimeState(cameraComponent, RendererResources.ObjectManager);
             }
         }
 
@@ -3582,7 +3595,11 @@ namespace helengine.editor {
             }
 
             ShaderAsset shaderAsset = LoadShaderAsset(materialAsset.ShaderAssetId);
-            return Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            if (RendererResources == null) {
+                throw new InvalidOperationException("Material inspection requires session-owned renderer resources.");
+            }
+
+            return RendererResources.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
         }
 
         /// <summary>
@@ -5061,7 +5078,11 @@ namespace helengine.editor {
 
             if (FileSystemModelResolver == null) {
                 ModelAsset modelAsset = LoadModelAsset(entry.FullPath);
-                return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+                if (RendererResources == null) {
+                    throw new InvalidOperationException("Model inspection requires session-owned renderer resources.");
+                }
+
+                return RendererResources.RenderManager3D.BuildModelFromRaw(modelAsset);
             }
 
             return FileSystemModelResolver.ResolveRuntimeModel(entry.FullPath);

@@ -47,6 +47,8 @@ namespace helengine.editor {
         /// Generated provider registry owned by this project session and borrowed by its scene resolver.
         /// </summary>
         readonly GeneratedAssetProviderRegistry GeneratedAssetProviders;
+        readonly EngineGeneratedModelCache GeneratedModelCache;
+        readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
 
         /// <summary>
         /// Indicates whether this project session owns the generated provider registry.
@@ -101,11 +103,18 @@ namespace helengine.editor {
         public EditorProjectAuthoringSession(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
-            ContentManager contentManager)
+            ContentManager contentManager,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources)
             : this(CreateDependencies(
-                CreateAssetImportManager(projectRootPath, importers, contentManager),
+                CreateAssetImportManager(projectRootPath, importers, contentManager, rendererResources),
                 manager => RegisterImporters(manager, importers)),
-                null,
+                generatedAssetProviders,
+                generatedModelCache,
+                generatedMaterialCache,
+                rendererResources,
                 true) {
         }
 
@@ -120,12 +129,18 @@ namespace helengine.editor {
         /// <param name="configureImporters">Host importer configuration invoked after recovery and index startup.</param>
         internal static EditorProjectAuthoringSession CreateFromManager(
             AssetImportManager assetImportManager,
-            GeneratedAssetProviderRegistry generatedAssetProviders = null,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources,
             Action<AssetImportManager> configureImporters = null,
             bool ownsAssetImportManager = false) {
             return new EditorProjectAuthoringSession(
                 CreateDependencies(assetImportManager, configureImporters),
                 generatedAssetProviders,
+                generatedModelCache,
+                generatedMaterialCache,
+                rendererResources,
                 ownsAssetImportManager);
         }
 
@@ -143,8 +158,12 @@ namespace helengine.editor {
             EditorAssetIdentityIndex identityIndex,
             EditorAssetReferenceResolver referenceResolver,
             IEditorAuthoringSessionLifetime lifetime,
-            EditorNativeAssetWriteService nativeAssetWriteService)
-            : this(new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, nativeAssetWriteService)) {
+            EditorNativeAssetWriteService nativeAssetWriteService,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources)
+            : this(new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, nativeAssetWriteService), generatedAssetProviders, generatedModelCache, generatedMaterialCache, rendererResources) {
         }
 
         /// <summary>
@@ -153,7 +172,10 @@ namespace helengine.editor {
         /// <param name="dependencies">Explicit services and lifetime owned by this session.</param>
         EditorProjectAuthoringSession(
             SessionDependencies dependencies,
-            GeneratedAssetProviderRegistry generatedAssetProviders = null,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources,
             bool ownsAssetImportManager = false) {
             if (dependencies == null) {
                 throw new ArgumentNullException(nameof(dependencies));
@@ -176,10 +198,13 @@ namespace helengine.editor {
             }
             NativeAssetWriteService = dependencies.NativeAssetWriteService;
             ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
-            GeneratedAssetProviders = generatedAssetProviders ?? new GeneratedAssetProviderRegistry();
-            OwnsGeneratedAssetProviders = generatedAssetProviders == null;
+            GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+            GeneratedModelCache = generatedModelCache ?? throw new ArgumentNullException(nameof(generatedModelCache));
+            GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
+            rendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            OwnsGeneratedAssetProviders = false;
             OwnsAssetImportManager = ownsAssetImportManager;
-            AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService, GeneratedAssetProviders);
+            AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService, GeneratedAssetProviders, GeneratedModelCache, GeneratedMaterialCache, rendererResources);
         }
 
         /// <summary>
@@ -749,13 +774,16 @@ namespace helengine.editor {
         static AssetImportManager CreateAssetImportManager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
-            ContentManager contentManager) {
+            ContentManager contentManager,
+            EditorSessionRendererResources rendererResources) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             } else if (importers == null) {
                 throw new ArgumentNullException(nameof(importers));
             } else if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
+            } else if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
             }
 
             for (int index = 0; index < importers.Count; index++) {
@@ -764,7 +792,9 @@ namespace helengine.editor {
                 }
             }
 
-            return new AssetImportManager(Path.GetFullPath(projectRootPath), contentManager);
+            AssetImportManager manager = new AssetImportManager(Path.GetFullPath(projectRootPath), contentManager);
+            manager.SetRenderManager2D(rendererResources.RenderManager2D);
+            return manager;
         }
 
         /// <summary>

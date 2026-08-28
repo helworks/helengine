@@ -4,7 +4,7 @@ namespace helengine {
     /// <summary>
     /// Builds and caches the shared runtime resources used by editor-only camera visuals.
     /// </summary>
-    public static class EditorCameraVisualResources {
+    public sealed class EditorCameraVisualResources : IDisposable {
         /// <summary>
         /// Width of the camera body.
         /// </summary>
@@ -40,34 +40,39 @@ namespace helengine {
         /// <summary>
         /// Cached runtime model shared by all editor camera visuals.
         /// </summary>
-        static RuntimeModel RuntimeModelValue;
+        readonly RenderManager3D RenderManager3D;
+        RuntimeModel RuntimeModelValue;
+        bool IsDisposed;
 
         /// <summary>
-        /// Clears cached runtime resources so tests can start from a known state.
+        /// Initializes one camera visual resource owner for one renderer.
         /// </summary>
-        public static void ResetForTests() {
-            RuntimeModelValue = null;
+        public EditorCameraVisualResources(RenderManager3D renderManager3D) {
+            RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
         }
 
         /// <summary>
         /// Gets the shared runtime model used by editor camera visuals.
         /// </summary>
         /// <returns>Cached runtime model instance.</returns>
-        public static RuntimeModel GetRuntimeModel() {
-            if (RuntimeModelValue != null) {
-                return RuntimeModelValue;
+        public RuntimeModel GetRuntimeModel() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorCameraVisualResources));
             }
-
-            Core core = Core.Instance;
-            if (core == null) {
-                throw new InvalidOperationException("Core must be initialized before editor camera visuals can be built.");
+            if (RuntimeModelValue == null) {
+                RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
             }
-            if (core.RenderManager3D == null) {
-                throw new InvalidOperationException("A 3D render manager is required before editor camera visuals can be built.");
-            }
-
-            RuntimeModelValue = core.RenderManager3D.BuildModelFromRaw(CreateModelAsset());
             return RuntimeModelValue;
+        }
+
+        /// <summary>Releases the renderer-owned camera visual model.</summary>
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+            RuntimeModelValue?.Dispose();
+            RuntimeModelValue = null;
+            IsDisposed = true;
         }
 
         /// <summary>

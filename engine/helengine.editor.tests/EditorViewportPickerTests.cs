@@ -24,9 +24,11 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });
+            TestGeneratedAssetGraph generatedAssetGraph = null;
 
             try {
                 core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));
+                generatedAssetGraph = new TestGeneratedAssetGraph(core);
                 EditorInputCaptureService.Reset();
                 EditorGizmoHoverService.ClearHoveredHandle();
 
@@ -59,7 +61,8 @@ namespace helengine.editor.tests {
                     gizmoDrawableCollector,
                     pickerCameraEntity,
                     pickerCamera,
-                    TestDirectX11RenderManager3D.Create());
+                    TestDirectX11RenderManager3D.Create(),
+                    generatedAssetGraph.RendererResources);
                 sceneCameraEntity.AddComponent(picker);
 
                 EditorEntity hoveredHandle = new EditorEntity();
@@ -81,6 +84,7 @@ namespace helengine.editor.tests {
             } finally {
                 EditorGizmoHoverService.ClearHoveredHandle();
                 EditorInputCaptureService.Reset();
+                generatedAssetGraph?.Dispose();
                 core.Dispose();
             }
         }
@@ -94,9 +98,11 @@ namespace helengine.editor.tests {
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });
+            TestGeneratedAssetGraph generatedAssetGraph = null;
 
             try {
                 core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));
+                generatedAssetGraph = new TestGeneratedAssetGraph(core);
                 EditorInputCaptureService.Reset();
                 EditorGizmoHoverService.ClearHoveredHandle();
 
@@ -131,7 +137,8 @@ namespace helengine.editor.tests {
                     gizmoDrawableCollector,
                     pickerCameraEntity,
                     pickerCamera,
-                    TestDirectX11RenderManager3D.Create());
+                    TestDirectX11RenderManager3D.Create(),
+                    generatedAssetGraph.RendererResources);
                 sceneCameraEntity.AddComponent(picker);
 
                 InvokeSynchronizePickerCameraProjection(picker, gizmoCamera);
@@ -141,6 +148,7 @@ namespace helengine.editor.tests {
             } finally {
                 EditorGizmoHoverService.ClearHoveredHandle();
                 EditorInputCaptureService.Reset();
+                generatedAssetGraph?.Dispose();
                 core.Dispose();
             }
         }

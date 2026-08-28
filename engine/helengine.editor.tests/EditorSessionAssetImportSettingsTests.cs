@@ -399,7 +399,9 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ProjectLocalSettingsService", localSettingsService);
             SetPrivateField(session, "ActiveProjectPlatform", "android");
             SetPrivateField(session, "RequiredEngineVersion", "1.0.0-custom");
-            SetPrivateField(session, "SceneModelRefreshService", new EditorSceneModelRefreshService(new EditorFileSystemModelResolver(manager)));
+            EditorFileSystemModelResolver modelResolver = new EditorFileSystemModelResolver(manager);
+            modelResolver.SetRenderManager(Core.Instance.RenderManager3D);
+            SetPrivateField(session, "SceneModelRefreshService", new EditorSceneModelRefreshService(modelResolver, Core.Instance.ObjectManager));
             SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath)));
 
             return session;

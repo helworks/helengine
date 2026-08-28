@@ -33,7 +33,6 @@ namespace helengine.editor.tests {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
-            EditorCameraVisualResources.ResetForTests();
         }
 
         /// <summary>
@@ -43,7 +42,6 @@ namespace helengine.editor.tests {
             GeneratedAssetGraph.Dispose();
             EditorSelectionService.Reset();
             EditorSceneMutationService.Reset();
-            EditorCameraVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }

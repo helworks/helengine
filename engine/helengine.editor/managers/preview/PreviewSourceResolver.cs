@@ -22,6 +22,7 @@ namespace helengine.editor {
         readonly GeneratedAssetProviderRegistry GeneratedAssetProviders;
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Initializes a new preview source resolver.
@@ -37,7 +38,8 @@ namespace helengine.editor {
             EditorSceneCanvasProfileState sceneCanvasProfileState,
             GeneratedAssetProviderRegistry generatedAssetProviders,
             EngineGeneratedMaterialCache generatedMaterialCache,
-            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
+            EditorSessionRendererResources rendererResources) {
             if (assetImportManager == null) {
                 throw new ArgumentNullException(nameof(assetImportManager));
             }
@@ -56,6 +58,12 @@ namespace helengine.editor {
             if (builtInShaderLibrary == null) {
                 throw new ArgumentNullException(nameof(builtInShaderLibrary));
             }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (!ReferenceEquals(renderManager2D, rendererResources.RenderManager2D) || !ReferenceEquals(renderManager3D, rendererResources.RenderManager3D)) {
+                throw new InvalidOperationException("Preview resources must belong to the supplied renderers.");
+            }
 
             this.assetImportManager = assetImportManager;
             this.renderManager2D = renderManager2D;
@@ -64,6 +72,7 @@ namespace helengine.editor {
             GeneratedAssetProviders = generatedAssetProviders;
             GeneratedMaterialCache = generatedMaterialCache;
             BuiltInShaderLibrary = builtInShaderLibrary;
+            RendererResources = rendererResources;
         }
 
         /// <summary>
@@ -78,7 +87,7 @@ namespace helengine.editor {
                 CameraComponent cameraComponent = FindComponent<CameraComponent>(selectedEntity);
                 if (cameraComponent != null) {
                     try {
-                        source = new CameraPreviewSource(selectedEntity, cameraComponent, renderManager3D, sceneCanvasProfileState);
+                        source = new CameraPreviewSource(selectedEntity, cameraComponent, renderManager3D, sceneCanvasProfileState, RendererResources);
                         return true;
                     } catch (Exception ex) {
                         Logger.WriteError($"Camera preview failed for '{GetSelectionLabel(selectedEntity)}': {ex.Message}");
@@ -89,7 +98,7 @@ namespace helengine.editor {
             if (assetEntry != null && !assetEntry.IsDirectory && assetEntry.EntryKind == AssetEntryKind.Model) {
                 try {
                     ModelPreviewSource modelSource;
-                    if (ModelPreviewSource.TryCreate(assetEntry, assetImportManager, renderManager3D, GeneratedAssetProviders, GeneratedMaterialCache, BuiltInShaderLibrary, out modelSource)) {
+                    if (ModelPreviewSource.TryCreate(assetEntry, assetImportManager, renderManager3D, GeneratedAssetProviders, GeneratedMaterialCache, BuiltInShaderLibrary, RendererResources, out modelSource)) {
                         source = modelSource;
                         return true;
                     }

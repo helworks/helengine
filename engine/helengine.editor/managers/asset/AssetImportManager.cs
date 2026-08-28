@@ -22,6 +22,7 @@ namespace helengine.editor {
         /// Root path for the project assets directory.
         /// </summary>
         readonly string assetsRootPath;
+        RenderManager2D RenderManager2D;
 
         /// <summary>
         /// Root path for imported asset outputs.
@@ -179,6 +180,13 @@ namespace helengine.editor {
             // The manager currently has no unmanaged resources. This explicit
             // owner boundary is intentionally idempotent and keeps disposal
             // ordering visible to the session construction ledger.
+        }
+
+        /// <summary>
+        /// Binds cached font-atlas materialization to the renderer owned by the current editor session.
+        /// </summary>
+        public void SetRenderManager2D(RenderManager2D renderManager2D) {
+            RenderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
         }
 
         /// <summary>
@@ -2031,11 +2039,11 @@ namespace helengine.editor {
                 return asset;
             }
 
-            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
-                throw new InvalidOperationException("Cached font assets require an initialized 2D renderer before their runtime atlas can be restored.");
+            if (RenderManager2D == null) {
+                throw new InvalidOperationException("Cached font assets require session-owned 2D renderer resources before their runtime atlas can be restored.");
             }
 
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(asset.SourceTextureAsset);
+            RuntimeTexture runtimeTexture = RenderManager2D.BuildTextureFromRaw(asset.SourceTextureAsset);
             FontAsset restoredAsset = new FontAsset(
                 asset.FontInfo,
                 runtimeTexture,

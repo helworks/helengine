@@ -19,7 +19,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Apply_WhenEntityDoesNotExistOnPlatform_SuppressesItUntilAnotherPlatformApplies() {
             CreateCore();
-            EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService();
+            EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService(Core.Instance.ObjectManager);
             EditorEntity sceneEntity = new EditorEntity { IsSceneOwned = true };
             EntitySaveComponent saveComponent = FindSaveComponent(sceneEntity);
             new EntityPlatformExistenceEditingService().SetExists(saveComponent, "windows", false);
@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Apply_LeavesEditorInternalEntitiesUntouched() {
             CreateCore();
-            EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService();
+            EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService(Core.Instance.ObjectManager);
             EditorEntity internalEntity = new EditorEntity { InternalEntity = true };
 
             service.Apply("windows");

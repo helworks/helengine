@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies direct 2D scene presentation behavior for editor viewports.
     /// </summary>
     public sealed class EditorViewportDirect2DScenePresenterComponentTests : IDisposable {
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by the direct scene-presentation tests.
         /// </summary>
@@ -16,14 +17,14 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Disposes the active core instance after each test.
         /// </summary>
         public void Dispose() {
-            EditorWorldSpace2DPreviewRegistry.Clear();
-            EditorWorldSpace2DPreviewMeshResources.ResetForTests();
+            GeneratedAssetGraph.Dispose();
             Core.Instance?.Dispose();
         }
 
@@ -42,8 +43,9 @@ namespace helengine.editor.tests {
                 BoundCameraComponent = sceneCamera
             };
             sceneCameraEntity.AddComponent(sceneViewportComponent);
-            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
+            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent, GeneratedAssetGraph.RendererResources);
             sceneCameraEntity.AddComponent(presenter);
+            sceneCameraEntity.InitializeHierarchy();
 
             Core.Instance.Update();
 
@@ -66,8 +68,9 @@ namespace helengine.editor.tests {
                 BoundCameraComponent = sceneCamera
             };
             sceneCameraEntity.AddComponent(sceneViewportComponent);
-            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
+            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent, GeneratedAssetGraph.RendererResources);
             sceneCameraEntity.AddComponent(presenter);
+            sceneCameraEntity.InitializeHierarchy();
 
             Entity drawableEntity = new Entity();
             drawableEntity.InitComponents();
@@ -100,8 +103,9 @@ namespace helengine.editor.tests {
                 BoundCameraComponent = sceneCamera
             };
             sceneCameraEntity.AddComponent(sceneViewportComponent);
-            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
+            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent, GeneratedAssetGraph.RendererResources);
             sceneCameraEntity.AddComponent(presenter);
+            sceneCameraEntity.InitializeHierarchy();
 
             Entity viewportOwnedRoot = new Entity();
             viewportOwnedRoot.InitComponents();
@@ -145,8 +149,9 @@ namespace helengine.editor.tests {
                 BoundCameraComponent = sceneCamera
             };
             sceneCameraEntity.AddComponent(sceneViewportComponent);
-            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
+            EditorViewportDirect2DScenePresenterComponent presenter = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent, GeneratedAssetGraph.RendererResources);
             sceneCameraEntity.AddComponent(presenter);
+            sceneCameraEntity.InitializeHierarchy();
 
             Entity viewportOwnedRoot = new Entity();
             viewportOwnedRoot.InitComponents();

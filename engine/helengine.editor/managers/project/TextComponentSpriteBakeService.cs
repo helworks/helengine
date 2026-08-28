@@ -19,6 +19,7 @@ namespace helengine.editor {
         /// Renderer used to allocate and draw the offscreen capture scene.
         /// </summary>
         readonly RenderManager3D RenderManager3D;
+        readonly ObjectManager ObjectManager;
         /// <summary>Session-owned built-in shader library used by exact preview capture.</summary>
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
@@ -63,8 +64,10 @@ namespace helengine.editor {
             ContentManager projectContentManager,
             AssetImportManager assetImportManager,
             FontAsset defaultEditorFontAsset,
-            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
+            ObjectManager objectManager) {
             RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             RenderTargetTextureAssetReader = renderTargetTextureAssetReader ?? throw new ArgumentNullException(nameof(renderTargetTextureAssetReader));
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
@@ -89,7 +92,7 @@ namespace helengine.editor {
             string stableKey = ComputeStableKey(request);
             string generatedTextureAssetId = string.Concat("generated:text-sprite:", stableKey);
 
-            using EditorExact2DPreviewCaptureService captureService = new EditorExact2DPreviewCaptureService(RenderManager3D, BuiltInShaderLibrary);
+            using EditorExact2DPreviewCaptureService captureService = new EditorExact2DPreviewCaptureService(RenderManager3D, ObjectManager, BuiltInShaderLibrary);
             Entity sourceEntity = new Entity();
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();

@@ -59,10 +59,16 @@ namespace helengine.editor {
         /// Creates one authoring session for a project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        /// <param name="generatedAssetProviders">Optional scoped provider registry borrowed from the enclosing editor or CLI graph. When omitted, the created project session owns a registry for its standalone graph.</param>
+        /// <param name="generatedAssetProviders">Scoped provider registry borrowed from the enclosing editor or CLI graph.</param>
+        /// <param name="generatedModelCache">Scoped generated model cache shared by this session's save and resolver paths.</param>
+        /// <param name="generatedMaterialCache">Scoped generated material cache shared by this session's save and resolver paths.</param>
+        /// <param name="rendererResources">Scoped renderer/resource graph shared by this session's resolver and preview paths.</param>
         /// <returns>Disposable project-scoped authoring session.</returns>
         IEditorProjectAuthoringSession CreateSession(
             string projectRootPath,
-            GeneratedAssetProviderRegistry generatedAssetProviders = null);
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources);
     }
 }

@@ -4,7 +4,7 @@ namespace helengine {
     /// <summary>
     /// Builds and caches the shared runtime resources used by editor-only point light visuals.
     /// </summary>
-    public static class EditorPointLightVisualResources {
+    public sealed class EditorPointLightVisualResources : IDisposable {
         /// <summary>
         /// Radius of the editor point-light sphere.
         /// </summary>
@@ -24,34 +24,39 @@ namespace helengine {
         /// <summary>
         /// Cached runtime model shared by all editor point-light visuals.
         /// </summary>
-        static RuntimeModel RuntimeModelValue;
+        readonly RenderManager3D RenderManager3D;
+        RuntimeModel RuntimeModelValue;
+        bool IsDisposed;
 
         /// <summary>
-        /// Clears cached runtime resources so tests can start from a known state.
+        /// Initializes one point-light visual resource owner for one renderer.
         /// </summary>
-        public static void ResetForTests() {
-            RuntimeModelValue = null;
+        public EditorPointLightVisualResources(RenderManager3D renderManager3D) {
+            RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
         }
 
         /// <summary>
         /// Gets the shared runtime model used by editor point-light visuals.
         /// </summary>
         /// <returns>Cached runtime model instance.</returns>
-        public static RuntimeModel GetRuntimeModel() {
-            if (RuntimeModelValue != null) {
-                return RuntimeModelValue;
+        public RuntimeModel GetRuntimeModel() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorPointLightVisualResources));
             }
-
-            Core core = Core.Instance;
-            if (core == null) {
-                throw new InvalidOperationException("Core must be initialized before editor point-light visuals can be built.");
+            if (RuntimeModelValue == null) {
+                RuntimeModelValue = RenderManager3D.BuildModelFromRaw(CreateModelAsset());
             }
-            if (core.RenderManager3D == null) {
-                throw new InvalidOperationException("A 3D render manager is required before editor point-light visuals can be built.");
-            }
-
-            RuntimeModelValue = core.RenderManager3D.BuildModelFromRaw(CreateModelAsset());
             return RuntimeModelValue;
+        }
+
+        /// <summary>Releases the renderer-owned point-light visual model.</summary>
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+            RuntimeModelValue?.Dispose();
+            RuntimeModelValue = null;
+            IsDisposed = true;
         }
 
         /// <summary>

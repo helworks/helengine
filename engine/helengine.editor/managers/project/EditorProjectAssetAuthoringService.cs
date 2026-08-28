@@ -27,6 +27,11 @@ namespace helengine.editor {
         /// Native writer backed by the session-owned identity index and hash cache.
         /// </summary>
         readonly EditorNativeAssetWriteService NativeAssetWriteService;
+        /// <summary>Session-owned generated model cache used during scene and blueprint inference.</summary>
+        readonly EngineGeneratedModelCache GeneratedModelCache;
+        /// <summary>Session-owned generated material cache used during scene and blueprint inference.</summary>
+        readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Initializes one project capability over a supplied session-owned native writer.
@@ -38,13 +43,19 @@ namespace helengine.editor {
             AssetImportManager assetImportManager,
             EditorAssetReferenceResolver referenceResolver,
             EditorNativeAssetWriteService nativeAssetWriteService,
-            GeneratedAssetProviderRegistry generatedAssetProviders) {
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             AssetReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             NativeAssetWriteService = nativeAssetWriteService ?? throw new ArgumentNullException(nameof(nativeAssetWriteService));
             if (generatedAssetProviders == null) {
                 throw new ArgumentNullException(nameof(generatedAssetProviders));
             }
+            GeneratedModelCache = generatedModelCache ?? throw new ArgumentNullException(nameof(generatedModelCache));
+            GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
             string projectRootPath = Path.GetFullPath(AssetImportManagerValue.ProjectRootPath);
             string expectedAssetsRootPath = Path.Combine(projectRootPath, "assets");
             StringComparison pathComparison = OperatingSystem.IsWindows()
@@ -53,14 +64,17 @@ namespace helengine.editor {
             if (!string.Equals(Path.GetFullPath(AssetImportManagerValue.AssetsRootPath), expectedAssetsRootPath, pathComparison)) {
                 throw new InvalidOperationException("The host asset import manager assets root does not belong to its canonical project root.");
             }
+            EditorFileSystemModelResolver modelResolver = new EditorFileSystemModelResolver(AssetImportManagerValue);
+            modelResolver.SetRenderManager(RendererResources.RenderManager3D);
             SceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(
                 AssetImportManagerValue.ContentManager,
                 projectRootPath,
-                new EditorFileSystemModelResolver(AssetImportManagerValue),
+                modelResolver,
                 new EditorFileSystemFontResolver(AssetImportManagerValue),
                 new EditorFileSystemTextureResolver(AssetImportManagerValue),
                 AssetReferenceResolver,
-                generatedAssetProviders);
+                generatedAssetProviders,
+                RendererResources);
             AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AssetReferenceResolver);
         }
 
@@ -142,7 +156,9 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute source model path.</param>
         /// <returns>Runtime model resolved from the current imported asset.</returns>
         public RuntimeModel ResolveRuntimeModel(string sourcePath) {
-            return new EditorFileSystemModelResolver(AssetImportManagerValue).ResolveRuntimeModel(sourcePath);
+            EditorFileSystemModelResolver modelResolver = new EditorFileSystemModelResolver(AssetImportManagerValue);
+            modelResolver.SetRenderManager(RendererResources.RenderManager3D);
+            return modelResolver.ResolveRuntimeModel(sourcePath);
         }
 
         /// <summary>
@@ -225,7 +241,10 @@ namespace helengine.editor {
             using SceneSaveService saveService = new SceneSaveService(
                 AssetImportManagerValue.ProjectRootPath,
                 persistenceRegistry,
-                AssetReferenceResolver);
+                AssetReferenceResolver,
+                GeneratedModelCache,
+                GeneratedMaterialCache,
+                RendererResources);
             saveService.Save(fullPath, sceneSettings, roots, authoringAssetId);
         }
 
@@ -251,7 +270,10 @@ namespace helengine.editor {
             using BlueprintSaveService saveService = new BlueprintSaveService(
                 AssetImportManagerValue.ProjectRootPath,
                 persistenceRegistry,
-                AssetReferenceResolver);
+                AssetReferenceResolver,
+                GeneratedModelCache,
+                GeneratedMaterialCache,
+                RendererResources);
             saveService.Save(fullPath);
         }
 
@@ -271,7 +293,10 @@ namespace helengine.editor {
             using BlueprintSaveService saveService = new BlueprintSaveService(
                 AssetImportManagerValue.ProjectRootPath,
                 persistenceRegistry,
-                AssetReferenceResolver);
+                AssetReferenceResolver,
+                GeneratedModelCache,
+                GeneratedMaterialCache,
+                RendererResources);
             saveService.Save(fullPath, authoringAssetId);
         }
 

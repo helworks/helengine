@@ -14,6 +14,7 @@ namespace helengine.editor.tests {
         /// Temporary project root used by editor-session scene save tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes an isolated project root and core services for scene save routing tests.
@@ -29,6 +30,7 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             EditorSceneMutationService.Reset();
         }
 
@@ -37,6 +39,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             EditorSceneMutationService.Reset();
+            GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -305,7 +308,12 @@ namespace helengine.editor.tests {
             AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             SaveFileDialog saveFileDialog = new SaveFileDialog(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             SceneSavePathResolver pathResolver = new SceneSavePathResolver(TempProjectRootPath);
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            SceneSaveService saveService = new SceneSaveService(
+                TempProjectRootPath,
+                registry,
+                new EditorAssetReferenceResolver(TempProjectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             SceneSettingsAsset currentSceneSettings = new SceneSettingsAsset();
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             sceneCanvasProfileState.ApplySceneSettings(currentSceneSettings);

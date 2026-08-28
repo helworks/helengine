@@ -13,6 +13,7 @@ namespace helengine.editor.tests {
         /// Temporary project root used by the current editor-session project menu tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Authoring session injected into the uninitialized editor-session fixture.
@@ -31,6 +32,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
@@ -41,6 +43,7 @@ namespace helengine.editor.tests {
             if (AuthoringSession != null) {
                 AuthoringSession.Dispose();
             }
+            GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -123,7 +126,11 @@ namespace helengine.editor.tests {
                 identityIndex,
                 referenceResolver,
                 new EditorAuthoringSessionLifetime(resources),
-                nativeAssetWriteService);
+                nativeAssetWriteService,
+                GeneratedAssetGraph.Registry,
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache,
+                GeneratedAssetGraph.RendererResources);
             SetPrivateField(session, "AuthoringSession", AuthoringSession);
             return session;
         }

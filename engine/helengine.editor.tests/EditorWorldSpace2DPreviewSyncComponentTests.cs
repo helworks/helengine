@@ -26,8 +26,6 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            EditorWorldSpace2DPreviewRegistry.Clear();
-            EditorWorldSpace2DPreviewMeshResources.ResetForTests();
             Core.Instance?.Dispose();
         }
 
@@ -45,7 +43,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
@@ -70,7 +68,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
             syncComponent.Update();
 
@@ -94,7 +92,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
@@ -118,7 +116,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
@@ -149,7 +147,7 @@ namespace helengine.editor.tests {
             internalRoot.AddChild(internalChild);
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
@@ -162,8 +160,6 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenViewportOwnedSpriteUsesBottomRightAnchor_SynchronizerPlacesPreviewAtBottomRight() {
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
 
             Entity viewportEntity = new Entity();
             viewportEntity.InitComponents();
@@ -198,7 +194,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(anchorComponent);
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             Core.Instance.Update();

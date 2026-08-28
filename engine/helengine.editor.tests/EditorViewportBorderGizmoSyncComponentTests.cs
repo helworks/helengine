@@ -21,7 +21,6 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            EditorViewportBorderGizmoMeshResources.ResetForTests();
             Core.Instance?.Dispose();
         }
 
@@ -39,8 +38,9 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
+            syncHostEntity.InitializeHierarchy();
 
             Core.Instance.Update();
 
@@ -70,8 +70,9 @@ namespace helengine.editor.tests {
             internalRoot.AddChild(viewportEntity);
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
+            syncHostEntity.InitializeHierarchy();
 
             Core.Instance.Update();
 
@@ -97,8 +98,9 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
+            syncHostEntity.InitializeHierarchy();
 
             Core.Instance.Update();
 
@@ -125,8 +127,9 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
+            syncHostEntity.InitializeHierarchy();
 
             Core.Instance.Update();
 
@@ -159,8 +162,9 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
+            syncHostEntity.InitializeHierarchy();
 
             Core.Instance.Update();
 
@@ -193,8 +197,9 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
+            syncHostEntity.InitializeHierarchy();
 
             Core.Instance.Update();
 

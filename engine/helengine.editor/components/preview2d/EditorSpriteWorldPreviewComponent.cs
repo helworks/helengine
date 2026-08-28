@@ -13,8 +13,8 @@ namespace helengine {
         /// </summary>
         /// <param name="sourceEntity">Authored source entity mirrored by the preview proxy.</param>
         /// <param name="sourceComponent">Authored sprite component mirrored by the preview proxy.</param>
-        public EditorSpriteWorldPreviewComponent(Entity sourceEntity, SpriteComponent sourceComponent, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
-            : base(sourceEntity, builtInShaderLibrary) {
+        public EditorSpriteWorldPreviewComponent(Entity sourceEntity, SpriteComponent sourceComponent, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary, helengine.editor.EditorSessionRendererResources rendererResources)
+            : base(sourceEntity, builtInShaderLibrary, rendererResources) {
             SourceComponentValue = sourceComponent ?? throw new ArgumentNullException(nameof(sourceComponent));
         }
 

@@ -7,11 +7,15 @@ namespace helengine.editor.tests.managers.project;
 /// </summary>
 public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     readonly List<string> TemporaryProjectRoots = new List<string>();
+    readonly List<TestGeneratedAssetGraph> GeneratedGraphs = new List<TestGeneratedAssetGraph>();
 
     /// <summary>
     /// Deletes all isolated project roots created by this test class.
     /// </summary>
     public void Dispose() {
+        for (int index = 0; index < GeneratedGraphs.Count; index++) {
+            GeneratedGraphs[index].Dispose();
+        }
         for (int index = 0; index < TemporaryProjectRoots.Count; index++) {
             DeleteTemporaryProjectRoot(TemporaryProjectRoots[index]);
         }
@@ -44,7 +48,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         identityIndex.Initialize();
         using EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
 
-        Assert.Throws<ArgumentNullException>(() => new EditorProjectAssetAuthoringService(assetImportManager, null, writer, null));
+        Assert.Throws<ArgumentNullException>(() => new EditorProjectAssetAuthoringService(assetImportManager, null, writer, null, null, null, null));
     }
 
     /// <summary>
@@ -68,7 +72,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     [Fact]
     public void EditorCommandContext_WhenCapabilityIsInjected_ExposesTheSameCapability() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        IEditorProjectAuthoringSession session = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(projectRootPath);
+        IEditorProjectAuthoringSession session = CreateCapability(projectRootPath);
         EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), session);
 
         Assert.Same(session, context.Authoring);
@@ -82,7 +86,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     public void Factory_CreateSession_ReturnsDisposableProjectSession() {
         string projectRootPath = CreateTemporaryProjectRoot();
         try {
-            IEditorProjectAuthoringSession session = new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(projectRootPath);
+            IEditorProjectAuthoringSession session = CreateCapability(projectRootPath);
 
             Assert.IsType<EditorProjectAuthoringSession>(session);
             Assert.IsAssignableFrom<IDisposable>(session);
@@ -272,12 +276,23 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     /// <param name="projectRootPath">Project root used by the capability.</param>
     /// <param name="importers">Optional importer registrations for the test host.</param>
     /// <returns>Directly composed authoring capability.</returns>
-    static EditorProjectAuthoringSession CreateCapability(
+    EditorProjectAuthoringSession CreateCapability(
         string projectRootPath,
         IReadOnlyList<IAssetImporterRegistration> importers = null) {
         IReadOnlyList<IAssetImporterRegistration> registrations = importers ?? Array.Empty<IAssetImporterRegistration>();
+        Core core = new Core(new CoreInitializationOptions {
+            ContentStreamSource = new HostFileSystemContentStreamSource(projectRootPath)
+        });
+        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
+        GeneratedGraphs.Add(graph);
         return Assert.IsType<EditorProjectAuthoringSession>(
-            new EditorProjectAssetAuthoringServiceFactory(registrations).CreateSession(projectRootPath));
+            new EditorProjectAssetAuthoringServiceFactory(registrations).CreateSession(
+                projectRootPath,
+                graph.Registry,
+                graph.ModelCache,
+                graph.MaterialCache,
+                graph.RendererResources));
     }
 
     /// <summary>

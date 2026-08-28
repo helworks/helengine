@@ -19,7 +19,7 @@ namespace helengine.editor.tests.managers.scene {
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
 
             cameraEntity.AddComponent(component);
             component.Update();
@@ -42,7 +42,7 @@ namespace helengine.editor.tests.managers.scene {
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
 
             cameraEntity.AddComponent(component);
             component.Update();
@@ -70,7 +70,7 @@ namespace helengine.editor.tests.managers.scene {
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             CreateSceneRoundedRectEntity();
 
             cameraEntity.AddComponent(component);
@@ -117,9 +117,15 @@ namespace helengine.editor.tests.managers.scene {
         /// <returns>Scene entity registered on the authored scene-object layer.</returns>
         EditorEntity CreateSceneRoundedRectEntity() {
             var sceneEntity = new EditorEntity {
-                LayerMask = EditorLayerMasks.SceneObjects
+                LayerMask = EditorLayerMasks.SceneObjects,
+                IsSceneOwned = true
             };
-            sceneEntity.AddComponent(new RoundedRectComponent());
+            RoundedRectComponent roundedRect = new RoundedRectComponent();
+            sceneEntity.AddComponent(roundedRect);
+            sceneEntity.InitializeHierarchy();
+            if (!GeneratedAssetGraph.ObjectManager.Drawables2D.Contains(roundedRect)) {
+                GeneratedAssetGraph.ObjectManager.RegisterForRender2D(roundedRect);
+            }
             return sceneEntity;
         }
     }

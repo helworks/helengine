@@ -8,12 +8,18 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Scene entity that may represent a camera.</param>
         /// <returns>True when the visual component was added; otherwise false.</returns>
-        public static bool Attach(EditorEntity entity, EngineGeneratedMaterialCache generatedMaterialCache) {
+        public static bool Attach(
+            EditorEntity entity,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorCameraVisualResources visualResources) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
             if (generatedMaterialCache == null) {
                 throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            if (visualResources == null) {
+                throw new ArgumentNullException(nameof(visualResources));
             }
 
             if (!HasComponent<CameraComponent>(entity)) {
@@ -33,7 +39,7 @@ namespace helengine.editor {
                 Name = "Camera Visual"
             };
 
-            visualEntity.AddComponent(new EditorCameraVisualComponent(generatedMaterialCache));
+            visualEntity.AddComponent(new EditorCameraVisualComponent(generatedMaterialCache, visualResources));
             entity.AddChild(visualEntity);
             return true;
         }

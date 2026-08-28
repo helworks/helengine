@@ -11,6 +11,45 @@ namespace helengine.editor.tests;
 /// </summary>
 public sealed class GeneratedSessionIsolationBehaviorTests {
     [Fact]
+    public void LiveAuthoringSessions_KeepResolverGraphsIndependentAfterSessionADisposes() {
+        string projectRootA = CreateProjectRoot();
+        string projectRootB = CreateProjectRoot();
+        Core coreA = CreateCore(projectRootA);
+        Core coreB = CreateCore(projectRootB);
+        TestGeneratedAssetGraph graphA = new TestGeneratedAssetGraph(coreA);
+        TestGeneratedAssetGraph graphB = new TestGeneratedAssetGraph(coreB);
+        graphA.Registry.Register(graphA.CreateProvider());
+        graphB.Registry.Register(graphB.CreateProvider());
+
+        try {
+            using EditorProjectAuthoringSession sessionA = CreateAuthoringSession(projectRootA, graphA);
+            using EditorProjectAuthoringSession sessionB = CreateAuthoringSession(projectRootB, graphB);
+            ISceneAssetReferenceResolver resolverA = sessionA.CreateSceneAssetReferenceResolver();
+            ISceneAssetReferenceResolver resolverB = sessionB.CreateSceneAssetReferenceResolver();
+
+            RuntimeModel modelA = resolverA.ResolveModel(global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel());
+            RuntimeModel modelB = resolverB.ResolveModel(global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel());
+
+            Assert.NotSame(resolverA, resolverB);
+            Assert.NotSame(modelA, modelB);
+
+            sessionA.Dispose();
+            graphA.Dispose();
+            coreA.Dispose();
+
+            RuntimeModel modelBAfterAClosed = resolverB.ResolveModel(global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel());
+            Assert.Same(modelB, modelBAfterAClosed);
+        } finally {
+            graphA.Dispose();
+            graphB.Dispose();
+            coreA.Dispose();
+            coreB.Dispose();
+            DeleteProjectRoot(projectRootA);
+            DeleteProjectRoot(projectRootB);
+        }
+    }
+
+    [Fact]
     public void SeparateGraphs_DoNotShareGeneratedCachesOrProviderEntries() {
         Core coreA = CreateCore();
         Core coreB = CreateCore();
@@ -68,5 +107,34 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
         Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
         core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
         return core;
+    }
+
+    static Core CreateCore(string projectRootPath) {
+        Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new HostFileSystemContentStreamSource(projectRootPath) });
+        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+        return core;
+    }
+
+    static EditorProjectAuthoringSession CreateAuthoringSession(string projectRootPath, TestGeneratedAssetGraph graph) {
+        return new EditorProjectAuthoringSession(
+            projectRootPath,
+            Array.Empty<IAssetImporterRegistration>(),
+            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))),
+            graph.Registry,
+            graph.ModelCache,
+            graph.MaterialCache,
+            graph.RendererResources);
+    }
+
+    static string CreateProjectRoot() {
+        string projectRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-isolation-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(projectRootPath, "assets"));
+        return projectRootPath;
+    }
+
+    static void DeleteProjectRoot(string projectRootPath) {
+        if (Directory.Exists(projectRootPath)) {
+            Directory.Delete(projectRootPath, true);
+        }
     }
 }

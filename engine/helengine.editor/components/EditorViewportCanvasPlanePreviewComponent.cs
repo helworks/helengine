@@ -19,6 +19,8 @@ namespace helengine.editor {
         /// Renderer used to create preview render targets and runtime mesh resources.
         /// </summary>
         readonly RenderManager3D Render3D;
+        /// <summary>Session-owned object manager used to register and remove preview entities.</summary>
+        readonly ObjectManager ObjectManager;
         /// <summary>Session-owned built-in shader library used by the canvas plane.</summary>
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
@@ -75,12 +77,18 @@ namespace helengine.editor {
             EditorSceneCanvasProfileState sceneCanvasProfileState,
             EditorViewportCanvasPreviewSettings settings,
             RenderManager3D render3D,
-            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
+            EditorSessionRendererResources rendererResources) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             SceneCanvasProfileState = sceneCanvasProfileState ?? throw new ArgumentNullException(nameof(sceneCanvasProfileState));
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            rendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            if (!ReferenceEquals(Render3D, rendererResources.RenderManager3D)) {
+                throw new ArgumentException("Canvas preview renderer must belong to the supplied session resources.", nameof(rendererResources));
+            }
+            ObjectManager = rendererResources.ObjectManager;
         }
 
         /// <summary>
@@ -93,8 +101,9 @@ namespace helengine.editor {
             CameraComponent sceneCamera,
             EditorViewportCanvasPreviewSettings settings,
             RenderManager3D render3D,
-            EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
-            : this(sceneCamera, new EditorSceneCanvasProfileState(), settings, render3D, builtInShaderLibrary) {
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
+            EditorSessionRendererResources rendererResources)
+            : this(sceneCamera, new EditorSceneCanvasProfileState(), settings, render3D, builtInShaderLibrary, rendererResources) {
         }
 
         /// <summary>
@@ -111,6 +120,10 @@ namespace helengine.editor {
         /// Gets the world-space plane entity that displays the preview texture.
         /// </summary>
         public EditorEntity PlaneEntity => PlaneEntityValue;
+
+        /// <summary>Returns the session-owned object manager for canvas hit testing.</summary>
+        internal ObjectManager ObjectManagerForSelection => ObjectManager;
+
 
         /// <summary>
         /// Creates the offscreen preview camera, render target, and world-space plane when attached to the scene camera entity.
@@ -242,7 +255,7 @@ namespace helengine.editor {
             SceneCamera.RenderQueue2D.Clear();
             previewQueue.Clear();
 
-            List<IDrawable2D> drawables2D = Core.Instance.ObjectManager.Drawables2D;
+            List<IDrawable2D> drawables2D = ObjectManager.Drawables2D;
             for (int index = 0; index < drawables2D.Count; index++) {
                 IDrawable2D drawable = drawables2D[index];
                 if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
@@ -275,7 +288,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return helengine.editor.EditorViewportDirect2DPresentationService.ShouldKeepViewportLockBehavior(drawable.Parent);
+            return !helengine.editor.EditorViewportDirect2DPresentationService.ShouldKeepViewportLockBehavior(drawable.Parent);
         }
 
         /// <summary>
@@ -317,10 +330,10 @@ namespace helengine.editor {
         /// </summary>
         void DisposePreviewEntity() {
             if (PreviewCameraComponent != null) {
-                Core.Instance.ObjectManager.RemoveCamera(PreviewCameraComponent);
+                ObjectManager.RemoveCamera(PreviewCameraComponent);
             }
             if (PreviewCameraEntity != null) {
-                Core.Instance.ObjectManager.RemoveEntity(PreviewCameraEntity);
+                ObjectManager.RemoveEntity(PreviewCameraEntity);
                 PreviewCameraEntity.Dispose();
             }
 
@@ -333,7 +346,7 @@ namespace helengine.editor {
         /// </summary>
         void DisposePlaneEntity() {
             if (PlaneEntityValue != null) {
-                Core.Instance.ObjectManager.RemoveEntity(PlaneEntityValue);
+                ObjectManager.RemoveEntity(PlaneEntityValue);
                 PlaneEntityValue.Dispose();
             }
 

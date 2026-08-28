@@ -345,6 +345,10 @@ namespace helengine.editor {
         /// </summary>
         readonly EngineGeneratedMaterialCache generatedMaterialCache;
         /// <summary>
+        /// Session-owned renderer-backed visual and preview resources.
+        /// </summary>
+        readonly EditorSessionRendererResources rendererResources;
+        /// <summary>
         /// Session-owned generated provider registry for this editor graph.
         /// </summary>
         readonly GeneratedAssetProviderRegistry generatedAssetProviderRegistry;
@@ -689,16 +693,26 @@ namespace helengine.editor {
             EditorInputCaptureService.Reset();
             core.Initialize(render3D, render2D, input, CreateEditorPlatformInfo());
             generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
-            constructionLedger.Register(generatedAssetProviderRegistry);
+            constructionLedger.Register(generatedAssetProviderRegistry, EditorSessionCleanupPhase.GeneratedProviderGraph);
             EditorComponentAddCatalog.Initialize();
             core.Input.SetKeyboardActive(true);
 
             assetImportManager = InitializeAssetImports(Importers);
+            assetImportManager.SetRenderManager2D(core.RenderManager2D);
             constructionLedger.Register(assetImportManager.ContentManager);
             constructionLedger.Register(assetImportManager);
+            generatedModelCache = new EngineGeneratedModelCache(core);
+            constructionLedger.Register(generatedModelCache);
+            generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
+            constructionLedger.Register(generatedMaterialCache);
+            rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, uiFont);
+            constructionLedger.Register(rendererResources);
             EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(
                 assetImportManager,
                 generatedAssetProviderRegistry,
+                generatedModelCache,
+                generatedMaterialCache,
+                rendererResources,
                 manager => RegisterAssetImporters(manager, Importers));
             constructionLedger.Register(concreteAuthoringSession);
             // Session construction completes current transaction recovery and
@@ -709,17 +723,13 @@ namespace helengine.editor {
             AuthoringSession = concreteAuthoringSession;
             AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
             authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
-            generatedModelCache = new EngineGeneratedModelCache(core);
-            constructionLedger.Register(generatedModelCache);
-            generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
-            constructionLedger.Register(generatedMaterialCache);
             generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
             materialAssetSettingsService = new MaterialAssetSettingsService(this.projectPath);
 
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             PendingShaderBuildNotificationLock = new object();
             PendingShaderBuildNotifications = new Queue<KeyValuePair<string, string>>(PendingShaderBuildNotificationInitialCapacity);
-            previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D, sceneCanvasProfileState, generatedAssetProviderRegistry, generatedMaterialCache, builtInShaderAssetLibrary);
+            previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D, sceneCanvasProfileState, generatedAssetProviderRegistry, generatedMaterialCache, builtInShaderAssetLibrary, rendererResources);
 
             uiCameraEntity = new EditorEntity();
             uiCameraEntity.InternalEntity = true;
@@ -767,7 +777,7 @@ namespace helengine.editor {
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
             keyboardFocusEntity.InitializeHierarchy();
 
-            PlatformExistenceSyncService = new EditorPlatformExistenceViewportSyncService();
+            PlatformExistenceSyncService = new EditorPlatformExistenceViewportSyncService(core.ObjectManager);
             RegisterDetacher(constructionLedger, () => EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression);
             EntityPlatformExistenceEditingService.ExistenceChanged += ApplyPlatformExistenceSuppression;
 
@@ -780,6 +790,7 @@ namespace helengine.editor {
 
             dockingManager = new DockingManager();
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
+            fileSystemModelResolver.SetRenderManager(core.RenderManager3D);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
@@ -794,10 +805,12 @@ namespace helengine.editor {
             constructionLedger.Register(propertiesPanel);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             propertiesPanel.SetGeneratedAssetProviderRegistry(generatedAssetProviderRegistry);
+            propertiesPanel.SetRendererResources(rendererResources);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             constructionLedger.Register(loggerPanel);
             LogAuthoringRepairReport();
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
+            previewPanel.SetRendererResources(rendererResources);
             constructionLedger.Register(previewPanel);
             assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
@@ -813,13 +826,13 @@ namespace helengine.editor {
             ConstructionCheckpointForTests?.Invoke("mid-construction");
             ComponentPersistenceRegistry persistenceRegistry = CreateComponentPersistenceRegistry(scriptHotReloadService.ScriptTypeResolver);
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
-            SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry, authoredAssetReferenceResolver, generatedModelCache, generatedMaterialCache);
+            SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry, authoredAssetReferenceResolver, generatedModelCache, generatedMaterialCache, rendererResources);
             constructionLedger.Register(SceneSaveService);
             HistoryCaptureService = new EditorHistoryCaptureService(SceneSaveService);
             ComponentHistoryAdapterRegistry = new ComponentHistoryAdapterRegistry();
-            SceneCreationService = new EditorSceneCreationService(core.EntityFactory, generatedModelCache, generatedMaterialCache);
+            SceneCreationService = new EditorSceneCreationService(core.EntityFactory, core.ObjectManager, generatedModelCache, generatedMaterialCache, rendererResources);
             ReparentService = new EditorEntityReparentService();
-            SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
+            SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver, core.ObjectManager);
             buildConfigService = new EditorBuildConfigService(this.projectPath);
             profileSettingsService = new EditorProfileSettingsService(this.projectPath);
             buildQueueService = new EditorBuildQueueService(
@@ -849,13 +862,14 @@ namespace helengine.editor {
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
-            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
+            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver, authoredAssetReferenceResolver, generatedAssetProviderRegistry, rendererResources);
             constructionLedger.Register(sceneAssetReferenceResolver);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
                 sceneAssetReferenceResolver,
-                generatedMaterialCache);
+                generatedMaterialCache,
+                rendererResources);
             constructionLedger.Register(SceneFileLoadService);
             UndoRedoService = new EditorUndoRedoService(CreateHistoryContext());
             HistoryMutationService = new EditorMutationService(
@@ -1338,7 +1352,7 @@ namespace helengine.editor {
             PendingOwnedAssetReleases.Add(ownedAssets);
             PendingOwnedAssetReleaseCleanupItems ??= new List<EditorSessionCleanupItem>();
             PendingOwnedAssetReleaseCleanupItems.Add(new EditorSessionCleanupItem(
-                () => EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets)));
+                () => EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets, rendererResources)));
         }
 
         /// <summary>
@@ -1353,7 +1367,7 @@ namespace helengine.editor {
             for (int index = PendingOwnedAssetReleaseCleanupItems.Count; index < PendingOwnedAssetReleases.Count; index++) {
                 RuntimeSceneOwnedAssetSet ownedAssets = PendingOwnedAssetReleases[index];
                 PendingOwnedAssetReleaseCleanupItems.Add(new EditorSessionCleanupItem(
-                    () => EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets)));
+                    () => EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets, rendererResources)));
             }
 
             List<Exception> failures = new List<Exception>();
@@ -2391,7 +2405,8 @@ namespace helengine.editor {
                 session.sceneCanvasProfileState,
                 session.CurrentUiMetrics,
                 session.builtInShaderAssetLibrary,
-                session.generatedMaterialCache);
+                session.generatedMaterialCache,
+                session.rendererResources);
         }
 
         /// <summary>
@@ -2423,6 +2438,7 @@ namespace helengine.editor {
         /// <returns>Created properties panel controller.</returns>
         IEditorWorkspacePanelController CreatePropertiesPanelController(EditorSession session) {
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(session.assetImportManager);
+            fileSystemModelResolver.SetRenderManager(session.rendererResources.RenderManager3D);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(session.assetImportManager);
             PropertiesPanel panel = new PropertiesPanel(
                 session.uiFont,
@@ -2434,6 +2450,8 @@ namespace helengine.editor {
                 fileSystemFontResolver,
                 session.projectPath);
             panel.SetAssetReferenceResolver(session.authoredAssetReferenceResolver);
+            panel.SetGeneratedAssetProviderRegistry(session.generatedAssetProviderRegistry);
+            panel.SetRendererResources(session.rendererResources);
             panel.ShaderPackageService = session.shaderPackageService;
             panel.HistoryMutationService = session.HistoryMutationService;
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, SessionWorkspacePanelController.NoDispose);
@@ -2456,6 +2474,7 @@ namespace helengine.editor {
         /// <returns>Created preview panel controller.</returns>
         IEditorWorkspacePanelController CreatePreviewPanelController(EditorSession session) {
             PreviewPanel panel = new PreviewPanel(session.uiFont, session.ViewportToolbarIcons.GridIcon, session.CurrentUiMetrics);
+            panel.SetRendererResources(session.rendererResources);
             return CreatePreviewPanelSessionController(panel);
         }
 
@@ -4024,7 +4043,7 @@ namespace helengine.editor {
                 }
 
                 string outputPath = Path.ChangeExtension(fullPath, ".glb");
-                List<Entity> rootEntities = new List<Entity>(helengine.Core.Instance.ObjectManager.Entities);
+                List<Entity> rootEntities = new List<Entity>(core.ObjectManager.Entities);
                 string summary = sceneMeshExporter.Export(rootEntities, Path.Combine(projectPath, "assets"), outputPath);
                 Logger.WriteLine(summary);
                 saveFileDialogExportsScene = false;
@@ -4314,11 +4333,11 @@ namespace helengine.editor {
         /// New sessions begin empty and wait for the user to add scene entities explicitly.
         /// </summary>
         void BuildStartScene() {
-            if (helengine.Core.Instance == null || helengine.Core.Instance.RenderManager3D == null) {
+            if (core == null || core.RenderManager3D == null) {
                 throw new InvalidOperationException("Viewport grid initialization requires an active 3D render manager.");
             }
 
-            EditorViewportGridFactory.Create(helengine.Core.Instance.RenderManager3D, builtInShaderAssetLibrary);
+            EditorViewportGridFactory.Create(core.RenderManager3D, builtInShaderAssetLibrary);
         }
 
         /// <summary>
@@ -4333,7 +4352,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Snapshot of the current user-authored scene root entities.</returns>
         List<EditorEntity> CaptureUserSceneEntities() {
-            List<Entity> liveEntities = new List<Entity>(helengine.Core.Instance.ObjectManager.Entities);
+            List<Entity> liveEntities = new List<Entity>(core.ObjectManager.Entities);
             List<EditorEntity> capturedEntities = new List<EditorEntity>(liveEntities.Count);
             for (int i = 0; i < liveEntities.Count; i++) {
                 if (liveEntities[i] is not EditorEntity editorEntity) {
@@ -4466,7 +4485,7 @@ namespace helengine.editor {
             }
 
             RuntimeSceneOwnedAssetSet ownedAssets = CurrentSceneOwnedAssets;
-            EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets);
+            EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets, rendererResources);
             // Keep the ownership marker until every release succeeds so a
             // failed ledger action can retry the same set without losing it.
             CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
@@ -4560,11 +4579,7 @@ namespace helengine.editor {
             if (rootEntities == null) {
                 throw new ArgumentNullException(nameof(rootEntities));
             }
-            if (helengine.Core.Instance == null) {
-                throw new InvalidOperationException("An active core instance must exist before binding editor scenes to the physics runtime.");
-            }
-
-            ISceneBindablePhysicsRuntime sceneBindablePhysicsRuntime = helengine.Core.Instance.PhysicsRuntime as ISceneBindablePhysicsRuntime;
+            ISceneBindablePhysicsRuntime sceneBindablePhysicsRuntime = core.PhysicsRuntime as ISceneBindablePhysicsRuntime;
             if (sceneBindablePhysicsRuntime == null) {
                 return;
             }
@@ -4584,7 +4599,7 @@ namespace helengine.editor {
             }
 
             List<Entity> candidateParents = new List<Entity>();
-            List<Entity> entities = helengine.Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = core.ObjectManager.Entities;
             for (int i = 0; i < entities.Count; i++) {
                 Entity candidate = entities[i];
                 if (!IsVisibleSceneEntity(candidate)) {
@@ -5415,7 +5430,7 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(entityId), "Scene history requires a non-zero entity id.");
             }
 
-            List<Entity> entities = helengine.Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = core.ObjectManager.Entities;
             for (int index = 0; index < entities.Count; index++) {
                 if (entities[index] is not EditorEntity editorEntity) {
                     continue;
@@ -5819,11 +5834,11 @@ namespace helengine.editor {
         /// <returns>True when the entity id is still present in the current scene; otherwise false.</returns>
         bool TryResolvePreviewSceneEntity(uint entityId, out Entity selectedEntity) {
             selectedEntity = null;
-            if (entityId == 0u || helengine.Core.Instance == null || helengine.Core.Instance.ObjectManager == null) {
+            if (entityId == 0u || core == null || core.ObjectManager == null) {
                 return false;
             }
 
-            IReadOnlyList<Entity> entities = helengine.Core.Instance.ObjectManager.Entities;
+            IReadOnlyList<Entity> entities = core.ObjectManager.Entities;
             for (int index = 0; index < entities.Count; index++) {
                 EntitySaveComponent saveComponent = FindEntitySaveComponent(entities[index]);
                 if (saveComponent == null || saveComponent.EntityId != entityId) {

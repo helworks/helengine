@@ -26,8 +26,6 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            EditorWorldSpace2DPreviewRegistry.Clear();
-            EditorWorldSpace2DPreviewMeshResources.ResetForTests();
             Core.Instance?.Dispose();
         }
 
@@ -42,7 +40,8 @@ namespace helengine.editor.tests {
             Entity selectedEntity = EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(
                 sceneCamera,
                 sceneCamera.Viewport,
-                new int2(60, 50));
+                new int2(60, 50),
+                GeneratedAssetGraph.ObjectManager);
 
             Assert.Same(interactable.Parent, selectedEntity);
         }
@@ -58,7 +57,8 @@ namespace helengine.editor.tests {
             Entity selectedEntity = EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(
                 sceneCamera,
                 sceneCamera.Viewport,
-                new int2(250, 150));
+                new int2(250, 150),
+                GeneratedAssetGraph.ObjectManager);
 
             Assert.Null(selectedEntity);
         }
@@ -81,7 +81,7 @@ namespace helengine.editor.tests {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
-            previewEntity.AddComponent(new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary));
+            previewEntity.AddComponent(new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
             EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
             Assert.Same(sourceEntity, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(previewEntity));
@@ -105,7 +105,7 @@ namespace helengine.editor.tests {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, textComponent));
-            previewEntity.AddComponent(new EditorTextWorldPreviewComponent(sourceEntity, textComponent, GeneratedAssetGraph.ShaderLibrary));
+            previewEntity.AddComponent(new EditorTextWorldPreviewComponent(sourceEntity, textComponent, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
             EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
             Assert.Same(sourceEntity, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(previewEntity));
@@ -129,7 +129,7 @@ namespace helengine.editor.tests {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, roundedRectComponent));
-            previewEntity.AddComponent(new EditorRoundedRectWorldPreviewComponent(sourceEntity, roundedRectComponent, GeneratedAssetGraph.ShaderLibrary));
+            previewEntity.AddComponent(new EditorRoundedRectWorldPreviewComponent(sourceEntity, roundedRectComponent, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
             EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
             Assert.Same(sourceEntity, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(previewEntity));
@@ -156,7 +156,8 @@ namespace helengine.editor.tests {
             Entity selectedEntity = EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(
                 sceneCamera,
                 sceneCamera.Viewport,
-                new int2(60, 50));
+                new int2(60, 50),
+                GeneratedAssetGraph.ObjectManager);
 
             Assert.Same(interactable.Parent, selectedEntity);
         }
@@ -194,7 +195,8 @@ namespace helengine.editor.tests {
             Entity selectedEntity = EditorViewportDirect2DPresentationService.ResolveSelectableEntityAtPointer(
                 sceneCamera,
                 sceneCamera.Viewport,
-                new int2(60, 50));
+                new int2(60, 50),
+                GeneratedAssetGraph.ObjectManager);
 
             Assert.Null(selectedEntity);
         }
@@ -232,13 +234,14 @@ namespace helengine.editor.tests {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
-            previewEntity.AddComponent(new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary));
+            previewEntity.AddComponent(new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
             EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
             Entity selectedEntity = EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(
                 sceneCamera,
                 sceneCamera.Viewport,
-                new int2(250, 200));
+                new int2(250, 200),
+                GeneratedAssetGraph.ObjectManager);
 
             Assert.Same(sourceEntity, selectedEntity);
         }

@@ -23,12 +23,24 @@ namespace helengine.editor {
         /// <returns>Configured project authoring session.</returns>
         public IEditorProjectAuthoringSession CreateSession(
             string projectRootPath,
-            GeneratedAssetProviderRegistry generatedAssetProviders = null) {
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
             AssetImportManager assetImportManager = CreateAssetImportManager(projectRootPath);
             try {
-                return generatedAssetProviders == null
-                    ? EditorProjectAuthoringSession.CreateFromManager(assetImportManager, null, RegisterImporters, true)
-                    : EditorProjectAuthoringSession.CreateFromManager(assetImportManager, generatedAssetProviders, RegisterImporters, true);
+                if (rendererResources == null) {
+                    throw new ArgumentNullException(nameof(rendererResources));
+                }
+                assetImportManager.SetRenderManager2D(rendererResources.RenderManager2D);
+                return EditorProjectAuthoringSession.CreateFromManager(
+                    assetImportManager,
+                    generatedAssetProviders,
+                    generatedModelCache,
+                    generatedMaterialCache,
+                    rendererResources,
+                    RegisterImporters,
+                    true);
             } catch (Exception primaryException) {
                 List<Exception> cleanupFailures = new List<Exception>();
                 try {

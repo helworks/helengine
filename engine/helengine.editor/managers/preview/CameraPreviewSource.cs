@@ -7,6 +7,7 @@ namespace helengine.editor {
         /// Owning renderer used to allocate preview render targets.
         /// </summary>
         readonly RenderManager3D renderManager3D;
+        readonly ObjectManager objectManager;
         /// <summary>
         /// Selected scene entity that provides the live camera transform.
         /// </summary>
@@ -47,7 +48,7 @@ namespace helengine.editor {
         /// <param name="sourceCameraComponent">Selected camera component.</param>
         /// <param name="renderManager3D">Renderer used to allocate the offscreen target.</param>
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used to size previews.</param>
-        public CameraPreviewSource(Entity sourceEntity, CameraComponent sourceCameraComponent, RenderManager3D renderManager3D, EditorSceneCanvasProfileState sceneCanvasProfileState) {
+        public CameraPreviewSource(Entity sourceEntity, CameraComponent sourceCameraComponent, RenderManager3D renderManager3D, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorSessionRendererResources rendererResources) {
             if (sourceEntity == null) {
                 throw new ArgumentNullException(nameof(sourceEntity));
             }
@@ -57,8 +58,15 @@ namespace helengine.editor {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (!ReferenceEquals(renderManager3D, rendererResources.RenderManager3D)) {
+                throw new InvalidOperationException("Camera preview resources must belong to the supplied 3D renderer.");
+            }
 
             this.renderManager3D = renderManager3D;
+            objectManager = rendererResources.ObjectManager ?? throw new InvalidOperationException("Camera preview resources must provide an object manager.");
             this.sourceEntity = sourceEntity;
             this.sourceCameraComponent = sourceCameraComponent;
             this.sceneCanvasProfileState = sceneCanvasProfileState;
@@ -80,8 +88,15 @@ namespace helengine.editor {
         /// <param name="sourceEntity">Selected scene entity that owns the live camera.</param>
         /// <param name="sourceCameraComponent">Selected camera component.</param>
         /// <param name="renderManager3D">Renderer used to allocate the offscreen target.</param>
-        public CameraPreviewSource(Entity sourceEntity, CameraComponent sourceCameraComponent, RenderManager3D renderManager3D) {
+        public CameraPreviewSource(Entity sourceEntity, CameraComponent sourceCameraComponent, RenderManager3D renderManager3D, EditorSessionRendererResources rendererResources) {
             this.renderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (!ReferenceEquals(renderManager3D, rendererResources.RenderManager3D)) {
+                throw new InvalidOperationException("Camera preview resources must belong to the supplied 3D renderer.");
+            }
+            objectManager = rendererResources.ObjectManager ?? throw new InvalidOperationException("Camera preview resources must provide an object manager.");
             this.sourceEntity = sourceEntity ?? throw new ArgumentNullException(nameof(sourceEntity));
             this.sourceCameraComponent = sourceCameraComponent ?? throw new ArgumentNullException(nameof(sourceCameraComponent));
             sceneCanvasProfileState = null;
@@ -168,8 +183,8 @@ namespace helengine.editor {
 
             isDisposed = true;
             DisposeRenderTarget();
-            Core.Instance.ObjectManager.RemoveCamera(previewCameraComponent);
-            Core.Instance.ObjectManager.RemoveEntity(previewEntity);
+            objectManager.RemoveCamera(previewCameraComponent);
+            objectManager.RemoveEntity(previewEntity);
             previewEntity.Dispose();
         }
 

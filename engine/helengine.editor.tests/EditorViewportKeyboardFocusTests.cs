@@ -193,7 +193,8 @@ namespace helengine.editor.tests {
                 new EditorSceneCanvasProfileState(),
                 EditorUiMetrics.Default,
                 GeneratedAssetGraph.ShaderLibrary,
-                GeneratedAssetGraph.MaterialCache);
+                GeneratedAssetGraph.MaterialCache,
+                GeneratedAssetGraph.RendererResources);
 
             try {
                 EditorViewport viewport = controller.ViewportState.Viewport;

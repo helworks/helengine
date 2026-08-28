@@ -42,10 +42,6 @@ namespace helengine.editor.tests.serialization.blueprint {
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
             CoreValue.Dispose();
-            EditorCameraVisualResources.ResetForTests();
-            EditorPointLightVisualResources.ResetForTests();
-            EditorDirectionalLightVisualResources.ResetForTests();
-            EditorSpotLightVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -106,7 +102,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
             resolver.RegisterModel(modelReference, new TestRuntimeModel());
             resolver.RegisterMaterial(materialReference, new TestRuntimeMaterial());
-            return new BlueprintFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver, GeneratedAssetGraph.MaterialCache);
+            return new BlueprintFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
         }
 
         /// <summary>
@@ -154,7 +150,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             EntityComponentSaveState componentSaveState = saveComponent.GetOrCreateComponentState(meshComponent);
             setPlatformOverrideMethod.Invoke(componentSaveState, new[] { "windows", overrideState });
 
-            SceneSaveService sceneSaveService = new SceneSaveService(TempProjectRootPath, CreatePersistenceRegistry());
+            SceneSaveService sceneSaveService = new SceneSaveService(TempProjectRootPath, CreatePersistenceRegistry(), new EditorAssetReferenceResolver(TempProjectRootPath), GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             string tempScenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "BlueprintSource.helen");
             sceneSaveService.Save(tempScenePath);
 

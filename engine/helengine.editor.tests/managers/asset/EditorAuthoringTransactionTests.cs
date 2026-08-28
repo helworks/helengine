@@ -1,10 +1,13 @@
 namespace helengine.editor.tests.managers.asset;
 
+using helengine.editor.tests.testing;
+
 /// <summary>
 /// Verifies recoverable, project-scoped multi-file authoring transactions.
 /// </summary>
 public sealed class EditorAuthoringTransactionTests : IDisposable {
     readonly string ProjectRootPath;
+    readonly List<TestGeneratedAssetGraph> GeneratedGraphs = new List<TestGeneratedAssetGraph>();
 
     public EditorAuthoringTransactionTests() {
         ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-authoring-transactions-" + Guid.NewGuid().ToString("N"));
@@ -12,6 +15,9 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     public void Dispose() {
+        for (int index = 0; index < GeneratedGraphs.Count; index++) {
+            GeneratedGraphs[index].Dispose();
+        }
         if (Directory.Exists(ProjectRootPath)) {
             Directory.Delete(ProjectRootPath, true);
         }
@@ -728,11 +734,21 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
             System.Text.Json.JsonSerializer.Serialize(document, EditorAuthoringTransactionDocument.JsonOptions));
     }
 
-    static EditorProjectAuthoringSession CreateSession(string projectRootPath) {
+    EditorProjectAuthoringSession CreateSession(string projectRootPath) {
+        Core core = new Core(new CoreInitializationOptions {
+            ContentStreamSource = new HostFileSystemContentStreamSource(projectRootPath)
+        });
+        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
+        GeneratedGraphs.Add(graph);
         return new EditorProjectAuthoringSession(
             projectRootPath,
             Array.Empty<IAssetImporterRegistration>(),
-            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))));
+            new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))),
+            graph.Registry,
+            graph.ModelCache,
+            graph.MaterialCache,
+            graph.RendererResources);
     }
 
     static ModelAsset CreateModel(string id) {

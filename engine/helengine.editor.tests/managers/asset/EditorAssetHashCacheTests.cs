@@ -1,4 +1,5 @@
 using Xunit;
+using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests.managers.asset;
 
@@ -10,6 +11,8 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     /// Temporary project root used by cache tests.
     /// </summary>
     readonly string TempRootPath;
+    readonly Core CoreValue;
+    readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
     /// <summary>
     /// Initializes one isolated cache project.
@@ -17,12 +20,19 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     public EditorAssetHashCacheTests() {
         TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-asset-hash-cache-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(TempRootPath, "assets"));
+        CoreValue = new Core(new CoreInitializationOptions {
+            ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
+        });
+        CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
     }
 
     /// <summary>
     /// Removes the isolated cache project.
     /// </summary>
     public void Dispose() {
+        GeneratedAssetGraph.Dispose();
+        CoreValue.Dispose();
         if (Directory.Exists(TempRootPath)) {
             Directory.Delete(TempRootPath, true);
         }
@@ -228,7 +238,11 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
             identityIndex,
             referenceResolver,
             new EditorAuthoringSessionLifetime(resources),
-            nativeAssetWriteService);
+            nativeAssetWriteService,
+            GeneratedAssetGraph.Registry,
+            GeneratedAssetGraph.ModelCache,
+            GeneratedAssetGraph.MaterialCache,
+            GeneratedAssetGraph.RendererResources);
 
         session.CreateReference("Models/A.obj", AssetEntryKind.Model);
         session.CreateReference("Models/B.obj", AssetEntryKind.Model);
@@ -323,7 +337,11 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
             identityIndex,
             referenceResolver,
             new EditorAuthoringSessionLifetime(resources),
-            nativeAssetWriteService);
+            nativeAssetWriteService,
+            GeneratedAssetGraph.Registry,
+            GeneratedAssetGraph.ModelCache,
+            GeneratedAssetGraph.MaterialCache,
+            GeneratedAssetGraph.RendererResources);
 
         session.CreateReference("Models/SessionRetry.obj", AssetEntryKind.Model);
 

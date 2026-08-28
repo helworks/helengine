@@ -41,14 +41,6 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
-            // Authoring startup owns recovery and importer/index initialization.
-            // Keep it immediately after project resolution so no renderer,
-            // configuration, or background worker can observe an unresolved
-            // project namespace.
-            using GeneratedAssetProviderRegistry generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
-            using IEditorProjectAuthoringSession authoring = AuthoringSessionFactory.CreateSession(
-                bootstrap.ProjectRootPath,
-                generatedAssetProviderRegistry);
             using DirectX11Renderer3D renderer3D = new DirectX11Renderer3D();
             using EditorCore core = new EditorCore(null);
             CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
@@ -61,6 +53,19 @@ namespace helengine.editor {
             using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
+            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, DefaultFontAsset);
+            // Renderer binding is supplied to the authoring factory before recovery restores cached assets.
+            // The registry is declared after its borrowed caches so reverse
+            // using-declaration disposal retires the provider graph first.
+            using GeneratedAssetProviderRegistry generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
+            // Authoring startup owns recovery and importer/index initialization;
+            // it receives the complete invocation graph explicitly.
+            using IEditorProjectAuthoringSession authoring = AuthoringSessionFactory.CreateSession(
+                bootstrap.ProjectRootPath,
+                generatedAssetProviderRegistry,
+                generatedModelCache,
+                generatedMaterialCache,
+                rendererResources);
             generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
             ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));

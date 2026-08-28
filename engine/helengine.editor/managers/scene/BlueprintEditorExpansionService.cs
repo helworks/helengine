@@ -16,6 +16,7 @@ namespace helengine.editor {
         readonly EditorAssetReferenceResolver AssetReferenceResolver;
         /// <summary>Session-owned generated material cache used by expanded editor visuals.</summary>
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Initializes a new blueprint editor expansion service.
@@ -27,7 +28,8 @@ namespace helengine.editor {
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
             ISceneAssetReferenceResolver referenceResolver,
-            EngineGeneratedMaterialCache generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -43,7 +45,8 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             GeneratedMaterialCache = generatedMaterialCache;
-            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver, generatedMaterialCache);
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver, generatedMaterialCache, rendererResources);
             AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
         }
 
@@ -109,7 +112,7 @@ namespace helengine.editor {
 
             for (int i = 0; i < inheritedChildren.Count; i++) {
                 inheritedChildren[i].Enabled = false;
-                Core.Instance.ObjectManager.RemoveEntity(inheritedChildren[i]);
+                RendererResources.ObjectManager.RemoveEntity(inheritedChildren[i]);
             }
         }
 

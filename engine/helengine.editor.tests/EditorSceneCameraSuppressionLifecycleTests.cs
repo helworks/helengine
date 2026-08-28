@@ -5,25 +5,27 @@ namespace helengine.editor.tests {
     /// Verifies editor-authored scene-camera suppression survives later camera lifecycle changes that would otherwise re-register the camera for runtime rendering.
     /// </summary>
     public sealed class EditorSceneCameraSuppressionLifecycleTests : IDisposable {
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core runtime used by the suppression lifecycle tests.
         /// </summary>
         public EditorSceneCameraSuppressionLifecycleTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory),
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Disposes the active core runtime after each test so later tests start from an empty object manager.
         /// </summary>
         public void Dispose() {
-            if (Core.Instance != null) {
-                Core.Instance.Dispose();
-            }
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -39,19 +41,19 @@ namespace helengine.editor.tests {
             };
             entity.AddComponent(camera);
 
-            Assert.Single(Core.Instance.ObjectManager.Cameras);
-            Assert.True(EditorSceneCameraSuppressionService.AttachAndSuppress(entity));
-            Assert.Empty(Core.Instance.ObjectManager.Cameras);
+            Assert.Single(CoreValue.ObjectManager.Cameras);
+            Assert.True(EditorSceneCameraSuppressionService.AttachAndSuppress(entity, GeneratedAssetGraph.ObjectManager));
+            Assert.Empty(CoreValue.ObjectManager.Cameras);
 
             camera.CameraDrawOrder = 8;
             camera.LayerMask = 0x4321;
-            Assert.Empty(Core.Instance.ObjectManager.Cameras);
+            Assert.Empty(CoreValue.ObjectManager.Cameras);
 
             entity.Enabled = false;
-            Assert.Empty(Core.Instance.ObjectManager.Cameras);
+            Assert.Empty(CoreValue.ObjectManager.Cameras);
 
             entity.Enabled = true;
-            Assert.Empty(Core.Instance.ObjectManager.Cameras);
+            Assert.Empty(CoreValue.ObjectManager.Cameras);
         }
     }
 }

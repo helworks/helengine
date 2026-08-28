@@ -57,7 +57,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
                 new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
                 TempProjectRootPath,
-                GeneratedAssetGraph.Registry);
+                GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
 
             RuntimeMaterial resolvedMaterial = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial());
 
@@ -78,7 +78,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager),
-                GeneratedAssetGraph.Registry);
+                GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
 
             RuntimeModel runtimeModel = resolver.ResolveModel(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemModel("Models/Sponza.obj"));
 
@@ -101,7 +101,7 @@ namespace helengine.editor.tests.serialization.scene {
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager),
-                GeneratedAssetGraph.Registry);
+                GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
 
             FontAsset font = resolver.ResolveFont(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/DemoDiscTitle.ttf"));
 
@@ -113,7 +113,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void ResolveFont_WhenReferenceUsesRemovedNintendoDsGeneratedFont_ThrowsUnsupportedGeneratedFontAssetId() {
-            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)), TempProjectRootPath, GeneratedAssetGraph.Registry);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)), TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => resolver.ResolveFont(
                 global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateSerialized(
@@ -139,7 +139,7 @@ namespace helengine.editor.tests.serialization.scene {
                 TempProjectRootPath,
                 new EditorFileSystemModelResolver(assetImportManager),
                 new EditorFileSystemFontResolver(assetImportManager),
-                GeneratedAssetGraph.Registry);
+                GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
 
             FontAsset importedFont = resolver.ResolveFont(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/DemoDiscBody.ttf"));
             FontAsset cachedFont = resolver.ResolveFont(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemFont("Fonts/DemoDiscBody.ttf"));
@@ -166,7 +166,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new EditorFileSystemFontResolver(assetImportManager),
                 new EditorFileSystemTextureResolver(assetImportManager),
                 null,
-                GeneratedAssetGraph.Registry);
+                GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
 
             RuntimeTexture texture = resolver.ResolveTexture(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemTexture("Images/Menu/helengine-logo.png"));
 
@@ -186,8 +186,8 @@ namespace helengine.editor.tests.serialization.scene {
             ContentManager secondContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             EditorContentManagerConfiguration.ConfigureEditorContentManager(firstContentManager);
             EditorContentManagerConfiguration.ConfigureEditorContentManager(secondContentManager);
-            using EditorProjectAuthoringSession firstSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), firstContentManager);
-            using EditorProjectAuthoringSession secondSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), secondContentManager);
+            using EditorProjectAuthoringSession firstSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), firstContentManager, GeneratedAssetGraph.Registry, GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            using EditorProjectAuthoringSession secondSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), secondContentManager, GeneratedAssetGraph.Registry, GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorAssetWriteResult firstWrite = firstSession.WriteAsset("animations/Shared.hanim", CreateAnimationClip(1f));
             SceneAssetReference reference = firstSession.CreateReference("animations/Shared.hanim", AssetEntryKind.File);
             DateTime timestamp = File.GetLastWriteTimeUtc(firstWrite.FullPath);
@@ -213,8 +213,8 @@ namespace helengine.editor.tests.serialization.scene {
             ContentManager secondContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             EditorContentManagerConfiguration.ConfigureEditorContentManager(firstContentManager);
             EditorContentManagerConfiguration.ConfigureEditorContentManager(secondContentManager);
-            using EditorProjectAuthoringSession firstSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), firstContentManager);
-            using EditorProjectAuthoringSession secondSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), secondContentManager);
+            using EditorProjectAuthoringSession firstSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), firstContentManager, GeneratedAssetGraph.Registry, GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            using EditorProjectAuthoringSession secondSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), secondContentManager, GeneratedAssetGraph.Registry, GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorAssetWriteResult firstWrite = firstSession.WriteAsset("animations/Atomic.hanim", CreateAnimationClip(1f));
             SceneAssetReference reference = firstSession.CreateReference("animations/Atomic.hanim", AssetEntryKind.File);
             EditorSceneAssetReferenceResolver sceneResolver = Assert.IsType<EditorSceneAssetReferenceResolver>(firstSession.CreateSceneAssetReferenceResolver());
@@ -248,7 +248,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
                 new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
                 TempProjectRootPath,
-                GeneratedAssetGraph.Registry);
+                GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
 
             TargetInvocationException invocationException = Assert.Throws<TargetInvocationException>(() => InvokeImportedTexturePath(resolver, "../CACHE/escaped.texture"));
 
@@ -270,7 +270,7 @@ namespace helengine.editor.tests.serialization.scene {
                 EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(
                     new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath)),
                     TempProjectRootPath,
-                    GeneratedAssetGraph.Registry);
+                    GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
 
                 TargetInvocationException invocationException = Assert.Throws<TargetInvocationException>(() => InvokeImportedTexturePath(resolver, "linked/escaped.texture"));
 
@@ -297,7 +297,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
-            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
             resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
@@ -342,7 +342,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new EditorFileSystemFontResolver(assetImportManager),
                 new EditorFileSystemTextureResolver(assetImportManager),
                 null,
-                GeneratedAssetGraph.Registry);
+                GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
             resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
@@ -397,7 +397,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new EditorFileSystemFontResolver(assetImportManager),
                 new EditorFileSystemTextureResolver(assetImportManager),
                 null,
-                GeneratedAssetGraph.Registry);
+                GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
             resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
@@ -432,7 +432,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
-            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
             resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
@@ -458,7 +458,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
-            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
             resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
@@ -487,7 +487,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
-            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
             resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
@@ -518,7 +518,7 @@ namespace helengine.editor.tests.serialization.scene {
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
-            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry);
+            EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
             resolver.ShaderPackageService = shaderPackageService;
 
             RuntimeMaterial material = resolver.ResolveMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial(materialRelativePath));
@@ -544,6 +544,7 @@ namespace helengine.editor.tests.serialization.scene {
         AssetImportManager CreateAssetImportManager() {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
+            assetImportManager.SetRenderManager2D(GeneratedAssetGraph.RendererResources.RenderManager2D);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" }));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));

@@ -138,7 +138,7 @@ namespace helengine.editor.tests.managers.scene {
             var settings = new EditorViewportCanvasPreviewSettings {
                 PixelsPerWorldUnit = pixelsPerWorldUnit
             };
-            var previewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary);
+            var previewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             cameraEntity.AddComponent(previewComponent);
             previewComponent.Update();
             return previewComponent;

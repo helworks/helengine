@@ -70,6 +70,8 @@ namespace helengine.editor {
         /// Project-scoped authored identity resolver used before runtime asset loading.
         /// </summary>
         readonly EditorAssetReferenceResolver IdentityReferenceResolver;
+        /// <summary>Session-owned renderer and default-font resources used for runtime asset materialization.</summary>
+        readonly EditorSessionRendererResources RendererResources;
         /// <summary>
         /// Indicates whether this resolver created its identity resolver and therefore owns its lifetime.
         /// </summary>
@@ -110,7 +112,8 @@ namespace helengine.editor {
         public EditorSceneAssetReferenceResolver(
             ContentManager assetContentManager,
             string projectRootPath,
-            GeneratedAssetProviderRegistry generatedAssetProviders) {
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EditorSessionRendererResources rendererResources) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -130,6 +133,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(generatedAssetProviders));
             }
             GeneratedAssetProviders = generatedAssetProviders;
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
             OwnsGeneratedAssetProviders = false;
         }
 
@@ -143,7 +147,8 @@ namespace helengine.editor {
             ContentManager assetContentManager,
             string projectRootPath,
             EditorFileSystemModelResolver fileSystemModelResolver,
-            GeneratedAssetProviderRegistry generatedAssetProviders) {
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EditorSessionRendererResources rendererResources) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -164,6 +169,8 @@ namespace helengine.editor {
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = true;
             GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            FileSystemModelResolver.SetRenderManager(RendererResources.RenderManager3D);
             OwnsGeneratedAssetProviders = false;
         }
 
@@ -179,7 +186,8 @@ namespace helengine.editor {
             string projectRootPath,
             EditorFileSystemModelResolver fileSystemModelResolver,
             EditorFileSystemFontResolver fileSystemFontResolver,
-            GeneratedAssetProviderRegistry generatedAssetProviders) {
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EditorSessionRendererResources rendererResources) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -204,6 +212,8 @@ namespace helengine.editor {
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = true;
             GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            FileSystemModelResolver.SetRenderManager(RendererResources.RenderManager3D);
             OwnsGeneratedAssetProviders = false;
         }
 
@@ -222,7 +232,8 @@ namespace helengine.editor {
             EditorFileSystemFontResolver fileSystemFontResolver,
             EditorFileSystemTextureResolver fileSystemTextureResolver,
             EditorAssetReferenceResolver identityReferenceResolver,
-            GeneratedAssetProviderRegistry generatedAssetProviders) {
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EditorSessionRendererResources rendererResources) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -251,6 +262,8 @@ namespace helengine.editor {
             IdentityReferenceResolver = identityReferenceResolver ?? new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = identityReferenceResolver == null;
             GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            FileSystemModelResolver.SetRenderManager(RendererResources.RenderManager3D);
             OwnsGeneratedAssetProviders = false;
         }
 
@@ -327,7 +340,7 @@ namespace helengine.editor {
 
             return IdentityReferenceResolver.ExecuteSynchronizedRead(() => {
                 TextureAsset textureAsset = ResolveFileSystemTexture(reference);
-                RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+                RuntimeTexture runtimeTexture = RendererResources.RenderManager2D.BuildTextureFromRaw(textureAsset);
                 TrackOwnedTexture(runtimeTexture);
                 return runtimeTexture;
             });
@@ -492,7 +505,7 @@ namespace helengine.editor {
             BeforePayloadLoadForTests?.Invoke();
             if (FileSystemModelResolver == null) {
                 ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, EditorContentProcessorIds.ModelAsset);
-                RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+                RuntimeModel runtimeModel = RendererResources.RenderManager3D.BuildModelFromRaw(modelAsset);
                 TrackOwnedModel(runtimeModel);
                 return runtimeModel;
             }
@@ -539,7 +552,7 @@ namespace helengine.editor {
             }
 
             ShaderAsset shaderAsset = RequireShaderPackageService().LoadShaderAsset(materialAsset.ShaderAssetId);
-            runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            runtimeMaterial = RendererResources.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
             ApplyMaterialImportedTexture(
                 runtimeMaterial,
                 materialAsset.DiffuseTextureAssetId,
@@ -627,7 +640,7 @@ namespace helengine.editor {
             };
 
             ShaderAsset shaderAsset = RequireShaderPackageService().LoadShaderAsset(StandardShaderAssetId);
-            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRaw(previewMaterialAsset, shaderAsset);
+            RuntimeMaterial runtimeMaterial = RendererResources.RenderManager3D.BuildMaterialFromRaw(previewMaterialAsset, shaderAsset);
             StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(runtimeMaterial));
             return runtimeMaterial;
         }
@@ -806,7 +819,7 @@ namespace helengine.editor {
                 textureAsset = AssetContentManager.Load<TextureAsset>(diffuseTexturePath, EditorContentProcessorIds.TextureAsset);
             }
 
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+            RuntimeTexture runtimeTexture = RendererResources.RenderManager2D.BuildTextureFromRaw(textureAsset);
             TrackOwnedTexture(runtimeTexture);
             shaderRuntimeMaterial.Properties.SetTexture(textureBindingIndex, runtimeTexture);
         }
@@ -841,11 +854,11 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported generated font provider '{reference.ProviderId}'.");
             }
             if (string.Equals(reference.AssetId, EditorFontAssetId, StringComparison.Ordinal)) {
-                if (Core.Instance is not EditorCore editorCore || editorCore.DefaultFontAssetForEditor == null) {
+                if (RendererResources.DefaultFontAsset == null) {
                     throw new InvalidOperationException("The editor font is not available in the active editor core.");
                 }
 
-                return editorCore.DefaultFontAssetForEditor;
+                return RendererResources.DefaultFontAsset;
             }
             throw new InvalidOperationException($"Unsupported generated font asset id '{reference.AssetId}'.");
         }

@@ -35,10 +35,6 @@ namespace helengine.editor.tests.managers.scene {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
-            EditorCameraVisualResources.ResetForTests();
-            EditorPointLightVisualResources.ResetForTests();
-            EditorDirectionalLightVisualResources.ResetForTests();
-            EditorSpotLightVisualResources.ResetForTests();
         }
 
         /// <summary>
@@ -47,10 +43,6 @@ namespace helengine.editor.tests.managers.scene {
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
             CoreValue.Dispose();
-            EditorCameraVisualResources.ResetForTests();
-            EditorPointLightVisualResources.ResetForTests();
-            EditorDirectionalLightVisualResources.ResetForTests();
-            EditorSpotLightVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -486,7 +478,7 @@ namespace helengine.editor.tests.managers.scene {
                 registry,
                 new EditorAssetReferenceResolver(TempProjectRootPath),
                 GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache);
+                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CreatedFromAdd.helen");
 
             service.CreateCube();
@@ -502,7 +494,12 @@ namespace helengine.editor.tests.managers.scene {
         public void CreateCamera_WhenSaved_WritesHelenFileWithoutPersistingHiddenEditorVisual() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            SceneSaveService saveService = new SceneSaveService(
+                TempProjectRootPath,
+                registry,
+                new EditorAssetReferenceResolver(TempProjectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CreatedCamera.helen");
 
             service.CreateCamera();
@@ -518,7 +515,7 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Single(asset.RootEntities[0].Components);
             Assert.Equal("helengine.CameraComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
             CameraComponent deserializedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedEntity.Components, component => component is CameraComponent));
             Assert.Equal(EditorLayerMasks.SceneObjects, deserializedCamera.LayerMask);

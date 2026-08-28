@@ -12,6 +12,8 @@ namespace helengine.editor {
         /// Viewport component that resolves the authoritative pixel-space viewport rectangle for the scene camera.
         /// </summary>
         readonly ViewportComponent SceneViewportComponent;
+        /// <summary>Session-owned renderer resources used by direct 2D presentation.</summary>
+        readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Cached world-presented 2D size where one viewport pixel equals one world unit.
@@ -23,9 +25,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sceneCamera">Scene camera that renders the viewport.</param>
         /// <param name="sceneViewportComponent">Viewport component that resolves the scene camera viewport rectangle.</param>
-        public EditorViewportDirect2DScenePresenterComponent(CameraComponent sceneCamera, ViewportComponent sceneViewportComponent) {
+        public EditorViewportDirect2DScenePresenterComponent(CameraComponent sceneCamera, ViewportComponent sceneViewportComponent, EditorSessionRendererResources rendererResources) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             SceneViewportComponent = sceneViewportComponent ?? throw new ArgumentNullException(nameof(sceneViewportComponent));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
         }
 
         /// <summary>
@@ -47,7 +50,7 @@ namespace helengine.editor {
             }
 
             PresentedWorldSizeValue = EditorViewportDirect2DPresentationService.ResolvePresentedWorldSize(Parent, SceneViewportComponent);
-            EditorViewportDirect2DPresentationService.SynchronizeViewportOwnedSceneQueue(SceneCamera);
+            EditorViewportDirect2DPresentationService.SynchronizeViewportOwnedSceneQueue(SceneCamera, RendererResources.ObjectManager);
         }
     }
 }

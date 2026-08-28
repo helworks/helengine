@@ -712,6 +712,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Binds this panel and its component inspector to one editor-session renderer graph.
+        /// </summary>
+        internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            ComponentView.SetRendererResources(rendererResources);
+            MaterialView.SetRendererResources(rendererResources);
+        }
+
+        /// <summary>
         /// Shows import settings for the specified asset entry.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>

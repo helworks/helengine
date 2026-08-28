@@ -7,6 +7,7 @@ namespace helengine.editor {
         /// Renderer used to allocate render targets and preview materials.
         /// </summary>
         readonly RenderManager3D Render3D;
+        readonly ObjectManager ObjectManagerValue;
         /// <summary>Session-owned built-in shader library used by the preview material.</summary>
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
@@ -64,8 +65,9 @@ namespace helengine.editor {
         /// Initializes one exact 2D preview capture service.
         /// </summary>
         /// <param name="render3D">Renderer used to allocate preview resources.</param>
-        public EditorExact2DPreviewCaptureService(RenderManager3D render3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+        public EditorExact2DPreviewCaptureService(RenderManager3D render3D, ObjectManager objectManager, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
+            ObjectManagerValue = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             PreviewSizeValue = new int2(1, 1);
 
@@ -163,11 +165,11 @@ namespace helengine.editor {
             DisposePreviewRenderTarget();
             RemovePreviewComponent();
 
-            Core.Instance.ObjectManager.RemoveCamera(PreviewCameraComponentValue);
-            Core.Instance.ObjectManager.RemoveEntity(PreviewCameraEntity);
+            ObjectManagerValue.RemoveCamera(PreviewCameraComponentValue);
+            ObjectManagerValue.RemoveEntity(PreviewCameraEntity);
             PreviewCameraEntity.Dispose();
 
-            Core.Instance.ObjectManager.RemoveEntity(PreviewContentEntity);
+            ObjectManagerValue.RemoveEntity(PreviewContentEntity);
             PreviewContentEntity.Dispose();
 
             Render3D.ReleaseMaterial(PreviewMaterialValue);

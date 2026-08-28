@@ -1,4 +1,5 @@
 using System.Reflection;
+using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests.managers.asset;
 
@@ -15,6 +16,7 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     /// Real sessions created by this test fixture.
     /// </summary>
     readonly List<IDisposable> Sessions = new List<IDisposable>();
+    readonly List<TestGeneratedAssetGraph> GeneratedGraphs = new List<TestGeneratedAssetGraph>();
 
     [Fact]
     public void ExplicitComposition_RequiresTheSessionOwnedWriter() {
@@ -22,7 +24,10 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
             .GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
             .Single(item => item.GetParameters().Length > 0 && item.GetParameters()[0].ParameterType == typeof(AssetImportManager));
 
-        Assert.Equal(typeof(EditorNativeAssetWriteService), constructor.GetParameters().Last().ParameterType);
+        Assert.Contains(
+            constructor.GetParameters(),
+            parameter => parameter.ParameterType == typeof(EditorNativeAssetWriteService));
+        Assert.Equal(typeof(EditorSessionRendererResources), constructor.GetParameters().Last().ParameterType);
     }
 
     /// <summary>
@@ -61,11 +66,16 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         File.WriteAllText(sourcePath, "o ship");
         File.WriteAllText(sourcePath + ".hmeta", "{\"version\":1,\"assetId\":\"00112233445566778899aabbccddeeff\",\"formerAssetIds\":[]}");
         ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
+        TestGeneratedAssetGraph graph = CreateGeneratedGraph(projectRootPath);
 
         EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
             Path.Combine(projectRootPath, "."),
             Array.Empty<IAssetImporterRegistration>(),
-            contentManager));
+            contentManager,
+            graph.Registry,
+            graph.ModelCache,
+            graph.MaterialCache,
+            graph.RendererResources));
 
         SceneAssetReference reference = session.CreateReference("models/../models/ship.obj", AssetEntryKind.Model);
 
@@ -85,10 +95,15 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
         File.WriteAllText(sourcePath, "o reported");
         ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
+        TestGeneratedAssetGraph graph = CreateGeneratedGraph(projectRootPath);
         EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
             projectRootPath,
             Array.Empty<IAssetImporterRegistration>(),
-            contentManager));
+            contentManager,
+            graph.Registry,
+            graph.ModelCache,
+            graph.MaterialCache,
+            graph.RendererResources));
 
         EditorAssetRepairRecord repair = Assert.Single(session.RepairReport.Records);
 
@@ -170,13 +185,18 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
         EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, cache);
         EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService);
+        TestGeneratedAssetGraph graph = CreateGeneratedGraph(projectRootPath);
         EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
             manager,
             cache,
             identityIndex,
             referenceResolver,
             new EditorAuthoringSessionLifetime(resources),
-            nativeAssetWriteService));
+            nativeAssetWriteService,
+            graph.Registry,
+            graph.ModelCache,
+            graph.MaterialCache,
+            graph.RendererResources));
         const string assetId = "00112233445566778899aabbccddeeff";
 
         session.WriteNativeAsset("Models/Written.hasset", CreateModelAsset(), assetId);
@@ -205,13 +225,18 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
         EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, cache);
         CountingSessionLifetime lifetime = new CountingSessionLifetime(new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService));
+        TestGeneratedAssetGraph graph = CreateGeneratedGraph(projectRootPath);
         EditorProjectAuthoringSession session = TrackSession(new EditorProjectAuthoringSession(
             CreateAssetImportManager(projectRootPath),
             cache,
             identityIndex,
             referenceResolver,
             lifetime,
-            nativeAssetWriteService));
+            nativeAssetWriteService,
+            graph.Registry,
+            graph.ModelCache,
+            graph.MaterialCache,
+            graph.RendererResources));
 
         session.Dispose();
         session.Dispose();
@@ -239,6 +264,10 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     public void Dispose() {
         for (int index = 0; index < Sessions.Count; index++) {
             Sessions[index].Dispose();
+        }
+
+        for (int index = 0; index < GeneratedGraphs.Count; index++) {
+            GeneratedGraphs[index].Dispose();
         }
 
         for (int index = 0; index < TemporaryProjectRoots.Count; index++) {
@@ -293,13 +322,28 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(projectRootPath, identityIndex, cache);
         EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, cache);
         EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService);
+        TestGeneratedAssetGraph graph = CreateGeneratedGraph(projectRootPath);
         return TrackSession(new EditorProjectAuthoringSession(
             CreateAssetImportManager(projectRootPath),
             cache,
             identityIndex,
             referenceResolver,
             new EditorAuthoringSessionLifetime(resources),
-            nativeAssetWriteService));
+            nativeAssetWriteService,
+            graph.Registry,
+            graph.ModelCache,
+            graph.MaterialCache,
+            graph.RendererResources));
+    }
+
+    TestGeneratedAssetGraph CreateGeneratedGraph(string projectRootPath) {
+        Core core = new Core(new CoreInitializationOptions {
+            ContentStreamSource = new HostFileSystemContentStreamSource(projectRootPath)
+        });
+        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
+        GeneratedGraphs.Add(graph);
+        return graph;
     }
 
     /// <summary>

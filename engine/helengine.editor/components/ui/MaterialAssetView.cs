@@ -118,6 +118,10 @@ namespace helengine.editor {
         /// Shared color picker overlay reused by all material color fields.
         /// </summary>
         readonly EditorColorPickerOverlayComponent ColorPickerOverlay;
+        /// <summary>
+        /// Session-owned 3D renderer used to invalidate shader resources after a material save.
+        /// </summary>
+        RenderManager3D RenderManager3D;
 
         /// <summary>
         /// Service used to load and save material settings sidecars.
@@ -251,6 +255,17 @@ namespace helengine.editor {
         /// Gets the root entity to attach into the properties panel.
         /// </summary>
         public EditorEntity Root => RootEntity;
+
+        /// <summary>
+        /// Binds shader refreshes to the renderer owned by the enclosing editor session.
+        /// </summary>
+        internal void SetRendererResources(EditorSessionRendererResources rendererResources) {
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+
+            RenderManager3D = rendererResources.RenderManager3D;
+        }
 
         /// <summary>
         /// Gets the current height of the view layout.
@@ -748,7 +763,8 @@ namespace helengine.editor {
 
             try {
                 ShaderAsset shaderAsset = RequireShaderPackageService().LoadShaderAsset(shaderId);
-                Core.Instance.RenderManager3D.InvalidateShaderResources(shaderId, shaderAsset);
+                (RenderManager3D ?? throw new InvalidOperationException("Material asset view is not attached to an editor renderer resource graph."))
+                    .InvalidateShaderResources(shaderId, shaderAsset);
             } catch (Exception ex) {
                 Logger.WriteError($"Shader refresh failed for '{shaderId}': {ex.Message}");
             }

@@ -8,10 +8,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Scene entity that may own one authored camera.</param>
         /// <returns>True when a camera was found and is now suppressed; otherwise false.</returns>
-        public static bool AttachAndSuppress(EditorEntity entity) {
+        public static bool AttachAndSuppress(EditorEntity entity, ObjectManager objectManager) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
+            objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
 
             CameraComponent cameraComponent = FindComponent<CameraComponent>(entity);
             if (cameraComponent == null) {
@@ -24,7 +25,7 @@ namespace helengine.editor {
                 entity.AddComponent(suppressionComponent);
             }
 
-            ApplySuppressedRuntimeState(cameraComponent);
+            ApplySuppressedRuntimeState(cameraComponent, objectManager);
             return true;
         }
 
@@ -48,30 +49,32 @@ namespace helengine.editor {
         /// Reapplies the runtime suppression contract after one suppressed scene camera changes its live authored properties.
         /// </summary>
         /// <param name="cameraComponent">Suppressed scene camera whose runtime suppression should be refreshed.</param>
-        public static void RefreshSuppressedRuntimeState(CameraComponent cameraComponent) {
+        public static void RefreshSuppressedRuntimeState(CameraComponent cameraComponent, ObjectManager objectManager) {
             if (cameraComponent == null) {
                 throw new ArgumentNullException(nameof(cameraComponent));
             }
+            objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             if (GetSuppressionState(cameraComponent) == null) {
                 return;
             }
 
-            ApplySuppressedRuntimeState(cameraComponent);
+            ApplySuppressedRuntimeState(cameraComponent, objectManager);
         }
 
         /// <summary>
         /// Applies the editor runtime suppression state that prevents a scene camera from participating in the shared runtime camera list.
         /// </summary>
         /// <param name="cameraComponent">Scene camera whose runtime state should be suppressed.</param>
-        static void ApplySuppressedRuntimeState(CameraComponent cameraComponent) {
+        static void ApplySuppressedRuntimeState(CameraComponent cameraComponent, ObjectManager objectManager) {
             if (cameraComponent == null) {
                 throw new ArgumentNullException(nameof(cameraComponent));
             }
+            objectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             if (cameraComponent.Parent == null || !cameraComponent.Parent.IsHierarchyEnabled) {
                 return;
             }
 
-            Core.Instance.ObjectManager.RemoveCamera(cameraComponent);
+            objectManager.RemoveCamera(cameraComponent);
         }
 
         /// <summary>

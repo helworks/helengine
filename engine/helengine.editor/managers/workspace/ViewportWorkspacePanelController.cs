@@ -55,6 +55,7 @@ namespace helengine.editor {
         readonly EditorViewportSelectionFramingService SelectionFramingService;
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly EditorSessionRendererResources RendererResources;
 
         /// <summary>
         /// Initializes one workspace controller and its independent viewport runtime stack.
@@ -71,7 +72,8 @@ namespace helengine.editor {
             EditorSceneCanvasProfileState sceneCanvasProfileState,
             EditorUiMetrics metrics,
             EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
-            EngineGeneratedMaterialCache generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -89,6 +91,7 @@ namespace helengine.editor {
             }
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
 
             SelectionFramingService = new EditorViewportSelectionFramingService();
             State = CreateViewportState(font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
@@ -98,10 +101,11 @@ namespace helengine.editor {
         /// Initializes one workspace controller around an existing viewport runtime stack.
         /// </summary>
         /// <param name="state">Existing viewport runtime stack owned by the controller.</param>
-        public ViewportWorkspacePanelController(EditorViewportWorkspaceState state, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache) {
-            SelectionFramingService = new EditorViewportSelectionFramingService();
+        public ViewportWorkspacePanelController(EditorViewportWorkspaceState state, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache, EditorSessionRendererResources rendererResources) {
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            SelectionFramingService = new EditorViewportSelectionFramingService();
             State = state ?? throw new ArgumentNullException(nameof(state));
             WireViewportCallbacks(State);
         }
@@ -218,7 +222,7 @@ namespace helengine.editor {
             EditorViewportToolbarIconSet toolbarIcons,
             EditorSceneCanvasProfileState sceneCanvasProfileState,
             EditorUiMetrics metrics) {
-            RenderManager3D render3D = Core.Instance.RenderManager3D;
+            RenderManager3D render3D = RendererResources.RenderManager3D;
             EditorEntity sceneCameraEntity = CreateSceneCameraEntity();
             CameraComponent sceneCamera = CreateSceneCamera(sceneCameraEntity);
             ViewportComponent sceneViewportComponent = new ViewportComponent {
@@ -226,11 +230,11 @@ namespace helengine.editor {
                 BoundCameraComponent = sceneCamera
             };
             sceneCameraEntity.AddComponent(sceneViewportComponent);
-            EditorViewportDirect2DScenePresenterComponent direct2DScenePresenterComponent = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
+            EditorViewportDirect2DScenePresenterComponent direct2DScenePresenterComponent = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent, RendererResources);
             sceneCameraEntity.AddComponent(direct2DScenePresenterComponent);
-            EditorWorldSpace2DPreviewSyncComponent worldSpace2DPreviewSyncComponent = new EditorWorldSpace2DPreviewSyncComponent(BuiltInShaderLibrary);
+            EditorWorldSpace2DPreviewSyncComponent worldSpace2DPreviewSyncComponent = new EditorWorldSpace2DPreviewSyncComponent(BuiltInShaderLibrary, RendererResources);
             sceneCameraEntity.AddComponent(worldSpace2DPreviewSyncComponent);
-            EditorViewportBorderGizmoSyncComponent viewportBorderGizmoSyncComponent = new EditorViewportBorderGizmoSyncComponent(BuiltInShaderLibrary);
+            EditorViewportBorderGizmoSyncComponent viewportBorderGizmoSyncComponent = new EditorViewportBorderGizmoSyncComponent(BuiltInShaderLibrary, RendererResources);
             sceneCameraEntity.AddComponent(viewportBorderGizmoSyncComponent);
             sceneCameraEntity.AddComponent(new ComponentSceneSelectionEditorSyncComponent(render3D, GeneratedMaterialCache));
             CameraComponent gizmoCamera = CreateGizmoCamera(sceneCameraEntity, sceneCamera);
@@ -266,7 +270,7 @@ namespace helengine.editor {
             if (render3D is DirectX11Renderer3D pickerRenderer) {
                 pickerRenderTarget = render3D.CreateRenderTarget(DefaultPickerRenderTargetWidth, DefaultPickerRenderTargetHeight);
                 pickerCamera.RenderTarget = pickerRenderTarget;
-                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCamera, gizmoCamera, gizmoDrawableCollector, pickerCameraEntity, pickerCamera, pickerRenderer));
+                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCamera, gizmoCamera, gizmoDrawableCollector, pickerCameraEntity, pickerCamera, pickerRenderer, RendererResources));
             } else {
                 pickerCamera.RenderTarget = null;
             }

@@ -7,26 +7,26 @@ namespace helengine.editor {
         /// Releases one scene-owned asset set through the active runtime ownership seams and flushes any deferred renderer releases.
         /// </summary>
         /// <param name="ownedAssets">Scene-owned runtime assets to release.</param>
-        public static void ReleaseOwnedAssets(RuntimeSceneOwnedAssetSet ownedAssets) {
+        public static void ReleaseOwnedAssets(RuntimeSceneOwnedAssetSet ownedAssets, EditorSessionRendererResources rendererResources) {
             if (ownedAssets == null) {
                 throw new ArgumentNullException(nameof(ownedAssets));
             }
-            if (Core.Instance == null || Core.Instance.RenderManager2D == null || Core.Instance.RenderManager3D == null) {
-                throw new InvalidOperationException("Editor scene-owned asset release requires initialized 2D and 3D render managers.");
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
             }
 
-            ReleaseOwnedFonts(ownedAssets.OwnedFonts);
-            ReleaseOwnedTextures(ownedAssets.OwnedTextures);
-            ReleaseOwnedModels(ownedAssets.OwnedModels);
-            ReleaseOwnedMaterials(ownedAssets.OwnedMaterials);
-            FlushReleasedAssets();
+            ReleaseOwnedFonts(ownedAssets.OwnedFonts, rendererResources.RenderManager2D);
+            ReleaseOwnedTextures(ownedAssets.OwnedTextures, rendererResources.RenderManager2D);
+            ReleaseOwnedModels(ownedAssets.OwnedModels, rendererResources.RenderManager3D);
+            ReleaseOwnedMaterials(ownedAssets.OwnedMaterials, rendererResources.RenderManager3D);
+            FlushReleasedAssets(rendererResources);
         }
 
         /// <summary>
         /// Releases the supplied scene-owned fonts.
         /// </summary>
         /// <param name="ownedFonts">Scene-owned fonts to release.</param>
-        static void ReleaseOwnedFonts(IReadOnlyList<FontAsset> ownedFonts) {
+        static void ReleaseOwnedFonts(IReadOnlyList<FontAsset> ownedFonts, RenderManager2D renderManager2D) {
             if (ownedFonts == null) {
                 throw new ArgumentNullException(nameof(ownedFonts));
             }
@@ -37,7 +37,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                Core.Instance.RenderManager2D.ReleaseFont(ownedFont);
+                renderManager2D.ReleaseFont(ownedFont);
             }
         }
 
@@ -45,7 +45,7 @@ namespace helengine.editor {
         /// Releases the supplied scene-owned textures.
         /// </summary>
         /// <param name="ownedTextures">Scene-owned textures to release.</param>
-        static void ReleaseOwnedTextures(IReadOnlyList<RuntimeTexture> ownedTextures) {
+        static void ReleaseOwnedTextures(IReadOnlyList<RuntimeTexture> ownedTextures, RenderManager2D renderManager2D) {
             if (ownedTextures == null) {
                 throw new ArgumentNullException(nameof(ownedTextures));
             }
@@ -56,7 +56,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                Core.Instance.RenderManager2D.ReleaseTexture(ownedTexture);
+                renderManager2D.ReleaseTexture(ownedTexture);
             }
         }
 
@@ -64,7 +64,7 @@ namespace helengine.editor {
         /// Releases the supplied scene-owned models.
         /// </summary>
         /// <param name="ownedModels">Scene-owned models to release.</param>
-        static void ReleaseOwnedModels(IReadOnlyList<RuntimeModel> ownedModels) {
+        static void ReleaseOwnedModels(IReadOnlyList<RuntimeModel> ownedModels, RenderManager3D renderManager3D) {
             if (ownedModels == null) {
                 throw new ArgumentNullException(nameof(ownedModels));
             }
@@ -75,7 +75,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                Core.Instance.RenderManager3D.ReleaseModel(ownedModel);
+                renderManager3D.ReleaseModel(ownedModel);
             }
         }
 
@@ -83,7 +83,7 @@ namespace helengine.editor {
         /// Releases the supplied scene-owned materials.
         /// </summary>
         /// <param name="ownedMaterials">Scene-owned materials to release.</param>
-        static void ReleaseOwnedMaterials(IReadOnlyList<RuntimeMaterial> ownedMaterials) {
+        static void ReleaseOwnedMaterials(IReadOnlyList<RuntimeMaterial> ownedMaterials, RenderManager3D renderManager3D) {
             if (ownedMaterials == null) {
                 throw new ArgumentNullException(nameof(ownedMaterials));
             }
@@ -94,17 +94,17 @@ namespace helengine.editor {
                     continue;
                 }
 
-                Core.Instance.RenderManager3D.ReleaseMaterial(ownedMaterial);
+                renderManager3D.ReleaseMaterial(ownedMaterial);
             }
         }
 
         /// <summary>
         /// Flushes any renderer-owned deferred releases now that the scene-owned asset set has been handed back to the render managers.
         /// </summary>
-        static void FlushReleasedAssets() {
-            Core.Instance.RenderManager2D.FlushReleasedTextures();
-            Core.Instance.RenderManager3D.FlushReleasedAssets();
-            Core.Instance.RenderManager2D.FlushReleasedTextures();
+        static void FlushReleasedAssets(EditorSessionRendererResources rendererResources) {
+            rendererResources.RenderManager2D.FlushReleasedTextures();
+            rendererResources.RenderManager3D.FlushReleasedAssets();
+            rendererResources.RenderManager2D.FlushReleasedTextures();
         }
     }
 }

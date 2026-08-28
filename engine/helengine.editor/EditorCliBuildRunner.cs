@@ -41,20 +41,6 @@ namespace helengine.editor {
             }
 
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(options.ProjectPath);
-            // Recover and initialize the project authoring graph before any
-            // build configuration, importer, shader, or watcher work can
-            // observe the project. The build owns this session for its full
-            // lifetime, including the empty-prebuild case.
-            using GeneratedAssetProviderRegistry generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
-            using IEditorProjectAuthoringSession authoringSession =
-                new EditorProjectAssetAuthoringServiceFactory(Importers).CreateSession(
-                    bootstrap.ProjectRootPath,
-                    generatedAssetProviderRegistry);
-            EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options);
-            if (!prebuildResult.Succeeded) {
-                return prebuildResult;
-            }
-
             using DirectX11Renderer3D renderer3D = new DirectX11Renderer3D();
             using EditorCore core = new EditorCore(null);
             CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
@@ -67,6 +53,24 @@ namespace helengine.editor {
             using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
+            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, DefaultFontAsset);
+            // Renderer binding is supplied to the authoring factory before recovery restores cached assets.
+            // The registry is declared after its borrowed caches so reverse
+            // using-declaration disposal retires the provider graph first.
+            using GeneratedAssetProviderRegistry generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
+            // Recover and initialize the project authoring graph before build
+            // configuration, importer, shader, or watcher work can observe it.
+            using IEditorProjectAuthoringSession authoringSession =
+                new EditorProjectAssetAuthoringServiceFactory(Importers).CreateSession(
+                    bootstrap.ProjectRootPath,
+                    generatedAssetProviderRegistry,
+                    generatedModelCache,
+                    generatedMaterialCache,
+                    rendererResources);
+            EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options);
+            if (!prebuildResult.Succeeded) {
+                return prebuildResult;
+            }
             generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
             ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));

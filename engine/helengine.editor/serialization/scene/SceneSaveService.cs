@@ -43,56 +43,48 @@ namespace helengine.editor {
         /// Service that owns stable component keys and entity-level platform component existence overrides.
         /// </summary>
         readonly ComponentPlatformEditingService ComponentEditingService;
+        readonly ObjectManager ObjectManager;
 
         /// <summary>
         /// Initializes a new scene save service for one project root.
         /// </summary>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
         /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
-        public SceneSaveService(string projectRootPath, ComponentPersistenceRegistry persistenceRegistry)
-            : this(projectRootPath, persistenceRegistry, null) {
-        }
-
-        /// <summary>
-        /// Initializes a scene save service over a host-owned reference resolver.
-        /// </summary>
-        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
-        /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
-        /// <param name="referenceResolver">Resolver shared by the owning authoring session.</param>
-        internal SceneSaveService(
-            string projectRootPath,
-            ComponentPersistenceRegistry persistenceRegistry,
-            EditorAssetReferenceResolver referenceResolver)
-            : this(projectRootPath, persistenceRegistry, referenceResolver, null, null) {
-        }
-
         /// <summary>
         /// Initializes a scene save service over the complete session-owned reference and generated-asset graph.
         /// </summary>
-        internal SceneSaveService(
+        public SceneSaveService(
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
             EditorAssetReferenceResolver referenceResolver,
             EngineGeneratedModelCache generatedModelCache,
-            EngineGeneratedMaterialCache generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
             if (persistenceRegistry == null) {
                 throw new ArgumentNullException(nameof(persistenceRegistry));
             }
+            if (referenceResolver == null) {
+                throw new ArgumentNullException(nameof(referenceResolver));
+            }
+            if (generatedModelCache == null) {
+                throw new ArgumentNullException(nameof(generatedModelCache));
+            }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            rendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            ObjectManager = rendererResources.ObjectManager;
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
             PersistenceRegistry = persistenceRegistry;
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
-            AssetReferenceInferenceService = referenceResolver == null
-                ? new SceneAssetReferenceInferenceService(ProjectRootPath)
-                : new SceneAssetReferenceInferenceService(ProjectRootPath, referenceResolver, generatedModelCache, generatedMaterialCache);
-            AssetReferenceCanonicalizationService = referenceResolver == null
-                ? new EditorAssetReferenceCanonicalizationService(ProjectRootPath)
-                : new EditorAssetReferenceCanonicalizationService(referenceResolver);
+            AssetReferenceInferenceService = new SceneAssetReferenceInferenceService(ProjectRootPath, referenceResolver, generatedModelCache, generatedMaterialCache, rendererResources.DefaultFontAsset);
+            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(referenceResolver);
             TransformEditingService = new EntityPlatformTransformEditingService();
             ComponentEditingService = new ComponentPlatformEditingService();
         }
@@ -234,7 +226,7 @@ namespace helengine.editor {
             List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
             HashSet<string> assetReferenceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             List<Entity> entities = roots == null
-                ? Core.Instance.ObjectManager.Entities
+                ? ObjectManager.Entities
                 : new List<Entity>(roots);
             for (int i = 0; i < entities.Count; i++) {
                 if (entities[i] is not EditorEntity editorEntity) {

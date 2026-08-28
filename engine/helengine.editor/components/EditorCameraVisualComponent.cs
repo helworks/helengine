@@ -4,9 +4,13 @@ namespace helengine {
     /// </summary>
     public class EditorCameraVisualComponent : MeshComponent, IEditorHiddenComponent {
         readonly helengine.editor.EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly helengine.EditorCameraVisualResources VisualResources;
 
-        public EditorCameraVisualComponent(helengine.editor.EngineGeneratedMaterialCache generatedMaterialCache) {
+        public EditorCameraVisualComponent(
+            helengine.editor.EngineGeneratedMaterialCache generatedMaterialCache,
+            helengine.EditorCameraVisualResources visualResources) {
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
+            VisualResources = visualResources ?? throw new ArgumentNullException(nameof(visualResources));
         }
 
         /// <summary>
@@ -14,7 +18,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Camera entity that owns the editor-only visual.</param>
         public override void ComponentAdded(Entity entity) {
-            Model = EditorCameraVisualResources.GetRuntimeModel();
+            Model = VisualResources.GetRuntimeModel();
             Materials = new[] { helengine.editor.EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial(GeneratedMaterialCache) };
             base.ComponentAdded(entity);
         }

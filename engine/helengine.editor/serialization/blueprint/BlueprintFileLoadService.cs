@@ -12,6 +12,7 @@ namespace helengine.editor {
         /// Blueprint-load service that reconstructs editor entities from blueprint assets.
         /// </summary>
         readonly BlueprintLoadService BlueprintLoadService;
+        readonly ObjectManager ObjectManager;
 
         /// <summary>
         /// Initializes a new blueprint-file load service.
@@ -23,7 +24,8 @@ namespace helengine.editor {
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
             ISceneAssetReferenceResolver referenceResolver,
-            EngineGeneratedMaterialCache generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -36,9 +38,13 @@ namespace helengine.editor {
             if (generatedMaterialCache == null) {
                 throw new ArgumentNullException(nameof(generatedMaterialCache));
             }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver, generatedMaterialCache);
+            ObjectManager = rendererResources.ObjectManager ?? throw new InvalidOperationException("Blueprint loading resources must provide an object manager.");
+            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver, generatedMaterialCache, rendererResources);
         }
 
         /// <summary>
@@ -52,7 +58,7 @@ namespace helengine.editor {
             }
 
             string normalizedPath = Path.GetFullPath(fullPath);
-            HashSet<Entity> existingEntities = new HashSet<Entity>(Core.Instance.ObjectManager.Entities);
+            HashSet<Entity> existingEntities = new HashSet<Entity>(ObjectManager.Entities);
             string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
             try {
                 if (!normalizedPath.StartsWith(ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
@@ -92,7 +98,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(existingEntities));
             }
 
-            List<Entity> liveEntities = new List<Entity>(Core.Instance.ObjectManager.Entities);
+            List<Entity> liveEntities = new List<Entity>(ObjectManager.Entities);
             for (int i = 0; i < liveEntities.Count; i++) {
                 Entity entity = liveEntities[i];
                 if (existingEntities.Contains(entity)) {
@@ -106,7 +112,7 @@ namespace helengine.editor {
                 }
 
                 editorEntity.Enabled = false;
-                Core.Instance.ObjectManager.RemoveEntity(editorEntity);
+                ObjectManager.RemoveEntity(editorEntity);
             }
         }
     }

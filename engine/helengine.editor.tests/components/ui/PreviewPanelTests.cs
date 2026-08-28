@@ -610,7 +610,7 @@ namespace helengine.editor.tests {
                 BoundsMax = new float3(1f, 1f, 1f)
             };
             RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
-            return new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache);
+            return new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
         }
 
         /// <summary>

@@ -13,6 +13,8 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the panel tests.
         /// </summary>
         readonly string TempRootPath;
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required by the properties panel.
@@ -22,10 +24,11 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
             Directory.CreateDirectory(Path.Combine(TempRootPath, "assets"));
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             EditorSceneMutationService.Reset();
         }
 
@@ -34,6 +37,8 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             EditorSceneMutationService.Reset();
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -46,7 +51,7 @@ namespace helengine.editor.tests {
         public void UpdateTransformEdits_WhenNameChanges_RaisesSceneMutated() {
             bool raised = false;
             Action handleSceneMutated = () => raised = true;
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Original"
             };
@@ -75,11 +80,11 @@ namespace helengine.editor.tests {
         public void UpdateTransformEdits_WhenHistoryRecordingIsAvailable_RecordsOneUndoableEntityStateOperation() {
             RecordingUndoRedoService undoRedoService = new RecordingUndoRedoService();
             int mutationNotificationCount = 0;
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
-                HistoryMutationService = CreateHistoryMutationService(undoRedoService, () => mutationNotificationCount++)
-            };
+            PropertiesPanel panel = CreatePanel();
+            panel.HistoryMutationService = CreateHistoryMutationService(undoRedoService, () => mutationNotificationCount++);
             EditorEntity entity = new EditorEntity {
-                Name = "Original"
+                Name = "Original",
+                IsSceneOwned = true
             };
             GetSaveComponent(entity).EntityId = 1u;
 
@@ -101,7 +106,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateTransformEdits_WhenSelectedEntityWasDisposed_ClearsTheInspector() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "DisposedSelection"
             };
@@ -114,9 +119,9 @@ namespace helengine.editor.tests {
             InvokePrivate(panel, "UpdateTransformEdits");
 
             ComponentPropertiesView componentView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
-            Entity selectedEntity = GetPrivateField<Entity>(panel, "SelectedEntity");
-
-            Assert.Null(selectedEntity);
+            FieldInfo selectedEntityField = panel.GetType().GetField("SelectedEntity", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(selectedEntityField);
+            Assert.Null(selectedEntityField.GetValue(panel));
             Assert.False(componentView.IsVisible);
         }
 
@@ -125,7 +130,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenEntityIsSelected_PositionsTheFirstSectionBelowTheTopEdge() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Original"
             };
@@ -142,7 +147,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenCameraScalarFieldIsSubmitted_UpdatesTheCameraComponent() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity();
             CameraComponent camera = new CameraComponent();
             camera.NearPlaneDistance = 0.1f;
@@ -165,7 +170,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenClearDepthIsSubmitted_UpdatesCameraClearSettings() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity();
             CameraComponent camera = new CameraComponent();
             camera.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
@@ -191,7 +196,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenClearColorEnabledChanges_UpdatesCameraClearSettings() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity();
             CameraComponent camera = new CameraComponent();
             camera.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
@@ -216,12 +221,12 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenSuppressedCameraClearColorEnabledChanges_UpdatesTheLiveCameraValue() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity();
             CameraComponent camera = new CameraComponent();
             camera.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
             entity.AddComponent(camera);
-            EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
+            EditorSceneCameraSuppressionService.AttachAndSuppress(entity, GeneratedAssetGraph.ObjectManager);
 
             panel.ShowEntityProperties(entity);
 
@@ -241,7 +246,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenWindowsTabScalarFieldIsSubmitted_CreatesIndependentOverrideWithoutChangingTheCommonComponent() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Camera"
             };
@@ -272,7 +277,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenNintendo3DsExistsIsUnchecked_PersistsAndClearsThePlatformExistenceOverride() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "PlatformEntity"
             };
@@ -299,7 +304,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenPs2TransformOverrideIsEdited_SwitchingTabsSwapsBetweenCommonAndOverrideValues() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "PlatformEntity",
                 Position = new float3(1f, 2f, 3f),
@@ -331,7 +336,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenPs2PositionOverrideIsReverted_LaterCommonChangesFlowBackIntoThePlatformView() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "PlatformEntity",
                 Position = new float3(1f, 2f, 3f),
@@ -376,7 +381,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenWindowsComponentRowIsReverted_LaterCommonChangesFlowBackIntoThePlatformView() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Camera"
             };
@@ -430,7 +435,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenWindowsPlatformOnlyCameraScalarIsEdited_PersistsAcrossTabRebuilds() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Platform Camera"
             };
@@ -473,7 +478,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenDsSyntheticTextMemberIsSubmitted_PersistsDetachedPlatformMemberValue() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Text Entity"
             };
@@ -506,7 +511,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenPlatformMeshTessellationIsEdited_PersistsPerPlatformDetachedValues() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Mesh Entity"
             };
@@ -557,7 +562,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenWorldUvwMapPreviewIsEnabled_SwapsMeshModelWithWorldProjectedTexCoords() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Ground Box",
                 Position = new float3(10f, 0f, 4f),
@@ -613,7 +618,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowEntityProperties_WhenBoxUvwMapPreviewIsEnabled_ProjectsLocalPositionsPerAxis() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePanel();
             EditorEntity entity = new EditorEntity {
                 Name = "Ground Box",
                 Scale = new float3(8f, 1f, 8f)
@@ -660,6 +665,15 @@ namespace helengine.editor.tests {
 
             // A unit cube half-extent of 0.5 with the default tiling of 1 spans +/-0.5 repeats; the entity scale is ignored.
             Assert.Equal(0.5f, maxAbsU, 3);
+        }
+
+        PropertiesPanel CreatePanel() {
+            PropertiesPanel panel = new PropertiesPanel(
+                CreateFont(),
+                new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            panel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
+            panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
+            return panel;
         }
 
         /// <summary>
@@ -764,7 +778,12 @@ namespace helengine.editor.tests {
         /// <param name="markSceneMutated">Callback invoked when the mutation service records one tracked scene mutation.</param>
         /// <returns>Configured mutation service for inspector tests.</returns>
         EditorMutationService CreateHistoryMutationService(RecordingUndoRedoService undoRedoService, Action markSceneMutated) {
-            SceneSaveService saveService = new SceneSaveService(TempRootPath, new ComponentPersistenceRegistry());
+            SceneSaveService saveService = new SceneSaveService(
+                TempRootPath,
+                new ComponentPersistenceRegistry(),
+                new EditorAssetReferenceResolver(TempRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorHistoryCaptureService captureService = new EditorHistoryCaptureService(saveService);
             return new EditorMutationService(undoRedoService, captureService, new ComponentHistoryAdapterRegistry(), markSceneMutated);
         }

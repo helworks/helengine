@@ -160,6 +160,71 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures dynamically created properties panels borrow the exact
+        /// generated-asset registry owned by the enclosing editor session.
+        /// </summary>
+        [Fact]
+        public void UiShow_WhenPropertiesIsOpenedTwice_BindsEachPanelToTheSessionGeneratedRegistry() {
+            using EditorSessionHarness harness = EditorSessionHarness.Create();
+
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowProperties);
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowProperties);
+
+            IReadOnlyList<EditorWorkspacePanelInstance> instances = harness.Session.GetPanelInstancesForTest("properties");
+            Assert.Equal(2, instances.Count);
+            for (int index = 0; index < instances.Count; index++) {
+                PropertiesPanel panel = Assert.IsType<PropertiesPanel>(instances[index].Dockable);
+                FieldInfo componentViewField = typeof(PropertiesPanel).GetField("ComponentView", BindingFlags.Instance | BindingFlags.NonPublic);
+                ComponentPropertiesView componentView = Assert.IsType<ComponentPropertiesView>(componentViewField.GetValue(panel));
+                PropertyInfo generatedProvidersProperty = typeof(ComponentPropertiesView).GetProperty("GeneratedAssetProviders", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.Same(harness.GeneratedAssetProviders, generatedProvidersProperty.GetValue(componentView));
+            }
+        }
+
+        /// <summary>
+        /// Ensures a secondary properties panel resolves generated model picks
+        /// through the enclosing session graph instead of an implicit registry.
+        /// </summary>
+        [Fact]
+        public void UiShow_WhenSecondaryPropertiesReceivesGeneratedModelPick_UsesSessionProviderRegistry() {
+            using EditorSessionHarness harness = EditorSessionHarness.Create();
+
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowProperties);
+            harness.Session.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowProperties);
+            IReadOnlyList<EditorWorkspacePanelInstance> instances = harness.Session.GetPanelInstancesForTest("properties");
+            PropertiesPanel panel = Assert.IsType<PropertiesPanel>(instances[1].Dockable);
+            EditorEntity entity = harness.CreateAuthoredEntity("Generated Model Target");
+            MeshComponent meshComponent = new MeshComponent();
+            entity.AddComponent(meshComponent);
+
+            try {
+                panel.ShowEntityProperties(entity);
+                FieldInfo componentViewField = typeof(PropertiesPanel).GetField("ComponentView", BindingFlags.Instance | BindingFlags.NonPublic);
+                ComponentPropertiesView componentView = Assert.IsType<ComponentPropertiesView>(componentViewField.GetValue(panel));
+                FieldInfo activeRowsField = typeof(ComponentPropertiesView).GetField("ActiveRows", BindingFlags.Instance | BindingFlags.NonPublic);
+                List<ComponentPropertyRow> activeRows = Assert.IsType<List<ComponentPropertyRow>>(activeRowsField.GetValue(componentView));
+                ComponentPropertyRow modelRow = Assert.Single(activeRows, row => row.Property != null && string.Equals(row.Property.Name, "Model", StringComparison.Ordinal));
+                Assert.Same(meshComponent, modelRow.TargetComponent);
+                Assert.Same(harness.GeneratedAssetProviders, componentView.GeneratedAssetProviders);
+                MethodInfo handleModelPicked = typeof(ComponentPropertiesView).GetMethod("HandleModelPicked", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(handleModelPicked);
+
+                AssetBrowserEntry generatedCube = AssetBrowserEntry.CreateGeneratedAsset(
+                    "Cube",
+                    EngineGeneratedAssetProvider.CubeRelativePath,
+                    AssetEntryKind.Model,
+                    EngineGeneratedAssetProvider.ProviderIdValue,
+                    EngineGeneratedModelCache.CubeAssetId);
+                handleModelPicked.Invoke(componentView, new object[] { modelRow, generatedCube });
+
+                RuntimeModel expectedModel = harness.GeneratedAssetProviders.ResolveRuntimeModel(generatedCube);
+                Assert.Same(expectedModel, meshComponent.Model);
+            } finally {
+                entity.Dispose();
+            }
+        }
+
+        /// <summary>
         /// Ensures opening Preview twice creates two independent preview panel instances.
         /// </summary>
         [Fact]
@@ -665,6 +730,11 @@ namespace helengine.editor.tests {
             public EditorSession Session { get; }
 
             /// <summary>
+            /// Generated provider registry owned by the harness graph.
+            /// </summary>
+            public GeneratedAssetProviderRegistry GeneratedAssetProviders => GeneratedAssetGraph.Registry;
+
+            /// <summary>
             /// Shared font used by dynamically created panels in the harness.
             /// </summary>
             readonly FontAsset Font;
@@ -735,7 +805,8 @@ namespace helengine.editor.tests {
                     null,
                     GeneratedAssetGraph.Registry,
                     GeneratedAssetGraph.MaterialCache,
-                    GeneratedAssetGraph.ShaderLibrary);
+                    GeneratedAssetGraph.ShaderLibrary,
+                GeneratedAssetGraph.RendererResources);
                 EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
                 EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
                 EditorAssetHashCache hashCache = new EditorAssetHashCache(TempProjectRootPath);
@@ -750,19 +821,27 @@ namespace helengine.editor.tests {
                     identityIndex,
                     referenceResolver,
                     new EditorAuthoringSessionLifetime(resources),
-                    nativeAssetWriteService);
+                    nativeAssetWriteService,
+                    GeneratedAssetGraph.Registry,
+                    GeneratedAssetGraph.ModelCache,
+                    GeneratedAssetGraph.MaterialCache,
+                    GeneratedAssetGraph.RendererResources);
                 Session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
                 SetPrivateField(Session, "dockingManager", new DockingManager());
+                SetPrivateField(Session, "core", CoreValue);
                 SetPrivateField(Session, "projectPath", TempProjectRootPath);
                 SetPrivateField(Session, "uiFont", Font);
                 SetPrivateField(Session, "SnapModifierFont", Font);
                 SetPrivateField(Session, "ViewportToolbarIcons", ViewportToolbarIcons);
+                SetPrivateField(Session, "titleBar", new EditorTitleBar(Font, EditorUiMetrics.Default, 1280, 720, "Workspace"));
+                SetPrivateField(Session, "EditorContentManager", ContentManager);
                 SetPrivateField(Session, "CurrentUiMetrics", EditorUiMetrics.Default);
                 SetPrivateField(Session, "SceneCreationService", GeneratedAssetGraph.CreateSceneCreationService());
                 SetPrivateField(Session, "generatedAssetProviderRegistry", GeneratedAssetGraph.Registry);
                 SetPrivateField(Session, "generatedModelCache", GeneratedAssetGraph.ModelCache);
                 SetPrivateField(Session, "generatedMaterialCache", GeneratedAssetGraph.MaterialCache);
+                SetPrivateField(Session, "rendererResources", GeneratedAssetGraph.RendererResources);
                 SetPrivateField(Session, "builtInShaderAssetLibrary", GeneratedAssetGraph.ShaderLibrary);
                 SetPrivateField(Session, "PanelRegistry", new EditorWorkspacePanelRegistry());
                 SetPrivateField(Session, "PanelInstances", new List<EditorWorkspacePanelInstance>());
@@ -773,7 +852,21 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "authoredAssetReferenceResolver", referenceResolver);
                 SetPrivateField(Session, "previewSourceResolver", previewSourceResolver);
                 SetPrivateField(Session, "sceneAssetReferenceFactory", new SceneAssetReferenceFactory(referenceResolver));
-                SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver, new EditorFileSystemTextureResolver(assetImportManager), referenceResolver, GeneratedAssetGraph.Registry));
+                SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver, new EditorFileSystemTextureResolver(assetImportManager), referenceResolver, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources));
+                SceneSaveService historySaveService = new SceneSaveService(
+                    TempProjectRootPath,
+                    new ComponentPersistenceRegistry(),
+                    new EditorAssetReferenceResolver(TempProjectRootPath),
+                    GeneratedAssetGraph.ModelCache,
+                    GeneratedAssetGraph.MaterialCache,
+                    GeneratedAssetGraph.RendererResources);
+                EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(historySaveService);
+                SetPrivateField(Session, "HistoryCaptureService", historyCaptureService);
+                SetPrivateField(Session, "HistoryMutationService", new EditorMutationService(
+                    new EditorUndoRedoService(new EditorHistoryContext()),
+                    historyCaptureService,
+                    new ComponentHistoryAdapterRegistry(),
+                    () => { }));
                 SetPrivateField(Session, "ProjectSupportedPlatforms", new[] { "windows" });
                 SetPrivateField(Session, "ProjectLocalSettingsService", projectLocalSettingsService);
                 SetPrivateField(Session, "ActiveProjectPlatform", "windows");
@@ -867,6 +960,15 @@ namespace helengine.editor.tests {
                     Viewport = new float4(0f, 0f, 160f, 90f)
                 });
                 return cameraEntity;
+            }
+
+            /// <summary>
+            /// Creates one authored entity through the session's explicit entity factory.
+            /// </summary>
+            /// <param name="name">Entity name.</param>
+            /// <returns>Authored entity with an allocated scene id.</returns>
+            public EditorEntity CreateAuthoredEntity(string name) {
+                return Assert.IsType<EditorEntity>(CoreValue.EntityFactory.Create(name));
             }
 
             /// <summary>

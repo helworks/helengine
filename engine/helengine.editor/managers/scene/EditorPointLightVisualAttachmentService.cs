@@ -8,12 +8,18 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Scene entity that may represent a point light.</param>
         /// <returns>True when the visual component was added; otherwise false.</returns>
-        public static bool Attach(EditorEntity entity, EngineGeneratedMaterialCache generatedMaterialCache) {
+        public static bool Attach(
+            EditorEntity entity,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorPointLightVisualResources visualResources) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
             if (generatedMaterialCache == null) {
                 throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            if (visualResources == null) {
+                throw new ArgumentNullException(nameof(visualResources));
             }
 
             if (!HasComponent<PointLightComponent>(entity)) {
@@ -33,7 +39,7 @@ namespace helengine.editor {
                 Name = "Point Light Visual"
             };
 
-            visualEntity.AddComponent(new EditorPointLightVisualComponent(generatedMaterialCache));
+            visualEntity.AddComponent(new EditorPointLightVisualComponent(generatedMaterialCache, visualResources));
             entity.AddChild(visualEntity);
             return true;
         }

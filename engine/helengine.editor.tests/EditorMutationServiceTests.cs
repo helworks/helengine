@@ -10,6 +10,7 @@ namespace helengine.editor.tests {
         /// Temporary project root used to back scene snapshot serialization.
         /// </summary>
         readonly string TempRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes one isolated editor-core host and temporary project root for mutation-service tests.
@@ -22,12 +23,14 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Removes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -90,7 +93,12 @@ namespace helengine.editor.tests {
         /// <param name="markSceneMutated">Callback invoked when the mutation service records one tracked scene mutation.</param>
         /// <returns>Configured editor mutation service.</returns>
         EditorMutationService CreateMutationService(RecordingUndoRedoService undoRedoService, ComponentHistoryAdapterRegistry registry, Action markSceneMutated) {
-            SceneSaveService saveService = new SceneSaveService(TempRootPath, new ComponentPersistenceRegistry());
+            SceneSaveService saveService = new SceneSaveService(
+                TempRootPath,
+                new ComponentPersistenceRegistry(),
+                new EditorAssetReferenceResolver(TempRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorHistoryCaptureService captureService = new EditorHistoryCaptureService(saveService);
             return new EditorMutationService(undoRedoService, captureService, registry, markSceneMutated);
         }

@@ -13,6 +13,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// Temporary content root used by the runtime scene-load test harness.
         /// </summary>
         readonly string TempRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Next numeric scene entity id assigned to manually-authored editor entities in tests that run without an editor core.
@@ -36,12 +37,14 @@ namespace helengine.editor.tests.serialization.scene {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.SetDefaultFontAssetForEditor(CreateFont());
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Deletes temporary test content after each run.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -1154,7 +1157,12 @@ namespace helengine.editor.tests.serialization.scene {
                 SortOrder = 14
             });
 
-            SceneSaveService saveService = new SceneSaveService(projectRootPath, new ComponentPersistenceRegistry());
+            SceneSaveService saveService = new SceneSaveService(
+                projectRootPath,
+                new ComponentPersistenceRegistry(),
+                new EditorAssetReferenceResolver(projectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             saveService.Save(scenePath);
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(

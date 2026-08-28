@@ -29,6 +29,7 @@ namespace helengine.editor {
         readonly IEntityFactory EntityFactory;
         /// <summary>Session-owned generated material cache used by editor-only scene visuals.</summary>
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly EditorSessionRendererResources RendererResources;
         /// <summary>
         /// Allocator that advances beyond restored numeric scene entity ids during scene load.
         /// </summary>
@@ -43,14 +44,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="persistenceRegistry">Registry used to deserialize persisted components.</param>
         /// <param name="referenceResolver">Resolver used to rebuild runtime assets.</param>
-        public SceneLoadService(ComponentPersistenceRegistry persistenceRegistry, ISceneAssetReferenceResolver referenceResolver, EngineGeneratedMaterialCache generatedMaterialCache) {
+        public SceneLoadService(ComponentPersistenceRegistry persistenceRegistry, ISceneAssetReferenceResolver referenceResolver, EngineGeneratedMaterialCache generatedMaterialCache, EditorSessionRendererResources rendererResources) {
             PersistenceRegistry = persistenceRegistry ?? throw new ArgumentNullException(nameof(persistenceRegistry));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
+            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
-            EntityFactory = ResolveEntityFactory();
-            EntityIdAllocator = ResolveEntityIdAllocator();
+            EntityFactory = RendererResources.EntityFactory;
+            EntityIdAllocator = RendererResources.SceneEntityIdAllocator;
             BlueprintExpansionService = null;
         }
 
@@ -64,12 +66,13 @@ namespace helengine.editor {
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
             ISceneAssetReferenceResolver referenceResolver,
-            EngineGeneratedMaterialCache generatedMaterialCache) : this(persistenceRegistry, referenceResolver, generatedMaterialCache) {
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorSessionRendererResources rendererResources) : this(persistenceRegistry, referenceResolver, generatedMaterialCache, rendererResources) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
 
-            BlueprintExpansionService = new BlueprintEditorExpansionService(projectRootPath, persistenceRegistry, referenceResolver, GeneratedMaterialCache);
+            BlueprintExpansionService = new BlueprintEditorExpansionService(projectRootPath, persistenceRegistry, referenceResolver, GeneratedMaterialCache, RendererResources);
         }
 
         /// <summary>
@@ -77,34 +80,6 @@ namespace helengine.editor {
         /// </summary>
         public void Dispose() {
             BlueprintExpansionService?.Dispose();
-        }
-
-        /// <summary>
-        /// Resolves the host-owned authored entity factory from the active core instance.
-        /// </summary>
-        /// <returns>Host-owned authored entity factory.</returns>
-        static IEntityFactory ResolveEntityFactory() {
-            if (Core.Instance == null) {
-                throw new InvalidOperationException("Scene loading requires Core.Instance before resolving EntityFactory.");
-            } else if (Core.Instance.EntityFactory == null) {
-                throw new InvalidOperationException("Scene loading requires Core.Instance.EntityFactory.");
-            }
-
-            return Core.Instance.EntityFactory;
-        }
-
-        /// <summary>
-        /// Resolves the editor-owned scene entity id allocator from the active editor core.
-        /// </summary>
-        /// <returns>Allocator that owns numeric scene entity ids for the active editor host.</returns>
-        static EditorSceneEntityIdAllocator ResolveEntityIdAllocator() {
-            if (Core.Instance is not EditorCore editorCore) {
-                throw new InvalidOperationException("Scene loading requires EditorCore before resolving the scene entity id allocator.");
-            } else if (editorCore.SceneEntityIdAllocator == null) {
-                throw new InvalidOperationException("Scene loading requires EditorCore.SceneEntityIdAllocator.");
-            }
-
-            return editorCore.SceneEntityIdAllocator;
         }
 
         /// <summary>
@@ -199,11 +174,11 @@ namespace helengine.editor {
                 RestoreEntityComponentPlatformOverrides(entityAsset, saveComponent);
             }
 
-            EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
-            EditorCameraVisualAttachmentService.Attach(entity, GeneratedMaterialCache);
-            EditorPointLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache);
-            EditorDirectionalLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache);
-            EditorSpotLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache);
+            EditorSceneCameraSuppressionService.AttachAndSuppress(entity, RendererResources.ObjectManager);
+            EditorCameraVisualAttachmentService.Attach(entity, GeneratedMaterialCache, RendererResources.CameraVisuals);
+            EditorPointLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache, RendererResources.PointLightVisuals);
+            EditorDirectionalLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache, RendererResources.DirectionalLightVisuals);
+            EditorSpotLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache, RendererResources.SpotLightVisuals);
 
             SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int i = 0; i < children.Length; i++) {

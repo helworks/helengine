@@ -12,17 +12,19 @@ namespace helengine.editor {
         /// Resolver that rebuilds runtime models from processed file-system model assets.
         /// </summary>
         readonly EditorFileSystemModelResolver FileSystemModelResolver;
+        readonly ObjectManager ObjectManager;
 
         /// <summary>
         /// Initializes a new refresh service that can rebuild runtime models from source files.
         /// </summary>
         /// <param name="fileSystemModelResolver">Resolver used to load processed file-system models.</param>
-        public EditorSceneModelRefreshService(EditorFileSystemModelResolver fileSystemModelResolver) {
+        public EditorSceneModelRefreshService(EditorFileSystemModelResolver fileSystemModelResolver, ObjectManager objectManager) {
             if (fileSystemModelResolver == null) {
                 throw new ArgumentNullException(nameof(fileSystemModelResolver));
             }
 
             FileSystemModelResolver = fileSystemModelResolver;
+            ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
         }
 
         /// <summary>
@@ -39,7 +41,7 @@ namespace helengine.editor {
             }
 
             RuntimeModel refreshedModel = null;
-            IReadOnlyList<Entity> entities = Core.Instance.ObjectManager.Entities;
+            IReadOnlyList<Entity> entities = ObjectManager.Entities;
             for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
                 Entity entity = entities[entityIndex];
                 if (entity.Components == null || entity.Components.Count == 0) {

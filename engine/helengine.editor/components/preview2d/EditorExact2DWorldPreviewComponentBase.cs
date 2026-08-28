@@ -22,8 +22,8 @@ namespace helengine {
         /// Initializes one exact world-space preview component bound to the supplied authored source entity.
         /// </summary>
         /// <param name="sourceEntity">Authored source entity mirrored by the preview proxy.</param>
-        protected EditorExact2DWorldPreviewComponentBase(Entity sourceEntity, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
-            : base(sourceEntity, builtInShaderLibrary) {
+        protected EditorExact2DWorldPreviewComponentBase(Entity sourceEntity, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary, helengine.editor.EditorSessionRendererResources rendererResources)
+            : base(sourceEntity, builtInShaderLibrary, rendererResources) {
         }
 
         /// <summary>
@@ -44,11 +44,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Preview entity that owns this component.</param>
         public override void ComponentAdded(Entity entity) {
-            Core core = Core.Instance;
-            if (core == null || core.RenderManager3D == null) {
-                throw new InvalidOperationException("Exact 2D previews require an initialized core with a 3D renderer.");
-            }
-            CaptureServiceValue = new helengine.editor.EditorExact2DPreviewCaptureService(core.RenderManager3D, BuiltInShaderLibrary);
+            CaptureServiceValue = new helengine.editor.EditorExact2DPreviewCaptureService(RendererResources.RenderManager3D, RendererResources.ObjectManager, BuiltInShaderLibrary);
             base.ComponentAdded(entity);
         }
 
@@ -99,7 +95,7 @@ namespace helengine {
         /// <returns>Viewport-owned exact previews use one render-target-oriented downward plane while all other cases keep the shared base behavior.</returns>
         protected override RuntimeModel ResolvePreviewModel() {
             if (helengine.editor.EditorViewportDirect2DPresentationService.TryResolveViewportOwner(SourceEntity, out _, out _)) {
-                return EditorWorldSpace2DPreviewMeshResources.GetViewportRenderTargetRuntimeModel();
+                return RendererResources.WorldSpace2DPreviewMeshes.GetViewportRenderTargetRuntimeModel();
             }
 
             return base.ResolvePreviewModel();
