@@ -143,34 +143,6 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     }
 
     [Fact]
-    public void Recover_FinishDeleteTransientRemovesQuarantineWithoutStaleRecord() {
-        string source = Path.Combine(ProjectRootPath, "assets", "recover-delete-source.hasset");
-        File.WriteAllBytes(source, new byte[] { 1, 1, 2, 3, 5 });
-        string identity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
-        string hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(source))).ToLowerInvariant();
-        string quarantine;
-        using (EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "delete", source, source)) {
-            quarantine = EditorAuthoringMutationJournal.ReserveTransient(
-                source,
-                Path.GetDirectoryName(source),
-                null,
-                identity,
-                hash,
-                "File",
-                "FinishDelete");
-            string quarantinePath = Path.Combine(Path.GetDirectoryName(source), quarantine);
-            File.Move(source, quarantinePath);
-            EditorAuthoringMutationJournal.RecordTransientOccupied(quarantinePath);
-        }
-
-        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
-
-        Assert.False(File.Exists(source));
-        Assert.False(File.Exists(Path.Combine(Path.GetDirectoryName(source), quarantine)));
-        Assert.Empty(Directory.GetDirectories(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations")));
-    }
-
-    [Fact]
     public void Recover_PublishedTransientRecognizesExactIntendedDestinationAfterQuarantineDisappears() {
         string source = Path.Combine(ProjectRootPath, "assets", "recover-publish-source.hasset");
         string destination = Path.Combine(ProjectRootPath, "assets", "recover-publish-destination.hasset");
@@ -192,6 +164,12 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
             File.Move(source, quarantinePath);
             EditorAuthoringMutationJournal.RecordTransientOccupied(quarantinePath);
             File.Move(quarantinePath, destination);
+            // The source inode reached its intended destination and the
+            // lifecycle/outer phase were durably advanced before the process
+            // stopped. Recovery must finish committed cleanup, not roll the
+            // publication back to the original source path.
+            EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(source), quarantine));
+            journal.MarkPhase("Published");
         }
 
         EditorAuthoringMutationJournal.Recover(ProjectRootPath);
@@ -199,6 +177,197 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.Equal(bytes, File.ReadAllBytes(destination));
         Assert.False(File.Exists(source));
         Assert.Empty(Directory.GetDirectories(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations")));
+    }
+
+    [Fact]
+    public void Recover_ReplacementTransientGraph_RollsBackSourceThenFormerDestination() {
+        string source = Path.Combine(ProjectRootPath, "assets", "graph-source.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "graph-destination.hasset");
+        byte[] sourceBytes = new byte[] { 1, 3, 5, 7 };
+        byte[] destinationBytes = new byte[] { 2, 4, 6, 8 };
+        File.WriteAllBytes(source, sourceBytes);
+        File.WriteAllBytes(destination, destinationBytes);
+        string sourceIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
+        string destinationIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, destination);
+        string sourceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sourceBytes)).ToLowerInvariant();
+        string destinationHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(destinationBytes)).ToLowerInvariant();
+
+        using (EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "replace", source, destination)) {
+            string destinationQuarantine = EditorAuthoringMutationJournal.ReserveTransient(
+                destination,
+                Path.GetDirectoryName(destination),
+                intendedDestinationPath: null,
+                destinationIdentity,
+                destinationHash,
+                "File",
+                "RestoreOriginal");
+            string destinationQuarantinePath = Path.Combine(Path.GetDirectoryName(destination), destinationQuarantine);
+            File.Move(destination, destinationQuarantinePath);
+            EditorAuthoringMutationJournal.RecordTransientOccupied(destinationQuarantinePath);
+
+            string sourceQuarantine = EditorAuthoringMutationJournal.ReserveTransient(
+                source,
+                Path.GetDirectoryName(source),
+                destination,
+                sourceIdentity,
+                sourceHash,
+                "File",
+                "PublishIntendedDestination");
+            string sourceQuarantinePath = Path.Combine(Path.GetDirectoryName(source), sourceQuarantine);
+            File.Move(source, sourceQuarantinePath);
+            EditorAuthoringMutationJournal.RecordTransientOccupied(sourceQuarantinePath);
+        }
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.Equal(sourceBytes, File.ReadAllBytes(source));
+        Assert.Equal(destinationBytes, File.ReadAllBytes(destination));
+        Assert.Empty(Directory.GetFileSystemEntries(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations")));
+    }
+
+    [Fact]
+    public void Recover_ReplacementTransientGraph_AllowsIntendedDestinationToReferenceAnotherOriginal() {
+        string source = Path.Combine(ProjectRootPath, "assets", "graph-cross-source.hasset");
+        string destinationDirectory = Path.Combine(ProjectRootPath, "assets", "graph-cross-destination");
+        string destination = Path.Combine(destinationDirectory, "item.hasset");
+        Directory.CreateDirectory(destinationDirectory);
+        byte[] sourceBytes = new byte[] { 9, 7, 5 };
+        byte[] destinationBytes = new byte[] { 8, 6, 4 };
+        File.WriteAllBytes(source, sourceBytes);
+        File.WriteAllBytes(destination, destinationBytes);
+        string sourceIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
+        string destinationIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, destination);
+        string sourceHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sourceBytes)).ToLowerInvariant();
+        string destinationHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(destinationBytes)).ToLowerInvariant();
+
+        using (EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "replace", source, destination)) {
+            string destinationQuarantine = EditorAuthoringMutationJournal.ReserveTransient(
+                destination,
+                Path.GetDirectoryName(destination),
+                intendedDestinationPath: null,
+                destinationIdentity,
+                destinationHash,
+                "File",
+                "RestoreOriginal");
+            string destinationQuarantinePath = Path.Combine(Path.GetDirectoryName(destination), destinationQuarantine);
+            File.Move(destination, destinationQuarantinePath);
+            EditorAuthoringMutationJournal.RecordTransientOccupied(destinationQuarantinePath);
+
+            string sourceQuarantine = EditorAuthoringMutationJournal.ReserveTransient(
+                source,
+                Path.GetDirectoryName(source),
+                destination,
+                sourceIdentity,
+                sourceHash,
+                "File",
+                "PublishIntendedDestination");
+            string sourceQuarantinePath = Path.Combine(Path.GetDirectoryName(source), sourceQuarantine);
+            File.Move(source, sourceQuarantinePath);
+            EditorAuthoringMutationJournal.RecordTransientOccupied(sourceQuarantinePath);
+        }
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.Equal(sourceBytes, File.ReadAllBytes(source));
+        Assert.Equal(destinationBytes, File.ReadAllBytes(destination));
+        Assert.Empty(Directory.GetFileSystemEntries(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations")));
+    }
+
+    [Fact]
+    public void Recover_ReplacementTransientGraph_RejectsCyclesBeforeTouchingEntries() {
+        string first = Path.Combine(ProjectRootPath, "assets", "graph-cycle-first.hasset");
+        string second = Path.Combine(ProjectRootPath, "assets", "graph-cycle-second.hasset");
+        byte[] firstBytes = new byte[] { 1, 2, 3 };
+        byte[] secondBytes = new byte[] { 4, 5, 6 };
+        File.WriteAllBytes(first, firstBytes);
+        File.WriteAllBytes(second, secondBytes);
+        string firstIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, first);
+        string secondIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, second);
+        string firstHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(firstBytes)).ToLowerInvariant();
+        string secondHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(secondBytes)).ToLowerInvariant();
+
+        using (EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "move", first, second)) {
+            EditorAuthoringMutationJournal.ReserveTransient(
+                first,
+                Path.GetDirectoryName(first),
+                second,
+                firstIdentity,
+                firstHash,
+                "File",
+                "PublishIntendedDestination");
+            EditorAuthoringMutationJournal.ReserveTransient(
+                second,
+                Path.GetDirectoryName(second),
+                first,
+                secondIdentity,
+                secondHash,
+                "File",
+                "PublishIntendedDestination");
+        }
+
+        Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationJournal.Recover(ProjectRootPath));
+
+        Assert.Equal(firstBytes, File.ReadAllBytes(first));
+        Assert.Equal(secondBytes, File.ReadAllBytes(second));
+    }
+
+    [Fact]
+    public void Recover_TransientWithMalformedFileHash_FailsClosedBeforeMutation() {
+        string source = Path.Combine(ProjectRootPath, "assets", "invalid-transient-hash.hasset");
+        byte[] bytes = new byte[] { 10, 20, 30 };
+        File.WriteAllBytes(source, bytes);
+        string identity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, source);
+        using (EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.Begin(ProjectRootPath, "move", source, source)) {
+            EditorAuthoringMutationJournal.ReserveTransient(
+                source,
+                Path.GetDirectoryName(source),
+                intendedDestinationPath: null,
+                identity,
+                "not-a-sha256",
+                "File",
+                "RestoreOriginal");
+        }
+
+        Assert.Throws<InvalidDataException>(() => EditorAuthoringMutationJournal.Recover(ProjectRootPath));
+
+        Assert.Equal(bytes, File.ReadAllBytes(source));
+    }
+
+    [Fact]
+    public void DeleteLeaf_InterruptedAfterOwnedRename_LeavesNoTransientGraphForRecovery() {
+        string source = Path.Combine(ProjectRootPath, "assets", "delete-owned-cut.hasset");
+        File.WriteAllBytes(source, new byte[] { 4, 3, 2, 1 });
+        bool interrupted = false;
+        try {
+            EditorAuthoringMutationScope.MutationHookForTests = point => {
+                if (!interrupted && point.StartsWith(
+                        "FixedRename.AfterSyscallBeforeFsync:delete-owned-cut.hasset->.deleting-",
+                        StringComparison.Ordinal)) {
+                    interrupted = true;
+                    throw new IOException("injected fixed deleting-entry durability cut");
+                }
+            };
+            Assert.Throws<IOException>(() => EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, source));
+        } finally {
+            EditorAuthoringMutationScope.MutationHookForTests = null;
+        }
+
+        Assert.True(interrupted);
+        string journalRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
+        string[] operationEntries = Directory.Exists(journalRoot)
+            ? Directory.GetFileSystemEntries(journalRoot)
+            : Array.Empty<string>();
+        Assert.True(operationEntries.Length > 0, $"No journal entry remained at '{journalRoot}'.");
+        string operationDirectory = Assert.Single(operationEntries, path => Guid.TryParseExact(Path.GetFileName(path), "N", out _));
+        using (JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(operationDirectory, "document.json")))) {
+            Assert.Empty(document.RootElement.GetProperty("TransientEntries").EnumerateArray());
+            Assert.Equal("Prepared", document.RootElement.GetProperty("Phase").GetString());
+        }
+
+        EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
+        Assert.False(File.Exists(source));
+        Assert.Empty(Directory.GetFileSystemEntries(journalRoot));
     }
 
     [Fact]
@@ -477,17 +646,18 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     [LinuxFact]
     public void LinuxQuarantine_PersistsRelativePathAndIdentityBeforeNamespaceMove() {
         string source = Path.Combine(ProjectRootPath, "assets", "linux-owned-quarantine.hasset");
+        string destination = Path.Combine(ProjectRootPath, "assets", "linux-owned-quarantine-destination.hasset");
         File.WriteAllBytes(source, new byte[] { 3, 1, 4 });
         string operationDirectory = null;
         bool interrupted = false;
         try {
             EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (!interrupted && point == "FixedDelete.AfterQuarantineProof") {
+                if (!interrupted && point == "FixedRename.AfterQuarantineProof") {
                     interrupted = true;
                     throw new IOException("injected quarantine cut");
                 }
             };
-            Assert.Throws<IOException>(() => EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, source));
+            Assert.Throws<IOException>(() => EditorAuthoringMutationScope.MoveLeaf(ProjectRootPath, source, destination));
         } finally {
             EditorAuthoringMutationScope.MutationHookForTests = null;
         }
@@ -500,13 +670,14 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.Contains("assets/", transient.GetProperty("OriginalRelativePath").GetString(), StringComparison.Ordinal);
         Assert.Contains("assets/", transient.GetProperty("QuarantineRelativePath").GetString(), StringComparison.Ordinal);
         Assert.Equal("File", transient.GetProperty("EntryKind").GetString());
-        Assert.Equal("FinishDelete", transient.GetProperty("RecoveryIntent").GetString());
+        Assert.Equal("PublishIntendedDestination", transient.GetProperty("RecoveryIntent").GetString());
         Assert.Equal("Occupied", transient.GetProperty("Lifecycle").GetString());
         Assert.StartsWith("dev:", transient.GetProperty("ExpectedIdentity").GetString(), StringComparison.Ordinal);
         Assert.Equal(64, transient.GetProperty("ExpectedHash").GetString()?.Length);
 
         EditorAuthoringMutationJournal.Recover(ProjectRootPath);
         Assert.True(File.Exists(source));
+        Assert.False(File.Exists(destination));
     }
 
     [Fact]

@@ -372,6 +372,7 @@ namespace helengine.editor {
                     PosixEntryIdentity verifiedSourceIdentity = new PosixEntryIdentity(sourceStatus);
                     string sourceQuarantine = EditorAuthoringMutationJournal.IsWritingDocument ||
                         EditorAuthoringMutationJournal.IsFixedOperationArtifactPath(source) ||
+                        EditorAuthoringMutationJournal.IsFixedOperationArtifactPath(destination) ||
                         EditorAuthoringMutationJournal.IsRecordedTransientPath(source) ||
                         sourceIsDirectory
                         ? null
@@ -406,7 +407,7 @@ namespace helengine.editor {
                             verifiedSourceIdentity,
                             null);
                         if (sourceQuarantine != null) {
-                            EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(sourceParent, sourceQuarantine));
+                            EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(sourceParent, sourceQuarantine));
                         }
                     } catch (Exception primary) {
                         // A post-syscall durability failure leaves the exact
@@ -517,45 +518,16 @@ namespace helengine.editor {
                     FsyncDirectory(parentFd, parent);
                     return;
                 }
-                string quarantine = QuarantineLinuxEntry(
-                    parentFd,
-                    Path.GetFileName(fullPath),
-                    candidateIdentity,
-                    fullPath,
-                    projectRootPath,
-                    expectedHash,
-                    intendedDestinationPath: null,
-                    recoveryIntent: "FinishDelete");
-                try {
-                    EnsureLinuxIdentity(parentFd, quarantine, candidateIdentity, fullPath);
-                    VerifyExpectedHash(projectRootPath, Path.Combine(parent, quarantine), expectedHash, "quarantined leaf");
-                    InvokeMutationHook("FixedDelete.AfterQuarantineProof");
-                    EnsureLinuxIdentity(parentFd, quarantine, candidateIdentity, fullPath);
-                    VerifyExpectedHash(projectRootPath, Path.Combine(parent, quarantine), expectedHash, "quarantined leaf");
-                    DeleteQuarantinedLinuxEntry(
-                        parentFd,
-                        quarantine,
-                        candidateIdentity,
-                        fullPath,
-                        directory: false,
-                        projectRootPath: projectRootPath,
-                        expectedHash: expectedHash);
-                } catch (Exception primary) {
-                    List<Exception> rollbackFailures = new List<Exception>();
-                    try {
-                        if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat quarantined) && candidateIdentity.Matches(quarantined)) {
-                            VerifyExpectedHash(projectRootPath, Path.Combine(parent, quarantine), expectedHash, "quarantined leaf");
-                            RenameLinuxNoReplace(parentFd, quarantine, parentFd, Path.GetFileName(fullPath), fullPath, candidateIdentity);
-                        }
-                    } catch (Exception rollback) {
-                        rollbackFailures.Add(rollback);
-                    }
-                    if (rollbackFailures.Count != 0) {
-                        rollbackFailures.Insert(0, primary);
-                        throw new AggregateException($"Could not delete verified authoring leaf '{fullPath}' and rollback failed.", rollbackFailures);
-                    }
-                    throw;
+                // Public deletion publishes to its journal-owned deleting
+                // entry first. All other callers reach this fallback only
+                // for an already-owned fixed artifact, so delete directly.
+                InvokeMutationHook("FixedDelete.BeforeFinalSyscall");
+                EnsureLinuxIdentity(parentFd, Path.GetFileName(fullPath), candidateIdentity, fullPath);
+                VerifyExpectedHash(projectRootPath, fullPath, expectedHash, "leaf");
+                if (UnlinkAt(parentFd, Path.GetFileName(fullPath), 0) != 0) {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified authoring leaf '{fullPath}'.");
                 }
+                FsyncDirectory(parentFd, parent);
             } else {
                 throw CreateUnsupportedPlatformException();
             }
@@ -636,7 +608,7 @@ namespace helengine.editor {
                     EditorAuthoringMutationJournal.IsRecordedTransientPath(fullPath)) {
                     using SafeFileHandle fixedDirectory = OpenPosixDirectory(Path.GetFileName(fullPath), parentScope.Handles[parentScope.Handles.Count - 1]);
                     EnsureLinuxHandleIdentity(fixedDirectory, candidateIdentity, fullPath);
-                    FixedDeleteDirectoryContentsLinux(projectRootPath, fixedDirectory, fullPath, containingRoot, directDelete: true);
+                    FixedDeleteDirectoryContentsLinux(projectRootPath, fixedDirectory, fullPath, containingRoot);
                     EnsureLinuxIdentity(parentFd, Path.GetFileName(fullPath), candidateIdentity, fullPath);
                     InvokeMutationHook("FixedDeleteDirectory.BeforeFinalSyscall");
                     EnsureLinuxIdentity(parentFd, Path.GetFileName(fullPath), candidateIdentity, fullPath);
@@ -646,42 +618,20 @@ namespace helengine.editor {
                     FsyncDirectory(parentFd, parentPath);
                     return;
                 }
-                string quarantine = QuarantineLinuxEntry(
-                    parentFd,
-                    Path.GetFileName(fullPath),
-                    candidateIdentity,
-                    fullPath,
-                    recoveryIntent: "FinishDelete");
-                try {
-                    using SafeFileHandle directory = OpenPosixDirectory(quarantine, parentScope.Handles[parentScope.Handles.Count - 1]);
-                    EnsureLinuxHandleIdentity(directory, candidateIdentity, fullPath);
-                    InvokeMutationHook("FixedDeleteDirectory.AfterQuarantineProof");
-                    EnsureLinuxIdentity(parentFd, quarantine, candidateIdentity, fullPath);
-                    FixedDeleteDirectoryContentsLinux(projectRootPath, directory, Path.Combine(parentPath, quarantine), containingRoot);
-                    EnsureLinuxIdentity(parentFd, quarantine, candidateIdentity, fullPath);
-                    InvokeMutationHook("FixedDeleteDirectory.BeforeUnlink");
-                    EnsureLinuxIdentity(parentFd, quarantine, candidateIdentity, fullPath);
-                    InvokeMutationHook("FixedDeleteDirectory.BeforeFinalSyscall");
-                    EnsureLinuxIdentity(parentFd, quarantine, candidateIdentity, fullPath);
-                    if (UnlinkAt(parentFd, quarantine, PosixAtRemovedDirectory) != 0) {
-                        throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not delete fixed authoring directory '{fullPath}'.");
-                    }
-                    FsyncDirectory(parentFd, parentPath);
-                } catch (Exception primary) {
-                    List<Exception> rollbackFailures = new List<Exception>();
-                    try {
-                        if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat quarantined) && candidateIdentity.Matches(quarantined)) {
-                            RenameLinuxNoReplace(parentFd, quarantine, parentFd, Path.GetFileName(fullPath), fullPath, candidateIdentity);
-                        }
-                    } catch (Exception rollback) {
-                        rollbackFailures.Add(rollback);
-                    }
-                    if (rollbackFailures.Count != 0) {
-                        rollbackFailures.Insert(0, primary);
-                        throw new AggregateException($"Could not delete verified authoring directory '{fullPath}' and rollback failed.", rollbackFailures);
-                    }
-                    throw;
+                // Public directory deletion has already moved the top-level
+                // directory to its journal-owned .deleting entry. If a
+                // caller reaches this fallback, recurse under its pinned
+                // handle and remove the verified tree directly.
+                using SafeFileHandle directory = OpenPosixDirectory(Path.GetFileName(fullPath), parentScope.Handles[parentScope.Handles.Count - 1]);
+                EnsureLinuxHandleIdentity(directory, candidateIdentity, fullPath);
+                FixedDeleteDirectoryContentsLinux(projectRootPath, directory, fullPath, containingRoot);
+                EnsureLinuxIdentity(parentFd, Path.GetFileName(fullPath), candidateIdentity, fullPath);
+                InvokeMutationHook("FixedDeleteDirectory.BeforeFinalSyscall");
+                EnsureLinuxIdentity(parentFd, Path.GetFileName(fullPath), candidateIdentity, fullPath);
+                if (UnlinkAt(parentFd, Path.GetFileName(fullPath), PosixAtRemovedDirectory) != 0) {
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not delete fixed authoring directory '{fullPath}'.");
                 }
+                FsyncDirectory(parentFd, parentPath);
                 return;
             }
             if (!OperatingSystem.IsWindows()) {
@@ -724,8 +674,7 @@ namespace helengine.editor {
             string projectRootPath,
             SafeFileHandle directory,
             string directoryPath,
-            string containingRoot,
-            bool directDelete = false) {
+            string containingRoot) {
             int duplicateFd = PosixDup(directory.DangerousGetHandle().ToInt32());
             if (duplicateFd < 0) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not enumerate fixed authoring directory '{directoryPath}'.");
@@ -752,85 +701,23 @@ namespace helengine.editor {
                     }
                     if ((status.Mode & PosixFileTypeMask) == PosixDirectoryFileType) {
                         PosixEntryIdentity childIdentity = new PosixEntryIdentity(status);
-                        if (directDelete) {
-                            using SafeFileHandle childDirectory = OpenPosixDirectory(name, directory);
-                            EnsureLinuxHandleIdentity(childDirectory, childIdentity, childPath);
-                            FixedDeleteDirectoryContentsLinux(projectRootPath, childDirectory, childPath, containingRoot, directDelete: true);
-                            EnsureLinuxIdentity(parentFd, name, childIdentity, childPath);
-                            if (UnlinkAt(parentFd, name, PosixAtRemovedDirectory) != 0) {
-                                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove fixed directory '{childPath}'.");
-                            }
-                            FsyncDirectory(parentFd, directoryPath);
-                            continue;
+                        using SafeFileHandle childDirectory = OpenPosixDirectory(name, directory);
+                        EnsureLinuxHandleIdentity(childDirectory, childIdentity, childPath);
+                        FixedDeleteDirectoryContentsLinux(projectRootPath, childDirectory, childPath, containingRoot);
+                        EnsureLinuxIdentity(parentFd, name, childIdentity, childPath);
+                        if (UnlinkAt(parentFd, name, PosixAtRemovedDirectory) != 0) {
+                            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove fixed directory '{childPath}'.");
                         }
-                        string quarantine = QuarantineLinuxEntry(
-                            parentFd,
-                            name,
-                            childIdentity,
-                            childPath,
-                            recoveryIntent: "FinishDelete");
-                        try {
-                            using SafeFileHandle childDirectory = OpenPosixDirectory(quarantine, directory);
-                            EnsureLinuxHandleIdentity(childDirectory, childIdentity, childPath);
-                            InvokeMutationHook("FixedDeleteDirectory.AfterQuarantineProof");
-                            EnsureLinuxIdentity(parentFd, quarantine, childIdentity, childPath);
-                            FixedDeleteDirectoryContentsLinux(projectRootPath, childDirectory, Path.Combine(directoryPath, quarantine), containingRoot);
-                            EnsureLinuxIdentity(parentFd, quarantine, childIdentity, childPath);
-                            DeleteQuarantinedLinuxEntry(parentFd, quarantine, childIdentity, childPath, true);
-                        } catch (Exception primary) {
-                            List<Exception> rollbackFailures = new List<Exception>();
-                            try {
-                                if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat quarantined) && childIdentity.Matches(quarantined)) {
-                                    RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, childPath, childIdentity);
-                                }
-                            } catch (Exception rollback) {
-                                rollbackFailures.Add(rollback);
-                            }
-                            if (rollbackFailures.Count != 0) {
-                                rollbackFailures.Insert(0, primary);
-                                throw new AggregateException($"Could not clean verified directory '{childPath}' and rollback failed.", rollbackFailures);
-                            }
-                            throw;
-                        }
+                        FsyncDirectory(parentFd, directoryPath);
                     } else {
                         EnsureLinuxEntryType(status, false, childPath);
                         PosixEntryIdentity childIdentity = new PosixEntryIdentity(status);
-                        if (directDelete) {
-                            using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, name);
-                            EnsureLinuxHandleIdentity(childFile, childIdentity, childPath);
-                            if (UnlinkAt(parentFd, name, 0) != 0) {
-                                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove fixed leaf '{childPath}'.");
-                            }
-                            FsyncDirectory(parentFd, directoryPath);
-                            continue;
+                        using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, name);
+                        EnsureLinuxHandleIdentity(childFile, childIdentity, childPath);
+                        if (UnlinkAt(parentFd, name, 0) != 0) {
+                            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove fixed leaf '{childPath}'.");
                         }
-                        string quarantine = QuarantineLinuxEntry(
-                            parentFd,
-                            name,
-                            childIdentity,
-                            childPath,
-                            recoveryIntent: "FinishDelete");
-                        try {
-                            using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, quarantine);
-                            EnsureLinuxIdentity(parentFd, quarantine, childIdentity, childPath);
-                            InvokeMutationHook("FixedDelete.AfterQuarantineProof");
-                            EnsureLinuxIdentity(parentFd, quarantine, childIdentity, childPath);
-                            DeleteQuarantinedLinuxEntry(parentFd, quarantine, childIdentity, childPath);
-                        } catch (Exception primary) {
-                            List<Exception> rollbackFailures = new List<Exception>();
-                            try {
-                                if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat quarantined) && childIdentity.Matches(quarantined)) {
-                                    RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, childPath, childIdentity);
-                                }
-                            } catch (Exception rollback) {
-                                rollbackFailures.Add(rollback);
-                            }
-                            if (rollbackFailures.Count != 0) {
-                                rollbackFailures.Insert(0, primary);
-                                throw new AggregateException($"Could not clean verified leaf '{childPath}' and rollback failed.", rollbackFailures);
-                            }
-                            throw;
-                        }
+                        FsyncDirectory(parentFd, directoryPath);
                     }
                 }
             } finally {
@@ -903,21 +790,25 @@ namespace helengine.editor {
             // published and the old inode has been verified for deletion.
             if (destinationExists) {
                 PosixEntryIdentity destinationIdentity = new PosixEntryIdentity(destinationStatus);
-                string sourceQuarantine = QuarantineLinuxEntry(
-                    parentFd,
-                    sourceName,
-                    sourceIdentity,
-                    destinationPath,
-                    recoveryIntent: "PublishIntendedDestination",
-                    intendedDestinationPath: destinationPath);
                 string destinationQuarantine = null;
+                string sourceQuarantine = null;
                 try {
+                    // Reserve the former destination first. The source
+                    // publication record is then the last graph edge, so
+                    // reverse recovery restores source before destination.
                     destinationQuarantine = QuarantineLinuxEntry(
                         parentFd,
                         destinationName,
                         destinationIdentity,
                         destinationPath,
-                        recoveryIntent: "FinishDelete");
+                        recoveryIntent: "RestoreOriginal");
+                    sourceQuarantine = QuarantineLinuxEntry(
+                        parentFd,
+                        sourceName,
+                        sourceIdentity,
+                        destinationPath,
+                        recoveryIntent: "PublishIntendedDestination",
+                        intendedDestinationPath: destinationPath);
                     EnsureLinuxIdentity(parentFd, sourceQuarantine, sourceIdentity, destinationPath);
                     EnsureLinuxIdentity(parentFd, destinationQuarantine, destinationIdentity, destinationPath);
                     InvokeMutationHook("FixedRename.AfterQuarantineProof");
@@ -928,9 +819,8 @@ namespace helengine.editor {
                     }
                     RenameLinuxNoReplace(parentFd, sourceQuarantine, parentFd, destinationName, destinationPath, sourceIdentity);
                     EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
-                    EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(destinationPath), sourceQuarantine));
+                    EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(destinationPath), sourceQuarantine));
                     EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
-                    DeleteQuarantinedLinuxEntry(parentFd, destinationQuarantine, destinationIdentity, destinationPath);
                 } catch (Exception primary) {
                     List<Exception> replacementRollbackFailures = new List<Exception>();
                     try {
@@ -948,7 +838,8 @@ namespace helengine.editor {
                     try {
                         bool newDestinationPublished = TryGetLinuxEntry(parentFd, destinationName, out PosixStat currentDestination) &&
                             sourceIdentity.Matches(currentDestination);
-                        if (!newDestinationPublished && TryGetLinuxEntry(parentFd, sourceQuarantine, out PosixStat quarantinedSource) &&
+                        if (!newDestinationPublished && sourceQuarantine != null &&
+                            TryGetLinuxEntry(parentFd, sourceQuarantine, out PosixStat quarantinedSource) &&
                             sourceIdentity.Matches(quarantinedSource) && !TryGetLinuxEntry(parentFd, sourceName, out _)) {
                             RenameLinuxNoReplace(parentFd, sourceQuarantine, parentFd, sourceName, destinationPath, sourceIdentity);
                         }
@@ -981,7 +872,7 @@ namespace helengine.editor {
                 published = true;
                 RenameLinuxNoReplace(parentFd, sourceQuarantineForCreate, parentFd, destinationName, destinationPath, sourceIdentity);
                 EnsureLinuxIdentity(parentFd, destinationName, sourceIdentity, destinationPath);
-                EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(destinationPath), sourceQuarantineForCreate));
+                EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(destinationPath), sourceQuarantineForCreate));
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 try {
@@ -1019,7 +910,7 @@ namespace helengine.editor {
                 sourceParentFd,
                 sourceName,
                 sourceIdentity,
-                destinationPath,
+                sourcePath,
                 recoveryIntent: "PublishIntendedDestination",
                 intendedDestinationPath: destinationPath);
             bool published = false;
@@ -1027,7 +918,7 @@ namespace helengine.editor {
                 published = true;
                 RenameLinuxNoReplace(sourceParentFd, sourceQuarantine, destinationParentFd, destinationName, destinationPath, sourceIdentity);
                 EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
-                EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(sourcePath), sourceQuarantine));
+                EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(sourcePath), sourceQuarantine));
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
@@ -1054,7 +945,13 @@ namespace helengine.editor {
             }
         }
 
-        static void MoveLinuxDirectory(int sourceParentFd, string sourceName, int destinationParentFd, string destinationName, string destinationPath) {
+        static void MoveLinuxDirectory(
+            int sourceParentFd,
+            string sourceName,
+            int destinationParentFd,
+            string destinationName,
+            string sourcePath,
+            string destinationPath) {
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, true, destinationPath);
             EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(sourceIdentity.Describe(), "missing");
             if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
@@ -1065,7 +962,7 @@ namespace helengine.editor {
                 sourceParentFd,
                 sourceName,
                 sourceIdentity,
-                destinationPath,
+                sourcePath,
                 recoveryIntent: "PublishIntendedDestination",
                 intendedDestinationPath: destinationPath);
             bool published = false;
@@ -1073,7 +970,7 @@ namespace helengine.editor {
                 published = true;
                 RenameLinuxNoReplace(sourceParentFd, quarantine, destinationParentFd, destinationName, destinationPath, sourceIdentity);
                 EnsureLinuxIdentity(destinationParentFd, destinationName, sourceIdentity, destinationPath);
-                EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(destinationPath), quarantine));
+                EditorAuthoringMutationJournal.MarkTransientPublished(Path.Combine(Path.GetDirectoryName(destinationPath), quarantine));
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
@@ -1095,55 +992,6 @@ namespace helengine.editor {
                 if (rollbackFailures.Count != 0) {
                     rollbackFailures.Insert(0, primary);
                     throw new AggregateException($"Could not move verified authoring directory '{destinationPath}' and rollback failed.", rollbackFailures);
-                }
-                throw;
-            }
-        }
-
-        static void DeleteLinuxDirectory(int parentFd, string name, string path) {
-            PosixEntryIdentity identity = RequireLinuxEntry(parentFd, name, true, path);
-            EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(identity.Describe(), "missing");
-            string quarantine = QuarantineLinuxEntry(
-                parentFd,
-                name,
-                identity,
-                path,
-                recoveryIntent: "FinishDelete");
-            try {
-                DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, path, true);
-            } catch (Exception primary) {
-                try {
-                    if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
-                        RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, path, identity);
-                    }
-                } catch (Exception rollback) {
-                    throw new AggregateException($"Could not delete verified authoring directory '{path}' and rollback failed.", primary, rollback);
-                }
-                throw;
-            }
-        }
-
-        static void DeleteLinuxLeaf(int parentFd, string name, string path) {
-            if (!TryGetLinuxEntry(parentFd, name, out PosixStat status)) {
-                return;
-            }
-            PosixEntryIdentity identity = RequireLinuxEntry(parentFd, name, false, path);
-            EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(identity.Describe(), "missing");
-            string quarantine = QuarantineLinuxEntry(
-                parentFd,
-                name,
-                identity,
-                path,
-                recoveryIntent: "FinishDelete");
-            try {
-                DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, path);
-            } catch (Exception primary) {
-                try {
-                    if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
-                        RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, path, identity);
-                    }
-                } catch (Exception rollback) {
-                    throw new AggregateException($"Could not delete verified authoring leaf '{path}' and rollback failed.", primary, rollback);
                 }
                 throw;
             }
@@ -1171,7 +1019,7 @@ namespace helengine.editor {
                     expected.Describe(),
                     expected.IsDirectory ? null : proofHash,
                     expected.IsDirectory ? "Directory" : "File",
-                    recoveryIntent ?? (expected.IsDirectory ? "FinishDelete" : "RestoreOriginal"));
+                    recoveryIntent ?? "RestoreOriginal");
                 try {
                     RenameLinuxNoReplace(parentFd, name, parentFd, quarantine, path, expected);
                 } catch (Exception exception) {
@@ -1207,62 +1055,6 @@ namespace helengine.editor {
                 }
             }
             throw new IOException($"Could not reserve a verified quarantine entry beneath '{path}'.");
-        }
-
-        static void DeleteQuarantinedLinuxEntry(
-            int parentFd,
-            string name,
-            PosixEntryIdentity expected,
-            string path,
-            string projectRootPath = null,
-            string expectedHash = null) {
-            EnsureLinuxIdentity(parentFd, name, expected, path);
-            if (projectRootPath != null) {
-                VerifyExpectedHash(projectRootPath, Path.Combine(Path.GetDirectoryName(path), name), expectedHash, "quarantined entry");
-            }
-            InvokeMutationHook("FixedDelete.AfterQuarantineProof");
-            EnsureLinuxIdentity(parentFd, name, expected, path);
-            if (projectRootPath != null) {
-                VerifyExpectedHash(projectRootPath, Path.Combine(Path.GetDirectoryName(path), name), expectedHash, "quarantined entry");
-            }
-            InvokeMutationHook("FixedDelete.BeforeFinalSyscall");
-            EnsureLinuxIdentity(parentFd, name, expected, path);
-            if (projectRootPath != null) {
-                VerifyExpectedHash(projectRootPath, Path.Combine(Path.GetDirectoryName(path), name), expectedHash, "quarantined entry");
-            }
-            EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
-            if (UnlinkAt(parentFd, name, 0) != 0) {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified quarantine entry for '{path}'.");
-            }
-            FsyncDirectory(parentFd, path);
-            EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(path), name));
-        }
-
-        static void DeleteQuarantinedLinuxEntry(
-            int parentFd,
-            string name,
-            PosixEntryIdentity expected,
-            string path,
-            bool directory,
-            string projectRootPath = null,
-            string expectedHash = null) {
-            EnsureLinuxIdentity(parentFd, name, expected, path);
-            if (projectRootPath != null) {
-                VerifyExpectedHash(projectRootPath, Path.Combine(Path.GetDirectoryName(path), name), expectedHash, "quarantined entry");
-            }
-            InvokeMutationHook(directory ? "FixedDeleteDirectory.AfterQuarantineProof" : "FixedDelete.AfterQuarantineProof");
-            EnsureLinuxIdentity(parentFd, name, expected, path);
-            InvokeMutationHook(directory ? "FixedDeleteDirectory.BeforeFinalSyscall" : "FixedDelete.BeforeFinalSyscall");
-            EnsureLinuxIdentity(parentFd, name, expected, path);
-            if (projectRootPath != null) {
-                VerifyExpectedHash(projectRootPath, Path.Combine(Path.GetDirectoryName(path), name), expectedHash, "quarantined entry");
-            }
-            EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
-            if (UnlinkAt(parentFd, name, directory ? PosixAtRemovedDirectory : 0) != 0) {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified quarantine entry for '{path}'.");
-            }
-            FsyncDirectory(parentFd, path);
-            EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(path), name));
         }
 
         static PosixEntryIdentity RequireLinuxEntry(int parentFd, string name, bool directory, string path) {
@@ -1530,6 +1322,7 @@ namespace helengine.editor {
                     Path.GetFileName(source),
                     scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(),
                     Path.GetFileName(destination),
+                    source,
                     destination);
             } else if (!OperatingSystem.IsLinux()) {
                 throw CreateUnsupportedPlatformException();
@@ -1557,75 +1350,6 @@ namespace helengine.editor {
             journal.MarkPhase("Published");
             FixedDeleteVerifiedDirectoryTree(projectRootPath, deletingPath, containingRoot, journal.ExpectedSourceIdentityValue);
             journal.Complete();
-        }
-
-        static void DeleteDirectoryContentsLinux(SafeFileHandle directory, string directoryPath, string containingRoot) {
-            int duplicateFd = PosixDup(directory.DangerousGetHandle().ToInt32());
-            if (duplicateFd < 0) {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not enumerate pinned directory '{directoryPath}'.");
-            }
-
-            IntPtr directoryStream = PosixFdOpenDir(duplicateFd);
-            if (directoryStream == IntPtr.Zero) {
-                int error = Marshal.GetLastWin32Error();
-                PosixClose(duplicateFd);
-                throw new Win32Exception(error, $"Could not enumerate pinned directory '{directoryPath}'.");
-            }
-
-            try {
-                while (true) {
-                    IntPtr entry = PosixReadDir(directoryStream);
-                    if (entry == IntPtr.Zero) {
-                        break;
-                    }
-
-                    string name = ReadLinuxDirectoryEntryName(entry);
-                    if (name == "." || name == "..") {
-                        continue;
-                    }
-
-                    string childPath = Path.Combine(directoryPath, name);
-                    int parentFd = directory.DangerousGetHandle().ToInt32();
-                    if (!TryGetLinuxEntry(parentFd, name, out PosixStat status)) {
-                        continue;
-                    }
-
-                    bool isDirectory = (status.Mode & PosixFileTypeMask) == PosixDirectoryFileType;
-                    bool isFile = (status.Mode & PosixFileTypeMask) == PosixRegularFileType;
-                    if (!isDirectory && !isFile) {
-                        throw new InvalidDataException($"The authoring cleanup entry '{childPath}' is not a regular non-reparse file or directory.");
-                    }
-
-                    PosixEntryIdentity identity = new PosixEntryIdentity(status);
-                    string quarantine = QuarantineLinuxEntry(
-                        parentFd,
-                        name,
-                        identity,
-                        childPath,
-                        recoveryIntent: "FinishDelete");
-                    try {
-                        if (isDirectory) {
-                            using SafeFileHandle childDirectory = OpenPosixDirectory(quarantine, directory);
-                            DeleteDirectoryContentsLinux(childDirectory, Path.Combine(directoryPath, quarantine), containingRoot);
-                            DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, childPath, true);
-                        } else {
-                            using SafeFileHandle childFile = OpenPosixRegularFileAt(directory, quarantine);
-                            DeleteQuarantinedLinuxEntry(parentFd, quarantine, identity, childPath);
-                        }
-                    } catch (Exception primary) {
-                        try {
-                            if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
-                                RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, childPath, identity);
-                            }
-                        } catch (Exception rollback) {
-                            throw new AggregateException($"Could not clean verified entry '{childPath}' and rollback failed.", primary, rollback);
-                        }
-                        throw;
-                    }
-                }
-            } finally {
-                PosixClosedDir(directoryStream);
-            }
         }
 
         static SafeFileHandle OpenPosixRegularFileAt(SafeFileHandle parent, string name) {
