@@ -490,6 +490,7 @@ namespace helengine.editor {
                 InvokeMutationHook("FixedDelete.AfterHandleProof");
                 DeleteVerifiedWindowsLeaf(file);
                 InvokeMutationHook("FixedDelete.AfterSyscallBeforeFsync");
+                InvokeMutationHook($"FixedDelete.AfterSyscallBeforeFsync:{Path.GetFileName(fullPath)}");
             } else if (OperatingSystem.IsLinux()) {
                 int parentFd = scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32();
                 if (!TryGetLinuxEntry(parentFd, Path.GetFileName(fullPath), out PosixStat status)) {
@@ -522,6 +523,8 @@ namespace helengine.editor {
                     if (UnlinkAt(parentFd, Path.GetFileName(fullPath), 0) != 0) {
                         throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove fixed document artifact '{fullPath}'.");
                     }
+                    InvokeMutationHook("FixedDelete.AfterSyscallBeforeFsync");
+                    InvokeMutationHook($"FixedDelete.AfterSyscallBeforeFsync:{Path.GetFileName(fullPath)}");
                     FsyncDirectory(parentFd, parent);
                     return;
                 }
@@ -534,6 +537,8 @@ namespace helengine.editor {
                 if (UnlinkAt(parentFd, Path.GetFileName(fullPath), 0) != 0) {
                     throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not remove verified authoring leaf '{fullPath}'.");
                 }
+                InvokeMutationHook("FixedDelete.AfterSyscallBeforeFsync");
+                InvokeMutationHook($"FixedDelete.AfterSyscallBeforeFsync:{Path.GetFileName(fullPath)}");
                 FsyncDirectory(parentFd, parent);
             } else {
                 throw CreateUnsupportedPlatformException();
