@@ -44,7 +44,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RefreshEntries_WhenAssetBrowserTabIsInactive_DoesNotRegisterNewRowsForRenderingOrInput() {
             FontAsset font = CreateFont();
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(font, TempProjectRootPath);
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(font, TempProjectRootPath, new GeneratedAssetProviderRegistry());
             LoggerPanel loggerPanel = new LoggerPanel(font);
             DockLayoutEngine layout = new DockLayoutEngine();
 
@@ -69,7 +69,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_MarksNewFileItemAsOpeningSubmenu() {
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             List<ContextMenuItem> createAssetItems = GetPrivateField<List<ContextMenuItem>>(assetBrowserPanel, "CreateAssetItems");
             ContextMenuItem newFileItem = createAssetItems.First(value => string.Equals(value.Label, "New File", StringComparison.Ordinal));
 
@@ -87,7 +87,8 @@ namespace helengine.editor.tests {
                 CreateFont(),
                 TempProjectRootPath,
                 EditorUiMetrics.Default,
-                new Action<string>(path => launchedPath = path));
+                new Action<string>(path => launchedPath = path),
+                new GeneratedAssetProviderRegistry());
 
             List<ContextMenuItem> createAssetItems = GetPrivateField<List<ContextMenuItem>>(assetBrowserPanel, "CreateAssetItems");
             ContextMenuItem showInExplorerItem = createAssetItems.First(value => string.Equals(value.Label, "Show in Explorer", StringComparison.Ordinal));
@@ -105,7 +106,7 @@ namespace helengine.editor.tests {
         public void UpdateContextMenuInput_WhenRightClickHitsDifferentRow_SelectsItBeforeShowingTheMenu() {
             File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Alpha.txt"), "alpha");
             File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Beta.txt"), "beta");
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             DockLayoutEngine layout = new DockLayoutEngine();
             layout.DockAsRoot(assetBrowserPanel);
             layout.Layout(new int2(320, 240));
@@ -129,7 +130,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateContextMenuInput_WhenRightClickHitsTheSelectedRow_DoesNotDuplicateSelectionEvents() {
             File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Alpha.txt"), "alpha");
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             DockLayoutEngine layout = new DockLayoutEngine();
             layout.DockAsRoot(assetBrowserPanel);
             layout.Layout(new int2(320, 240));
@@ -152,7 +153,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateContextMenuInput_WhenRightClickHitsModelRow_ExposesAddToSceneAction() {
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             AssetBrowserEntry modelEntry = AssetBrowserEntry.CreateGeneratedAsset(
                 "Model",
                 "Engine/Models/Model",

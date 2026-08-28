@@ -18,16 +18,19 @@ namespace helengine.editor {
         /// <param name="render3D">Renderer used to build runtime mesh and material resources.</param>
         /// <param name="canvasTexture">Sampleable render target texture displayed on the plane.</param>
         /// <returns>Configured internal viewport canvas-plane entity.</returns>
-        public static EditorEntity Create(RenderManager3D render3D, RuntimeTexture canvasTexture) {
+        public static EditorEntity Create(RenderManager3D render3D, RuntimeTexture canvasTexture, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
             if (canvasTexture == null) {
                 throw new ArgumentNullException(nameof(canvasTexture));
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
             RuntimeModel planeModel = render3D.BuildModelFromRaw(CreateCanvasPlaneModelAsset());
-            RuntimeMaterial planeMaterial = EditorViewportCanvasPlaneMaterialFactory.Create(render3D, canvasTexture);
+            RuntimeMaterial planeMaterial = EditorViewportCanvasPlaneMaterialFactory.Create(render3D, canvasTexture, builtInShaderLibrary);
             var planeEntity = new EditorEntity {
                 Name = CanvasPlaneEntityName,
                 InternalEntity = true,

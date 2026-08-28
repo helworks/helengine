@@ -42,7 +42,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSaveClicked_WhenNameIsValid_RaisesResolvedScenePath() {
-            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath);
+            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             string raisedPath = string.Empty;
             dialog.SaveRequested += path => raisedPath = path;
             dialog.Show("Scenes", "Prototype");
@@ -59,7 +59,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSaveClicked_WhenNameIsInvalid_ShowsValidationError() {
-            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath);
+            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes", "Prototype");
             dialog.UpdateLayout(1280, 720);
 
@@ -75,7 +75,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_UsesModalForegroundForDialogLabels() {
-            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath);
+            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             TextComponent headerText = GetPrivateField<TextComponent>(dialog, "HeaderText");
 
@@ -87,7 +87,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PositionsBackdropTopFlushToWindowControlCluster() {
-            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath);
+            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes", "Prototype");
             dialog.UpdateLayout(1280, 720);
 
@@ -103,7 +103,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateLayout_WithScaledMetrics_UsesScaledFieldAndFooterButtons() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), metrics, ProjectRootPath);
+            SaveFileDialog dialog = new SaveFileDialog(CreateFont(), metrics, ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes", "Prototype");
             dialog.UpdateLayout(1280, 720);
 

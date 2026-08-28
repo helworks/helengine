@@ -657,6 +657,8 @@ namespace helengine.editor.tests {
         /// Creates lightweight editor sessions suitable for workspace-instance tests.
         /// </summary>
         sealed class EditorSessionHarness : IDisposable {
+            readonly EditorCore CoreValue;
+            readonly TestGeneratedAssetGraph GeneratedAssetGraph;
             /// <summary>
             /// Editor session under test.
             /// </summary>
@@ -699,11 +701,11 @@ namespace helengine.editor.tests {
                 TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-session-workspace-tests", Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(TempProjectRootPath);
                 Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
-                EditorCore core = new EditorCore(new Project {
+                CoreValue = new EditorCore(new Project {
                     Name = "Workspace Tests",
                     Path = TempProjectRootPath
                 });
-                core.Initialize(
+                CoreValue.Initialize(
                     TestDirectX11RenderManager3D.Create(),
                     new TestRenderManager2D(),
                     null,
@@ -714,8 +716,8 @@ namespace helengine.editor.tests {
                 ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
                 shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
                 EditorKeyboardFocusService.Reset();
-                GeneratedAssetProviderRegistry.ResetForTests();
-                GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
+                GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+                GeneratedAssetGraph.Registry.Register(GeneratedAssetGraph.CreateProvider());
 
                 Font = CreateFont();
                 ViewportToolbarIcons = CreateViewportToolbarIcons();
@@ -726,7 +728,14 @@ namespace helengine.editor.tests {
                 assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
                 assetImportManager.CurrentPlatformId = "windows";
                 EditorProjectLocalSettingsService projectLocalSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, new[] { "windows" });
-                PreviewSourceResolver previewSourceResolver = new PreviewSourceResolver(assetImportManager, Core.Instance.RenderManager2D, Core.Instance.RenderManager3D);
+                PreviewSourceResolver previewSourceResolver = new PreviewSourceResolver(
+                    assetImportManager,
+                    CoreValue.RenderManager2D,
+                    CoreValue.RenderManager3D,
+                    null,
+                    GeneratedAssetGraph.Registry,
+                    GeneratedAssetGraph.MaterialCache,
+                    GeneratedAssetGraph.ShaderLibrary);
                 EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
                 EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
                 EditorAssetHashCache hashCache = new EditorAssetHashCache(TempProjectRootPath);
@@ -750,7 +759,11 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "SnapModifierFont", Font);
                 SetPrivateField(Session, "ViewportToolbarIcons", ViewportToolbarIcons);
                 SetPrivateField(Session, "CurrentUiMetrics", EditorUiMetrics.Default);
-                SetPrivateField(Session, "SceneCreationService", new EditorSceneCreationService());
+                SetPrivateField(Session, "SceneCreationService", GeneratedAssetGraph.CreateSceneCreationService());
+                SetPrivateField(Session, "generatedAssetProviderRegistry", GeneratedAssetGraph.Registry);
+                SetPrivateField(Session, "generatedModelCache", GeneratedAssetGraph.ModelCache);
+                SetPrivateField(Session, "generatedMaterialCache", GeneratedAssetGraph.MaterialCache);
+                SetPrivateField(Session, "builtInShaderAssetLibrary", GeneratedAssetGraph.ShaderLibrary);
                 SetPrivateField(Session, "PanelRegistry", new EditorWorkspacePanelRegistry());
                 SetPrivateField(Session, "PanelInstances", new List<EditorWorkspacePanelInstance>());
                 SetPrivateField(Session, "WorkspaceLayoutService", new EditorWorkspaceLayoutService(TempProjectRootPath));
@@ -760,7 +773,7 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "authoredAssetReferenceResolver", referenceResolver);
                 SetPrivateField(Session, "previewSourceResolver", previewSourceResolver);
                 SetPrivateField(Session, "sceneAssetReferenceFactory", new SceneAssetReferenceFactory(referenceResolver));
-                SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver, new EditorFileSystemTextureResolver(assetImportManager), referenceResolver));
+                SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver, new EditorFileSystemTextureResolver(assetImportManager), referenceResolver, GeneratedAssetGraph.Registry));
                 SetPrivateField(Session, "ProjectSupportedPlatforms", new[] { "windows" });
                 SetPrivateField(Session, "ProjectLocalSettingsService", projectLocalSettingsService);
                 SetPrivateField(Session, "ActiveProjectPlatform", "windows");
@@ -786,14 +799,14 @@ namespace helengine.editor.tests {
                 }
 
                 AuthoringSession.Dispose();
+                GeneratedAssetGraph.Dispose();
 
                 EditorKeyboardFocusService.Reset();
                 EditorSelectionService.ClearSelection();
-                Core.Instance.Dispose();
+                CoreValue.Dispose();
                 if (Directory.Exists(TempProjectRootPath)) {
                     Directory.Delete(TempProjectRootPath, true);
                 }
-                GeneratedAssetProviderRegistry.ResetForTests();
             }
 
             /// <summary>

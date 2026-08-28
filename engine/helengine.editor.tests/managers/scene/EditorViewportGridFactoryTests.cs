@@ -28,8 +28,9 @@ namespace helengine.editor.tests.managers.scene {
         public void Create_CreatesInternalSceneGridEntity() {
             InitializeCore();
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
 
-            EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D);
+            EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D, shaderLibrary);
 
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(gridEntity.Components, component => component is MeshComponent));
             Assert.Equal("Viewport Grid", gridEntity.Name);
@@ -49,8 +50,9 @@ namespace helengine.editor.tests.managers.scene {
         public void Create_BuildsTenByTenPlaneAlignedToWorldXz() {
             InitializeCore();
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
 
-            EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D);
+            EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D, shaderLibrary);
 
             ModelAsset modelAsset = Assert.Single(renderManager3D.BuiltModelAssets);
             Assert.Contains(modelAsset.Positions, position => position.Equals(new float3(-5f, -5f, 0f)));
@@ -67,8 +69,9 @@ namespace helengine.editor.tests.managers.scene {
         public void Create_AssignsRenderOrderAfterDefaultSceneGeometry() {
             InitializeCore();
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
 
-            EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D);
+            EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D, shaderLibrary);
             MeshComponent gridMeshComponent = Assert.IsType<MeshComponent>(Assert.Single(gridEntity.Components, component => component is MeshComponent));
             MeshComponent defaultSceneMeshComponent = new MeshComponent();
 

@@ -12,25 +12,34 @@ namespace helengine.editor.tests.managers.asset {
         /// Shared 3D renderer used to capture generated model builds.
         /// </summary>
         readonly TestRenderManager3D RenderManager3D;
+        readonly Core CoreValue;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        readonly EngineGeneratedModelCache ModelCache;
+        readonly EngineGeneratedMaterialCache MaterialCache;
 
         /// <summary>
         /// Initializes core services needed by the generated model cache.
         /// </summary>
         public EngineGeneratedAssetProviderTests() {
             RenderManager3D = new TestRenderManager3D();
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(RenderManager3D, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(RenderManager3D, null, null, new PlatformInfo("test", "test-version"));
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
+            BuiltInShaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
+            ModelCache = new EngineGeneratedModelCache(CoreValue);
+            MaterialCache = new EngineGeneratedMaterialCache(CoreValue, BuiltInShaderLibrary);
         }
 
         /// <summary>
         /// Clears generated model cache state between tests.
         /// </summary>
         public void Dispose() {
-            EngineGeneratedModelCache.ResetForTests();
-            EngineGeneratedMaterialCache.ResetForTests();
+            MaterialCache.Dispose();
+            ModelCache.Dispose();
+            BuiltInShaderLibrary.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -38,7 +47,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void LoadEntries_WhenBrowsingEnginePaths_ReturnsExpectedVirtualEntries() {
-            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider();
+            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider(ModelCache, MaterialCache);
             List<AssetBrowserEntry> rootEntries = new List<AssetBrowserEntry>();
             List<AssetBrowserEntry> engineEntries = new List<AssetBrowserEntry>();
             List<AssetBrowserEntry> modelEntries = new List<AssetBrowserEntry>();
@@ -65,7 +74,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void LoadEntries_WhenBrowsingEngineMaterialPaths_ReturnsStandardMaterialEntry() {
-            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider();
+            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider(ModelCache, MaterialCache);
             List<AssetBrowserEntry> engineEntries = new List<AssetBrowserEntry>();
             List<AssetBrowserEntry> materialEntries = new List<AssetBrowserEntry>();
 
@@ -84,7 +93,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void TryResolveRuntimeModel_WhenCalledTwice_ReusesTheCachedRuntimeModel() {
-            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider();
+            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider(ModelCache, MaterialCache);
             AssetBrowserEntry cubeEntry = AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, "engine", "engine:model:cube");
 
             Assert.True(provider.TryResolveRuntimeModel(cubeEntry, out RuntimeModel firstModel));
@@ -99,7 +108,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void TryResolveRuntimeMaterial_WhenCalledTwice_ReusesTheCachedRuntimeMaterial() {
-            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider();
+            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider(ModelCache, MaterialCache);
             AssetBrowserEntry standardEntry = AssetBrowserEntry.CreateGeneratedAsset(
                 "Standard",
                 EngineGeneratedAssetProvider.StandardMaterialRelativePath,
@@ -118,7 +127,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void TryResolveRuntimeMaterial_WhenResolvingStandardMaterial_WritesWhiteBaseColorBuffer() {
-            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider();
+            EngineGeneratedAssetProvider provider = new EngineGeneratedAssetProvider(ModelCache, MaterialCache);
             AssetBrowserEntry standardEntry = AssetBrowserEntry.CreateGeneratedAsset(
                 "Standard",
                 EngineGeneratedAssetProvider.StandardMaterialRelativePath,
@@ -129,7 +138,9 @@ namespace helengine.editor.tests.managers.asset {
             Assert.True(provider.TryResolveRuntimeMaterial(standardEntry, out RuntimeMaterial runtimeMaterial));
 
             ShaderMaterialAsset materialAsset = Assert.Single(RenderManager3D.BuiltMaterialAssets);
-            MaterialConstantBufferAsset baseColorBuffer = Assert.Single(materialAsset.ConstantBuffers);
+            MaterialConstantBufferAsset baseColorBuffer = Assert.Single(
+                materialAsset.ConstantBuffers,
+                buffer => buffer.Name == "BaseColorBuffer");
             Assert.Equal("BaseColorBuffer", baseColorBuffer.Name);
             Assert.Equal(16, baseColorBuffer.Data.Length);
             Assert.NotNull(runtimeMaterial);

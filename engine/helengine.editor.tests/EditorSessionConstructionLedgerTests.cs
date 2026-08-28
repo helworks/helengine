@@ -538,7 +538,7 @@ public sealed class EditorSessionConstructionLedgerTests {
     }
 
     [Fact]
-    public void InitializeAssetImports_WhenRegistrationAndManagerCleanupFail_CleansContentAndPreservesBothFailures() {
+    public void InitializeAssetImports_DefersRegistrationUntilAuthoringStartup() {
         string projectRoot = Path.Combine(Path.GetTempPath(), "helengine-import-init-", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(projectRoot, "assets"));
         string projectFilePath = Path.Combine(projectRoot, "project.heproj");
@@ -560,16 +560,23 @@ public sealed class EditorSessionConstructionLedgerTests {
             typeof(EditorSession).GetField("ActiveProjectPlatform", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(session, "windows");
             MethodInfo initialize = typeof(EditorSession).GetMethod("InitializeAssetImports", BindingFlags.Instance | BindingFlags.NonPublic);
 
-            TargetInvocationException invocation = Assert.Throws<TargetInvocationException>(() => initialize.Invoke(session, new object[] {
+            AssetImportManager initializedManager = Assert.IsType<TrackingAssetImportManager>(initialize.Invoke(session, new object[] {
                 new IAssetImporterRegistration[] { new ThrowingImporterRegistration() }
             }));
             Assert.NotNull(assetImportManager);
             Assert.NotNull(contentManager);
-            AggregateException failure = Assert.IsType<AggregateException>(invocation.InnerException);
+            Assert.Same(assetImportManager, initializedManager);
+            Assert.Equal(0, assetImportManager.DisposeCount);
 
-            Assert.Contains(failure.Flatten().InnerExceptions, exception => exception.Message == "registration failed");
-            Assert.Contains(failure.Flatten().InnerExceptions, exception => exception.Message == "manager cleanup failed");
+            MethodInfo registerImporters = typeof(EditorSession).GetMethod("RegisterAssetImporters", BindingFlags.Static | BindingFlags.NonPublic);
+            TargetInvocationException invocation = Assert.Throws<TargetInvocationException>(() => registerImporters.Invoke(null, new object[] {
+                initializedManager,
+                new IAssetImporterRegistration[] { new ThrowingImporterRegistration() }
+            }));
+            Assert.Equal("registration failed", invocation.InnerException.Message);
+            Assert.Throws<InvalidOperationException>(() => initializedManager.Dispose());
             Assert.Equal(1, assetImportManager.DisposeCount);
+            contentManager.Dispose();
             Assert.Equal(1, contentManager.DisposeCount);
         } finally {
             EditorSession.ContentManagerFactoryForTests = null;

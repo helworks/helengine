@@ -25,13 +25,16 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="render3D">Renderer used to build runtime mesh and material resources.</param>
         /// <returns>Configured internal viewport-grid entity.</returns>
-        public static EditorEntity Create(RenderManager3D render3D) {
+        public static EditorEntity Create(RenderManager3D render3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
             RuntimeModel gridModel = render3D.BuildModelFromRaw(TransformGizmoMeshFactory.CreateCenteredPlaneSquare(GridSize));
-            RuntimeMaterial gridMaterial = EditorViewportGridMaterialFactory.Create(render3D);
+            RuntimeMaterial gridMaterial = EditorViewportGridMaterialFactory.Create(render3D, builtInShaderLibrary);
             float4 gridOrientation = CreateXzPlaneOrientation();
             var gridEntity = new EditorEntity {
                 Name = GridEntityName,

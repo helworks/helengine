@@ -1,4 +1,5 @@
 using helengine.directx11;
+using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests.managers.project;
 
@@ -148,7 +149,8 @@ public sealed class EditorWindowsBuildScenePackagerAudioTests : IDisposable {
             [
                 new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"])
             ],
-            targetPlatformId);
+            targetPlatformId,
+            TestGeneratedAssetGraph.CreateShaderLibrary());
     }
 
     sealed class TestAudioImporter : IAudioImporter {

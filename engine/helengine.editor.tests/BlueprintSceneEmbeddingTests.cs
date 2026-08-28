@@ -13,6 +13,8 @@ namespace helengine.editor.tests {
         /// Temporary project root used by blueprint scene embedding tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly EditorCore CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes a temporary project root and the core services required for scene authoring tests.
@@ -22,13 +24,14 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Blueprints"));
 
-            EditorCore core = new EditorCore(new Project {
+            CoreValue = new EditorCore(new Project {
                 Name = "Blueprint Scene Embedding",
                 Path = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
@@ -38,6 +41,8 @@ namespace helengine.editor.tests {
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             EditorCameraVisualResources.ResetForTests();
             EditorPointLightVisualResources.ResetForTests();
             EditorDirectionalLightVisualResources.ResetForTests();
@@ -54,7 +59,7 @@ namespace helengine.editor.tests {
         public void Load_WhenSceneContainsBlueprintInstance_ExpandsInheritedSubtree() {
             WriteBlueprintAsset("Blueprints/TestBlueprint.hblueprint");
             string scenePath = SaveSceneWithBlueprintInstance("Scenes/BlueprintInstance.helen", "Blueprints/TestBlueprint.hblueprint");
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, new ComponentPersistenceRegistry(), new TestSceneAssetReferenceResolver());
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, new ComponentPersistenceRegistry(), new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
 
             LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
@@ -79,7 +84,7 @@ namespace helengine.editor.tests {
         public void Load_WhenSceneContainsTwoBlueprintInstances_ExpandsBothInheritedSubtrees() {
             WriteBlueprintAsset("Blueprints/TestBlueprint.hblueprint");
             string scenePath = SaveSceneWithTwoBlueprintInstances("Scenes/BlueprintInstances.helen", "Blueprints/TestBlueprint.hblueprint");
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, new ComponentPersistenceRegistry(), new TestSceneAssetReferenceResolver());
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, new ComponentPersistenceRegistry(), new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
 
             LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
@@ -98,7 +103,7 @@ namespace helengine.editor.tests {
         public void Save_WhenSceneContainsExpandedBlueprintInstance_SerializesOnlyInstanceRoot() {
             WriteBlueprintAsset("Blueprints/TestBlueprint.hblueprint");
             string scenePath = SaveSceneWithBlueprintInstance("Scenes/BlueprintInstance.helen", "Blueprints/TestBlueprint.hblueprint");
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, new ComponentPersistenceRegistry(), new TestSceneAssetReferenceResolver());
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, new ComponentPersistenceRegistry(), new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, new ComponentPersistenceRegistry());

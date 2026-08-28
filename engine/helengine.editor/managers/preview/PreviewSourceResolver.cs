@@ -19,6 +19,9 @@ namespace helengine.editor {
         /// Scene-owned canvas profile used to size camera previews against the authored logical resolution.
         /// </summary>
         readonly EditorSceneCanvasProfileState sceneCanvasProfileState;
+        readonly GeneratedAssetProviderRegistry GeneratedAssetProviders;
+        readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Initializes a new preview source resolver.
@@ -27,7 +30,14 @@ namespace helengine.editor {
         /// <param name="renderManager2D">2D renderer used for texture preview creation.</param>
         /// <param name="renderManager3D">3D renderer used for camera and model preview creation.</param>
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used to size camera previews.</param>
-        public PreviewSourceResolver(AssetImportManager assetImportManager, RenderManager2D renderManager2D, RenderManager3D renderManager3D, EditorSceneCanvasProfileState sceneCanvasProfileState) {
+        public PreviewSourceResolver(
+            AssetImportManager assetImportManager,
+            RenderManager2D renderManager2D,
+            RenderManager3D renderManager3D,
+            EditorSceneCanvasProfileState sceneCanvasProfileState,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            EngineGeneratedMaterialCache generatedMaterialCache,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (assetImportManager == null) {
                 throw new ArgumentNullException(nameof(assetImportManager));
             }
@@ -37,24 +47,23 @@ namespace helengine.editor {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
+            }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
             this.assetImportManager = assetImportManager;
             this.renderManager2D = renderManager2D;
             this.renderManager3D = renderManager3D;
             this.sceneCanvasProfileState = sceneCanvasProfileState;
-        }
-
-        /// <summary>
-        /// Initializes a new preview source resolver without a shared scene canvas profile.
-        /// </summary>
-        /// <param name="assetImportManager">Asset import manager used for texture preview loading.</param>
-        /// <param name="renderManager2D">2D renderer used for texture preview creation.</param>
-        /// <param name="renderManager3D">3D renderer used for camera and model preview creation.</param>
-        public PreviewSourceResolver(AssetImportManager assetImportManager, RenderManager2D renderManager2D, RenderManager3D renderManager3D) {
-            this.assetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
-            this.renderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
-            this.renderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
-            sceneCanvasProfileState = null;
+            GeneratedAssetProviders = generatedAssetProviders;
+            GeneratedMaterialCache = generatedMaterialCache;
+            BuiltInShaderLibrary = builtInShaderLibrary;
         }
 
         /// <summary>
@@ -80,7 +89,7 @@ namespace helengine.editor {
             if (assetEntry != null && !assetEntry.IsDirectory && assetEntry.EntryKind == AssetEntryKind.Model) {
                 try {
                     ModelPreviewSource modelSource;
-                    if (ModelPreviewSource.TryCreate(assetEntry, assetImportManager, renderManager3D, out modelSource)) {
+                    if (ModelPreviewSource.TryCreate(assetEntry, assetImportManager, renderManager3D, GeneratedAssetProviders, GeneratedMaterialCache, BuiltInShaderLibrary, out modelSource)) {
                         source = modelSource;
                         return true;
                     }

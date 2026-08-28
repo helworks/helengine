@@ -3,7 +3,9 @@ using helengine.baseplatform.Builders;
 using helengine.baseplatform.Manifest;
 using helengine.baseplatform.tests.Builders;
 using helengine;
+using helengine.directx11;
 using helengine.editor;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.baseplatform.tests.Definitions;
@@ -119,7 +121,7 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
         WriteMaterialAsset(materialRelativePath, "StaleShader");
 
         IPlatformAssetBuilder builder = new TestPlatformAssetBuilder();
-        EditorBuiltInShaderAssetLibrary shaderLibrary = new EditorBuiltInShaderAssetLibrary(EditorBuiltInShaderAssetLibrary.CreateDefaultShaderBackendRegistry());
+        EditorBuiltInShaderAssetLibrary shaderLibrary = new EditorBuiltInShaderAssetLibrary(CreateShaderBackendRegistry());
         EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
             ProjectRootPath,
             Array.Empty<IAssetImporterRegistration>(),
@@ -309,7 +311,8 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
     /// </summary>
     /// <param name="target">Shader compile target to seed.</param>
     EditorBuiltInShaderAssetLibrary SeedBuiltInStandardShaderAsset(ShaderCompileTarget target) {
-        string shaderPath = EditorBuiltInShaderAssetLibrary.ResolveShaderPath("ForwardStandardShader.hlsl");
+        EditorBuiltInShaderAssetLibrary library = new EditorBuiltInShaderAssetLibrary(CreateShaderBackendRegistry());
+        string shaderPath = library.ResolveShaderPath("ForwardStandardShader.hlsl");
         ShaderAsset shaderAsset = new ShaderAsset {
             Id = "ForwardStandardShader",
             Name = "ForwardStandardShader",
@@ -341,9 +344,15 @@ public sealed class EditorPlatformBuildScenePackagerMaterialCookTests : IDisposa
             ]
         };
 
-        EditorBuiltInShaderAssetLibrary library = new EditorBuiltInShaderAssetLibrary(EditorBuiltInShaderAssetLibrary.CreateDefaultShaderBackendRegistry());
         library.RegisterCompiledAsset(target, Path.GetFileName(shaderPath), shaderAsset);
         return library;
+    }
+
+    static ShaderBackendRegistry CreateShaderBackendRegistry() {
+        ShaderBackendRegistry registry = new ShaderBackendRegistry();
+        registry.Register(new DirectX11ShaderBackend());
+        registry.Register(new VulkanShaderBackend());
+        return registry;
     }
 
     /// <summary>

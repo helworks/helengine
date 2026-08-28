@@ -51,17 +51,16 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
     [Fact]
     public void Load_tilt_trial_scene_in_editor_services_resolves_expected_diffuse_textures() {
         EditorCore core = null;
+        TestGeneratedAssetGraph generatedAssetGraph = null;
         EditorGameScriptHotReloadService hotReloadService = null;
         ShaderModuleManager shaderModuleManager = null;
-        GeneratedAssetProviderRegistry.ResetForTests();
-
         try {
             core = CreateCore();
-            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
-            ConfigureShaderBackends();
+            generatedAssetGraph = new TestGeneratedAssetGraph(core);
+            generatedAssetGraph.Registry.Register(generatedAssetGraph.CreateProvider());
             shaderModuleManager = CreateShaderModuleManager();
             shaderModuleManager.Start();
-            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(DemodiscProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, core.ContentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(DemodiscProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, core.ContentManager, generatedAssetGraph.ShaderLibrary);
 
             ContentManager projectContentManager = CreateProjectContentManager();
             hotReloadService = CreateHotReloadService();
@@ -77,12 +76,15 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
                 DemodiscProjectRootPath,
                 modelResolver,
                 fontResolver,
-                textureResolver);
+                textureResolver,
+                null,
+                generatedAssetGraph.Registry);
             sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             SceneFileLoadService loadService = new SceneFileLoadService(
                 DemodiscProjectRootPath,
                 persistenceRegistry,
-                sceneAssetReferenceResolver);
+                sceneAssetReferenceResolver,
+                generatedAssetGraph.MaterialCache);
 
             LoadedEditorSceneDocument loaded = loadService.Load(TiltTrialScenePath);
             EditorEntity startPad = FindRequiredEntityByName(loaded.RootEntities, StartPadEntityName);
@@ -99,8 +101,8 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
         } finally {
             shaderModuleManager?.Dispose();
             hotReloadService?.Dispose();
+            generatedAssetGraph?.Dispose();
             core?.Dispose();
-            GeneratedAssetProviderRegistry.ResetForTests();
             EditorSelectionService.ClearSelection();
             EditorSceneMutationService.Reset();
         }

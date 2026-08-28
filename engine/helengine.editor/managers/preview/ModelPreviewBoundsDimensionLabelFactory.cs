@@ -15,7 +15,7 @@ namespace helengine.editor {
         /// <param name="font">Shared editor font used by transform-gizmo axis labels.</param>
         /// <param name="halfExtents">Half-size of the centered preview bounds on each model axis.</param>
         /// <returns>Three entities ordered by X width, Y height, and Z depth.</returns>
-        public static EditorEntity[] Create(RenderManager3D render3D, FontAsset font, float3 halfExtents) {
+        public static EditorEntity[] Create(RenderManager3D render3D, FontAsset font, float3 halfExtents, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
@@ -25,8 +25,11 @@ namespace helengine.editor {
             if (halfExtents.X < 0f || halfExtents.Y < 0f || halfExtents.Z < 0f) {
                 throw new ArgumentOutOfRangeException(nameof(halfExtents), "Bounding-box half extents cannot be negative.");
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
-            RuntimeMaterial labelMaterial = TransformGizmoAxisLabelMaterialFactory.Create(render3D, font);
+            RuntimeMaterial labelMaterial = TransformGizmoAxisLabelMaterialFactory.Create(render3D, font, builtInShaderLibrary);
             float3 dimensions = halfExtents * 2f;
             return new[] {
                 CreateDimensionLabelEntity(render3D, font, labelMaterial, "X", dimensions.X, new float3(0f, halfExtents.Y, halfExtents.Z)),

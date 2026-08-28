@@ -174,6 +174,10 @@ namespace helengine.editor {
         /// </summary>
         readonly AssetImportManager AssetImportManager;
         /// <summary>
+        /// Session-owned built-in shader library used to resolve generated standard materials.
+        /// </summary>
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
+        /// <summary>
         /// Editor-side cache service that materializes platform-specific packaged font variants beneath the project cache root.
         /// </summary>
         readonly EditorPlatformFontVariantCacheService PlatformFontVariantCacheService;
@@ -291,6 +295,7 @@ namespace helengine.editor {
         /// <param name="projectContentManager">Project content manager used to load serialized assets.</param>
         /// <param name="assetImportManager">Asset import manager used for file-backed model assets.</param>
         /// <param name="fileSystemModelResolver">Resolver used to obtain processed model assets for file-backed source references.</param>
+        /// <param name="builtInShaderAssetLibrary">Session-owned built-in shader library used for generated standard materials.</param>
         /// <param name="targetPlatformId">Target platform id whose material settings should be used during packaging.</param>
         /// <param name="materialBuilder">Optional builder used to translate schema-driven material settings.</param>
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
@@ -307,6 +312,7 @@ namespace helengine.editor {
             ContentManager projectContentManager,
             AssetImportManager assetImportManager,
             EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
             string targetPlatformId = "",
             IPlatformAssetBuilder materialBuilder = null,
             string selectedBuildProfileId = "",
@@ -323,6 +329,7 @@ namespace helengine.editor {
                 : Path.GetFullPath(assetsRootPath);
             ProjectContentManager = projectContentManager ?? throw new ArgumentNullException(nameof(projectContentManager));
             AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
+            BuiltInShaderAssetLibrary = builtInShaderAssetLibrary ?? throw new ArgumentNullException(nameof(builtInShaderAssetLibrary));
             PlatformFontVariantCacheService = new EditorPlatformFontVariantCacheService(AssetImportManager);
             FileSystemModelResolver = fileSystemModelResolver ?? throw new ArgumentNullException(nameof(fileSystemModelResolver));
             FileSystemFontResolver = new EditorFileSystemFontResolver(AssetImportManager);
@@ -2234,7 +2241,7 @@ namespace helengine.editor {
             if (IsStandardShaderSchema(materialSettings.SchemaId) && !useCustomShader) {
                 fieldValues[VariantFieldId] = StandardShaderVariantName;
                 if (!usesCookedPlatformOwnedMaterialResolution) {
-                    ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                    ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(ShaderCompileTarget.DirectX11, StandardShaderFileName);
                     fieldValues[ShaderAssetIdFieldId] = shaderAsset.Id;
                     fieldValues[VertexProgramFieldId] = StandardVertexProgramName;
                     fieldValues[PixelProgramFieldId] = StandardPixelProgramName;
@@ -2383,7 +2390,7 @@ namespace helengine.editor {
         void EnsureGeneratedStandardMaterialAssets(string buildRootPath) {
             string shaderAssetId = StandardShaderAssetId;
             if (ShouldWriteGeneratedStandardShaderAsset()) {
-                ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, StandardShaderFileName);
+                ShaderAsset shaderAsset = BuiltInShaderAssetLibrary.Load(ShaderCompileTarget.DirectX11, StandardShaderFileName);
                 shaderAssetId = shaderAsset.Id;
                 WriteAsset(Path.Combine(buildRootPath, StandardGeneratedShaderRelativePath), shaderAsset);
                 ReportShaderOutput(StandardGeneratedShaderRelativePath, shaderAssetId);

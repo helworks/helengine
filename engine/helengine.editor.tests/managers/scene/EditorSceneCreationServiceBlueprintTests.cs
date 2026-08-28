@@ -11,6 +11,8 @@ namespace helengine.editor.tests.managers.scene {
         /// Temporary content root used by the lightweight core harness.
         /// </summary>
         readonly string TempRootPath;
+        readonly EditorCore CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required to construct authored editor entities.
@@ -19,19 +21,22 @@ namespace helengine.editor.tests.managers.scene {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-creation-blueprint-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            EditorCore core = new EditorCore(new Project {
+            CoreValue = new EditorCore(new Project {
                 Name = "Blueprint Creation",
                 Path = TempRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Deletes the temporary content root after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -42,7 +47,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateBlueprintInstance_CreatesSceneOwnedRootWithInstanceComponent() {
-            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorSceneCreationService creationService = GeneratedAssetGraph.CreateSceneCreationService();
 
             SceneAssetReference reference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/games/split_play/GoldenCoin.hblueprint");
             EditorEntity entity = creationService.CreateBlueprintInstance("GoldenCoin", reference);
@@ -59,7 +64,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateBlueprintInstance_WhenAssetPathIsMissing_Throws() {
-            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorSceneCreationService creationService = GeneratedAssetGraph.CreateSceneCreationService();
 
             Assert.Throws<ArgumentException>(() => creationService.CreateBlueprintInstance("GoldenCoin", null));
             Assert.Throws<ArgumentException>(() => creationService.CreateBlueprintInstance(" ", global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/x.hblueprint")));

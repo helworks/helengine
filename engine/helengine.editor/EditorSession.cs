@@ -335,6 +335,20 @@ namespace helengine.editor {
         /// </summary>
         readonly EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary;
         /// <summary>
+        /// Session-owned generated model cache shared by generated providers,
+        /// scene creation, inference, and previews.
+        /// </summary>
+        readonly EngineGeneratedModelCache generatedModelCache;
+        /// <summary>
+        /// Session-owned generated material cache shared by generated providers,
+        /// scene creation, inference, and editor visuals.
+        /// </summary>
+        readonly EngineGeneratedMaterialCache generatedMaterialCache;
+        /// <summary>
+        /// Session-owned generated provider registry for this editor graph.
+        /// </summary>
+        readonly GeneratedAssetProviderRegistry generatedAssetProviderRegistry;
+        /// <summary>
         /// Asset import manager responsible for creating import settings and outputs.
         /// </summary>
         readonly AssetImportManager assetImportManager;
@@ -643,6 +657,7 @@ namespace helengine.editor {
             BrowseOutputFolderResolver = browseOutputFolderResolver ?? throw new ArgumentNullException(nameof(browseOutputFolderResolver));
             ShaderBackends = shaderBackendRegistry ?? throw new ArgumentNullException(nameof(shaderBackendRegistry));
             builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(ShaderBackends);
+            constructionLedger.Register(builtInShaderAssetLibrary);
             CanonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
             this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
             ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
@@ -673,28 +688,38 @@ namespace helengine.editor {
             EditorKeyboardFocusService.Reset();
             EditorInputCaptureService.Reset();
             core.Initialize(render3D, render2D, input, CreateEditorPlatformInfo());
+            generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
+            constructionLedger.Register(generatedAssetProviderRegistry);
             EditorComponentAddCatalog.Initialize();
             core.Input.SetKeyboardActive(true);
 
             assetImportManager = InitializeAssetImports(Importers);
             constructionLedger.Register(assetImportManager.ContentManager);
             constructionLedger.Register(assetImportManager);
-            EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(assetImportManager);
+            EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(
+                assetImportManager,
+                generatedAssetProviderRegistry,
+                manager => RegisterAssetImporters(manager, Importers));
             constructionLedger.Register(concreteAuthoringSession);
             // Session construction completes current transaction recovery and
             // initializes the project identity graph before importer-owned files
             // are generated or cached.
-                assetImportManager.ImportTexturesMissingCache();
-                assetImportManager.ImportModelsMissingCache();
-                AuthoringSession = concreteAuthoringSession;
-                AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
-                authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
+            assetImportManager.ImportTexturesMissingCache();
+            assetImportManager.ImportModelsMissingCache();
+            AuthoringSession = concreteAuthoringSession;
+            AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
+            authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
+            generatedModelCache = new EngineGeneratedModelCache(core);
+            constructionLedger.Register(generatedModelCache);
+            generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
+            constructionLedger.Register(generatedMaterialCache);
+            generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
             materialAssetSettingsService = new MaterialAssetSettingsService(this.projectPath);
-            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
+
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             PendingShaderBuildNotificationLock = new object();
             PendingShaderBuildNotifications = new Queue<KeyValuePair<string, string>>(PendingShaderBuildNotificationInitialCapacity);
-            previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D, sceneCanvasProfileState);
+            previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D, sceneCanvasProfileState, generatedAssetProviderRegistry, generatedMaterialCache, builtInShaderAssetLibrary);
 
             uiCameraEntity = new EditorEntity();
             uiCameraEntity.InternalEntity = true;
@@ -760,7 +785,7 @@ namespace helengine.editor {
             sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
             constructionLedger.Register(sceneHierarchyPanel);
             EditorAssetManager assetBrowserManager = new EditorAssetManager(this.projectPath, authoredAssetReferenceResolver);
-            AssetBrowserDataSource assetBrowserDataSource = new AssetBrowserDataSource(assetBrowserManager);
+            AssetBrowserDataSource assetBrowserDataSource = new AssetBrowserDataSource(assetBrowserManager, generatedAssetProviderRegistry);
             constructionLedger.Register(assetBrowserDataSource);
             assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics, assetBrowserDataSource);
             constructionLedger.Register(assetBrowserPanel);
@@ -768,12 +793,13 @@ namespace helengine.editor {
             propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver, this.projectPath);
             constructionLedger.Register(propertiesPanel);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
+            propertiesPanel.SetGeneratedAssetProviderRegistry(generatedAssetProviderRegistry);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             constructionLedger.Register(loggerPanel);
             LogAuthoringRepairReport();
             previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             constructionLedger.Register(previewPanel);
-            assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
+            assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
             meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
@@ -787,11 +813,11 @@ namespace helengine.editor {
             ConstructionCheckpointForTests?.Invoke("mid-construction");
             ComponentPersistenceRegistry persistenceRegistry = CreateComponentPersistenceRegistry(scriptHotReloadService.ScriptTypeResolver);
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
-            SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry, authoredAssetReferenceResolver);
+            SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry, authoredAssetReferenceResolver, generatedModelCache, generatedMaterialCache);
             constructionLedger.Register(SceneSaveService);
             HistoryCaptureService = new EditorHistoryCaptureService(SceneSaveService);
             ComponentHistoryAdapterRegistry = new ComponentHistoryAdapterRegistry();
-            SceneCreationService = new EditorSceneCreationService();
+            SceneCreationService = new EditorSceneCreationService(core.EntityFactory, generatedModelCache, generatedMaterialCache);
             ReparentService = new EditorEntityReparentService();
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver);
             buildConfigService = new EditorBuildConfigService(this.projectPath);
@@ -800,9 +826,9 @@ namespace helengine.editor {
                 buildConfigService,
                 CreateBuildExecutorRouter());
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
-            saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
+            saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
-            openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver);
+            openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, openFileDialog.Dispose, openFileDialog.DisposeAuthoringResources, openFileDialog.Hide);
             reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
@@ -823,12 +849,13 @@ namespace helengine.editor {
             preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
-            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver, authoredAssetReferenceResolver);
+            sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             constructionLedger.Register(sceneAssetReferenceResolver);
             SceneFileLoadService = new SceneFileLoadService(
                 this.projectPath,
                 persistenceRegistry,
-                sceneAssetReferenceResolver);
+                sceneAssetReferenceResolver,
+                generatedMaterialCache);
             constructionLedger.Register(SceneFileLoadService);
             UndoRedoService = new EditorUndoRedoService(CreateHistoryContext());
             HistoryMutationService = new EditorMutationService(
@@ -964,7 +991,7 @@ namespace helengine.editor {
             ShaderCompileTarget runtimeTarget = ResolveRuntimeShaderTarget(render3D);
             shaderModuleManager = BuildShaderModuleManager(runtimeTarget);
             constructionLedger.Register(shaderModuleManager);
-            shaderPackageService = new EditorShaderPackageService(this.projectPath, shaderModuleManager, runtimeTarget, EditorContentManager, ShaderBackends);
+            shaderPackageService = new EditorShaderPackageService(this.projectPath, shaderModuleManager, runtimeTarget, EditorContentManager, builtInShaderAssetLibrary);
             propertiesPanel.ShaderPackageService = shaderPackageService;
             sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             ConstructionCheckpointForTests?.Invoke("after-shader-package-initialized");
@@ -1017,6 +1044,18 @@ namespace helengine.editor {
         /// Gets the asset import manager for the current project.
         /// </summary>
         public AssetImportManager AssetImportManager => assetImportManager;
+
+        /// <summary>Gets the generated provider registry owned by this session.</summary>
+        internal GeneratedAssetProviderRegistry GeneratedAssetProviders => generatedAssetProviderRegistry;
+
+        /// <summary>Gets the built-in shader library owned by this session.</summary>
+        internal EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary => builtInShaderAssetLibrary;
+
+        /// <summary>Gets the generated runtime model cache owned by this session.</summary>
+        internal EngineGeneratedModelCache GeneratedModelCache => generatedModelCache;
+
+        /// <summary>Gets the generated runtime material cache owned by this session.</summary>
+        internal EngineGeneratedMaterialCache GeneratedMaterialCache => generatedMaterialCache;
 
         /// <summary>
         /// Gets the current docking cursor state.
@@ -1750,11 +1789,11 @@ namespace helengine.editor {
             }
 
             if (!string.IsNullOrWhiteSpace(projectPath)) {
-                assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
+                assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
-                saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
+                saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
-                openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver);
+                openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, openFileDialog.Dispose, openFileDialog.DisposeAuthoringResources, openFileDialog.Hide);
             } else {
                 assetPickerModal = null;
@@ -2350,7 +2389,9 @@ namespace helengine.editor {
                 session.SnapModifierFont,
                 session.ViewportToolbarIcons,
                 session.sceneCanvasProfileState,
-                session.CurrentUiMetrics);
+                session.CurrentUiMetrics,
+                session.builtInShaderAssetLibrary,
+                session.generatedMaterialCache);
         }
 
         /// <summary>
@@ -2370,7 +2411,7 @@ namespace helengine.editor {
         /// <returns>Created asset browser panel controller.</returns>
         IEditorWorkspacePanelController CreateAssetBrowserPanelController(EditorSession session) {
             EditorAssetManager manager = new EditorAssetManager(session.projectPath, session.authoredAssetReferenceResolver);
-            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(manager);
+            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(manager, session.generatedAssetProviderRegistry);
             AssetBrowserPanel panel = new AssetBrowserPanel(session.uiFont, session.projectPath, session.CurrentUiMetrics, dataSource);
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.DisposeAuthoringResources);
         }
@@ -3533,8 +3574,8 @@ namespace helengine.editor {
 
             SceneAssetReference modelReference = sceneAssetReferenceFactory.CreateFromEntry(entry);
             if (entry.IsGenerated) {
-                RuntimeModel runtimeModel = GeneratedAssetProviderRegistry.ResolveRuntimeModel(entry);
-                RuntimeMaterial standardMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+                RuntimeModel runtimeModel = generatedAssetProviderRegistry.ResolveRuntimeModel(entry);
+                RuntimeMaterial standardMaterial = generatedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
                 EditorEntity entity = SceneCreationService.CreateModel(
                     BuildModelEntityName(entry),
                     runtimeModel,
@@ -3559,7 +3600,7 @@ namespace helengine.editor {
             RuntimeMaterial[] runtimeMaterials = ResolveImportedModelMaterials(entry, importedModel.GeneratedMaterials);
             SceneAssetReference[] materialSlots = BuildImportedModelMaterialSlots(entry, importedModel.GeneratedMaterials);
             if (runtimeMaterials.Length == 0) {
-                runtimeMaterials = new[] { EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) };
+                runtimeMaterials = new[] { generatedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) };
                 materialSlots = new[] { BuildGeneratedStandardMaterialReference() };
             }
 
@@ -4277,7 +4318,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Viewport grid initialization requires an active 3D render manager.");
             }
 
-            EditorViewportGridFactory.Create(helengine.Core.Instance.RenderManager3D);
+            EditorViewportGridFactory.Create(helengine.Core.Instance.RenderManager3D, builtInShaderAssetLibrary);
         }
 
         /// <summary>
@@ -6296,7 +6337,8 @@ namespace helengine.editor {
                     platform,
                     uiFont,
                     null,
-                    scriptHotReloadService.ScriptTypeResolver);
+                    scriptHotReloadService.ScriptTypeResolver,
+                    builtInShaderAssetLibrary);
             }
 
             return new EditorBuildExecutorRouter(executorsByPlatformId);
@@ -6521,15 +6563,6 @@ namespace helengine.editor {
                 manager = AssetImportManagerFactoryForTests?.Invoke(projectRootPath, projectContentManager)
                     ?? new AssetImportManager(projectRootPath, projectContentManager);
                 manager.CurrentPlatformId = ActiveProjectPlatform;
-                for (int i = 0; i < importers.Count; i++) {
-                    IAssetImporterRegistration registration = importers[i];
-                    if (registration == null) {
-                        throw new InvalidOperationException("Importer registrations must not be null.");
-                    }
-
-                    registration.Register(manager);
-                }
-
                 return manager;
             } catch (Exception primaryException) {
                 List<Exception> cleanupFailures = new List<Exception>();
@@ -6554,6 +6587,28 @@ namespace helengine.editor {
 
                 cleanupFailures.Insert(0, primaryException);
                 throw new AggregateException("Asset importer initialization and cleanup failed.", cleanupFailures);
+            }
+        }
+
+        /// <summary>
+        /// Registers editor-host importers after authoring recovery and index startup.
+        /// </summary>
+        static void RegisterAssetImporters(
+            AssetImportManager manager,
+            IReadOnlyList<IAssetImporterRegistration> importers) {
+            if (manager == null) {
+                throw new ArgumentNullException(nameof(manager));
+            } else if (importers == null) {
+                throw new ArgumentNullException(nameof(importers));
+            }
+
+            for (int index = 0; index < importers.Count; index++) {
+                IAssetImporterRegistration registration = importers[index];
+                if (registration == null) {
+                    throw new InvalidOperationException("Importer registrations must not be null.");
+                }
+
+                registration.Register(manager);
             }
         }
 

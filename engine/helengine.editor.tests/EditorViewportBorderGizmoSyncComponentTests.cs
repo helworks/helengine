@@ -6,18 +6,21 @@ namespace helengine.editor.tests {
     /// Verifies that the editor-owned authored-viewport border synchronizer creates and updates world-space border gizmos correctly.
     /// </summary>
     public sealed class EditorViewportBorderGizmoSyncComponentTests : IDisposable {
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by authored-viewport border gizmo tests.
         /// </summary>
         public EditorViewportBorderGizmoSyncComponentTests() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Disposes the active core instance after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             EditorViewportBorderGizmoMeshResources.ResetForTests();
             Core.Instance?.Dispose();
         }
@@ -36,7 +39,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent();
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
             syncHostEntity.AddComponent(syncComponent);
 
             Core.Instance.Update();
@@ -67,7 +70,7 @@ namespace helengine.editor.tests {
             internalRoot.AddChild(viewportEntity);
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent();
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
             syncHostEntity.AddComponent(syncComponent);
 
             Core.Instance.Update();
@@ -94,7 +97,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent();
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
             syncHostEntity.AddComponent(syncComponent);
 
             Core.Instance.Update();
@@ -122,7 +125,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent();
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
             syncHostEntity.AddComponent(syncComponent);
 
             Core.Instance.Update();
@@ -156,7 +159,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent();
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
             syncHostEntity.AddComponent(syncComponent);
 
             Core.Instance.Update();
@@ -190,7 +193,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent();
+            EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary);
             syncHostEntity.AddComponent(syncComponent);
 
             Core.Instance.Update();

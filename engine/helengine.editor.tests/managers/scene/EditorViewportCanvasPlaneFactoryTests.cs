@@ -19,8 +19,9 @@ namespace helengine.editor.tests.managers.scene {
                 Width = 1280,
                 Height = 720
             };
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
 
-            EditorEntity planeEntity = EditorViewportCanvasPlaneFactory.Create(render3D, renderTarget);
+            EditorEntity planeEntity = EditorViewportCanvasPlaneFactory.Create(render3D, renderTarget, shaderLibrary);
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(planeEntity.Components, component => component is MeshComponent));
             ModelAsset builtModelAsset = Assert.Single(render3D.BuiltModelAssets);
 

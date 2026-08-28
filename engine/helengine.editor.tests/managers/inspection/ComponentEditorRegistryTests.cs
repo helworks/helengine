@@ -90,7 +90,7 @@ namespace helengine.editor.tests.inspection {
                 return false;
             }
 
-            public EditorEntity CreateSelectionVisual(RenderManager3D render3D, Entity selectedEntity, Component component) {
+            public EditorEntity CreateSelectionVisual(RenderManager3D render3D, EngineGeneratedMaterialCache generatedMaterialCache, Entity selectedEntity, Component component) {
                 throw new NotSupportedException();
             }
 

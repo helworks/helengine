@@ -22,8 +22,8 @@ namespace helengine {
         /// Initializes one exact world-space preview component bound to the supplied authored source entity.
         /// </summary>
         /// <param name="sourceEntity">Authored source entity mirrored by the preview proxy.</param>
-        protected EditorExact2DWorldPreviewComponentBase(Entity sourceEntity)
-            : base(sourceEntity) {
+        protected EditorExact2DWorldPreviewComponentBase(Entity sourceEntity, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
+            : base(sourceEntity, builtInShaderLibrary) {
         }
 
         /// <summary>
@@ -44,7 +44,11 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Preview entity that owns this component.</param>
         public override void ComponentAdded(Entity entity) {
-            CaptureServiceValue = new helengine.editor.EditorExact2DPreviewCaptureService(Core.Instance.RenderManager3D);
+            Core core = Core.Instance;
+            if (core == null || core.RenderManager3D == null) {
+                throw new InvalidOperationException("Exact 2D previews require an initialized core with a 3D renderer.");
+            }
+            CaptureServiceValue = new helengine.editor.EditorExact2DPreviewCaptureService(core.RenderManager3D, BuiltInShaderLibrary);
             base.ComponentAdded(entity);
         }
 
@@ -68,7 +72,7 @@ namespace helengine {
         /// </summary>
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <returns>Runtime material that samples the capture-service preview texture.</returns>
-        protected sealed override RuntimeMaterial CreatePreviewMaterial(RenderManager3D render3D) {
+        protected sealed override RuntimeMaterial CreatePreviewMaterial(RenderManager3D render3D, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (CaptureServiceValue == null) {
                 throw new InvalidOperationException("Exact 2D preview capture service must be created before preview materials are requested.");
             }

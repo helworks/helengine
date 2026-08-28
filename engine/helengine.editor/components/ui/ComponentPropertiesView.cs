@@ -12,6 +12,10 @@ namespace helengine.editor {
         /// </summary>
         internal EditorShaderPackageService ShaderPackageService { get; set; }
         /// <summary>
+        /// Session-scoped generated provider registry used to resolve virtual model and material entries.
+        /// </summary>
+        internal GeneratedAssetProviderRegistry GeneratedAssetProviders { get; private set; }
+        /// <summary>
         /// Height of header rows in pixels.
         /// </summary>
         const int HeaderHeight = 22;
@@ -364,6 +368,7 @@ namespace helengine.editor {
 
             Font = font;
             AssetContentManager = contentManager;
+            GeneratedAssetProviders = null;
             AssetReferenceFactory = new SceneAssetReferenceFactory();
             FileSystemModelResolver = fileSystemModelResolver;
             FileSystemFontResolver = fileSystemFontResolver;
@@ -404,6 +409,13 @@ namespace helengine.editor {
         /// <param name="resolver">Project-scoped authored asset resolver.</param>
         public void SetAssetReferenceResolver(EditorAssetReferenceResolver resolver) {
             AssetReferenceFactory = new SceneAssetReferenceFactory(resolver ?? throw new ArgumentNullException(nameof(resolver)));
+        }
+
+        /// <summary>
+        /// Binds this view to the generated-asset registry owned by its editor session.
+        /// </summary>
+        internal void SetGeneratedAssetProviderRegistry(GeneratedAssetProviderRegistry generatedAssetProviders) {
+            GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
         }
 
         /// <summary>
@@ -3556,7 +3568,7 @@ namespace helengine.editor {
             }
 
             if (entry.IsGenerated) {
-                return GeneratedAssetProviderRegistry.ResolveRuntimeMaterial(entry);
+                return GeneratedAssetProviders.ResolveRuntimeMaterial(entry);
             }
 
             string extension = entry.Extension;
@@ -5044,7 +5056,7 @@ namespace helengine.editor {
             }
 
             if (entry.IsGenerated) {
-                return GeneratedAssetProviderRegistry.ResolveRuntimeModel(entry);
+                return GeneratedAssetProviders.ResolveRuntimeModel(entry);
             }
 
             if (FileSystemModelResolver == null) {

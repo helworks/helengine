@@ -29,6 +29,11 @@ namespace helengine.editor.tests {
         readonly string BuildRootPath;
 
         /// <summary>
+        /// Isolated shader library borrowed by each packager under test.
+        /// </summary>
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
+
+        /// <summary>
         /// Initializes one isolated project workspace for scene packaging verification.
         /// </summary>
         public EditorPlatformBuildScenePackagerTests() {
@@ -39,14 +44,14 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "cache", "shader-cache"));
             Directory.CreateDirectory(BuildRootPath);
 
-            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
-            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            BuiltInShaderAssetLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
         }
 
         /// <summary>
         /// Deletes the temporary project workspace after each test.
         /// </summary>
         public void Dispose() {
+            BuiltInShaderAssetLibrary.Dispose();
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }
@@ -110,6 +115,7 @@ namespace helengine.editor.tests {
                 builder,
                 "debug",
                 "directx11",
+                BuiltInShaderAssetLibrary,
                 scriptTypeResolver);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
@@ -170,7 +176,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             SceneAsset packagedScene;
@@ -222,7 +228,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestAnimationClipAssetScriptComponent)));
+                new FakeScriptTypeResolver(typeof(TestAnimationClipAssetScriptComponent)),
+                BuiltInShaderAssetLibrary);
 
             packager.Package([sceneId], BuildRootPath);
 
@@ -315,7 +322,7 @@ namespace helengine.editor.tests {
             WriteMaterialAsset(materialRelativePath, shaderAssetId);
             WriteSceneAsset(sceneId, materialRelativePath);
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             Assert.Collection(
@@ -343,7 +350,8 @@ namespace helengine.editor.tests {
                 [
                     new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".jpg" }),
                     new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".x" })
-                ]);
+                ],
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -379,7 +387,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)),
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             SceneAsset packagedSceneAsset;
@@ -456,7 +465,8 @@ namespace helengine.editor.tests {
                 defaultFont,
                 materialBuilder,
                 "debug",
-                "directx11");
+                "directx11",
+                BuiltInShaderAssetLibrary);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => packager.Package(new[] { sceneId }, BuildRootPath));
@@ -486,7 +496,8 @@ namespace helengine.editor.tests {
                 "windows",
                 materialBuilder,
                 "debug",
-                "directx11");
+                "directx11",
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -522,7 +533,8 @@ namespace helengine.editor.tests {
                 "ps2",
                 materialBuilder,
                 "debug",
-                "ps2-standard-forward");
+                "ps2-standard-forward",
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -567,7 +579,8 @@ namespace helengine.editor.tests {
                 "ps2",
                 materialBuilder,
                 "debug",
-                "ps2-standard-forward");
+                "ps2-standard-forward",
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -609,7 +622,8 @@ namespace helengine.editor.tests {
                 "ds",
                 materialBuilder,
                 "ds-default",
-                "ds-main-2d");
+                "ds-main-2d",
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -665,7 +679,8 @@ namespace helengine.editor.tests {
                 "ds",
                 materialBuilder,
                 "ds-default",
-                "ds-main-2d");
+                "ds-main-2d",
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -729,7 +744,8 @@ namespace helengine.editor.tests {
                 "ds",
                 materialBuilder,
                 "ds-default",
-                "ds-main-2d");
+                "ds-main-2d",
+                BuiltInShaderAssetLibrary);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
             Assert.Contains("noncanonical imported texture path", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -754,7 +770,8 @@ namespace helengine.editor.tests {
                     new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])
                 ],
                 CreateDsBuilderOwnedTexturePlatformDefinition(),
-                CreatePackagedFontAsset());
+                CreatePackagedFontAsset(),
+                BuiltInShaderAssetLibrary);
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
@@ -780,7 +797,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -811,7 +829,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
             Assert.Contains("received version '2'", exception.ToString(), StringComparison.Ordinal);
@@ -832,7 +851,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -859,7 +879,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => packager.Package(new[] { sceneId }, BuildRootPath));
             Assert.Contains("Unsupported generated", exception.Message);
@@ -878,7 +899,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -928,7 +950,8 @@ namespace helengine.editor.tests {
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
                 defaultFont,
-                new StubTextComponentSpriteBakeService());
+                new StubTextComponentSpriteBakeService(),
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             SceneAsset packagedScene;
@@ -952,7 +975,8 @@ namespace helengine.editor.tests {
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
                 defaultFont,
-                new StubTextComponentSpriteBakeService());
+                new StubTextComponentSpriteBakeService(),
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             SceneAsset packagedScene;
@@ -980,7 +1004,8 @@ namespace helengine.editor.tests {
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1018,7 +1043,8 @@ namespace helengine.editor.tests {
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1058,7 +1084,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.hasset");
@@ -1105,7 +1132,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -1186,7 +1214,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -1268,7 +1297,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -1330,7 +1360,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                "windows");
+                "windows",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             SceneAsset packagedScene;
@@ -1369,7 +1400,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "materials", "rendering", "colored_cube_grid", "Cube00.hasset");
@@ -1399,7 +1431,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string cookedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", textureAssetId);
@@ -1450,7 +1483,8 @@ namespace helengine.editor.tests {
                 defaultFont,
                 materialBuilder,
                 "debug",
-                "directx11");
+                "directx11",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string cookedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", textureAssetId);
@@ -1503,7 +1537,8 @@ namespace helengine.editor.tests {
                 defaultFont,
                 materialBuilder,
                 "debug",
-                "directx11");
+                "directx11",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "imported", diffuseTextureAssetId)));
@@ -1556,7 +1591,8 @@ namespace helengine.editor.tests {
                 defaultFont,
                 materialBuilder,
                 "debug",
-                "directx11");
+                "directx11",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             Assert.True(File.Exists(Path.Combine(BuildRootPath, "cooked", "imported", emissiveTextureAssetId)));
@@ -1604,7 +1640,8 @@ namespace helengine.editor.tests {
                     new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])
                 ],
                 CreateGameCubeBuilderOwnedTexturePlatformDefinition(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
@@ -1637,7 +1674,8 @@ namespace helengine.editor.tests {
                     new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"])
                 ],
                 CreateGameCubeBuilderOwnedFontAtlasTexturePlatformDefinition(defaultSerializedTextureSettings),
-                CreatePackagedFontAsset());
+                CreatePackagedFontAsset(),
+                BuiltInShaderAssetLibrary);
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
@@ -1675,7 +1713,8 @@ namespace helengine.editor.tests {
                     new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"])
                 ],
                 platformDefinition,
-                CreatePackagedFontAsset());
+                CreatePackagedFontAsset(),
+                BuiltInShaderAssetLibrary);
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
             PlatformCookWorkItem workItem = Assert.Single(result.PlatformCookWorkItems);
@@ -1719,7 +1758,8 @@ namespace helengine.editor.tests {
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
-                CreatePackagedFontAsset());
+                CreatePackagedFontAsset(),
+                BuiltInShaderAssetLibrary);
 
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1757,7 +1797,8 @@ namespace helengine.editor.tests {
                 new IAssetImporterRegistration[] {
                     new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
                 },
-                CreatePackagedFontAsset());
+                CreatePackagedFontAsset(),
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string cookedFontPath = Path.Combine(BuildRootPath, "cooked", "fonts", "demodisctitle.hefont");
@@ -1808,7 +1849,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)),
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1872,7 +1914,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestScriptComponentWithoutPersistedMembers)));
+                new FakeScriptTypeResolver(typeof(TestScriptComponentWithoutPersistedMembers)),
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -1922,7 +1965,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestUpdateOnlyScriptComponent)));
+                new FakeScriptTypeResolver(typeof(TestUpdateOnlyScriptComponent)),
+                BuiltInShaderAssetLibrary);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => packager.Package(new[] { sceneId }, BuildRootPath));
@@ -1985,7 +2029,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)),
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -2109,7 +2154,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                runtimeScriptTypeResolver);
+                runtimeScriptTypeResolver,
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -2204,7 +2250,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestAxisRotationScriptComponent)));
+                new FakeScriptTypeResolver(typeof(TestAxisRotationScriptComponent)),
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -2287,7 +2334,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)),
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -2325,7 +2373,7 @@ namespace helengine.editor.tests {
             string sceneId = "Scenes/LightingUiScene.helen";
             WriteSceneAsset(sceneId, BuildLightingAndUiSceneAsset(sceneId));
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -2396,7 +2444,8 @@ namespace helengine.editor.tests {
                 ProjectRootPath,
                 [
                     new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])
-                ]);
+                ],
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -2460,7 +2509,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                platformDefinition);
+                platformDefinition,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -2536,7 +2586,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 new[] { importerRegistration },
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string importedModelPath = Path.Combine(BuildRootPath, "cooked", "imported", "Models", "Sponza.hasset");
@@ -2581,7 +2632,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                "windows");
+                "windows",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
@@ -2648,7 +2700,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                "windows");
+                "windows",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
@@ -2699,7 +2752,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                "windows");
+                "windows",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
@@ -2746,7 +2800,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                "windows");
+                "windows",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
@@ -2793,7 +2848,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                "windows");
+                "windows",
+                BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
@@ -2826,7 +2882,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
 
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -2876,7 +2933,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestSceneReturnComponent)));
+                new FakeScriptTypeResolver(typeof(TestSceneReturnComponent)),
+                BuiltInShaderAssetLibrary);
 
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
             Assert.NotNull(result);
@@ -2925,7 +2983,8 @@ namespace helengine.editor.tests {
                 Array.Empty<IAssetImporterRegistration>(),
                 platformDefinition,
                 null,
-                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)));
+                new FakeScriptTypeResolver(typeof(TestDirectionalShadowTowerSpinComponent)),
+                BuiltInShaderAssetLibrary);
 
             EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
             Assert.NotNull(result);
@@ -2957,7 +3016,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                defaultFont);
+                defaultFont,
+                BuiltInShaderAssetLibrary);
 
             packager.Package(new[] { sceneId }, BuildRootPath);
 
@@ -3023,7 +3083,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                definition);
+                definition,
+                BuiltInShaderAssetLibrary);
 
             InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
                 packager.Package(new[] { sceneId }, BuildRootPath));
@@ -3091,7 +3152,7 @@ namespace helengine.editor.tests {
                 AssetSerializer.Serialize(stream, sceneAsset);
             }
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -3156,7 +3217,7 @@ namespace helengine.editor.tests {
                 AssetSerializer.Serialize(stream, sceneAsset);
             }
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -3233,7 +3294,7 @@ namespace helengine.editor.tests {
                 AssetSerializer.Serialize(stream, sceneAsset);
             }
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);
@@ -3318,7 +3379,7 @@ namespace helengine.editor.tests {
                 AssetSerializer.Serialize(stream, sceneAsset);
             }
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
             packager.Package(new[] { sceneId }, BuildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(BuildRootPath, sceneId);

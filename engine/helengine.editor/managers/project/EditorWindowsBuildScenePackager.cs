@@ -190,7 +190,7 @@ namespace helengine.editor {
         readonly string ProjectRootPath;
 
         /// <summary>
-        /// Built-in shader compiler/cache owned by this package operation.
+        /// Built-in shader compiler/cache borrowed from the owning editor or build session.
         /// </summary>
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
 
@@ -315,82 +315,171 @@ namespace helengine.editor {
         readonly AnimationClipPlatformResolutionService AnimationClipPlatformResolutionService;
 
         /// <summary>
-        /// Initializes one Windows scene packager for the supplied project root.
+        /// Initializes one Windows scene packager with an explicit session-owned shader library.
         /// </summary>
-        /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        public EditorPlatformBuildScenePackager(string projectRootPath)
-            : this(projectRootPath, Array.Empty<IAssetImporterRegistration>(), (PlatformDefinition)null, null) {
+        public EditorPlatformBuildScenePackager(string projectRootPath, EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                null,
+                null,
+                null,
+                null,
+                 string.Empty,
+                 string.Empty,
+                null,
+                builtInShaderAssetLibrary) {
         }
 
         /// <summary>
-        /// Initializes one Windows scene packager for the supplied project root and importer registrations.
+        /// Initializes one scene packager with importer registrations and an explicit session-owned shader library.
         /// </summary>
-        /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers)
-            : this(projectRootPath, importers, (PlatformDefinition)null, null) {
+        public EditorPlatformBuildScenePackager(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                importers,
+                null,
+                null,
+                null,
+                null,
+                string.Empty,
+                string.Empty,
+                null,
+                builtInShaderAssetLibrary) {
         }
 
         /// <summary>
-        /// Initializes one scene packager for the supplied project root, importer registrations, and default font asset.
+        /// Initializes one scene packager with an explicit session-owned shader library.
         /// </summary>
-        /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
-        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, FontAsset defaultFontAsset)
-            : this(projectRootPath, importers, (PlatformDefinition)null, defaultFontAsset) {
-        }
-
-        /// <summary>
-        /// Initializes one scene packager for the supplied project root, importer registrations, default font asset, and optional text-sprite bake service.
-        /// </summary>
-        /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
-        /// <param name="textComponentSpriteBakeService">Optional bake service used to convert flagged text into sprite-backed runtime payloads.</param>
         public EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
             FontAsset defaultFontAsset,
-            ITextComponentSpriteBakeService textComponentSpriteBakeService)
-            : this(projectRootPath, importers, null, null, defaultFontAsset, null, string.Empty, string.Empty, null, textComponentSpriteBakeService) {
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                importers,
+                null,
+                null,
+                 defaultFontAsset,
+                 null,
+                 string.Empty,
+                 string.Empty,
+                null,
+                builtInShaderAssetLibrary) {
         }
 
         /// <summary>
-        /// Initializes one scene packager for the supplied project root, importer registrations, and target platform id.
+        /// Initializes one scene packager with a text-sprite bake service and an explicit session-owned shader library.
         /// </summary>
-        /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="targetPlatformId">Platform id that should be reported to the asset-import pipeline.</param>
-        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, string targetPlatformId)
-            : this(projectRootPath, importers, targetPlatformId, (PlatformDefinition)null, null, null) {
+        public EditorPlatformBuildScenePackager(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            FontAsset defaultFontAsset,
+            ITextComponentSpriteBakeService textComponentSpriteBakeService,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                importers,
+                null,
+                null,
+                defaultFontAsset,
+                null,
+                string.Empty,
+                string.Empty,
+                null,
+                builtInShaderAssetLibrary,
+                textComponentSpriteBakeService) {
         }
 
         /// <summary>
-        /// Initializes one scene packager for the supplied project root, importer registrations, and platform definition.
+        /// Initializes one scene packager for a target platform with an explicit session-owned shader library.
         /// </summary>
-        /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="platformDefinition">Builder-provided platform definition that carries support metadata.</param>
-        public EditorPlatformBuildScenePackager(string projectRootPath, IReadOnlyList<IAssetImporterRegistration> importers, PlatformDefinition platformDefinition)
-            : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, null, null) {
+        public EditorPlatformBuildScenePackager(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            string targetPlatformId,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                importers,
+                targetPlatformId,
+                null,
+                null,
+                null,
+                string.Empty,
+                string.Empty,
+                null,
+                builtInShaderAssetLibrary) {
         }
 
         /// <summary>
-        /// Initializes one scene packager for the supplied project root, importer registrations, platform definition, and default font asset.
+        /// Initializes one scene packager for a platform definition with an explicit session-owned shader library.
         /// </summary>
-        /// <param name="projectRootPath">Absolute or relative project root path.</param>
-        /// <param name="importers">Importer registrations supplied by the editor host.</param>
-        /// <param name="platformDefinition">Builder-provided platform definition that carries support metadata.</param>
-        /// <param name="defaultFontAsset">Packaged default font asset used by player builds.</param>
-        /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        public EditorPlatformBuildScenePackager(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            PlatformDefinition platformDefinition,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                importers,
+                platformDefinition?.PlatformId,
+                platformDefinition,
+                null,
+                null,
+                string.Empty,
+                string.Empty,
+                null,
+                builtInShaderAssetLibrary) {
+        }
+
+        /// <summary>
+        /// Initializes one scene packager with platform metadata and an explicit session-owned shader library.
+        /// </summary>
         public EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
             PlatformDefinition platformDefinition,
             FontAsset defaultFontAsset,
-            IScriptTypeResolver scriptTypeResolver = null)
-            : this(projectRootPath, importers, platformDefinition?.PlatformId, platformDefinition, defaultFontAsset, scriptTypeResolver) {
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                importers,
+                platformDefinition?.PlatformId,
+                 platformDefinition,
+                 defaultFontAsset,
+                 null,
+                 string.Empty,
+                 string.Empty,
+                 null,
+                 builtInShaderAssetLibrary) {
+        }
+
+        /// <summary>
+        /// Initializes one scene packager with platform metadata, a default font, a script resolver, and an explicit session-owned shader library.
+        /// </summary>
+        public EditorPlatformBuildScenePackager(
+            string projectRootPath,
+            IReadOnlyList<IAssetImporterRegistration> importers,
+            PlatformDefinition platformDefinition,
+            FontAsset defaultFontAsset,
+            IScriptTypeResolver scriptTypeResolver,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            : this(
+                projectRootPath,
+                importers,
+                platformDefinition?.PlatformId,
+                platformDefinition,
+                defaultFontAsset,
+                null,
+                string.Empty,
+                string.Empty,
+                scriptTypeResolver,
+                builtInShaderAssetLibrary) {
         }
 
         /// <summary>
@@ -408,7 +497,8 @@ namespace helengine.editor {
             string targetPlatformId,
             PlatformDefinition platformDefinition,
             FontAsset defaultFontAsset,
-            IScriptTypeResolver scriptTypeResolver)
+            IScriptTypeResolver scriptTypeResolver,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
             : this(
                 projectRootPath,
                 importers,
@@ -418,7 +508,8 @@ namespace helengine.editor {
                 null,
                 string.Empty,
                 string.Empty,
-                scriptTypeResolver) {
+                scriptTypeResolver,
+                builtInShaderAssetLibrary) {
         }
 
         /// <summary>
@@ -430,29 +521,6 @@ namespace helengine.editor {
         /// <param name="materialBuilder">Builder used to translate schema-driven material settings during packaging.</param>
         /// <param name="selectedBuildProfileId">Selected build profile id for the current packaging operation.</param>
         /// <param name="selectedGraphicsProfileId">Selected graphics profile id for the current packaging operation.</param>
-        public EditorPlatformBuildScenePackager(
-            string projectRootPath,
-            IReadOnlyList<IAssetImporterRegistration> importers,
-            string targetPlatformId,
-            IPlatformAssetBuilder materialBuilder,
-            string selectedBuildProfileId,
-            string selectedGraphicsProfileId)
-            : this(
-                projectRootPath,
-                importers,
-                targetPlatformId,
-                null,
-                null,
-                materialBuilder,
-                selectedBuildProfileId,
-                selectedGraphicsProfileId,
-                null) {
-        }
-
-        /// <summary>
-        /// Initializes a scene packager with an explicitly owned built-in shader
-        /// library, allowing a host to keep shader compilation state isolated.
-        /// </summary>
         public EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
@@ -471,8 +539,6 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 null,
-                null,
-                "",
                 builtInShaderAssetLibrary) {
         }
 
@@ -495,6 +561,7 @@ namespace helengine.editor {
             IPlatformAssetBuilder materialBuilder,
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
             IScriptTypeResolver scriptTypeResolver = null,
             string selectedEnvironmentId = "")
             : this(
@@ -507,6 +574,7 @@ namespace helengine.editor {
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
                 scriptTypeResolver,
+                builtInShaderAssetLibrary,
                 null,
                 selectedEnvironmentId) {
         }
@@ -534,9 +602,9 @@ namespace helengine.editor {
             string selectedBuildProfileId,
             string selectedGraphicsProfileId,
             IScriptTypeResolver scriptTypeResolver,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
             ITextComponentSpriteBakeService textComponentSpriteBakeService = null,
-            string selectedEnvironmentId = "",
-            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = null) {
+            string selectedEnvironmentId = "") {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -545,7 +613,7 @@ namespace helengine.editor {
             }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            BuiltInShaderAssetLibrary = builtInShaderAssetLibrary ?? new EditorBuiltInShaderAssetLibrary(EditorBuiltInShaderAssetLibrary.CreateDefaultShaderBackendRegistry());
+            BuiltInShaderAssetLibrary = builtInShaderAssetLibrary ?? throw new ArgumentNullException(nameof(builtInShaderAssetLibrary));
             AssetsRootPath = Path.Combine(ProjectRootPath, "assets");
             ProjectContentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ProjectContentManager);
@@ -602,13 +670,15 @@ namespace helengine.editor {
                     AssetsRootPath,
                     ProjectContentManager,
                     AssetImportManager,
-                    DefaultFontAsset);
+                    DefaultFontAsset,
+                    BuiltInShaderAssetLibrary);
             }
             TransformService = new SceneComponentPackagingTransformService(
                 AssetsRootPath,
                 ProjectContentManager,
                 AssetImportManager,
                 FileSystemModelResolver,
+                BuiltInShaderAssetLibrary,
                 TargetPlatformId,
                 MaterialBuilder,
                 SelectedBuildProfileId,

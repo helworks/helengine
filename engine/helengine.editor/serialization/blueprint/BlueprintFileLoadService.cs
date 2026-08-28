@@ -22,7 +22,8 @@ namespace helengine.editor {
         public BlueprintFileLoadService(
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
-            ISceneAssetReferenceResolver referenceResolver) {
+            ISceneAssetReferenceResolver referenceResolver,
+            EngineGeneratedMaterialCache generatedMaterialCache) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -32,9 +33,12 @@ namespace helengine.editor {
             if (referenceResolver == null) {
                 throw new ArgumentNullException(nameof(referenceResolver));
             }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver);
+            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver, generatedMaterialCache);
         }
 
         /// <summary>

@@ -13,10 +13,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="persistenceRegistry">Registry used to deserialize supported component types.</param>
         /// <param name="referenceResolver">Resolver used to rebuild runtime assets.</param>
-        public BlueprintLoadService(ComponentPersistenceRegistry persistenceRegistry, ISceneAssetReferenceResolver referenceResolver) {
+        public BlueprintLoadService(ComponentPersistenceRegistry persistenceRegistry, ISceneAssetReferenceResolver referenceResolver, EngineGeneratedMaterialCache generatedMaterialCache) {
             SceneLoadService = new SceneLoadService(
                 persistenceRegistry ?? throw new ArgumentNullException(nameof(persistenceRegistry)),
-                referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver)));
+                referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver)),
+                generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache)));
         }
 
         /// <summary>

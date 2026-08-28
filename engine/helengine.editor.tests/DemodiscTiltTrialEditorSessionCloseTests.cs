@@ -38,7 +38,6 @@ public sealed class DemodiscTiltTrialEditorSessionCloseTests : IDisposable {
         SessionValue?.Dispose();
         SessionValue = null;
         CoreValue = null;
-        GeneratedAssetProviderRegistry.ResetForTests();
         EditorSelectionService.Reset();
         EditorGizmoHoverService.ClearHoveredHandle();
         EditorInputCaptureService.Reset();
@@ -64,7 +63,6 @@ public sealed class DemodiscTiltTrialEditorSessionCloseTests : IDisposable {
     /// </summary>
     /// <returns>Initialized editor session ready to load authored scenes.</returns>
     EditorSession CreateSession() {
-        GeneratedAssetProviderRegistry.ResetForTests();
         CoreValue = new EditorCore(new Project {
             Name = "Demodisc Session Close Test",
             Path = Path.GetDirectoryName(DemodiscProjectFilePath)

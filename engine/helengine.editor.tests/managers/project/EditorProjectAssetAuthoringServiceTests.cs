@@ -44,7 +44,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         identityIndex.Initialize();
         using EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
 
-        Assert.Throws<ArgumentNullException>(() => new EditorProjectAssetAuthoringService(assetImportManager, null, writer));
+        Assert.Throws<ArgumentNullException>(() => new EditorProjectAssetAuthoringService(assetImportManager, null, writer, null));
     }
 
     /// <summary>

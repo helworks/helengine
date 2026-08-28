@@ -15,6 +15,8 @@ namespace helengine.editor.tests.serialization.blueprint {
         /// Temporary project root used by blueprint file load tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly EditorCore CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes a temporary project root and the core services required for blueprint loading.
@@ -24,22 +26,22 @@ namespace helengine.editor.tests.serialization.blueprint {
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Blueprints"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
 
-            EditorCore core = new EditorCore(new Project {
+            CoreValue = new EditorCore(new Project {
                 Name = "Blueprint File Load",
                 Path = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
-            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
-            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             EditorCameraVisualResources.ResetForTests();
             EditorPointLightVisualResources.ResetForTests();
             EditorDirectionalLightVisualResources.ResetForTests();
@@ -104,7 +106,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
             resolver.RegisterModel(modelReference, new TestRuntimeModel());
             resolver.RegisterMaterial(materialReference, new TestRuntimeMaterial());
-            return new BlueprintFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver);
+            return new BlueprintFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver, GeneratedAssetGraph.MaterialCache);
         }
 
         /// <summary>

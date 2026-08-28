@@ -927,7 +927,8 @@ namespace helengine.editor.tests.serialization.scene {
                 new IAssetImporterRegistration[] {
                     new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
                 },
-                CreateFont());
+                CreateFont(),
+                TestGeneratedAssetGraph.CreateShaderLibrary());
             packager.Package(new[] { "Scenes/TextScene.helen" }, buildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(buildRootPath, "Scenes/TextScene.helen");
@@ -1043,7 +1044,8 @@ namespace helengine.editor.tests.serialization.scene {
                 new IAssetImporterRegistration[] {
                     new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".ttf" })
                 },
-                CreateFont());
+                CreateFont(),
+                TestGeneratedAssetGraph.CreateShaderLibrary());
             packager.Package(new[] { "Scenes/SharedFontScene.helen" }, buildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(buildRootPath, "Scenes/SharedFontScene.helen");
@@ -1158,7 +1160,8 @@ namespace helengine.editor.tests.serialization.scene {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 projectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                CreateFont());
+                CreateFont(),
+                TestGeneratedAssetGraph.CreateShaderLibrary());
             packager.Package(new[] { "Scenes/Scripted.helen" }, buildRootPath);
 
             SceneAsset sceneAsset;

@@ -8,7 +8,9 @@ namespace helengine.editor.tests.components.ui {
     /// <summary>
     /// Verifies world-space transform-gizmo axis label behavior in the viewport camera-angle overlay.
     /// </summary>
-    public class EditorViewportCameraAngleOverlayComponentTests {
+    public class EditorViewportCameraAngleOverlayComponentTests : IDisposable {
+        Core CoreValue;
+        TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Tolerance used for floating-point direction comparisons.
         /// </summary>
@@ -22,7 +24,7 @@ namespace helengine.editor.tests.components.ui {
             InitializeCore();
             CameraComponent sceneCamera = new CameraComponent();
             FontAsset font = CreateTestFont();
-            var overlayComponent = new EditorViewportCameraAngleOverlayComponent(sceneCamera, font, 0, false);
+            var overlayComponent = new EditorViewportCameraAngleOverlayComponent(sceneCamera, font, 0, false, GeneratedAssetGraph.ShaderLibrary);
 
             float3 selectedPosition = float3.Zero;
             float3 cameraPosition = new float3(8f, 2f, 0f);
@@ -50,11 +52,17 @@ namespace helengine.editor.tests.components.ui {
         /// <summary>
         /// Initializes a fresh core so camera components can be constructed in isolation tests.
         /// </summary>
-        static void InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(null, null, new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+        void InitializeCore() {
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph?.Dispose();
+            CoreValue?.Dispose();
         }
 
         /// <summary>

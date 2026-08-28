@@ -100,7 +100,7 @@ namespace helengine.editor.tests {
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             ComponentPropertyRow modelRow = FindModelRow(view);
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath);
+            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             Action<AssetPickerRequest> handler = request => modal.Show(request.OnPicked, request.ExtensionFilter);
             EditorAssetPickerService.PickRequested += handler;
 
@@ -148,7 +148,7 @@ namespace helengine.editor.tests {
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             ComponentPropertyRow modelRow = FindModelRow(view);
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath);
+            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             Action<AssetPickerRequest> handler = request => modal.Show(request.OnPicked, request.ExtensionFilter);
             EditorAssetPickerService.PickRequested += handler;
 
@@ -179,7 +179,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RequestModelPick_WhenAssetPickerModalIsShown_PositionsBackdropTopFlushToWindowControlCluster() {
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath);
+            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             modal.Show(_ => { }, ".obj");
             modal.UpdateLayout(1280, 720);
 
@@ -214,7 +214,7 @@ namespace helengine.editor.tests {
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             ComponentPropertyRow modelRow = FindModelRow(view);
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath);
+            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             Action<AssetPickerRequest> handler = request => modal.Show(request.OnPicked, request.ExtensionFilter);
             EditorAssetPickerService.PickRequested += handler;
 

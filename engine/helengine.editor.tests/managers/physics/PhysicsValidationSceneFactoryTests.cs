@@ -406,7 +406,7 @@ namespace helengine.editor.tests.managers.physics {
             Directory.CreateDirectory(buildRootPath);
             factory.WriteScenes(TempProjectRootPath);
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath, TestGeneratedAssetGraph.CreateShaderLibrary());
             packager.Package(new[] { PhysicsValidationSceneCatalog.KinematicPushSceneId }, buildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(buildRootPath, PhysicsValidationSceneCatalog.KinematicPushSceneId);
@@ -449,7 +449,7 @@ namespace helengine.editor.tests.managers.physics {
             Directory.CreateDirectory(buildRootPath);
             factory.WriteScenes(TempProjectRootPath);
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath, TestGeneratedAssetGraph.CreateShaderLibrary());
             packager.Package(new[] { PhysicsValidationSceneCatalog.CharacterMovingPlatformSceneId }, buildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(buildRootPath, PhysicsValidationSceneCatalog.CharacterMovingPlatformSceneId);
@@ -490,7 +490,7 @@ namespace helengine.editor.tests.managers.physics {
             Directory.CreateDirectory(buildRootPath);
             factory.WriteScenes(TempProjectRootPath);
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(TempProjectRootPath, TestGeneratedAssetGraph.CreateShaderLibrary());
             packager.Package(new[] { PhysicsValidationSceneCatalog.CharacterSlopeSceneId }, buildRootPath);
 
             string packagedScenePath = GetPackagedScenePath(buildRootPath, PhysicsValidationSceneCatalog.CharacterSlopeSceneId);

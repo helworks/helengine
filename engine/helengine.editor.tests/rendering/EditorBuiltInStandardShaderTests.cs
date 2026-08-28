@@ -1,4 +1,5 @@
 using helengine.editor;
+using helengine.editor.tests.testing;
 using helengine.directx11;
 using Xunit;
 
@@ -6,13 +7,21 @@ namespace helengine.editor.tests.rendering {
     /// <summary>
     /// Verifies the built-in forward standard shader compiles after forward-light and shadow-buffer changes.
     /// </summary>
-    public class EditorBuiltInStandardShaderTests {
+    public class EditorBuiltInStandardShaderTests : IDisposable {
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Configures the shared built-in shader backend registry for the shader-compilation tests.
         /// </summary>
         public EditorBuiltInStandardShaderTests() {
-            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
-            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -20,7 +29,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenUsingBuiltInStandardShader_CompilesForDirectX11() {
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
+            ShaderAsset shaderAsset = GeneratedAssetGraph.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
 
             Assert.NotNull(shaderAsset);
             Assert.Equal("ForwardStandardShader", shaderAsset.Id);
@@ -33,7 +42,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenUsingBuiltInShadowDepthShader_CompilesForDirectX11() {
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "EditorShadowDepth.hlsl");
+            ShaderAsset shaderAsset = GeneratedAssetGraph.LoadShaderAsset(ShaderCompileTarget.DirectX11, "EditorShadowDepth.hlsl");
 
             Assert.NotNull(shaderAsset);
             Assert.Equal("EditorShadowDepth", shaderAsset.Id);
@@ -46,7 +55,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void LoadShaderAsset_WhenUsingBuiltInPointShadowDepthShader_CompilesForDirectX11() {
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "EditorPointShadowDepth.hlsl");
+            ShaderAsset shaderAsset = GeneratedAssetGraph.LoadShaderAsset(ShaderCompileTarget.DirectX11, "EditorPointShadowDepth.hlsl");
 
             Assert.NotNull(shaderAsset);
             Assert.Equal("EditorPointShadowDepth", shaderAsset.Id);
@@ -60,7 +69,7 @@ namespace helengine.editor.tests.rendering {
         [Fact]
         public void BuildMaterialFromRaw_WhenUsingBuiltInStandardShaderMeshVariant_CompilesForDirectX11() {
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
+            ShaderAsset shaderAsset = GeneratedAssetGraph.LoadShaderAsset(ShaderCompileTarget.DirectX11, "ForwardStandardShader.hlsl");
             ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = "ForwardStandardShader.mesh.material",
                 ShaderAssetId = shaderAsset.Id,

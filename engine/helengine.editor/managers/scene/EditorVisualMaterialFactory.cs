@@ -7,8 +7,11 @@ namespace helengine.editor {
         /// Creates one standard-material instance that remains visible in the editor but still participates in normal scene depth.
         /// </summary>
         /// <returns>Runtime material instance configured for editor-only visual meshes.</returns>
-        public static RuntimeMaterial CreateNonShadowCastingStandardMaterial() {
-            RuntimeMaterial sharedStandardMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+        public static RuntimeMaterial CreateNonShadowCastingStandardMaterial(EngineGeneratedMaterialCache generatedMaterialCache) {
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
+            RuntimeMaterial sharedStandardMaterial = generatedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
             ShaderRuntimeMaterial sharedShaderMaterial = ShaderRuntimeMaterialAccess.Require(sharedStandardMaterial);
             RuntimeMaterial resolvedRootMaterial = sharedStandardMaterial.ResolveRootMaterial();
             if (resolvedRootMaterial is not helengine.directx11.DirectX11MaterialResource directX11StandardMaterial) {
@@ -45,8 +48,8 @@ namespace helengine.editor {
         /// Creates one standard-material instance that behaves like overlay geometry for editor icons that must remain visible on top.
         /// </summary>
         /// <returns>Runtime material instance configured for editor-only overlay visuals.</returns>
-        public static RuntimeMaterial CreateOverlayStandardMaterial() {
-            RuntimeMaterial material = CreateNonShadowCastingStandardMaterial();
+        public static RuntimeMaterial CreateOverlayStandardMaterial(EngineGeneratedMaterialCache generatedMaterialCache) {
+            RuntimeMaterial material = CreateNonShadowCastingStandardMaterial(generatedMaterialCache);
             ApplyEditorOverlayRenderState(material);
             return material;
         }

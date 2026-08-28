@@ -7,13 +7,16 @@ namespace helengine {
         /// Backing material owned by this preview component.
         /// </summary>
         RuntimeMaterial PreviewMaterialValue;
+        /// <summary>Session-owned built-in shader library used by preview materials.</summary>
+        protected readonly helengine.editor.EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Initializes one world-space preview component bound to the supplied authored source entity.
         /// </summary>
         /// <param name="sourceEntity">Authored source entity mirrored by the preview proxy.</param>
-        protected EditorWorldSpace2DPreviewComponentBase(Entity sourceEntity) {
+        protected EditorWorldSpace2DPreviewComponentBase(Entity sourceEntity, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             SourceEntity = sourceEntity ?? throw new ArgumentNullException(nameof(sourceEntity));
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
         }
 
         /// <summary>
@@ -35,7 +38,11 @@ namespace helengine {
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
             Model = ResolvePreviewModel();
-            PreviewMaterialValue = CreatePreviewMaterial(Core.Instance.RenderManager3D);
+            Core core = Core.Instance;
+            if (core == null || core.RenderManager3D == null) {
+                throw new InvalidOperationException("World-space previews require an initialized core with a 3D renderer.");
+            }
+            PreviewMaterialValue = CreatePreviewMaterial(core.RenderManager3D, BuiltInShaderLibrary);
             Materials = new[] { PreviewMaterialValue };
             base.ComponentAdded(entity);
             SynchronizeFromSource();
@@ -101,7 +108,7 @@ namespace helengine {
         /// Creates the runtime material used by the preview mesh.
         /// </summary>
         /// <returns>Configured runtime material for the preview proxy.</returns>
-        protected abstract RuntimeMaterial CreatePreviewMaterial(RenderManager3D render3D);
+        protected abstract RuntimeMaterial CreatePreviewMaterial(RenderManager3D render3D, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary);
 
         /// <summary>
         /// Resolves the shared preview mesh model used by this preview proxy.

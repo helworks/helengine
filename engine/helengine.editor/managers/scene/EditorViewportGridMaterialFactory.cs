@@ -29,13 +29,16 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <returns>Runtime material configured for the default editor viewport grid.</returns>
-        public static RuntimeMaterial Create(RenderManager3D render3D) {
+        public static RuntimeMaterial Create(RenderManager3D render3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
             ShaderCompileTarget target = ResolveTarget(render3D);
-            ShaderAsset shaderAsset = BuildShaderAsset(target);
+            ShaderAsset shaderAsset = BuildShaderAsset(target, builtInShaderLibrary);
             var materialAsset = new ShaderMaterialAsset {
                 Id = MaterialAssetId,
                 ShaderAssetId = shaderAsset.Id,
@@ -58,8 +61,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="target">Renderer backend target that will consume the shader.</param>
         /// <returns>Compiled shader asset for the selected backend.</returns>
-        static ShaderAsset BuildShaderAsset(ShaderCompileTarget target) {
-            return EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, ShaderFileName);
+        static ShaderAsset BuildShaderAsset(ShaderCompileTarget target, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            return builtInShaderLibrary.Load(target, ShaderFileName);
         }
 
         /// <summary>

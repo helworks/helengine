@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies the editor-only exact 2D preview capture service allocates and owns render-target-backed preview resources correctly.
     /// </summary>
     public sealed class EditorExact2DPreviewCaptureServiceTests : IDisposable {
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by exact 2D preview capture tests.
         /// </summary>
@@ -18,12 +19,14 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Disposes the active core instance after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             Core.Instance?.Dispose();
         }
 
@@ -43,7 +46,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(sourceComponent);
 
-            using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D);
+            using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D, GeneratedAssetGraph.ShaderLibrary);
             service.CaptureTextPreview(sourceEntity, sourceComponent, new int2(256, 128));
 
             Assert.NotNull(service.PreviewRenderTarget);
@@ -71,7 +74,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(sourceComponent);
 
-            using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D);
+            using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D, GeneratedAssetGraph.ShaderLibrary);
             service.CaptureTextPreview(sourceEntity, sourceComponent, new int2(256, 128));
 
             Assert.Equal(sourceComponent.OutlineScale, service.PreviewTextComponent.OutlineScale);
@@ -95,7 +98,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(sourceComponent);
 
-            using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D);
+            using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D, GeneratedAssetGraph.ShaderLibrary);
             ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(service.CaptureRoundedRectPreview(sourceEntity, sourceComponent, new int2(128, 64)));
 
             int bindingIndex = material.Layout.FindTextureBindingIndex("PreviewTexture");
@@ -119,7 +122,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(sourceComponent);
 
-            EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D);
+            EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderManager3D, GeneratedAssetGraph.ShaderLibrary);
             service.CaptureTextPreview(sourceEntity, sourceComponent, new int2(256, 128));
             TestRenderTarget previewRenderTarget = Assert.IsType<TestRenderTarget>(service.PreviewRenderTarget);
 

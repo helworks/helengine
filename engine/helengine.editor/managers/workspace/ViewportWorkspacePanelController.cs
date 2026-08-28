@@ -53,6 +53,8 @@ namespace helengine.editor {
         /// Frames the current editor selection inside the viewport scene camera on demand.
         /// </summary>
         readonly EditorViewportSelectionFramingService SelectionFramingService;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
 
         /// <summary>
         /// Initializes one workspace controller and its independent viewport runtime stack.
@@ -67,7 +69,9 @@ namespace helengine.editor {
             FontAsset snapModifierFont,
             EditorViewportToolbarIconSet toolbarIcons,
             EditorSceneCanvasProfileState sceneCanvasProfileState,
-            EditorUiMetrics metrics) {
+            EditorUiMetrics metrics,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
+            EngineGeneratedMaterialCache generatedMaterialCache) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -83,6 +87,8 @@ namespace helengine.editor {
             if (metrics == null) {
                 throw new ArgumentNullException(nameof(metrics));
             }
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
 
             SelectionFramingService = new EditorViewportSelectionFramingService();
             State = CreateViewportState(font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
@@ -92,8 +98,10 @@ namespace helengine.editor {
         /// Initializes one workspace controller around an existing viewport runtime stack.
         /// </summary>
         /// <param name="state">Existing viewport runtime stack owned by the controller.</param>
-        public ViewportWorkspacePanelController(EditorViewportWorkspaceState state) {
+        public ViewportWorkspacePanelController(EditorViewportWorkspaceState state, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache) {
             SelectionFramingService = new EditorViewportSelectionFramingService();
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
             State = state ?? throw new ArgumentNullException(nameof(state));
             WireViewportCallbacks(State);
         }
@@ -220,29 +228,30 @@ namespace helengine.editor {
             sceneCameraEntity.AddComponent(sceneViewportComponent);
             EditorViewportDirect2DScenePresenterComponent direct2DScenePresenterComponent = new EditorViewportDirect2DScenePresenterComponent(sceneCamera, sceneViewportComponent);
             sceneCameraEntity.AddComponent(direct2DScenePresenterComponent);
-            EditorWorldSpace2DPreviewSyncComponent worldSpace2DPreviewSyncComponent = new EditorWorldSpace2DPreviewSyncComponent();
+            EditorWorldSpace2DPreviewSyncComponent worldSpace2DPreviewSyncComponent = new EditorWorldSpace2DPreviewSyncComponent(BuiltInShaderLibrary);
             sceneCameraEntity.AddComponent(worldSpace2DPreviewSyncComponent);
-            EditorViewportBorderGizmoSyncComponent viewportBorderGizmoSyncComponent = new EditorViewportBorderGizmoSyncComponent();
+            EditorViewportBorderGizmoSyncComponent viewportBorderGizmoSyncComponent = new EditorViewportBorderGizmoSyncComponent(BuiltInShaderLibrary);
             sceneCameraEntity.AddComponent(viewportBorderGizmoSyncComponent);
-            sceneCameraEntity.AddComponent(new ComponentSceneSelectionEditorSyncComponent(render3D));
+            sceneCameraEntity.AddComponent(new ComponentSceneSelectionEditorSyncComponent(render3D, GeneratedMaterialCache));
             CameraComponent gizmoCamera = CreateGizmoCamera(sceneCameraEntity, sceneCamera);
-            EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
+            EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics, BuiltInShaderLibrary);
             EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera);
             viewport.CameraController = cameraController;
             sceneCameraEntity.AddComponent(cameraController);
             viewport.FocusSelectionRequested = HandleFocusSelectionRequested;
             RuntimeMaterial transformGizmoMaterial = BuildTransformGizmoNormalMaterial(render3D);
             RuntimeMaterial transformGizmoHighlightMaterial = BuildTransformGizmoHighlightMaterial(render3D);
-            RuntimeMaterial transformGizmoPlaneMaterial = TransformGizmoPlaneMaterialFactory.CreateNormal(render3D);
-            RuntimeMaterial transformGizmoPlaneHighlightMaterial = TransformGizmoPlaneMaterialFactory.CreateHighlight(render3D);
+            RuntimeMaterial transformGizmoPlaneMaterial = TransformGizmoPlaneMaterialFactory.CreateNormal(render3D, BuiltInShaderLibrary);
+            RuntimeMaterial transformGizmoPlaneHighlightMaterial = TransformGizmoPlaneMaterialFactory.CreateHighlight(render3D, BuiltInShaderLibrary);
             EditorEntity translationGizmoRoot = TransformTranslationGizmoFactory.Create(
                 render3D,
                 sceneCamera,
                 transformGizmoMaterial,
                 transformGizmoHighlightMaterial,
                 transformGizmoPlaneMaterial,
-                transformGizmoPlaneHighlightMaterial);
-            EditorEntity rotationGizmoRoot = TransformRotationGizmoFactory.Create(render3D, sceneCamera, transformGizmoMaterial, transformGizmoHighlightMaterial);
+                transformGizmoPlaneHighlightMaterial,
+                BuiltInShaderLibrary);
+            EditorEntity rotationGizmoRoot = TransformRotationGizmoFactory.Create(render3D, sceneCamera, transformGizmoMaterial, transformGizmoHighlightMaterial, BuiltInShaderLibrary);
             EditorEntity scaleGizmoRoot = TransformScaleGizmoFactory.Create(render3D, sceneCamera, transformGizmoMaterial, transformGizmoHighlightMaterial);
             EditorViewportGizmoDrawableCollector gizmoDrawableCollector = new EditorViewportGizmoDrawableCollector(
                 viewport.GetOwnedSceneGizmoEntities,
@@ -501,7 +510,10 @@ namespace helengine.editor {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
 
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(render3D, shaderFileName);
+            if (BuiltInShaderLibrary == null) {
+                throw new InvalidOperationException("A built-in shader library is required for new viewport materials.");
+            }
+            ShaderAsset shaderAsset = BuiltInShaderLibrary.LoadShaderAsset(render3D, shaderFileName);
             string shaderName = Path.GetFileNameWithoutExtension(shaderFileName);
             if (string.IsNullOrWhiteSpace(shaderName)) {
                 throw new InvalidOperationException("Built-in shader name could not be resolved.");

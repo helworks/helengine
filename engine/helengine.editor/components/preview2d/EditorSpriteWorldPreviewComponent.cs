@@ -13,8 +13,8 @@ namespace helengine {
         /// </summary>
         /// <param name="sourceEntity">Authored source entity mirrored by the preview proxy.</param>
         /// <param name="sourceComponent">Authored sprite component mirrored by the preview proxy.</param>
-        public EditorSpriteWorldPreviewComponent(Entity sourceEntity, SpriteComponent sourceComponent)
-            : base(sourceEntity) {
+        public EditorSpriteWorldPreviewComponent(Entity sourceEntity, SpriteComponent sourceComponent, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
+            : base(sourceEntity, builtInShaderLibrary) {
             SourceComponentValue = sourceComponent ?? throw new ArgumentNullException(nameof(sourceComponent));
         }
 
@@ -56,8 +56,8 @@ namespace helengine {
         /// </summary>
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <returns>Configured runtime material for the sprite preview proxy.</returns>
-        protected override RuntimeMaterial CreatePreviewMaterial(RenderManager3D render3D) {
-            return helengine.editor.EditorWorldSpaceSpritePreviewMaterialFactory.Create(render3D, ResolvePreviewTexture());
+        protected override RuntimeMaterial CreatePreviewMaterial(RenderManager3D render3D, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            return helengine.editor.EditorWorldSpaceSpritePreviewMaterialFactory.Create(render3D, ResolvePreviewTexture(), builtInShaderLibrary);
         }
     }
 }

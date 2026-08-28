@@ -29,8 +29,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <returns>Runtime material configured for non-hovered plane handles.</returns>
-        public static RuntimeMaterial CreateNormal(RenderManager3D render3D) {
-            return Create(render3D, NormalShaderFileName, NormalMaterialAssetId);
+        public static RuntimeMaterial CreateNormal(RenderManager3D render3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            return Create(render3D, NormalShaderFileName, NormalMaterialAssetId, builtInShaderLibrary);
         }
 
         /// <summary>
@@ -38,8 +38,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <returns>Runtime material configured for hovered plane handles.</returns>
-        public static RuntimeMaterial CreateHighlight(RenderManager3D render3D) {
-            return Create(render3D, HighlightShaderFileName, HighlightMaterialAssetId);
+        public static RuntimeMaterial CreateHighlight(RenderManager3D render3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            return Create(render3D, HighlightShaderFileName, HighlightMaterialAssetId, builtInShaderLibrary);
         }
 
         /// <summary>
@@ -48,12 +48,15 @@ namespace helengine.editor {
         /// <param name="target">Renderer backend target that will consume the shader.</param>
         /// <param name="shaderFileName">Built-in shader source file name.</param>
         /// <returns>Compiled shader asset for the selected backend.</returns>
-        static ShaderAsset BuildShaderAsset(ShaderCompileTarget target, string shaderFileName) {
+        static ShaderAsset BuildShaderAsset(ShaderCompileTarget target, string shaderFileName, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (string.IsNullOrWhiteSpace(shaderFileName)) {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
 
-            return EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, shaderFileName);
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
+            return builtInShaderLibrary.Load(target, shaderFileName);
         }
 
         /// <summary>
@@ -63,7 +66,7 @@ namespace helengine.editor {
         /// <param name="shaderFileName">Built-in shader source file name.</param>
         /// <param name="materialAssetId">Material asset identifier written to the raw material.</param>
         /// <returns>Runtime material configured for plane-handle rendering.</returns>
-        static RuntimeMaterial Create(RenderManager3D render3D, string shaderFileName, string materialAssetId) {
+        static RuntimeMaterial Create(RenderManager3D render3D, string shaderFileName, string materialAssetId, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
@@ -77,7 +80,7 @@ namespace helengine.editor {
             }
 
             ShaderCompileTarget target = ResolveTarget(render3D);
-            ShaderAsset shaderAsset = BuildShaderAsset(target, shaderFileName);
+            ShaderAsset shaderAsset = BuildShaderAsset(target, shaderFileName, builtInShaderLibrary);
             string shaderName = Path.GetFileNameWithoutExtension(shaderFileName);
             if (string.IsNullOrWhiteSpace(shaderName)) {
                 throw new InvalidOperationException("Built-in plane shader name could not be resolved.");

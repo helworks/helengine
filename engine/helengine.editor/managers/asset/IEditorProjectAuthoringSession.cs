@@ -59,7 +59,10 @@ namespace helengine.editor {
         /// Creates one authoring session for a project root.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root path.</param>
+        /// <param name="generatedAssetProviders">Optional scoped provider registry borrowed from the enclosing editor or CLI graph. When omitted, the created project session owns a registry for its standalone graph.</param>
         /// <returns>Disposable project-scoped authoring session.</returns>
-        IEditorProjectAuthoringSession CreateSession(string projectRootPath);
+        IEditorProjectAuthoringSession CreateSession(
+            string projectRootPath,
+            GeneratedAssetProviderRegistry generatedAssetProviders = null);
     }
 }

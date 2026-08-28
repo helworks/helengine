@@ -11,10 +11,12 @@ namespace helengine.editor.tests {
     /// Verifies viewport settings overlay lifetime and focus behavior.
     /// </summary>
     public class EditorViewportSettingsOverlayTests : IDisposable {
+        TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Resets shared keyboard-focus state after each overlay test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph?.Dispose();
             EditorKeyboardFocusService.Reset();
             TransformGizmoSnapSettingsService.ResetDefaults();
         }
@@ -516,6 +518,7 @@ namespace helengine.editor.tests {
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
@@ -537,7 +540,10 @@ namespace helengine.editor.tests {
                 camera,
                 CreateFont(),
                 CreateFont(),
-                CreateToolbarIcons());
+                CreateToolbarIcons(),
+                new EditorSceneCanvasProfileState(),
+                EditorUiMetrics.Default,
+                GeneratedAssetGraph.ShaderLibrary);
             viewport.CameraController = new EditorViewportCameraController(camera);
             viewport.Position = new float3(20f, 20f, 0f);
             viewport.Size = new int2(400, 280);

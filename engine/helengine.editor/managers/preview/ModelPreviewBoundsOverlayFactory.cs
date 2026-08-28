@@ -18,17 +18,20 @@ namespace helengine.editor {
         /// <param name="render3D">Renderer used to build the overlay runtime resources.</param>
         /// <param name="halfExtents">Half-size of the model bounds on each axis.</param>
         /// <returns>Configured bounding-box overlay entity.</returns>
-        public static EditorEntity CreateBox(RenderManager3D render3D, float3 halfExtents) {
+        public static EditorEntity CreateBox(RenderManager3D render3D, float3 halfExtents, EngineGeneratedMaterialCache generatedMaterialCache) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
             if (halfExtents.X < 0f || halfExtents.Y < 0f || halfExtents.Z < 0f) {
                 throw new ArgumentOutOfRangeException(nameof(halfExtents), "Bounding-box half extents cannot be negative.");
             }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
 
             ModelAsset modelAsset = CreateBoxModelAsset(halfExtents);
             RuntimeModel model = CreateLineRuntimeModel(render3D, modelAsset);
-            return CreateOverlayEntity("Model Preview Bounds Box", model);
+            return CreateOverlayEntity("Model Preview Bounds Box", model, generatedMaterialCache);
         }
 
         /// <summary>
@@ -37,17 +40,20 @@ namespace helengine.editor {
         /// <param name="render3D">Renderer used to build the overlay runtime resources.</param>
         /// <param name="radius">Radius of the sphere that encloses the model bounds.</param>
         /// <returns>Configured bounding-sphere overlay entity.</returns>
-        public static EditorEntity CreateSphere(RenderManager3D render3D, float radius) {
+        public static EditorEntity CreateSphere(RenderManager3D render3D, float radius, EngineGeneratedMaterialCache generatedMaterialCache) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
             if (radius <= 0f) {
                 throw new ArgumentOutOfRangeException(nameof(radius), "Bounding-sphere radius must be greater than zero.");
             }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
 
             ModelAsset modelAsset = CreateSphereModelAsset(radius);
             RuntimeModel model = CreateLineRuntimeModel(render3D, modelAsset);
-            return CreateOverlayEntity("Model Preview Bounds Sphere", model);
+            return CreateOverlayEntity("Model Preview Bounds Sphere", model, generatedMaterialCache);
         }
 
         /// <summary>
@@ -56,7 +62,7 @@ namespace helengine.editor {
         /// <param name="name">Diagnostic name assigned to the overlay entity.</param>
         /// <param name="model">Line-list model drawn by the entity.</param>
         /// <returns>Configured overlay entity.</returns>
-        static EditorEntity CreateOverlayEntity(string name, RuntimeModel model) {
+        static EditorEntity CreateOverlayEntity(string name, RuntimeModel model, EngineGeneratedMaterialCache generatedMaterialCache) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Overlay entity name must be provided.", nameof(name));
             }
@@ -64,7 +70,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(model));
             }
 
-            RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial();
+            RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial(generatedMaterialCache);
             var entity = new EditorEntity {
                 Name = name,
                 Hidden = true,

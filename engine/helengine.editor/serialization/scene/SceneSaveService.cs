@@ -62,7 +62,19 @@ namespace helengine.editor {
         internal SceneSaveService(
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
-            EditorAssetReferenceResolver referenceResolver) {
+            EditorAssetReferenceResolver referenceResolver)
+            : this(projectRootPath, persistenceRegistry, referenceResolver, null, null) {
+        }
+
+        /// <summary>
+        /// Initializes a scene save service over the complete session-owned reference and generated-asset graph.
+        /// </summary>
+        internal SceneSaveService(
+            string projectRootPath,
+            ComponentPersistenceRegistry persistenceRegistry,
+            EditorAssetReferenceResolver referenceResolver,
+            EngineGeneratedModelCache generatedModelCache,
+            EngineGeneratedMaterialCache generatedMaterialCache) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -77,7 +89,7 @@ namespace helengine.editor {
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
             AssetReferenceInferenceService = referenceResolver == null
                 ? new SceneAssetReferenceInferenceService(ProjectRootPath)
-                : new SceneAssetReferenceInferenceService(ProjectRootPath, referenceResolver);
+                : new SceneAssetReferenceInferenceService(ProjectRootPath, referenceResolver, generatedModelCache, generatedMaterialCache);
             AssetReferenceCanonicalizationService = referenceResolver == null
                 ? new EditorAssetReferenceCanonicalizationService(ProjectRootPath)
                 : new EditorAssetReferenceCanonicalizationService(referenceResolver);

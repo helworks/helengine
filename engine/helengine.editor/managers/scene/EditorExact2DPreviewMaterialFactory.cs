@@ -34,14 +34,17 @@ namespace helengine.editor {
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <param name="texture">Runtime texture displayed by the preview quad.</param>
         /// <returns>Runtime material configured to sample the supplied preview texture.</returns>
-        public static RuntimeMaterial Create(RenderManager3D render3D, RuntimeTexture texture) {
+        public static RuntimeMaterial Create(RenderManager3D render3D, RuntimeTexture texture, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             } else if (texture == null) {
                 throw new ArgumentNullException(nameof(texture));
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(render3D, ShaderFileName);
+            ShaderAsset shaderAsset = builtInShaderLibrary.LoadShaderAsset(render3D, ShaderFileName);
             ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = MaterialAssetId,
                 ShaderAssetId = shaderAsset.Id,

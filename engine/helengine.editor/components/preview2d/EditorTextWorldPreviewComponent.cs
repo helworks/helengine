@@ -13,8 +13,8 @@ namespace helengine {
         /// </summary>
         /// <param name="sourceEntity">Authored source entity mirrored by the preview proxy.</param>
         /// <param name="sourceComponent">Authored text component mirrored by the preview proxy.</param>
-        public EditorTextWorldPreviewComponent(Entity sourceEntity, TextComponent sourceComponent)
-            : base(sourceEntity) {
+        public EditorTextWorldPreviewComponent(Entity sourceEntity, TextComponent sourceComponent, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
+            : base(sourceEntity, builtInShaderLibrary) {
             SourceComponentValue = sourceComponent ?? throw new ArgumentNullException(nameof(sourceComponent));
         }
 

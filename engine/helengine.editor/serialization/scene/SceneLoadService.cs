@@ -27,6 +27,8 @@ namespace helengine.editor {
         /// Factory used to create authored scene entities for the active editor host.
         /// </summary>
         readonly IEntityFactory EntityFactory;
+        /// <summary>Session-owned generated material cache used by editor-only scene visuals.</summary>
+        readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
         /// <summary>
         /// Allocator that advances beyond restored numeric scene entity ids during scene load.
         /// </summary>
@@ -41,9 +43,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="persistenceRegistry">Registry used to deserialize persisted components.</param>
         /// <param name="referenceResolver">Resolver used to rebuild runtime assets.</param>
-        public SceneLoadService(ComponentPersistenceRegistry persistenceRegistry, ISceneAssetReferenceResolver referenceResolver) {
+        public SceneLoadService(ComponentPersistenceRegistry persistenceRegistry, ISceneAssetReferenceResolver referenceResolver, EngineGeneratedMaterialCache generatedMaterialCache) {
             PersistenceRegistry = persistenceRegistry ?? throw new ArgumentNullException(nameof(persistenceRegistry));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
+            GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
             EntityFactory = ResolveEntityFactory();
@@ -60,12 +63,13 @@ namespace helengine.editor {
         public SceneLoadService(
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
-            ISceneAssetReferenceResolver referenceResolver) : this(persistenceRegistry, referenceResolver) {
+            ISceneAssetReferenceResolver referenceResolver,
+            EngineGeneratedMaterialCache generatedMaterialCache) : this(persistenceRegistry, referenceResolver, generatedMaterialCache) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
 
-            BlueprintExpansionService = new BlueprintEditorExpansionService(projectRootPath, persistenceRegistry, referenceResolver);
+            BlueprintExpansionService = new BlueprintEditorExpansionService(projectRootPath, persistenceRegistry, referenceResolver, GeneratedMaterialCache);
         }
 
         /// <summary>
@@ -196,10 +200,10 @@ namespace helengine.editor {
             }
 
             EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
-            EditorCameraVisualAttachmentService.Attach(entity);
-            EditorPointLightVisualAttachmentService.Attach(entity);
-            EditorDirectionalLightVisualAttachmentService.Attach(entity);
-            EditorSpotLightVisualAttachmentService.Attach(entity);
+            EditorCameraVisualAttachmentService.Attach(entity, GeneratedMaterialCache);
+            EditorPointLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache);
+            EditorDirectionalLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache);
+            EditorSpotLightVisualAttachmentService.Attach(entity, GeneratedMaterialCache);
 
             SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int i = 0; i < children.Length; i++) {

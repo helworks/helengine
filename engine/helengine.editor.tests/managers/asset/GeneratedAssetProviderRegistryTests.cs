@@ -12,7 +12,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void LoadEntries_WhenProviderIsRegistered_ReturnsGeneratedEntryMetadata() {
-            GeneratedAssetProviderRegistry.ResetForTests();
+            using GeneratedAssetProviderRegistry registry = new GeneratedAssetProviderRegistry();
             TestGeneratedAssetProvider provider = new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
@@ -20,10 +20,10 @@ namespace helengine.editor.tests.managers.asset {
                     AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, "engine", "engine:model:cube")
                 },
                 new TestRuntimeModel());
-            GeneratedAssetProviderRegistry.Register(provider);
+            registry.Register(provider);
 
             List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
-            GeneratedAssetProviderRegistry.LoadEntries(string.Empty, entries);
+            registry.LoadEntries(string.Empty, entries);
 
             AssetBrowserEntry engineEntry = Assert.Single(entries);
             Assert.Equal("Engine", engineEntry.Name);
@@ -37,7 +37,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void ResolveRuntimeModel_WhenGeneratedModelEntryIsPicked_UsesTheOwningProvider() {
-            GeneratedAssetProviderRegistry.ResetForTests();
+            using GeneratedAssetProviderRegistry registry = new GeneratedAssetProviderRegistry();
             TestRuntimeModel runtimeModel = new TestRuntimeModel();
             TestGeneratedAssetProvider provider = new TestGeneratedAssetProvider(
                 "engine",
@@ -45,9 +45,9 @@ namespace helengine.editor.tests.managers.asset {
                     AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, "engine", "engine:model:cube")
                 },
                 runtimeModel);
-            GeneratedAssetProviderRegistry.Register(provider);
+            registry.Register(provider);
 
-            RuntimeModel resolvedModel = GeneratedAssetProviderRegistry.ResolveRuntimeModel(
+            RuntimeModel resolvedModel = registry.ResolveRuntimeModel(
                 AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, "engine", "engine:model:cube"));
 
             Assert.Same(runtimeModel, resolvedModel);
@@ -58,7 +58,7 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void ResolveRuntimeMaterial_WhenGeneratedMaterialEntryIsPicked_UsesTheOwningProvider() {
-            GeneratedAssetProviderRegistry.ResetForTests();
+            using GeneratedAssetProviderRegistry registry = new GeneratedAssetProviderRegistry();
             TestRuntimeMaterial runtimeMaterial = new TestRuntimeMaterial();
             TestGeneratedAssetProvider provider = new TestGeneratedAssetProvider(
                 "engine",
@@ -67,9 +67,9 @@ namespace helengine.editor.tests.managers.asset {
                 },
                 new TestRuntimeModel(),
                 runtimeMaterial);
-            GeneratedAssetProviderRegistry.Register(provider);
+            registry.Register(provider);
 
-            RuntimeMaterial resolvedMaterial = GeneratedAssetProviderRegistry.ResolveRuntimeMaterial(
+            RuntimeMaterial resolvedMaterial = registry.ResolveRuntimeMaterial(
                 AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", "engine:material:standard"));
 
             Assert.Same(runtimeMaterial, resolvedMaterial);

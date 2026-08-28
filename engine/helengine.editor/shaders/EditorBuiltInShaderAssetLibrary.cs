@@ -1,11 +1,8 @@
-using helengine.directx11;
-using helengine.vulkan;
-
 namespace helengine.editor {
     /// <summary>
     /// Loads and caches built-in editor shader assets from disk so editor runtime materials use the same file-based HLSL flow as authored shaders.
     /// </summary>
-    public sealed class EditorBuiltInShaderAssetLibrary {
+    public sealed class EditorBuiltInShaderAssetLibrary : IDisposable {
         /// <summary>
         /// Directory name that stores built-in editor shader source files.
         /// </summary>
@@ -29,7 +26,7 @@ namespace helengine.editor {
         /// <summary>
         /// Shared shader model used by built-in editor runtime shaders.
         /// </summary>
-        static readonly ShaderModel ShaderModelValue = new ShaderModel(4, 0);
+        readonly ShaderModel ShaderModelValue = new ShaderModel(4, 0);
         /// <summary>
         /// Synchronization object used to guard the in-memory shader cache.
         /// </summary>
@@ -42,6 +39,7 @@ namespace helengine.editor {
         /// Stores the shader backend registry configured by bootstrap code for built-in shader compilation.
         /// </summary>
         readonly ShaderBackendRegistry ShaderBackendRegistry;
+        bool IsDisposed;
 
         /// <summary>
         /// Creates an instance-bound built-in shader library. Compiled assets and
@@ -51,27 +49,19 @@ namespace helengine.editor {
             ShaderBackendRegistry = shaderBackendRegistry ?? throw new ArgumentNullException(nameof(shaderBackendRegistry));
         }
 
-        /// <summary>Creates the standard desktop registry for an isolated library owner.</summary>
-        public static ShaderBackendRegistry CreateDefaultShaderBackendRegistry() {
-            ShaderBackendRegistry registry = new ShaderBackendRegistry();
-            registry.Register(new DirectX11ShaderBackend());
-            registry.Register(new VulkanShaderBackend());
-            return registry;
-        }
-
         /// <summary>
         /// Loads one built-in editor shader asset for the backend used by the supplied renderer.
         /// </summary>
         /// <param name="render3D">Renderer whose backend determines the shader target.</param>
         /// <param name="shaderFileName">Built-in shader source file name.</param>
         /// <returns>Compiled shader asset for the renderer backend.</returns>
-        public static ShaderAsset LoadShaderAsset(RenderManager3D render3D, string shaderFileName) {
+        public ShaderAsset LoadShaderAsset(RenderManager3D render3D, string shaderFileName) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
 
             ShaderCompileTarget target = ResolveTarget(render3D);
-            return LoadShaderAsset(target, shaderFileName);
+            return Load(target, shaderFileName);
         }
 
         /// <summary>
@@ -80,14 +70,8 @@ namespace helengine.editor {
         /// <param name="target">Backend target that should consume the compiled shader asset.</param>
         /// <param name="shaderFileName">Built-in shader source file name.</param>
         /// <returns>Compiled shader asset for the requested backend.</returns>
-        public static ShaderAsset LoadShaderAsset(ShaderCompileTarget target, string shaderFileName) {
-            return new EditorBuiltInShaderAssetLibrary(CreateDefaultShaderBackendRegistry()).Load(target, shaderFileName);
-        }
-
-        /// <summary>
-        /// Loads one built-in shader through this isolated library instance.
-        /// </summary>
         public ShaderAsset Load(ShaderCompileTarget target, string shaderFileName) {
+            EnsureNotDisposed();
             if (string.IsNullOrWhiteSpace(shaderFileName)) {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
@@ -112,9 +96,6 @@ namespace helengine.editor {
         /// <param name="shaderId">Stable built-in shader asset id.</param>
         /// <param name="shaderAsset">Resolved built-in shader asset when the id maps to a built-in shader source file.</param>
         /// <returns>True when the shader id mapped to a built-in shader source file; otherwise false.</returns>
-        public static bool TryLoadShaderAssetById(ShaderCompileTarget target, string shaderId, out ShaderAsset shaderAsset) {
-            return new EditorBuiltInShaderAssetLibrary(CreateDefaultShaderBackendRegistry()).TryLoadById(target, shaderId, out shaderAsset);
-        }
 
         /// <summary>
         /// Adds a compiled asset to this owner's cache. This is used by package
@@ -122,6 +103,7 @@ namespace helengine.editor {
         /// cache scoped to the host instance.
         /// </summary>
         public void RegisterCompiledAsset(ShaderCompileTarget target, string shaderFileName, ShaderAsset shaderAsset) {
+            EnsureNotDisposed();
             if (shaderAsset == null) {
                 throw new ArgumentNullException(nameof(shaderAsset));
             }
@@ -136,6 +118,7 @@ namespace helengine.editor {
 
         /// <summary>Attempts to load a built-in shader through this isolated library instance.</summary>
         public bool TryLoadById(ShaderCompileTarget target, string shaderId, out ShaderAsset shaderAsset) {
+            EnsureNotDisposed();
             shaderAsset = null;
             if (string.IsNullOrWhiteSpace(shaderId)) {
                 return false;
@@ -156,7 +139,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="shaderFileName">Built-in shader source file name.</param>
         /// <returns>Absolute path to the built-in shader source file.</returns>
-        public static string ResolveShaderPath(string shaderFileName) {
+        public string ResolveShaderPath(string shaderFileName) {
+            EnsureNotDisposed();
             if (string.IsNullOrWhiteSpace(shaderFileName)) {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
             }
@@ -184,7 +168,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="shaderFileName">Built-in shader source file name.</param>
         /// <returns>Absolute source-build shader path when available; otherwise <c>null</c>.</returns>
-        static string TryResolveSourceBuildShaderPath(string shaderFileName) {
+        string TryResolveSourceBuildShaderPath(string shaderFileName) {
             try {
                 string sourceRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
                 string shaderPath = Path.Combine(sourceRootPath, "engine", "helengine.editor", "shaders", BuiltInShaderDirectoryName, shaderFileName);
@@ -365,7 +349,7 @@ namespace helengine.editor {
         /// <param name="compileOptions">Compile options applied to the request.</param>
         /// <param name="defines">Preprocessor defines applied to the request.</param>
         /// <returns>Compile result for the requested shader stage.</returns>
-        static ShaderCompileResult CompileStage(
+        ShaderCompileResult CompileStage(
             ShaderCompileService compileService,
             ShaderSourceInfo sourceInfo,
             ShaderCompileTarget target,
@@ -490,6 +474,25 @@ namespace helengine.editor {
                 }
 
                 return ShaderBackendRegistry;
+            }
+        }
+
+        /// <summary>
+        /// Releases compiled built-in shader assets owned by this library.
+        /// </summary>
+        public void Dispose() {
+            lock (SyncRoot) {
+                if (IsDisposed) {
+                    return;
+                }
+                ShaderAssetsByKey.Clear();
+                IsDisposed = true;
+            }
+        }
+
+        void EnsureNotDisposed() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorBuiltInShaderAssetLibrary));
             }
         }
 

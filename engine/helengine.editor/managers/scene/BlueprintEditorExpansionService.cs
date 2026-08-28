@@ -14,6 +14,8 @@ namespace helengine.editor {
         readonly BlueprintLoadService BlueprintLoadService;
         /// <summary>Project-scoped resolver for canonical blueprint references.</summary>
         readonly EditorAssetReferenceResolver AssetReferenceResolver;
+        /// <summary>Session-owned generated material cache used by expanded editor visuals.</summary>
+        readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
 
         /// <summary>
         /// Initializes a new blueprint editor expansion service.
@@ -24,7 +26,8 @@ namespace helengine.editor {
         public BlueprintEditorExpansionService(
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
-            ISceneAssetReferenceResolver referenceResolver) {
+            ISceneAssetReferenceResolver referenceResolver,
+            EngineGeneratedMaterialCache generatedMaterialCache) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -34,9 +37,13 @@ namespace helengine.editor {
             if (referenceResolver == null) {
                 throw new ArgumentNullException(nameof(referenceResolver));
             }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
-            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver);
+            GeneratedMaterialCache = generatedMaterialCache;
+            BlueprintLoadService = new BlueprintLoadService(persistenceRegistry, referenceResolver, generatedMaterialCache);
             AssetReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
         }
 

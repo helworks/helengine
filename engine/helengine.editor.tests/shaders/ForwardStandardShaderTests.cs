@@ -1,4 +1,5 @@
 using helengine.editor;
+using helengine.editor.tests.testing;
 using helengine.directx11;
 using helengine.vulkan;
 using Xunit;
@@ -7,14 +8,21 @@ namespace helengine.editor.tests.shaders {
     /// <summary>
     /// Verifies the built-in forward standard shader compiles for both renderer backends and exposes the expected standard-material contract.
     /// </summary>
-    public class ForwardStandardShaderTests {
+    public class ForwardStandardShaderTests : IDisposable {
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Configures the shared built-in shader backend registry for the shader layout tests.
         /// </summary>
         public ForwardStandardShaderTests() {
-            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
-            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -41,7 +49,7 @@ namespace helengine.editor.tests.shaders {
     [InlineData(ShaderCompileTarget.DirectX11)]
     [InlineData(ShaderCompileTarget.Vulkan)]
     public void LoadShaderAsset_WhenStandardShaderIsLoaded_CompilesEverySharedVariant(ShaderCompileTarget target) {
-        ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, "ForwardStandardShader.hlsl");
+        ShaderAsset shaderAsset = GeneratedAssetGraph.LoadShaderAsset(target, "ForwardStandardShader.hlsl");
 
         Assert.Equal(10, shaderAsset.Binaries.Length);
         Assert.Contains(shaderAsset.Binaries, binary => binary.Stage == ShaderStage.Pixel && binary.Variant == "ForwardStandardShadowed");
@@ -132,8 +140,8 @@ namespace helengine.editor.tests.shaders {
         /// Compiles the built-in forward standard shader for one backend and verifies the resolved material layout.
         /// </summary>
         /// <param name="target">Shader backend that should receive the compiled built-in shader.</param>
-        static void AssertShaderAssetLayout(ShaderCompileTarget target) {
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, "ForwardStandardShader.hlsl");
+        void AssertShaderAssetLayout(ShaderCompileTarget target) {
+            ShaderAsset shaderAsset = GeneratedAssetGraph.LoadShaderAsset(target, "ForwardStandardShader.hlsl");
 
             Assert.Equal("ForwardStandardShader", shaderAsset.Id);
             Assert.Equal(ShaderTargetNames.GetTargetName(target), shaderAsset.TargetName);

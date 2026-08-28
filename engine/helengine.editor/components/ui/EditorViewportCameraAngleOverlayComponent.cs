@@ -120,6 +120,8 @@ namespace helengine.editor {
         /// Controls whether the top-left camera diagnostics text is rendered.
         /// </summary>
         readonly bool ShowCameraStats;
+        /// <summary>Session-owned built-in shader library used by axis-label materials.</summary>
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Overlay root entity positioned in viewport-local coordinates.
@@ -160,10 +162,6 @@ namespace helengine.editor {
         /// <param name="sceneCamera">Camera to inspect for debug angle output.</param>
         /// <param name="font">Font used for overlay text.</param>
         /// <param name="viewportTopOffset">Offset in pixels from title bar top to viewport content top.</param>
-        public EditorViewportCameraAngleOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset)
-            : this(sceneCamera, font, viewportTopOffset, true) {
-        }
-
         /// <summary>
         /// Initializes a viewport camera-angle overlay component.
         /// </summary>
@@ -171,7 +169,7 @@ namespace helengine.editor {
         /// <param name="font">Font used for overlay text.</param>
         /// <param name="viewportTopOffset">Offset in pixels from title bar top to viewport content top.</param>
         /// <param name="showCameraStats">True to render the top-left camera diagnostics text.</param>
-        public EditorViewportCameraAngleOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset, bool showCameraStats) {
+        public EditorViewportCameraAngleOverlayComponent(CameraComponent sceneCamera, FontAsset font, int viewportTopOffset, bool showCameraStats, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
             if (viewportTopOffset < 0) {
@@ -180,6 +178,7 @@ namespace helengine.editor {
 
             ViewportTopOffset = viewportTopOffset;
             ShowCameraStats = showCameraStats;
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             OverlayBackgroundRenderOrder = RenderOrder2D.OverlayBackground;
             OverlayTextRenderOrder = RenderOrder2D.OverlayForeground;
         }
@@ -404,7 +403,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("A 3D renderer must be initialized before creating gizmo axis labels.");
             }
 
-            RuntimeMaterial axisLabelMaterial = TransformGizmoAxisLabelMaterialFactory.Create(render3D, Font);
+            RuntimeMaterial axisLabelMaterial = TransformGizmoAxisLabelMaterialFactory.Create(render3D, Font, BuiltInShaderLibrary);
             AxisLabelModels = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
             AxisLabelEntities = new EditorEntity[AxisLabelCount];
             AxisLabelMeshes = new MeshComponent[AxisLabelCount];

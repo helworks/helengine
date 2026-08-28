@@ -10,6 +10,7 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the catalog tests.
         /// </summary>
         readonly string TempRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required by the reflection-based component catalog tests.
@@ -17,22 +18,20 @@ namespace helengine.editor.tests {
         public EditorComponentAddCatalogTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-component-add-catalog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            EngineGeneratedModelCache.ResetForTests();
-            EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Deletes temporary test content and clears shared caches after each test.
         /// </summary>
         public void Dispose() {
-            EngineGeneratedModelCache.ResetForTests();
-            EngineGeneratedMaterialCache.ResetForTests();
+            GeneratedAssetGraph.Dispose();
             EditorCameraVisualResources.ResetForTests();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
@@ -59,7 +58,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void GetAvailableComponents_WhenEntityHasEditorCameraVisualComponent_StillIncludesMeshDescriptor() {
             EditorEntity entity = new EditorEntity();
-            EditorCameraVisualAttachmentService.Attach(entity);
+            EditorCameraVisualAttachmentService.Attach(entity, GeneratedAssetGraph.MaterialCache);
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
 

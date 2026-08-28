@@ -19,6 +19,7 @@ namespace helengine.editor.tests.managers.project;
 public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     readonly string ProjectRootPath;
     readonly string BuildRootPath;
+    readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
 
     public EditorPlatformAssetCookServiceTests() {
         string workspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-asset-cook-tests", Guid.NewGuid().ToString("N"));
@@ -27,11 +28,11 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
         Directory.CreateDirectory(Path.Combine(ProjectRootPath, "cache", "shader-cache"));
         Directory.CreateDirectory(BuildRootPath);
-        ShaderBackendRegistry shaderBackendRegistry = new();
-        shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+        BuiltInShaderAssetLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
     }
 
     public void Dispose() {
+        BuiltInShaderAssetLibrary.Dispose();
         if (Directory.Exists(ProjectRootPath)) {
             Directory.Delete(ProjectRootPath, true);
         }
@@ -61,7 +62,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             new IAssetImporterRegistration[] {
                 new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" })
             },
-            PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
         TestPlatformMaterialAssetBuilder builder = new TestPlatformMaterialAssetBuilder();
 
         PlatformBuildManifest manifest = service.Cook(
@@ -100,7 +104,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "game",
             "1.0.0",
             Array.Empty<IAssetImporterRegistration>(),
-            PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
         TestPlatformMaterialAssetBuilder builder = new();
 
         PlatformBuildManifest manifest = service.Cook(
@@ -163,7 +170,9 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "1.0.0",
             Array.Empty<IAssetImporterRegistration>(),
             PackagedFontAssetFactory.Create(),
-            scriptTypeResolver);
+            scriptTypeResolver,
+            null,
+            BuiltInShaderAssetLibrary);
         TestPlatformMaterialAssetBuilder builder = new();
 
         PlatformBuildManifest manifest = service.Cook(
@@ -195,7 +204,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "game",
             "1.0.0",
             Array.Empty<IAssetImporterRegistration>(),
-            PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
         TestPlatformMaterialAssetBuilder builder = new TestPlatformMaterialAssetBuilder();
 
         PlatformBuildManifest manifest = service.Cook(
@@ -242,7 +254,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "game",
             "1.0.0",
             Array.Empty<IAssetImporterRegistration>(),
-            PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
         TestPlatformMaterialAssetBuilder builder = new TestPlatformMaterialAssetBuilder();
 
         PlatformBuildManifest manifest = service.Cook(
@@ -313,7 +328,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "game",
             "1.0.0",
             Array.Empty<IAssetImporterRegistration>(),
-            PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
         TestPlatformMaterialAssetBuilder builder = new();
 
         service.Cook(
@@ -362,7 +380,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             bootstrap.ProjectName,
             bootstrap.ProjectVersion,
             Array.Empty<IAssetImporterRegistration>(),
-            PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
 
         PlatformBuildManifest manifest = service.Cook(
             builder.Definition,
@@ -400,7 +421,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             bootstrap.ProjectName,
             bootstrap.ProjectVersion,
             Array.Empty<IAssetImporterRegistration>(),
-            PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
 
         PlatformBuildManifest manifest = service.Cook(
             builder.Definition,
@@ -440,7 +464,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
             "game",
             "1.0.0",
             Array.Empty<IAssetImporterRegistration>(),
-            PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
 
         PlatformBuildManifest manifest = service.Cook(
             builder.Definition,
@@ -572,7 +599,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
                 [
                     new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"])
                 ],
-                PackagedFontAssetFactory.Create());
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
 
         PlatformBuildManifest manifest = service.Cook(
             CreateGameCubeTexturePlatformDefinition(),

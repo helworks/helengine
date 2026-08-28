@@ -45,7 +45,10 @@ namespace helengine.editor {
             // Keep it immediately after project resolution so no renderer,
             // configuration, or background worker can observe an unresolved
             // project namespace.
-            using IEditorProjectAuthoringSession authoring = AuthoringSessionFactory.CreateSession(bootstrap.ProjectRootPath);
+            using GeneratedAssetProviderRegistry generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
+            using IEditorProjectAuthoringSession authoring = AuthoringSessionFactory.CreateSession(
+                bootstrap.ProjectRootPath,
+                generatedAssetProviderRegistry);
             using DirectX11Renderer3D renderer3D = new DirectX11Renderer3D();
             using EditorCore core = new EditorCore(null);
             CoreInitializationOptions initializationOptions = new CoreInitializationOptions {
@@ -54,8 +57,11 @@ namespace helengine.editor {
             PlatformInfo platformInfo = new PlatformInfo("editor", bootstrap.RequiredEngineVersion);
             core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
-            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
+            using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
+            using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
+            using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
+            generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
             ShaderCompileTarget runtimeTarget = ShaderCompileTarget.DirectX11;
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(

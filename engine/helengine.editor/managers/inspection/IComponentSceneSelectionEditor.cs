@@ -14,10 +14,11 @@ namespace helengine.editor {
         /// Creates the internal editor entity that visualizes the supplied component while its owner stays selected.
         /// </summary>
         /// <param name="render3D">Renderer used to build the visual's runtime resources.</param>
+        /// <param name="generatedMaterialCache">Session-owned generated material cache used by the visual.</param>
         /// <param name="selectedEntity">Currently selected entity that owns the component.</param>
         /// <param name="component">Component being visualized.</param>
         /// <returns>Owned internal visual entity.</returns>
-        EditorEntity CreateSelectionVisual(RenderManager3D render3D, Entity selectedEntity, Component component);
+        EditorEntity CreateSelectionVisual(RenderManager3D render3D, EngineGeneratedMaterialCache generatedMaterialCache, Entity selectedEntity, Component component);
 
         /// <summary>
         /// Synchronizes one previously created visual with the live component and owner transform.

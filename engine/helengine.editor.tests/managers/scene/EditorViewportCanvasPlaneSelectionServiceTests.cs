@@ -5,7 +5,8 @@ namespace helengine.editor.tests.managers.scene {
     /// <summary>
     /// Verifies viewport canvas-plane clicks resolve back into the shared 2D interactable selection path.
     /// </summary>
-    public class EditorViewportCanvasPlaneSelectionServiceTests {
+    public class EditorViewportCanvasPlaneSelectionServiceTests : IDisposable {
+        TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Ensures a pointer that hits the world-space plane selects the matching 2D scene entity on the simulated canvas.
         /// </summary>
@@ -72,6 +73,12 @@ namespace helengine.editor.tests.managers.scene {
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            Core.Instance?.Dispose();
         }
 
         /// <summary>
@@ -131,7 +138,7 @@ namespace helengine.editor.tests.managers.scene {
             var settings = new EditorViewportCanvasPreviewSettings {
                 PixelsPerWorldUnit = pixelsPerWorldUnit
             };
-            var previewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D);
+            var previewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary);
             cameraEntity.AddComponent(previewComponent);
             previewComponent.Update();
             return previewComponent;

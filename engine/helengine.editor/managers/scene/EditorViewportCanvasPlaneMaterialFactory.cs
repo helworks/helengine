@@ -30,16 +30,19 @@ namespace helengine.editor {
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <param name="canvasTexture">Sampleable render target texture used by the preview plane.</param>
         /// <returns>Runtime material configured to sample the preview canvas texture.</returns>
-        public static RuntimeMaterial Create(RenderManager3D render3D, RuntimeTexture canvasTexture) {
+        public static RuntimeMaterial Create(RenderManager3D render3D, RuntimeTexture canvasTexture, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
             if (canvasTexture == null) {
                 throw new ArgumentNullException(nameof(canvasTexture));
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
             ShaderCompileTarget target = ResolveTarget(render3D);
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, ShaderFileName);
+            ShaderAsset shaderAsset = builtInShaderLibrary.Load(target, ShaderFileName);
             var materialAsset = new ShaderMaterialAsset {
                 Id = MaterialAssetId,
                 ShaderAssetId = shaderAsset.Id,

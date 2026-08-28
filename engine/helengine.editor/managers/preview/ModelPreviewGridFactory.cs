@@ -18,16 +18,19 @@ namespace helengine.editor {
         /// <param name="render3D">Renderer used to create the grid's runtime resources.</param>
         /// <param name="sideLength">Side length of the square grid in model world units.</param>
         /// <returns>Configured internal grid entity.</returns>
-        public static EditorEntity Create(RenderManager3D render3D, float sideLength) {
+        public static EditorEntity Create(RenderManager3D render3D, float sideLength, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
             if (sideLength <= 0f) {
                 throw new ArgumentOutOfRangeException(nameof(sideLength), "Preview grid side length must be greater than zero.");
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
             RuntimeModel gridModel = render3D.BuildModelFromRaw(TransformGizmoMeshFactory.CreateCenteredPlaneSquare(sideLength));
-            RuntimeMaterial gridMaterial = EditorViewportGridMaterialFactory.Create(render3D);
+            RuntimeMaterial gridMaterial = EditorViewportGridMaterialFactory.Create(render3D, builtInShaderLibrary);
             var gridEntity = new EditorEntity {
                 Name = GridEntityName,
                 Hidden = true,

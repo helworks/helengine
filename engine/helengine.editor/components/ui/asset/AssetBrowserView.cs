@@ -178,8 +178,9 @@ namespace helengine.editor {
             byte rowBackgroundOrder,
             byte iconBackgroundOrder,
             byte textOrder,
-            bool includeGeneratedEntries = true,
-            IFocusGroup focusGroup = null)
+            bool includeGeneratedEntries,
+            IFocusGroup focusGroup,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
             : this(
                 font,
                 EditorUiMetrics.Default,
@@ -191,7 +192,7 @@ namespace helengine.editor {
                 textOrder,
                 includeGeneratedEntries,
                 focusGroup,
-                null) {
+                new AssetBrowserDataSource(new EditorAssetManager(projectPath), generatedAssetProviders, includeGeneratedEntries)) {
         }
 
         /// <summary>
@@ -216,8 +217,9 @@ namespace helengine.editor {
             byte rowBackgroundOrder,
             byte iconBackgroundOrder,
             byte textOrder,
-            bool includeGeneratedEntries = true,
-            IFocusGroup focusGroup = null)
+            bool includeGeneratedEntries,
+            IFocusGroup focusGroup,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
             : this(
                 font,
                 metrics,
@@ -229,7 +231,7 @@ namespace helengine.editor {
                 textOrder,
                 includeGeneratedEntries,
                 focusGroup,
-                null) {
+                new AssetBrowserDataSource(new EditorAssetManager(projectPath), generatedAssetProviders, includeGeneratedEntries)) {
         }
 
         /// <summary>
@@ -270,7 +272,7 @@ namespace helengine.editor {
 
             Font = font;
             Metrics = metrics;
-            DataSource = dataSource ?? new AssetBrowserDataSource(projectPath, includeGeneratedEntries);
+            DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
             ToolbarOrder = toolbarOrder;
             RowBackgroundOrder = rowBackgroundOrder;
             IconBackgroundOrder = iconBackgroundOrder;

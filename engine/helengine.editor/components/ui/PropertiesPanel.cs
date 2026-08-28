@@ -705,6 +705,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Routes generated asset resolution through the owning session registry.
+        /// </summary>
+        internal void SetGeneratedAssetProviderRegistry(GeneratedAssetProviderRegistry generatedAssetProviders) {
+            ComponentView.SetGeneratedAssetProviderRegistry(generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders)));
+        }
+
+        /// <summary>
         /// Shows import settings for the specified asset entry.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>

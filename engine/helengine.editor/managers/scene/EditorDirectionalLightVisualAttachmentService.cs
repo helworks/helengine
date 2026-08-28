@@ -8,9 +8,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entity">Scene entity that may represent a directional light.</param>
         /// <returns>True when the visual component was added; otherwise false.</returns>
-        public static bool Attach(EditorEntity entity) {
+        public static bool Attach(EditorEntity entity, EngineGeneratedMaterialCache generatedMaterialCache) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
+            }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
             }
 
             if (!HasComponent<DirectionalLightComponent>(entity)) {
@@ -30,7 +33,7 @@ namespace helengine.editor {
                 Name = "Directional Light Visual"
             };
 
-            visualEntity.AddComponent(new EditorDirectionalLightVisualComponent());
+            visualEntity.AddComponent(new EditorDirectionalLightVisualComponent(generatedMaterialCache));
             entity.AddChild(visualEntity);
             return true;
         }

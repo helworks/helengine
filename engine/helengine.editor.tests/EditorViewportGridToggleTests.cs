@@ -8,7 +8,8 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies viewport-local grid toggle behavior through the viewport settings overlay.
     /// </summary>
-    public class EditorViewportGridToggleTests {
+    public class EditorViewportGridToggleTests : IDisposable {
+        TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Ensures the overlay grid toggle target adds and removes only the scene-grid layer.
         /// </summary>
@@ -57,11 +58,17 @@ namespace helengine.editor.tests {
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
             EditorKeyboardFocusService.Reset();
             TransformGizmoSnapSettingsService.ResetDefaults();
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph?.Dispose();
+            Core.Instance?.Dispose();
         }
 
         /// <summary>
@@ -79,7 +86,10 @@ namespace helengine.editor.tests {
                 camera,
                 CreateFont(),
                 CreateFont(),
-                CreateToolbarIcons());
+                CreateToolbarIcons(),
+                new EditorSceneCanvasProfileState(),
+                EditorUiMetrics.Default,
+                GeneratedAssetGraph.ShaderLibrary);
             viewport.Position = new float3(20f, 20f, 0f);
             viewport.Size = new int2(400, 280);
             return viewport;

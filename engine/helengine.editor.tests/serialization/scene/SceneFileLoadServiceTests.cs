@@ -15,6 +15,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// Temporary project root used by scene load tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly EditorCore CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes a temporary project root and the core services required for scene loading.
@@ -23,22 +25,22 @@ namespace helengine.editor.tests.serialization.scene {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-file-load-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
 
-            EditorCore core = new EditorCore(new Project {
+            CoreValue = new EditorCore(new Project {
                 Name = "Scene File Load",
                 Path = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
-            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
-            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
-            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -76,7 +78,7 @@ namespace helengine.editor.tests.serialization.scene {
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
             resolver.RegisterModel(modelReference, runtimeModel);
             resolver.RegisterMaterial(materialReference, runtimeMaterial);
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver);
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver, GeneratedAssetGraph.MaterialCache);
 
             LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
@@ -119,7 +121,7 @@ namespace helengine.editor.tests.serialization.scene {
                     ShadowDistance = 222f,
                     PostProcessTier = PostProcessTier.Low
                 }));
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), new TestSceneAssetReferenceResolver());
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
 
             LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
@@ -159,7 +161,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAssetReference materialReference = CreateGeneratedMaterialReference();
             string scenePath = SaveSceneAsset("BrokenMaterialization.helen", "Transient Root", modelReference, materialReference);
             ComponentPersistenceRegistry registry = CreatePersistenceRegistry();
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, registry, new TestSceneAssetReferenceResolver());
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity existing = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("Existing"));
 
             Assert.Throws<InvalidOperationException>(() => loadService.Load(scenePath));
@@ -240,7 +242,7 @@ namespace helengine.editor.tests.serialization.scene {
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
             resolver.RegisterModel(modelReference, new TestRuntimeModel());
             resolver.RegisterMaterial(materialReference, new TestRuntimeMaterial());
-            return new SceneFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver);
+            return new SceneFileLoadService(TempProjectRootPath, CreatePersistenceRegistry(), resolver, GeneratedAssetGraph.MaterialCache);
         }
 
         /// <summary>

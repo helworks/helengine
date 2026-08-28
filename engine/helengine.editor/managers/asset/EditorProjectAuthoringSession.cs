@@ -44,6 +44,24 @@ namespace helengine.editor {
         readonly IEditorProjectAssetAuthoringService AssetAuthoringService;
 
         /// <summary>
+        /// Generated provider registry owned by this project session and borrowed by its scene resolver.
+        /// </summary>
+        readonly GeneratedAssetProviderRegistry GeneratedAssetProviders;
+
+        /// <summary>
+        /// Indicates whether this project session owns the generated provider registry.
+        /// Editor and CLI composition roots borrow their graph registry so every
+        /// generated-asset consumer resolves through the same scope.
+        /// </summary>
+        readonly bool OwnsGeneratedAssetProviders;
+
+        /// <summary>
+        /// Indicates whether this session created and therefore releases the
+        /// import manager and its content manager at disposal.
+        /// </summary>
+        readonly bool OwnsAssetImportManager;
+
+        /// <summary>
         /// Stable native writer sharing this session's identity index and hash cache.
         /// </summary>
         readonly EditorNativeAssetWriteService NativeAssetWriteService;
@@ -74,7 +92,8 @@ namespace helengine.editor {
         bool IsDisposing;
 
         /// <summary>
-        /// Creates a host-configured project session and registers the supplied importers on its import manager.
+        /// Creates a host-configured project session and registers the supplied importers on its import manager
+        /// after transaction recovery and identity-index initialization have completed.
         /// </summary>
         /// <param name="projectRootPath">Project root path.</param>
         /// <param name="importers">Importer registrations supplied by the editor host.</param>
@@ -83,15 +102,31 @@ namespace helengine.editor {
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
             ContentManager contentManager)
-            : this(CreateDependencies(CreateAssetImportManager(projectRootPath, importers, contentManager))) {
+            : this(CreateDependencies(
+                CreateAssetImportManager(projectRootPath, importers, contentManager),
+                manager => RegisterImporters(manager, importers)),
+                null,
+                true) {
         }
 
         /// <summary>
-        /// Creates a project session over an import manager already owned by an editor host.
+        /// Creates a project session over an import manager and, when supplied,
+        /// a graph registry owned by the enclosing editor or CLI invocation.
+        /// Importer configuration is deferred until recovery and index startup
+        /// have completed.
         /// </summary>
         /// <param name="assetImportManager">Host-owned import manager for the project.</param>
-        internal static EditorProjectAuthoringSession CreateFromManager(AssetImportManager assetImportManager) {
-            return new EditorProjectAuthoringSession(CreateDependencies(assetImportManager));
+        /// <param name="generatedAssetProviders">Scoped provider registry borrowed from the enclosing graph.</param>
+        /// <param name="configureImporters">Host importer configuration invoked after recovery and index startup.</param>
+        internal static EditorProjectAuthoringSession CreateFromManager(
+            AssetImportManager assetImportManager,
+            GeneratedAssetProviderRegistry generatedAssetProviders = null,
+            Action<AssetImportManager> configureImporters = null,
+            bool ownsAssetImportManager = false) {
+            return new EditorProjectAuthoringSession(
+                CreateDependencies(assetImportManager, configureImporters),
+                generatedAssetProviders,
+                ownsAssetImportManager);
         }
 
         /// <summary>
@@ -116,7 +151,10 @@ namespace helengine.editor {
         /// Initializes one project session over explicitly composed project services.
         /// </summary>
         /// <param name="dependencies">Explicit services and lifetime owned by this session.</param>
-        EditorProjectAuthoringSession(SessionDependencies dependencies) {
+        EditorProjectAuthoringSession(
+            SessionDependencies dependencies,
+            GeneratedAssetProviderRegistry generatedAssetProviders = null,
+            bool ownsAssetImportManager = false) {
             if (dependencies == null) {
                 throw new ArgumentNullException(nameof(dependencies));
             }
@@ -138,7 +176,10 @@ namespace helengine.editor {
             }
             NativeAssetWriteService = dependencies.NativeAssetWriteService;
             ReferenceResolver.AttachReadSynchronizer(NativeAssetWriteService);
-            AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService);
+            GeneratedAssetProviders = generatedAssetProviders ?? new GeneratedAssetProviderRegistry();
+            OwnsGeneratedAssetProviders = generatedAssetProviders == null;
+            OwnsAssetImportManager = ownsAssetImportManager;
+            AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService, GeneratedAssetProviders);
         }
 
         /// <summary>
@@ -543,6 +584,13 @@ namespace helengine.editor {
                 }
                 activeTransaction?.Dispose();
                 Lifetime.Dispose();
+                if (OwnsGeneratedAssetProviders) {
+                    GeneratedAssetProviders.Dispose();
+                }
+                if (OwnsAssetImportManager) {
+                    AssetImportManagerValue.Dispose();
+                    AssetImportManagerValue.ContentManager.Dispose();
+                }
                 lock (TransactionGate) {
                     IsDisposed = true;
                     IsDisposing = false;
@@ -584,7 +632,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetImportManager">Host import manager borrowed by the session.</param>
         /// <returns>Explicit project service composition.</returns>
-        static SessionDependencies CreateDependencies(AssetImportManager assetImportManager) {
+        static SessionDependencies CreateDependencies(
+            AssetImportManager assetImportManager,
+            Action<AssetImportManager> configureImporters = null) {
             string projectRootPath = ResolveProjectRootPath(assetImportManager);
             EditorAssetRepairReport repairReport = new EditorAssetRepairReport();
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
@@ -616,6 +666,7 @@ namespace helengine.editor {
                     hashCache,
                     nativeAssetWriteService);
                 lifetime = new EditorAuthoringSessionLifetime(resources);
+                configureImporters?.Invoke(assetImportManager);
                 // Importer settings are generated only after recovery and the first
                 // current-format identity index have been established.
                 assetImportManager.GenerateMissingImportSettings();
@@ -688,6 +739,8 @@ namespace helengine.editor {
 
         /// <summary>
         /// Creates the host import manager used by the public constructor.
+        /// Importer registration is intentionally performed by the authoring
+        /// boundary after recovery and identity-index initialization.
         /// </summary>
         /// <param name="projectRootPath">Project root path.</param>
         /// <param name="importers">Host importer registrations.</param>
@@ -705,17 +758,35 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(contentManager));
             }
 
-            AssetImportManager manager = new AssetImportManager(Path.GetFullPath(projectRootPath), contentManager);
+            for (int index = 0; index < importers.Count; index++) {
+                if (importers[index] == null) {
+                    throw new InvalidOperationException("Host importer registrations must not contain null entries.");
+                }
+            }
+
+            return new AssetImportManager(Path.GetFullPath(projectRootPath), contentManager);
+        }
+
+        /// <summary>
+        /// Registers host importers at the explicit authoring startup boundary.
+        /// </summary>
+        static void RegisterImporters(
+            AssetImportManager assetImportManager,
+            IReadOnlyList<IAssetImporterRegistration> importers) {
+            if (assetImportManager == null) {
+                throw new ArgumentNullException(nameof(assetImportManager));
+            } else if (importers == null) {
+                throw new ArgumentNullException(nameof(importers));
+            }
+
             for (int index = 0; index < importers.Count; index++) {
                 IAssetImporterRegistration importer = importers[index];
                 if (importer == null) {
                     throw new InvalidOperationException("Host importer registrations must not contain null entries.");
                 }
 
-                importer.Register(manager);
+                importer.Register(assetImportManager);
             }
-
-            return manager;
         }
 
         /// <summary>

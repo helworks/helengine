@@ -12,6 +12,8 @@ namespace helengine {
         /// Authored viewport component mirrored by this border gizmo.
         /// </summary>
         readonly ViewportComponent SourceViewportComponentValue;
+        /// <summary>Session-owned built-in shader library used by the border material.</summary>
+        readonly helengine.editor.EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Runtime material owned by this border gizmo.
@@ -23,9 +25,10 @@ namespace helengine {
         /// </summary>
         /// <param name="sourceEntity">Authored entity that owns the viewport component.</param>
         /// <param name="sourceViewportComponent">Viewport component mirrored by the gizmo.</param>
-        public EditorViewportBorderGizmoComponent(Entity sourceEntity, ViewportComponent sourceViewportComponent) {
+        public EditorViewportBorderGizmoComponent(Entity sourceEntity, ViewportComponent sourceViewportComponent, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             SourceEntityValue = sourceEntity ?? throw new ArgumentNullException(nameof(sourceEntity));
             SourceViewportComponentValue = sourceViewportComponent ?? throw new ArgumentNullException(nameof(sourceViewportComponent));
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
         }
 
         /// <summary>
@@ -47,7 +50,7 @@ namespace helengine {
             gizmoEntity.InternalEntity = true;
             gizmoEntity.LayerMask = helengine.editor.EditorLayerMasks.SceneObjects;
             Model = helengine.editor.EditorViewportBorderGizmoMeshResources.GetRuntimeModel();
-            BorderMaterialValue = helengine.editor.EditorViewportBorderGizmoMaterialFactory.Create(Core.Instance.RenderManager3D);
+            BorderMaterialValue = helengine.editor.EditorViewportBorderGizmoMaterialFactory.Create(Core.Instance.RenderManager3D, BuiltInShaderLibrary);
             Materials = new[] { BorderMaterialValue };
             base.ComponentAdded(entity);
             SynchronizeFromSource();

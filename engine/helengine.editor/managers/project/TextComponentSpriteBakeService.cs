@@ -19,6 +19,8 @@ namespace helengine.editor {
         /// Renderer used to allocate and draw the offscreen capture scene.
         /// </summary>
         readonly RenderManager3D RenderManager3D;
+        /// <summary>Session-owned built-in shader library used by exact preview capture.</summary>
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Render-target reader used to read one captured preview target back into a raw texture asset.
@@ -60,7 +62,8 @@ namespace helengine.editor {
             string assetsRootPath,
             ContentManager projectContentManager,
             AssetImportManager assetImportManager,
-            FontAsset defaultEditorFontAsset) {
+            FontAsset defaultEditorFontAsset,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
             RenderTargetTextureAssetReader = renderTargetTextureAssetReader ?? throw new ArgumentNullException(nameof(renderTargetTextureAssetReader));
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
@@ -69,6 +72,7 @@ namespace helengine.editor {
             ProjectContentManager = projectContentManager ?? throw new ArgumentNullException(nameof(projectContentManager));
             AssetImportManager = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             DefaultEditorFontAsset = defaultEditorFontAsset ?? throw new ArgumentNullException(nameof(defaultEditorFontAsset));
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
         }
 
         /// <summary>
@@ -85,7 +89,7 @@ namespace helengine.editor {
             string stableKey = ComputeStableKey(request);
             string generatedTextureAssetId = string.Concat("generated:text-sprite:", stableKey);
 
-            using EditorExact2DPreviewCaptureService captureService = new EditorExact2DPreviewCaptureService(RenderManager3D);
+            using EditorExact2DPreviewCaptureService captureService = new EditorExact2DPreviewCaptureService(RenderManager3D, BuiltInShaderLibrary);
             Entity sourceEntity = new Entity();
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();

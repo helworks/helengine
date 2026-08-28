@@ -7,17 +7,19 @@ namespace helengine.editor {
         /// Stores the absolute project assets root scanned for authored HLSL files.
         /// </summary>
         readonly string AssetsRootPath;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Initializes one resolver for a project assets root.
         /// </summary>
         /// <param name="assetsRootPath">Absolute project assets root containing authored shader source files.</param>
-        public EditorProjectShaderSourceResolver(string assetsRootPath) {
+        public EditorProjectShaderSourceResolver(string assetsRootPath, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (string.IsNullOrWhiteSpace(assetsRootPath)) {
                 throw new ArgumentException("Project assets root is required.", nameof(assetsRootPath));
             }
 
             AssetsRootPath = Path.GetFullPath(assetsRootPath);
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
         }
 
         /// <summary>
@@ -77,13 +79,13 @@ namespace helengine.editor {
         /// <param name="shaderAssetId">Shader asset identifier to resolve.</param>
         /// <param name="projectPathsByAssetId">Discovered project source paths keyed by asset id.</param>
         /// <returns>Absolute HLSL source path.</returns>
-        static string ResolveSourcePath(string shaderAssetId, IReadOnlyDictionary<string, string> projectPathsByAssetId) {
+        string ResolveSourcePath(string shaderAssetId, IReadOnlyDictionary<string, string> projectPathsByAssetId) {
             if (projectPathsByAssetId.TryGetValue(shaderAssetId, out string projectSourcePath)) {
                 return projectSourcePath;
             }
 
             try {
-                return EditorBuiltInShaderAssetLibrary.ResolveShaderPath(ResolveBuiltInShaderFileName(shaderAssetId));
+                return BuiltInShaderLibrary.ResolveShaderPath(ResolveBuiltInShaderFileName(shaderAssetId));
             } catch (FileNotFoundException exception) {
                 throw new InvalidOperationException($"Shader asset id '{shaderAssetId}' could not be resolved to an authored or built-in HLSL source file.", exception);
             }

@@ -7,12 +7,15 @@ namespace helengine {
         /// Preview proxies currently created by this synchronizer, keyed by authored source entity.
         /// </summary>
         readonly Dictionary<Entity, EditorEntity> OwnedPreviewEntitiesBySourceEntity;
+        /// <summary>Session-owned built-in shader library used by preview proxies.</summary>
+        readonly helengine.editor.EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Initializes one world-space preview synchronizer.
         /// </summary>
-        public EditorWorldSpace2DPreviewSyncComponent() {
+        public EditorWorldSpace2DPreviewSyncComponent(helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             OwnedPreviewEntitiesBySourceEntity = new Dictionary<Entity, EditorEntity>();
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
         }
 
         /// <summary>
@@ -114,11 +117,11 @@ namespace helengine {
         /// <returns>Typed preview component ready to attach to the preview entity.</returns>
         EditorWorldSpace2DPreviewComponentBase CreatePreviewComponent(Entity sourceEntity, Component sourceComponent) {
             if (sourceComponent is SpriteComponent spriteComponent) {
-                return new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+                return new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, BuiltInShaderLibrary);
             } else if (sourceComponent is TextComponent textComponent) {
-                return new EditorTextWorldPreviewComponent(sourceEntity, textComponent);
+                return new EditorTextWorldPreviewComponent(sourceEntity, textComponent, BuiltInShaderLibrary);
             } else if (sourceComponent is RoundedRectComponent roundedRectComponent) {
-                return new EditorRoundedRectWorldPreviewComponent(sourceEntity, roundedRectComponent);
+                return new EditorRoundedRectWorldPreviewComponent(sourceEntity, roundedRectComponent, BuiltInShaderLibrary);
             }
 
             throw new InvalidOperationException($"Unsupported 2D preview source component type '{sourceComponent.GetType().FullName}'.");

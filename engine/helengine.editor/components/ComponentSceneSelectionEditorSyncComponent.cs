@@ -7,6 +7,8 @@ namespace helengine {
         /// Renderer used to build selection visual resources.
         /// </summary>
         readonly RenderManager3D Render3D;
+        /// <summary>Session-owned generated material cache used by selection visuals.</summary>
+        readonly helengine.editor.EngineGeneratedMaterialCache GeneratedMaterialCache;
 
         /// <summary>
         /// Live visuals keyed by the visualized component instance.
@@ -22,8 +24,9 @@ namespace helengine {
         /// Initializes one selection visual synchronizer.
         /// </summary>
         /// <param name="render3D">Renderer used to build selection visual resources.</param>
-        public ComponentSceneSelectionEditorSyncComponent(RenderManager3D render3D) {
+        public ComponentSceneSelectionEditorSyncComponent(RenderManager3D render3D, helengine.editor.EngineGeneratedMaterialCache generatedMaterialCache) {
             Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
+            GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
             ActiveVisualsByComponent = new Dictionary<Component, ActiveSelectionVisual>();
         }
 
@@ -81,7 +84,7 @@ namespace helengine {
                     }
 
                     if (!ActiveVisualsByComponent.TryGetValue(component, out ActiveSelectionVisual activeVisual)) {
-                        activeVisual = new ActiveSelectionVisual(editor, editor.CreateSelectionVisual(Render3D, visualizedEntity, component));
+                        activeVisual = new ActiveSelectionVisual(editor, editor.CreateSelectionVisual(Render3D, GeneratedMaterialCache, visualizedEntity, component));
                         ActiveVisualsByComponent[component] = activeVisual;
                     }
 

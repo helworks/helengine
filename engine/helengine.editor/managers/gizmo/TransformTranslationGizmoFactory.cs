@@ -70,12 +70,12 @@ namespace helengine.editor {
         /// <param name="sceneCamera">Scene camera used for gizmo distance scaling.</param>
         /// <param name="gizmoMaterial">Material used by gizmo meshes.</param>
         /// <returns>Created gizmo root entity.</returns>
-        public static EditorEntity Create(RenderManager3D render3D, CameraComponent sceneCamera, RuntimeMaterial gizmoMaterial) {
+        public static EditorEntity Create(RenderManager3D render3D, CameraComponent sceneCamera, RuntimeMaterial gizmoMaterial, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (gizmoMaterial == null) {
                 throw new ArgumentNullException(nameof(gizmoMaterial));
             }
 
-            return Create(render3D, sceneCamera, gizmoMaterial, gizmoMaterial, gizmoMaterial, gizmoMaterial);
+            return Create(render3D, sceneCamera, gizmoMaterial, gizmoMaterial, gizmoMaterial, gizmoMaterial, builtInShaderLibrary);
         }
 
         /// <summary>
@@ -90,8 +90,9 @@ namespace helengine.editor {
             RenderManager3D render3D,
             CameraComponent sceneCamera,
             RuntimeMaterial gizmoMaterial,
-            RuntimeMaterial gizmoHighlightMaterial) {
-            return Create(render3D, sceneCamera, gizmoMaterial, gizmoHighlightMaterial, gizmoMaterial, gizmoHighlightMaterial);
+            RuntimeMaterial gizmoHighlightMaterial,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            return Create(render3D, sceneCamera, gizmoMaterial, gizmoHighlightMaterial, gizmoMaterial, gizmoHighlightMaterial, builtInShaderLibrary);
         }
 
         /// <summary>
@@ -110,7 +111,8 @@ namespace helengine.editor {
             RuntimeMaterial gizmoMaterial,
             RuntimeMaterial gizmoHighlightMaterial,
             RuntimeMaterial planeMaterial,
-            RuntimeMaterial planeHighlightMaterial) {
+            RuntimeMaterial planeHighlightMaterial,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
@@ -133,6 +135,9 @@ namespace helengine.editor {
 
             if (planeHighlightMaterial == null) {
                 throw new ArgumentNullException(nameof(planeHighlightMaterial));
+            }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
             }
 
             ModelAsset xShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
@@ -165,7 +170,7 @@ namespace helengine.editor {
             RuntimeModel xzPlaneModel = render3D.BuildModelFromRaw(xzPlaneAsset);
             RuntimeModel yzPlaneModel = render3D.BuildModelFromRaw(yzPlaneAsset);
             RuntimeModel snapPreviewModel = render3D.BuildModelFromRaw(TransformGizmoMeshFactory.CreateCenteredPlaneSquare(TransformGizmoGridPreviewMaterialFactory.PreviewCellSpan));
-            RuntimeMaterial snapPreviewMaterial = TransformGizmoGridPreviewMaterialFactory.Create(render3D);
+            RuntimeMaterial snapPreviewMaterial = TransformGizmoGridPreviewMaterialFactory.Create(render3D, builtInShaderLibrary);
 
             EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewModel, snapPreviewMaterial);
 

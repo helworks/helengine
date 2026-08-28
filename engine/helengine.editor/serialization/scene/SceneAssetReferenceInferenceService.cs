@@ -31,6 +31,10 @@ namespace helengine.editor {
         readonly EditorAssetReferenceResolver AssetReferenceResolver;
         /// <summary>Indicates whether this service created and owns its resolver.</summary>
         readonly bool OwnsAssetReferenceResolver;
+        /// <summary>Session-owned generated model cache used for identity inference.</summary>
+        readonly EngineGeneratedModelCache GeneratedModelCache;
+        /// <summary>Session-owned generated material cache used for identity inference.</summary>
+        readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
 
         /// <summary>
         /// Cached authored model source paths keyed by their stable imported model asset id.
@@ -65,7 +69,9 @@ namespace helengine.editor {
         /// <param name="referenceResolver">Resolver shared by the owning authoring session.</param>
         internal SceneAssetReferenceInferenceService(
             string projectRootPath,
-            EditorAssetReferenceResolver referenceResolver) {
+            EditorAssetReferenceResolver referenceResolver,
+            EngineGeneratedModelCache generatedModelCache = null,
+            EngineGeneratedMaterialCache generatedMaterialCache = null) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -79,6 +85,8 @@ namespace helengine.editor {
             MaterialAssetSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
             AssetReferenceResolver = referenceResolver;
             OwnsAssetReferenceResolver = false;
+            GeneratedModelCache = generatedModelCache;
+            GeneratedMaterialCache = generatedMaterialCache;
         }
 
         /// <summary>
@@ -246,15 +254,15 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(runtimeModel));
             }
 
-            if (ReferenceEquals(runtimeModel, EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId))) {
+            if (GeneratedModelCache != null && ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId))) {
                 reference = global::helengine.EngineSceneAssetReferenceFactory.CreateCubeModel();
                 return true;
             }
-            if (ReferenceEquals(runtimeModel, EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.PlaneAssetId))) {
+            if (GeneratedModelCache != null && ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.PlaneAssetId))) {
                 reference = global::helengine.EngineSceneAssetReferenceFactory.CreatePlaneModel();
                 return true;
             }
-            if (ReferenceEquals(runtimeModel, EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.SphereAssetId))) {
+            if (GeneratedModelCache != null && ReferenceEquals(runtimeModel, GeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.SphereAssetId))) {
                 reference = global::helengine.EngineSceneAssetReferenceFactory.CreateSphereModel();
                 return true;
             }
@@ -302,10 +310,10 @@ namespace helengine.editor {
             }
 
             RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
-            RuntimeMaterial standardMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
-            if (ReferenceEquals(rootMaterial, standardMaterial) ||
+            RuntimeMaterial standardMaterial = GeneratedMaterialCache?.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+            if (standardMaterial != null && (ReferenceEquals(rootMaterial, standardMaterial) ||
                 ReferenceEquals(runtimeMaterial, standardMaterial) ||
-                string.Equals(rootMaterial.Id, BuiltInMaterialIds.StandardRuntimeMaterialAssetId, StringComparison.Ordinal)) {
+                string.Equals(rootMaterial.Id, BuiltInMaterialIds.StandardRuntimeMaterialAssetId, StringComparison.Ordinal))) {
                 reference = global::helengine.EngineSceneAssetReferenceFactory.CreateStandardMaterial();
                 return true;
             }

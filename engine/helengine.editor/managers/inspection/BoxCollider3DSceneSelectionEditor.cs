@@ -24,12 +24,15 @@ namespace helengine.editor {
         /// <param name="selectedEntity">Currently selected entity that owns the collider.</param>
         /// <param name="component">Box collider being visualized.</param>
         /// <returns>Owned internal wireframe entity.</returns>
-        public EditorEntity CreateSelectionVisual(RenderManager3D render3D, Entity selectedEntity, Component component) {
+        public EditorEntity CreateSelectionVisual(RenderManager3D render3D, EngineGeneratedMaterialCache generatedMaterialCache, Entity selectedEntity, Component component) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
 
-            EditorEntity visualEntity = ComponentSelectionWireframeFactory.CreateUnitLineBox(render3D, "Box Collider Selection Wireframe", ColliderWireframeRenderOrder3D);
+            EditorEntity visualEntity = ComponentSelectionWireframeFactory.CreateUnitLineBox(render3D, generatedMaterialCache, "Box Collider Selection Wireframe", ColliderWireframeRenderOrder3D);
             UpdateSelectionVisual(visualEntity, selectedEntity, component);
             return visualEntity;
         }

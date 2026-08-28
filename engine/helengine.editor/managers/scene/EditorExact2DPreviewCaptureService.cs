@@ -7,6 +7,8 @@ namespace helengine.editor {
         /// Renderer used to allocate render targets and preview materials.
         /// </summary>
         readonly RenderManager3D Render3D;
+        /// <summary>Session-owned built-in shader library used by the preview material.</summary>
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Hidden editor entity that owns the offscreen capture camera.
@@ -62,8 +64,9 @@ namespace helengine.editor {
         /// Initializes one exact 2D preview capture service.
         /// </summary>
         /// <param name="render3D">Renderer used to allocate preview resources.</param>
-        public EditorExact2DPreviewCaptureService(RenderManager3D render3D) {
+        public EditorExact2DPreviewCaptureService(RenderManager3D render3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             PreviewSizeValue = new int2(1, 1);
 
             PreviewCameraEntity = EditorExact2DPreviewSceneFactory.CreatePreviewCameraEntity();
@@ -71,7 +74,7 @@ namespace helengine.editor {
             PreviewCameraEntity.AddComponent(PreviewCameraComponentValue);
 
             PreviewContentEntity = EditorExact2DPreviewSceneFactory.CreatePreviewContentEntity();
-            PreviewMaterialValue = EditorExact2DPreviewMaterialFactory.Create(Render3D, TextureUtils.PixelTexture);
+            PreviewMaterialValue = EditorExact2DPreviewMaterialFactory.Create(Render3D, TextureUtils.PixelTexture, BuiltInShaderLibrary);
         }
 
         /// <summary>

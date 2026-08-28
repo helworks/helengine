@@ -133,8 +133,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
-        public OpenFileDialog(FontAsset font, string projectPath)
-            : this(font, EditorUiMetrics.Default, projectPath) {
+        public OpenFileDialog(FontAsset font, string projectPath, GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(font, EditorUiMetrics.Default, projectPath, generatedAssetProviders) {
         }
 
         /// <summary>
@@ -143,8 +143,12 @@ namespace helengine.editor {
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
-        public OpenFileDialog(FontAsset font, EditorUiMetrics metrics, string projectPath)
-            : this(font, metrics, projectPath, new AssetBrowserDataSource(projectPath, false)) {
+        public OpenFileDialog(
+            FontAsset font,
+            EditorUiMetrics metrics,
+            string projectPath,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(font, metrics, projectPath, new AssetBrowserDataSource(projectPath, generatedAssetProviders, false)) {
         }
 
         /// <summary>
@@ -154,12 +158,17 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
         /// <param name="referenceResolver">Session-owned resolver borrowed by this dialog browser.</param>
+        /// <summary>Initializes an open dialog over the session resolver and generated provider registry.</summary>
         internal OpenFileDialog(
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
-            EditorAssetReferenceResolver referenceResolver)
-            : this(font, metrics, projectPath, CreateBorrowedDataSource(projectPath, referenceResolver)) {
+            EditorAssetReferenceResolver referenceResolver,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(font, metrics, projectPath, new AssetBrowserDataSource(
+                new EditorAssetManager(projectPath, referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver))),
+                generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders)),
+                false)) {
         }
 
         /// <summary>
@@ -243,17 +252,6 @@ namespace helengine.editor {
 
             Enabled = false;
             IsInitialized = true;
-        }
-
-        /// <summary>
-        /// Creates one browser data source borrowing the supplied session resolver.
-        /// </summary>
-        static AssetBrowserDataSource CreateBorrowedDataSource(string projectPath, EditorAssetReferenceResolver referenceResolver) {
-            if (referenceResolver == null) {
-                throw new ArgumentNullException(nameof(referenceResolver));
-            }
-
-            return new AssetBrowserDataSource(new EditorAssetManager(projectPath, referenceResolver), false);
         }
 
         /// <summary>

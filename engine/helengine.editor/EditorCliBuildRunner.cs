@@ -45,8 +45,11 @@ namespace helengine.editor {
             // build configuration, importer, shader, or watcher work can
             // observe the project. The build owns this session for its full
             // lifetime, including the empty-prebuild case.
+            using GeneratedAssetProviderRegistry generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
             using IEditorProjectAuthoringSession authoringSession =
-                new EditorProjectAssetAuthoringServiceFactory(Importers).CreateSession(bootstrap.ProjectRootPath);
+                new EditorProjectAssetAuthoringServiceFactory(Importers).CreateSession(
+                    bootstrap.ProjectRootPath,
+                    generatedAssetProviderRegistry);
             EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options);
             if (!prebuildResult.Succeeded) {
                 return prebuildResult;
@@ -60,8 +63,11 @@ namespace helengine.editor {
             PlatformInfo platformInfo = new PlatformInfo("editor", bootstrap.RequiredEngineVersion);
             core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
-            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService, options.PlatformId);
+            using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
+            using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
+            using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
+            generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
             ShaderCompileTarget runtimeTarget = ResolveShaderCompileTarget(options.PlatformId);
             ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(runtimeTarget, new ShaderModel(4, 0));
             ShaderPackageBuildOptions shaderPackageBuildOptions = new ShaderPackageBuildOptions(
@@ -155,7 +161,8 @@ namespace helengine.editor {
                     platformDescriptor,
                     DefaultFontAsset,
                     null,
-                    assemblyHost.ScriptTypeResolver);
+                    assemblyHost.ScriptTypeResolver,
+                    builtInShaderAssetLibrary);
 
                 EditorBuildExecutionResult result = executor.Execute(queueItem);
                 if (result.Succeeded && options.UseCommonOutputDirectory) {

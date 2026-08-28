@@ -302,8 +302,8 @@ namespace helengine.editor.tests {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
 
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath);
-            SaveFileDialog saveFileDialog = new SaveFileDialog(CreateFont(), TempProjectRootPath);
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            SaveFileDialog saveFileDialog = new SaveFileDialog(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             SceneSavePathResolver pathResolver = new SceneSavePathResolver(TempProjectRootPath);
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             SceneSettingsAsset currentSceneSettings = new SceneSettingsAsset();

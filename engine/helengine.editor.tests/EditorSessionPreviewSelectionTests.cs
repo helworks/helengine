@@ -19,6 +19,7 @@ namespace helengine.editor.tests {
         /// Temporary assets root used by the import manager.
         /// </summary>
         readonly string AssetsRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required by the preview selection tests.
@@ -32,12 +33,14 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Deletes temporary project directories after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -158,7 +161,14 @@ namespace helengine.editor.tests {
             PreviewPanel previewPanel = new PreviewPanel(CreateFont());
             IReadOnlyList<string> supportedPlatforms = new List<string> { "windows" };
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, supportedPlatforms);
-            PreviewSourceResolver previewSourceResolver = new PreviewSourceResolver(assetImportManager, Core.Instance.RenderManager2D, Core.Instance.RenderManager3D);
+            PreviewSourceResolver previewSourceResolver = new PreviewSourceResolver(
+                assetImportManager,
+                Core.Instance.RenderManager2D,
+                Core.Instance.RenderManager3D,
+                new EditorSceneCanvasProfileState(),
+                GeneratedAssetGraph.Registry,
+                GeneratedAssetGraph.MaterialCache,
+                GeneratedAssetGraph.ShaderLibrary);
 
             SetPrivateField(session, "assetImportManager", assetImportManager);
             SetPrivateField(session, "propertiesPanel", propertiesPanel);

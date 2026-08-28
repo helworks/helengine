@@ -23,18 +23,24 @@ namespace helengine.editor {
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
+        /// Gets the session-owned built-in library borrowed by this package service.
+        /// </summary>
+        internal EditorBuiltInShaderAssetLibrary BuiltInShaderLibraryValue => BuiltInShaderLibrary;
+
+        /// <summary>
         /// Initializes the shader package service with the active module manager.
         /// </summary>
         /// <param name="shaderModuleManager">Module manager used for on-demand compilation.</param>
         /// <param name="runtimeTarget">Runtime target used by the active renderer.</param>
         /// <param name="contentManager">Content manager used to read compiled shader packages.</param>
-        public EditorShaderPackageService(string projectRootPath, ShaderModuleManager shaderModuleManager, ShaderCompileTarget runtimeTarget, ContentManager contentManager, ShaderBackendRegistry shaderBackendRegistry = null) {
+        /// <param name="builtInShaderLibrary">Session-owned library used for built-in shader fallback.</param>
+        public EditorShaderPackageService(string projectRootPath, ShaderModuleManager shaderModuleManager, ShaderCompileTarget runtimeTarget, ContentManager contentManager, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
             ModuleManager = shaderModuleManager ?? throw new ArgumentNullException(nameof(shaderModuleManager));
             PackageContentManager = contentManager ?? throw new ArgumentNullException(nameof(contentManager));
-            BuiltInShaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry ?? EditorBuiltInShaderAssetLibrary.CreateDefaultShaderBackendRegistry());
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             RuntimeTarget = runtimeTarget;
             ShaderCachePath = Path.GetFullPath(shaderModuleManager.PackageOutputPath);

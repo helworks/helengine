@@ -41,21 +41,6 @@ namespace helengine.editor {
         static readonly float2 ZAxisMarker = new float2(0.1f, 0.9f);
 
         /// <summary>
-        /// Creates a rotation gizmo using the same material for normal and highlighted states.
-        /// </summary>
-        /// <param name="render3D">Renderer used to build runtime mesh resources.</param>
-        /// <param name="sceneCamera">Scene camera used for gizmo distance scaling.</param>
-        /// <param name="gizmoMaterial">Material used by gizmo meshes.</param>
-        /// <returns>Created rotation gizmo root entity.</returns>
-        public static EditorEntity Create(RenderManager3D render3D, CameraComponent sceneCamera, RuntimeMaterial gizmoMaterial) {
-            if (gizmoMaterial == null) {
-                throw new ArgumentNullException(nameof(gizmoMaterial));
-            }
-
-            return Create(render3D, sceneCamera, gizmoMaterial, gizmoMaterial);
-        }
-
-        /// <summary>
         /// Creates a rotation gizmo root entity and registers it in the scene.
         /// </summary>
         /// <param name="render3D">Renderer used to build runtime mesh resources.</param>
@@ -67,8 +52,9 @@ namespace helengine.editor {
             RenderManager3D render3D,
             CameraComponent sceneCamera,
             RuntimeMaterial gizmoMaterial,
-            RuntimeMaterial gizmoHighlightMaterial) {
-            RuntimeMaterial snapPreviewMaterial = TransformGizmoRotationPreviewMaterialFactory.Create(render3D);
+            RuntimeMaterial gizmoHighlightMaterial,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            RuntimeMaterial snapPreviewMaterial = TransformGizmoRotationPreviewMaterialFactory.Create(render3D, builtInShaderLibrary);
             return Create(render3D, sceneCamera, gizmoMaterial, gizmoHighlightMaterial, snapPreviewMaterial);
         }
 

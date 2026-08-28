@@ -21,10 +21,9 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
-        /// Deletes temporary test state and clears provider registrations.
+        /// Deletes temporary test state.
         /// </summary>
         public void Dispose() {
-            GeneratedAssetProviderRegistry.ResetForTests();
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }
@@ -35,14 +34,15 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void LoadEntries_WhenAtRoot_MergesFileSystemAndGeneratedEntries() {
-            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+            using GeneratedAssetProviderRegistry registry = new GeneratedAssetProviderRegistry();
+            registry.Register(new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
                     AssetBrowserEntry.CreateGeneratedDirectory("Engine", "Engine", "engine")
                 },
                 new TestRuntimeModel()));
 
-            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(ProjectRootPath);
+            using AssetBrowserDataSource dataSource = new AssetBrowserDataSource(new EditorAssetManager(ProjectRootPath), registry);
             List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
 
             dataSource.LoadEntries(entries);
@@ -57,14 +57,15 @@ namespace helengine.editor.tests.managers.asset {
         [Fact]
         public void LoadEntries_WhenAtRoot_PinsGeneratedEngineFolderBeforeOtherDirectories() {
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Aardvark"));
-            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+            using GeneratedAssetProviderRegistry registry = new GeneratedAssetProviderRegistry();
+            registry.Register(new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
                     AssetBrowserEntry.CreateGeneratedDirectory("Engine", "Engine", "engine")
                 },
                 new TestRuntimeModel()));
 
-            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(ProjectRootPath);
+            using AssetBrowserDataSource dataSource = new AssetBrowserDataSource(new EditorAssetManager(ProjectRootPath), registry);
             List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
 
             dataSource.LoadEntries(entries);
@@ -80,7 +81,8 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void TryNavigateTo_WhenPathIsGenerated_DisablesFileCreation() {
-            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+            using GeneratedAssetProviderRegistry registry = new GeneratedAssetProviderRegistry();
+            registry.Register(new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
                     AssetBrowserEntry.CreateGeneratedDirectory("Engine", "Engine", "engine"),
@@ -88,7 +90,7 @@ namespace helengine.editor.tests.managers.asset {
                 },
                 new TestRuntimeModel()));
 
-            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(ProjectRootPath);
+            using AssetBrowserDataSource dataSource = new AssetBrowserDataSource(new EditorAssetManager(ProjectRootPath), registry);
 
             Assert.True(dataSource.TryNavigateTo("Engine"));
             Assert.False(dataSource.CanCreateFileSystemEntries);
@@ -99,14 +101,15 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void LoadEntries_WhenGeneratedRootsAreDisabled_DoesNotAppendGeneratedRoots() {
-            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+            using GeneratedAssetProviderRegistry registry = new GeneratedAssetProviderRegistry();
+            registry.Register(new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
                     AssetBrowserEntry.CreateGeneratedDirectory("Engine", "Engine", "engine")
                 },
                 new TestRuntimeModel()));
 
-            AssetBrowserDataSource dataSource = new AssetBrowserDataSource(ProjectRootPath, false);
+            using AssetBrowserDataSource dataSource = new AssetBrowserDataSource(new EditorAssetManager(ProjectRootPath), registry, false);
             List<AssetBrowserEntry> entries = new List<AssetBrowserEntry>();
 
             dataSource.LoadEntries(entries);

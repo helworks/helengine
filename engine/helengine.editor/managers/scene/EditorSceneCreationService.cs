@@ -7,6 +7,8 @@ namespace helengine.editor {
         /// Factory used to create authored scene entities for the active editor host.
         /// </summary>
         readonly IEntityFactory EntityFactory;
+        readonly EngineGeneratedModelCache ModelCache;
+        readonly EngineGeneratedMaterialCache MaterialCache;
 
         /// <summary>
         /// Stable save-state slot name used by mesh persistence for model references.
@@ -21,30 +23,11 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes one editor scene creation service.
         /// </summary>
-        public EditorSceneCreationService()
-            : this(ResolveEntityFactory()) {
-        }
-
-        /// <summary>
-        /// Initializes one editor scene creation service.
-        /// </summary>
         /// <param name="entityFactory">Factory used to create authored scene entities for the active editor host.</param>
-        public EditorSceneCreationService(IEntityFactory entityFactory) {
+        public EditorSceneCreationService(IEntityFactory entityFactory, EngineGeneratedModelCache modelCache, EngineGeneratedMaterialCache materialCache) {
             EntityFactory = entityFactory ?? throw new ArgumentNullException(nameof(entityFactory));
-        }
-
-        /// <summary>
-        /// Resolves the host-owned authored entity factory from the active core instance.
-        /// </summary>
-        /// <returns>Host-owned authored entity factory.</returns>
-        static IEntityFactory ResolveEntityFactory() {
-            if (Core.Instance == null) {
-                throw new InvalidOperationException("Editor scene creation requires Core.Instance before resolving EntityFactory.");
-            } else if (Core.Instance.EntityFactory == null) {
-                throw new InvalidOperationException("Editor scene creation requires Core.Instance.EntityFactory.");
-            }
-
-            return Core.Instance.EntityFactory;
+            ModelCache = modelCache ?? throw new ArgumentNullException(nameof(modelCache));
+            MaterialCache = materialCache ?? throw new ArgumentNullException(nameof(materialCache));
         }
 
         /// <summary>
@@ -173,7 +156,7 @@ namespace helengine.editor {
             };
             entity.AddComponent(cameraComponent);
             EditorSceneCameraSuppressionService.AttachAndSuppress(entity);
-            EditorCameraVisualAttachmentService.Attach(entity);
+            EditorCameraVisualAttachmentService.Attach(entity, MaterialCache);
             return entity;
         }
 
@@ -184,7 +167,7 @@ namespace helengine.editor {
         public EditorEntity CreatePointLight() {
             EditorEntity entity = CreateBaseEntity("Point Light");
             entity.AddComponent(new PointLightComponent());
-            EditorPointLightVisualAttachmentService.Attach(entity);
+            EditorPointLightVisualAttachmentService.Attach(entity, MaterialCache);
             return entity;
         }
 
@@ -195,7 +178,7 @@ namespace helengine.editor {
         public EditorEntity CreateDirectionalLight() {
             EditorEntity entity = CreateBaseEntity("Directional Light");
             entity.AddComponent(new DirectionalLightComponent());
-            EditorDirectionalLightVisualAttachmentService.Attach(entity);
+            EditorDirectionalLightVisualAttachmentService.Attach(entity, MaterialCache);
             return entity;
         }
 
@@ -216,7 +199,7 @@ namespace helengine.editor {
         public EditorEntity CreateSpotLight() {
             EditorEntity entity = CreateBaseEntity("Spot Light");
             entity.AddComponent(new SpotLightComponent());
-            EditorSpotLightVisualAttachmentService.Attach(entity);
+            EditorSpotLightVisualAttachmentService.Attach(entity, MaterialCache);
             return entity;
         }
 
@@ -241,8 +224,8 @@ namespace helengine.editor {
                 throw new ArgumentException("Generated material asset id must be provided.", nameof(materialAssetId));
             }
 
-            RuntimeModel runtimeModel = EngineGeneratedModelCache.GetRuntimeModel(modelAssetId);
-            RuntimeMaterial runtimeMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(materialAssetId);
+            RuntimeModel runtimeModel = ModelCache.GetRuntimeModel(modelAssetId);
+            RuntimeMaterial runtimeMaterial = MaterialCache.GetRuntimeMaterial(materialAssetId);
             EditorEntity entity = CreateBaseEntity(name);
 
             try {

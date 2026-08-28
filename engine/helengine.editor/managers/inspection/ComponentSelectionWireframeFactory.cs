@@ -10,15 +10,18 @@ namespace helengine.editor {
         /// <param name="name">Diagnostic name assigned to the wireframe entity.</param>
         /// <param name="renderOrder3D">Render order applied to the wireframe mesh.</param>
         /// <returns>Owned internal wireframe entity.</returns>
-        public static EditorEntity CreateUnitLineBox(RenderManager3D render3D, string name, byte renderOrder3D) {
+        public static EditorEntity CreateUnitLineBox(RenderManager3D render3D, EngineGeneratedMaterialCache generatedMaterialCache, string name, byte renderOrder3D) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             } else if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Wireframe entity name must be provided.", nameof(name));
             }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
 
             RuntimeModel model = CreateLineRuntimeModel(render3D, CreateUnitBoxModelAsset());
-            RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial();
+            RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial(generatedMaterialCache);
             EditorEntity entity = new EditorEntity {
                 Name = name,
                 Hidden = true,

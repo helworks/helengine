@@ -13,8 +13,8 @@ namespace helengine {
         /// </summary>
         /// <param name="sourceEntity">Authored source entity mirrored by the preview proxy.</param>
         /// <param name="sourceComponent">Authored rounded-rectangle component mirrored by the preview proxy.</param>
-        public EditorRoundedRectWorldPreviewComponent(Entity sourceEntity, RoundedRectComponent sourceComponent)
-            : base(sourceEntity) {
+        public EditorRoundedRectWorldPreviewComponent(Entity sourceEntity, RoundedRectComponent sourceComponent, helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
+            : base(sourceEntity, builtInShaderLibrary) {
             SourceComponentValue = sourceComponent ?? throw new ArgumentNullException(nameof(sourceComponent));
         }
 

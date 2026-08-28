@@ -42,7 +42,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateLayout_WithScaledMetrics_UsesScaledPanelAndHeaderControls() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), metrics, ProjectRootPath);
+            AssetPickerModal modal = new AssetPickerModal(CreateFont(), metrics, ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             modal.Show(_ => { }, ".obj");
             modal.UpdateLayout(1280, 720);

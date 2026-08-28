@@ -11,6 +11,8 @@ namespace helengine.editor {
         /// Scene asset resolver used to rebuild runtime-backed asset references.
         /// </summary>
         readonly ISceneAssetReferenceResolver ReferenceResolver;
+        /// <summary>Session-owned generated material cache used by editor-only scene visuals.</summary>
+        readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
         /// <summary>
         /// Scene-load service that reconstructs entities from scene assets.
         /// </summary>
@@ -25,7 +27,8 @@ namespace helengine.editor {
         public SceneFileLoadService(
             string projectRootPath,
             ComponentPersistenceRegistry persistenceRegistry,
-            ISceneAssetReferenceResolver referenceResolver) {
+            ISceneAssetReferenceResolver referenceResolver,
+            EngineGeneratedMaterialCache generatedMaterialCache) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -35,10 +38,14 @@ namespace helengine.editor {
             if (referenceResolver == null) {
                 throw new ArgumentNullException(nameof(referenceResolver));
             }
+            if (generatedMaterialCache == null) {
+                throw new ArgumentNullException(nameof(generatedMaterialCache));
+            }
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             ReferenceResolver = referenceResolver;
-            SceneLoadService = new SceneLoadService(ProjectRootPath, persistenceRegistry, referenceResolver);
+            GeneratedMaterialCache = generatedMaterialCache;
+            SceneLoadService = new SceneLoadService(ProjectRootPath, persistenceRegistry, referenceResolver, generatedMaterialCache);
         }
 
         /// <summary>

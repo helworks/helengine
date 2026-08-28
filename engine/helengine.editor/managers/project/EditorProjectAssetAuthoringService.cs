@@ -37,10 +37,14 @@ namespace helengine.editor {
         internal EditorProjectAssetAuthoringService(
             AssetImportManager assetImportManager,
             EditorAssetReferenceResolver referenceResolver,
-            EditorNativeAssetWriteService nativeAssetWriteService) {
+            EditorNativeAssetWriteService nativeAssetWriteService,
+            GeneratedAssetProviderRegistry generatedAssetProviders) {
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             AssetReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             NativeAssetWriteService = nativeAssetWriteService ?? throw new ArgumentNullException(nameof(nativeAssetWriteService));
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
+            }
             string projectRootPath = Path.GetFullPath(AssetImportManagerValue.ProjectRootPath);
             string expectedAssetsRootPath = Path.Combine(projectRootPath, "assets");
             StringComparison pathComparison = OperatingSystem.IsWindows()
@@ -55,7 +59,8 @@ namespace helengine.editor {
                 new EditorFileSystemModelResolver(AssetImportManagerValue),
                 new EditorFileSystemFontResolver(AssetImportManagerValue),
                 new EditorFileSystemTextureResolver(AssetImportManagerValue),
-                AssetReferenceResolver);
+                AssetReferenceResolver,
+                generatedAssetProviders);
             AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AssetReferenceResolver);
         }
 

@@ -19,6 +19,7 @@ namespace helengine.editor.tests {
         /// Deterministic input backend used when keyboard shortcuts are exercised through the real keyboard-focus update component.
         /// </summary>
         readonly TestInputBackend InputBackend;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes an isolated editor project root for the current session history integration test.
@@ -28,6 +29,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
             InputBackend = new TestInputBackend();
             EnsureEditorCoreHost();
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(Core.Instance);
             EditorSelectionService.ClearSelection();
             EditorSceneMutationService.Reset();
             EditorKeyboardFocusService.Reset();
@@ -37,6 +39,7 @@ namespace helengine.editor.tests {
         /// Clears shared editor state and removes temporary project files after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             EditorSelectionService.ClearSelection();
             EditorSceneMutationService.Reset();
             EditorKeyboardFocusService.Reset();
@@ -524,7 +527,7 @@ namespace helengine.editor.tests {
         EditorSession CreateSessionForUndoRedo() {
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, persistenceRegistry);
-            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, persistenceRegistry, new TestSceneAssetReferenceResolver());
+            SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, persistenceRegistry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(saveService);
             ComponentHistoryAdapterRegistry historyAdapterRegistry = new ComponentHistoryAdapterRegistry();
             SceneSettingsAsset currentSceneSettings = new SceneSettingsAsset();
@@ -534,15 +537,15 @@ namespace helengine.editor.tests {
 
             SetPrivateField(session, "core", Assert.IsType<EditorCore>(Core.Instance));
             SetPrivateField(session, "projectPath", TempProjectRootPath);
-            SetPrivateField(session, "openFileDialog", new OpenFileDialog(CreateFont(), TempProjectRootPath));
-            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(CreateFont(), TempProjectRootPath));
+            SetPrivateField(session, "openFileDialog", new OpenFileDialog(CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
+            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
             SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(CreateFont()));
             SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(CreateFont(), EditorUiMetrics.Default));
             SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(CreateFont(), EditorUiMetrics.Default));
             SetPrivateField(session, "sceneCatalogService", new EditorProjectSceneCatalogService(TempProjectRootPath));
             SetPrivateField(session, "SceneSaveService", saveService);
             SetPrivateField(session, "SceneFileLoadService", loadService);
-            SetPrivateField(session, "SceneCreationService", new EditorSceneCreationService());
+            SetPrivateField(session, "SceneCreationService", GeneratedAssetGraph.CreateSceneCreationService());
             SetPrivateField(session, "ReparentService", new EditorEntityReparentService());
             SetPrivateField(session, "HistoryCaptureService", historyCaptureService);
             SetPrivateField(session, "ComponentHistoryAdapterRegistry", historyAdapterRegistry);

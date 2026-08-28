@@ -15,6 +15,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// Temporary project root used for scene save outputs.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly EditorCore CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes a temporary project root and the core services required for scene serialization.
@@ -23,13 +25,14 @@ namespace helengine.editor.tests.serialization.scene {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-save-service-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
 
-            EditorCore core = new EditorCore(new Project {
+            CoreValue = new EditorCore(new Project {
                 Name = "Scene Save Service",
                 Path = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
@@ -39,6 +42,8 @@ namespace helengine.editor.tests.serialization.scene {
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             EditorCameraVisualResources.ResetForTests();
             EditorPointLightVisualResources.ResetForTests();
             EditorDirectionalLightVisualResources.ResetForTests();
@@ -131,7 +136,7 @@ namespace helengine.editor.tests.serialization.scene {
             resolver.RegisterModel(modelReference, loadedModel);
             resolver.RegisterMaterial(materialReference, loadedMaterial);
 
-            SceneLoadService loadService = new SceneLoadService(registry, resolver);
+            SceneLoadService loadService = new SceneLoadService(registry, resolver, GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
 
             EditorEntity loadedRoot = Assert.Single(loadedRoots);
@@ -180,7 +185,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneEntityAsset childAsset = Assert.Single(rootAsset.Children);
             Assert.False(childAsset.IsStatic);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
             Assert.True(loadedRoot.Static);
 
@@ -216,7 +221,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneEntityAsset childAsset = Assert.Single(rootAsset.Children);
             Assert.True(childAsset.Enabled);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
             Assert.False(loadedRoot.Enabled);
 
@@ -256,16 +261,21 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void SaveAndLoad_WhenMeshUsesGeneratedAssetsWithoutStoredReferences_InfersReferencesDuringSave() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            SceneSaveService saveService = new SceneSaveService(
+                TempProjectRootPath,
+                registry,
+                new EditorAssetReferenceResolver(TempProjectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "GeneratedMeshInference.helen");
 
             EditorEntity root = CreateUserEntity("GeneratedCube", float3.Zero, float3.One, float4.Identity);
             MeshComponent meshComponent = new MeshComponent {
-                Model = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId),
+                Model = GeneratedAssetGraph.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId),
                 RenderOrder3D = 9
             };
             SetMeshMaterials(meshComponent, new RuntimeMaterial[] {
-                EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId)
+                GeneratedAssetGraph.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId)
             });
             root.AddComponent(meshComponent);
 
@@ -289,11 +299,11 @@ namespace helengine.editor.tests.serialization.scene {
                 reference.AssetId == EngineGeneratedMaterialCache.StandardAssetId);
 
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
-            RuntimeModel generatedModel = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId);
-            RuntimeMaterial generatedMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+            RuntimeModel generatedModel = GeneratedAssetGraph.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId);
+            RuntimeMaterial generatedMaterial = GeneratedAssetGraph.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
             resolver.RegisterModel(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineCubeModel(), generatedModel);
             resolver.RegisterMaterial(global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateEngineStandardMaterial(), generatedMaterial);
-            SceneLoadService loadService = new SceneLoadService(registry, resolver);
+            SceneLoadService loadService = new SceneLoadService(registry, resolver, GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
             MeshComponent loadedMesh = FindMeshComponent(loadedRoot);
             RuntimeMaterial[] restoredMaterials = GetMeshMaterials(loadedMesh);
@@ -327,7 +337,12 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            SceneSaveService saveService = new SceneSaveService(
+                TempProjectRootPath,
+                registry,
+                new EditorAssetReferenceResolver(TempProjectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FileSystemModelInference.helen");
 
             EditorEntity root = CreateUserEntity("Arrow", float3.Zero, float3.One, float4.Identity);
@@ -335,7 +350,7 @@ namespace helengine.editor.tests.serialization.scene {
             runtimeModel.SetId(importSettings.Importer.AssetId);
             MeshComponent meshComponent = new MeshComponent {
                 Model = runtimeModel,
-                Materials = new RuntimeMaterial[] { EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) },
+                Materials = new RuntimeMaterial[] { GeneratedAssetGraph.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId) },
                 RenderOrder3D = 3
             };
             root.AddComponent(meshComponent);
@@ -390,7 +405,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
             resolver.RegisterFont(fontReference, editorCore.DefaultFontAssetForEditor);
-            SceneLoadService loadService = new SceneLoadService(registry, resolver);
+            SceneLoadService loadService = new SceneLoadService(registry, resolver, GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
             FPSComponent loadedComponent = Assert.IsType<FPSComponent>(Assert.Single(loadedRoot.Components, component => component is FPSComponent));
 
@@ -464,7 +479,7 @@ namespace helengine.editor.tests.serialization.scene {
             resolver.RegisterFont(titleFontReference, loadedTitleFont);
             resolver.RegisterFont(bodyFontReference, loadedBodyFont);
 
-            SceneLoadService loadService = new SceneLoadService(registry, resolver);
+            SceneLoadService loadService = new SceneLoadService(registry, resolver, GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
 
             EditorEntity loadedRoot = Assert.Single(loadedRoots);
@@ -706,7 +721,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.True(ps2Override.HasLocalPositionOverride);
             Assert.Equal(new float3(10f, 20f, 30f), ps2Override.LocalPosition);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
             EditorEntity loadedEntity = Assert.Single(loadedRoots);
             EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
@@ -747,7 +762,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("nintendo3ds", overrideAsset.PlatformId);
             Assert.False(overrideAsset.Exists);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
             EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
 
@@ -785,7 +800,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("debug", Assert.Single(rootEntity.PlatformExistenceOverrides).EnvironmentId);
             Assert.Equal("debug", Assert.Single(rootEntity.PlatformTransformOverrides).EnvironmentId);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
             EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
             Assert.True(loadedSaveComponent.TryGetExistencePlatformOverride(scope, out SceneEntityPlatformExistenceOverrideAsset loadedExistence));
@@ -822,7 +837,7 @@ namespace helengine.editor.tests.serialization.scene {
                 asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
             CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedEntity.Components, component => component is CameraComponent));
             EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
@@ -875,7 +890,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("windows", windowsOverride.PlatformId);
             Assert.NotNull(addedCameraAsset.Component);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
             EntitySaveComponent loadedSaveComponent = GetSaveComponent(loadedEntity);
 
@@ -931,7 +946,7 @@ namespace helengine.editor.tests.serialization.scene {
                 AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(TestScriptSerializableComponent)),
                 record.ComponentTypeId);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
 
             EditorEntity loadedEntity = Assert.Single(loadedRoots);
@@ -947,7 +962,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void SaveAndLoad_WhenSceneContainsCameraEntity_RoundTripsCameraAndReattachesHiddenEditorVisual() {
-            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorSceneCreationService creationService = GeneratedAssetGraph.CreateSceneCreationService();
             EditorEntity cameraEntity = creationService.CreateCamera();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
@@ -964,7 +979,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Single(asset.RootEntities[0].Components);
             Assert.Equal("helengine.CameraComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
             EditorEntity loadedCameraEntity = Assert.Single(loadedRoots);
             CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedCameraEntity.Components, component => component is CameraComponent));
@@ -1013,7 +1028,7 @@ namespace helengine.editor.tests.serialization.scene {
                 asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
             CameraComponent loadedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedEntity.Components, component => component is CameraComponent));
 
@@ -1049,7 +1064,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneEntityAsset rootAsset = Assert.Single(asset.RootEntities);
             Assert.Equal(EditorLayerMasks.SceneObjects, rootAsset.LayerMask);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
 
             Assert.Equal(EditorLayerMasks.SceneObjects, loadedEntity.LayerMask);
@@ -1082,7 +1097,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(overlayLayerMask, rootAsset.LayerMask);
             Assert.Equal(overlayLayerMask, childAsset.LayerMask);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedRoot = Assert.Single(loadService.Load(asset));
             EditorEntity loadedChild = Assert.IsType<EditorEntity>(Assert.Single(loadedRoot.Children));
 
@@ -1116,7 +1131,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void SaveAndLoad_WhenSceneContainsPointLightEntity_RoundTripsPointLightAndReattachesHiddenEditorVisual() {
-            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorSceneCreationService creationService = GeneratedAssetGraph.CreateSceneCreationService();
             EditorEntity pointLightEntity = creationService.CreatePointLight();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
@@ -1135,7 +1150,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("helengine.PointLightComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
             Assert.Empty(asset.RootEntities[0].Children);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
 
             EditorEntity loadedPointLightEntity = Assert.Single(loadedRoots);
@@ -1155,7 +1170,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void SaveAndLoad_WhenSceneContainsDirectionalLightEntity_RoundTripsDirectionalLightAndReattachesHiddenEditorVisual() {
-            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorSceneCreationService creationService = GeneratedAssetGraph.CreateSceneCreationService();
             EditorEntity directionalLightEntity = creationService.CreateDirectionalLight();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
@@ -1174,7 +1189,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("helengine.DirectionalLightComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
             Assert.Empty(asset.RootEntities[0].Children);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
 
             EditorEntity loadedDirectionalLightEntity = Assert.Single(loadedRoots);
@@ -1194,7 +1209,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void SaveAndLoad_WhenSceneContainsSpotLightEntity_RoundTripsSpotLightAndReattachesHiddenEditorVisual() {
-            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorSceneCreationService creationService = GeneratedAssetGraph.CreateSceneCreationService();
             EditorEntity spotLightEntity = creationService.CreateSpotLight();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
@@ -1213,7 +1228,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal("helengine.SpotLightComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
             Assert.Empty(asset.RootEntities[0].Children);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
 
             EditorEntity loadedSpotLightEntity = Assert.Single(loadedRoots);
@@ -1235,7 +1250,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void SaveAndLoad_WhenSceneContainsPointLightEntity_RegistersHiddenEditorVisualDrawableImmediately() {
-            EditorSceneCreationService creationService = new EditorSceneCreationService();
+            EditorSceneCreationService creationService = GeneratedAssetGraph.CreateSceneCreationService();
             EditorEntity pointLightEntity = creationService.CreatePointLight();
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
@@ -1248,7 +1263,7 @@ namespace helengine.editor.tests.serialization.scene {
                 asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedPointLightEntity = Assert.Single(loadService.Load(asset));
             EditorEntity loadedVisualEntity = Assert.IsType<EditorEntity>(Assert.Single(loadedPointLightEntity.Children));
             IDrawable3D visualDrawable = Assert.IsAssignableFrom<IDrawable3D>(Assert.Single(loadedVisualEntity.Components, component => component is EditorPointLightVisualComponent));
@@ -1292,7 +1307,7 @@ namespace helengine.editor.tests.serialization.scene {
                 asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
             }
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             IReadOnlyList<EditorEntity> loadedRoots = loadService.Load(asset);
 
             EditorEntity loadedRoot = Assert.Single(loadedRoots);

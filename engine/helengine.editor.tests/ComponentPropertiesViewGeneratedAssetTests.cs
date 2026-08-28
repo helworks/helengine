@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using helengine.directx11;
 using helengine.editor.tests.testing;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -13,6 +14,8 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the test content manager.
         /// </summary>
         readonly string TempRootPath;
+        readonly GeneratedAssetProviderRegistry Registry;
+        readonly EditorBuiltInShaderAssetLibrary ShaderLibrary;
 
         /// <summary>
         /// Initializes an isolated content root and the core services required by component property rows.
@@ -25,6 +28,11 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            ShaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
+            Registry = new GeneratedAssetProviderRegistry();
             EditorSceneMutationService.Reset();
         }
 
@@ -33,7 +41,8 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             EditorSceneMutationService.Reset();
-            GeneratedAssetProviderRegistry.ResetForTests();
+            Registry.Dispose();
+            ShaderLibrary.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -45,7 +54,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void HandleModelPicked_WhenEntryIsGenerated_AssignsTheProviderRuntimeModelDisplayLabelAndGeneratedReference() {
             TestRuntimeModel runtimeModel = new TestRuntimeModel();
-            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+            Registry.Register(new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
                     AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, "engine", EngineGeneratedModelCache.CubeAssetId)
@@ -55,6 +64,7 @@ namespace helengine.editor.tests {
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            view.SetGeneratedAssetProviderRegistry(Registry);
             view.ShowComponents(entity);
 
             ComponentPropertyRow modelRow = FindModelRow(view);
@@ -82,7 +92,7 @@ namespace helengine.editor.tests {
             bool raised = false;
             Action handleSceneMutated = () => raised = true;
             TestRuntimeModel runtimeModel = new TestRuntimeModel();
-            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+            Registry.Register(new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
                     AssetBrowserEntry.CreateGeneratedAsset("Cube", "Engine/Models/Cube", AssetEntryKind.Model, "engine", EngineGeneratedModelCache.CubeAssetId)
@@ -92,6 +102,7 @@ namespace helengine.editor.tests {
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            view.SetGeneratedAssetProviderRegistry(Registry);
             view.ShowComponents(entity);
 
             ComponentPropertyRow modelRow = FindModelRow(view);
@@ -118,7 +129,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void HandleMaterialPicked_WhenEntryIsGenerated_AssignsTheProviderRuntimeMaterialDisplayLabelAndGeneratedReference() {
             TestRuntimeMaterial runtimeMaterial = new TestRuntimeMaterial();
-            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+            Registry.Register(new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
                     AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", EngineGeneratedMaterialCache.StandardAssetId)
@@ -129,6 +140,7 @@ namespace helengine.editor.tests {
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            view.SetGeneratedAssetProviderRegistry(Registry);
             view.ShowComponents(entity);
 
             ComponentPropertyRow materialRow = FindMaterialRow(view);
@@ -154,7 +166,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void HandleMaterialPicked_WhenPlatformOnlyMeshEntryIsGenerated_StoresTheReferenceInTheAddedComponentSaveState() {
             TestRuntimeMaterial runtimeMaterial = new TestRuntimeMaterial();
-            GeneratedAssetProviderRegistry.Register(new TestGeneratedAssetProvider(
+            Registry.Register(new TestGeneratedAssetProvider(
                 "engine",
                 new[] {
                     AssetBrowserEntry.CreateGeneratedAsset("Standard", "Engine/Materials/Standard", AssetEntryKind.Material, "engine", EngineGeneratedMaterialCache.StandardAssetId)
@@ -173,6 +185,7 @@ namespace helengine.editor.tests {
             EntityPlatformAddedComponentState addedComponentState = platformEditingService.AddPlatformOnlyComponent(descriptor, saveComponent, "windows");
 
             ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            view.SetGeneratedAssetProviderRegistry(Registry);
             view.ShowComponents(entity, "windows");
 
             ComponentPropertyRow materialRow = FindMaterialRow(view);
@@ -205,7 +218,7 @@ namespace helengine.editor.tests {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
-            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, ShaderLibrary);
 
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);

@@ -7,12 +7,15 @@ namespace helengine {
         /// Owned gizmo entities keyed by the authored entity that owns each mirrored viewport component.
         /// </summary>
         readonly Dictionary<Entity, EditorEntity> OwnedGizmoEntitiesBySourceEntity;
+        /// <summary>Session-owned built-in shader library used by border gizmos.</summary>
+        readonly helengine.editor.EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Initializes one authored viewport border gizmo synchronizer.
         /// </summary>
-        public EditorViewportBorderGizmoSyncComponent() {
+        public EditorViewportBorderGizmoSyncComponent(helengine.editor.EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             OwnedGizmoEntitiesBySourceEntity = new Dictionary<Entity, EditorEntity>();
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
         }
 
         /// <summary>
@@ -93,7 +96,7 @@ namespace helengine {
                 InternalEntity = true,
                 LayerMask = helengine.editor.EditorLayerMasks.SceneObjects
             };
-            gizmoEntity.AddComponent(new EditorViewportBorderGizmoComponent(sourceEntity, sourceViewportComponent));
+            gizmoEntity.AddComponent(new EditorViewportBorderGizmoComponent(sourceEntity, sourceViewportComponent, BuiltInShaderLibrary));
             return gizmoEntity;
         }
 

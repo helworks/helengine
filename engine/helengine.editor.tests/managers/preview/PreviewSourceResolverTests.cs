@@ -21,6 +21,7 @@ namespace helengine.editor.tests {
         /// Asset import manager configured for deterministic texture loading.
         /// </summary>
         readonly AssetImportManager AssetImportManager;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required by preview source resolution tests.
@@ -34,6 +35,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
             EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
@@ -46,6 +48,7 @@ namespace helengine.editor.tests {
         /// Deletes temporary test content after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -151,7 +154,14 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured preview resolver.</returns>
         PreviewSourceResolver CreateResolver() {
-            return new PreviewSourceResolver(AssetImportManager, Core.Instance.RenderManager2D, Core.Instance.RenderManager3D);
+            return new PreviewSourceResolver(
+                AssetImportManager,
+                Core.Instance.RenderManager2D,
+                Core.Instance.RenderManager3D,
+                new EditorSceneCanvasProfileState(),
+                GeneratedAssetGraph.Registry,
+                GeneratedAssetGraph.MaterialCache,
+                GeneratedAssetGraph.ShaderLibrary);
         }
 
         /// <summary>

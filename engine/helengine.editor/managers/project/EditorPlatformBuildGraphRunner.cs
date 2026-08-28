@@ -40,6 +40,7 @@ namespace helengine.editor {
         readonly EditorPlatformContainerWriter ContainerWriter;
         readonly EditorPlatformArtifactVariantResolver ArtifactVariantResolver;
         readonly IScriptTypeResolver ScriptTypeResolver;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
 
         /// <summary>
         /// Initializes one build-graph runner for the supplied project and platform descriptor.
@@ -64,7 +65,8 @@ namespace helengine.editor {
             FontAsset defaultFontAsset,
             EditorPlatformAssetBuilderLoader builderLoader,
             EditorGeneratedCoreRegenerationService generatedCoreRegenerationService,
-            IScriptTypeResolver scriptTypeResolver = null)
+            IScriptTypeResolver scriptTypeResolver,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
             : this(
                 projectRootPath,
                 requiredEngineVersion,
@@ -77,7 +79,8 @@ namespace helengine.editor {
                 generatedCoreRegenerationService,
                 null,
                 null,
-                scriptTypeResolver) {
+                scriptTypeResolver,
+                builtInShaderAssetLibrary) {
         }
 
         internal EditorPlatformBuildGraphRunner(
@@ -92,7 +95,8 @@ namespace helengine.editor {
             EditorGeneratedCoreRegenerationService generatedCoreRegenerationService,
             EditorPlatformBuildGraphWorkspaceFactory workspaceFactory,
             EditorRuntimeFeatureManifestService runtimeFeatureManifestService,
-            IScriptTypeResolver scriptTypeResolver = null) {
+            IScriptTypeResolver scriptTypeResolver,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             RequiredEngineVersion = requiredEngineVersion ?? throw new ArgumentNullException(nameof(requiredEngineVersion));
             ProjectId = projectId ?? throw new ArgumentNullException(nameof(projectId));
@@ -111,7 +115,9 @@ namespace helengine.editor {
                 ProjectVersion,
                 Importers,
                 DefaultFontAsset,
-                scriptTypeResolver);
+                scriptTypeResolver,
+                null,
+                builtInShaderAssetLibrary);
             Physics3DCodegenFeatureSymbolService = new EditorPhysics3DCodegenFeatureSymbolService(ProjectRootPath);
             RuntimeFeatureManifestService = runtimeFeatureManifestService ?? new EditorRuntimeFeatureManifestService([
                 new EditorPhysics3DRuntimeFeatureRequirementCollector(ProjectRootPath),
@@ -125,6 +131,7 @@ namespace helengine.editor {
             ContainerWriter = new EditorPlatformContainerWriter();
             ArtifactVariantResolver = new EditorPlatformArtifactVariantResolver();
             ScriptTypeResolver = scriptTypeResolver;
+            BuiltInShaderAssetLibrary = builtInShaderAssetLibrary ?? throw new ArgumentNullException(nameof(builtInShaderAssetLibrary));
         }
 
         /// <summary>

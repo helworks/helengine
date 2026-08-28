@@ -20,6 +20,7 @@ namespace helengine.editor {
         readonly EditorProjectSceneCatalogService SceneCatalogService;
         readonly EditorProfileSettingsService ProfileSettingsService;
         readonly EditorStandardPlatformInputConfigurationFactory StandardPlatformInputConfigurationFactory;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
 
         /// <summary>
         /// Initializes one asset-cook service for the supplied project and optional script resolver.
@@ -32,6 +33,7 @@ namespace helengine.editor {
         /// <param name="defaultFontAsset">Default font asset packaged for player builds.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
         /// <param name="fileHasher">Optional file hasher override used by tests.</param>
+        /// <param name="builtInShaderAssetLibrary">Session-owned built-in shader library used for shader source resolution.</param>
         public EditorPlatformAssetCookService(
             string projectRootPath,
             string requiredEngineVersion,
@@ -39,8 +41,9 @@ namespace helengine.editor {
             string projectVersion,
             IReadOnlyList<IAssetImporterRegistration> importers,
             FontAsset defaultFontAsset,
-            IScriptTypeResolver scriptTypeResolver = null,
-            AssetFileHasher fileHasher = null) {
+            IScriptTypeResolver scriptTypeResolver,
+            AssetFileHasher fileHasher,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary) {
             ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
                 ? throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath))
                 : Path.GetFullPath(projectRootPath);
@@ -54,6 +57,7 @@ namespace helengine.editor {
             SceneCatalogService = new EditorProjectSceneCatalogService(ProjectRootPath);
             ProfileSettingsService = new EditorProfileSettingsService(ProjectRootPath);
             StandardPlatformInputConfigurationFactory = new EditorStandardPlatformInputConfigurationFactory();
+            BuiltInShaderAssetLibrary = builtInShaderAssetLibrary ?? throw new ArgumentNullException(nameof(builtInShaderAssetLibrary));
         }
 
         public PlatformBuildManifest Cook(
@@ -96,6 +100,7 @@ namespace helengine.editor {
                 effectiveMaterialBuilder,
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
+                BuiltInShaderAssetLibrary,
                 ScriptTypeResolver,
                 selectedEnvironmentId);
             List<string> orderedCanonicalScenePaths = ResolveOrderedScenePaths(orderedSceneIds, null);
@@ -175,7 +180,10 @@ namespace helengine.editor {
                 return declarations.ToArray();
             }
 
-            EditorProjectShaderSourceResolver sourceResolver = new(Path.Combine(ProjectRootPath, "assets"));
+            if (BuiltInShaderAssetLibrary == null) {
+                throw new InvalidOperationException("Shader source cooking requires the owning built-in shader library.");
+            }
+            EditorProjectShaderSourceResolver sourceResolver = new(Path.Combine(ProjectRootPath, "assets"), BuiltInShaderAssetLibrary);
             IReadOnlyList<string> referencedShaderAssetIds = packagerResult.ReferencedShaderDependencies
                 .Select(dependency => dependency.ShaderAssetId)
                 .Distinct(StringComparer.Ordinal)

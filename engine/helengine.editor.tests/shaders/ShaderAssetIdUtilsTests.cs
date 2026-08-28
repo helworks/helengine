@@ -1,3 +1,4 @@
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests.shaders;
@@ -53,7 +54,8 @@ public sealed class ShaderAssetIdUtilsTests : IDisposable {
         Directory.CreateDirectory(Path.GetDirectoryName(shaderPath)!);
         File.WriteAllText(shaderPath, sourceText);
 
-        EditorProjectShaderSourceResolver resolver = new(assetsRootPath);
+        using EditorBuiltInShaderAssetLibrary library = TestGeneratedAssetGraph.CreateShaderLibrary();
+        EditorProjectShaderSourceResolver resolver = new(assetsRootPath, library);
 
         EditorProjectShaderSource source = Assert.Single(resolver.Resolve(["Rendering.Custom.Water"]));
 

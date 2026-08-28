@@ -47,7 +47,8 @@ namespace helengine.editor.tests {
                 3,
                 4,
                 true,
-                focusGroup.FocusGroup);
+                focusGroup.FocusGroup,
+                new GeneratedAssetProviderRegistry());
 
             browserView.UpdateLayout(320, 240);
 
@@ -80,7 +81,10 @@ namespace helengine.editor.tests {
                 1,
                 2,
                 3,
-                4);
+                4,
+                true,
+                null,
+                new GeneratedAssetProviderRegistry());
 
             browserView.UpdateLayout(320, 240);
 
@@ -114,7 +118,8 @@ namespace helengine.editor.tests {
                 3,
                 4,
                 true,
-                focusGroup.FocusGroup);
+                focusGroup.FocusGroup,
+                new GeneratedAssetProviderRegistry());
 
             browserView.UpdateLayout(320, 240);
 
@@ -158,7 +163,10 @@ namespace helengine.editor.tests {
                 1,
                 2,
                 3,
-                4);
+                4,
+                true,
+                null,
+                new GeneratedAssetProviderRegistry());
 
             int browserHeight = AssetBrowserView.ToolbarHeight + (AssetBrowserView.RowHeight * 4) - 1;
             browserView.UpdateLayout(320, browserHeight);

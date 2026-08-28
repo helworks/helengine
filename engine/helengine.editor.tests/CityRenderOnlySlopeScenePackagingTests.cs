@@ -67,6 +67,7 @@ public sealed class CityRenderOnlySlopeScenePackagingTests : IDisposable {
             contentManager,
             assetImportManager,
             fileSystemModelResolver,
+            TestGeneratedAssetGraph.CreateShaderLibrary(),
             "windows",
             null,
             string.Empty,

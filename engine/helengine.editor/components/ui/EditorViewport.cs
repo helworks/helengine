@@ -216,6 +216,8 @@ namespace helengine.editor {
         /// Scene-owned canvas profile state used by viewport previews.
         /// </summary>
         readonly EditorSceneCanvasProfileState SceneCanvasProfileStateValue;
+        /// <summary>Session-owned built-in shader library used by viewport overlays.</summary>
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
         /// <summary>
         /// Viewport-local simulated canvas settings used by the world-space 2D preview plane.
         /// </summary>
@@ -325,22 +327,6 @@ namespace helengine.editor {
         /// <param name="font">Font used by the base dockable entity title bar.</param>
         /// <param name="snapModifierFont">Font used by the snap modifier labels.</param>
         /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
-        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons)
-            : this(camera, font, snapModifierFont, toolbarIcons, new EditorSceneCanvasProfileState(), EditorUiMetrics.Default) {
-        }
-
-        /// <summary>
-        /// Initializes a new dockable viewport and binds it to the provided camera using the supplied scaled dock metrics.
-        /// </summary>
-        /// <param name="camera">Camera rendering into the viewport.</param>
-        /// <param name="font">Font used by the base dockable entity title bar.</param>
-        /// <param name="snapModifierFont">Font used by the snap modifier labels.</param>
-        /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
-        /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
-        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorUiMetrics metrics)
-            : this(camera, font, snapModifierFont, toolbarIcons, new EditorSceneCanvasProfileState(), metrics) {
-        }
-
         /// <summary>
         /// Initializes a new dockable viewport and binds it to the provided camera using one shared scene canvas state and scaled dock metrics.
         /// </summary>
@@ -350,13 +336,14 @@ namespace helengine.editor {
         /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used by viewport previews.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
-        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics)
+        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics, EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
             : base(font, metrics) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             ToolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
             SceneCanvasProfileStateValue = sceneCanvasProfileState ?? throw new ArgumentNullException(nameof(sceneCanvasProfileState));
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             CanvasPreviewSettingsValue = new EditorViewportCanvasPreviewSettings();
             Title = "Viewport";
             SetContentBackgroundColor(new byte4(0, 0, 0, 0));
@@ -436,7 +423,7 @@ namespace helengine.editor {
             InitializeStatsButton();
             InitializeStatsOverlay();
             InitializeSnapControls();
-            CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false);
+            CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false, BuiltInShaderLibrary);
             AddComponent(CameraAngleOverlayComponentValue);
             ToolMode = EditorViewportToolService.GetToolMode(Camera);
             RefreshRenderOrderBias();

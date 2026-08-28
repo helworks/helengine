@@ -51,7 +51,7 @@ namespace helengine.editor.tests {
             string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
             string expectedPath = Path.Combine(scenesDirectoryPath, "Level01.helen");
             File.WriteAllText(expectedPath, "scene");
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             string raisedPath = string.Empty;
             dialog.OpenRequested += path => raisedPath = path;
             dialog.Show("Scenes");
@@ -71,7 +71,7 @@ namespace helengine.editor.tests {
             string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
             string expectedPath = Path.Combine(scenesDirectoryPath, "Level01.helen");
             File.WriteAllText(expectedPath, "scene");
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             string raisedPath = string.Empty;
             dialog.OpenRequested += path => raisedPath = path;
             dialog.Show("Scenes");
@@ -92,7 +92,7 @@ namespace helengine.editor.tests {
             string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
             File.WriteAllText(Path.Combine(scenesDirectoryPath, "Level01.helen"), "scene");
             File.WriteAllText(Path.Combine(scenesDirectoryPath, "Preview.png"), "image");
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -111,7 +111,7 @@ namespace helengine.editor.tests {
             string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
             File.WriteAllText(Path.Combine(scenesDirectoryPath, "Level01.helen"), "scene");
             File.WriteAllText(Path.Combine(scenesDirectoryPath, "Level02.helen"), "scene");
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -130,7 +130,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_InheritsSharedModalShellAndTitleBar() {
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             TextComponent titleText = GetPrivateField<TextComponent>(dialog, "TitleText");
             ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
@@ -147,7 +147,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsBrowserStatusAndFooterImmediately() {
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             dialog.Show("Scenes");
 
@@ -170,7 +170,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenCalled_ResizesThePanelBackgroundToTheDialogBounds() {
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -186,7 +186,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenShown_UsesTheExpectedStartingPanelSize() {
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -202,7 +202,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateLayout_WithScaledMetrics_UsesScaledPanelAndFooterButtons() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), metrics, ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), metrics, ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -221,7 +221,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_AfterHide_RegistersOpenButtonLabelAfterItsBackground() {
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -245,7 +245,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleBottomRightResizeGrip_WhenDragged_PreservesTheResizedPanelSizeAcrossLayoutUpdates() {
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -274,7 +274,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleBottomRightResizeGrip_WhenDraggedToTheBottomEdge_ClampsTheDialogHeightAtTheHostBoundary() {
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -315,7 +315,7 @@ namespace helengine.editor.tests {
                 }
             };
 
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -350,7 +350,7 @@ namespace helengine.editor.tests {
                 }
             };
 
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -371,7 +371,7 @@ namespace helengine.editor.tests {
         public void Update_WhenPointerMovesAcrossTitleBarButtonGap_DoesNotRegisterAnInputBlocker() {
             CreateUiCamera(1280, 720);
 
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -385,7 +385,7 @@ namespace helengine.editor.tests {
         public void Update_WhenPointerClicksTitleBarCloseButton_HidesDialog() {
             CreateModalCamera(1280, 720);
 
-            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath);
+            OpenFileDialog dialog = new OpenFileDialog(CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 

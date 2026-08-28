@@ -54,7 +54,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, TestGeneratedAssetGraph.CreateShaderLibrary());
 
             packager.Package([sceneId], BuildRootPath);
 
@@ -94,7 +94,7 @@ namespace helengine.editor.tests {
                 AssetReferences = Array.Empty<SceneAssetReference>()
             });
 
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, TestGeneratedAssetGraph.CreateShaderLibrary());
             packager.Package([sceneId], BuildRootPath);
 
             SceneAsset packagedScene;
@@ -154,7 +154,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager psVitaPackager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                "psvita");
+                "psvita",
+                TestGeneratedAssetGraph.CreateShaderLibrary());
             psVitaPackager.Package([sceneId], BuildRootPath);
 
             SceneAsset psVitaPackagedScene;
@@ -170,7 +171,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager dsPackager = new EditorPlatformBuildScenePackager(
                 ProjectRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                "ds");
+                "ds",
+                TestGeneratedAssetGraph.CreateShaderLibrary());
             dsPackager.Package([sceneId], dsBuildRootPath);
 
             SceneAsset dsPackagedScene;

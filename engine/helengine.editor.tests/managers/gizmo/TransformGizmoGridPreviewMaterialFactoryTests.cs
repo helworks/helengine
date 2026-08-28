@@ -39,8 +39,9 @@ namespace helengine.editor.tests.managers.gizmo {
         [Fact]
         public void Create_InitializesFullGridPreviewParameters() {
             TestDirectX11RenderManager3D render3D = TestDirectX11RenderManager3D.Create();
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
 
-            ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(TransformGizmoGridPreviewMaterialFactory.Create(render3D));
+            ShaderRuntimeMaterial material = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(TransformGizmoGridPreviewMaterialFactory.Create(render3D, shaderLibrary));
 
             byte[] previewParameters = material.Properties.GetConstantBufferData(0);
             Assert.NotNull(previewParameters);
@@ -60,7 +61,8 @@ namespace helengine.editor.tests.managers.gizmo {
                 throw new InvalidOperationException("Transform gizmo grid-preview shader builder method was not found.");
             }
 
-            object result = method.Invoke(null, new object[] { target });
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
+            object result = method.Invoke(null, new object[] { target, shaderLibrary });
             if (result is not ShaderAsset shaderAsset) {
                 throw new InvalidOperationException("Transform gizmo grid-preview shader builder did not return a shader asset.");
             }

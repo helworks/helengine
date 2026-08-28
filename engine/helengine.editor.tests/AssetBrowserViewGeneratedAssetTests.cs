@@ -1,5 +1,7 @@
 using System.Reflection;
+using helengine.directx11;
 using helengine.editor.tests.testing;
+using helengine.vulkan;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -11,6 +13,11 @@ namespace helengine.editor.tests {
         /// Temporary project root used by generated asset browser tests.
         /// </summary>
         readonly string ProjectRootPath;
+        readonly Core CoreValue;
+        readonly GeneratedAssetProviderRegistry Registry;
+        readonly EngineGeneratedModelCache ModelCache;
+        readonly EngineGeneratedMaterialCache MaterialCache;
+        readonly EditorBuiltInShaderAssetLibrary ShaderLibrary;
 
         /// <summary>
         /// Initializes an isolated project root and the core services required by the asset browser view.
@@ -19,17 +26,30 @@ namespace helengine.editor.tests {
             ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-asset-browser-generated-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            TestRenderManager3D renderManager3D = new TestRenderManager3D();
+            CoreValue.Initialize(renderManager3D, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+            shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+            shaderBackendRegistry.Register(new VulkanShaderBackend());
+            ShaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
+            ModelCache = new EngineGeneratedModelCache(CoreValue);
+            MaterialCache = new EngineGeneratedMaterialCache(CoreValue, ShaderLibrary);
+            Registry = new GeneratedAssetProviderRegistry();
+            Registry.Register(new EngineGeneratedAssetProvider(ModelCache, MaterialCache));
         }
 
         /// <summary>
         /// Deletes temporary test state and clears provider registrations.
         /// </summary>
         public void Dispose() {
-            GeneratedAssetProviderRegistry.ResetForTests();
+            Registry.Dispose();
+            MaterialCache.Dispose();
+            ModelCache.Dispose();
+            ShaderLibrary.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }
@@ -40,8 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RefreshEntries_WhenMaterialExtensionFilterIsActive_KeepsGeneratedMaterialEntriesVisible() {
-            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
-            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4);
+            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
 
             Assert.True(browserView.TryNavigateTo(EngineGeneratedAssetProvider.EngineRootPath));
             Assert.True(browserView.TryNavigateTo(EngineGeneratedAssetProvider.EngineMaterialsPath));
@@ -62,8 +81,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RefreshEntries_WhenEngineRootIsPresent_PinsItFirstAndMarksItReadOnly() {
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Aardvark"));
-            GeneratedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider());
-            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4);
+            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
 
             browserView.UpdateLayout(320, 240);
 
@@ -87,7 +105,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void DoesEntryMatchExtensionFilter_when_multiple_extensions_are_provided_matches_any_token() {
-            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4);
+            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
             browserView.SetExtensionFilter(".png;.jpg");
 
             MethodInfo method = typeof(AssetBrowserView).GetMethod("DoesEntryMatchExtensionFilter", BindingFlags.Instance | BindingFlags.NonPublic);

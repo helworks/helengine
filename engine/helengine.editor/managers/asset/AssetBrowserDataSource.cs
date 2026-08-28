@@ -7,6 +7,11 @@ namespace helengine.editor {
         /// Filesystem-backed asset manager used for project assets.
         /// </summary>
         readonly EditorAssetManager FileSystemAssets;
+        /// <summary>
+        /// Session-scoped generated asset providers used by this browser.
+        /// </summary>
+        readonly GeneratedAssetProviderRegistry GeneratedAssetProviders;
+        readonly bool OwnsGeneratedAssetProviders;
 
         /// <summary>
         /// Tracks the source kind for visited directory paths so parent navigation can restore writability correctly.
@@ -31,8 +36,12 @@ namespace helengine.editor {
         /// Initializes a new asset-browser data source for one project path.
         /// </summary>
         /// <param name="projectPath">Path to the project root.</param>
-        public AssetBrowserDataSource(string projectPath, bool includeGeneratedEntries = true)
-            : this(new EditorAssetManager(projectPath), includeGeneratedEntries) {
+        /// <param name="generatedAssetProviders">Session-scoped generated provider registry.</param>
+        public AssetBrowserDataSource(
+            string projectPath,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            bool includeGeneratedEntries = true)
+            : this(new EditorAssetManager(projectPath), generatedAssetProviders, includeGeneratedEntries) {
         }
 
         /// <summary>
@@ -40,8 +49,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fileSystemAssets">Asset manager borrowed for this data source lifetime.</param>
         /// <param name="includeGeneratedEntries">True to include generated entries.</param>
-        internal AssetBrowserDataSource(EditorAssetManager fileSystemAssets, bool includeGeneratedEntries = true) {
+        internal AssetBrowserDataSource(
+            EditorAssetManager fileSystemAssets,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            bool includeGeneratedEntries = true,
+            bool ownsGeneratedAssetProviders = false) {
             FileSystemAssets = fileSystemAssets ?? throw new ArgumentNullException(nameof(fileSystemAssets));
+            GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+            OwnsGeneratedAssetProviders = ownsGeneratedAssetProviders;
             DirectorySources = new Dictionary<string, AssetBrowserEntrySourceKind>(StringComparer.Ordinal);
             CurrentRelativePathValue = string.Empty;
             CurrentDirectoryIsGenerated = false;
@@ -88,13 +103,13 @@ namespace helengine.editor {
             entries.Clear();
             if (CurrentDirectoryIsGenerated) {
                 if (IncludeGeneratedEntries) {
-                    GeneratedAssetProviderRegistry.LoadEntries(CurrentRelativePathValue, entries);
+                    GeneratedAssetProviders.LoadEntries(CurrentRelativePathValue, entries);
                 }
             } else {
                 FileSystemAssets.TryNavigateTo(CurrentRelativePathValue);
                 FileSystemAssets.LoadEntries(entries);
                 if (IncludeGeneratedEntries && string.IsNullOrWhiteSpace(CurrentRelativePathValue)) {
-                    GeneratedAssetProviderRegistry.LoadEntries(string.Empty, entries);
+                    GeneratedAssetProviders.LoadEntries(string.Empty, entries);
                 }
             }
 
@@ -105,7 +120,25 @@ namespace helengine.editor {
         /// Releases the filesystem asset manager owned by this data source.
         /// </summary>
         public void Dispose() {
-            FileSystemAssets.Dispose();
+            List<Exception> failures = new List<Exception>();
+            try {
+                FileSystemAssets.Dispose();
+            } catch (Exception exception) {
+                failures.Add(exception);
+            }
+            if (OwnsGeneratedAssetProviders) {
+                try {
+                    GeneratedAssetProviders.Dispose();
+                } catch (Exception exception) {
+                    failures.Add(exception);
+                }
+            }
+            if (failures.Count == 1) {
+                throw failures[0];
+            }
+            if (failures.Count > 1) {
+                throw new AggregateException("Asset browser data source disposal failed.", failures);
+            }
         }
 
         /// <summary>

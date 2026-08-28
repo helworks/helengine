@@ -14,6 +14,8 @@ namespace helengine.editor.tests.managers.scene {
         /// Temporary project root used by scene-creation tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly EditorCore CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required for generated primitive creation.
@@ -22,18 +24,17 @@ namespace helengine.editor.tests.managers.scene {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-creation-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
 
-            EditorCore core = new EditorCore(new Project {
+            CoreValue = new EditorCore(new Project {
                 Name = "Scene Creation",
                 Path = TempProjectRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
-            EngineGeneratedModelCache.ResetForTests();
-            EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
             EditorPointLightVisualResources.ResetForTests();
             EditorDirectionalLightVisualResources.ResetForTests();
@@ -44,8 +45,8 @@ namespace helengine.editor.tests.managers.scene {
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
-            EngineGeneratedModelCache.ResetForTests();
-            EngineGeneratedMaterialCache.ResetForTests();
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             EditorCameraVisualResources.ResetForTests();
             EditorPointLightVisualResources.ResetForTests();
             EditorDirectionalLightVisualResources.ResetForTests();
@@ -60,7 +61,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateEmpty_UsesCoreOwnedEditorEntityFactory() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateEmpty();
 
@@ -70,17 +71,17 @@ namespace helengine.editor.tests.managers.scene {
         }
 
         /// <summary>
-        /// Ensures Add > Empty fails fast when the active core does not expose an authored entity factory.
+        /// Ensures Add > Empty uses the entity factory captured by the composed generated-asset graph.
         /// </summary>
         [Fact]
-        public void CreateEmpty_WhenCoreEntityFactoryIsUnavailable_Throws() {
-            Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
-            });
+        public void CreateEmpty_UsesGraphOwnedEntityFactoryEvenWhenSingletonIsNotConsulted() {
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new EditorSceneCreationService());
+            EditorEntity entity = service.CreateEmpty();
 
-            Assert.Contains("EntityFactory", exception.Message, StringComparison.Ordinal);
+            Assert.Contains(entity, CoreValue.ObjectManager.Entities);
+            entity.Enabled = false;
+            CoreValue.ObjectManager.RemoveEntity(entity);
         }
 
         /// <summary>
@@ -88,7 +89,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateEmpty_CreatesRootSceneEntityAtOrigin() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateEmpty();
 
@@ -107,7 +108,7 @@ namespace helengine.editor.tests.managers.scene {
         [InlineData("Cube", EngineGeneratedModelCache.CubeAssetId)]
         [InlineData("Plane", EngineGeneratedModelCache.PlaneAssetId)]
         public void CreatePrimitive_AssignsGeneratedRuntimeAssetsWithoutStoredReferences(string expectedName, string modelAssetId) {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = expectedName == "Cube" ? service.CreateCube() : service.CreatePlane();
 
@@ -117,8 +118,8 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Equal(expectedName, entity.Name);
             Assert.NotNull(meshComponent.Model);
             Assert.NotNull(Assert.Single(meshComponent.Materials));
-            Assert.Same(EngineGeneratedModelCache.GetRuntimeModel(modelAssetId), meshComponent.Model);
-            Assert.Same(EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId), Assert.Single(meshComponent.Materials));
+            Assert.Same(GeneratedAssetGraph.GetRuntimeModel(modelAssetId), meshComponent.Model);
+            Assert.Same(GeneratedAssetGraph.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId), Assert.Single(meshComponent.Materials));
             Assert.False(saveComponent.TryGetComponentState(meshComponent, out _));
         }
 
@@ -127,9 +128,9 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateModel_StoresModelAndMaterialReferences() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
-            RuntimeModel runtimeModel = EngineGeneratedModelCache.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId);
-            RuntimeMaterial runtimeMaterial = EngineGeneratedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
+            RuntimeModel runtimeModel = GeneratedAssetGraph.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId);
+            RuntimeMaterial runtimeMaterial = GeneratedAssetGraph.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
             SceneAssetReference modelReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemModel("Models/Cube.obj");
             SceneAssetReference[] materialReferences = {
                 global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemMaterial("Models/Cube.hasset")
@@ -158,7 +159,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateCamera_CreatesSceneCameraWithHiddenEditorVisual() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateCamera();
 
@@ -188,7 +189,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateCamera_KeepsAuthoredValuesOnLiveCameraComponent() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateCamera();
 
@@ -205,7 +206,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateSpotLight_CreatesRootSpotLightEntityWithDefaultSettings() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateSpotLight();
 
@@ -227,7 +228,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreatePointLight_CreatesRootPointLightEntityWithDefaultSettings() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreatePointLight();
 
@@ -247,7 +248,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateDirectionalLight_CreatesRootDirectionalLightEntityWithDefaultSettings() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateDirectionalLight();
 
@@ -267,7 +268,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateAmbientLight_CreatesRootAmbientLightEntityWithDefaultSettings() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateAmbientLight();
 
@@ -288,7 +289,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreatePointLight_CreatesScenePointLightWithHiddenEditorVisual() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreatePointLight();
 
@@ -315,7 +316,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateDirectionalLight_CreatesSceneDirectionalLightWithHiddenEditorVisual() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateDirectionalLight();
 
@@ -365,7 +366,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateSpotLight_CreatesSceneSpotLightWithHiddenEditorVisual() {
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
 
             EditorEntity entity = service.CreateSpotLight();
 
@@ -479,8 +480,13 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void CreateCube_WhenSaved_WritesHelenFileWithoutAdditionalPickerMetadata() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            EditorSceneCreationService service = new EditorSceneCreationService();
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
+            SceneSaveService saveService = new SceneSaveService(
+                TempProjectRootPath,
+                registry,
+                new EditorAssetReferenceResolver(TempProjectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CreatedFromAdd.helen");
 
             service.CreateCube();
@@ -495,7 +501,7 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void CreateCamera_WhenSaved_WritesHelenFileWithoutPersistingHiddenEditorVisual() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
-            EditorSceneCreationService service = new EditorSceneCreationService();
+            EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
             SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CreatedCamera.helen");
 
@@ -512,7 +518,7 @@ namespace helengine.editor.tests.managers.scene {
             Assert.Single(asset.RootEntities[0].Components);
             Assert.Equal("helengine.CameraComponent", asset.RootEntities[0].Components[0].ComponentTypeId);
 
-            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver());
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
             CameraComponent deserializedCamera = Assert.IsType<CameraComponent>(Assert.Single(loadedEntity.Components, component => component is CameraComponent));
             Assert.Equal(EditorLayerMasks.SceneObjects, deserializedCamera.LayerMask);

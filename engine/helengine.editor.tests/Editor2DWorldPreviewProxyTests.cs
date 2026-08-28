@@ -6,18 +6,21 @@ namespace helengine.editor.tests {
     /// Verifies editor-owned 2D world-preview proxy mappings between authored scene entities and internal preview entities.
     /// </summary>
     public sealed class Editor2DWorldPreviewProxyTests : IDisposable {
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by preview-proxy registry tests.
         /// </summary>
         public Editor2DWorldPreviewProxyTests() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Disposes the active core instance after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             EditorWorldSpace2DPreviewRegistry.Clear();
             EditorWorldSpace2DPreviewMeshResources.ResetForTests();
             Core.Instance?.Dispose();
@@ -78,7 +81,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(spriteComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -105,7 +108,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(spriteComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -131,7 +134,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(spriteComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -156,7 +159,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(spriteComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -184,7 +187,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(sourceComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorTextWorldPreviewComponent previewComponent = new EditorTextWorldPreviewComponent(sourceEntity, sourceComponent);
+            EditorTextWorldPreviewComponent previewComponent = new EditorTextWorldPreviewComponent(sourceEntity, sourceComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, sourceComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -231,7 +234,7 @@ namespace helengine.editor.tests {
             Core.Instance.Update();
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -267,7 +270,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(spriteComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -308,7 +311,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(sourceComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorTextWorldPreviewComponent previewComponent = new EditorTextWorldPreviewComponent(sourceEntity, sourceComponent);
+            EditorTextWorldPreviewComponent previewComponent = new EditorTextWorldPreviewComponent(sourceEntity, sourceComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, sourceComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -366,7 +369,7 @@ namespace helengine.editor.tests {
             Core.Instance.Update();
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent);
+            EditorSpriteWorldPreviewComponent previewComponent = new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -393,7 +396,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(sourceComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorTextWorldPreviewComponent previewComponent = new EditorTextWorldPreviewComponent(sourceEntity, sourceComponent);
+            EditorTextWorldPreviewComponent previewComponent = new EditorTextWorldPreviewComponent(sourceEntity, sourceComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, sourceComponent));
             previewEntity.AddComponent(previewComponent);
 
@@ -419,7 +422,7 @@ namespace helengine.editor.tests {
             sourceEntity.AddComponent(sourceComponent);
 
             EditorEntity previewEntity = new EditorEntity();
-            EditorRoundedRectWorldPreviewComponent previewComponent = new EditorRoundedRectWorldPreviewComponent(sourceEntity, sourceComponent);
+            EditorRoundedRectWorldPreviewComponent previewComponent = new EditorRoundedRectWorldPreviewComponent(sourceEntity, sourceComponent, GeneratedAssetGraph.ShaderLibrary);
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, sourceComponent));
             previewEntity.AddComponent(previewComponent);
 

@@ -10,6 +10,7 @@ namespace helengine.editor.tests.managers.scene {
         /// Core instance that provides the generated material cache dependencies required by the factory.
         /// </summary>
         readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the engine core with a DirectX11-shaped renderer so editor visual materials can be created.
@@ -19,13 +20,14 @@ namespace helengine.editor.tests.managers.scene {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             CoreValue.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Releases generated material cache state after each test.
         /// </summary>
         public void Dispose() {
-            EngineGeneratedMaterialCache.ResetForTests();
+            GeneratedAssetGraph.Dispose();
             CoreValue.Dispose();
         }
 
@@ -34,7 +36,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateNonShadowCastingStandardMaterial_PreservesOpaqueDepthTesting() {
-            RuntimeMaterial material = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial();
+            RuntimeMaterial material = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial(GeneratedAssetGraph.MaterialCache);
 
             Assert.True(material.RenderState.DepthTestEnabled);
             Assert.True(material.RenderState.DepthWriteEnabled);
@@ -47,7 +49,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateOverlayStandardMaterial_DisablesDepthTestingAndDepthWrites() {
-            RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial();
+            RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial(GeneratedAssetGraph.MaterialCache);
 
             Assert.False(material.RenderState.DepthTestEnabled);
             Assert.False(material.RenderState.DepthWriteEnabled);

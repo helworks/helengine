@@ -19,6 +19,8 @@ namespace helengine.editor {
         /// Renderer used to create preview render targets and runtime mesh resources.
         /// </summary>
         readonly RenderManager3D Render3D;
+        /// <summary>Session-owned built-in shader library used by the canvas plane.</summary>
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Standalone editor entity that owns the offscreen preview camera.
@@ -72,11 +74,13 @@ namespace helengine.editor {
             CameraComponent sceneCamera,
             EditorSceneCanvasProfileState sceneCanvasProfileState,
             EditorViewportCanvasPreviewSettings settings,
-            RenderManager3D render3D) {
+            RenderManager3D render3D,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             SceneCamera = sceneCamera ?? throw new ArgumentNullException(nameof(sceneCamera));
             SceneCanvasProfileState = sceneCanvasProfileState ?? throw new ArgumentNullException(nameof(sceneCanvasProfileState));
             Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
         }
 
         /// <summary>
@@ -88,8 +92,9 @@ namespace helengine.editor {
         public EditorViewportCanvasPlanePreviewComponent(
             CameraComponent sceneCamera,
             EditorViewportCanvasPreviewSettings settings,
-            RenderManager3D render3D)
-            : this(sceneCamera, new EditorSceneCanvasProfileState(), settings, render3D) {
+            RenderManager3D render3D,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary)
+            : this(sceneCamera, new EditorSceneCanvasProfileState(), settings, render3D, builtInShaderLibrary) {
         }
 
         /// <summary>
@@ -122,7 +127,7 @@ namespace helengine.editor {
             PreviewCameraEntity.AddComponent(PreviewCameraComponent);
 
             EnsureRenderTargetMatchesSettings();
-            PlaneEntityValue = EditorViewportCanvasPlaneFactory.Create(Render3D, PreviewRenderTargetValue);
+            PlaneEntityValue = EditorViewportCanvasPlaneFactory.Create(Render3D, PreviewRenderTargetValue, BuiltInShaderLibrary);
             PlaneMeshComponent = AssertPlaneMeshComponent(PlaneEntityValue);
             PlaneMaterial = PlaneMeshComponent.Materials.Length == 0
                 ? throw new InvalidOperationException("Canvas plane material must exist after plane creation.")

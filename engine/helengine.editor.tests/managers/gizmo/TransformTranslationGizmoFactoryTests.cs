@@ -7,7 +7,8 @@ namespace helengine.editor.tests.managers.gizmo {
     /// <summary>
     /// Verifies translation-gizmo entity creation and plane-handle geometry.
     /// </summary>
-    public class TransformTranslationGizmoFactoryTests {
+    public class TransformTranslationGizmoFactoryTests : IDisposable {
+        TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Expected plane side length after increasing the translation plane handles by 30%.
         /// </summary>
@@ -28,7 +29,8 @@ namespace helengine.editor.tests.managers.gizmo {
                 new TestRuntimeMaterial(),
                 new TestRuntimeMaterial(),
                 new TestRuntimeMaterial(),
-                new TestRuntimeMaterial());
+                new TestRuntimeMaterial(),
+                GeneratedAssetGraph.ShaderLibrary);
 
             Assert.Equal(10, render3D.BuiltModelAssets.Count);
 
@@ -42,7 +44,13 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph?.Dispose();
+            Core.Instance?.Dispose();
         }
 
         /// <summary>

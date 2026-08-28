@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies viewport-bound anchor layout behavior for responsive scene authoring.
     /// </summary>
     public sealed class ViewportAndAnchorLayoutTests : IDisposable {
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by the layout tests.
         /// </summary>
@@ -16,12 +17,14 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Releases the active core instance after each test run.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             EditorWorldSpace2DPreviewRegistry.Clear();
             EditorWorldSpace2DPreviewMeshResources.ResetForTests();
             Core.Instance?.Dispose();
@@ -634,7 +637,7 @@ namespace helengine.editor.tests {
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent();
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
@@ -667,7 +670,7 @@ namespace helengine.editor.tests {
             viewportEntity.AddChild(sourceEntity);
 
             EditorEntity syncHostEntity = new EditorEntity();
-            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent();
+            EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();

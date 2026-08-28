@@ -15,6 +15,7 @@ namespace helengine.editor.tests {
         /// Deterministic input backend used to feed wheel and pointer state into the preview panel.
         /// </summary>
         readonly TestInputBackend Input;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required by the preview panel tests.
@@ -33,12 +34,14 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Deletes temporary content after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
@@ -607,7 +610,7 @@ namespace helengine.editor.tests {
                 BoundsMax = new float3(1f, 1f, 1f)
             };
             RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
-            return new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D);
+            return new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache);
         }
 
         /// <summary>

@@ -76,8 +76,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
-        public AssetBrowserPanel(FontAsset font, string projectPath)
-            : this(font, projectPath, EditorUiMetrics.Default, OpenFolderInExplorer) {
+        public AssetBrowserPanel(FontAsset font, string projectPath, GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(font, projectPath, EditorUiMetrics.Default, OpenFolderInExplorer, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
         }
 
         /// <summary>
@@ -86,8 +86,8 @@ namespace helengine.editor {
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
-        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics)
-            : this(font, projectPath, metrics, OpenFolderInExplorer) {
+        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(font, projectPath, metrics, OpenFolderInExplorer, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
         }
 
         /// <summary>
@@ -97,8 +97,13 @@ namespace helengine.editor {
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
         /// <param name="openFolderAction">Callback used when the user chooses to open the current folder in Explorer.</param>
-        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, Action<string> openFolderAction)
-            : this(font, projectPath, metrics, openFolderAction, null) {
+        public AssetBrowserPanel(
+            FontAsset font,
+            string projectPath,
+            EditorUiMetrics metrics,
+            Action<string> openFolderAction,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(font, projectPath, metrics, openFolderAction, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
         }
 
         /// <summary>

@@ -33,12 +33,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <returns>Configured runtime material for one viewport border gizmo.</returns>
-        public static RuntimeMaterial Create(RenderManager3D render3D) {
+        public static RuntimeMaterial Create(RenderManager3D render3D, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(render3D, ShaderFileName);
+            ShaderAsset shaderAsset = builtInShaderLibrary.LoadShaderAsset(render3D, ShaderFileName);
             ShaderMaterialAsset materialAsset = new ShaderMaterialAsset {
                 Id = MaterialAssetId,
                 ShaderAssetId = shaderAsset.Id,

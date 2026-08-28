@@ -548,7 +548,8 @@ namespace helengine.editor.tests {
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
                 TempRootPath,
                 Array.Empty<IAssetImporterRegistration>(),
-                PackagedFontAssetFactory.Create());
+                PackagedFontAssetFactory.Create(),
+                TestGeneratedAssetGraph.CreateShaderLibrary());
             packager.Package(new[] { sceneId }, buildRootPath);
 
             string packagedScenePath = Path.Combine(buildRootPath, "cooked", "scenes", "TestPackagedScene.hasset");

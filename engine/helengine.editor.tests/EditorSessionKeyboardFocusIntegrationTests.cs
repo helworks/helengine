@@ -294,11 +294,12 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(sceneCameraComponent);
             CameraComponent gizmoCameraComponent = new CameraComponent();
             sceneCameraEntity.AddComponent(gizmoCameraComponent);
-            mainViewport = new EditorViewport(sceneCameraComponent, font, font, CreateToolbarIcons());
+            EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
+            mainViewport = new EditorViewport(sceneCameraComponent, font, font, CreateToolbarIcons(), new EditorSceneCanvasProfileState(), EditorUiMetrics.Default, shaderLibrary);
             mainViewport.Size = new int2(640, 360);
             SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(font);
             PropertiesPanel propertiesPanel = new PropertiesPanel(font, core.GetContentManager());
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(font, TempProjectRootPath);
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(font, TempProjectRootPath, new GeneratedAssetProviderRegistry());
             firstSecondaryDock = propertiesPanel;
             secondSecondaryDock = assetBrowserPanel;
             firstSecondaryTarget = CreateFocusTarget(propertiesPanel);
@@ -347,9 +348,9 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "propertiesPanel", propertiesPanel);
             SetPrivateField(session, "loggerPanel", new LoggerPanel(font));
             SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
-            SetPrivateField(session, "assetPickerModal", new AssetPickerModal(font, TempProjectRootPath));
-            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(font, TempProjectRootPath));
-            SetPrivateField(session, "openFileDialog", new OpenFileDialog(font, TempProjectRootPath));
+            SetPrivateField(session, "assetPickerModal", new AssetPickerModal(font, TempProjectRootPath, new GeneratedAssetProviderRegistry()));
+            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(font, TempProjectRootPath, new GeneratedAssetProviderRegistry()));
+            SetPrivateField(session, "openFileDialog", new OpenFileDialog(font, TempProjectRootPath, new GeneratedAssetProviderRegistry()));
             SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(font));
             SetPrivateField(session, "platformsDialog", new PlatformsDialog(font));
             SetPrivateField(session, "profilesDialog", new ProfilesDialog(font));

@@ -17,6 +17,7 @@ namespace helengine.editor.tests {
         /// Temporary project root used by add-menu session tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required for hierarchy and selection updates.
@@ -26,13 +27,12 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempProjectRootPath);
 
             EnsureEditorCoreHost();
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(Core.Instance);
             EditorSelectionService.Reset();
             EditorSceneMutationService.Reset();
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
-            EngineGeneratedModelCache.ResetForTests();
-            EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
         }
 
@@ -40,10 +40,9 @@ namespace helengine.editor.tests {
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             EditorSelectionService.Reset();
             EditorSceneMutationService.Reset();
-            EngineGeneratedModelCache.ResetForTests();
-            EngineGeneratedMaterialCache.ResetForTests();
             EditorCameraVisualResources.ResetForTests();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
@@ -56,7 +55,6 @@ namespace helengine.editor.tests {
         [Fact]
         public void HandleAddEmptyRequested_CreatesAndSelectsRootSceneEntity() {
             EditorSession session = CreateSessionForAddCommands();
-
             InvokePrivate(session, "HandleAddEmptyRequested");
 
             EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
@@ -206,10 +204,14 @@ namespace helengine.editor.tests {
             EnsureEditorCoreHost();
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
-            EditorSceneCreationService sceneCreationService = new EditorSceneCreationService();
+            EditorSceneCreationService sceneCreationService = GeneratedAssetGraph.CreateSceneCreationService();
 
             SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
             SetPrivateField(session, "SceneCreationService", sceneCreationService);
+            SetPrivateField(session, "generatedAssetProviderRegistry", GeneratedAssetGraph.Registry);
+            SetPrivateField(session, "generatedModelCache", GeneratedAssetGraph.ModelCache);
+            SetPrivateField(session, "generatedMaterialCache", GeneratedAssetGraph.MaterialCache);
+            SetPrivateField(session, "builtInShaderAssetLibrary", GeneratedAssetGraph.ShaderLibrary);
 
             return session;
         }

@@ -1,89 +1,51 @@
 namespace helengine.editor {
     /// <summary>
-    /// Builds and caches built-in runtime materials exposed by the engine generated-asset provider.
+    /// Builds and caches built-in runtime materials for one editor session.
     /// </summary>
-    public static class EngineGeneratedMaterialCache {
-        /// <summary>
-        /// Stable generated asset identifier for the built-in standard material.
-        /// </summary>
+    public sealed class EngineGeneratedMaterialCache : IDisposable {
+        /// <summary>Stable generated asset identifier for the built-in standard material.</summary>
         public const string StandardAssetId = BuiltInMaterialIds.StandardMaterialShaderAssetId;
 
-        /// <summary>
-        /// Built-in shader source file used by the generated standard material.
-        /// </summary>
         const string StandardShaderFileName = "ForwardStandardShader.hlsl";
-        /// <summary>
-        /// Logical material asset identifier used when building the generated standard material.
-        /// </summary>
         const string StandardMaterialAssetId = "Engine.Materials.Standard.material";
-        /// <summary>
-        /// Vertex program name used by the generated standard material.
-        /// </summary>
         const string StandardVertexProgramName = "ForwardStandardShader.vs";
-        /// <summary>
-        /// Pixel program name used by the generated standard material.
-        /// </summary>
         const string StandardPixelProgramName = "ForwardStandardShader.ps";
-        /// <summary>
-        /// Shader variant used by the generated standard material.
-        /// </summary>
         const string DefaultVariantName = "default";
 
-        /// <summary>
-        /// Cached runtime materials keyed by stable generated asset identifier.
-        /// </summary>
-        static readonly Dictionary<string, RuntimeMaterial> RuntimeMaterials = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
+        readonly Core Core;
+        readonly RenderManager3D RenderManager3D;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
+        readonly Dictionary<string, RuntimeMaterial> RuntimeMaterials = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
+        bool IsDisposed;
 
-        /// <summary>
-        /// Clears the generated material cache so tests can start from a known state.
-        /// </summary>
-        public static void ResetForTests() {
-            RuntimeMaterials.Clear();
+        /// <summary>Creates a generated-material cache bound to one explicit core and one shader library.</summary>
+        public EngineGeneratedMaterialCache(Core core, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            Core = core ?? throw new ArgumentNullException(nameof(core));
+            RenderManager3D = core.RenderManager3D ?? throw new InvalidOperationException("The owning core must be initialized with a 3D renderer before creating generated materials.");
+            BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
         }
 
-        /// <summary>
-        /// Gets a cached runtime material for one built-in generated asset id, building it on first use.
-        /// </summary>
-        /// <param name="assetId">Stable generated asset identifier.</param>
-        /// <returns>Cached runtime material for the requested generated material.</returns>
-        public static RuntimeMaterial GetRuntimeMaterial(string assetId) {
+        /// <summary>Gets or creates one generated runtime material owned by this cache.</summary>
+        public RuntimeMaterial GetRuntimeMaterial(string assetId) {
+            EnsureNotDisposed();
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Generated asset id must be provided.", nameof(assetId));
             }
-
             if (RuntimeMaterials.TryGetValue(assetId, out RuntimeMaterial runtimeMaterial)) {
                 return runtimeMaterial;
             }
 
-            Core core = Core.Instance;
-            if (core == null) {
-                throw new InvalidOperationException("Core must be initialized before generated engine materials can be resolved.");
-            }
-            if (core.RenderManager3D == null) {
-                throw new InvalidOperationException("A 3D render manager is required before generated engine materials can be resolved.");
-            }
-
-            runtimeMaterial = CreateRuntimeMaterial(assetId, core.RenderManager3D);
+            runtimeMaterial = CreateRuntimeMaterial(assetId);
             RuntimeMaterials.Add(assetId, runtimeMaterial);
             return runtimeMaterial;
         }
 
-        /// <summary>
-        /// Creates the runtime material for one supported built-in generated material.
-        /// </summary>
-        /// <param name="assetId">Stable generated asset identifier.</param>
-        /// <param name="renderManager3D">Renderer that will own the runtime material.</param>
-        /// <returns>Runtime material instance for the generated material.</returns>
-        static RuntimeMaterial CreateRuntimeMaterial(string assetId, RenderManager3D renderManager3D) {
-            if (renderManager3D == null) {
-                throw new ArgumentNullException(nameof(renderManager3D));
-            }
-
+        RuntimeMaterial CreateRuntimeMaterial(string assetId) {
             if (!string.Equals(assetId, StandardAssetId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"Generated engine material '{assetId}' is not registered.");
             }
 
-            ShaderAsset shaderAsset = EditorBuiltInShaderAssetLibrary.LoadShaderAsset(renderManager3D, StandardShaderFileName);
+            ShaderAsset shaderAsset = BuiltInShaderLibrary.LoadShaderAsset(RenderManager3D, StandardShaderFileName);
             var materialAsset = new ShaderMaterialAsset {
                 Id = StandardMaterialAssetId,
                 ShaderAssetId = shaderAsset.Id,
@@ -98,9 +60,27 @@ namespace helengine.editor {
                     }
                 ]
             };
-            RuntimeMaterial runtimeMaterial = renderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            RuntimeMaterial runtimeMaterial = RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
             StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(runtimeMaterial));
             return runtimeMaterial;
+        }
+
+        void EnsureNotDisposed() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EngineGeneratedMaterialCache));
+            }
+        }
+
+        /// <summary>Releases the cached runtime materials owned by this session cache.</summary>
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+            foreach (RuntimeMaterial runtimeMaterial in RuntimeMaterials.Values) {
+                runtimeMaterial?.Dispose();
+            }
+            RuntimeMaterials.Clear();
+            IsDisposed = true;
         }
     }
 }

@@ -30,7 +30,7 @@ namespace helengine.editor {
         /// <param name="render3D">Renderer that will own the runtime material.</param>
         /// <param name="font">Font whose atlas texture will be sampled by the material.</param>
         /// <returns>Runtime material configured for axis-label billboards.</returns>
-        public static RuntimeMaterial Create(RenderManager3D render3D, FontAsset font) {
+        public static RuntimeMaterial Create(RenderManager3D render3D, FontAsset font, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
@@ -39,12 +39,15 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(font));
             }
 
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
             if (font.Texture == null) {
                 throw new InvalidOperationException("Axis-label billboards require the font atlas texture to be loaded.");
             }
 
             ShaderCompileTarget target = ResolveTarget(render3D);
-            ShaderAsset shaderAsset = BuildShaderAsset(target);
+            ShaderAsset shaderAsset = BuildShaderAsset(target, builtInShaderLibrary);
             var materialAsset = new ShaderMaterialAsset {
                 Id = MaterialAssetId,
                 ShaderAssetId = shaderAsset.Id,
@@ -63,8 +66,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="target">Renderer backend target that will consume the shader.</param>
         /// <returns>Compiled shader asset for the selected backend.</returns>
-        static ShaderAsset BuildShaderAsset(ShaderCompileTarget target) {
-            return EditorBuiltInShaderAssetLibrary.LoadShaderAsset(target, ShaderFileName);
+        static ShaderAsset BuildShaderAsset(ShaderCompileTarget target, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            return builtInShaderLibrary.Load(target, ShaderFileName);
         }
 
         /// <summary>

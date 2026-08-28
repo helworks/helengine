@@ -25,9 +25,10 @@ namespace helengine.editor.tests.managers.gizmo {
         [Fact]
         public void Create_UsesAlphaBlendedOverlayRenderState() {
             TestRenderManager3D render3D = new TestRenderManager3D();
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
 
-            TransformGizmoPlaneMaterialFactory.CreateNormal(render3D);
-            TransformGizmoPlaneMaterialFactory.CreateHighlight(render3D);
+            TransformGizmoPlaneMaterialFactory.CreateNormal(render3D, shaderLibrary);
+            TransformGizmoPlaneMaterialFactory.CreateHighlight(render3D, shaderLibrary);
 
             Assert.Equal(2, render3D.BuiltMaterialAssets.Count);
             AssertAlphaBlendedOverlayState(render3D.BuiltMaterialAssets[0].RenderState);

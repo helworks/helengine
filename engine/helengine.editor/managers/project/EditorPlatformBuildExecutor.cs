@@ -34,9 +34,10 @@ namespace helengine.editor {
             string projectVersion,
             IReadOnlyList<IAssetImporterRegistration> importers,
             AvailablePlatformDescriptor platformDescriptor,
-            FontAsset defaultFontAsset = null,
-            EditorPlatformBuildGraphRunner buildGraphRunner = null,
-            IScriptTypeResolver scriptTypeResolver = null) {
+            FontAsset defaultFontAsset,
+            EditorPlatformBuildGraphRunner buildGraphRunner,
+            IScriptTypeResolver scriptTypeResolver,
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -61,6 +62,9 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(platformDescriptor.CodegenToolPath)) {
                 throw new ArgumentException("Platform descriptor must provide a csharpcodegen tool path.", nameof(platformDescriptor));
             }
+            if (builtInShaderAssetLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderAssetLibrary));
+            }
 
             PlatformDescriptor = platformDescriptor;
             BuildGraphRunner = buildGraphRunner ?? new EditorPlatformBuildGraphRunner(
@@ -75,7 +79,8 @@ namespace helengine.editor {
                 generatedCoreRegenerationService: new EditorGeneratedCoreRegenerationService(),
                 workspaceFactory: new EditorPlatformBuildGraphWorkspaceFactory(projectRootPath),
                 runtimeFeatureManifestService: null,
-                scriptTypeResolver: scriptTypeResolver);
+                scriptTypeResolver: scriptTypeResolver,
+                builtInShaderAssetLibrary: builtInShaderAssetLibrary);
         }
 
         /// <summary>

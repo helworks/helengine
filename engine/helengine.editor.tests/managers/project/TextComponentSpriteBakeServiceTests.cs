@@ -11,6 +11,7 @@ namespace helengine.editor.tests {
         /// Temporary project root used by bake-service tests.
         /// </summary>
         readonly string ProjectRootPath;
+        readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
 
         /// <summary>
         /// Initializes the core services and temporary workspace required by bake-service tests.
@@ -22,6 +23,7 @@ namespace helengine.editor.tests {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
+            BuiltInShaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
@@ -34,6 +36,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             Core.Instance?.Dispose();
+            BuiltInShaderLibrary.Dispose();
 
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
@@ -130,7 +133,8 @@ namespace helengine.editor.tests {
                 assetsRootPath,
                 contentManager,
                 assetImportManager,
-                CreateDefaultFontAsset());
+                CreateDefaultFontAsset(),
+                BuiltInShaderLibrary);
         }
 
         /// <summary>

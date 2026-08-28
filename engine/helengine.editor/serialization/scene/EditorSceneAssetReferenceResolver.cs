@@ -11,6 +11,10 @@ namespace helengine.editor {
         /// </summary>
         internal EditorShaderPackageService ShaderPackageService { get; set; }
         /// <summary>
+        /// Session-owned generated provider registry used for virtual scene asset references.
+        /// </summary>
+        internal GeneratedAssetProviderRegistry GeneratedAssetProviders { get; set; }
+        /// <summary>
         /// Preferred preview platform used when file-backed materials need one shader-backed editor runtime path.
         /// </summary>
         const string StandardShaderAssetId = "ForwardStandardShader";
@@ -90,6 +94,8 @@ namespace helengine.editor {
         List<RuntimeMaterial> ActiveOwnedMaterials;
         /// <summary>Tracks scene-owned audio assets resolved during the active load scope.</summary>
         List<AudioAsset> ActiveOwnedAudio;
+        /// <summary>Indicates whether this resolver owns its generated-provider registry.</summary>
+        readonly bool OwnsGeneratedAssetProviders;
 
         /// <summary>
         /// Test seam invoked after a file-backed reference is resolved and immediately before its payload is opened.
@@ -101,7 +107,10 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetContentManager">Content manager used to load file-backed assets.</param>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
-        public EditorSceneAssetReferenceResolver(ContentManager assetContentManager, string projectRootPath) {
+        public EditorSceneAssetReferenceResolver(
+            ContentManager assetContentManager,
+            string projectRootPath,
+            GeneratedAssetProviderRegistry generatedAssetProviders) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -117,6 +126,11 @@ namespace helengine.editor {
             MaterialSettingsService = new MaterialAssetSettingsService(fullProjectRootPath);
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = true;
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
+            }
+            GeneratedAssetProviders = generatedAssetProviders;
+            OwnsGeneratedAssetProviders = false;
         }
 
         /// <summary>
@@ -125,7 +139,11 @@ namespace helengine.editor {
         /// <param name="assetContentManager">Content manager used to load file-backed assets.</param>
         /// <param name="projectRootPath">Project root that owns the assets folder.</param>
         /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
-        public EditorSceneAssetReferenceResolver(ContentManager assetContentManager, string projectRootPath, EditorFileSystemModelResolver fileSystemModelResolver) {
+        public EditorSceneAssetReferenceResolver(
+            ContentManager assetContentManager,
+            string projectRootPath,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            GeneratedAssetProviderRegistry generatedAssetProviders) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -145,6 +163,8 @@ namespace helengine.editor {
             MaterialSettingsService = new MaterialAssetSettingsService(fullProjectRootPath);
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = true;
+            GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+            OwnsGeneratedAssetProviders = false;
         }
 
         /// <summary>
@@ -158,7 +178,8 @@ namespace helengine.editor {
             ContentManager assetContentManager,
             string projectRootPath,
             EditorFileSystemModelResolver fileSystemModelResolver,
-            EditorFileSystemFontResolver fileSystemFontResolver) {
+            EditorFileSystemFontResolver fileSystemFontResolver,
+            GeneratedAssetProviderRegistry generatedAssetProviders) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -182,6 +203,8 @@ namespace helengine.editor {
             MaterialSettingsService = new MaterialAssetSettingsService(fullProjectRootPath);
             IdentityReferenceResolver = new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = true;
+            GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+            OwnsGeneratedAssetProviders = false;
         }
 
         /// <summary>
@@ -198,7 +221,8 @@ namespace helengine.editor {
             EditorFileSystemModelResolver fileSystemModelResolver,
             EditorFileSystemFontResolver fileSystemFontResolver,
             EditorFileSystemTextureResolver fileSystemTextureResolver,
-            EditorAssetReferenceResolver identityReferenceResolver = null) {
+            EditorAssetReferenceResolver identityReferenceResolver,
+            GeneratedAssetProviderRegistry generatedAssetProviders) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
@@ -226,6 +250,8 @@ namespace helengine.editor {
             MaterialSettingsService = new MaterialAssetSettingsService(fullProjectRootPath);
             IdentityReferenceResolver = identityReferenceResolver ?? new EditorAssetReferenceResolver(fullProjectRootPath);
             OwnsIdentityReferenceResolver = identityReferenceResolver == null;
+            GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+            OwnsGeneratedAssetProviders = false;
         }
 
         /// <summary>
@@ -453,7 +479,7 @@ namespace helengine.editor {
         /// <returns>Runtime model published by the owning generated-asset provider.</returns>
         RuntimeModel ResolveGeneratedModel(SceneAssetReference reference) {
             AssetBrowserEntry entry = BuildGeneratedEntry(reference, AssetEntryKind.Model);
-            return GeneratedAssetProviderRegistry.ResolveRuntimeModel(entry);
+            return GeneratedAssetProviders.ResolveRuntimeModel(entry);
         }
 
         /// <summary>
@@ -483,7 +509,7 @@ namespace helengine.editor {
         /// <returns>Runtime material published by the owning generated-asset provider.</returns>
         RuntimeMaterial ResolveGeneratedMaterial(SceneAssetReference reference) {
             AssetBrowserEntry entry = BuildGeneratedEntry(reference, AssetEntryKind.Material);
-            return GeneratedAssetProviderRegistry.ResolveRuntimeMaterial(entry);
+            return GeneratedAssetProviders.ResolveRuntimeMaterial(entry);
         }
 
         /// <summary>
@@ -1030,8 +1056,26 @@ namespace helengine.editor {
         /// Releases an identity resolver created by this scene resolver.
         /// </summary>
         public void Dispose() {
+            List<Exception> failures = new List<Exception>();
             if (OwnsIdentityReferenceResolver) {
-                IdentityReferenceResolver.Dispose();
+                try {
+                    IdentityReferenceResolver.Dispose();
+                } catch (Exception exception) {
+                    failures.Add(exception);
+                }
+            }
+            if (OwnsGeneratedAssetProviders) {
+                try {
+                    GeneratedAssetProviders.Dispose();
+                } catch (Exception exception) {
+                    failures.Add(exception);
+                }
+            }
+            if (failures.Count == 1) {
+                throw failures[0];
+            }
+            if (failures.Count > 1) {
+                throw new AggregateException("Scene asset resolver disposal failed.", failures);
             }
         }
 

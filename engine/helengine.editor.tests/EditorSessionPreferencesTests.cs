@@ -17,6 +17,7 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the editor-session preferences tests.
         /// </summary>
         readonly string TempRootPath;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required by the preferences dialog shell used in these tests.
@@ -30,12 +31,14 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Deletes temporary test state after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
             EditorKeyboardFocusService.Reset();
             EditorInputCaptureService.Reset();
             ThemeManager.SetTheme(OriginalTheme);
@@ -221,7 +224,7 @@ namespace helengine.editor.tests {
         AssetBrowserPanel CreateAssetBrowserPanel(EditorUiMetrics metrics) {
             Directory.CreateDirectory(Path.Combine(TempRootPath, "assets"));
 
-            AssetBrowserPanel panel = new AssetBrowserPanel(CreateFont(), TempRootPath, metrics);
+            AssetBrowserPanel panel = new AssetBrowserPanel(CreateFont(), TempRootPath, metrics, GeneratedAssetGraph.Registry);
             panel.Size = new int2(500, 240);
             return panel;
         }
@@ -241,7 +244,9 @@ namespace helengine.editor.tests {
                 CreateFont(),
                 CreateFont(),
                 CreateToolbarIcons(),
-                metrics);
+                new EditorSceneCanvasProfileState(),
+                metrics,
+                GeneratedAssetGraph.ShaderLibrary);
             viewport.Position = new float3(18f, 42f, 0f);
             viewport.Size = new int2(640, 360);
             return viewport;
