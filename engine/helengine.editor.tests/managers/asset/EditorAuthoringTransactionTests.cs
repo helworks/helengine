@@ -50,7 +50,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
 
         SceneAssetReference reference = observer.CreateReference("models/ship.hasset", AssetEntryKind.Model);
         Assert.Equal(staged.AssetId, reference.AssetId);
-        Assert.True(File.Exists(Path.Combine(ProjectRootPath, "cache", "editor", "asset-identity-index.json")));
+        Assert.NotNull(observer.IdentityIndexValue.FindByPath("models/ship.hasset"));
     }
 
     [Fact]
@@ -95,6 +95,173 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         secondTransaction.Commit();
         using FileStream updatedStream = File.OpenRead(committedPath);
         Assert.Equal(firstIdentity, MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(updatedStream).AuthoringAssetId);
+    }
+
+    [Fact]
+    public void WriteMaterial_UsesCanonicalCommonHashAndIdentityFreePlatformOverrides() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        transaction.WriteMaterial("materials/CanonicalMaterial.hasset", CreateGeneratedMaterial("Materials/CanonicalMaterial"));
+
+        string manifestPath = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId,
+            "transaction.json");
+        EditorAuthoringTransactionDocument document = System.Text.Json.JsonSerializer.Deserialize<EditorAuthoringTransactionDocument>(
+            File.ReadAllText(manifestPath),
+            EditorAuthoringTransactionDocument.JsonOptions);
+        EditorAuthoringTransactionEntry commonEntry = Assert.Single(document.Entries.Where(entry =>
+            entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings));
+        EditorAuthoringTransactionEntry[] overrideEntries = document.Entries.Where(entry =>
+            entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialPlatformOverride).ToArray();
+        Assert.Equal(2, overrideEntries.Length);
+        Assert.All(overrideEntries, entry => Assert.Equal(string.Empty, entry.ExpectedAssetId));
+        Assert.NotEqual(commonEntry.StagedSerializedHash, commonEntry.StagedContentHash);
+        string commonStagedPath = Path.Combine(
+            Path.GetDirectoryName(manifestPath),
+            commonEntry.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Assert.Equal(
+            commonEntry.StagedContentHash,
+            EditorNativeAssetWriteService.ComputeCanonicalMaterialSettingsHash(File.ReadAllBytes(commonStagedPath)));
+        transaction.Commit();
+    }
+
+    [Fact]
+    public void WriteGeneratedCacheAsset_IsStagedAndPublishedThroughTheSameTransaction() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        session.WriteGeneratedCacheAsset("editor/models/cache.hasset", CreateModel("Cache"), transaction);
+
+        string cachePath = Path.Combine(ProjectRootPath, "cache", "editor", "models", "cache.hasset");
+        Assert.False(File.Exists(cachePath));
+        transaction.Commit();
+        Assert.True(File.Exists(cachePath));
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-write.generation")));
+    }
+
+    [Fact]
+    public void WriteGeneratedFile_PublishesOnlyOnCommitAndSupportsIdempotentPriorHash() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        byte[] sourceBytes = new byte[] { 0x10, 0x20, 0x30 };
+        string relativePath = "assets/generated/source.bin";
+        using (EditorAuthoringTransaction transaction = session.BeginTransaction()) {
+            EditorAssetWriteResult result = transaction.WriteGeneratedFile(
+                relativePath,
+                sourceBytes,
+                null,
+                EditorGeneratedFileKind.Source);
+
+            Assert.Equal(EditorAssetWriteDisposition.Created, result.Disposition);
+            Assert.Equal(sourceBytes, transaction.ReadStagedFile(relativePath));
+            Assert.False(File.Exists(Path.Combine(ProjectRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar))));
+            transaction.Commit();
+        }
+
+        string publishedPath = Path.Combine(ProjectRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Assert.Equal(sourceBytes, File.ReadAllBytes(publishedPath));
+        string priorHash;
+        using (EditorAuthoringTransaction hashTransaction = session.BeginTransaction()) {
+            priorHash = hashTransaction.GetCurrentFileHash(relativePath);
+        }
+        using EditorAuthoringTransaction second = session.BeginTransaction();
+        EditorAssetWriteResult unchanged = second.WriteGeneratedFile(
+            relativePath,
+            sourceBytes,
+            priorHash,
+            EditorGeneratedFileKind.Source);
+        Assert.Equal(EditorAssetWriteDisposition.Unchanged, unchanged.Disposition);
+        second.Commit();
+    }
+
+    [Fact]
+    public void StartupRecovery_CommittingGeneratedFileRestoresProjectRootDestinationWithoutAssetGeneration() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        string relativePath = "cache/editor/recovery.bin";
+        string destinationPath = Path.Combine(ProjectRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath));
+        byte[] originalBytes = new byte[] { 0x01, 0x02 };
+        File.WriteAllBytes(destinationPath, originalBytes);
+
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        byte[] replacementBytes = new byte[] { 0x03, 0x04, 0x05 };
+        transaction.WriteGeneratedFile(
+            relativePath,
+            replacementBytes,
+            EditorNativeAssetWriteService.ComputeRawBytesHash(originalBytes),
+            EditorGeneratedFileKind.Cache);
+
+        string transactionDirectory = Path.Combine(
+            ProjectRootPath,
+            "cache",
+            "editor",
+            "authoring-transactions",
+            transaction.TransactionId);
+        string manifestPath = Path.Combine(transactionDirectory, "transaction.json");
+        EditorAuthoringTransactionDocument document = System.Text.Json.JsonSerializer.Deserialize<EditorAuthoringTransactionDocument>(
+            File.ReadAllText(manifestPath),
+            EditorAuthoringTransactionDocument.JsonOptions);
+        EditorAuthoringTransactionEntry entry = Assert.Single(document.Entries);
+        string stagedPath = Path.Combine(transactionDirectory, entry.StagedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string backupPath = Path.Combine(transactionDirectory, entry.BackupRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        File.WriteAllBytes(backupPath, originalBytes);
+        entry.BackupContentHash = EditorNativeAssetWriteService.ComputeRawBytesHash(originalBytes);
+        entry.BackupSerializedHash = entry.BackupContentHash;
+        entry.Progress = EditorAuthoringTransactionEntryProgress.Applying;
+        entry.State = EditorAuthoringTransactionState.Committing;
+        document.State = EditorAuthoringTransactionState.Committing;
+        File.Copy(stagedPath, destinationPath, true);
+        File.WriteAllText(manifestPath, System.Text.Json.JsonSerializer.Serialize(document, EditorAuthoringTransactionDocument.JsonOptions));
+        using (EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            EditorAuthoringTransactionPendingMarker.PublishUnderLock(
+                ProjectRootPath,
+                transaction.TransactionId,
+                new[] { entry.DestinationRelativePath });
+        }
+        transaction.ReleaseLeaseForTesting();
+
+        using EditorProjectAuthoringSession recovered = CreateSession(ProjectRootPath);
+
+        Assert.Equal(originalBytes, File.ReadAllBytes(destinationPath));
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar))));
+        Assert.False(Directory.Exists(transactionDirectory));
+    }
+
+    [Fact]
+    public void LoadMaterialAsset_ReadsTheStagedCommonAndPlatformDocumentsBeforePublication() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        transaction.WriteMaterial("materials/TestMaterial.hasset", CreateGeneratedMaterial("Materials/TestMaterial"));
+
+        ShaderMaterialAsset material = session.LoadMaterialAsset(
+            "materials/TestMaterial.hasset",
+            "windows",
+            transaction);
+
+        Assert.Equal("ForwardStandardShader", material.ShaderAssetId);
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "materials", "TestMaterial.hasset")));
+    }
+
+    [Fact]
+    public void Commit_DefersIdentityRegistrationUntilAfterDestinationPublication() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        bool destinationVisibleAtGraphUpdate = false;
+        using EditorAuthoringTransaction transaction = session.BeginTransaction(new EditorAuthoringTransactionHooks {
+            BeforePublication = (_, path) => {
+                Assert.True(File.Exists(Path.Combine(ProjectRootPath, "assets", path.Replace('/', Path.DirectorySeparatorChar))));
+            },
+            BeforeGraphUpdate = (_, path) => {
+                destinationVisibleAtGraphUpdate = File.Exists(Path.Combine(ProjectRootPath, "assets", path.Replace('/', Path.DirectorySeparatorChar)));
+            }
+        });
+        transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+
+        transaction.Commit();
+
+        Assert.True(destinationVisibleAtGraphUpdate);
+        Assert.NotNull(session.CreateReference("models/ship.hasset", AssetEntryKind.Model));
     }
 
     [Fact]
@@ -850,6 +1017,10 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         windows.SetFieldValue("casts-shadow", "true");
         windows.SetFieldValue("receives-shadow", "true");
         windows.SetFieldValue("base-color", "#FFFFFFFF");
+        windows.SetFieldValue("roughness", "0.5");
+        GeneratedMaterialPlatformDefinition ps2 = definition.GetOrCreatePlatform("ps2");
+        ps2.SchemaId = "ps2-simple-lit";
+        ps2.SetFieldValue("double-sided", "true");
         return definition;
     }
 }

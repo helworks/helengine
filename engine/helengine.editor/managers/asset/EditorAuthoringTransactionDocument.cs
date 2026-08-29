@@ -5,7 +5,7 @@ namespace helengine.editor {
     /// Current-format journal for one staged authoring transaction.
     /// </summary>
     internal sealed class EditorAuthoringTransactionDocument {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
 
         public int Version { get; set; } = CurrentVersion;
 

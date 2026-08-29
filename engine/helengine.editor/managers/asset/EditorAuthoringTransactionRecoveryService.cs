@@ -139,11 +139,12 @@ namespace helengine.editor {
                                 transactionId);
                             if (!rollbackPublished) {
                                 IReadOnlyList<string> restoredPaths = Rollback(transactionDirectory, canonicalProjectRoot, document);
-                                if (restoredPaths.Count > 0) {
+                                string[] restoredNativePaths = FilterNativeRestoredPaths(document, restoredPaths);
+                                if (restoredNativePaths.Length > 0) {
                                     EditorProjectWriteGeneration.PublishRollbackChangesUnderLock(
                                         canonicalProjectRoot,
                                         transactionId,
-                                        restoredPaths);
+                                        restoredNativePaths);
                                     rollbackPublished = true;
                                 }
                             }
@@ -291,6 +292,7 @@ namespace helengine.editor {
                 if (entry == null || string.IsNullOrWhiteSpace(entry.DestinationRelativePath) ||
                     !Enum.IsDefined(entry.State) ||
                     !Enum.IsDefined(entry.Progress) ||
+                    !Enum.IsDefined(entry.PayloadKind) ||
                     !destinations.Add(entry.DestinationRelativePath)) {
                     throw new InvalidDataException($"The authoring transaction journal '{transactionDirectory}' contains duplicate or empty destinations.");
                 }
@@ -299,8 +301,9 @@ namespace helengine.editor {
                     throw new InvalidDataException($"The authoring transaction journal '{transactionDirectory}' contains invalid entry progress.");
                 }
 
-                string destination = ResolveContainedPath(assetsRoot, entry.DestinationRelativePath, "destination");
-                string normalizedDestination = Path.GetRelativePath(assetsRoot, destination)
+                string destinationRoot = entry.UsesProjectRoot ? projectRootPath : assetsRoot;
+                string destination = ResolveContainedPath(destinationRoot, entry.DestinationRelativePath, "destination");
+                string normalizedDestination = Path.GetRelativePath(destinationRoot, destination)
                     .Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
                 if (!string.Equals(normalizedDestination, entry.DestinationRelativePath, StringComparison.Ordinal) ||
                     string.IsNullOrWhiteSpace(entry.StagedRelativePath) ||
@@ -327,22 +330,13 @@ namespace helengine.editor {
                     }
                 } else {
                     byte[] stagedBytes = EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, stagedPath);
-                    if (!IsValidHash(entry.StagedContentHash) || !IsValidHash(entry.StagedSerializedHash) ||
-                        string.IsNullOrWhiteSpace(entry.ExpectedAssetId) || string.IsNullOrWhiteSpace(entry.ExpectedAssetKind)) {
-                        throw new InvalidDataException($"The authoring transaction staged payload '{stagedPath}' is missing exact integrity data.");
-                    }
-                    EditorNativeAssetWriteService.ValidateNativePayloadIntegrity(
-                        stagedBytes,
-                        destination,
-                        entry.StagedContentHash,
-                        entry.StagedSerializedHash,
-                        entry.ExpectedAssetId,
-                        entry.ExpectedAssetKind);
+                    ValidateStagedPayload(entry, stagedBytes, destination);
                 }
 
                 if (entry.PriorExists) {
                     if (!IsValidHash(entry.PriorContentHash) || !IsValidHash(entry.PriorSerializedHash) ||
-                        string.IsNullOrWhiteSpace(entry.ExpectedAssetId) || string.IsNullOrWhiteSpace(entry.ExpectedAssetKind)) {
+                        (RequiresAssetIdentity(entry) &&
+                         (string.IsNullOrWhiteSpace(entry.ExpectedAssetId) || string.IsNullOrWhiteSpace(entry.ExpectedAssetKind)))) {
                         throw new InvalidDataException($"The authoring transaction journal '{transactionDirectory}' is missing prior destination data.");
                     }
                     if (entry.Changed) {
@@ -357,19 +351,123 @@ namespace helengine.editor {
                             if (!IsValidHash(entry.BackupContentHash) || !IsValidHash(entry.BackupSerializedHash)) {
                                 throw new InvalidDataException($"The authoring transaction backup '{backupPath}' is missing exact integrity data.");
                             }
-                            EditorNativeAssetWriteService.ValidateNativePayloadIntegrity(
-                                backupBytes,
-                                destination,
-                                entry.BackupContentHash,
-                                entry.BackupSerializedHash,
-                                entry.ExpectedAssetId,
-                                entry.ExpectedAssetKind);
+                            ValidateBackupPayload(entry, backupBytes, destination);
                         }
                     }
                 } else if (!string.IsNullOrWhiteSpace(entry.BackupRelativePath) ||
                     !string.IsNullOrWhiteSpace(entry.PriorContentHash) || !string.IsNullOrWhiteSpace(entry.PriorSerializedHash)) {
                     throw new InvalidDataException($"The authoring transaction journal '{transactionDirectory}' contains an unexpected backup.");
                 }
+            }
+        }
+
+        static bool RequiresAssetIdentity(EditorAuthoringTransactionEntry entry) {
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.GeneratedFile ||
+                entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialPlatformOverride) {
+                return false;
+            }
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings ||
+                entry.IsMaterialSettingsPayload) {
+                return entry.UpdatesIdentityIndex;
+            }
+            return true;
+        }
+
+        static string[] FilterNativeRestoredPaths(
+            EditorAuthoringTransactionDocument document,
+            IReadOnlyList<string> restoredPaths) {
+            if (document == null || restoredPaths == null || restoredPaths.Count == 0) {
+                return Array.Empty<string>();
+            }
+
+            HashSet<string> restored = new HashSet<string>(restoredPaths, OperatingSystem.IsWindows()
+                ? StringComparer.OrdinalIgnoreCase
+                : StringComparer.Ordinal);
+            return document.Entries
+                .Where(entry => !entry.UsesProjectRoot && restored.Contains(entry.DestinationRelativePath))
+                .Select(entry => entry.DestinationRelativePath)
+                .ToArray();
+        }
+
+        static void ValidateStagedPayload(
+            EditorAuthoringTransactionEntry entry,
+            byte[] bytes,
+            string destination) {
+            if (!IsValidHash(entry.StagedContentHash) || !IsValidHash(entry.StagedSerializedHash) ||
+                (RequiresAssetIdentity(entry) &&
+                 (string.IsNullOrWhiteSpace(entry.ExpectedAssetId) || string.IsNullOrWhiteSpace(entry.ExpectedAssetKind)))) {
+                throw new InvalidDataException($"The authoring transaction staged payload '{destination}' is missing exact integrity data.");
+            }
+
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.GeneratedFile) {
+                EditorNativeAssetWriteService.ValidateGeneratedFilePayload(bytes, entry.StagedContentHash, entry.ExpectedAssetKind);
+            } else if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings ||
+                       entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialPlatformOverride ||
+                       entry.IsMaterialSettingsPayload) {
+                bool commonDocument = entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings ||
+                    (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.NativeAsset && entry.IsMaterialSettingsPayload && entry.UpdatesIdentityIndex);
+                EditorNativeAssetWriteService.ValidateMaterialSettingsPayload(bytes, destination, commonDocument);
+                string actualSerializedHash = ComputeSerializedHash(bytes);
+                if (!string.Equals(actualSerializedHash, entry.StagedSerializedHash, StringComparison.Ordinal)) {
+                    throw new InvalidDataException("The staged material-settings payload does not match its journal.");
+                }
+                string actualContentHash = commonDocument
+                    ? EditorNativeAssetWriteService.ComputeCanonicalMaterialSettingsHash(bytes)
+                    : actualSerializedHash;
+                if (!string.Equals(actualContentHash, entry.StagedContentHash, StringComparison.Ordinal)) {
+                    throw new InvalidDataException("The staged material-settings content hash does not match its journal.");
+                }
+                if (commonDocument) {
+                    using MemoryStream stream = new MemoryStream(bytes, writable: false);
+                    MaterialAssetCommonSettingsDocument document = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
+                    if (!string.Equals(document.AuthoringAssetId, entry.ExpectedAssetId, StringComparison.Ordinal)) {
+                        throw new InvalidDataException("The staged material-settings identity does not match its journal.");
+                    }
+                }
+            } else {
+                EditorNativeAssetWriteService.ValidateNativePayloadIntegrity(
+                    bytes,
+                    destination,
+                    entry.StagedContentHash,
+                    entry.StagedSerializedHash,
+                    entry.ExpectedAssetId,
+                    entry.ExpectedAssetKind);
+            }
+        }
+
+        static void ValidateBackupPayload(
+            EditorAuthoringTransactionEntry entry,
+            byte[] bytes,
+            string destination) {
+            string contentHash = entry.BackupContentHash ?? entry.PriorContentHash;
+            string serializedHash = entry.BackupSerializedHash ?? entry.PriorSerializedHash;
+            if (!IsValidHash(contentHash) || !IsValidHash(serializedHash)) {
+                throw new InvalidDataException("The transaction backup is missing exact integrity data.");
+            }
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.GeneratedFile) {
+                EditorNativeAssetWriteService.ValidateGeneratedFilePayload(bytes, contentHash, entry.ExpectedAssetKind);
+            } else if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings ||
+                       entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialPlatformOverride ||
+                       entry.IsMaterialSettingsPayload) {
+                bool commonDocument = entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings ||
+                    (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.NativeAsset && entry.IsMaterialSettingsPayload && entry.UpdatesIdentityIndex);
+                EditorNativeAssetWriteService.ValidateMaterialSettingsPayload(bytes, destination, commonDocument);
+                string actualSerializedHash = ComputeSerializedHash(bytes);
+                string actualContentHash = commonDocument
+                    ? EditorNativeAssetWriteService.ComputeCanonicalMaterialSettingsHash(bytes)
+                    : actualSerializedHash;
+                if (!string.Equals(actualSerializedHash, serializedHash, StringComparison.Ordinal) ||
+                    !string.Equals(actualContentHash, contentHash, StringComparison.Ordinal)) {
+                    throw new InvalidDataException("The transaction backup material payload does not match its journal.");
+                }
+            } else {
+                EditorNativeAssetWriteService.ValidateNativePayloadIntegrity(
+                    bytes,
+                    destination,
+                    contentHash,
+                    serializedHash,
+                    entry.ExpectedAssetId,
+                    entry.ExpectedAssetKind);
             }
         }
 
@@ -401,8 +499,9 @@ namespace helengine.editor {
                     continue;
                 }
 
-                string destination = ResolveContainedPath(assetsRoot, entry.DestinationRelativePath, "destination");
-                    bool replacementApplied = IsReplacementApplied(destination, assetsRoot, entry);
+                string destinationRoot = entry.UsesProjectRoot ? projectRootPath : assetsRoot;
+                string destination = ResolveContainedPath(destinationRoot, entry.DestinationRelativePath, "destination");
+                bool replacementApplied = IsReplacementApplied(destination, destinationRoot, projectRootPath, entry);
                 if (!replacementApplied) {
                     // The entry was durably marked as applying/applied. Include
                     // it in the restored generation even when the destination
@@ -430,12 +529,13 @@ namespace helengine.editor {
                     // An external edit after preflight is never overwritten.
                     // A prior-byte restoration by another recovery attempt is
                     // already safe and needs no second replacement.
-                    if (!IsReplacementApplied(operation.Destination, assetsRoot, operation.Entry)) {
+                    string destinationRoot = operation.Entry.UsesProjectRoot ? projectRootPath : assetsRoot;
+                    if (!IsReplacementApplied(operation.Destination, destinationRoot, projectRootPath, operation.Entry)) {
                         restoredPaths.Add(operation.Entry.DestinationRelativePath);
                         continue;
                     }
                     if (operation.Entry.PriorExists) {
-                        ReplaceAtomically(operation.Destination, operation.BackupBytes, assetsRoot);
+                        ReplaceAtomically(operation.Destination, operation.BackupBytes, destinationRoot, projectRootPath);
                     } else if (File.Exists(operation.Destination)) {
                         EditorAuthoringMutationScope.DeleteLeaf(projectRootPath, operation.Destination);
                     }
@@ -467,9 +567,10 @@ namespace helengine.editor {
 
         static bool IsReplacementApplied(
             string destination,
-            string assetsRoot,
+            string destinationRoot,
+            string projectRootPath,
             EditorAuthoringTransactionEntry entry) {
-            ValidateNoReparsePath(destination, assetsRoot);
+            ValidateNoReparsePath(destination, destinationRoot);
             if (!File.Exists(destination)) {
                 if (entry.PriorExists) {
                     throw new InvalidDataException($"The transaction destination '{destination}' disappeared before recovery.");
@@ -477,9 +578,8 @@ namespace helengine.editor {
                 return false;
             }
 
-            string projectRootPath = Directory.GetParent(Path.GetFullPath(assetsRoot))?.FullName;
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new InvalidDataException("The authoring assets root has no project parent.");
+                throw new InvalidDataException("The authoring transaction has no project parent.");
             }
             byte[] currentBytes = EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, destination);
             string currentHash = ComputeSerializedHash(currentBytes);
@@ -493,16 +593,7 @@ namespace helengine.editor {
         }
 
         static void ValidateBackup(byte[] bytes, string destination, EditorAuthoringTransactionEntry entry) {
-            if (!IsValidHash(entry.BackupContentHash) || !IsValidHash(entry.BackupSerializedHash)) {
-                throw new InvalidDataException("The transaction backup is missing exact integrity data.");
-            }
-            EditorNativeAssetWriteService.ValidateNativePayloadIntegrity(
-                bytes,
-                destination,
-                entry.BackupContentHash,
-                entry.BackupSerializedHash,
-                entry.ExpectedAssetId,
-                entry.ExpectedAssetKind);
+            ValidateBackupPayload(entry, bytes, destination);
         }
 
         static string ComputeSerializedHash(byte[] bytes) {
@@ -531,13 +622,18 @@ namespace helengine.editor {
             }
         }
 
-        internal static void ReplaceAtomically(string destinationPath, byte[] bytes, string containingRoot) {
+        internal static void ReplaceAtomically(
+            string destinationPath,
+            byte[] bytes,
+            string containingRoot,
+            string projectRootPath) {
             ValidateNoReparsePath(destinationPath, containingRoot);
-            string projectRootPath = Directory.GetParent(Path.GetFullPath(containingRoot))?.FullName;
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+            string canonicalProjectRootPath = Path.GetFullPath(projectRootPath);
+            if (string.IsNullOrWhiteSpace(canonicalProjectRootPath)) {
                 throw new InvalidDataException("The authoring mutation root has no project parent.");
             }
-            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, destinationPath, bytes);
+            ValidateNoReparsePath(canonicalProjectRootPath, canonicalProjectRootPath);
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(canonicalProjectRootPath, destinationPath, bytes);
         }
 
         static void DeleteTransactionDirectory(string transactionDirectory, string transactionRoot) {

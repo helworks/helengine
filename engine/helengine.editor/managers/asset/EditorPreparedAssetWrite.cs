@@ -17,6 +17,14 @@ namespace helengine.editor {
 
         public string AssetKind { get; init; }
 
+        public EditorAuthoringTransactionPayloadKind PayloadKind { get; init; }
+
+        /// <summary>
+        /// Selects the project root instead of the assets root for generated
+        /// source, import-settings, and cache files.
+        /// </summary>
+        public bool UsesProjectRoot { get; init; }
+
         public bool PriorExists { get; init; }
 
         public string PriorContentHash { get; init; }

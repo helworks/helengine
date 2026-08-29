@@ -510,6 +510,58 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Materializes one effective platform settings payload from already
+        /// prepared common and override bytes. This is the read-your-writes
+        /// boundary used by a transaction before its destinations publish.
+        /// </summary>
+        public MaterialAssetProcessorSettings LoadPlatformSettingsFromBytes(
+            byte[] commonBytes,
+            byte[] platformOverrideBytes,
+            string platformId) {
+            if (commonBytes == null || commonBytes.Length == 0) {
+                throw new ArgumentException("Common material settings bytes must be provided.", nameof(commonBytes));
+            } else if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            MaterialAssetCommonSettingsDocument commonDocument;
+            using (MemoryStream commonStream = new MemoryStream(commonBytes, writable: false)) {
+                commonDocument = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(commonStream);
+            }
+            NormalizeCommonDocument(commonDocument, null);
+            MaterialAssetProcessorSettings platformSettings = CloneProcessorSettings(commonDocument.Processor);
+            if (platformOverrideBytes != null && platformOverrideBytes.Length > 0) {
+                using MemoryStream overrideStream = new MemoryStream(platformOverrideBytes, writable: false);
+                MaterialAssetPlatformOverrideDocument overrideDocument = MaterialAssetPlatformOverrideDocumentBinarySerializer.Deserialize(overrideStream);
+                ApplyOverrideSettings(platformSettings, overrideDocument.Processor);
+            }
+
+            return platformSettings;
+        }
+
+        /// <summary>
+        /// Materializes one shader material from already prepared common and
+        /// platform override bytes without consulting a destination file.
+        /// </summary>
+        public ShaderMaterialAsset LoadMaterialAssetFromBytes(
+            byte[] commonBytes,
+            byte[] platformOverrideBytes,
+            string platformId) {
+            MaterialAssetProcessorSettings platformSettings = LoadPlatformSettingsFromBytes(
+                commonBytes,
+                platformOverrideBytes,
+                platformId);
+            using MemoryStream commonStream = new MemoryStream(commonBytes, writable: false);
+            MaterialAssetCommonSettingsDocument commonDocument = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(commonStream);
+            NormalizeCommonDocument(commonDocument, null);
+            ShaderMaterialAsset shaderMaterialAsset = new ShaderMaterialAsset {
+                Id = commonDocument.Importer.AssetId ?? string.Empty
+            };
+            PopulateShaderMaterialAsset(shaderMaterialAsset, platformSettings);
+            return shaderMaterialAsset;
+        }
+
+        /// <summary>
         /// Applies one platform's serialized material fields to the top-level material asset payload used by editor material preview paths.
         /// </summary>
         /// <param name="materialAsset">Material asset to update.</param>

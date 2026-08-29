@@ -71,6 +71,12 @@ namespace helengine.editor {
         readonly EditorSessionRendererResources RendererResourcesValue;
 
         /// <summary>
+        /// Session-owned material document reader used for both published and
+        /// transaction-staged read-your-writes materialization.
+        /// </summary>
+        readonly MaterialAssetSettingsService MaterialAssetSettingsServiceValue;
+
+        /// <summary>
         /// Indicates whether this project session owns the generated provider registry.
         /// Editor and CLI composition roots borrow their graph registry so every
         /// generated-asset consumer resolves through the same scope.
@@ -245,6 +251,7 @@ namespace helengine.editor {
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
             rendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
             RendererResourcesValue = rendererResources;
+            MaterialAssetSettingsServiceValue = new MaterialAssetSettingsService(ProjectRootPathValue);
             OwnsGeneratedAssetProviders = false;
             OwnsAssetImportManager = ownsAssetImportManager;
             AssetAuthoringService = new EditorProjectAssetAuthoringService(this, AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService, GeneratedAssetProviders, GeneratedModelCache, GeneratedMaterialCache, rendererResources);
@@ -379,6 +386,119 @@ namespace helengine.editor {
             }
 
             return transaction.WriteMaterial(relativePath, definition);
+        }
+
+        /// <summary>
+        /// Stages identity-less generated source, import-settings, or cache
+        /// bytes through this session's transaction graph.
+        /// </summary>
+        public EditorAssetWriteResult WriteGeneratedFile(
+            string projectRelativePath,
+            byte[] bytes,
+            string expectedPriorContentHash,
+            EditorGeneratedFileKind fileKind,
+            EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+            EnsureTransactionBelongsToSession(transaction);
+            return transaction.WriteGeneratedFile(projectRelativePath, bytes, expectedPriorContentHash, fileKind);
+        }
+
+        /// <summary>Stages one generated cache asset without publishing it outside the transaction.</summary>
+        public EditorAssetWriteResult WriteGeneratedCacheAsset(
+            string relativePath,
+            Asset asset,
+            EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            if (string.IsNullOrWhiteSpace(relativePath)) {
+                throw new ArgumentException("Cache-relative path must be provided.", nameof(relativePath));
+            } else if (asset == null) {
+                throw new ArgumentNullException(nameof(asset));
+            } else if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+
+            EnsureTransactionBelongsToSession(transaction);
+            string projectRelativePath = Path.Combine("cache", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            return transaction.WriteGeneratedFile(
+                projectRelativePath,
+                AssetSerializer.SerializeToBytes(asset),
+                transaction.GetCurrentFileHash(projectRelativePath),
+                EditorGeneratedFileKind.Cache);
+        }
+
+        /// <summary>
+        /// Reads a staged generated output from this session's exact active
+        /// transaction, never from the published destination.
+        /// </summary>
+        public byte[] ReadStagedFile(string projectRelativePath, EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+            EnsureTransactionBelongsToSession(transaction);
+            return transaction.ReadStagedFile(projectRelativePath);
+        }
+
+        /// <summary>
+        /// Loads one material using staged common/override documents when this
+        /// transaction prepared them, otherwise the published session-owned
+        /// material document. No alternate project graph is consulted.
+        /// </summary>
+        public ShaderMaterialAsset LoadMaterialAsset(
+            string relativePath,
+            string platformId,
+            EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            EnsureTransactionBelongsToSession(transaction);
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            string commonProjectPath = normalizedRelativePath;
+            if (!transaction.TryReadStagedFile(commonProjectPath, out byte[] commonBytes)) {
+                commonProjectPath = "assets/" + normalizedRelativePath;
+            }
+            if (commonBytes != null || transaction.TryReadStagedFile(commonProjectPath, out commonBytes)) {
+                string overrideProjectPath = commonProjectPath + "." + platformId + AssetImportManager.SettingsExtension;
+                transaction.TryReadStagedFile(overrideProjectPath, out byte[] overrideBytes);
+                return MaterialAssetSettingsServiceValue.LoadMaterialAssetFromBytes(commonBytes, overrideBytes, platformId);
+            }
+
+            return MaterialAssetSettingsServiceValue.LoadMaterialAsset(
+                ResolveAssetsPath(normalizedRelativePath),
+                platformId);
+        }
+
+        /// <summary>
+        /// Loads effective platform settings from staged material documents or
+        /// the published session-owned destination.
+        /// </summary>
+        public MaterialAssetProcessorSettings LoadMaterialPlatformSettings(
+            string relativePath,
+            string platformId,
+            EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            EnsureTransactionBelongsToSession(transaction);
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            string commonProjectPath = normalizedRelativePath;
+            if (!transaction.TryReadStagedFile(commonProjectPath, out byte[] commonBytes)) {
+                commonProjectPath = "assets/" + normalizedRelativePath;
+            }
+            if (commonBytes != null || transaction.TryReadStagedFile(commonProjectPath, out commonBytes)) {
+                string overrideProjectPath = commonProjectPath + "." + platformId + AssetImportManager.SettingsExtension;
+                transaction.TryReadStagedFile(overrideProjectPath, out byte[] overrideBytes);
+                return MaterialAssetSettingsServiceValue.LoadPlatformSettingsFromBytes(commonBytes, overrideBytes, platformId);
+            }
+
+            string materialPath = ResolveAssetsPath(normalizedRelativePath);
+            if (!MaterialAssetSettingsServiceValue.TryLoadPlatformSettings(
+                materialPath,
+                platformId,
+                out MaterialAssetProcessorSettings platformSettings) || platformSettings == null) {
+                throw new InvalidOperationException($"Material settings for platform '{platformId}' could not be loaded from '{relativePath}'.");
+            }
+
+            return platformSettings;
         }
 
         /// <summary>
@@ -668,7 +788,6 @@ namespace helengine.editor {
                 Path.Combine(ProjectRootPathValue, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar)),
                 authoringAssetId,
                 transaction);
-            RegisterAuthoredWrite(relativePath);
         }
 
         /// <summary>

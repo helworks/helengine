@@ -178,6 +178,80 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Stages identity-less generated source, import-settings, or cache
+        /// bytes at a project-relative path. A null prior hash explicitly
+        /// means the destination must not exist; existing destinations must
+        /// provide their exact prior byte hash.
+        /// </summary>
+        public EditorAssetWriteResult WriteGeneratedFile(
+            string projectRelativePath,
+            byte[] bytes,
+            string expectedPriorContentHash,
+            EditorGeneratedFileKind fileKind) {
+            lock (StateGate) {
+                EnsureStaging();
+                return StagePrepared(NativeWriter.PrepareGeneratedFile(
+                    projectRelativePath,
+                    bytes,
+                    expectedPriorContentHash,
+                    fileKind));
+            }
+        }
+
+        /// <summary>
+        /// Reads output already staged by this transaction without consulting
+        /// the live destination. Dependent generated values can therefore be
+        /// materialized before publication.
+        /// </summary>
+        public byte[] ReadStagedFile(string projectRelativePath) {
+            lock (StateGate) {
+                EnsureStaging();
+                string normalizedPath = NormalizeProjectRelativePath(projectRelativePath);
+                if (!PreparedByPath.TryGetValue(normalizedPath, out EditorPreparedAssetWrite prepared)) {
+                    throw new InvalidOperationException($"The transaction has not staged generated output '{normalizedPath}'.");
+                }
+                return prepared.SerializedBytes.ToArray();
+            }
+        }
+
+        /// <summary>
+        /// Attempts to read one prepared output without consulting its live
+        /// destination. This internal companion lets session material loading
+        /// distinguish an unstaged published asset from a staged one.
+        /// </summary>
+        internal bool TryReadStagedFile(string projectRelativePath, out byte[] bytes) {
+            lock (StateGate) {
+                EnsureStaging();
+                string normalizedPath = NormalizeProjectRelativePath(projectRelativePath);
+                if (!PreparedByPath.TryGetValue(normalizedPath, out EditorPreparedAssetWrite prepared)) {
+                    bytes = null;
+                    return false;
+                }
+
+                bytes = prepared.SerializedBytes.ToArray();
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Captures the exact raw-byte hash currently present at a
+        /// project-relative generated-file destination. Null means absent.
+        /// </summary>
+        public string GetCurrentFileHash(string projectRelativePath) {
+            lock (StateGate) {
+                EnsureStaging();
+                string normalizedPath = NormalizeProjectRelativePath(projectRelativePath);
+                string fullPath = Path.Combine(ProjectRootPath, normalizedPath.Replace('/', Path.DirectorySeparatorChar));
+                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, ProjectRootPath);
+                if (!File.Exists(fullPath)) {
+                    return null;
+                }
+                return EditorNativeAssetWriteService.ComputeRawBytesHash(
+                    EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath));
+            }
+        }
+
+        /// <summary>
         /// Stages a generated material's common and platform settings documents
         /// under this transaction and publishes them together on commit.
         /// </summary>
@@ -303,6 +377,8 @@ namespace helengine.editor {
             entry.StagedSerializedHash = prepared.SerializedHash;
             entry.ExpectedAssetId = prepared.AssetId;
             entry.ExpectedAssetKind = prepared.AssetKind;
+            entry.PayloadKind = prepared.PayloadKind;
+            entry.UsesProjectRoot = prepared.UsesProjectRoot;
             entry.IsMaterialSettingsPayload = prepared.IsMaterialSettingsPayload;
             entry.UpdatesIdentityIndex = prepared.UpdatesIdentityIndex;
             entry.Changed = !prepared.IsUnchanged;
@@ -351,6 +427,9 @@ namespace helengine.editor {
                 List<EditorAuthoringTransactionEntry> changedEntries = Document.Entries
                     .Where(entry => entry.Changed)
                     .ToList();
+                EditorAuthoringTransactionEntry[] nativeChangedEntries = changedEntries
+                    .Where(entry => !entry.UsesProjectRoot)
+                    .ToArray();
                 List<EditorAuthoringTransactionEntry> appliedEntries = new List<EditorAuthoringTransactionEntry>();
                 IDisposable pendingOwner = null;
                 bool committedDurably = false;
@@ -385,6 +464,12 @@ namespace helengine.editor {
                         EditorAuthoringTransactionPendingMarker.PublishUnderLock(ProjectRootPath, Document.TransactionId,
                             changedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
                         pendingOwner = EditorAuthoringTransactionPendingMarker.EnterOwner(ProjectRootPath, Document.TransactionId);
+                        for (int index = 0; index < changedEntries.Count; index++) {
+                            string directoryPath = Path.GetDirectoryName(PreparedByPath[changedEntries[index].DestinationRelativePath].FullPath);
+                            if (!string.IsNullOrWhiteSpace(directoryPath)) {
+                                EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, directoryPath);
+                            }
+                        }
                     }
                     for (int index = 0; index < changedEntries.Count; index++) {
                         EditorAuthoringTransactionEntry entry = changedEntries[index];
@@ -399,25 +484,32 @@ namespace helengine.editor {
                         byte[] stagedBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, stagedPath);
                         ValidatePreparedPayload(entry, prepared, stagedBytes);
                         appliedEntries.Add(entry);
-                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(prepared.FullPath, stagedBytes, AssetsRootPath);
+                        EditorAuthoringTransactionRecoveryService.ReplaceAtomically(
+                            prepared.FullPath,
+                            stagedBytes,
+                            prepared.UsesProjectRoot ? ProjectRootPath : AssetsRootPath,
+                            ProjectRootPath);
                         entry.Progress = EditorAuthoringTransactionEntryProgress.Applied;
                         WriteDocument();
                         Hooks.AfterReplacement?.Invoke(index, prepared.FullPath);
                     }
 
                     for (int index = 0; index < changedEntries.Count; index++) {
+                        Hooks.BeforePublication?.Invoke(index, changedEntries[index].DestinationRelativePath);
+                    }
+                    if (nativeChangedEntries.Length > 0) {
+                        NativeWriter.PublishChangesUnderLock(nativeChangedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
+                        generationPublished = true;
+                    }
+                    for (int index = 0; index < changedEntries.Count; index++) {
                         EditorAuthoringTransactionEntry entry = changedEntries[index];
                         Hooks.BeforeGraphUpdate?.Invoke(index, entry.DestinationRelativePath);
                         NativeWriter.ApplyPublishedAssetUnderLock(PreparedByPath[entry.DestinationRelativePath]);
                     }
-                    for (int index = 0; index < changedEntries.Count; index++) {
-                        Hooks.BeforePublication?.Invoke(index, changedEntries[index].DestinationRelativePath);
-                    }
+                    // Identity/index/hash registration is intentionally after
+                    // publication. Readers cannot observe a graph entry whose
+                    // destination has not become durable yet.
                     NativeWriter.FlushHashCacheAtCommit();
-                    if (changedEntries.Count > 0) {
-                        NativeWriter.PublishChangesUnderLock(changedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
-                        generationPublished = true;
-                    }
                     NativeWriter.ObserveCurrentGenerationUnderLock();
                     Hooks.AfterPublication?.Invoke();
                     Document.State = EditorAuthoringTransactionState.Committed;
@@ -456,11 +548,11 @@ namespace helengine.editor {
                                 rollbackException = cacheRollbackException;
                             }
                         }
-                        if (rollbackException == null && generationPublished && changedEntries.Count > 0) {
+                        if (rollbackException == null && generationPublished && nativeChangedEntries.Length > 0) {
                             try {
                                 NativeWriter.PublishRollbackChangesUnderLock(
                                     Document.TransactionId,
-                                    changedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
+                                    nativeChangedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
                                 NativeWriter.ObserveCurrentGenerationUnderLock();
                             } catch (Exception generationRollbackException) {
                                 rollbackException = generationRollbackException;
@@ -481,7 +573,7 @@ namespace helengine.editor {
                             WriteDocument();
                             Hooks.BeforePendingMarkerClear?.Invoke();
                             EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
-                            if (generationPublished && changedEntries.Count > 0) {
+                            if (generationPublished && nativeChangedEntries.Length > 0) {
                                 NativeWriter.PruneRollbackChangesUnderLock(Document.TransactionId);
                             }
                             try {
@@ -545,7 +637,10 @@ namespace helengine.editor {
                     throw new InvalidDataException("The authoring transaction contains a destination without a prepared output.");
                 }
 
-                EditorAuthoringTransactionRecoveryService.ResolveContainedPath(AssetsRootPath, entry.DestinationRelativePath, "destination");
+                EditorAuthoringTransactionRecoveryService.ResolveContainedPath(
+                    GetDestinationRoot(entry),
+                    entry.DestinationRelativePath,
+                    "destination");
                 string stagedPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, entry.StagedRelativePath, "staged");
                 byte[] stagedBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, stagedPath);
                 ValidatePreparedPayload(entry, prepared, stagedBytes);
@@ -569,9 +664,20 @@ namespace helengine.editor {
             EditorAuthoringTransactionEntry entry,
             EditorPreparedAssetWrite prepared,
             byte[] stagedBytes) {
-            if (entry.IsMaterialSettingsPayload) {
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.GeneratedFile) {
+                EditorNativeAssetWriteService.ValidateGeneratedFilePayload(
+                    stagedBytes,
+                    entry.StagedContentHash,
+                    entry.ExpectedAssetKind);
+                return;
+            }
+
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings ||
+                entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialPlatformOverride ||
+                entry.IsMaterialSettingsPayload) {
                 NativeWriter.ValidatePreparedMaterialPayload(
                     stagedBytes,
+                    entry.StagedContentHash,
                     entry.StagedSerializedHash,
                     entry.ExpectedAssetId,
                     entry.ExpectedAssetKind);
@@ -591,9 +697,17 @@ namespace helengine.editor {
             EditorAuthoringTransactionEntry entry,
             EditorPreparedAssetWrite prepared,
             byte[] currentBytes) {
-            return entry.IsMaterialSettingsPayload
-                ? NativeWriter.ComputeSerializedHash(currentBytes)
-                : NativeWriter.ComputeCurrentContentHash(prepared.FullPath);
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.GeneratedFile) {
+                return EditorNativeAssetWriteService.ComputeRawBytesHash(currentBytes);
+            }
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings ||
+                (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.NativeAsset && entry.IsMaterialSettingsPayload)) {
+                return EditorNativeAssetWriteService.ComputeCanonicalMaterialSettingsHash(currentBytes);
+            }
+            if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialPlatformOverride) {
+                return NativeWriter.ComputeSerializedHash(currentBytes);
+            }
+            return NativeWriter.ComputeCurrentContentHash(prepared.FullPath);
         }
 
         Exception RollbackUnderLock(IReadOnlyList<EditorAuthoringTransactionEntry> appliedEntries) {
@@ -607,7 +721,9 @@ namespace helengine.editor {
                 EditorAuthoringTransactionEntry entry = appliedEntries[index];
                 try {
                     EditorPreparedAssetWrite prepared = PreparedByPath[entry.DestinationRelativePath];
-                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(prepared.FullPath, AssetsRootPath);
+                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                        prepared.FullPath,
+                        GetDestinationRoot(entry));
                     byte[] currentBytes = File.Exists(prepared.FullPath)
                         ? EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, prepared.FullPath)
                         : null;
@@ -630,9 +746,17 @@ namespace helengine.editor {
                             entry.BackupRelativePath,
                             "backup");
                         backupBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, backupPath);
-                        if (entry.IsMaterialSettingsPayload) {
+                        if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.GeneratedFile) {
+                            EditorNativeAssetWriteService.ValidateGeneratedFilePayload(
+                                backupBytes,
+                                entry.BackupContentHash ?? entry.PriorContentHash,
+                                entry.ExpectedAssetKind);
+                        } else if (entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialCommonSettings ||
+                                   entry.PayloadKind == EditorAuthoringTransactionPayloadKind.MaterialPlatformOverride ||
+                                   entry.IsMaterialSettingsPayload) {
                             NativeWriter.ValidatePreparedMaterialPayload(
                                 backupBytes,
+                                entry.BackupContentHash ?? entry.PriorContentHash,
                                 entry.BackupSerializedHash ?? entry.PriorSerializedHash,
                                 entry.ExpectedAssetId,
                                 entry.ExpectedAssetKind);
@@ -659,7 +783,9 @@ namespace helengine.editor {
                         Hooks.BeforeRollback?.Invoke(index, operation.Prepared.FullPath);
                         bool currentlyStaged = false;
                         if (operation.ReplacementApplied) {
-                            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(operation.Prepared.FullPath, AssetsRootPath);
+                            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                                operation.Prepared.FullPath,
+                                GetDestinationRoot(operation.Entry));
                             byte[] currentBytes = File.Exists(operation.Prepared.FullPath)
                                 ? EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, operation.Prepared.FullPath)
                                 : null;
@@ -682,12 +808,15 @@ namespace helengine.editor {
                                 EditorAuthoringTransactionRecoveryService.ReplaceAtomically(
                                     operation.Prepared.FullPath,
                                     operation.BackupBytes,
-                                    AssetsRootPath);
+                                    GetDestinationRoot(operation.Entry),
+                                    ProjectRootPath);
                             } else if (File.Exists(operation.Prepared.FullPath)) {
                                 using EditorAuthoringMutationScope mutationScope = EditorAuthoringMutationScope.AcquireForMutation(
                                     ProjectRootPath,
                                     Path.GetDirectoryName(operation.Prepared.FullPath));
-                                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(operation.Prepared.FullPath, AssetsRootPath);
+                                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(
+                                    operation.Prepared.FullPath,
+                                    GetDestinationRoot(operation.Entry));
                                 EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, operation.Prepared.FullPath);
                             }
                         }
@@ -870,6 +999,26 @@ namespace helengine.editor {
                 throw new ArgumentException("Asset relative path must be provided.", nameof(relativePath));
             }
             return relativePath.Replace('\\', '/').Trim('/');
+        }
+
+        static string NormalizeProjectRelativePath(string relativePath) {
+            if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath)) {
+                throw new ArgumentException("Generated file path must be project-relative.", nameof(relativePath));
+            }
+            string normalized = relativePath.Replace('\\', '/').Trim('/');
+            if (string.IsNullOrWhiteSpace(normalized) || normalized.Equals("..", StringComparison.Ordinal)
+                || normalized.StartsWith("../", StringComparison.Ordinal)
+                || normalized.Contains("/../", StringComparison.Ordinal)) {
+                throw new ArgumentException("Generated file path must be canonical and project-relative.", nameof(relativePath));
+            }
+            return normalized;
+        }
+
+        string GetDestinationRoot(EditorAuthoringTransactionEntry entry) {
+            if (entry == null) {
+                throw new ArgumentNullException(nameof(entry));
+            }
+            return entry.UsesProjectRoot ? ProjectRootPath : AssetsRootPath;
         }
 
         static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;

@@ -5,6 +5,8 @@ namespace helengine.editor {
     internal sealed class EditorAuthoringTransactionEntry {
         public string DestinationRelativePath { get; set; }
 
+        public bool UsesProjectRoot { get; set; }
+
         public string StagedRelativePath { get; set; }
 
         public bool PriorExists { get; set; }
@@ -23,6 +25,13 @@ namespace helengine.editor {
 
         public string ExpectedAssetKind { get; set; }
 
+        /// <summary>
+        /// Identifies the durable payload format. Recovery must validate
+        /// identity-bearing native assets differently from material settings
+        /// and identity-less generated files.
+        /// </summary>
+        public EditorAuthoringTransactionPayloadKind PayloadKind { get; set; }
+
         public string StagedContentHash { get; set; }
 
         public string BackupRelativePath { get; set; }
@@ -40,6 +49,16 @@ namespace helengine.editor {
         public bool IsMaterialSettingsPayload { get; set; }
 
         public bool UpdatesIdentityIndex { get; set; }
+    }
+
+    /// <summary>
+    /// Durable payload formats understood by an authoring transaction.
+    /// </summary>
+    public enum EditorAuthoringTransactionPayloadKind {
+        NativeAsset,
+        MaterialCommonSettings,
+        MaterialPlatformOverride,
+        GeneratedFile
     }
 
     /// <summary>

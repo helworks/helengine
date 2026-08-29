@@ -22,6 +22,13 @@ public abstract class TestEditorProjectAuthoringSessionBase : IEditorProjectAuth
     public virtual ShaderAsset LoadBuiltInShaderAssetById(string shaderAssetId) => throw Unsupported();
     public virtual EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) => throw Unsupported();
     public virtual EditorAssetWriteResult WriteGeneratedMaterial(string relativePath, GeneratedMaterialAssetDefinition definition, EditorAuthoringTransaction transaction) => throw Unsupported();
+    public virtual EditorAssetWriteResult WriteGeneratedFile(string projectRelativePath, byte[] bytes, string expectedPriorContentHash, EditorGeneratedFileKind fileKind, EditorAuthoringTransaction transaction) => throw Unsupported();
+    public virtual EditorAssetWriteResult WriteGeneratedCacheAsset(string relativePath, Asset asset, EditorAuthoringTransaction transaction) => throw Unsupported();
+    public virtual byte[] ReadStagedFile(string projectRelativePath, EditorAuthoringTransaction transaction) => throw Unsupported();
+
+    public virtual ShaderMaterialAsset LoadMaterialAsset(string relativePath, string platformId, EditorAuthoringTransaction transaction) => throw Unsupported();
+
+    public virtual MaterialAssetProcessorSettings LoadMaterialPlatformSettings(string relativePath, string platformId, EditorAuthoringTransaction transaction) => throw Unsupported();
     public virtual void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId, EditorAuthoringTransaction transaction) => throw Unsupported();
     public virtual EditorAuthoringTransaction BeginTransaction() => throw Unsupported();
     public virtual bool OwnsTransaction(EditorAuthoringTransaction transaction) => throw Unsupported();
