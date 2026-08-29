@@ -493,7 +493,7 @@ namespace helengine.editor {
         /// <returns>Held generated workspace lease.</returns>
         internal EditorGeneratedCodeWorkspaceLease AcquireWorkspaceLease() {
             string generationWorkspaceRootPath = string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
-                ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
+                ? ProjectRootPath
                 : GeneratedWorkspaceRootPath;
             return EditorGeneratedCodeWorkspaceLease.Acquire(generationWorkspaceRootPath);
         }

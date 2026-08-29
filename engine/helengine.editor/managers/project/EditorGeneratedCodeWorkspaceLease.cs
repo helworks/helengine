@@ -67,6 +67,25 @@ namespace helengine.editor {
         /// <param name="workspaceRootPath">Candidate generated tree path.</param>
         /// <returns><c>true</c> when the candidate maps to this lease's physical tree.</returns>
         internal bool Covers(string workspaceRootPath) {
+            string candidateIdentity = NormalizeIdentity(ResolvePhysicalDirectoryPath(workspaceRootPath));
+            string rootIdentity = NormalizeIdentity(WorkspaceRootPath);
+            StringComparison comparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            return candidateIdentity.Equals(rootIdentity, comparison)
+                || candidateIdentity.StartsWith(
+                    rootIdentity.EndsWith(Path.DirectorySeparatorChar)
+                        ? rootIdentity
+                        : rootIdentity + Path.DirectorySeparatorChar,
+                    comparison);
+        }
+
+        /// <summary>
+        /// Determines whether a path is exactly the physical root protected by this lease.
+        /// </summary>
+        /// <param name="workspaceRootPath">Candidate workspace path.</param>
+        /// <returns><c>true</c> when the candidate is exactly the leased root.</returns>
+        internal bool Matches(string workspaceRootPath) {
             return string.Equals(
                 NormalizeIdentity(ResolvePhysicalDirectoryPath(workspaceRootPath)),
                 NormalizeIdentity(WorkspaceRootPath),

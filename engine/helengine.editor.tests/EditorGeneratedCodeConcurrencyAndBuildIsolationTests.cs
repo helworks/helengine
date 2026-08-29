@@ -79,6 +79,24 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the default root solution and its generated child projects share the lease used by the real build tool.
+        /// </summary>
+        [Fact]
+        public void DefaultSolutionWorkspaceLease_CoversRootSolutionAndRealBuildValidation() {
+            EditorGameSolutionService service = new EditorGameSolutionService(ProjectRootPath, "SkyRider", new TestIdeLauncher());
+            string solutionPath = service.GenerateSolutionFiles();
+            string missingSolutionPath = Path.Combine(ProjectRootPath, "validation-only-missing.sln");
+
+            using EditorGeneratedCodeWorkspaceLease workspaceLease = service.AcquireWorkspaceLease();
+            Assert.True(workspaceLease.Covers(Path.GetDirectoryName(solutionPath)));
+            Assert.True(workspaceLease.Covers(Path.Combine(ProjectRootPath, "user_settings", "generated_code", "projects", "gameplay")));
+
+            EditorBuildExecutionResult result = new EditorDotNetScriptBuildTool().Build(missingSolutionPath, string.Empty, workspaceLease);
+
+            Assert.False(result.Succeeded);
+        }
+
+        /// <summary>
         /// Ensures a default non-override build uses its documented sibling output root before project evaluation.
         /// </summary>
         [Fact]
@@ -168,6 +186,110 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures publication recovery never treats an unmarked user directory as an engine-owned crash artifact.
+        /// </summary>
+        [Fact]
+        public void BuildGeneratedSolution_WhenDestinationHasUnmarkedMatchingSiblings_PreservesTheirBytes() {
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "foreign-publication");
+            string executionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "foreign-publication");
+            string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
+            string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
+            string destinationName = Path.GetFileName(destinationRootPath);
+            string foreignBackupPath = Path.Combine(destinationParentPath, destinationName + ".backup-userdata");
+            string foreignStagingPath = Path.Combine(destinationParentPath, destinationName + ".staging-" + Guid.NewGuid().ToString("N"));
+
+            try {
+                Directory.CreateDirectory(foreignBackupPath);
+                Directory.CreateDirectory(foreignStagingPath);
+                string foreignBackupFilePath = Path.Combine(foreignBackupPath, "keep-backup.bin");
+                string foreignStagingFilePath = Path.Combine(foreignStagingPath, "keep-staging.bin");
+                File.WriteAllText(foreignBackupFilePath, "user-owned-backup");
+                File.WriteAllText(foreignStagingFilePath, "user-owned-staging");
+
+                EditorGameSolutionService service = CreateService(workspaceRootPath, executionRootPath);
+                string solutionPath = service.GenerateSolutionFiles();
+                EditorBuildExecutionResult result = new EditorDotNetScriptBuildTool().Build(solutionPath, destinationRootPath);
+
+                Assert.True(result.Succeeded, result.Message);
+                Assert.Equal("user-owned-backup", File.ReadAllText(foreignBackupFilePath));
+                Assert.Equal("user-owned-staging", File.ReadAllText(foreignStagingFilePath));
+            } finally {
+                DeleteDirectoryIfPresent(destinationRootPath);
+                DeleteDirectoryIfPresent(foreignBackupPath);
+                DeleteDirectoryIfPresent(foreignStagingPath);
+                DeleteDirectoryIfPresent(executionRootPath);
+            }
+        }
+
+        /// <summary>
+        /// Ensures positively marked interrupted publication artifacts are recovered and do not remain beside the destination.
+        /// </summary>
+        [Fact]
+        public void BuildGeneratedSolution_WhenOwnedPublicationArtifactsRemain_RecoversOnlyThoseArtifacts() {
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "owned-publication");
+            string executionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "owned-publication");
+            string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
+            string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
+            string destinationName = Path.GetFileName(destinationRootPath);
+            string stagingToken = Guid.NewGuid().ToString("N");
+            string backupToken = Guid.NewGuid().ToString("N");
+            string stagingRootPath = Path.Combine(destinationParentPath, destinationName + ".staging-" + stagingToken);
+            string backupRootPath = Path.Combine(destinationParentPath, destinationName + ".backup-" + backupToken);
+
+            try {
+                Directory.CreateDirectory(stagingRootPath);
+                Directory.CreateDirectory(backupRootPath);
+                File.WriteAllText(Path.Combine(stagingRootPath, "staged-before-crash.txt"), "staged-before-crash");
+                File.WriteAllText(Path.Combine(backupRootPath, "backup-before-crash.txt"), "backup-before-crash");
+                WritePublicationMarkerForTest(stagingRootPath, destinationRootPath, "staging", stagingToken);
+                WritePublicationMarkerForTest(backupRootPath, destinationRootPath, "backup", backupToken);
+
+                EditorGameSolutionService service = CreateService(workspaceRootPath, executionRootPath);
+                string solutionPath = service.GenerateSolutionFiles();
+                EditorBuildExecutionResult result = new EditorDotNetScriptBuildTool().Build(solutionPath, destinationRootPath);
+
+                Assert.True(result.Succeeded, result.Message);
+                Assert.False(Directory.Exists(stagingRootPath));
+                Assert.False(Directory.Exists(backupRootPath));
+                Assert.True(Directory.Exists(destinationRootPath));
+                Assert.False(File.Exists(Path.Combine(destinationRootPath, ".helengine-publication-marker")));
+            } finally {
+                DeleteDirectoryIfPresent(destinationRootPath);
+                DeleteDirectoryIfPresent(stagingRootPath);
+                DeleteDirectoryIfPresent(backupRootPath);
+                DeleteDirectoryIfPresent(executionRootPath);
+            }
+        }
+
+        /// <summary>
+        /// Ensures a failed compiler process never replaces an already published destination tree.
+        /// </summary>
+        [Fact]
+        public void BuildGeneratedSolution_WhenCompilationFails_RetainsExistingDestinationBytes() {
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "failed-publication");
+            string executionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "failed-publication");
+            string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
+
+            try {
+                Directory.CreateDirectory(destinationRootPath);
+                string sentinelPath = Path.Combine(destinationRootPath, "existing-output.bin");
+                File.WriteAllText(sentinelPath, "existing-output");
+                EditorGameSolutionService service = CreateService(workspaceRootPath, executionRootPath);
+                string solutionPath = service.GenerateSolutionFiles();
+                File.WriteAllText(Path.Combine(ProjectRootPath, "assets", "Scripts", "Player.cs"), "public sealed class { invalid }");
+
+                EditorBuildExecutionResult result = new EditorDotNetScriptBuildTool().Build(solutionPath, destinationRootPath);
+
+                Assert.False(result.Succeeded);
+                Assert.Equal("existing-output", File.ReadAllText(sentinelPath));
+                Assert.True(File.Exists(sentinelPath));
+            } finally {
+                DeleteDirectoryIfPresent(destinationRootPath);
+                DeleteDirectoryIfPresent(executionRootPath);
+            }
+        }
+
+        /// <summary>
         /// Creates one isolated full-editor solution service with stable metadata and a unique execution root.
         /// </summary>
         /// <param name="workspaceRootPath">Stable generated metadata root.</param>
@@ -203,6 +325,24 @@ namespace helengine.editor.tests {
             if (Directory.Exists(directoryPath)) {
                 Directory.Delete(directoryPath, true);
             }
+        }
+
+        /// <summary>
+        /// Seeds a marker in the exact format consumed by the production publisher for an interrupted-artifact probe.
+        /// </summary>
+        static void WritePublicationMarkerForTest(string artifactRootPath, string destinationRootPath, string kind, string token) {
+            string fullDestinationPath = Path.GetFullPath(destinationRootPath);
+            string destinationRoot = Path.GetPathRoot(fullDestinationPath) ?? string.Empty;
+            string normalizedDestination = fullDestinationPath.Length > destinationRoot.Length
+                ? fullDestinationPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                : fullDestinationPath;
+            if (OperatingSystem.IsWindows()) {
+                normalizedDestination = normalizedDestination.ToUpperInvariant();
+            }
+
+            File.WriteAllText(
+                Path.Combine(artifactRootPath, ".helengine-publication-marker"),
+                "helengine-publication\n" + normalizedDestination + "\n" + kind + "\n" + token + "\n");
         }
 
         /// <summary>
