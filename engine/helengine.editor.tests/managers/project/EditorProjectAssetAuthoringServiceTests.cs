@@ -66,6 +66,56 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         Assert.NotNull(factoryType.GetMethod(nameof(EditorProjectAssetAuthoringServiceFactory.CreateSession)));
     }
 
+    [Fact]
+    public void AuthoringFactory_WhenGeneratedCacheBelongsToDifferentCore_RejectsGraphBeforeAllocation() {
+        string firstProjectRootPath = CreateTemporaryProjectRoot();
+        string secondProjectRootPath = CreateTemporaryProjectRoot();
+        TestGeneratedAssetGraph firstGraph = CreateGeneratedGraph(firstProjectRootPath);
+        TestGeneratedAssetGraph secondGraph = CreateGeneratedGraph(secondProjectRootPath);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+            new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(
+                firstProjectRootPath,
+                firstGraph.Registry,
+                secondGraph.ModelCache,
+                firstGraph.MaterialCache,
+                firstGraph.RendererResources));
+
+        Assert.Contains("model cache", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AuthoringFactory_WhenRendererUsesDifferentInteractionGraph_RejectsGraphBeforeAllocation() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        TestGeneratedAssetGraph graph = CreateGeneratedGraph(projectRootPath);
+        EditorSessionInteractionServices differentInteractionServices = new EditorSessionInteractionServices();
+        EditorSessionRendererResources mismatchedRendererResources = new EditorSessionRendererResources(
+            graph.RendererResources.RenderManager3D,
+            graph.RendererResources.RenderManager2D,
+            graph.RendererResources.ObjectManager,
+            graph.RendererResources.EntityFactory,
+            graph.RendererResources.SceneEntityIdAllocator,
+            graph.RendererResources.Input,
+            graph.RendererResources.FrameDeltaSecondsProvider,
+            graph.RendererResources.DefaultFontAsset,
+            differentInteractionServices);
+
+        try {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()).CreateSession(
+                    projectRootPath,
+                    graph.Registry,
+                    graph.ModelCache,
+                    graph.MaterialCache,
+                    mismatchedRendererResources));
+
+            Assert.Contains("interaction graph", exception.Message, StringComparison.OrdinalIgnoreCase);
+        } finally {
+            mismatchedRendererResources.Dispose();
+            differentInteractionServices.Dispose();
+        }
+    }
+
     /// <summary>
     /// Ensures a command context preserves the host-owned asset-authoring capability for project code.
     /// </summary>
@@ -73,7 +123,8 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     public void EditorCommandContext_WhenCapabilityIsInjected_ExposesTheSameCapability() {
         string projectRootPath = CreateTemporaryProjectRoot();
         IEditorProjectAuthoringSession session = CreateCapability(projectRootPath);
-        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), session);
+        TestGeneratedAssetGraph graph = GeneratedGraphs.Last();
+        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), session, graph.OwnerCore, graph.InteractionServices, graph.Registry, graph.RendererResources);
 
         Assert.Same(session, context.Authoring);
         session.Dispose();
@@ -293,6 +344,16 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
                 graph.ModelCache,
                 graph.MaterialCache,
                 graph.RendererResources));
+    }
+
+    TestGeneratedAssetGraph CreateGeneratedGraph(string projectRootPath) {
+        Core core = new Core(new CoreInitializationOptions {
+            ContentStreamSource = new HostFileSystemContentStreamSource(projectRootPath)
+        });
+        core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
+        GeneratedGraphs.Add(graph);
+        return graph;
     }
 
     /// <summary>

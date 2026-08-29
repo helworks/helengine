@@ -5,14 +5,16 @@ namespace helengine.editor.tests.managers.dock {
     /// <summary>
     /// Verifies dock layout snapshot and restore behavior.
     /// </summary>
-    public sealed class DockLayoutEngineSnapshotTests {
+    public sealed class DockLayoutEngineSnapshotTests : IDisposable {
+        Core CoreValue;
+        TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Ensures capture returns the expected split tree and preserves the authored split fraction.
         /// </summary>
         [Fact]
         public void CaptureSnapshot_WhenLayoutContainsSplitAndTabs_ReturnsTreeWithActiveTabAndFractions() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
+            DockLayoutEngine layout = new DockLayoutEngine(CoreValue.RenderManager2D, CoreValue.ObjectManager);
             DockableEntity viewport = CreateDock("Viewport");
             DockableEntity logger = CreateDock("Logger");
             DockableEntity preview = CreateDock("Preview");
@@ -39,7 +41,7 @@ namespace helengine.editor.tests.managers.dock {
         [Fact]
         public void RestoreSnapshot_WhenDockablesAreProvided_RebuildsVisibleTraversalOrder() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
+            DockLayoutEngine layout = new DockLayoutEngine(CoreValue.RenderManager2D, CoreValue.ObjectManager);
             DockableEntity viewport = CreateDock("Viewport");
             DockableEntity logger = CreateDock("Logger");
 
@@ -70,8 +72,9 @@ namespace helengine.editor.tests.managers.dock {
         /// Initializes the core services required by dock snapshot tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
@@ -80,9 +83,14 @@ namespace helengine.editor.tests.managers.dock {
         /// <param name="title">Title shown by the dock.</param>
         /// <returns>Configured dockable entity.</returns>
         DockableEntity CreateDock(string title) {
-            DockableEntity dock = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            DockableEntity dock = new DockableEntity(CoreValue, GeneratedAssetGraph.InteractionServices, CreateFont());
             dock.Title = title;
             return dock;
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph?.Dispose();
+            CoreValue?.Dispose();
         }
 
         /// <summary>

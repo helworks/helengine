@@ -9,6 +9,7 @@ namespace helengine.editor.tests.managers.scene {
     /// </summary>
     public class EditorViewportCanvasPlanePreviewComponentTests : IDisposable {
         TestGeneratedAssetGraph GeneratedAssetGraph;
+        Core CoreValue;
         /// <summary>
         /// Ensures attaching the preview component creates a default-sized render target and correctly sized plane.
         /// </summary>
@@ -19,7 +20,7 @@ namespace helengine.editor.tests.managers.scene {
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
 
             cameraEntity.AddComponent(component);
             component.Update();
@@ -42,7 +43,7 @@ namespace helengine.editor.tests.managers.scene {
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
 
             cameraEntity.AddComponent(component);
             component.Update();
@@ -70,7 +71,7 @@ namespace helengine.editor.tests.managers.scene {
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             EditorViewportCanvasPreviewSettings settings = new EditorViewportCanvasPreviewSettings();
             EditorEntity cameraEntity = Assert.IsType<EditorEntity>(sceneCamera.Parent);
-            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            var component = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             CreateSceneRoundedRectEntity();
 
             cameraEntity.AddComponent(component);
@@ -86,6 +87,7 @@ namespace helengine.editor.tests.managers.scene {
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
@@ -94,7 +96,7 @@ namespace helengine.editor.tests.managers.scene {
 
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            Core.Instance?.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -102,7 +104,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         /// <returns>Scene camera component used by the preview component.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices);
             var sceneCamera = new CameraComponent {
                 LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGrid | EditorLayerMasks.SceneCameraVisuals | EditorLayerMasks.SceneCanvasPlane,
                 Viewport = new float4(0f, 0f, 640f, 360f)
@@ -116,7 +118,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         /// <returns>Scene entity registered on the authored scene-object layer.</returns>
         EditorEntity CreateSceneRoundedRectEntity() {
-            var sceneEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var sceneEntity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices) {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 IsSceneOwned = true
             };

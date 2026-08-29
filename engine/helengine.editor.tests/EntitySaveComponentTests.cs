@@ -11,6 +11,8 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the properties view content manager.
         /// </summary>
         readonly string TempRootPath;
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required by the component properties view.
@@ -19,16 +21,19 @@ namespace helengine.editor.tests {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-entity-save-component-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Deletes temporary test content after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -39,7 +44,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void EditorEntity_WhenConstructed_AttachesEntitySaveComponent() {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices);
 
             Assert.Contains(entity.Components, component => component is EntitySaveComponent);
         }
@@ -49,9 +54,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowComponents_WhenEntityContainsHiddenSaveComponent_DoesNotShowItInThePropertiesView() {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices);
             entity.AddComponent(new MeshComponent());
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = new ComponentPropertiesView(CoreValue, GeneratedAssetGraph.InteractionServices, CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
 
             view.ShowComponents(entity);
 
@@ -205,4 +211,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

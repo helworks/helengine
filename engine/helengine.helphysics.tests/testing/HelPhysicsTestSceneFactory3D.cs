@@ -7,27 +7,32 @@ namespace helengine {
         /// Creates one root containing a static ground and four dynamic boxes distributed across nested child levels.
         /// </summary>
         /// <returns>A fully authored hierarchy whose five physics entities are ready for runtime binding.</returns>
-        public static Entity CreateNestedGroundAndFourBoxScene() {
-            Entity root = CreateEntity(float3.Zero);
+        public static Entity CreateNestedGroundAndFourBoxScene(Core ownerCore) {
+            Entity root = CreateEntity(ownerCore, float3.Zero);
             Entity ground = CreateBoxEntity(
+                ownerCore,
                 new float3(0f, -0.5f, 0f),
                 new float3(10f, 1f, 10f),
                 BodyKind3D.Static);
             Entity firstBox = CreateBoxEntity(
+                ownerCore,
                 new float3(0f, 0.5f, 0f),
                 float3.One,
                 BodyKind3D.Dynamic);
-            Entity nestedGroup = CreateEntity(float3.Zero);
+            Entity nestedGroup = CreateEntity(ownerCore, float3.Zero);
             Entity secondBox = CreateBoxEntity(
+                ownerCore,
                 new float3(0f, 1.5f, 0f),
                 float3.One,
                 BodyKind3D.Dynamic);
-            Entity deeperGroup = CreateEntity(float3.Zero);
+            Entity deeperGroup = CreateEntity(ownerCore, float3.Zero);
             Entity thirdBox = CreateBoxEntity(
+                ownerCore,
                 new float3(0f, 2.5f, 0f),
                 float3.One,
                 BodyKind3D.Dynamic);
             Entity fourthBox = CreateBoxEntity(
+                ownerCore,
                 new float3(0f, 3.5f, 0f),
                 float3.One,
                 BodyKind3D.Dynamic);
@@ -47,8 +52,8 @@ namespace helengine {
         /// </summary>
         /// <param name="localPosition">Local position authored before optional parenting.</param>
         /// <returns>An empty entity ready to receive components and children.</returns>
-        public static Entity CreateEntity(float3 localPosition) {
-            Entity entity = new Entity {
+        public static Entity CreateEntity(Core ownerCore, float3 localPosition) {
+            Entity entity = new Entity(ownerCore) {
                 LocalPosition = localPosition
             };
             entity.InitComponents();
@@ -63,8 +68,8 @@ namespace helengine {
         /// <param name="boxSize">Full unscaled collider size.</param>
         /// <param name="bodyKind">Physics participation mode authored on the rigid body.</param>
         /// <returns>An entity that satisfies the supported HelPhysics translation shape.</returns>
-        public static Entity CreateBoxEntity(float3 localPosition, float3 boxSize, BodyKind3D bodyKind) {
-            Entity entity = CreateEntity(localPosition);
+        public static Entity CreateBoxEntity(Core ownerCore, float3 localPosition, float3 boxSize, BodyKind3D bodyKind) {
+            Entity entity = CreateEntity(ownerCore, localPosition);
             entity.AddComponent(new RigidBody3DComponent {
                 BodyKind = bodyKind
             });
@@ -80,8 +85,8 @@ namespace helengine {
         /// <param name="invalidCase">Stable test case name selecting the malformed component set.</param>
         /// <returns>An entity whose component composition must be rejected by strict HelPhysics translation.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when the case name is unknown.</exception>
-        public static Entity CreateInvalidPhysicsEntity(string invalidCase) {
-            Entity entity = CreateEntity(float3.Zero);
+        public static Entity CreateInvalidPhysicsEntity(Core ownerCore, string invalidCase) {
+            Entity entity = CreateEntity(ownerCore, float3.Zero);
             if (invalidCase == "collider-without-body") {
                 entity.AddComponent(new BoxCollider3DComponent());
             } else if (invalidCase == "body-without-collider") {
@@ -111,10 +116,10 @@ namespace helengine {
         /// </summary>
         /// <param name="invalidScale">Scale applied to the second box after parenting.</param>
         /// <returns>A hierarchy that verifies full preflight validation prevents partial binding.</returns>
-        public static Entity CreateHierarchyWithInvalidScaledBox(float3 invalidScale) {
-            Entity root = CreateEntity(float3.Zero);
-            Entity validBox = CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
-            Entity invalidBox = CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+        public static Entity CreateHierarchyWithInvalidScaledBox(Core ownerCore, float3 invalidScale) {
+            Entity root = CreateEntity(ownerCore, float3.Zero);
+            Entity validBox = CreateBoxEntity(ownerCore, float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity invalidBox = CreateBoxEntity(ownerCore, float3.Zero, float3.One, BodyKind3D.Dynamic);
             invalidBox.LocalScale = invalidScale;
             root.AddChild(validBox);
             root.AddChild(invalidBox);

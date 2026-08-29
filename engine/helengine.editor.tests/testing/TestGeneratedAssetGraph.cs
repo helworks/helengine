@@ -13,6 +13,7 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
     readonly bool OwnsInteractionServices;
 
     public GeneratedAssetProviderRegistry Registry { get; }
+    public Core OwnerCore => CoreValue;
     public EngineGeneratedModelCache ModelCache { get; }
     public EngineGeneratedMaterialCache MaterialCache { get; }
     public EditorBuiltInShaderAssetLibrary ShaderLibrary { get; }
@@ -37,7 +38,9 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         InteractionServices = core is EditorCore editorCore && editorCore.SessionInteractionServices != null
             ? editorCore.SessionInteractionServices
             : core.SessionInteractionGraph as EditorSessionInteractionServices ?? new EditorSessionInteractionServices();
-        OwnsInteractionServices = core.SessionInteractionGraph == null;
+        OwnsInteractionServices = core.SessionInteractionGraph == null
+            && (core is not EditorCore editorCoreWithInteraction
+                || editorCoreWithInteraction.SessionInteractionServices == null);
         if (OwnsInteractionServices) {
             core.SessionInteractionGraph = InteractionServices;
         }
@@ -69,13 +72,38 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
     }
 
     public void Dispose() {
-        Registry.Dispose();
-        RendererResources.Dispose();
-        MaterialCache.Dispose();
-        ModelCache.Dispose();
-        ShaderLibrary.Dispose();
+        List<Exception> failures = new List<Exception>();
+        DisposeOwned(Registry, failures);
+        DisposeOwned(RendererResources, failures);
+        DisposeOwned(MaterialCache, failures);
+        DisposeOwned(ModelCache, failures);
+        DisposeOwned(ShaderLibrary, failures);
         if (OwnsInteractionServices && ReferenceEquals(CoreValue.SessionInteractionGraph, InteractionServices)) {
             CoreValue.SessionInteractionGraph = null;
+        }
+        if (OwnsInteractionServices) {
+            // Clear the borrowed core slot before releasing the graph. This
+            // leaves a failed interaction disposal retryable without exposing
+            // a disposed graph through the owner core.
+            DisposeOwned(InteractionServices, failures);
+        }
+
+        if (failures.Count != 0) {
+            throw failures.Count == 1
+                ? failures[0]
+                : new AggregateException("Generated asset graph disposal failed.", failures);
+        }
+    }
+
+    static void DisposeOwned(IDisposable disposable, List<Exception> failures) {
+        if (disposable == null) {
+            return;
+        }
+
+        try {
+            disposable.Dispose();
+        } catch (Exception exception) {
+            failures.Add(exception);
         }
     }
 

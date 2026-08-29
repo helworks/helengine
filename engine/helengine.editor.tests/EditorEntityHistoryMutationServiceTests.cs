@@ -1,3 +1,4 @@
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -5,11 +6,21 @@ namespace helengine.editor.tests {
     /// Verifies global editor tools can capture and record entity-scoped history through the static entity-history bridge.
     /// </summary>
     public sealed class EditorEntityHistoryMutationServiceTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        helengine.editor.EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
+
+        public EditorEntityHistoryMutationServiceTests() {
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+        }
         /// <summary>
         /// Clears shared entity-history bridge callbacks after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -17,7 +28,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Try_capture_entity_state_when_entity_is_live_and_callback_exists_returns_true() {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             SerializedEditorEntityState expectedState = new SerializedEditorEntityState {
                 EntityId = 7u,
                 ParentEntityId = 0u,
@@ -45,7 +56,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Try_record_entity_state_change_when_entity_is_live_and_callback_exists_returns_true() {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState {
                 EntityId = 3u,
                 ParentEntityId = 0u,
@@ -72,7 +83,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Try_record_entity_state_change_when_entity_is_not_one_live_editor_entity_returns_false() {
-            Entity entity = new Entity(Core.Instance);
+            Entity entity = new Entity(CoreValue);
             SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState {
                 EntityId = 9u,
                 ParentEntityId = 0u,

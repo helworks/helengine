@@ -7,7 +7,9 @@ namespace helengine.editor.tests.managers.scene {
     /// <summary>
     /// Verifies world-space 2D canvas plane creation and coordinate mapping.
     /// </summary>
-    public class EditorViewportCanvasPlaneFactoryTests {
+    public class EditorViewportCanvasPlaneFactoryTests : IDisposable {
+        Core CoreValue;
+        TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Ensures the plane factory creates an internal mesh entity on the dedicated canvas-plane layer.
         /// </summary>
@@ -67,10 +69,17 @@ namespace helengine.editor.tests.managers.scene {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             TestRenderManager3D render3D = new TestRenderManager3D();
             core.Initialize(render3D, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = core;
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
             return render3D;
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph?.Dispose();
+            CoreValue?.Dispose();
         }
     }
 }

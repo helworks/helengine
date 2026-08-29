@@ -42,4 +42,45 @@ namespace helengine.editor.tests.testing {
             ThrowOnExecute = false;
         }
     }
+
+    /// <summary>
+    /// Real command implementation used by CLI graph-isolation tests. It
+    /// materializes generated preview resources and an editor entity through
+    /// only the explicit command graph supplied by the runner.
+    /// </summary>
+    internal sealed class TestGraphMutationEditorCommand : IEditorCommand {
+        public static Core LastCore { get; private set; }
+        public static EditorSessionInteractionServices LastInteractionServices { get; private set; }
+        public static RuntimeModel LastPreviewModel { get; private set; }
+        public static EditorEntity LastEntity { get; private set; }
+
+        public string CommandId => "test.graph.mutate";
+        public string DisplayName => "Mutate Explicit Graph";
+
+        public void Execute(IEditorCommandContext context) {
+            LastCore = context.Core;
+            LastInteractionServices = context.InteractionServices;
+            LastPreviewModel = context.RendererResources.WorldSpace2DPreviewMeshes.GetRuntimeModel();
+            AssetBrowserEntry cubeEntry = AssetBrowserEntry.CreateGeneratedAsset(
+                "Cube",
+                EngineGeneratedAssetProvider.CubeRelativePath,
+                AssetEntryKind.Model,
+                EngineGeneratedAssetProvider.ProviderIdValue,
+                EngineGeneratedModelCache.CubeAssetId);
+            context.GeneratedAssetProviders.ResolveRuntimeModel(cubeEntry);
+            LastEntity = new EditorEntity(context.Core, context.InteractionServices) {
+                Name = "CLI graph entity"
+            };
+            context.InteractionServices.Selection.SetSelectedEntity(LastEntity);
+            context.InteractionServices.InputCapture.SetBlocker(LastEntity, new int2(3, 4), new int2(10, 10));
+        }
+
+        public static void Reset() {
+            LastEntity?.Dispose();
+            LastEntity = null;
+            LastCore = null;
+            LastInteractionServices = null;
+            LastPreviewModel = null;
+        }
+    }
 }

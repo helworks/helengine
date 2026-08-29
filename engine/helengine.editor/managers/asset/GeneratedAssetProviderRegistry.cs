@@ -4,6 +4,9 @@ namespace helengine.editor {
         readonly Dictionary<string, IGeneratedAssetProvider> Providers = new Dictionary<string, IGeneratedAssetProvider>(StringComparer.Ordinal);
         bool IsDisposed;
 
+        /// <summary>Gets the providers currently owned by this explicit registry for composition validation.</summary>
+        internal IReadOnlyCollection<IGeneratedAssetProvider> RegisteredProviders => Providers.Values;
+
         /// <summary>Registers one generated provider in this isolated registry.</summary>
         public void Register(IGeneratedAssetProvider provider) {
             EnsureNotDisposed();

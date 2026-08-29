@@ -142,6 +142,12 @@ namespace helengine {
             ContentManager = contentManager ?? throw new ArgumentNullException(nameof(contentManager));
             SceneLoadService = sceneLoadService ?? throw new ArgumentNullException(nameof(sceneLoadService));
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            if (!ReferenceEquals(SceneLoadService.OwningCore, OwnerCore)) {
+                throw new InvalidOperationException("Scene manager and runtime scene load service must share the same owning core.");
+            }
+            if (!ReferenceEquals(ObjectManager.OwnerCore, OwnerCore)) {
+                throw new InvalidOperationException("Scene manager and object manager must share the same owning core.");
+            }
             ScenePathResolver = scenePathResolver;
             SceneTransitionDiagnosticsProvider = sceneTransitionDiagnosticsProvider;
             EntityDisposalDiagnosticsProvider = entityDisposalDiagnosticsProvider;

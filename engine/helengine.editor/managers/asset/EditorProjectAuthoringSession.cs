@@ -761,6 +761,33 @@ namespace helengine.editor {
             if (rendererResources == null) {
                 throw new ArgumentNullException(nameof(rendererResources));
             }
+
+            Core ownerCore = rendererResources.OwningCore
+                ?? throw new InvalidOperationException("Renderer resources must be attached to an owning core.");
+            if (!ReferenceEquals(generatedModelCache.OwningCore, ownerCore)) {
+                throw new InvalidOperationException("Generated model cache must belong to the renderer resource core.");
+            }
+            if (!ReferenceEquals(generatedMaterialCache.OwningCore, ownerCore)) {
+                throw new InvalidOperationException("Generated material cache must belong to the renderer resource core.");
+            }
+            if (!ReferenceEquals(rendererResources.RenderManager2D.OwnerCore, ownerCore)
+                || !ReferenceEquals(rendererResources.ObjectManager.OwnerCore, ownerCore)) {
+                throw new InvalidOperationException("Renderer resources must use managers owned by their declared core.");
+            }
+            if (ownerCore.SessionInteractionGraph != null
+                && !ReferenceEquals(ownerCore.SessionInteractionGraph, rendererResources.InteractionServices)) {
+                throw new InvalidOperationException("Renderer resources must use the interaction graph attached to their owning core.");
+            }
+            if (ownerCore is EditorCore editorCore
+                && editorCore.SessionInteractionServices != null
+                && !ReferenceEquals(editorCore.SessionInteractionServices, rendererResources.InteractionServices)) {
+                throw new InvalidOperationException("Renderer resources must use the interaction graph attached to their owning editor core.");
+            }
+            if (generatedAssetProviders.RegisteredProviders.OfType<EngineGeneratedAssetProvider>().Any(provider =>
+                !ReferenceEquals(provider.BoundModelCache, generatedModelCache)
+                || !ReferenceEquals(provider.BoundMaterialCache, generatedMaterialCache))) {
+                throw new InvalidOperationException("Generated asset providers must use the session's exact generated caches.");
+            }
         }
 
         /// <summary>

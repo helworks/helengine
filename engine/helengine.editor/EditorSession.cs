@@ -3813,7 +3813,11 @@ namespace helengine.editor {
                     new EditorCommandContext(
                         projectPath,
                         scriptHotReloadService.ScriptTypeResolver,
-                        AuthoringSession));
+                        AuthoringSession,
+                        core,
+                        interactionServices,
+                        generatedAssetProviderRegistry,
+                        rendererResources));
                 commandExecutionService.Execute(menuItem.CommandId);
                 Logger.WriteLine($"Executed project menu item '{menuItemId}'.");
                 LogAuthoringRepairReport();
@@ -6643,4 +6647,3 @@ namespace helengine.editor {
 
     }
 }
-

@@ -18,6 +18,7 @@ namespace helengine.editor.tests {
         /// </summary>
         readonly string TempRootPath;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly Core CoreValue;
 
         /// <summary>
         /// Initializes the core services required by the preferences dialog shell used in these tests.
@@ -27,11 +28,11 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempRootPath);
             OriginalTheme = ThemeManager.Current;
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+            CoreValue.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
@@ -39,6 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             ThemeManager.SetTheme(OriginalTheme);
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
@@ -202,8 +204,8 @@ namespace helengine.editor.tests {
         EditorSession CreateSessionForPreferences(EditorUiMetrics metrics) {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             EditorViewport mainViewport = CreateViewport(metrics);
-            SetPrivateField(session, "titleBar", new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics, 1280, 720, "Hel"));
-            SetPrivateField(session, "preferencesDialog", new EditorPreferencesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics));
+            SetPrivateField(session, "titleBar", new EditorTitleBar(CoreValue, GeneratedAssetGraph.InteractionServices, CreateFont(), metrics, 1280, 720, "Hel"));
+            SetPrivateField(session, "preferencesDialog", new EditorPreferencesDialog(CoreValue, GeneratedAssetGraph.InteractionServices, CreateFont(), metrics));
             SetPrivateField(session, "assetBrowserPanel", CreateAssetBrowserPanel(metrics));
             SetPrivateField(session, "mainViewport", mainViewport);
             SetPrivateField(session, "sceneCameraComponent", mainViewport.Camera);
@@ -224,7 +226,7 @@ namespace helengine.editor.tests {
         AssetBrowserPanel CreateAssetBrowserPanel(EditorUiMetrics metrics) {
             Directory.CreateDirectory(Path.Combine(TempRootPath, "assets"));
 
-            AssetBrowserPanel panel = new AssetBrowserPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempRootPath, metrics, GeneratedAssetGraph.Registry);
+            AssetBrowserPanel panel = new AssetBrowserPanel(CoreValue, GeneratedAssetGraph.InteractionServices, CreateFont(), TempRootPath, metrics, GeneratedAssetGraph.Registry);
             panel.Size = new int2(500, 240);
             return panel;
         }
@@ -235,11 +237,11 @@ namespace helengine.editor.tests {
         /// <param name="metrics">Scaled dock metrics used by the viewport.</param>
         /// <returns>Viewport instance configured for preferences tests.</returns>
         EditorViewport CreateViewport(EditorUiMetrics metrics) {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices);
             CameraComponent camera = new CameraComponent();
             cameraEntity.AddComponent(camera);
 
-            EditorViewport viewport = new EditorViewport(Core.Instance,
+            EditorViewport viewport = new EditorViewport(CoreValue,
                 camera,
                 CreateFont(),
                 CreateFont(),
@@ -259,11 +261,11 @@ namespace helengine.editor.tests {
         /// <param name="metrics">Scaled dock metrics used by the properties panel.</param>
         /// <returns>Properties panel instance configured for preferences tests.</returns>
         PropertiesPanel CreatePropertiesPanel(EditorUiMetrics metrics) {
-            return new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
+            return new PropertiesPanel(CoreValue, GeneratedAssetGraph.InteractionServices,
                 CreateFont(),
                 new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)),
                 null,
-                new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()),
+                new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices),
                 null,
                 metrics);
         }
@@ -422,4 +424,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

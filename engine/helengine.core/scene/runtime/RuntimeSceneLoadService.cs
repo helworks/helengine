@@ -4,6 +4,12 @@ namespace helengine {
     /// </summary>
     public sealed class RuntimeSceneLoadService {
         readonly Core OwnerCore;
+
+        /// <summary>
+        /// Gets the explicit core that owns every entity and runtime asset
+        /// materialized by this service.
+        /// </summary>
+        internal Core OwningCore => OwnerCore;
         /// <summary>
         /// Resolver used to rebuild runtime assets referenced by packaged scene records.
         /// </summary>
@@ -67,6 +73,7 @@ namespace helengine {
         {
             OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
+            ValidateResolverOwner();
             ComponentRegistry = RuntimeComponentRegistry.CreateDefault();
         }
 
@@ -82,6 +89,13 @@ namespace helengine {
             OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             ComponentRegistry = componentRegistry ?? throw new ArgumentNullException(nameof(componentRegistry));
+            ValidateResolverOwner();
+        }
+
+        void ValidateResolverOwner() {
+            if (!ReferenceEquals(ReferenceResolver.OwningCore, OwnerCore)) {
+                throw new InvalidOperationException("Runtime scene load service and asset reference resolver must share the same owning core.");
+            }
         }
 
         /// <summary>

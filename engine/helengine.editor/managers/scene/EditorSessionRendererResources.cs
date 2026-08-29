@@ -19,6 +19,9 @@ namespace helengine.editor {
         public EditorWorldSpace2DPreviewMeshResources WorldSpace2DPreviewMeshes { get; }
         public EditorViewportBorderGizmoMeshResources ViewportBorderGizmoMeshes { get; }
 
+        /// <summary>Gets the core owning every renderer and object-manager dependency in this graph.</summary>
+        internal Core OwningCore => RenderManager3D.OwnerCore;
+
         readonly object SyncRoot = new object();
         readonly HashSet<IDisposable> DisposedOwners = new HashSet<IDisposable>();
         bool IsDisposed;

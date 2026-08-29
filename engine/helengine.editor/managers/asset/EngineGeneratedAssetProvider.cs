@@ -21,6 +21,12 @@ namespace helengine.editor {
 
         public string ProviderId => ProviderIdValue;
 
+        /// <summary>Gets the model cache captured by this provider.</summary>
+        internal EngineGeneratedModelCache BoundModelCache => ModelCache;
+
+        /// <summary>Gets the material cache captured by this provider.</summary>
+        internal EngineGeneratedMaterialCache BoundMaterialCache => MaterialCache;
+
         public void LoadEntries(string relativePath, List<AssetBrowserEntry> entries) {
             if (entries == null) {
                 throw new ArgumentNullException(nameof(entries));

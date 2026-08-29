@@ -16,6 +16,7 @@ namespace helengine.editor.tests {
         /// </summary>
         readonly TestInputBackend Input;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly Core CoreValue;
 
         /// <summary>
         /// Initializes the core services required by the preview panel tests.
@@ -29,11 +30,11 @@ namespace helengine.editor.tests {
             shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new helengine.vulkan.VulkanShaderBackend());
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
-            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
@@ -41,6 +42,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -510,7 +512,7 @@ namespace helengine.editor.tests {
                 ButtonState.Released,
                 ButtonState.Released));
 
-            Core.Instance.ObjectManager.Update();
+            CoreValue.ObjectManager.Update();
             Input.Update();
 
             Assert.Equal(1, source.UpdateCount);
@@ -526,8 +528,8 @@ namespace helengine.editor.tests {
         /// <returns>Initialized preview panel bound to the fixture graph.</returns>
         PreviewPanel CreatePanel(FontAsset font = null, EditorUiMetrics metrics = null) {
             PreviewPanel panel = metrics == null
-                ? new PreviewPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font ?? CreateFont())
-                : new PreviewPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font ?? CreateFont(), metrics);
+                ? new PreviewPanel(CoreValue, GeneratedAssetGraph.InteractionServices, font ?? CreateFont())
+                : new PreviewPanel(CoreValue, GeneratedAssetGraph.InteractionServices, font ?? CreateFont(), metrics);
             panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
             panel.InitializeHierarchy();
             return panel;
@@ -610,8 +612,8 @@ namespace helengine.editor.tests {
                 BoundsMin = new float3(-1f, -1f, -1f),
                 BoundsMax = new float3(1f, 1f, 1f)
             };
-            RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
-            return new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            RuntimeModel runtimeModel = CoreValue.RenderManager3D.BuildModelFromRaw(modelAsset);
+            return new ModelPreviewSource(runtimeModel, CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
         }
 
         /// <summary>
@@ -646,4 +648,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

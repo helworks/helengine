@@ -17,6 +17,7 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     /// </summary>
     readonly List<IDisposable> Sessions = new List<IDisposable>();
     readonly List<TestGeneratedAssetGraph> GeneratedGraphs = new List<TestGeneratedAssetGraph>();
+    TestGeneratedAssetGraph MostRecentGeneratedGraph;
 
     [Fact]
     public void ExplicitComposition_RequiresTheSessionOwnedWriter() {
@@ -37,7 +38,8 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     public void Authoring_WhenSessionIsInjected_ReturnsTheHostOwnedInstance() {
         string projectRootPath = CreateTemporaryProjectRoot();
         FakeEditorProjectAuthoringSession authoring = new FakeEditorProjectAuthoringSession();
-        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), authoring);
+        TestGeneratedAssetGraph graph = CreateGeneratedGraph(projectRootPath);
+        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), authoring, graph.OwnerCore, graph.InteractionServices, graph.Registry, graph.RendererResources);
 
         Assert.Same(authoring, context.Authoring);
     }
@@ -50,7 +52,8 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         string projectRootPath = CreateTemporaryProjectRoot();
         EditorProjectAuthoringSession authoring = CreateSession(projectRootPath);
 
-        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), authoring);
+        TestGeneratedAssetGraph graph = MostRecentGeneratedGraph;
+        EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), authoring, graph.OwnerCore, graph.InteractionServices, graph.Registry, graph.RendererResources);
 
         Assert.Same(authoring, context.Authoring);
     }
@@ -343,6 +346,7 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
         core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
         GeneratedGraphs.Add(graph);
+        MostRecentGeneratedGraph = graph;
         return graph;
     }
 

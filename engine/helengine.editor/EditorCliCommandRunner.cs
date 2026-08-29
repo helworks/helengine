@@ -49,12 +49,13 @@ namespace helengine.editor {
             };
             PlatformInfo platformInfo = new PlatformInfo("editor", bootstrap.RequiredEngineVersion);
             core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);
+            using EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
+            using EditorCoreInteractionGraphBinding interactionGraphBinding = new EditorCoreInteractionGraphBinding(core, interactionServices);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
             using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
-            using EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
             using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, DefaultFontAsset, interactionServices);
             // Renderer binding is supplied to the authoring factory before recovery restores cached assets.
             // The registry is declared after its borrowed caches so reverse
@@ -69,7 +70,7 @@ namespace helengine.editor {
                 generatedMaterialCache,
                 rendererResources);
             generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
-            return RunInSessionGraph(bootstrap, options, authoring, shaderBackendRegistry);
+            return RunInSessionGraph(bootstrap, options, authoring, shaderBackendRegistry, core, interactionServices, rendererResources, generatedAssetProviderRegistry);
         }
 
         /// <summary>
@@ -81,7 +82,11 @@ namespace helengine.editor {
             EditorProjectBootstrapContext bootstrap,
             EditorCliCommandOptions options,
             IEditorProjectAuthoringSession authoring,
-            ShaderBackendRegistry shaderBackendRegistry) {
+            ShaderBackendRegistry shaderBackendRegistry,
+            Core core,
+            EditorSessionInteractionServices interactionServices,
+            EditorSessionRendererResources rendererResources,
+            GeneratedAssetProviderRegistry generatedAssetProviders) {
             if (bootstrap == null) {
                 throw new ArgumentNullException(nameof(bootstrap));
             }
@@ -93,6 +98,22 @@ namespace helengine.editor {
             }
             if (shaderBackendRegistry == null) {
                 throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
+            }
+            if (!ReferenceEquals(rendererResources.OwningCore, core)
+                || !ReferenceEquals(rendererResources.InteractionServices, interactionServices)) {
+                throw new InvalidOperationException("Nested editor commands must use the outer invocation renderer and interaction graph.");
             }
             string optionsProjectRootPath = ResolveCanonicalProjectRootPath(options.ProjectPath);
             if (!string.Equals(optionsProjectRootPath, bootstrap.ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
@@ -139,7 +160,11 @@ namespace helengine.editor {
             EditorCommandContext commandContext = new EditorCommandContext(
                 bootstrap.ProjectRootPath,
                 assemblyHost.ScriptTypeResolver,
-                authoring);
+                authoring,
+                core,
+                interactionServices,
+                generatedAssetProviders,
+                rendererResources);
             EditorCommandExecutionService commandExecutionService = new EditorCommandExecutionService(hotReloadService, commandContext);
 
             try {
@@ -161,6 +186,83 @@ namespace helengine.editor {
                     $"Editor command '{options.CommandId}' failed: {exception}",
                     authoring.RepairReport);
                 return EditorBuildExecutionResult.Failure(failureMessage);
+            }
+        }
+
+        /// <summary>
+        /// Executes a discovered command against an already loaded command
+        /// catalog while borrowing the caller's complete invocation graph.
+        /// This explicit seam is used by nested prebuild hosts and integration
+        /// tests; it never creates a second core or renderer graph.
+        /// </summary>
+        internal EditorBuildExecutionResult RunInSessionGraph(
+            EditorProjectBootstrapContext bootstrap,
+            EditorCliCommandOptions options,
+            IEditorProjectAuthoringSession authoring,
+            ShaderBackendRegistry shaderBackendRegistry,
+            Core core,
+            EditorSessionInteractionServices interactionServices,
+            EditorSessionRendererResources rendererResources,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            IEditorProjectCommandCatalogProvider commandCatalogProvider,
+            IScriptTypeResolver scriptTypeResolver) {
+            if (bootstrap == null) {
+                throw new ArgumentNullException(nameof(bootstrap));
+            }
+            if (options == null) {
+                throw new ArgumentNullException(nameof(options));
+            }
+            if (authoring == null) {
+                throw new ArgumentNullException(nameof(authoring));
+            }
+            if (shaderBackendRegistry == null) {
+                throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
+            }
+            if (commandCatalogProvider == null) {
+                throw new ArgumentNullException(nameof(commandCatalogProvider));
+            }
+            if (scriptTypeResolver == null) {
+                throw new ArgumentNullException(nameof(scriptTypeResolver));
+            }
+            if (!ReferenceEquals(rendererResources.OwningCore, core)
+                || !ReferenceEquals(rendererResources.InteractionServices, interactionServices)) {
+                throw new InvalidOperationException("Nested editor commands must use the outer invocation renderer and interaction graph.");
+            }
+
+            string optionsProjectRootPath = ResolveCanonicalProjectRootPath(options.ProjectPath);
+            if (!string.Equals(optionsProjectRootPath, bootstrap.ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException("Nested editor commands must use the outer invocation project root.");
+            }
+
+            EditorCommandContext commandContext = new EditorCommandContext(
+                bootstrap.ProjectRootPath,
+                scriptTypeResolver,
+                authoring,
+                core,
+                interactionServices,
+                generatedAssetProviders,
+                rendererResources);
+            try {
+                new EditorCommandExecutionService(commandCatalogProvider, commandContext).Execute(options.CommandId);
+                return EditorBuildExecutionResult.Success(AppendRepairSummary(
+                    $"Editor command '{options.CommandId}' executed successfully.",
+                    authoring.RepairReport));
+            } catch (Exception exception) {
+                return EditorBuildExecutionResult.Failure(AppendRepairSummary(
+                    $"Editor command '{options.CommandId}' failed: {exception}",
+                    authoring.RepairReport));
             }
         }
 

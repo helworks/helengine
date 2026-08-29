@@ -18,6 +18,9 @@ namespace helengine.editor {
         readonly Dictionary<string, RuntimeMaterial> RuntimeMaterials = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
         bool IsDisposed;
 
+        /// <summary>Gets the explicit core that owns this cache's runtime materials.</summary>
+        internal Core OwningCore => Core;
+
         /// <summary>Creates a generated-material cache bound to one explicit core and one shader library.</summary>
         public EngineGeneratedMaterialCache(Core core, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             Core = core ?? throw new ArgumentNullException(nameof(core));

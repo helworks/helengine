@@ -2,7 +2,7 @@ namespace helengine.editor.tests.testing {
     /// <summary>
     /// Minimal script assembly host used by editor-session menu tests without loading real assemblies.
     /// </summary>
-    internal sealed class TestEditorScriptAssemblyHost : IEditorScriptAssemblyHost {
+    internal sealed class TestEditorScriptAssemblyHost : IEditorScriptAssemblyHost, IEditorProjectCommandCatalogProvider {
         /// <summary>
         /// Initializes one fake script assembly host with an empty resolver-backed catalog.
         /// </summary>

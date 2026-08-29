@@ -7,6 +7,7 @@ namespace helengine.editor.tests.managers.scene {
     /// </summary>
     public class EditorViewportCanvasPlaneSelectionServiceTests : IDisposable {
         TestGeneratedAssetGraph GeneratedAssetGraph;
+        Core CoreValue;
         /// <summary>
         /// Ensures a pointer that hits the world-space plane selects the matching 2D scene entity on the simulated canvas.
         /// </summary>
@@ -73,12 +74,13 @@ namespace helengine.editor.tests.managers.scene {
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            Core.Instance?.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -86,7 +88,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         /// <returns>Viewport camera entity used to evaluate plane-hit mapping.</returns>
         EditorEntity CreateViewportCameraEntity() {
-            var cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var cameraEntity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices) {
                 Position = new float3(1f, 1f, 10f),
                 Orientation = float4.Identity
             };
@@ -138,7 +140,7 @@ namespace helengine.editor.tests.managers.scene {
             var settings = new EditorViewportCanvasPreviewSettings {
                 PixelsPerWorldUnit = pixelsPerWorldUnit
             };
-            var previewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
+            var previewComponent = new EditorViewportCanvasPlanePreviewComponent(sceneCamera, sceneCanvasProfileState, settings, CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             cameraEntity.AddComponent(previewComponent);
             previewComponent.Update();
             return previewComponent;
@@ -152,12 +154,12 @@ namespace helengine.editor.tests.managers.scene {
         /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
         /// <returns>Created scene entity that should be returned by the selection bridge.</returns>
         EditorEntity CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
-            var entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var entity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices) {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 Position = position
             };
             var sprite = new SpriteComponent {
-                Texture = Core.Instance.RenderManager2D.PixelTexture,
+                Texture = CoreValue.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };

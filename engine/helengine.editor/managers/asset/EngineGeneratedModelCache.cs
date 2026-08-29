@@ -10,6 +10,9 @@ namespace helengine.editor {
         readonly Dictionary<string, RuntimeModel> RuntimeModels = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
         bool IsDisposed;
 
+        /// <summary>Gets the explicit core that owns this cache's runtime models.</summary>
+        internal Core OwningCore => Core;
+
         /// <summary>Creates a generated-model cache bound to one explicit core.</summary>
         public EngineGeneratedModelCache(Core core) {
             Core = core ?? throw new ArgumentNullException(nameof(core));

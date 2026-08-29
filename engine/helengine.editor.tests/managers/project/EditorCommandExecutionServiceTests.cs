@@ -150,6 +150,14 @@ public sealed class EditorCommandExecutionServiceTests {
         /// </summary>
         public IEditorProjectAuthoringSession Authoring { get; }
 
+        public Core Core => OwnedGeneratedAssetGraph.OwnerCore;
+
+        public EditorSessionInteractionServices InteractionServices => OwnedGeneratedAssetGraph.InteractionServices;
+
+        public GeneratedAssetProviderRegistry GeneratedAssetProviders => OwnedGeneratedAssetGraph.Registry;
+
+        public EditorSessionRendererResources RendererResources => OwnedGeneratedAssetGraph.RendererResources;
+
         /// <summary>
         /// Releases the session owned by this test context, when it created one.
         /// </summary>

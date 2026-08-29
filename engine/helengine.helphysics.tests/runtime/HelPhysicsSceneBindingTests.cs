@@ -4,14 +4,15 @@ namespace helengine {
     /// </summary>
     [Collection("HelPhysicsSceneBindingCoreTests")]
     public sealed class HelPhysicsSceneBindingTests {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal engine core required by real entity fixtures.
         /// </summary>
         public HelPhysicsSceneBindingTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
@@ -19,7 +20,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void BindHierarchy_WithNestedGroundAndFourBoxes_BindsExactlyFiveBodies() {
-            Entity root = HelPhysicsTestSceneFactory3D.CreateNestedGroundAndFourBoxScene();
+            Entity root = HelPhysicsTestSceneFactory3D.CreateNestedGroundAndFourBoxScene(CoreValue);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
 
             binder.BindHierarchy(root);
@@ -53,7 +54,7 @@ namespace helengine {
         public void BindHierarchy_WithInvalidComponentComposition_RejectsEntity(
             string invalidCase,
             string expectedTypeName) {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateInvalidPhysicsEntity(invalidCase);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateInvalidPhysicsEntity(CoreValue, invalidCase);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => binder.BindHierarchy(entity));
@@ -72,7 +73,7 @@ namespace helengine {
         [InlineData(float.NaN)]
         [InlineData(float.PositiveInfinity)]
         public void BindHierarchy_WithInvalidEffectiveBoxScale_RejectsWithoutPartialBinding(float invalidX) {
-            Entity root = HelPhysicsTestSceneFactory3D.CreateHierarchyWithInvalidScaledBox(new float3(invalidX, 1f, 1f));
+            Entity root = HelPhysicsTestSceneFactory3D.CreateHierarchyWithInvalidScaledBox(CoreValue, new float3(invalidX, 1f, 1f));
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
 
             Assert.Throws<ArgumentOutOfRangeException>(() => binder.BindHierarchy(root));
@@ -85,9 +86,9 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void BindHierarchy_WithAuthoredScaledDynamicBox_TranslatesCompleteDescription() {
-            Entity parent = HelPhysicsTestSceneFactory3D.CreateEntity(new float3(10f, 20f, 30f));
+            Entity parent = HelPhysicsTestSceneFactory3D.CreateEntity(CoreValue, new float3(10f, 20f, 30f));
             parent.LocalScale = new float3(2f, 3f, 4f);
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue,
                 new float3(1f, 2f, 3f),
                 new float3(2f, 4f, 0.5f),
                 BodyKind3D.Dynamic);
@@ -148,7 +149,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void Step_WithEditedKinematicEntity_SynchronizesPoseAndVelocityBeforeWorldStep() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Kinematic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Kinematic);
             RigidBody3DComponent rigidBody = Assert.IsType<RigidBody3DComponent>(entity.Components[0]);
             HelPhysicsWorldSettings3D settings = new HelPhysicsWorldSettings3D(
                 8,
@@ -200,7 +201,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void Step_WithMovingDynamicBody_WritesPoseAndVelocityBackToEntity() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             RigidBody3DComponent rigidBody = Assert.IsType<RigidBody3DComponent>(entity.Components[0]);
             rigidBody.LinearVelocity = new float3(2f, 1f, -3f);
             rigidBody.AngularVelocity = new float3(0f, 0.5f, 0f);
@@ -242,11 +243,11 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void Step_WithParentedDynamicBody_PreservesLocalTransformSemantics() {
-            Entity parent = HelPhysicsTestSceneFactory3D.CreateEntity(new float3(10f, -2f, 7f));
+            Entity parent = HelPhysicsTestSceneFactory3D.CreateEntity(CoreValue, new float3(10f, -2f, 7f));
             parent.LocalScale = new float3(2f, 3f, 4f);
             float4.CreateFromYawPitchRoll(0.7f, -0.2f, 0.1f, out float4 parentOrientation);
             parent.LocalOrientation = parentOrientation;
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue,
                 new float3(1f, 2f, -1f),
                 float3.One,
                 BodyKind3D.Dynamic);
@@ -288,7 +289,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void Unbind_WithRecycledBodySlot_InvalidatesBindingAndStaleHandle() {
-            Entity firstEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity firstEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
             binder.BindHierarchy(firstEntity);
             binder.Step();
@@ -303,7 +304,7 @@ namespace helengine {
             binder.Step();
             Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
 
-            Entity replacementEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity replacementEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             binder.BindHierarchy(replacementEntity);
             HelPhysicsEntityBinding3D replacementBinding = Assert.Single(binder.Bindings);
             Assert.Equal(staleHandle.Index, replacementBinding.BodyHandle.Index);
@@ -317,7 +318,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void DisposeEntity_WhenBound_InvalidatesBindingAndDefersBodyRemoval() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
             binder.BindHierarchy(entity);
             binder.Step();
@@ -339,7 +340,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void DisposeEntity_BeforeFirstStepWithSingleCommandSlot_InvalidatesAndRecyclesBody() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSingleBodySingleCommandSettings());
             binder.BindHierarchy(entity);
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
@@ -353,7 +354,7 @@ namespace helengine {
             binder.Step();
             Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
 
-            Entity replacementEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity replacementEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             binder.BindHierarchy(replacementEntity);
             HelPhysicsEntityBinding3D replacementBinding = Assert.Single(binder.Bindings);
             Assert.Equal(staleHandle.Index, replacementBinding.BodyHandle.Index);
@@ -367,7 +368,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void DisposeEntity_WithActiveBodyAndFullSameBodyCommandBuffer_InvalidatesAndRemovesBody() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSingleBodySingleCommandSettings());
             binder.BindHierarchy(entity);
             binder.Step();
@@ -383,7 +384,7 @@ namespace helengine {
             binder.Step();
             Assert.Throws<InvalidOperationException>(() => binder.World.GetBodySnapshot(staleHandle));
 
-            Entity replacementEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity replacementEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             binder.BindHierarchy(replacementEntity);
             HelPhysicsEntityBinding3D replacementBinding = Assert.Single(binder.Bindings);
             Assert.Equal(staleHandle.Index, replacementBinding.BodyHandle.Index);
@@ -397,8 +398,8 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void DisposeEntity_WithFullUnrelatedBodyCommandBuffer_PreservesUnrelatedInputAndGeneration() {
-            Entity firstEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
-            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(new float3(10f, 0f, 0f), float3.One, BodyKind3D.Dynamic);
+            Entity firstEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, new float3(10f, 0f, 0f), float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateTwoBodySingleCommandSettings());
             binder.BindHierarchy(firstEntity);
             binder.Step();
@@ -427,7 +428,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void Unbind_BeforeFirstStepWithSingleCommandSlot_InvalidatesAndRemovesBodyOnce() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(CreateSingleBodySingleCommandSettings());
             binder.BindHierarchy(entity);
             HelPhysicsEntityBinding3D binding = Assert.Single(binder.Bindings);
@@ -447,7 +448,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void BindHierarchy_WithAlreadyBoundEntity_RejectsDuplicateReservation() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
             binder.BindHierarchy(entity);
             HelPhysicsEntityBinding3D originalBinding = Assert.Single(binder.Bindings);
@@ -463,7 +464,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void BindHierarchy_FromSecondBinderSharingWorld_RejectsOwnedEntityBeforeReservation() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsWorld3D world = new HelPhysicsWorld3D(CreateTwoBodyWorldSettings());
             HelPhysicsSceneBinder3D firstBinder = new HelPhysicsSceneBinder3D(world);
             firstBinder.BindHierarchy(entity);
@@ -473,7 +474,7 @@ namespace helengine {
 
             Assert.Same(firstBinding, Assert.Single(firstBinder.Bindings));
             Assert.True(firstBinding.IsValid);
-            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             firstBinder.BindHierarchy(secondEntity);
             Assert.Equal(2, firstBinder.Bindings.Count);
         }
@@ -493,7 +494,7 @@ namespace helengine {
             Assert.Contains(nameof(HelPhysicsSceneBinder3D), exception.Message);
             Assert.Equal(metricsBefore, world.LastStepMetrics);
             world.ValidateBodyCreationCapacity(1);
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             binder.BindHierarchy(entity);
             Assert.True(Assert.Single(binder.Bindings).GetBodySnapshot().IsPending);
         }
@@ -552,7 +553,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void BindHierarchy_FromSecondBinderWithSeparateWorld_RejectsOwnedEntityBeforeReservation() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             HelPhysicsSceneBinder3D firstBinder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
             HelPhysicsSceneBinder3D secondBinder = HelPhysicsRuntimeFactory3D.Create(CreateSingleBodySingleCommandSettings());
             firstBinder.BindHierarchy(entity);
@@ -563,7 +564,7 @@ namespace helengine {
             Assert.Same(firstBinding, Assert.Single(firstBinder.Bindings));
             Assert.True(firstBinding.IsValid);
             Assert.Empty(secondBinder.Bindings);
-            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity secondEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             secondBinder.BindHierarchy(secondEntity);
             Assert.Single(secondBinder.Bindings);
         }
@@ -573,8 +574,8 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void BindingQueries_WithBoundAndUnboundEntities_ReturnCurrentAssociationOnly() {
-            Entity boundEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
-            Entity unboundEntity = HelPhysicsTestSceneFactory3D.CreateEntity(float3.Zero);
+            Entity boundEntity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity unboundEntity = HelPhysicsTestSceneFactory3D.CreateEntity(CoreValue, float3.Zero);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
             binder.BindHierarchy(boundEntity);
             HelPhysicsEntityBinding3D expected = Assert.Single(binder.Bindings);
@@ -602,7 +603,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void SetKinematicState_WithRejectedSecondCommand_PreservesAcceptedCommandAtomicity() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Kinematic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Kinematic);
             HelPhysicsSceneBinder3D binder = HelPhysicsRuntimeFactory3D.Create(new HelPhysicsWorldSettings3D());
             binder.BindHierarchy(entity);
             binder.Step();
@@ -644,7 +645,7 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void Step_AfterDynamicVelocityWriteBack_PreservesQueuedWorldImpulse() {
-            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(float3.Zero, float3.One, BodyKind3D.Dynamic);
+            Entity entity = HelPhysicsTestSceneFactory3D.CreateBoxEntity(CoreValue, float3.Zero, float3.One, BodyKind3D.Dynamic);
             RigidBody3DComponent rigidBody = Assert.IsType<RigidBody3DComponent>(entity.Components[0]);
             HelPhysicsWorldSettings3D settings = new HelPhysicsWorldSettings3D(
                 8,

@@ -12,7 +12,7 @@ namespace helengine.editor.tests {
         readonly TestInputBackend Input;
         readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
 
         public PropertiesPanelWheelScrollTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-properties-panel-wheel-scroll-tests", Guid.NewGuid().ToString("N"));
@@ -28,7 +28,6 @@ namespace helengine.editor.tests {
 
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            InteractionServices.Dispose();
             CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
@@ -41,7 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void PropertiesPanel_WhenWheelScrollsOverTallEntityContent_AdvancesScrollOffset() {
-            PropertiesPanel panel = new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
+            PropertiesPanel panel = new PropertiesPanel(CoreValue, InteractionServices, CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 120)
             };

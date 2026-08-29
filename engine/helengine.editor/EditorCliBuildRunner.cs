@@ -48,12 +48,13 @@ namespace helengine.editor {
             };
             PlatformInfo platformInfo = new PlatformInfo("editor", bootstrap.RequiredEngineVersion);
             core.Initialize(renderer3D, renderer3D.Render2D, null, platformInfo, initializationOptions);
+            using EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
+            using EditorCoreInteractionGraphBinding interactionGraphBinding = new EditorCoreInteractionGraphBinding(core, interactionServices);
             core.SetDefaultFontAssetForEditor(DefaultFontAsset);
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService, options.PlatformId);
             using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
-            using EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
             using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, DefaultFontAsset, interactionServices);
             // Renderer binding is supplied to the authoring factory before recovery restores cached assets.
             // The registry is declared after its borrowed caches so reverse
@@ -69,7 +70,7 @@ namespace helengine.editor {
                     generatedMaterialCache,
                     rendererResources);
             generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
-            EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options, authoringSession, shaderBackendRegistry);
+            EditorBuildExecutionResult prebuildResult = ExecuteEditorPrebuildCommands(bootstrap, options, authoringSession, shaderBackendRegistry, core, interactionServices, rendererResources, generatedAssetProviderRegistry);
             if (!prebuildResult.Succeeded) {
                 return prebuildResult;
             }
@@ -222,7 +223,11 @@ namespace helengine.editor {
             EditorProjectBootstrapContext bootstrap,
             EditorCliBuildOptions options,
             IEditorProjectAuthoringSession authoringSession,
-            ShaderBackendRegistry shaderBackendRegistry) {
+            ShaderBackendRegistry shaderBackendRegistry,
+            Core core,
+            EditorSessionInteractionServices interactionServices,
+            EditorSessionRendererResources rendererResources,
+            GeneratedAssetProviderRegistry generatedAssetProviders) {
             if (bootstrap == null) {
                 throw new ArgumentNullException(nameof(bootstrap));
             }
@@ -234,6 +239,18 @@ namespace helengine.editor {
             }
             if (shaderBackendRegistry == null) {
                 throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
             }
 
             EditorBuildConfigDocument buildConfig = bootstrap.BuildConfigService.TryLoadExisting();
@@ -265,7 +282,107 @@ namespace helengine.editor {
                         bootstrap,
                         new EditorCliCommandOptions(bootstrap.ProjectRootPath, commandId),
                         authoringSession,
-                        shaderBackendRegistry);
+                        shaderBackendRegistry,
+                        core,
+                        interactionServices,
+                        rendererResources,
+                        generatedAssetProviders);
+                if (!commandResult.Succeeded) {
+                    return EditorBuildExecutionResult.Failure($"Editor prebuild command '{commandId}' for profile '{buildProfileId}' failed: {commandResult.Message}");
+                }
+            }
+
+            return EditorBuildExecutionResult.Success($"Editor prebuild completed for profile '{buildProfileId}'.");
+        }
+
+        /// <summary>
+        /// Executes editor prebuild commands against an already loaded command
+        /// catalog and the caller's explicit invocation graph. This is the
+        /// nested-command composition path; it cannot construct or replace an
+        /// inner core.
+        /// </summary>
+        internal EditorBuildExecutionResult ExecuteEditorPrebuildCommands(
+            EditorProjectBootstrapContext bootstrap,
+            EditorCliBuildOptions options,
+            IEditorProjectAuthoringSession authoringSession,
+            ShaderBackendRegistry shaderBackendRegistry,
+            Core core,
+            EditorSessionInteractionServices interactionServices,
+            EditorSessionRendererResources rendererResources,
+            GeneratedAssetProviderRegistry generatedAssetProviders,
+            IEditorProjectCommandCatalogProvider commandCatalogProvider,
+            IScriptTypeResolver scriptTypeResolver) {
+            if (bootstrap == null) {
+                throw new ArgumentNullException(nameof(bootstrap));
+            }
+            if (options == null) {
+                throw new ArgumentNullException(nameof(options));
+            }
+            if (authoringSession == null) {
+                throw new ArgumentNullException(nameof(authoringSession));
+            }
+            if (shaderBackendRegistry == null) {
+                throw new ArgumentNullException(nameof(shaderBackendRegistry));
+            }
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (generatedAssetProviders == null) {
+                throw new ArgumentNullException(nameof(generatedAssetProviders));
+            }
+            if (commandCatalogProvider == null) {
+                throw new ArgumentNullException(nameof(commandCatalogProvider));
+            }
+            if (scriptTypeResolver == null) {
+                throw new ArgumentNullException(nameof(scriptTypeResolver));
+            }
+            if (!ReferenceEquals(rendererResources.OwningCore, core)
+                || !ReferenceEquals(rendererResources.InteractionServices, interactionServices)) {
+                throw new InvalidOperationException("Nested editor prebuild commands must use the outer invocation renderer and interaction graph.");
+            }
+
+            EditorBuildConfigDocument buildConfig = bootstrap.BuildConfigService.TryLoadExisting();
+            if (buildConfig == null) {
+                return EditorBuildExecutionResult.Failure($"No existing build settings were found for project '{bootstrap.ProjectDisplayName}'. Open the editor and configure a build first.");
+            }
+
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(buildConfig, options.PlatformId);
+            if (platformConfig == null) {
+                return EditorBuildExecutionResult.Failure($"No build settings exist for platform '{options.PlatformId}'.");
+            }
+
+            string buildProfileId = string.IsNullOrWhiteSpace(options.BuildProfileId)
+                ? platformConfig.SelectedBuildProfileId
+                : options.BuildProfileId;
+            IReadOnlyList<string> commandIds;
+            try {
+                commandIds = new EditorBuildPrebuildCommandResolver().Resolve(platformConfig, buildProfileId);
+            } catch (Exception exception) {
+                return EditorBuildExecutionResult.Failure($"Build profile '{buildProfileId}' could not resolve editor prebuild commands: {exception.Message}");
+            }
+
+            EditorCliCommandRunner commandRunner = new EditorCliCommandRunner(
+                DefaultFontAsset,
+                new EditorProjectAssetAuthoringServiceFactory(Importers));
+            for (int index = 0; index < commandIds.Count; index++) {
+                string commandId = commandIds[index];
+                EditorBuildExecutionResult commandResult = commandRunner.RunInSessionGraph(
+                    bootstrap,
+                    new EditorCliCommandOptions(bootstrap.ProjectRootPath, commandId),
+                    authoringSession,
+                    shaderBackendRegistry,
+                    core,
+                    interactionServices,
+                    rendererResources,
+                    generatedAssetProviders,
+                    commandCatalogProvider,
+                    scriptTypeResolver);
                 if (!commandResult.Succeeded) {
                     return EditorBuildExecutionResult.Failure($"Editor prebuild command '{commandId}' for profile '{buildProfileId}' failed: {commandResult.Message}");
                 }

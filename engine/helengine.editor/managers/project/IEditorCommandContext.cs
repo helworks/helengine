@@ -22,5 +22,17 @@ namespace helengine.editor {
         /// Gets the single host-owned project authoring session shared by the command invocation.
         /// </summary>
         IEditorProjectAuthoringSession Authoring { get; }
+
+        /// <summary>Gets the explicit core that owns this command invocation.</summary>
+        Core Core { get; }
+
+        /// <summary>Gets the mutable interaction graph owned by the invocation.</summary>
+        EditorSessionInteractionServices InteractionServices { get; }
+
+        /// <summary>Gets the generated provider registry owned by the invocation.</summary>
+        GeneratedAssetProviderRegistry GeneratedAssetProviders { get; }
+
+        /// <summary>Gets the renderer-backed resource graph owned by the invocation.</summary>
+        EditorSessionRendererResources RendererResources { get; }
     }
 }

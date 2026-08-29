@@ -15,6 +15,19 @@ namespace helengine.editor.tests;
 /// </summary>
 public sealed class GeneratedSessionIsolationBehaviorTests {
     [Fact]
+    public void TestGeneratedAssetGraph_DisposeClearsCoreSlotBeforeDisposingOwnedInteractionGraph() {
+        Core core = CreateCore();
+        TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
+        EditorSessionInteractionServices interactions = graph.InteractionServices;
+
+        graph.Dispose();
+
+        Assert.Null(core.SessionInteractionGraph);
+        Assert.Throws<ObjectDisposedException>(() => interactions.InputCapture.IsPointerBlocked(new int2(0, 0)));
+        core.Dispose();
+    }
+
+    [Fact]
     public void ActualEditorSessions_KeepRendererGraphsIndependentAfterSessionADisposes() {
         string projectRootA = CreateProjectRoot();
         string projectRootB = CreateProjectRoot();
@@ -47,6 +60,13 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             Assert.NotSame(sessionA.Core.RenderManager2D.PixelTexture, sessionB.Core.RenderManager2D.PixelTexture);
             Assert.NotSame(registryA, registryB);
             Assert.NotSame(modelCacheA, modelCacheB);
+
+            sessionB.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowProperties);
+            EditorWorkspacePanelInstance secondaryPropertiesPanelB = Assert.Single(
+                sessionB.GetPanelInstancesForTest("properties")
+                    .Where(instance => !string.Equals(instance.InstanceId, "properties-primary", StringComparison.OrdinalIgnoreCase)));
+            Assert.Same(sessionB.Core, secondaryPropertiesPanelB.Dockable.OwnerCore);
+            Assert.Same(sessionB.InteractionServices, secondaryPropertiesPanelB.Dockable.InteractionServices);
 
             EditorEntity selectedEntityB = new EditorEntity(sessionB.Core, sessionB.InteractionServices) {
                 Name = "Session B entity"
@@ -83,6 +103,8 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             Assert.Same(selectedEntityB, sessionB.InteractionServices.GizmoHover.GetHoveredHandle(cameraB));
             Assert.True(sessionB.InteractionServices.GizmoDrag.IsDragging(cameraB));
             sessionB.Core.ObjectManager.Update();
+            sessionB.Core.Update();
+            Assert.Same(sessionB.Core, secondaryPropertiesPanelB.Dockable.OwnerCore);
             Assert.True(File.Exists(savedScenePath));
 
             sessionB.InteractionServices.GizmoDrag.EndDrag(cameraB);
@@ -117,14 +139,38 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             // Create A-owned scene state after B has become the ambient legacy
             // core. The explicit editor factory must still bind the entity to A.
             EditorEntity selectedEntityA = Assert.IsType<EditorEntity>(sessionA.Core.EntityFactory.Create("Session A entity"));
+            CameraComponent cameraA = new CameraComponent();
+            selectedEntityA.AddComponent(cameraA);
             sessionA.InteractionServices.Selection.SetSelectedEntity(selectedEntityA);
+            sessionA.InteractionServices.InputCapture.SetBlocker(selectedEntityA, new int2(6, 7), new int2(14, 15));
+            sessionA.InteractionServices.ViewportTool.SetToolMode(cameraA, EditorViewportToolMode.Rotate);
+            sessionA.InteractionServices.GizmoHover.SetHoveredHandle(cameraA, selectedEntityA);
+            sessionA.InteractionServices.GizmoDrag.BeginDrag(cameraA, selectedEntityA);
+            sessionA.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowProperties);
+            EditorWorkspacePanelInstance secondaryPropertiesPanel = Assert.Single(
+                sessionA.GetPanelInstancesForTest("properties")
+                    .Where(instance => !string.Equals(instance.InstanceId, "properties-primary", StringComparison.OrdinalIgnoreCase)));
+            Assert.Same(sessionA.Core, secondaryPropertiesPanel.Dockable.OwnerCore);
+            Assert.Same(sessionA.InteractionServices, secondaryPropertiesPanel.Dockable.InteractionServices);
+            string savedScenePath = Path.Combine(projectRootA, "assets", "Scenes", "IsolationAfterB.helen");
+            GetPrivateField<SceneSaveService>(sessionA, "SceneSaveService").Save(savedScenePath);
 
             sessionB.Dispose();
             sessionB = null;
 
             Assert.Same(modelA, GetPrivateField<GeneratedAssetProviderRegistry>(sessionA, "generatedAssetProviderRegistry").ResolveRuntimeModel(cubeEntry));
             Assert.Same(selectedEntityA, sessionA.InteractionServices.Selection.SelectedEntity);
+            Assert.True(sessionA.InteractionServices.InputCapture.IsPointerBlocked(new int2(8, 9)));
+            Assert.Equal(EditorViewportToolMode.Rotate, sessionA.InteractionServices.ViewportTool.GetToolMode(cameraA));
+            Assert.Same(selectedEntityA, sessionA.InteractionServices.GizmoHover.GetHoveredHandle(cameraA));
+            Assert.True(sessionA.InteractionServices.GizmoDrag.IsDragging(cameraA));
+            Assert.False(sessionA.Core.RenderManager2D.PixelTexture.IsDisposed);
             sessionA.Core.ObjectManager.Update();
+            sessionA.Core.Update();
+            Assert.Same(sessionA.Core, secondaryPropertiesPanel.Dockable.OwnerCore);
+            Assert.Same(sessionA.Core, sessionA.Core.RenderManager3D.OwnerCore);
+            Assert.True(File.Exists(savedScenePath));
+            sessionA.InteractionServices.GizmoDrag.EndDrag(cameraA);
             selectedEntityA.Dispose();
         } finally {
             sessionA?.Dispose();
@@ -158,26 +204,38 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             // structured command-resolution failure after graph setup.
             EditorBuildExecutionResult directoryResult = commandRunner.RunInSessionGraph(
                 bootstrapA,
-                new EditorCliCommandOptions(projectRootA, "missing.command"),
+                new EditorCliCommandOptions(projectRootA, "test.graph.mutate"),
                 authoringA,
-                shaderBackends);
+                shaderBackends,
+                coreA,
+                graphA.InteractionServices,
+                graphA.RendererResources,
+                graphA.Registry);
             Assert.False(directoryResult.Succeeded);
-            Assert.Contains("missing.command", directoryResult.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("test.graph.mutate", directoryResult.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Same(coreB, Core.Instance);
 
             EditorBuildExecutionResult canonicalFileResult = commandRunner.RunInSessionGraph(
                 bootstrapA,
-                new EditorCliCommandOptions(Path.Combine(projectRootA, "project.heproj"), "missing.command"),
+                new EditorCliCommandOptions(Path.Combine(projectRootA, "project.heproj"), "test.graph.mutate"),
                 authoringA,
-                shaderBackends);
+                shaderBackends,
+                coreA,
+                graphA.InteractionServices,
+                graphA.RendererResources,
+                graphA.Registry);
             Assert.False(canonicalFileResult.Succeeded);
-            Assert.Contains("missing.command", canonicalFileResult.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("test.graph.mutate", canonicalFileResult.Message, StringComparison.OrdinalIgnoreCase);
 
             InvalidOperationException differentRootException = Assert.Throws<InvalidOperationException>(() => commandRunner.RunInSessionGraph(
                 bootstrapA,
-                new EditorCliCommandOptions(Path.Combine(projectRootB, "project.heproj"), "missing.command"),
+                new EditorCliCommandOptions(Path.Combine(projectRootB, "project.heproj"), "test.graph.mutate"),
                 authoringA,
-                shaderBackends));
+                shaderBackends,
+                coreA,
+                graphA.InteractionServices,
+                graphA.RendererResources,
+                graphA.Registry));
             Assert.Contains("outer invocation project root", differentRootException.Message, StringComparison.OrdinalIgnoreCase);
 
             bootstrapA.BuildConfigService.Save(new EditorBuildConfigDocument {
@@ -186,7 +244,7 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
                         PlatformId = "windows",
                         SelectedBuildProfileId = "release",
                         EditorPrebuildCommandIdsByBuildProfileId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase) {
-                            ["release"] = new List<string> { "missing.command" }
+                            ["release"] = new List<string> { "test.graph.mutate" }
                         }
                     }
                 }
@@ -198,9 +256,13 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
                     bootstrapA,
                     new EditorCliBuildOptions(projectRootA, "windows", "release", projectRootA, false),
                     authoringA,
-                    shaderBackends);
+                    shaderBackends,
+                    coreA,
+                    graphA.InteractionServices,
+                    graphA.RendererResources,
+                    graphA.Registry);
             Assert.False(prebuildResult.Succeeded);
-            Assert.Contains("missing.command", prebuildResult.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("test.graph.mutate", prebuildResult.Message, StringComparison.OrdinalIgnoreCase);
             Assert.Same(coreB, Core.Instance);
 
             AssetBrowserEntry cubeEntry = AssetBrowserEntry.CreateGeneratedAsset(
@@ -222,6 +284,118 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             coreB?.Dispose();
             DeleteProjectRoot(projectRootA);
             DeleteProjectRoot(projectRootB);
+        }
+    }
+
+    [Fact]
+    public void CliCommand_ExecutesRealCommandAgainstOuterGeneratedAndInteractionGraph() {
+        string projectRoot = CreateProjectRoot();
+        Core core = CreateCore(projectRoot);
+        string ambientProjectRoot = CreateProjectRoot();
+        Core ambientCore = CreateCore(ambientProjectRoot);
+        TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
+        graph.Registry.Register(graph.CreateProvider());
+        EditorProjectAuthoringSession authoring = CreateAuthoringSession(projectRoot, graph);
+        EditorCliCommandRunner runner = new EditorCliCommandRunner(
+            CreateEditorFont(),
+            new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()));
+        TestEditorScriptAssemblyHost commandCatalog = new TestEditorScriptAssemblyHost {
+            AvailableEditorCommands = new[] {
+                new EditorProjectCommandDescriptor(
+                    "test.graph.mutate",
+                    "Mutate Explicit Graph",
+                    typeof(TestGraphMutationEditorCommand),
+                    "test")
+            }
+        };
+
+        try {
+            TestGraphMutationEditorCommand.Reset();
+            EditorBuildExecutionResult result = runner.RunInSessionGraph(
+                CreateTestBootstrap(projectRoot),
+                new EditorCliCommandOptions(Path.Combine(projectRoot, "project.heproj"), "test.graph.mutate"),
+                authoring,
+                CreateBackends(),
+                core,
+                graph.InteractionServices,
+                graph.RendererResources,
+                graph.Registry,
+                commandCatalog,
+                commandCatalog.ScriptTypeResolver);
+
+            Assert.True(result.Succeeded, result.Message);
+            Assert.Same(core, TestGraphMutationEditorCommand.LastCore);
+            Assert.Same(graph.InteractionServices, TestGraphMutationEditorCommand.LastInteractionServices);
+            Assert.Same(graph.RendererResources.WorldSpace2DPreviewMeshes.GetRuntimeModel(), TestGraphMutationEditorCommand.LastPreviewModel);
+            Assert.Same(TestGraphMutationEditorCommand.LastEntity, graph.InteractionServices.Selection.SelectedEntity);
+            Assert.True(graph.InteractionServices.InputCapture.IsPointerBlocked(new int2(4, 5)));
+            Assert.Same(ambientCore, Core.Instance);
+        } finally {
+            TestGraphMutationEditorCommand.Reset();
+            authoring.Dispose();
+            graph.Dispose();
+            ambientCore.Dispose();
+            core.Dispose();
+            DeleteProjectRoot(projectRoot);
+            DeleteProjectRoot(ambientProjectRoot);
+        }
+    }
+
+    [Fact]
+    public void CliPrebuild_ExecutesRealNestedCommandWithoutReplacingOuterGraph() {
+        string projectRoot = CreateProjectRoot();
+        string ambientProjectRoot = CreateProjectRoot();
+        Core core = CreateCore(projectRoot);
+        Core ambientCore = CreateCore(ambientProjectRoot);
+        TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
+        graph.Registry.Register(graph.CreateProvider());
+        EditorProjectAuthoringSession authoring = CreateAuthoringSession(projectRoot, graph);
+        EditorCliBuildRunner runner = new EditorCliBuildRunner(Array.Empty<IAssetImporterRegistration>(), CreateEditorFont());
+        TestEditorScriptAssemblyHost commandCatalog = new TestEditorScriptAssemblyHost {
+            AvailableEditorCommands = new[] {
+                new EditorProjectCommandDescriptor("test.graph.mutate", "Mutate Explicit Graph", typeof(TestGraphMutationEditorCommand), "test")
+            }
+        };
+        EditorProjectBootstrapContext bootstrap = CreateTestBootstrap(projectRoot);
+        bootstrap.BuildConfigService.Save(new EditorBuildConfigDocument {
+            Platforms = new List<EditorBuildPlatformConfigDocument> {
+                new EditorBuildPlatformConfigDocument {
+                    PlatformId = "windows",
+                    SelectedBuildProfileId = "release",
+                    EditorPrebuildCommandIdsByBuildProfileId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase) {
+                        ["release"] = new List<string> { "test.graph.mutate" }
+                    }
+                }
+            }
+        });
+
+        try {
+            TestGraphMutationEditorCommand.Reset();
+            EditorBuildExecutionResult result = runner.ExecuteEditorPrebuildCommands(
+                bootstrap,
+                new EditorCliBuildOptions(projectRoot, "windows", "release", projectRoot, false),
+                authoring,
+                CreateBackends(),
+                core,
+                graph.InteractionServices,
+                graph.RendererResources,
+                graph.Registry,
+                commandCatalog,
+                commandCatalog.ScriptTypeResolver);
+
+            Assert.True(result.Succeeded, result.Message);
+            Assert.Same(core, TestGraphMutationEditorCommand.LastCore);
+            Assert.Same(graph.InteractionServices, TestGraphMutationEditorCommand.LastInteractionServices);
+            Assert.Same(ambientCore, Core.Instance);
+            Assert.Same(TestGraphMutationEditorCommand.LastEntity, graph.InteractionServices.Selection.SelectedEntity);
+        } finally {
+            TestGraphMutationEditorCommand.Reset();
+            authoring.Dispose();
+            graph.Dispose();
+            ambientCore.Dispose();
+            core.Dispose();
+            DeleteProjectRoot(projectRoot);
+            DeleteProjectRoot(ambientProjectRoot);
         }
     }
 
