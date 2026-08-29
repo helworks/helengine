@@ -33,10 +33,10 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Ensures direct composition rejects an absent resolver instead of creating hidden owned state.
+    /// Ensures direct composition rejects an absent project session instead of creating hidden owned state.
     /// </summary>
     [Fact]
-    public void AuthoringService_WhenResolverIsNull_RejectsComposition() {
+    public void AuthoringService_WhenAuthoringSessionIsNull_RejectsComposition() {
         string projectRootPath = CreateTemporaryProjectRoot();
         string assetsRootPath = Path.Combine(projectRootPath, "assets");
         AssetImportManager assetImportManager = new AssetImportManager(
@@ -48,7 +48,7 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
         identityIndex.Initialize();
         using EditorNativeAssetWriteService writer = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
 
-        Assert.Throws<ArgumentNullException>(() => new EditorProjectAssetAuthoringService(assetImportManager, null, writer, null, null, null, null));
+        Assert.Throws<ArgumentNullException>(() => new EditorProjectAssetAuthoringService(null, assetImportManager, null, writer, null, null, null, null));
     }
 
     /// <summary>

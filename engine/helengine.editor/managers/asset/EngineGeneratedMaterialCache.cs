@@ -43,6 +43,18 @@ namespace helengine.editor {
             return runtimeMaterial;
         }
 
+        /// <summary>
+        /// Loads one built-in shader through this cache's exact owning renderer
+        /// and shader library.
+        /// </summary>
+        public ShaderAsset LoadBuiltInShaderAsset(string shaderFileName) {
+            if (string.IsNullOrWhiteSpace(shaderFileName)) {
+                throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
+            }
+
+            return BuiltInShaderLibrary.LoadShaderAsset(RenderManager3D, shaderFileName);
+        }
+
         RuntimeMaterial CreateRuntimeMaterial(string assetId) {
             if (!string.Equals(assetId, StandardAssetId, StringComparison.Ordinal)) {
                 throw new InvalidOperationException($"Generated engine material '{assetId}' is not registered.");

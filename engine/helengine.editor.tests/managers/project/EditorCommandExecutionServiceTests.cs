@@ -170,7 +170,7 @@ public sealed class EditorCommandExecutionServiceTests {
     /// <summary>
     /// Supplies only the current authoring-session contract to command execution tests.
     /// </summary>
-    sealed class TestEditorCommandAuthoringSession : IEditorProjectAuthoringSession {
+    sealed class TestEditorCommandAuthoringSession : TestEditorProjectAuthoringSessionBase {
         /// <summary>
         /// Creates an empty authoring-session test double.
         /// </summary>
@@ -178,68 +178,68 @@ public sealed class EditorCommandExecutionServiceTests {
             RepairReport = new EditorAssetRepairReport();
         }
 
-        public string ProjectRootPath => throw new NotSupportedException();
+        public override string ProjectRootPath => throw new NotSupportedException();
 
-        public Core OwningCore => throw new NotSupportedException();
+        public override Core OwningCore => throw new NotSupportedException();
 
-        public GeneratedAssetProviderRegistry GeneratedAssetProviders => throw new NotSupportedException();
+        public override GeneratedAssetProviderRegistry GeneratedAssetProviders => throw new NotSupportedException();
 
-        public EngineGeneratedModelCache GeneratedModelCache => throw new NotSupportedException();
+        public override EngineGeneratedModelCache GeneratedModelCache => throw new NotSupportedException();
 
-        public EngineGeneratedMaterialCache GeneratedMaterialCache => throw new NotSupportedException();
+        public override EngineGeneratedMaterialCache GeneratedMaterialCache => throw new NotSupportedException();
 
-        public EditorSessionRendererResources RendererResources => throw new NotSupportedException();
+        public override EditorSessionRendererResources RendererResources => throw new NotSupportedException();
 
         /// <summary>
         /// Gets the empty repair report used by the test double.
         /// </summary>
-        public EditorAssetRepairReport RepairReport { get; }
+        public override EditorAssetRepairReport RepairReport { get; }
 
         /// <summary>
         /// Rejects unsupported reference creation in this command-execution test double.
         /// </summary>
-        public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) {
+        public override SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Rejects unsupported reference resolution in this command-execution test double.
         /// </summary>
-        public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) {
+        public override AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Rejects unsupported model loading in this command-execution test double.
         /// </summary>
-        public RuntimeModel LoadImportedRuntimeModel(string relativePath) {
+        public override RuntimeModel LoadImportedRuntimeModel(string relativePath) {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Rejects unsupported native writes in this command-execution test double.
         /// </summary>
-        public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
+        public override EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Rejects unsupported transactions in this command-execution test double.
         /// </summary>
-        public EditorAuthoringTransaction BeginTransaction() {
+        public override EditorAuthoringTransaction BeginTransaction() {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Performs no refresh in this command-execution test double.
         /// </summary>
-        public void RefreshExternalChanges() {
+        public override void RefreshExternalChanges() {
         }
 
         /// <summary>
         /// Releases no resources in this command-execution test double.
         /// </summary>
-        public void Dispose() {
+        public override void Dispose() {
         }
     }
 

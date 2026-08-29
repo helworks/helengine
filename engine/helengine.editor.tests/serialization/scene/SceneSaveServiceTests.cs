@@ -51,11 +51,8 @@ namespace helengine.editor.tests.serialization.scene {
 
         SceneSaveService CreateSceneSaveService(ComponentPersistenceRegistry registry) {
             return new SceneSaveService(
-                TempProjectRootPath,
-                registry,
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                registry);
         }
 
         /// <summary>
@@ -267,11 +264,8 @@ namespace helengine.editor.tests.serialization.scene {
         public void SaveAndLoad_WhenMeshUsesGeneratedAssetsWithoutStoredReferences_InfersReferencesDuringSave() {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(
-                TempProjectRootPath,
-                registry,
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "GeneratedMeshInference.helen");
 
             EditorEntity root = CreateUserEntity("GeneratedCube", float3.Zero, float3.One, float4.Identity);
@@ -343,11 +337,8 @@ namespace helengine.editor.tests.serialization.scene {
 
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(
-                TempProjectRootPath,
-                registry,
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FileSystemModelInference.helen");
 
             EditorEntity root = CreateUserEntity("Arrow", float3.Zero, float3.One, float4.Identity);

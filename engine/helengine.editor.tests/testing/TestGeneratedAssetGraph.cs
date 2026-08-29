@@ -11,6 +11,7 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
     readonly Core CoreValue;
     readonly EditorSceneEntityIdAllocator SceneEntityIdAllocatorValue;
     readonly bool OwnsInteractionServices;
+    readonly List<IEditorProjectAuthoringSession> AuthoringSessions = new List<IEditorProjectAuthoringSession>();
 
     public GeneratedAssetProviderRegistry Registry { get; }
     public Core OwnerCore => CoreValue;
@@ -74,8 +75,41 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         return new EditorSceneCreationService(CoreValue.EntityFactory, CoreValue.ObjectManager, ModelCache, MaterialCache, RendererResources);
     }
 
+    /// <summary>
+    /// Creates and tracks one explicit project authoring session over this
+    /// fixture's exact generated and renderer graph.
+    /// </summary>
+    public IEditorProjectAuthoringSession CreateAuthoringSession(string projectRootPath) {
+        if (string.IsNullOrWhiteSpace(projectRootPath)) {
+            throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+        }
+
+        Directory.CreateDirectory(Path.Combine(projectRootPath, "assets"));
+        ContentManager contentManager = new ContentManager(
+            new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
+        try {
+            IEditorProjectAuthoringSession session = new EditorProjectAuthoringSession(
+                projectRootPath,
+                Array.Empty<IAssetImporterRegistration>(),
+                contentManager,
+                Registry,
+                ModelCache,
+                MaterialCache,
+                RendererResources);
+            AuthoringSessions.Add(session);
+            return session;
+        } catch {
+            contentManager.Dispose();
+            throw;
+        }
+    }
+
     public void Dispose() {
         List<Exception> failures = new List<Exception>();
+        for (int index = AuthoringSessions.Count - 1; index >= 0; index--) {
+            DisposeOwned(AuthoringSessions[index], failures);
+        }
+        AuthoringSessions.Clear();
         DisposeOwned(Registry, failures);
         DisposeOwned(RendererResources, failures);
         DisposeOwned(MaterialCache, failures);

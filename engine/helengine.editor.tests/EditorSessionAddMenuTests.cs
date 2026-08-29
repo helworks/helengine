@@ -204,12 +204,8 @@ namespace helengine.editor.tests {
             sceneHierarchyPanel.SetInput(CoreValue.Input);
             EditorSceneCreationService sceneCreationService = GeneratedAssetGraph.CreateSceneCreationService();
             SceneSaveService sceneSaveService = new SceneSaveService(
-                TempProjectRootPath,
-                new ComponentPersistenceRegistry(),
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache,
-                GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                new ComponentPersistenceRegistry());
             EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(sceneSaveService);
             EditorUndoRedoService undoRedoService = new EditorUndoRedoService(new EditorHistoryContext());
             EditorMutationService historyMutationService = new EditorMutationService(

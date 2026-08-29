@@ -524,11 +524,8 @@ namespace helengine.editor.tests {
         EditorSession CreateSessionForUndoRedo() {
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             SceneSaveService saveService = new SceneSaveService(
-                TempProjectRootPath,
-                persistenceRegistry,
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                persistenceRegistry);
             SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, persistenceRegistry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(saveService);
             ComponentHistoryAdapterRegistry historyAdapterRegistry = new ComponentHistoryAdapterRegistry();

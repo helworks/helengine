@@ -866,12 +866,8 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "sceneAssetReferenceFactory", new SceneAssetReferenceFactory(referenceResolver));
                 SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver, new EditorFileSystemTextureResolver(assetImportManager), referenceResolver, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources));
                 SceneSaveService historySaveService = new SceneSaveService(
-                    TempProjectRootPath,
-                    new ComponentPersistenceRegistry(),
-                    new EditorAssetReferenceResolver(TempProjectRootPath),
-                    GeneratedAssetGraph.ModelCache,
-                    GeneratedAssetGraph.MaterialCache,
-                    GeneratedAssetGraph.RendererResources);
+                    GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                    new ComponentPersistenceRegistry());
                 EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(historySaveService);
                 SetPrivateField(Session, "HistoryCaptureService", historyCaptureService);
                 SetPrivateField(Session, "HistoryMutationService", new EditorMutationService(

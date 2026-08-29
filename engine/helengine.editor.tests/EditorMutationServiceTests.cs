@@ -97,11 +97,8 @@ namespace helengine.editor.tests {
         /// <returns>Configured editor mutation service.</returns>
         EditorMutationService CreateMutationService(RecordingUndoRedoService undoRedoService, ComponentHistoryAdapterRegistry registry, Action markSceneMutated) {
             SceneSaveService saveService = new SceneSaveService(
-                TempRootPath,
-                new ComponentPersistenceRegistry(),
-                new EditorAssetReferenceResolver(TempRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempRootPath),
+                new ComponentPersistenceRegistry());
             EditorHistoryCaptureService captureService = new EditorHistoryCaptureService(saveService);
             return new EditorMutationService(undoRedoService, captureService, registry, markSceneMutated);
         }

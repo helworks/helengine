@@ -48,11 +48,8 @@ namespace helengine.editor.tests.serialization.blueprint {
 
         BlueprintSaveService CreateBlueprintSaveService(ComponentPersistenceRegistry registry) {
             return new BlueprintSaveService(
-                TempProjectRootPath,
-                registry,
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                registry);
         }
 
         /// <summary>

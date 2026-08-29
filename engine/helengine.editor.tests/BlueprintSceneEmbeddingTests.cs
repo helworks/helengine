@@ -102,7 +102,7 @@ namespace helengine.editor.tests {
             SceneFileLoadService loadService = new SceneFileLoadService(TempProjectRootPath, new ComponentPersistenceRegistry(), new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             LoadedEditorSceneDocument loaded = loadService.Load(scenePath);
 
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, new ComponentPersistenceRegistry(), new EditorAssetReferenceResolver(TempProjectRootPath), GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            SceneSaveService saveService = new SceneSaveService(GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath), new ComponentPersistenceRegistry());
             string roundTripScenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "BlueprintInstanceRoundTrip.helen");
 
             saveService.Save(roundTripScenePath);
@@ -170,7 +170,7 @@ namespace helengine.editor.tests {
                 BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintAssetPath)
             });
 
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, new ComponentPersistenceRegistry(), new EditorAssetReferenceResolver(TempProjectRootPath), GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            SceneSaveService saveService = new SceneSaveService(GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath), new ComponentPersistenceRegistry());
             string fullScenePath = Path.Combine(TempProjectRootPath, "assets", relativeScenePath.Replace('/', Path.DirectorySeparatorChar));
             saveService.Save(fullScenePath);
             instanceRoot.Enabled = false;
@@ -195,7 +195,7 @@ namespace helengine.editor.tests {
                 BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintAssetPath)
             });
 
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, new ComponentPersistenceRegistry(), new EditorAssetReferenceResolver(TempProjectRootPath), GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            SceneSaveService saveService = new SceneSaveService(GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath), new ComponentPersistenceRegistry());
             string fullScenePath = Path.Combine(TempProjectRootPath, "assets", relativeScenePath.Replace('/', Path.DirectorySeparatorChar));
             saveService.Save(fullScenePath);
             firstInstanceRoot.Enabled = false;

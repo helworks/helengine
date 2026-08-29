@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Provides one disposable, project-scoped boundary for editor asset authoring operations.
     /// </summary>
-    public interface IEditorProjectAuthoringSession : IDisposable {
+    public interface IEditorProjectAuthoringSession : IDisposable, IEditorProjectAssetAuthoringService {
         /// <summary>Gets the canonical project root owned by this authoring session.</summary>
         string ProjectRootPath { get; }
 
@@ -43,6 +43,9 @@ namespace helengine.editor {
         /// <param name="relativePath">Path relative to the project assets root.</param>
         /// <returns>Imported runtime model.</returns>
         RuntimeModel LoadImportedRuntimeModel(string relativePath);
+
+        /// <summary>Loads one built-in shader through the session-owned shader library and renderer.</summary>
+        ShaderAsset LoadBuiltInShaderAsset(string shaderFileName);
 
         /// <summary>
         /// Writes one current native asset through this session's authoring boundary.

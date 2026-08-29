@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public class SceneSaveService : IDisposable {
         /// <summary>
+        /// Project authoring boundary that owns identity, generated, and renderer state.
+        /// </summary>
+        readonly IEditorProjectAuthoringSession AuthoringSession;
+
+        /// <summary>
         /// Absolute path to the project root.
         /// </summary>
         readonly string ProjectRootPath;
@@ -48,43 +53,24 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes a new scene save service for one project root.
         /// </summary>
-        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="authoringSession">Session that owns the project assets and authoring graph.</param>
         /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
-        /// <summary>
-        /// Initializes a scene save service over the complete session-owned reference and generated-asset graph.
-        /// </summary>
         public SceneSaveService(
-            string projectRootPath,
-            ComponentPersistenceRegistry persistenceRegistry,
-            EditorAssetReferenceResolver referenceResolver,
-            EngineGeneratedModelCache generatedModelCache,
-            EngineGeneratedMaterialCache generatedMaterialCache,
-            EditorSessionRendererResources rendererResources) {
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
-            }
+            IEditorProjectAuthoringSession authoringSession,
+            ComponentPersistenceRegistry persistenceRegistry) {
+            AuthoringSession = authoringSession ?? throw new ArgumentNullException(nameof(authoringSession));
             if (persistenceRegistry == null) {
                 throw new ArgumentNullException(nameof(persistenceRegistry));
             }
-            if (referenceResolver == null) {
-                throw new ArgumentNullException(nameof(referenceResolver));
-            }
-            if (generatedModelCache == null) {
-                throw new ArgumentNullException(nameof(generatedModelCache));
-            }
-            if (generatedMaterialCache == null) {
-                throw new ArgumentNullException(nameof(generatedMaterialCache));
-            }
-            rendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
-            ObjectManager = rendererResources.ObjectManager;
-
-            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectRootPath = Path.GetFullPath(authoringSession.ProjectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
+            ObjectManager = authoringSession.RendererResources?.ObjectManager
+                ?? throw new InvalidOperationException("Authoring session must provide renderer resources.");
             PersistenceRegistry = persistenceRegistry;
             EntityReferenceTable = new SceneEntityReferenceTable();
             OverridePayloadService = new ComponentPlatformOverridePayloadService();
-            AssetReferenceInferenceService = new SceneAssetReferenceInferenceService(ProjectRootPath, referenceResolver, generatedModelCache, generatedMaterialCache, rendererResources);
-            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(referenceResolver);
+            AssetReferenceInferenceService = new SceneAssetReferenceInferenceService(authoringSession);
+            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(authoringSession);
             TransformEditingService = new EntityPlatformTransformEditingService();
             ComponentEditingService = new ComponentPlatformEditingService();
         }
@@ -144,26 +130,16 @@ namespace helengine.editor {
             if (!IsPathInsideAssetsRoot(normalizedPath)) {
                 throw new InvalidOperationException("Scene files must be stored inside the project assets folder.");
             }
-            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
-
             EntityReferenceTable.Clear();
             SceneAsset asset = BuildSceneAsset(normalizedPath, sceneSettings, roots);
-            AssetIdentityMetadataDocument identity = !string.IsNullOrWhiteSpace(authoringAssetId)
-                ? new AssetIdentityMetadataDocument { AssetId = authoringAssetId }
-                : File.Exists(normalizedPath)
-                    ? new AssetIdentityMetadataService(ProjectRootPath).Load(normalizedPath)
-                    : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
-            asset.AuthoringAssetId = identity.AssetId;
-            asset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
-            string directoryPath = Path.GetDirectoryName(normalizedPath);
-            if (string.IsNullOrWhiteSpace(directoryPath)) {
-                throw new InvalidOperationException("Scene path does not include a writable directory.");
+            if (!string.IsNullOrWhiteSpace(authoringAssetId)) {
+                asset.AuthoringAssetId = authoringAssetId;
+                asset.FormerAuthoringAssetIds = Array.Empty<string>();
             }
 
-            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, directoryPath);
-            using MemoryStream bytes = new MemoryStream();
-            AssetSerializer.Serialize(bytes, asset);
-            EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, normalizedPath, bytes.ToArray());
+            using EditorAuthoringTransaction transaction = AuthoringSession.BeginTransaction();
+            transaction.WriteAsset(BuildSceneId(normalizedPath), asset);
+            transaction.Commit();
         }
 
         /// <summary>
@@ -251,6 +227,18 @@ namespace helengine.editor {
                 AssetReferences = assetReferences.ToArray(),
                 SceneSettings = CloneSceneSettings(sceneSettings)
             };
+        }
+
+        /// <summary>
+        /// Builds the detached scene payload used by blueprint authoring without
+        /// publishing an intermediate scene transaction.
+        /// </summary>
+        internal SceneAsset BuildAssetForBlueprint() {
+            EntityReferenceTable.Clear();
+            return BuildSceneAsset(
+                Path.Combine(AssetsRootPath, ".blueprint-intermediate", "Blueprint" + SceneAsset.FileExtension),
+                new SceneSettingsAsset(),
+                null);
         }
 
         /// <summary>

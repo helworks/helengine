@@ -286,7 +286,7 @@ namespace helengine.editor.tests.serialization.scene {
             saveComponent.SetAssetReference(meshComponent, "Model", modelReference);
             saveComponent.SetAssetReference(meshComponent, "Materials[0]", materialReference);
 
-            SceneSaveService saveService = new SceneSaveService(TempProjectRootPath, CreatePersistenceRegistry(), new EditorAssetReferenceResolver(TempProjectRootPath), GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            SceneSaveService saveService = new SceneSaveService(GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath), CreatePersistenceRegistry());
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", fileName);
             saveService.Save(scenePath, sceneSettings);
             root.Enabled = false;

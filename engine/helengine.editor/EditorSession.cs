@@ -844,7 +844,7 @@ namespace helengine.editor {
             ConstructionCheckpointForTests?.Invoke("mid-construction");
             ComponentPersistenceRegistry persistenceRegistry = CreateComponentPersistenceRegistry(scriptHotReloadService.ScriptTypeResolver);
             SceneSavePathResolver = new SceneSavePathResolver(this.projectPath);
-            SceneSaveService = new SceneSaveService(this.projectPath, persistenceRegistry, authoredAssetReferenceResolver, generatedModelCache, generatedMaterialCache, rendererResources);
+            SceneSaveService = new SceneSaveService(AuthoringSession, persistenceRegistry);
             constructionLedger.Register(SceneSaveService);
             HistoryCaptureService = new EditorHistoryCaptureService(SceneSaveService);
             ComponentHistoryAdapterRegistry = new ComponentHistoryAdapterRegistry();

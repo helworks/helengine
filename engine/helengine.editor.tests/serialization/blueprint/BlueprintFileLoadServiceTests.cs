@@ -150,7 +150,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             EntityComponentSaveState componentSaveState = saveComponent.GetOrCreateComponentState(meshComponent);
             setPlatformOverrideMethod.Invoke(componentSaveState, new[] { "windows", overrideState });
 
-            SceneSaveService sceneSaveService = new SceneSaveService(TempProjectRootPath, CreatePersistenceRegistry(), new EditorAssetReferenceResolver(TempProjectRootPath), GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            SceneSaveService sceneSaveService = new SceneSaveService(GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath), CreatePersistenceRegistry());
             string tempScenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "BlueprintSource.helen");
             sceneSaveService.Save(tempScenePath);
 

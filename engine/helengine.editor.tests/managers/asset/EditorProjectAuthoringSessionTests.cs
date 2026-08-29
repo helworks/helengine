@@ -386,7 +386,7 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     /// <summary>
     /// Supplies only the current public session contract to test command-context overload resolution.
     /// </summary>
-    sealed class FakeEditorProjectAuthoringSession : IEditorProjectAuthoringSession {
+    sealed class FakeEditorProjectAuthoringSession : TestEditorProjectAuthoringSessionBase {
         /// <summary>
         /// Creates an empty fake session for command-context identity assertions.
         /// </summary>
@@ -394,68 +394,68 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
             RepairReport = new EditorAssetRepairReport();
         }
 
-        public string ProjectRootPath => throw new NotSupportedException();
+        public override string ProjectRootPath => throw new NotSupportedException();
 
-        public Core OwningCore => throw new NotSupportedException();
+        public override Core OwningCore => throw new NotSupportedException();
 
-        public GeneratedAssetProviderRegistry GeneratedAssetProviders => throw new NotSupportedException();
+        public override GeneratedAssetProviderRegistry GeneratedAssetProviders => throw new NotSupportedException();
 
-        public EngineGeneratedModelCache GeneratedModelCache => throw new NotSupportedException();
+        public override EngineGeneratedModelCache GeneratedModelCache => throw new NotSupportedException();
 
-        public EngineGeneratedMaterialCache GeneratedMaterialCache => throw new NotSupportedException();
+        public override EngineGeneratedMaterialCache GeneratedMaterialCache => throw new NotSupportedException();
 
-        public EditorSessionRendererResources RendererResources => throw new NotSupportedException();
+        public override EditorSessionRendererResources RendererResources => throw new NotSupportedException();
 
         /// <summary>
         /// Gets the empty repair report surfaced by the fake.
         /// </summary>
-        public EditorAssetRepairReport RepairReport { get; }
+        public override EditorAssetRepairReport RepairReport { get; }
 
         /// <summary>
         /// Creates no reference because this fake only tests object identity.
         /// </summary>
-        public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) {
+        public override SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Resolves no reference because this fake only tests object identity.
         /// </summary>
-        public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) {
+        public override AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Loads no imported model because this fake only tests object identity.
         /// </summary>
-        public RuntimeModel LoadImportedRuntimeModel(string relativePath) {
+        public override RuntimeModel LoadImportedRuntimeModel(string relativePath) {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Writes no asset because this fake only tests object identity.
         /// </summary>
-        public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
+        public override EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Begins no transaction because this fake only tests object identity.
         /// </summary>
-        public EditorAuthoringTransaction BeginTransaction() {
+        public override EditorAuthoringTransaction BeginTransaction() {
             throw new NotSupportedException();
         }
 
         /// <summary>
         /// Performs no refresh because this fake only tests object identity.
         /// </summary>
-        public void RefreshExternalChanges() {
+        public override void RefreshExternalChanges() {
         }
 
         /// <summary>
         /// Releases no resources because this fake only tests object identity.
         /// </summary>
-        public void Dispose() {
+        public override void Dispose() {
         }
     }
 

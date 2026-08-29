@@ -241,7 +241,7 @@ namespace helengine.editor {
             RendererResourcesValue = rendererResources;
             OwnsGeneratedAssetProviders = false;
             OwnsAssetImportManager = ownsAssetImportManager;
-            AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService, GeneratedAssetProviders, GeneratedModelCache, GeneratedMaterialCache, rendererResources);
+            AssetAuthoringService = new EditorProjectAssetAuthoringService(this, AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService, GeneratedAssetProviders, GeneratedModelCache, GeneratedMaterialCache, rendererResources);
         }
 
         /// <summary>
@@ -321,6 +321,12 @@ namespace helengine.editor {
         public RuntimeModel LoadImportedRuntimeModel(string relativePath) {
             EnsureNotDisposed();
             return AssetAuthoringService.ResolveRuntimeModel(ResolveAssetsPath(relativePath));
+        }
+
+        /// <summary>Loads one built-in shader through this session's renderer graph.</summary>
+        public ShaderAsset LoadBuiltInShaderAsset(string shaderFileName) {
+            EnsureNotDisposed();
+            return GeneratedMaterialCache.LoadBuiltInShaderAsset(shaderFileName);
         }
 
         /// <summary>

@@ -763,7 +763,7 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
         }
     }
 
-    sealed class AuthoringSessionProjection : IEditorProjectAuthoringSession {
+    sealed class AuthoringSessionProjection : TestEditorProjectAuthoringSessionBase {
         readonly IEditorProjectAuthoringSession Inner;
 
         public AuthoringSessionProjection(IEditorProjectAuthoringSession inner, string projectRootPath) {
@@ -771,20 +771,20 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
         }
 
-        public string ProjectRootPath { get; }
-        public Core OwningCore => Inner.OwningCore;
-        public GeneratedAssetProviderRegistry GeneratedAssetProviders => Inner.GeneratedAssetProviders;
-        public EngineGeneratedModelCache GeneratedModelCache => Inner.GeneratedModelCache;
-        public EngineGeneratedMaterialCache GeneratedMaterialCache => Inner.GeneratedMaterialCache;
-        public EditorSessionRendererResources RendererResources => Inner.RendererResources;
-        public EditorAssetRepairReport RepairReport => Inner.RepairReport;
+        public override string ProjectRootPath { get; }
+        public override Core OwningCore => Inner.OwningCore;
+        public override GeneratedAssetProviderRegistry GeneratedAssetProviders => Inner.GeneratedAssetProviders;
+        public override EngineGeneratedModelCache GeneratedModelCache => Inner.GeneratedModelCache;
+        public override EngineGeneratedMaterialCache GeneratedMaterialCache => Inner.GeneratedMaterialCache;
+        public override EditorSessionRendererResources RendererResources => Inner.RendererResources;
+        public override EditorAssetRepairReport RepairReport => Inner.RepairReport;
 
-        public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) => Inner.CreateReference(relativePath, expectedKind);
-        public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) => Inner.ResolveReference(reference, expectedKind);
-        public RuntimeModel LoadImportedRuntimeModel(string relativePath) => Inner.LoadImportedRuntimeModel(relativePath);
-        public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) => Inner.WriteAsset(relativePath, asset);
-        public EditorAuthoringTransaction BeginTransaction() => Inner.BeginTransaction();
-        public void RefreshExternalChanges() => Inner.RefreshExternalChanges();
+        public override SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) => Inner.CreateReference(relativePath, expectedKind);
+        public override AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) => Inner.ResolveReference(reference, expectedKind);
+        public override RuntimeModel LoadImportedRuntimeModel(string relativePath) => Inner.LoadImportedRuntimeModel(relativePath);
+        public override EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) => Inner.WriteAsset(relativePath, asset);
+        public override EditorAuthoringTransaction BeginTransaction() => Inner.BeginTransaction();
+        public override void RefreshExternalChanges() => Inner.RefreshExternalChanges();
         public void Dispose() {
         }
     }

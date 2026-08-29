@@ -4,50 +4,22 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorAssetReferenceCanonicalizationService : IDisposable {
         /// <summary>
-        /// Project root used to resolve authored source files.
+        /// Shared project authoring boundary used for every reference in this service.
         /// </summary>
-        readonly string ProjectRootPath;
+        readonly IEditorProjectAuthoringSession AuthoringSession;
 
         /// <summary>
-        /// Shared command-scoped resolver used for every reference in this service.
+        /// Initializes a project-scoped canonicalization service over the owning session.
         /// </summary>
-        readonly EditorAssetReferenceResolver ReferenceResolver;
-        /// <summary>
-        /// Indicates whether this service created its resolver and owns its lifetime.
-        /// </summary>
-        readonly bool OwnsReferenceResolver;
-
-        /// <summary>
-        /// Initializes a project-scoped canonicalization service.
-        /// </summary>
-        /// <param name="projectRootPath">Project root that owns authored assets.</param>
-        public EditorAssetReferenceCanonicalizationService(string projectRootPath) {
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
-            }
-
-            ProjectRootPath = Path.GetFullPath(projectRootPath);
-            ReferenceResolver = new EditorAssetReferenceResolver(ProjectRootPath);
-            OwnsReferenceResolver = true;
+        /// <param name="authoringSession">Session whose identity index and resolver are reused.</param>
+        public EditorAssetReferenceCanonicalizationService(IEditorProjectAuthoringSession authoringSession) {
+            AuthoringSession = authoringSession ?? throw new ArgumentNullException(nameof(authoringSession));
         }
 
         /// <summary>
-        /// Initializes one canonicalization service over a shared command-scoped resolver.
-        /// </summary>
-        /// <param name="referenceResolver">Resolver whose identity index is reused for all references.</param>
-        public EditorAssetReferenceCanonicalizationService(EditorAssetReferenceResolver referenceResolver) {
-            ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
-            ProjectRootPath = referenceResolver.ProjectRootPathValue;
-            OwnsReferenceResolver = false;
-        }
-
-        /// <summary>
-        /// Releases the resolver created by this service, if any.
+        /// Releases canonicalization state. The authoring session owns the resolver.
         /// </summary>
         public void Dispose() {
-            if (OwnsReferenceResolver) {
-                ReferenceResolver.Dispose();
-            }
         }
 
         /// <summary>
@@ -139,7 +111,7 @@ namespace helengine.editor {
             }
 
             try {
-                canonical = ReferenceResolver.Resolve(reference, expectedKind).CanonicalReference;
+                canonical = AuthoringSession.ResolveReference(reference, expectedKind).CanonicalReference;
                 return canonical != null;
             } catch (InvalidOperationException) {
                 // Unresolvable references remain untouched; the current resolver heals them

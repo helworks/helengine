@@ -474,11 +474,8 @@ namespace helengine.editor.tests.managers.scene {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
             SceneSaveService saveService = new SceneSaveService(
-                TempProjectRootPath,
-                registry,
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CreatedFromAdd.helen");
 
             service.CreateCube();
@@ -495,11 +492,8 @@ namespace helengine.editor.tests.managers.scene {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
             EditorSceneCreationService service = GeneratedAssetGraph.CreateSceneCreationService();
             SceneSaveService saveService = new SceneSaveService(
-                TempProjectRootPath,
-                registry,
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                registry);
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "CreatedCamera.helen");
 
             service.CreateCamera();

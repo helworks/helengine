@@ -27,10 +27,8 @@ namespace helengine.editor {
         /// Service used to inspect authored material settings documents.
         /// </summary>
         readonly MaterialAssetSettingsService MaterialAssetSettingsService;
-        /// <summary>Project-scoped resolver used to create canonical authored references.</summary>
-        readonly EditorAssetReferenceResolver AssetReferenceResolver;
-        /// <summary>Indicates whether this service created and owns its resolver.</summary>
-        readonly bool OwnsAssetReferenceResolver;
+        /// <summary>Project authoring boundary used for all canonical references.</summary>
+        readonly IEditorProjectAuthoringSession AuthoringSession;
         /// <summary>Session-owned generated model cache used for identity inference.</summary>
         readonly EngineGeneratedModelCache GeneratedModelCache;
         /// <summary>Session-owned generated material cache used for identity inference.</summary>
@@ -48,33 +46,18 @@ namespace helengine.editor {
         Dictionary<string, string> MaterialRelativePathsByAssetId;
 
         /// <summary>
-        /// Initializes a save-time inference service over a host-owned reference
-        /// resolver and the complete generated-asset cache pair for one session.
+        /// Initializes a save-time inference service over the complete host-owned
+        /// authoring graph for one project session.
         /// </summary>
-        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
-        /// <param name="referenceResolver">Resolver shared by the owning authoring session.</param>
-        internal SceneAssetReferenceInferenceService(
-            string projectRootPath,
-            EditorAssetReferenceResolver referenceResolver,
-            EngineGeneratedModelCache generatedModelCache,
-            EngineGeneratedMaterialCache generatedMaterialCache,
-            EditorSessionRendererResources rendererResources) {
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
-            }
-
-            if (referenceResolver == null) {
-                throw new ArgumentNullException(nameof(referenceResolver));
-            }
-
-            ProjectRootPath = Path.GetFullPath(projectRootPath);
+        /// <param name="authoringSession">Session that owns identity, generated, and renderer resources.</param>
+        internal SceneAssetReferenceInferenceService(IEditorProjectAuthoringSession authoringSession) {
+            AuthoringSession = authoringSession ?? throw new ArgumentNullException(nameof(authoringSession));
+            ProjectRootPath = Path.GetFullPath(authoringSession.ProjectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
             MaterialAssetSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
-            AssetReferenceResolver = referenceResolver;
-            OwnsAssetReferenceResolver = false;
-            GeneratedModelCache = generatedModelCache ?? throw new ArgumentNullException(nameof(generatedModelCache));
-            GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
-            RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            GeneratedModelCache = authoringSession.GeneratedModelCache ?? throw new InvalidOperationException("Authoring session must provide a generated model cache.");
+            GeneratedMaterialCache = authoringSession.GeneratedMaterialCache ?? throw new InvalidOperationException("Authoring session must provide a generated material cache.");
+            RendererResources = authoringSession.RendererResources ?? throw new InvalidOperationException("Authoring session must provide renderer resources.");
         }
 
         /// <summary>
@@ -111,12 +94,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Releases the project-scoped resolver owned by this inference service.
+        /// Releases inference state. The authoring session owns all graph resources.
         /// </summary>
         public void Dispose() {
-            if (OwnsAssetReferenceResolver) {
-                AssetReferenceResolver.Dispose();
-            }
         }
 
         /// <summary>
@@ -282,7 +262,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            reference = AssetReferenceResolver.CreateFileReference(Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)), AssetEntryKind.Model);
+            reference = AuthoringSession.CreateReference(relativePath, AssetEntryKind.Model);
             return true;
         }
 
@@ -334,7 +314,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            reference = AssetReferenceResolver.CreateFileReference(Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)), AssetEntryKind.Material);
+            reference = AuthoringSession.CreateReference(relativePath, AssetEntryKind.Material);
             return true;
         }
 

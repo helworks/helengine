@@ -311,11 +311,8 @@ namespace helengine.editor.tests {
             SaveFileDialog saveFileDialog = new SaveFileDialog(CoreValue, InteractionServices, CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             SceneSavePathResolver pathResolver = new SceneSavePathResolver(TempProjectRootPath);
             SceneSaveService saveService = new SceneSaveService(
-                TempProjectRootPath,
-                registry,
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                registry);
             SceneSettingsAsset currentSceneSettings = new SceneSettingsAsset();
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             sceneCanvasProfileState.ApplySceneSettings(currentSceneSettings);

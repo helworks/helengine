@@ -1199,11 +1199,8 @@ namespace helengine.editor.tests.serialization.scene {
             });
 
             SceneSaveService saveService = new SceneSaveService(
-                projectRootPath,
-                new ComponentPersistenceRegistry(),
-                new EditorAssetReferenceResolver(projectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(projectRootPath),
+                new ComponentPersistenceRegistry());
             saveService.Save(scenePath);
 
             EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(

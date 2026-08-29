@@ -4,6 +4,10 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorProjectAssetAuthoringService : IEditorProjectAssetAuthoringService {
         /// <summary>
+        /// Session boundary shared by every save and canonicalization operation.
+        /// </summary>
+        readonly IEditorProjectAuthoringSession AuthoringSession;
+        /// <summary>
         /// Import manager owned by the editor host and hidden behind this project-facing facade.
         /// </summary>
         readonly AssetImportManager AssetImportManagerValue;
@@ -40,6 +44,7 @@ namespace helengine.editor {
         /// <param name="referenceResolver">Session-owned reference resolver.</param>
         /// <param name="nativeAssetWriteService">Session-owned native writer.</param>
         internal EditorProjectAssetAuthoringService(
+            IEditorProjectAuthoringSession authoringSession,
             AssetImportManager assetImportManager,
             EditorAssetReferenceResolver referenceResolver,
             EditorNativeAssetWriteService nativeAssetWriteService,
@@ -47,6 +52,7 @@ namespace helengine.editor {
             EngineGeneratedModelCache generatedModelCache,
             EngineGeneratedMaterialCache generatedMaterialCache,
             EditorSessionRendererResources rendererResources) {
+            AuthoringSession = authoringSession ?? throw new ArgumentNullException(nameof(authoringSession));
             AssetImportManagerValue = assetImportManager ?? throw new ArgumentNullException(nameof(assetImportManager));
             AssetReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             NativeAssetWriteService = nativeAssetWriteService ?? throw new ArgumentNullException(nameof(nativeAssetWriteService));
@@ -75,7 +81,7 @@ namespace helengine.editor {
                 AssetReferenceResolver,
                 generatedAssetProviders,
                 RendererResources);
-            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AssetReferenceResolver);
+            AssetReferenceCanonicalizationService = new EditorAssetReferenceCanonicalizationService(AuthoringSession);
         }
 
         /// <summary>
@@ -239,12 +245,8 @@ namespace helengine.editor {
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
             using SceneSaveService saveService = new SceneSaveService(
-                AssetImportManagerValue.ProjectRootPath,
-                persistenceRegistry,
-                AssetReferenceResolver,
-                GeneratedModelCache,
-                GeneratedMaterialCache,
-                RendererResources);
+                AuthoringSession,
+                persistenceRegistry);
             saveService.Save(fullPath, sceneSettings, roots, authoringAssetId);
         }
 
@@ -268,12 +270,8 @@ namespace helengine.editor {
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
             using BlueprintSaveService saveService = new BlueprintSaveService(
-                AssetImportManagerValue.ProjectRootPath,
-                persistenceRegistry,
-                AssetReferenceResolver,
-                GeneratedModelCache,
-                GeneratedMaterialCache,
-                RendererResources);
+                AuthoringSession,
+                persistenceRegistry);
             saveService.Save(fullPath);
         }
 
@@ -291,12 +289,8 @@ namespace helengine.editor {
                 AssetImportManagerValue.AssetsRootPath,
                 relativePath.Replace('/', Path.DirectorySeparatorChar));
             using BlueprintSaveService saveService = new BlueprintSaveService(
-                AssetImportManagerValue.ProjectRootPath,
-                persistenceRegistry,
-                AssetReferenceResolver,
-                GeneratedModelCache,
-                GeneratedMaterialCache,
-                RendererResources);
+                AuthoringSession,
+                persistenceRegistry);
             saveService.Save(fullPath, authoringAssetId);
         }
 

@@ -252,12 +252,8 @@ namespace helengine.editor.tests {
             ReparentEntityDialog reparentEntityDialog = new ReparentEntityDialog(CoreValue, InteractionServices, CreateFont());
             EditorEntityReparentService reparentService = new EditorEntityReparentService();
             SceneSaveService saveService = new SceneSaveService(
-                TempProjectRootPath,
-                new ComponentPersistenceRegistry(),
-                new EditorAssetReferenceResolver(TempProjectRootPath),
-                GeneratedAssetGraph.ModelCache,
-                GeneratedAssetGraph.MaterialCache,
-                GeneratedAssetGraph.RendererResources);
+                GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
+                new ComponentPersistenceRegistry());
             EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(saveService);
             EditorUndoRedoService undoRedoService = new EditorUndoRedoService(new EditorHistoryContext());
             EditorMutationService historyMutationService = new EditorMutationService(
@@ -494,4 +490,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

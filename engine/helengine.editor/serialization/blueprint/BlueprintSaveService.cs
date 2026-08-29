@@ -4,6 +4,11 @@ namespace helengine.editor {
     /// </summary>
     public class BlueprintSaveService : IDisposable {
         /// <summary>
+        /// Project authoring boundary shared with the scene serializer.
+        /// </summary>
+        readonly IEditorProjectAuthoringSession AuthoringSession;
+
+        /// <summary>
         /// Absolute path to the project root.
         /// </summary>
         readonly string ProjectRootPath;
@@ -22,39 +27,20 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes a new blueprint save service for one project root.
         /// </summary>
-        /// <param name="projectRootPath">Project root that owns the assets folder.</param>
+        /// <param name="authoringSession">Session that owns the project assets and authoring graph.</param>
         /// <param name="persistenceRegistry">Registry used to serialize persisted components.</param>
-        /// <summary>
-        /// Initializes a blueprint save service over the complete session-owned graph.
-        /// </summary>
         public BlueprintSaveService(
-            string projectRootPath,
-            ComponentPersistenceRegistry persistenceRegistry,
-            EditorAssetReferenceResolver referenceResolver,
-            EngineGeneratedModelCache generatedModelCache,
-            EngineGeneratedMaterialCache generatedMaterialCache,
-            EditorSessionRendererResources rendererResources) {
-            if (string.IsNullOrWhiteSpace(projectRootPath)) {
-                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
-            }
+            IEditorProjectAuthoringSession authoringSession,
+            ComponentPersistenceRegistry persistenceRegistry) {
+            AuthoringSession = authoringSession ?? throw new ArgumentNullException(nameof(authoringSession));
             if (persistenceRegistry == null) {
                 throw new ArgumentNullException(nameof(persistenceRegistry));
             }
-            if (referenceResolver == null) {
-                throw new ArgumentNullException(nameof(referenceResolver));
-            }
-            if (generatedModelCache == null) {
-                throw new ArgumentNullException(nameof(generatedModelCache));
-            }
-            if (generatedMaterialCache == null) {
-                throw new ArgumentNullException(nameof(generatedMaterialCache));
-            }
-            rendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
-            ObjectManager = rendererResources.ObjectManager;
-
-            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectRootPath = Path.GetFullPath(authoringSession.ProjectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
-            SceneSaveService = new SceneSaveService(ProjectRootPath, persistenceRegistry, referenceResolver, generatedModelCache, generatedMaterialCache, rendererResources);
+            ObjectManager = authoringSession.RendererResources?.ObjectManager
+                ?? throw new InvalidOperationException("Authoring session must provide renderer resources.");
+            SceneSaveService = new SceneSaveService(authoringSession, persistenceRegistry);
         }
 
         /// <summary>
@@ -94,78 +80,25 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Blueprint files must be stored inside the project assets folder.");
             }
 
-            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
-
-            string directoryPath = Path.GetDirectoryName(normalizedPath);
-            if (string.IsNullOrWhiteSpace(directoryPath)) {
-                throw new InvalidOperationException("Blueprint path does not include a writable directory.");
+            SceneAsset sceneAsset = SceneSaveService.BuildAssetForBlueprint();
+            SceneEntityAsset[] rootEntities = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
+            if (rootEntities.Length != 1) {
+                throw new InvalidOperationException("Blueprint save must serialize exactly one editable root entity.");
             }
 
-            EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, directoryPath);
-
-            string tempScenePath = Path.Combine(
-                AssetsRootPath,
-                ".blueprint-temp",
-                Guid.NewGuid().ToString("N") + SceneAsset.FileExtension);
-
-            try {
-                string tempDirectoryPath = Path.GetDirectoryName(tempScenePath);
-                if (string.IsNullOrWhiteSpace(tempDirectoryPath)) {
-                    throw new InvalidOperationException("Blueprint temporary save directory could not be resolved.");
-                }
-
-                EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, tempDirectoryPath);
-                SceneSaveService.Save(tempScenePath);
-
-                SceneAsset sceneAsset;
-                using (MemoryStream stream = new MemoryStream(
-                    EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, tempScenePath),
-                    writable: false)) {
-                    sceneAsset = AssertSceneAsset(AssetSerializer.Deserialize(stream));
-                }
-
-                SceneEntityAsset[] rootEntities = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
-                if (rootEntities.Length != 1) {
-                    throw new InvalidOperationException("Blueprint save must serialize exactly one editable root entity.");
-                }
-
-                BlueprintAsset blueprintAsset = new BlueprintAsset {
-                    Id = BuildBlueprintId(normalizedPath),
-                    RootEntity = rootEntities[0],
-                    AssetReferences = sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>()
-                };
-                AssetIdentityMetadataDocument identity = !string.IsNullOrWhiteSpace(authoringAssetId)
-                    ? new AssetIdentityMetadataDocument { AssetId = authoringAssetId }
-                    : File.Exists(normalizedPath)
-                        ? new AssetIdentityMetadataService(ProjectRootPath).Load(normalizedPath)
-                        : new AssetIdentityMetadataDocument { AssetId = Guid.NewGuid().ToString("N") };
-                blueprintAsset.AuthoringAssetId = identity.AssetId;
-                blueprintAsset.FormerAuthoringAssetIds = identity.FormerAssetIds.ToArray();
-
-                using MemoryStream bytes = new MemoryStream();
-                AssetSerializer.Serialize(bytes, blueprintAsset);
-                EditorAuthoringMutationScope.WriteAllBytesAtomically(
-                    ProjectRootPath,
-                    normalizedPath,
-                    bytes.ToArray());
-            } finally {
-                if (File.Exists(tempScenePath)) {
-                    EditorAuthoringMutationScope.DeleteLeaf(ProjectRootPath, tempScenePath);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Casts one deserialized asset to the expected scene asset type.
-        /// </summary>
-        /// <param name="asset">Deserialized asset to validate.</param>
-        /// <returns>Validated scene asset.</returns>
-        static SceneAsset AssertSceneAsset(Asset asset) {
-            if (asset is SceneAsset sceneAsset) {
-                return sceneAsset;
+            BlueprintAsset blueprintAsset = new BlueprintAsset {
+                Id = BuildBlueprintId(normalizedPath),
+                RootEntity = rootEntities[0],
+                AssetReferences = sceneAsset.AssetReferences ?? Array.Empty<SceneAssetReference>()
+            };
+            if (!string.IsNullOrWhiteSpace(authoringAssetId)) {
+                blueprintAsset.AuthoringAssetId = authoringAssetId;
+                blueprintAsset.FormerAuthoringAssetIds = Array.Empty<string>();
             }
 
-            throw new InvalidOperationException("Blueprint intermediate save did not deserialize into a SceneAsset.");
+            using EditorAuthoringTransaction transaction = AuthoringSession.BeginTransaction();
+            transaction.WriteAsset(BuildBlueprintId(normalizedPath), blueprintAsset);
+            transaction.Commit();
         }
 
         /// <summary>
