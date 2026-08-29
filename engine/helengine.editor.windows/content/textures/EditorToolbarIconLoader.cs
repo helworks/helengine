@@ -57,26 +57,30 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="content">Content manager used to resolve and parse the icon files.</param>
         /// <param name="applicationRootPath">Absolute application root path used to resolve built-in editor content.</param>
+        /// <param name="renderManager2D">Renderer owned by the editor session that receives the decoded textures.</param>
         /// <returns>Runtime texture set that can be assigned to the viewport toolbar.</returns>
-        public static EditorViewportToolbarIconSet LoadDefaultToolbarIcons(ContentManager content, string applicationRootPath) {
+        public static EditorViewportToolbarIconSet LoadDefaultToolbarIcons(ContentManager content, string applicationRootPath, RenderManager2D renderManager2D) {
             if (content == null) {
                 throw new ArgumentNullException(nameof(content));
             }
             if (string.IsNullOrWhiteSpace(applicationRootPath)) {
                 throw new ArgumentException("Application root path must be provided.", nameof(applicationRootPath));
             }
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
+            }
 
-            RuntimeTexture translateIcon = LoadTexture(content, applicationRootPath, TranslateIconPath);
-            RuntimeTexture rotateIcon = LoadTexture(content, applicationRootPath, RotateIconPath);
-            RuntimeTexture scaleIcon = LoadTexture(content, applicationRootPath, ScaleIconPath);
-            RuntimeTexture gridIcon = LoadTexture(content, applicationRootPath, GridIconPath);
-            RuntimeTexture settingsIcon = LoadTexture(content, applicationRootPath, SettingsIconPath);
-            RuntimeTexture snapIncreaseIcon = LoadTexture(content, applicationRootPath, SnapIncreaseIconPath);
-            RuntimeTexture snapDecreaseIcon = LoadTexture(content, applicationRootPath, SnapDecreaseIconPath);
-            RuntimeTexture magnetIcon = LoadTexture(content, applicationRootPath, MagnetIconPath);
-            RuntimeTexture ctrlKeyIcon = LoadTexture(content, applicationRootPath, CtrlKeyIconPath);
-            RuntimeTexture shiftKeyIcon = LoadTexture(content, applicationRootPath, ShiftKeyIconPath);
-            RuntimeTexture statsIcon = LoadTexture(content, applicationRootPath, StatsIconPath);
+            RuntimeTexture translateIcon = LoadTexture(content, applicationRootPath, TranslateIconPath, renderManager2D);
+            RuntimeTexture rotateIcon = LoadTexture(content, applicationRootPath, RotateIconPath, renderManager2D);
+            RuntimeTexture scaleIcon = LoadTexture(content, applicationRootPath, ScaleIconPath, renderManager2D);
+            RuntimeTexture gridIcon = LoadTexture(content, applicationRootPath, GridIconPath, renderManager2D);
+            RuntimeTexture settingsIcon = LoadTexture(content, applicationRootPath, SettingsIconPath, renderManager2D);
+            RuntimeTexture snapIncreaseIcon = LoadTexture(content, applicationRootPath, SnapIncreaseIconPath, renderManager2D);
+            RuntimeTexture snapDecreaseIcon = LoadTexture(content, applicationRootPath, SnapDecreaseIconPath, renderManager2D);
+            RuntimeTexture magnetIcon = LoadTexture(content, applicationRootPath, MagnetIconPath, renderManager2D);
+            RuntimeTexture ctrlKeyIcon = LoadTexture(content, applicationRootPath, CtrlKeyIconPath, renderManager2D);
+            RuntimeTexture shiftKeyIcon = LoadTexture(content, applicationRootPath, ShiftKeyIconPath, renderManager2D);
+            RuntimeTexture statsIcon = LoadTexture(content, applicationRootPath, StatsIconPath, renderManager2D);
             return new EditorViewportToolbarIconSet(
                 translateIcon,
                 rotateIcon,
@@ -96,16 +100,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="content">Content manager used to resolve and parse the icon file.</param>
         /// <param name="applicationRootPath">Absolute application root path used to resolve built-in editor content.</param>
+        /// <param name="renderManager2D">Renderer owned by the editor session that receives the decoded texture.</param>
         /// <returns>Runtime texture that can be assigned to the title-bar icon slot.</returns>
-        public static RuntimeTexture LoadTitleBarIcon(ContentManager content, string applicationRootPath) {
+        public static RuntimeTexture LoadTitleBarIcon(ContentManager content, string applicationRootPath, RenderManager2D renderManager2D) {
             if (content == null) {
                 throw new ArgumentNullException(nameof(content));
             }
             if (string.IsNullOrWhiteSpace(applicationRootPath)) {
                 throw new ArgumentException("Application root path must be provided.", nameof(applicationRootPath));
             }
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
+            }
 
-            return LoadTexture(content, applicationRootPath, TitleBarIconPath);
+            return LoadTexture(content, applicationRootPath, TitleBarIconPath, renderManager2D);
         }
 
         /// <summary>
@@ -114,8 +122,9 @@ namespace helengine.editor {
         /// <param name="content">Content manager used to decode the PNG data.</param>
         /// <param name="applicationRootPath">Absolute application root path used to resolve built-in editor content.</param>
         /// <param name="filePath">Application-relative file path to the PNG file.</param>
+        /// <param name="renderManager2D">Renderer owned by the editor session that receives the decoded texture.</param>
         /// <returns>Renderer-owned runtime texture built from the decoded image.</returns>
-        static RuntimeTexture LoadTexture(ContentManager content, string applicationRootPath, string filePath) {
+        static RuntimeTexture LoadTexture(ContentManager content, string applicationRootPath, string filePath, RenderManager2D renderManager2D) {
             if (content == null) {
                 throw new ArgumentNullException(nameof(content));
             }
@@ -125,10 +134,13 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(filePath)) {
                 throw new ArgumentException("Toolbar icon path must be provided.", nameof(filePath));
             }
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
+            }
 
             string absoluteFilePath = ResolveApplicationContentPath(applicationRootPath, filePath);
             TextureAsset textureAsset = LoadToolbarTextureAsset(absoluteFilePath);
-            return Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+            return renderManager2D.BuildTextureFromRaw(textureAsset);
         }
 
         /// <summary>

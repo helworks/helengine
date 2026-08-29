@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies the shared editor scene-mutation notification service.
     /// </summary>
     public class EditorSceneMutationServiceTests {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Ensures scene-mutation notifications raise the shared event.
         /// </summary>
@@ -15,28 +16,26 @@ namespace helengine.editor.tests {
             Action handleSceneMutated = () => raised = true;
 
             try {
-                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
 
-                EditorSceneMutationService.MarkSceneMutated();
+                InteractionServices.SceneMutation.MarkSceneMutated();
 
                 Assert.True(raised);
             } finally {
-                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
-                EditorSceneMutationService.Reset();
+                InteractionServices.SceneMutation.SceneMutated -= handleSceneMutated;
             }
         }
 
         /// <summary>
-        /// Ensures reset clears subscribers between tests.
+        /// Ensures disposal clears subscribers between uses.
         /// </summary>
         [Fact]
-        public void Reset_ClearsSubscribers() {
+        public void Dispose_ClearsSubscribers() {
             bool raised = false;
             Action handleSceneMutated = () => raised = true;
-            EditorSceneMutationService.SceneMutated += handleSceneMutated;
-
-            EditorSceneMutationService.Reset();
-            EditorSceneMutationService.MarkSceneMutated();
+            InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
+            InteractionServices.SceneMutation.Dispose();
+            InteractionServices.SceneMutation.MarkSceneMutated();
 
             Assert.False(raised);
         }

@@ -174,8 +174,8 @@ namespace helengine.render.validation {
         /// <summary>
         /// Creates the material asset matching the validation shader.
         /// </summary>
-        /// <returns>Material asset configured with validation program names.</returns>
-        public static MaterialAsset BuildMaterialAsset() {
+        /// <returns>Shader material asset configured with validation program names.</returns>
+        public static ShaderMaterialAsset BuildMaterialAsset() {
             return BuildMaterialAssetInternal(
                 MaterialAssetId,
                 ShaderAssetId,
@@ -186,8 +186,8 @@ namespace helengine.render.validation {
         /// <summary>
         /// Creates the material asset matching the transform gizmo validation shader.
         /// </summary>
-        /// <returns>Material asset configured with transform gizmo program names.</returns>
-        public static MaterialAsset BuildTransformGizmoMaterialAsset() {
+        /// <returns>Shader material asset configured with transform gizmo program names.</returns>
+        public static ShaderMaterialAsset BuildTransformGizmoMaterialAsset() {
             return BuildMaterialAssetInternal(
                 TransformGizmoMaterialAssetId,
                 TransformGizmoShaderAssetId,
@@ -281,7 +281,7 @@ namespace helengine.render.validation {
         /// <param name="vertexProgramName">Vertex program name.</param>
         /// <param name="pixelProgramName">Pixel program name.</param>
         /// <returns>Material asset configured with supplied program names.</returns>
-        static MaterialAsset BuildMaterialAssetInternal(
+        static ShaderMaterialAsset BuildMaterialAssetInternal(
             string materialAssetId,
             string shaderAssetId,
             string vertexProgramName,
@@ -302,7 +302,7 @@ namespace helengine.render.validation {
                 throw new ArgumentException("Pixel program name must be provided.", nameof(pixelProgramName));
             }
 
-            return new MaterialAsset {
+            return new ShaderMaterialAsset {
                 Id = materialAssetId,
                 ShaderAssetId = shaderAssetId,
                 VertexProgram = vertexProgramName,

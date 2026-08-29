@@ -7,12 +7,12 @@ namespace helengine.editor.tests {
     /// Verifies keyboard-focus behavior for scene-hierarchy rows.
     /// </summary>
     public class SceneHierarchyPanelKeyboardFocusTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Clears shared editor selection and keyboard-focus state after each test.
         /// </summary>
         public void Dispose() {
-            EditorKeyboardFocusService.Reset();
-            EditorSelectionService.ClearSelection();
+            InteractionServices.Selection.ClearSelection();
         }
 
         /// <summary>
@@ -32,7 +32,7 @@ namespace helengine.editor.tests {
 
             rows[0].FocusTarget.ActivateFromKey(Keys.Enter);
 
-            Assert.Same(cube, EditorSelectionService.SelectedEntity);
+            Assert.Same(cube, InteractionServices.Selection.SelectedEntity);
         }
 
         /// <summary>
@@ -82,7 +82,7 @@ namespace helengine.editor.tests {
 
             panel.RefreshHierarchy();
 
-            EditorSelectionService.SetSelectedEntity(second);
+            InteractionServices.Selection.SetSelectedEntity(second);
 
             List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
 
@@ -146,7 +146,7 @@ namespace helengine.editor.tests {
             ClickArrow(parentRow);
 
             parentRow = FindVisibleRow(panel, parent);
-            EditorKeyboardFocusService.SetFocusedTarget(parentRow.FocusTarget);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(parentRow.FocusTarget);
 
             PressKey(input, Keys.Right);
 
@@ -176,7 +176,7 @@ namespace helengine.editor.tests {
             panel.RefreshHierarchy();
 
             SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
-            EditorKeyboardFocusService.SetFocusedTarget(parentRow.FocusTarget);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(parentRow.FocusTarget);
 
             PressKey(input, Keys.Left);
 
@@ -211,7 +211,7 @@ namespace helengine.editor.tests {
             SceneHierarchyRow childRow = FindVisibleRow(panel, child);
             SceneHierarchyRow siblingRow = FindVisibleRow(panel, sibling);
 
-            EditorKeyboardFocusService.SetFocusedTarget(parentRow.FocusTarget);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(parentRow.FocusTarget);
 
             PressKey(input, Keys.Down);
 
@@ -243,7 +243,7 @@ namespace helengine.editor.tests {
             SceneHierarchyRow childRow = FindVisibleRow(panel, child);
             SceneHierarchyRow siblingRow = FindVisibleRow(panel, sibling);
 
-            EditorKeyboardFocusService.SetFocusedTarget(siblingRow.FocusTarget);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(siblingRow.FocusTarget);
 
             PressKey(input, Keys.Up);
 
@@ -260,15 +260,14 @@ namespace helengine.editor.tests {
             TestInputBackend input = new TestInputBackend();
             core.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             core.InputSystem.SetKeyboardActive(true);
-            EditorKeyboardFocusService.Reset();
-            EditorSelectionService.ClearSelection();
+            InteractionServices.Selection.ClearSelection();
 
             EditorEntity keyboardFocusEntity = new EditorEntity {
                 InternalEntity = true,
                 Enabled = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
-            EditorKeyboardFocusUpdateComponent keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input) {
+            EditorKeyboardFocusUpdateComponent keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices) {
                 UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1)
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
@@ -339,7 +338,7 @@ namespace helengine.editor.tests {
         /// <returns>Registered hierarchy panel.</returns>
         SceneHierarchyPanel CreateRegisteredPanel() {
             SceneHierarchyPanel panel = CreatePanel();
-            EditorKeyboardFocusService.RegisterGroup(panel);
+            InteractionServices.KeyboardFocus.RegisterGroup(panel);
             return panel;
         }
 

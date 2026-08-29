@@ -364,7 +364,7 @@ namespace helengine.editor {
             };
 
             SpriteComponent background = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = rootEntity.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 RenderOrder2D = rowBackgroundOrder
             };

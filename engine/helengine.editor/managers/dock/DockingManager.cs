@@ -11,6 +11,7 @@ namespace helengine.editor {
         /// Overlay used to preview docking targets during drag operations.
         /// </summary>
         readonly DockPreviewOverlay previewOverlay;
+        readonly EditorSessionInteractionServices interactionServices;
         /// <summary>
         /// Last dockable entity that was dragged, used to finalize docking.
         /// </summary>
@@ -37,7 +38,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="padding">Space to leave around the host bounds.</param>
         /// <param name="gap">Space inserted between docked panels.</param>
-        public DockingManager(RenderManager2D renderManager2D, ObjectManager objectManager, int padding = 0, int gap = 0) {
+        public DockingManager(RenderManager2D renderManager2D, ObjectManager objectManager, EditorSessionInteractionServices interactionServices, int padding = 0, int gap = 0) {
+            this.interactionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             layout = new DockLayoutEngine(renderManager2D, objectManager, padding, gap);
             previewOverlay = new DockPreviewOverlay();
         }
@@ -73,7 +75,7 @@ namespace helengine.editor {
             bool layoutDirty = false;
             DockableEntity draggingDockable = GetDraggingDockable();
             bool isDraggingDockable = draggingDockable != null;
-            bool pointerBlocked = EditorInputCaptureService.IsPointerBlocked(
+            bool pointerBlocked = interactionServices.InputCapture.IsPointerBlocked(
                 pointer,
                 owner => ShouldBlockDockingOwner(owner, draggingDockable));
 

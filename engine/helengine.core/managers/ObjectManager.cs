@@ -5,6 +5,10 @@ namespace helengine;
 /// </summary>
 public class ObjectManager {
     /// <summary>
+    /// Core whose entity and component lists are managed by this instance.
+    /// </summary>
+    public Core OwnerCore { get; internal set; }
+    /// <summary>
     /// Indicates whether the update loop is actively iterating updateables.
     /// </summary>
     bool updateLoopActive;
@@ -596,7 +600,7 @@ public class ObjectManager {
     /// Updates all registered updateables in order.
     /// </summary>
     public virtual void Update() {
-        Core core = Core.Instance;
+        Core core = OwnerCore;
         bool shouldRecordUpdateStages = core != null && core.HasUpdateStageDiagnostics;
         diagnosticUpdatePassCount++;
         LastUpdateableDiagnosticPass = diagnosticUpdatePassCount;

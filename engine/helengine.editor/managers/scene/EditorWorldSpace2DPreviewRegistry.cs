@@ -2,23 +2,23 @@ namespace helengine.editor {
     /// <summary>
     /// Stores the editor-only mapping between authored 2D scene entities and their internal world-space preview proxy entities.
     /// </summary>
-    public static class EditorWorldSpace2DPreviewRegistry {
+    public sealed class EditorWorldSpace2DPreviewRegistry : IDisposable {
         /// <summary>
         /// Source-to-preview lookup table for currently active world-space 2D preview proxies.
         /// </summary>
-        static readonly Dictionary<Entity, EditorEntity> PreviewEntitiesBySourceEntity = new Dictionary<Entity, EditorEntity>();
+        readonly Dictionary<Entity, EditorEntity> PreviewEntitiesBySourceEntity = new Dictionary<Entity, EditorEntity>();
 
         /// <summary>
         /// Preview-to-source lookup table for currently active world-space 2D preview proxies.
         /// </summary>
-        static readonly Dictionary<EditorEntity, Entity> SourceEntitiesByPreviewEntity = new Dictionary<EditorEntity, Entity>();
+        readonly Dictionary<EditorEntity, Entity> SourceEntitiesByPreviewEntity = new Dictionary<EditorEntity, Entity>();
 
         /// <summary>
         /// Registers one authored source entity and its corresponding internal preview proxy.
         /// </summary>
         /// <param name="sourceEntity">Authored scene entity that owns the real 2D component.</param>
         /// <param name="previewEntity">Internal editor preview proxy entity that mirrors the source.</param>
-        public static void Register(Entity sourceEntity, EditorEntity previewEntity) {
+        public void Register(Entity sourceEntity, EditorEntity previewEntity) {
             if (sourceEntity == null) {
                 throw new ArgumentNullException(nameof(sourceEntity));
             }
@@ -36,7 +36,7 @@ namespace helengine.editor {
         /// Removes one mapping by its authored source entity when present.
         /// </summary>
         /// <param name="sourceEntity">Authored scene entity whose preview mapping should be removed.</param>
-        public static void RemoveBySourceEntity(Entity sourceEntity) {
+        public void RemoveBySourceEntity(Entity sourceEntity) {
             if (sourceEntity == null) {
                 throw new ArgumentNullException(nameof(sourceEntity));
             }
@@ -53,7 +53,7 @@ namespace helengine.editor {
         /// Removes one mapping by its internal preview proxy entity when present.
         /// </summary>
         /// <param name="previewEntity">Internal preview proxy entity whose mapping should be removed.</param>
-        public static void RemoveByPreviewEntity(EditorEntity previewEntity) {
+        public void RemoveByPreviewEntity(EditorEntity previewEntity) {
             if (previewEntity == null) {
                 throw new ArgumentNullException(nameof(previewEntity));
             }
@@ -71,7 +71,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sourceEntity">Authored scene entity whose preview proxy should be resolved.</param>
         /// <returns>Preview proxy entity when present; otherwise null.</returns>
-        public static EditorEntity ResolvePreviewEntity(Entity sourceEntity) {
+        public EditorEntity ResolvePreviewEntity(Entity sourceEntity) {
             if (sourceEntity == null) {
                 throw new ArgumentNullException(nameof(sourceEntity));
             }
@@ -85,7 +85,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="previewEntity">Internal preview proxy entity whose source should be resolved.</param>
         /// <returns>Authored source entity when present; otherwise null.</returns>
-        public static Entity ResolveSourceEntity(EditorEntity previewEntity) {
+        public Entity ResolveSourceEntity(EditorEntity previewEntity) {
             if (previewEntity == null) {
                 throw new ArgumentNullException(nameof(previewEntity));
             }
@@ -97,7 +97,7 @@ namespace helengine.editor {
         /// <summary>
         /// Removes every currently registered preview mapping.
         /// </summary>
-        public static void Clear() {
+        public void Dispose() {
             PreviewEntitiesBySourceEntity.Clear();
             SourceEntitiesByPreviewEntity.Clear();
         }

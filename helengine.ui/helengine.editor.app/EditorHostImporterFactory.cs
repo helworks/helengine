@@ -10,8 +10,9 @@ namespace helengine.editor.app {
         /// <summary>
         /// Builds the default importer registrations used by both GUI and CLI editor startup.
         /// </summary>
+        /// <param name="renderManager2D">Session-owned renderer used by imported font atlases, or null for headless imports.</param>
         /// <returns>Default importer registrations.</returns>
-        public static IReadOnlyList<IAssetImporterRegistration> CreateDefault() {
+        public static IReadOnlyList<IAssetImporterRegistration> CreateDefault(RenderManager2D renderManager2D) {
             string[] textExtensions = new[] { ".txt" };
             string[] modelExtensions = new[] { ".fbx", ".obj", ".gltf", ".glb", ".dae", ".3ds", ".x" };
             string[] fontExtensions = new[] { ".ttf", ".otf" };
@@ -19,7 +20,7 @@ namespace helengine.editor.app {
             registrations.AddRange(EditorHostAudioImporterFactory.CreateDefault());
             registrations.AddRange(new IAssetImporterRegistration[] {
                 new TextImporterRegistration("text", new TextImporter(), textExtensions),
-                new FontImporterRegistration("gdi-font", new GdiFontImporter(), fontExtensions),
+                new FontImporterRegistration("gdi-font", new GdiFontImporter(renderManager2D), fontExtensions),
                 new ModelImporterRegistration(
                     "assimp",
                     new LazyModelImporter(new AssemblyModelImporterFactory("helengine.editor.assimp", "helengine.editor.assimp.HelengineAssimpImporter")),
@@ -34,7 +35,7 @@ namespace helengine.editor.app {
         /// </summary>
         /// <returns>Host-configured project authoring-session factory.</returns>
         public static IEditorProjectAuthoringSessionFactory CreateAuthoringSessionFactory() {
-            return new EditorProjectAssetAuthoringServiceFactory(CreateDefault());
+            return new EditorProjectAssetAuthoringServiceFactory(CreateDefault(null));
         }
     }
 }

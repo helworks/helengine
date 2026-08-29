@@ -6,6 +6,21 @@ namespace helengine.editor {
     /// </summary>
     public sealed class GdiFontImporter : IFontImporter {
         /// <summary>
+        /// Renderer owned by the importing editor session, when the importer is
+        /// used by an interactive host. Headless callers pass null and retain a
+        /// managed atlas texture without consulting ambient core state.
+        /// </summary>
+        readonly RenderManager2D RenderManager2D;
+
+        /// <summary>
+        /// Initializes a GDI font importer with its explicit renderer owner.
+        /// </summary>
+        /// <param name="renderManager2D">Session-owned renderer, or null for headless imports.</param>
+        public GdiFontImporter(RenderManager2D renderManager2D) {
+            RenderManager2D = renderManager2D;
+        }
+
+        /// <summary>
         /// Imports one source font stream into a runtime-ready font asset.
         /// </summary>
         /// <param name="stream">Stream containing source font bytes.</param>
@@ -35,7 +50,7 @@ namespace helengine.editor {
                     settings.PixelSize,
                     System.Drawing.FontStyle.Regular,
                     System.Drawing.GraphicsUnit.Pixel);
-                return GDIFontProcessor.ImportFont(font);
+                return GDIFontProcessor.ImportFont(font, RenderManager2D);
             } finally {
                 if (!string.IsNullOrWhiteSpace(temporaryFontFilePath) && File.Exists(temporaryFontFilePath)) {
                     File.Delete(temporaryFontFilePath);

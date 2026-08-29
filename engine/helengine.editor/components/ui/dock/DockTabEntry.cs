@@ -24,7 +24,7 @@ namespace helengine.editor {
             };
 
             Background = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Dockable.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
                 RenderOrder2D = backgroundOrder
             };

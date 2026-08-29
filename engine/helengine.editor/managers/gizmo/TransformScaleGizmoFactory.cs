@@ -108,6 +108,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(gizmoHighlightMaterial));
             }
 
+            Core ownerCore = render3D.OwnerCore ?? sceneCamera.OwnerCore;
+            if (ownerCore == null) {
+                throw new InvalidOperationException("A scale gizmo requires a renderer or camera owner core.");
+            }
+
             ModelAsset xShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
             ModelAsset xTipAsset = TransformGizmoMeshFactory.CreateBox(TipWidth, TipHeight, TipDepth);
             ModelAsset yShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
@@ -138,7 +143,7 @@ namespace helengine.editor {
             RuntimeModel xzPlaneModel = render3D.BuildModelFromRaw(xzPlaneAsset);
             RuntimeModel yzPlaneModel = render3D.BuildModelFromRaw(yzPlaneAsset);
 
-            EditorEntity gizmoRoot = new EditorEntity();
+            EditorEntity gizmoRoot = new EditorEntity(ownerCore);
             gizmoRoot.Name = "Transform Scale Gizmo";
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -229,7 +234,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            EditorEntity axisEntity = new EditorEntity();
+            EditorEntity axisEntity = new EditorEntity(gizmoRoot.OwnerCore);
             axisEntity.Name = axisName;
             axisEntity.InternalEntity = true;
             axisEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -239,7 +244,7 @@ namespace helengine.editor {
             axisEntity.AddComponent(new TransformGizmoHandleComponent(new float3(0f, 1f, 0f)));
             gizmoRoot.AddChild(axisEntity);
 
-            EditorEntity shaftEntity = new EditorEntity();
+            EditorEntity shaftEntity = new EditorEntity(gizmoRoot.OwnerCore);
             shaftEntity.Name = string.Concat(axisName, " Shaft");
             shaftEntity.InternalEntity = true;
             shaftEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -251,7 +256,7 @@ namespace helengine.editor {
             shaftEntity.AddComponent(shaftMesh);
             axisEntity.AddChild(shaftEntity);
 
-            EditorEntity tipEntity = new EditorEntity();
+            EditorEntity tipEntity = new EditorEntity(gizmoRoot.OwnerCore);
             tipEntity.Name = string.Concat(axisName, " Tip");
             tipEntity.InternalEntity = true;
             tipEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -293,7 +298,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            EditorEntity planeEntity = new EditorEntity();
+            EditorEntity planeEntity = new EditorEntity(gizmoRoot.OwnerCore);
             planeEntity.Name = handleName;
             planeEntity.InternalEntity = true;
             planeEntity.LayerMask = EditorLayerMasks.SceneGizmo;

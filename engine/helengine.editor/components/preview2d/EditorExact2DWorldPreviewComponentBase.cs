@@ -44,7 +44,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Preview entity that owns this component.</param>
         public override void ComponentAdded(Entity entity) {
-            CaptureServiceValue = new helengine.editor.EditorExact2DPreviewCaptureService(RendererResources.RenderManager3D, RendererResources.ObjectManager, BuiltInShaderLibrary);
+            CaptureServiceValue = new helengine.editor.EditorExact2DPreviewCaptureService(RendererResources.RenderManager3D, RendererResources.RenderManager2D, RendererResources.ObjectManager, BuiltInShaderLibrary);
             base.ComponentAdded(entity);
         }
 
@@ -86,7 +86,7 @@ namespace helengine {
                 return CaptureServiceValue.PreviewRenderTarget;
             }
 
-            return TextureUtils.PixelTexture;
+            return OwnerCore.RenderManager2D.PixelTexture;
         }
 
         /// <summary>

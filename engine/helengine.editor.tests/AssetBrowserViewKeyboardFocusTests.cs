@@ -16,8 +16,6 @@ namespace helengine.editor.tests {
         /// Deletes temporary project state and clears shared keyboard-focus registrations.
         /// </summary>
         public void Dispose() {
-            EditorKeyboardFocusService.Reset();
-
             for (int i = 0; i < TemporaryProjectRoots.Count; i++) {
                 string path = TemporaryProjectRoots[i];
                 if (Directory.Exists(path)) {
@@ -214,7 +212,6 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(projectRoot)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            EditorKeyboardFocusService.Reset();
         }
 
         /// <summary>

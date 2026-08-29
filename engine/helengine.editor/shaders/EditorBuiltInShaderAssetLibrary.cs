@@ -37,6 +37,8 @@ namespace helengine.editor {
         readonly Dictionary<string, ShaderAsset> ShaderAssetsByKey = new Dictionary<string, ShaderAsset>(StringComparer.OrdinalIgnoreCase);
         /// <summary>Assets whose disposal failed and must be retried before this owner can close.</summary>
         readonly HashSet<ShaderAsset> PendingDisposals = new HashSet<ShaderAsset>();
+        /// <summary>Assets already released successfully during a partial disposal attempt.</summary>
+        readonly HashSet<ShaderAsset> DisposedAssets = new HashSet<ShaderAsset>();
         /// <summary>
         /// Stores the shader backend registry configured by bootstrap code for built-in shader compilation.
         /// </summary>
@@ -132,6 +134,7 @@ namespace helengine.editor {
                         try {
                             previousShaderAsset.Dispose();
                             PendingDisposals.Remove(previousShaderAsset);
+                            DisposedAssets.Add(previousShaderAsset);
                         } catch {
                             PendingDisposals.Add(previousShaderAsset);
                             throw;
@@ -524,7 +527,7 @@ namespace helengine.editor {
                 List<Exception> failures = new List<Exception>();
                 HashSet<ShaderAsset> assets = new HashSet<ShaderAsset>(PendingDisposals);
                 foreach (ShaderAsset shaderAsset in ShaderAssetsByKey.Values) {
-                    if (shaderAsset != null) {
+                    if (shaderAsset != null && !DisposedAssets.Contains(shaderAsset)) {
                         assets.Add(shaderAsset);
                     }
                 }
@@ -534,6 +537,7 @@ namespace helengine.editor {
                     try {
                         shaderAsset.Dispose();
                         PendingDisposals.Remove(shaderAsset);
+                        DisposedAssets.Add(shaderAsset);
                     } catch (Exception exception) {
                         PendingDisposals.Add(shaderAsset);
                         failedAssets.Add(shaderAsset);
@@ -550,6 +554,7 @@ namespace helengine.editor {
 
                 if (failures.Count == 0) {
                     PendingDisposals.Clear();
+                    DisposedAssets.Clear();
                     ShaderAssetsByKey.Clear();
                     IsDisposed = true;
                     return;

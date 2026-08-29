@@ -378,7 +378,7 @@ namespace helengine.editor {
             BackdropRoot.AddChild(BackdropTopRoot);
 
             BackdropTopSurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = BackdropColor,
                 RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
@@ -398,7 +398,7 @@ namespace helengine.editor {
             BackdropRoot.AddChild(BackdropBodyRoot);
 
             BackdropBodySurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = BackdropColor,
                 RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
@@ -442,7 +442,7 @@ namespace helengine.editor {
             PanelRoot.AddChild(HeaderRoot);
 
             HeaderBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
                 RenderOrder2D = PanelOrder,
                 Size = new int2(DialogWidth, DialogHeaderHeight)
@@ -479,7 +479,7 @@ namespace helengine.editor {
             HeaderRoot.AddChild(CloseButtonHost);
 
             CloseButtonSeparator = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentQuaternary,
                 RenderOrder2D = TextOrder,
                 Size = new int2(GetDialogSeparatorWidth(), DialogHeaderHeight)
@@ -502,7 +502,7 @@ namespace helengine.editor {
             PanelRoot.AddChild(ResizeTopLeftHost);
 
             ResizeTopLeftSurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
                 RenderOrder2D = RenderOrder2D.ModalInput,
                 Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
@@ -525,7 +525,7 @@ namespace helengine.editor {
             PanelRoot.AddChild(ResizeBottomLeftHost);
 
             ResizeBottomLeftSurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
                 RenderOrder2D = RenderOrder2D.ModalInput,
                 Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
@@ -548,7 +548,7 @@ namespace helengine.editor {
             PanelRoot.AddChild(ResizeBottomRightHost);
 
             ResizeBottomRightSurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
                 RenderOrder2D = RenderOrder2D.ModalInput,
                 Size = new int2(GetResizeGripSizePixels(), GetResizeGripSizePixels())
@@ -715,6 +715,65 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Adopts a dialog that was materialized by a host factory into the
+        /// explicit session core. This is required when a live session is
+        /// recreated while another session is the ambient legacy core. Pixel
+        /// textures captured during construction are rewritten to the new
+        /// renderer so no dialog resource remains owned by the old core.
+        /// </summary>
+        /// <param name="ownerCore">Core that owns the dialog after adoption.</param>
+        /// <param name="interactionServices">Interaction graph for the owning session.</param>
+        internal void RebindToSession(Core ownerCore, EditorSessionInteractionServices interactionServices) {
+            RebindEntityToSession(this, ownerCore, interactionServices);
+        }
+
+        /// <summary>
+        /// Adopts any editor entity subtree into one explicit session graph.
+        /// Dialog-like editor entities that do not derive from this shell use
+        /// the same operation during scale-sensitive recreation.
+        /// </summary>
+        internal static void RebindEntityToSession(EditorEntity entity, Core ownerCore, EditorSessionInteractionServices interactionServices) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
+
+            RuntimeTexture previousPixelTexture = entity.OwnerCore.RenderManager2D?.PixelTexture;
+            entity.RebindOwnerCore(ownerCore);
+            entity.RebindInteractionServices(interactionServices);
+            RuntimeTexture sessionPixelTexture = ownerCore.RenderManager2D?.PixelTexture;
+            if (previousPixelTexture == null || sessionPixelTexture == null || ReferenceEquals(previousPixelTexture, sessionPixelTexture)) {
+                return;
+            }
+
+            ReplacePixelTextures(entity, previousPixelTexture, sessionPixelTexture);
+        }
+
+        static void ReplacePixelTextures(EditorEntity entity, RuntimeTexture previousPixelTexture, RuntimeTexture sessionPixelTexture) {
+            if (entity.Components != null) {
+                for (int index = 0; index < entity.Components.Count; index++) {
+                    if (entity.Components[index] is SpriteComponent sprite && ReferenceEquals(sprite.Texture, previousPixelTexture)) {
+                        sprite.Texture = sessionPixelTexture;
+                    }
+                }
+            }
+
+            if (entity.Children == null) {
+                return;
+            }
+            for (int index = 0; index < entity.Children.Count; index++) {
+                if (entity.Children[index] is EditorEntity child) {
+                    ReplacePixelTextures(child, previousPixelTexture, sessionPixelTexture);
+                }
+            }
+        }
+
+        /// <summary>
         /// Updates the cached host size using safe minimum dimensions.
         /// </summary>
         /// <param name="width">Current host width.</param>
@@ -756,8 +815,8 @@ namespace helengine.editor {
             BackdropTopInteractable.Size = new int2(0, 0);
             BackdropBodySurface.Size = new int2(0, 0);
             BackdropBodyInteractable.Size = new int2(0, 0);
-            EditorInputCaptureService.ClearBlocker(BackdropTopRoot);
-            EditorInputCaptureService.ClearBlocker(BackdropBodyRoot);
+            EditorSessionInteractionServices.From(this).InputCapture.ClearBlocker(BackdropTopRoot);
+            EditorSessionInteractionServices.From(this).InputCapture.ClearBlocker(BackdropBodyRoot);
         }
 
         /// <summary>
@@ -792,15 +851,15 @@ namespace helengine.editor {
         /// </summary>
         void UpdateDialogInputBlockers(int topWidth, int bodyHeight) {
             if (topWidth > 0 && Metrics.HostTitleBarHeight > 0) {
-                EditorInputCaptureService.SetBlocker(BackdropTopRoot, int2.Zero, new int2(topWidth, Metrics.HostTitleBarHeight));
+                EditorSessionInteractionServices.From(this).InputCapture.SetBlocker(BackdropTopRoot, int2.Zero, new int2(topWidth, Metrics.HostTitleBarHeight));
             } else {
-                EditorInputCaptureService.ClearBlocker(BackdropTopRoot);
+                EditorSessionInteractionServices.From(this).InputCapture.ClearBlocker(BackdropTopRoot);
             }
 
             if (HostSize.X > 0 && bodyHeight > 0) {
-                EditorInputCaptureService.SetBlocker(BackdropBodyRoot, new int2(0, Metrics.HostTitleBarHeight), new int2(HostSize.X, bodyHeight));
+                EditorSessionInteractionServices.From(this).InputCapture.SetBlocker(BackdropBodyRoot, new int2(0, Metrics.HostTitleBarHeight), new int2(HostSize.X, bodyHeight));
             } else {
-                EditorInputCaptureService.ClearBlocker(BackdropBodyRoot);
+                EditorSessionInteractionServices.From(this).InputCapture.ClearBlocker(BackdropBodyRoot);
             }
         }
 

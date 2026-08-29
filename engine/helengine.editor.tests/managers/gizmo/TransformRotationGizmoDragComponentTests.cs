@@ -9,6 +9,7 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies rotation gizmo drag snapping uses the fixed snap grid instead of preserving initial angle offsets.
     /// </summary>
     public class TransformRotationGizmoDragComponentTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Converts degrees into radians for test inputs and expectations.
         /// </summary>
@@ -22,14 +23,14 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Restores the shared snap configuration before and after each test.
         /// </summary>
         public TransformRotationGizmoDragComponentTests() {
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.TransformSnap.ResetDefaults();
         }
 
         /// <summary>
         /// Restores the shared snap configuration after each test.
         /// </summary>
         public void Dispose() {
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.TransformSnap.ResetDefaults();
         }
 
         /// <summary>
@@ -37,8 +38,8 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         [Fact]
         public void ResolveActiveRotationAngle_WhenStartAngleHasOffset_SnapsTheFinalAngleToTheFixedGrid() {
-            TransformGizmoSnapSettingsService.ResetDefaults();
-            TransformGizmoSnapSettingsService.DecreaseSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1);
+            InteractionServices.TransformSnap.ResetDefaults();
+            InteractionServices.TransformSnap.DecreaseSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1);
 
             TestInputBackend inputBackend = new TestInputBackend();
             inputBackend.SetKeyboardState(new KeyboardState(Keys.LeftControl));
@@ -48,6 +49,8 @@ namespace helengine.editor.tests.managers.gizmo {
 
             CameraComponent sceneCamera = new CameraComponent();
             TransformRotationGizmoDragComponent component = new TransformRotationGizmoDragComponent(sceneCamera);
+            EditorEntity owner = new EditorEntity(Core.Instance, InteractionServices);
+            owner.AddComponent(component);
             double startAngleRadians = 0.25 * DegreesToRadians;
             double accumulatedAngleRadians = 2.75 * DegreesToRadians;
             SetPrivateField(component, "DragStartRotationAngle", startAngleRadians);

@@ -26,7 +26,7 @@ namespace helengine {
             base.ComponentAdded(entity);
 
             if (entity.IsHierarchyEnabled) {
-                Core.Instance.ObjectManager.RegisterInteractable(this);
+                OwnerCore.ObjectManager.RegisterInteractable(this);
             }
         }
 
@@ -38,11 +38,11 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (newEnabled) {
-                Core.Instance.ObjectManager.RegisterInteractable(this);
+                OwnerCore.ObjectManager.RegisterInteractable(this);
             } else {
-                Core.Instance.ObjectManager.RemoveInteractable(this);
-                if (Core.Instance != null && Core.Instance.PointerInteractionSystem != null) {
-                    Core.Instance.PointerInteractionSystem.ClearInteractionFor(this);
+                OwnerCore.ObjectManager.RemoveInteractable(this);
+                if (OwnerCore != null && OwnerCore.PointerInteractionSystem != null) {
+                    OwnerCore.PointerInteractionSystem.ClearInteractionFor(this);
                 }
             }
         }
@@ -53,9 +53,9 @@ namespace helengine {
         /// <param name="entity">Owning entity.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
-            Core.Instance.ObjectManager.RemoveInteractable(this);
-            if (Core.Instance != null && Core.Instance.PointerInteractionSystem != null) {
-                Core.Instance.PointerInteractionSystem.ClearInteractionFor(this);
+            OwnerCore.ObjectManager.RemoveInteractable(this);
+            if (OwnerCore != null && OwnerCore.PointerInteractionSystem != null) {
+                OwnerCore.PointerInteractionSystem.ClearInteractionFor(this);
             }
         }
 

@@ -138,7 +138,10 @@ namespace helengine.render.validation {
             RenderManager2D renderer2D = null;
             Core core = null;
             RenderValidationWindow window = null;
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary = null;
+            EditorSessionRendererResources rendererResources = null;
             bool selectionSet = false;
+            EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
 
             try {
                 window = new RenderValidationWindow(Options.FrameWidth, Options.FrameHeight, backend);
@@ -150,10 +153,24 @@ namespace helengine.render.validation {
 
                 core = new Core(new CoreInitializationOptions());
                 var inputManager = new InputBackendWindows(window.Handle);
-                core.Initialize(renderer3D, renderer2D, inputManager, new CoreInitializationOptions());
+                core.Initialize(renderer3D, renderer2D, inputManager, new PlatformInfo("render-validation", "1"));
+                ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+                shaderBackendRegistry.Register(backend == RenderBackend.DirectX11
+                    ? (IShaderBackend)new DirectX11ShaderBackend()
+                    : new VulkanShaderBackend());
+                builtInShaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
+                rendererResources = new EditorSessionRendererResources(
+                    renderer3D,
+                    renderer2D,
+                    core.ObjectManager,
+                    core.EntityFactory,
+                    new EditorSceneEntityIdAllocator(),
+                    core.Input,
+                    () => core.FrameDeltaSeconds,
+                    null);
                 renderer3D.AddWindow(window.Handle, Options.FrameWidth, Options.FrameHeight);
 
-                CameraComponent validationSceneCamera = CreateScene(renderer3D, renderer2D, Options.FrameWidth, Options.FrameHeight, backend);
+                CameraComponent validationSceneCamera = CreateScene(core, renderer3D, renderer2D, Options.FrameWidth, Options.FrameHeight, backend);
                 RenderFrames(core, Options.FrameCount);
 
                 RenderImageCapture.CaptureClientArea(window, outputPath);
@@ -170,14 +187,14 @@ namespace helengine.render.validation {
 
                 validationSceneCamera.Parent.Enabled = false;
 
-                CameraComponent gizmoCamera = CreateGizmoValidationScene(renderer3D, backend, Options.FrameWidth, Options.FrameHeight);
+                CameraComponent gizmoCamera = CreateGizmoValidationScene(core, renderer3D, backend, Options.FrameWidth, Options.FrameHeight, interactionServices, builtInShaderLibrary);
                 selectionSet = true;
                 bool gizmoScalePass;
                 string gizmoScaleMessage;
                 ValidateGizmoScaleStability(core, window, outputPath, gizmoCamera, out gizmoScalePass, out gizmoScaleMessage);
                 bool axisLabelPass;
                 string axisLabelMessage;
-                ValidateAxisLabelVisibility(core, window, outputPath, gizmoCamera, renderer2D, out axisLabelPass, out axisLabelMessage);
+                ValidateAxisLabelVisibility(core, window, outputPath, gizmoCamera, renderer2D, interactionServices, builtInShaderLibrary, rendererResources, out axisLabelPass, out axisLabelMessage);
                 string gizmoOrbitMessage = "GizmoOrbit=SKIP";
                 if (Options.CaptureGizmoOrbitSweep) {
                     int orbitCaptureCount = CaptureGizmoOrbitSweep(core, window, outputPath, gizmoCamera, Options.GizmoOrbitStepDegrees);
@@ -193,7 +210,16 @@ namespace helengine.render.validation {
                 return new RenderValidationResult(backend, outputPath, Color.Empty, false, ex.ToString());
             } finally {
                 if (selectionSet) {
-                    EditorSelectionService.ClearSelection();
+                    interactionServices.Selection.ClearSelection();
+                }
+                interactionServices.Dispose();
+
+                if (rendererResources != null) {
+                    rendererResources.Dispose();
+                }
+
+                if (builtInShaderLibrary != null) {
+                    builtInShaderLibrary.Dispose();
                 }
 
                 if (core != null) {
@@ -240,7 +266,11 @@ namespace helengine.render.validation {
         /// <param name="height">Viewport height in pixels.</param>
         /// <param name="backend">Backend used for shader compilation target selection.</param>
         /// <returns>Camera used to render the baseline validation scene.</returns>
-        CameraComponent CreateScene(RenderManager3D renderer3D, RenderManager2D renderer2D, int width, int height, RenderBackend backend) {
+        CameraComponent CreateScene(Core core, RenderManager3D renderer3D, RenderManager2D renderer2D, int width, int height, RenderBackend backend) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+
             if (renderer3D == null) {
                 throw new ArgumentNullException(nameof(renderer3D));
             }
@@ -253,7 +283,7 @@ namespace helengine.render.validation {
                 throw new InvalidOperationException("Scene dimensions must be greater than zero.");
             }
 
-            var cameraEntity = new Entity {
+            var cameraEntity = new Entity(core) {
                 LayerMask = ValidationSceneLayerMask,
                 Position = new float3(0f, 0f, ValidationSceneCameraDistance),
                 Orientation = float4.Identity
@@ -272,7 +302,7 @@ namespace helengine.render.validation {
             };
             cameraEntity.AddComponent(camera);
 
-            var cubeEntity = new Entity {
+            var cubeEntity = new Entity(core) {
                 LayerMask = ValidationSceneLayerMask,
                 Position = float3.Zero,
                 Scale = float3.One
@@ -285,7 +315,7 @@ namespace helengine.render.validation {
             mesh.Model = renderer3D.BuildModelFromRaw(cubeModelAsset);
 
             ShaderAsset shaderAsset = RenderShaderFactory.BuildShaderAsset(backend);
-            MaterialAsset materialAsset = RenderShaderFactory.BuildMaterialAsset();
+            ShaderMaterialAsset materialAsset = RenderShaderFactory.BuildMaterialAsset();
             mesh.Materials = new[] { renderer3D.BuildMaterialFromRaw(materialAsset, shaderAsset) };
 
             CreateOverlaySprites(renderer2D);
@@ -300,7 +330,11 @@ namespace helengine.render.validation {
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
         /// <returns>Camera component used to render transform gizmo captures.</returns>
-        CameraComponent CreateGizmoValidationScene(RenderManager3D renderer3D, RenderBackend backend, int width, int height) {
+        CameraComponent CreateGizmoValidationScene(Core core, RenderManager3D renderer3D, RenderBackend backend, int width, int height, EditorSessionInteractionServices interactionServices, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+
             if (renderer3D == null) {
                 throw new ArgumentNullException(nameof(renderer3D));
             }
@@ -308,17 +342,23 @@ namespace helengine.render.validation {
             if (width <= 0 || height <= 0) {
                 throw new InvalidOperationException("Gizmo validation dimensions must be greater than zero.");
             }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
 
-            var selectedEntity = new Entity {
+            var selectedEntity = new Entity(core) {
                 LayerMask = ValidationSceneLayerMask,
                 Position = float3.Zero,
                 Orientation = float4.Identity,
                 Scale = float3.One
             };
             selectedEntity.InitComponents();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            interactionServices.Selection.SetSelectedEntity(selectedEntity);
 
-            var gizmoCameraEntity = new Entity {
+            var gizmoCameraEntity = new Entity(core) {
                 LayerMask = EditorLayerMasks.SceneGizmo,
                 Position = new float3(0f, 0f, ValidationSceneCameraDistance),
                 Orientation = float4.Identity
@@ -339,7 +379,7 @@ namespace helengine.render.validation {
             gizmoCameraEntity.AddComponent(gizmoCamera);
 
             RuntimeMaterial gizmoMaterial = BuildTransformGizmoMaterial(renderer3D, backend);
-            TransformTranslationGizmoFactory.Create(renderer3D, gizmoCamera, gizmoMaterial);
+            TransformTranslationGizmoFactory.Create(renderer3D, gizmoCamera, gizmoMaterial, builtInShaderLibrary);
             return gizmoCamera;
         }
 
@@ -355,7 +395,7 @@ namespace helengine.render.validation {
             }
 
             ShaderAsset shaderAsset = RenderShaderFactory.BuildTransformGizmoShaderAsset(backend);
-            MaterialAsset materialAsset = RenderShaderFactory.BuildTransformGizmoMaterialAsset();
+            ShaderMaterialAsset materialAsset = RenderShaderFactory.BuildTransformGizmoMaterialAsset();
             return renderer3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
         }
 
@@ -456,6 +496,9 @@ namespace helengine.render.validation {
             string baseOutputPath,
             CameraComponent gizmoCamera,
             RenderManager2D renderer2D,
+            EditorSessionInteractionServices interactionServices,
+            EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
+            EditorSessionRendererResources rendererResources,
             out bool passed,
             out string statusMessage) {
             if (core == null) {
@@ -477,19 +520,28 @@ namespace helengine.render.validation {
             if (renderer2D == null) {
                 throw new ArgumentNullException(nameof(renderer2D));
             }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
 
             if (gizmoCamera.Parent == null) {
                 throw new InvalidOperationException("Gizmo camera must be attached to an entity.");
             }
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = interactionServices.Selection.SelectedEntity;
             if (selectedEntity == null) {
                 throw new InvalidOperationException("Axis-label validation requires an active selected entity.");
             }
 
             FontAsset font = CreateAxisLabelValidationFont(renderer2D);
-            EditorEntity overlayOwner = CreateAxisLabelValidationOverlay(gizmoCamera, font);
-            EditorViewportToolService.SetToolMode(gizmoCamera, EditorViewportToolMode.Translate);
+            EditorEntity overlayOwner = CreateAxisLabelValidationOverlay(gizmoCamera, font, builtInShaderLibrary, rendererResources, core, interactionServices);
+            interactionServices.ViewportTool.SetToolMode(gizmoCamera, EditorViewportToolMode.Translate);
 
             int[] pixelCounts = new int[AxisLabelValidationAnglesDegrees.Length];
             int[] outlinePixelCounts = new int[AxisLabelValidationAnglesDegrees.Length];
@@ -522,7 +574,7 @@ namespace helengine.render.validation {
             } finally {
                 RenderFrames(core, 1);
                 overlayOwner.Enabled = false;
-                EditorViewportToolService.ClearToolMode(gizmoCamera);
+                interactionServices.ViewportTool.ClearToolMode(gizmoCamera);
             }
         }
 
@@ -732,7 +784,7 @@ namespace helengine.render.validation {
         /// <param name="gizmoCamera">Scene camera used by the overlay component.</param>
         /// <param name="font">Font asset used to build the label mesh and material.</param>
         /// <returns>Owner entity whose update component drives the axis label.</returns>
-        EditorEntity CreateAxisLabelValidationOverlay(CameraComponent gizmoCamera, FontAsset font) {
+        EditorEntity CreateAxisLabelValidationOverlay(CameraComponent gizmoCamera, FontAsset font, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EditorSessionRendererResources rendererResources, Core core, EditorSessionInteractionServices interactionServices) {
             if (gizmoCamera == null) {
                 throw new ArgumentNullException(nameof(gizmoCamera));
             }
@@ -740,13 +792,25 @@ namespace helengine.render.validation {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
+            if (builtInShaderLibrary == null) {
+                throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            }
+            if (rendererResources == null) {
+                throw new ArgumentNullException(nameof(rendererResources));
+            }
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
 
-            var overlayOwner = new EditorEntity {
+            var overlayOwner = new EditorEntity(core, interactionServices) {
                 Name = "Axis Label Validation Overlay",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
-            overlayOwner.AddComponent(new EditorViewportCameraAngleOverlayComponent(gizmoCamera, font, 0));
+            overlayOwner.AddComponent(new EditorViewportCameraAngleOverlayComponent(gizmoCamera, font, 0, false, builtInShaderLibrary, rendererResources));
             return overlayOwner;
         }
 

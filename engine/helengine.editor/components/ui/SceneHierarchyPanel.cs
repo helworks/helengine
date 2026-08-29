@@ -139,13 +139,13 @@ namespace helengine.editor {
             lastLayoutNodeNames = new List<string>(64);
             expandedEntities = new Dictionary<Entity, bool>();
             parentEntities = new HashSet<Entity>();
-            hierarchyContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            hierarchyContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, EditorSessionInteractionServices.From(this));
             AddChild(hierarchyContextMenu.Entity);
             rowContextMenuItems = new List<ContextMenuItem> {
                 new ContextMenuItem("Reparent", HandleReparentRequested)
             };
 
-            EditorSelectionService.SelectionChanged += HandleEditorSelectionChanged;
+            EditorSessionInteractionServices.From(this).Selection.SelectionChanged += HandleEditorSelectionChanged;
             AddComponent(new SceneHierarchyPanelUpdater(this));
             isInitialized = true;
             RefreshHierarchy();
@@ -281,9 +281,9 @@ namespace helengine.editor {
         /// Detaches editor-global event and focus registrations owned by the panel.
         /// </summary>
         public void Detach() {
-            EditorSelectionService.SelectionChanged -= HandleEditorSelectionChanged;
+            EditorSessionInteractionServices.From(this).Selection.SelectionChanged -= HandleEditorSelectionChanged;
             for (int i = 0; i < rows.Count; i++) {
-                EditorKeyboardFocusService.UnregisterTarget(rows[i].FocusTarget);
+                EditorSessionInteractionServices.From(this).KeyboardFocus.UnregisterTarget(rows[i].FocusTarget);
             }
         }
 
@@ -324,7 +324,7 @@ namespace helengine.editor {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+            if (EditorSessionInteractionServices.From(this).InputCapture.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
                 return;
             }
             if (!IsPointerInsideContent(pointer)) {
@@ -454,7 +454,7 @@ namespace helengine.editor {
                 row.IsSelectable = true;
                 row.IsSceneRoot = false;
                 row.Entity.Position = new float3(0, nodeIndex * rowHeight, 0.1f);
-                row.IsSelected = node.Entity == EditorSelectionService.SelectedEntity;
+                row.IsSelected = node.Entity == EditorSessionInteractionServices.From(this).Selection.SelectedEntity;
 
                 bool alternate = nodeIndex % 2 == 1;
                 byte4 baseColor = alternate ? ThemeManager.Colors.SurfaceInput : ThemeManager.Colors.SurfacePrimary;
@@ -541,7 +541,7 @@ namespace helengine.editor {
             rowEntity.Position = float3.Zero;
 
             var background = new SpriteComponent();
-            background.Texture = TextureUtils.PixelTexture;
+            background.Texture = OwnerCore.RenderManager2D.PixelTexture;
             background.Color = ThemeManager.Colors.SurfacePrimary;
             background.RenderOrder2D = rowBackgroundOrder;
             rowEntity.AddComponent(background);
@@ -603,7 +603,7 @@ namespace helengine.editor {
                 interactable,
                 focusTarget);
 
-            EditorKeyboardFocusService.RegisterTarget(row.FocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(row.FocusTarget);
             interactable.CursorEvent += (pos, delta, state) => HandleRowCursor(row, pos, state);
             scrollContentRoot.AddChild(rowEntity);
             return row;
@@ -762,7 +762,7 @@ namespace helengine.editor {
                 return;
             }
 
-            EditorKeyboardFocusService.SetFocusedTarget(adjacentRow.FocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.SetFocusedTarget(adjacentRow.FocusTarget);
         }
 
         /// <summary>
@@ -806,7 +806,7 @@ namespace helengine.editor {
 
             SceneHierarchyRow refreshedRow = FindVisibleRow(entity);
             if (refreshedRow != null) {
-                EditorKeyboardFocusService.SetFocusedTarget(refreshedRow.FocusTarget);
+                EditorSessionInteractionServices.From(this).KeyboardFocus.SetFocusedTarget(refreshedRow.FocusTarget);
             }
         }
 
@@ -861,7 +861,7 @@ namespace helengine.editor {
                 return;
             }
 
-            EditorSelectionService.SetSelectedEntity(row.NodeEntity);
+            EditorSessionInteractionServices.From(this).Selection.SetSelectedEntity(row.NodeEntity);
         }
 
         /// <summary>

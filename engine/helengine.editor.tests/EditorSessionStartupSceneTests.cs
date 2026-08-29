@@ -58,6 +58,7 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SetPrivateField(session, "core", CoreValue);
             SetPrivateField(session, "builtInShaderAssetLibrary", GeneratedAssetGraph.ShaderLibrary);
+            SetPrivateField(session, "rendererResources", GeneratedAssetGraph.RendererResources);
             ObjectManager objectManager = CoreValue.ObjectManager;
 
             MethodInfo method = typeof(EditorSession).GetMethod("BuildStartScene", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
@@ -78,6 +79,7 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SetPrivateField(session, "core", CoreValue);
             SetPrivateField(session, "builtInShaderAssetLibrary", GeneratedAssetGraph.ShaderLibrary);
+            SetPrivateField(session, "rendererResources", GeneratedAssetGraph.RendererResources);
 
             MethodInfo method = typeof(EditorSession).GetMethod("BuildStartScene", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
 

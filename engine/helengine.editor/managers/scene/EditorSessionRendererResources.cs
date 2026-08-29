@@ -19,6 +19,7 @@ namespace helengine.editor {
         public EditorViewportBorderGizmoMeshResources ViewportBorderGizmoMeshes { get; }
 
         readonly object SyncRoot = new object();
+        readonly HashSet<IDisposable> DisposedOwners = new HashSet<IDisposable>();
         bool IsDisposed;
 
         /// <summary>Creates all renderer-backed editor resources for one renderer owner.</summary>
@@ -81,9 +82,13 @@ namespace helengine.editor {
             }
         }
 
-        static void DisposeOwner(IDisposable owner, List<Exception> failures) {
+        void DisposeOwner(IDisposable owner, List<Exception> failures) {
+            if (DisposedOwners.Contains(owner)) {
+                return;
+            }
             try {
                 owner.Dispose();
+                DisposedOwners.Add(owner);
             } catch (Exception exception) {
                 failures.Add(exception);
             }

@@ -9,6 +9,7 @@ namespace helengine.editor.tests {
     /// Verifies scene-hierarchy interaction behavior that should mirror viewport selection.
     /// </summary>
     public class SceneHierarchyPanelTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary content root used to isolate test core services.
         /// </summary>
@@ -38,10 +39,7 @@ namespace helengine.editor.tests {
         /// Clears shared editor selection state after each test.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
-            EditorInputCaptureService.Reset();
-            EditorKeyboardFocusService.Reset();
-
+            InteractionServices.Selection.ClearSelection();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -63,7 +61,7 @@ namespace helengine.editor.tests {
             rowInteractable.OnCursor(new int2(2, 2), new int2(0, 0), PointerInteraction.Press);
             rowInteractable.OnCursor(new int2(2, 2), new int2(0, 0), PointerInteraction.Release);
 
-            Assert.Same(selectedEntity, EditorSelectionService.SelectedEntity);
+            Assert.Same(selectedEntity, InteractionServices.Selection.SelectedEntity);
         }
 
         /// <summary>
@@ -122,7 +120,7 @@ namespace helengine.editor.tests {
             parentRow.Interactable.OnCursor(new int2(48, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Press);
             parentRow.Interactable.OnCursor(new int2(48, SceneHierarchyPanel.RowHeight / 2), new int2(0, 0), PointerInteraction.Release);
 
-            Assert.Same(parent, EditorSelectionService.SelectedEntity);
+            Assert.Same(parent, InteractionServices.Selection.SelectedEntity);
             Assert.Equal(new[] { parent, child }, GetVisibleRowEntities(panel));
         }
 
@@ -157,7 +155,7 @@ namespace helengine.editor.tests {
             AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Pressed, ButtonState.Released, ButtonState.Released));
-            Assert.Same(selectedEntity, EditorSelectionService.SelectedEntity);
+            Assert.Same(selectedEntity, InteractionServices.Selection.SelectedEntity);
             Assert.True(hierarchyContextMenu.IsVisible);
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             Assert.True(hierarchyContextMenu.IsVisible);

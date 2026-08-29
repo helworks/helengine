@@ -19,8 +19,6 @@ namespace helengine.editor.tests {
         public SaveFileDialogTests() {
             ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-save-file-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Scenes"));
-            EditorInputCaptureService.Reset();
-
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
             });
@@ -31,7 +29,6 @@ namespace helengine.editor.tests {
         /// Deletes temporary test state after each test.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }

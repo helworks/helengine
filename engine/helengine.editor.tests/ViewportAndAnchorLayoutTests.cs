@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies viewport-bound anchor layout behavior for responsive scene authoring.
     /// </summary>
     public sealed class ViewportAndAnchorLayoutTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by the layout tests.
@@ -631,7 +632,7 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(80, 40),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
 
             EditorEntity syncHostEntity = new EditorEntity();
@@ -640,7 +641,7 @@ namespace helengine.editor.tests {
 
             syncComponent.Update();
 
-            EditorEntity previewEntity = EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
+            EditorEntity previewEntity = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
             Assert.NotNull(previewEntity);
             Assert.False(EditorViewportDirect2DPresentationService.ShouldKeepViewportLockBehavior(sourceEntity));
             Assert.Equal(sourceEntity.Position, previewEntity.Position);
@@ -663,7 +664,7 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(80, 40),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
             viewportEntity.AddChild(sourceEntity);
 
@@ -674,7 +675,7 @@ namespace helengine.editor.tests {
             syncComponent.Update();
 
             Assert.False(EditorViewportDirect2DPresentationService.ShouldKeepViewportLockBehavior(sourceEntity));
-            Assert.NotNull(EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
+            Assert.NotNull(InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
         }
 
         /// <summary>

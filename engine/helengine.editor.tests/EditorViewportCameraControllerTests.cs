@@ -8,12 +8,12 @@ namespace helengine.editor.tests {
     /// Verifies viewport camera movement paths that are driven by direct mouse input.
     /// </summary>
     public class EditorViewportCameraControllerTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Clears static viewport input blockers after each camera-controller test.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
-            EditorSelectionService.ClearSelection();
+            InteractionServices.Selection.ClearSelection();
         }
 
         /// <summary>
@@ -123,7 +123,7 @@ namespace helengine.editor.tests {
             controller.WheelZoomSpeed = 2.0;
 
             try {
-                EditorInputCaptureService.SetBlocker(blockerOwner, new int2(120, 120), new int2(80, 80));
+                InteractionServices.InputCapture.SetBlocker(blockerOwner, new int2(120, 120), new int2(80, 80));
                 CompleteInputFrame(input, CreateMouseState(150, 150, 0));
                 AdvanceInput(input, CreateMouseState(150, 150, 120));
 
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
 
                 Assert.Equal(float3.Zero, cameraEntity.Position);
             } finally {
-                EditorInputCaptureService.ClearBlocker(blockerOwner);
+                InteractionServices.InputCapture.ClearBlocker(blockerOwner);
             }
         }
 
@@ -144,7 +144,7 @@ namespace helengine.editor.tests {
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             Entity selectedViewportEntity = CreateFixedViewportEntity(new int2(2000, 1200));
-            EditorSelectionService.SetSelectedEntity(selectedViewportEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedViewportEntity);
 
             controller.UpdateEffectiveSpeedsForTest(selectionBounds);
 
@@ -162,7 +162,7 @@ namespace helengine.editor.tests {
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             Entity spriteEntity = CreateSpriteEntity(new int2(8, 8));
-            EditorSelectionService.SetSelectedEntity(spriteEntity);
+            InteractionServices.Selection.SetSelectedEntity(spriteEntity);
 
             controller.UpdateEffectiveSpeedsForTest(selectionBounds);
 
@@ -181,7 +181,7 @@ namespace helengine.editor.tests {
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             Entity meshEntity = CreateMeshEntity(new float3(0f, 0f, 0f), new float3(1f, 1f, 1f), float3.One);
-            EditorSelectionService.SetSelectedEntity(meshEntity);
+            InteractionServices.Selection.SetSelectedEntity(meshEntity);
 
             controller.UpdateEffectiveSpeedsForTest(selectionBounds);
 
@@ -204,7 +204,7 @@ namespace helengine.editor.tests {
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             controller.SpeedMode = EditorViewportCameraSpeedMode.ManualOverride;
             controller.ManualSpeedOverride = 12.5;
-            EditorSelectionService.SetSelectedEntity(CreateFixedViewportEntity(new int2(40000, 20000)));
+            InteractionServices.Selection.SetSelectedEntity(CreateFixedViewportEntity(new int2(40000, 20000)));
 
             controller.UpdateEffectiveSpeedsForTest(selectionBounds);
 
@@ -224,7 +224,7 @@ namespace helengine.editor.tests {
             Entity unsupportedEntity = new Entity();
             unsupportedEntity.InitComponents();
             unsupportedEntity.InitChildren();
-            EditorSelectionService.SetSelectedEntity(unsupportedEntity);
+            InteractionServices.Selection.SetSelectedEntity(unsupportedEntity);
 
             controller.UpdateEffectiveSpeedsForTest(selectionBounds);
 
@@ -243,7 +243,7 @@ namespace helengine.editor.tests {
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             CompleteInputFrame(input, CreateMouseState(150, 150, 0));
             AdvanceInput(input, CreateMouseState(150, 150, 0, ButtonState.Pressed), new KeyboardState(Keys.LeftAlt));
@@ -286,7 +286,7 @@ namespace helengine.editor.tests {
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             CompleteInputFrame(input, CreateMouseState(150, 150, 0));
             AdvanceInput(input, CreateMouseState(150, 150, 0, ButtonState.Pressed), new KeyboardState(Keys.LeftAlt));
@@ -366,7 +366,7 @@ namespace helengine.editor.tests {
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             CompleteInputFrame(input, CreateMouseState(150, 150, 0));
             AdvanceInput(input, CreateMouseState(150, 150, 120));
@@ -386,7 +386,6 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
         TestInputBackend InitializeCore() {
-            EditorInputCaptureService.Reset();
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });

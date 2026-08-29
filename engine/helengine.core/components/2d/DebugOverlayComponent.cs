@@ -95,7 +95,7 @@ namespace helengine {
 
 #if DESKTOP_PLATFORM
             // Edge-triggered toggle on key press (not hold)
-            InputSystem inputManager = Core.Instance.Input;
+            InputSystem inputManager = OwnerCore.Input;
             bool pressed = inputManager.WasKeyPressed(ToggleKey);
             if (pressed) {
                 Visible = !Visible;

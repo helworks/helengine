@@ -8,6 +8,7 @@ namespace helengine.editor.tests {
     /// Verifies the viewport selection order across screen-space 2D, world-preview 2D, and generic 3D scene picking.
     /// </summary>
     public sealed class EditorViewportPicker2DSelectionTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by the viewport 2D selection tests.
@@ -73,7 +74,7 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(48, 24),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -82,7 +83,7 @@ namespace helengine.editor.tests {
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
-            EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
+            InteractionServices.WorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
             Assert.Same(sourceEntity, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(previewEntity));
         }
@@ -106,7 +107,7 @@ namespace helengine.editor.tests {
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, textComponent));
             previewEntity.AddComponent(new EditorTextWorldPreviewComponent(sourceEntity, textComponent, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
-            EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
+            InteractionServices.WorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
             Assert.Same(sourceEntity, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(previewEntity));
         }
@@ -130,7 +131,7 @@ namespace helengine.editor.tests {
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, roundedRectComponent));
             previewEntity.AddComponent(new EditorRoundedRectWorldPreviewComponent(sourceEntity, roundedRectComponent, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
-            EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
+            InteractionServices.WorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
             Assert.Same(sourceEntity, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(previewEntity));
         }
@@ -184,7 +185,7 @@ namespace helengine.editor.tests {
             contentEntity.InitChildren();
             viewportEntity.AddChild(contentEntity);
             contentEntity.AddComponent(new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = new int2(100, 60),
                 RenderOrder2D = 4
             });
@@ -225,7 +226,7 @@ namespace helengine.editor.tests {
 
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(100, 60),
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 RenderOrder2D = 4
             };
             sourceEntity.AddComponent(spriteComponent);
@@ -235,7 +236,7 @@ namespace helengine.editor.tests {
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
             previewEntity.AddComponent(new EditorSpriteWorldPreviewComponent(sourceEntity, spriteComponent, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources));
-            EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
+            InteractionServices.WorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
             Entity selectedEntity = EditorViewportDirect2DPresentationService.ResolveSelectableWorldPreviewEntityAtPointer(
                 sceneCamera,
@@ -283,7 +284,7 @@ namespace helengine.editor.tests {
             entity.InitChildren();
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };

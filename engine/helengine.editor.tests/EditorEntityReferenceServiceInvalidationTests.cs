@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies static editor entity-reference services invalidate disposed runtime entities before later callers can use stale references.
     /// </summary>
     public sealed class EditorEntityReferenceServiceInvalidationTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary content root used by the runtime harness.
         /// </summary>
@@ -29,8 +30,7 @@ namespace helengine.editor.tests {
         /// Clears static editor state and deletes temporary test content after each run.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.Reset();
-            EditorGizmoHoverService.ClearHoveredHandle();
+            InteractionServices.GizmoHover.ClearHoveredHandle();
 
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
@@ -43,11 +43,11 @@ namespace helengine.editor.tests {
         [Fact]
         public void SelectedEntity_WhenStoredEntityWasDisposed_ReturnsNull() {
             Entity entity = CreateInitializedEntity();
-            EditorSelectionService.SetSelectedEntity(entity);
+            InteractionServices.Selection.SetSelectedEntity(entity);
 
             entity.Dispose();
 
-            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.Null(InteractionServices.Selection.SelectedEntity);
         }
 
         /// <summary>
@@ -56,12 +56,12 @@ namespace helengine.editor.tests {
         [Fact]
         public void HoveredHandleEntity_WhenStoredEntityWasDisposed_ReturnsNull() {
             Entity entity = CreateInitializedEntity();
-            EditorGizmoHoverService.SetHoveredHandle(entity);
+            InteractionServices.GizmoHover.SetHoveredHandle(entity);
 
             entity.Dispose();
 
-            Assert.Null(EditorGizmoHoverService.HoveredHandleEntity);
-            Assert.Null(EditorGizmoHoverService.HoveredHandleCamera);
+            Assert.Null(InteractionServices.GizmoHover.HoveredHandleEntity);
+            Assert.Null(InteractionServices.GizmoHover.HoveredHandleCamera);
         }
 
         /// <summary>

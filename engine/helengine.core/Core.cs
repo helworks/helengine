@@ -572,6 +572,12 @@ namespace helengine {
 
             RenderManager3D = render3D;
             RenderManager2D = render2D;
+            if (RenderManager3D != null) {
+                RenderManager3D.OwnerCore = this;
+            }
+            if (RenderManager2D != null) {
+                RenderManager2D.OwnerCore = this;
+            }
             Input.SetBackend(input);
             PlatformInfo = platformInfo;
 
@@ -585,6 +591,7 @@ namespace helengine {
             StandardPlatformInput.Configure(options.StandardPlatformInputConfiguration);
 
             ObjectManager = new ObjectManager(options);
+            ObjectManager.OwnerCore = this;
             EntityFactory = CreateEntityFactory();
             if (EntityFactory == null) {
                 throw new InvalidOperationException("Core entity factory creation must return one factory instance.");

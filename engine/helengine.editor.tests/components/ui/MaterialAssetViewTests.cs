@@ -10,6 +10,7 @@ namespace helengine.editor.tests.components.ui;
 /// Verifies conditional rendering behavior for the schema-driven material authoring view.
 /// </summary>
 public sealed class MaterialAssetViewTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
     /// <summary>
     /// Temporary content root used to initialize the editor runtime services for the view test.
     /// </summary>
@@ -90,12 +91,12 @@ public sealed class MaterialAssetViewTests : IDisposable {
 
         string requestedExtensionFilter = string.Empty;
         Action<AssetPickerRequest> pickerHandler = request => requestedExtensionFilter = request.ExtensionFilter;
-        EditorAssetPickerService.PickRequested += pickerHandler;
+        InteractionServices.AssetPicker.PickRequested += pickerHandler;
 
         try {
             textureRow.Button.ActivateFromKey(Keys.Enter);
         } finally {
-            EditorAssetPickerService.PickRequested -= pickerHandler;
+            InteractionServices.AssetPicker.PickRequested -= pickerHandler;
         }
 
         Assert.Equal(string.Join(";", TextureImportFormatCatalog.AllTextureExtensions), requestedExtensionFilter);

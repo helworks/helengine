@@ -312,7 +312,7 @@ namespace helengine {
 
             // Create a custom update component for keyboard input
             var updateComponent = new TextBoxUpdateComponent(this);
-            updateComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            updateComponent.UpdateOrder = OwnerCore.ObjectManager.GetUpdateOrderForLayer(1);
             entity.AddComponent(updateComponent);
 
             UpdateTextDisplay();
@@ -334,7 +334,7 @@ namespace helengine {
                 UpdateTextDisplay();
             } else if (state == PointerInteraction.Hover && isSelectingText) {
 #if DESKTOP_PLATFORM
-                if (Core.Instance.Input.GetMouseLeftButtonState() != ButtonState.Pressed) {
+                if (OwnerCore.Input.GetMouseLeftButtonState() != ButtonState.Pressed) {
                     isSelectingText = false;
                 } else {
 #endif
@@ -358,7 +358,7 @@ namespace helengine {
 
             if (!isFocused) return;
 
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             if (core == null) {
                 return;
             }
@@ -522,7 +522,7 @@ namespace helengine {
             textChanged = false;
             layoutChanged = false;
 
-            TextBoxShortcutRegistry shortcutRegistry = Core.Instance.TextBoxShortcutRegistry;
+            TextBoxShortcutRegistry shortcutRegistry = OwnerCore.TextBoxShortcutRegistry;
             if (shortcutRegistry == null) {
                 return false;
             }
@@ -542,7 +542,7 @@ namespace helengine {
             if (shortcutRegistry.CopyShortcut != null
                 && shortcutRegistry.CopyShortcut.Matches(key, isControlPressed, isShiftPressed, isAltPressed)) {
                 if (EditState.HasSelection) {
-                    Core.Instance.TextClipboardService.WriteText(EditState.GetSelectedText());
+                    OwnerCore.TextClipboardService.WriteText(EditState.GetSelectedText());
                 }
 
                 return true;
@@ -550,7 +550,7 @@ namespace helengine {
 
             if (shortcutRegistry.PasteShortcut != null
                 && shortcutRegistry.PasteShortcut.Matches(key, isControlPressed, isShiftPressed, isAltPressed)) {
-                if (!Core.Instance.TextClipboardService.HasText()) {
+                if (!OwnerCore.TextClipboardService.HasText()) {
                     return true;
                 }
 
@@ -558,7 +558,7 @@ namespace helengine {
                 int previousSelectionStart = EditState.SelectionStart;
                 int previousSelectionEnd = EditState.SelectionEnd;
                 bool hadSelection = EditState.HasSelection;
-                EditState.InsertText(Core.Instance.TextClipboardService.ReadText());
+                EditState.InsertText(OwnerCore.TextClipboardService.ReadText());
                 textChanged = previousText != EditState.Text;
                 layoutChanged = hadSelection
                     || previousSelectionStart != EditState.SelectionStart
@@ -938,7 +938,7 @@ namespace helengine {
                 return;
             }
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = OwnerCore.Input;
             if (!input.WasMouseLeftButtonPressed()) {
                 return;
             }

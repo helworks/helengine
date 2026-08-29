@@ -10,6 +10,7 @@ namespace helengine.editor.tests;
 /// Verifies the authored Demodisc Tilt Trial level resolves the expected scene materials through editor scene-loading services before any real DirectX11 draw occurs.
 /// </summary>
 public sealed class DemodiscTiltTrialSceneLoadTests {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
     /// <summary>
     /// Absolute Demodisc project root used by the editor-side scene loader.
     /// </summary>
@@ -103,8 +104,7 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
             hotReloadService?.Dispose();
             generatedAssetGraph?.Dispose();
             core?.Dispose();
-            EditorSelectionService.ClearSelection();
-            EditorSceneMutationService.Reset();
+            InteractionServices.Selection.ClearSelection();
         }
     }
 

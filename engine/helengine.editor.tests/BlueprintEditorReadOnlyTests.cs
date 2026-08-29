@@ -7,16 +7,13 @@ namespace helengine.editor.tests {
     /// Verifies hierarchy and inspector behavior for blueprint-inherited scene content.
     /// </summary>
     public class BlueprintEditorReadOnlyTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         readonly string TempRootPath;
 
         public BlueprintEditorReadOnlyTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-blueprint-editor-readonly-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            EditorInputCaptureService.Reset();
-            EditorSelectionService.ClearSelection();
-            EditorKeyboardFocusService.Reset();
-            EditorSceneMutationService.Reset();
-
+            InteractionServices.Selection.ClearSelection();
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
@@ -26,11 +23,7 @@ namespace helengine.editor.tests {
         }
 
         public void Dispose() {
-            EditorInputCaptureService.Reset();
-            EditorSelectionService.ClearSelection();
-            EditorKeyboardFocusService.Reset();
-            EditorSceneMutationService.Reset();
-
+            InteractionServices.Selection.ClearSelection();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }

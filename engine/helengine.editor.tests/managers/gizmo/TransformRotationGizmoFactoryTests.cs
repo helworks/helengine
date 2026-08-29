@@ -8,6 +8,7 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies rotation-gizmo entity creation and ring metadata.
     /// </summary>
     public class TransformRotationGizmoFactoryTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Tolerance used for axis-direction comparisons.
         /// </summary>
@@ -21,12 +22,12 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Clears static editor state that is shared across tests.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
-            EditorGizmoHoverService.ClearHoveredHandle();
+            InteractionServices.Selection.ClearSelection();
+            InteractionServices.GizmoHover.ClearHoveredHandle();
 
             if (CameraUnderTest != null) {
-                EditorViewportToolService.ClearToolMode(CameraUnderTest);
-                EditorGizmoDragService.EndDrag(CameraUnderTest);
+                InteractionServices.ViewportTool.ClearToolMode(CameraUnderTest);
+                InteractionServices.GizmoDrag.EndDrag(CameraUnderTest);
             }
         }
 

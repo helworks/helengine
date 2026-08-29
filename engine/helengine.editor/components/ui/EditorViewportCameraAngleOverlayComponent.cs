@@ -214,7 +214,7 @@ namespace helengine.editor {
             }
 
             if (ShowCameraStats) {
-                OverlayRoot = new EditorEntity {
+                OverlayRoot = new EditorEntity(editorEntity.OwnerCore) {
                     InternalEntity = true,
                     LayerMask = editorEntity.LayerMask,
                     Position = new float3(OverlayMarginX, DockableEntity.TitleBarHeight + ViewportTopOffset + OverlayMarginY, 0.35f)
@@ -231,7 +231,7 @@ namespace helengine.editor {
                 };
                 OverlayRoot.AddComponent(OverlayBackground);
 
-                TextHost = new EditorEntity {
+                TextHost = new EditorEntity(editorEntity.OwnerCore) {
                     InternalEntity = true,
                     LayerMask = editorEntity.LayerMask,
                     Position = new float3(OverlayPaddingX, OverlayPaddingY, 0.1f)
@@ -290,7 +290,7 @@ namespace helengine.editor {
             double cameraYawDegrees = cameraYawRadians * RadiansToDegrees;
             double cameraPitchDegrees = cameraPitchRadians * RadiansToDegrees;
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (selectedEntity == null || !selectedEntity.Enabled) {
                 return string.Concat(
                     "Camera->Pivot Yaw: n/a",
@@ -428,7 +428,8 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(axisLabelMaterial));
             }
 
-            var axisLabelEntity = new EditorEntity {
+            Core ownerCore = RendererResources.ObjectManager.OwnerCore ?? throw new InvalidOperationException("Viewport axis-label object manager must be bound to an owning core.");
+            var axisLabelEntity = new EditorEntity(ownerCore) {
                 Name = string.Concat("Transform Gizmo Axis Label ", axisIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,
@@ -457,7 +458,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (selectedEntity == null || !selectedEntity.Enabled) {
                 SetAxisLabelsVisible(false);
                 return;
@@ -504,11 +505,11 @@ namespace helengine.editor {
         /// <param name="cameraPosition">World-space scene camera position.</param>
         /// <returns>Snapped yaw-facing orientation for the label axis directions.</returns>
         float4 ResolveAxisLabelYawFacingOrientation(float3 selectedPosition, float3 cameraPosition) {
-            if (!EditorGizmoDragService.IsDragging(SceneCamera)) {
+            if (!EditorSessionInteractionServices.From(Parent).GizmoDrag.IsDragging(SceneCamera)) {
                 return TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraPosition);
             }
 
-            TransformTranslationGizmoFollowComponent gizmoFollowComponent = TransformTranslationGizmoFollowComponent.GetForCamera(SceneCamera);
+            TransformTranslationGizmoFollowComponent gizmoFollowComponent = EditorSessionInteractionServices.From(Parent).TranslationGizmoFollow.GetForCamera(SceneCamera);
             if (gizmoFollowComponent == null) {
                 throw new InvalidOperationException("An active translation gizmo drag requires a registered translation gizmo follow component.");
             }
@@ -700,14 +701,14 @@ namespace helengine.editor {
         /// <returns>Uniform world scale used by the axis-label billboards.</returns>
         double ResolveAxisLabelScale(float3 origin, float3 cameraPosition) {
             double computedScale = ComputeGizmoScale(origin, cameraPosition);
-            TransformTranslationGizmoFollowComponent gizmoFollowComponent = TransformTranslationGizmoFollowComponent.GetForCamera(SceneCamera);
+            TransformTranslationGizmoFollowComponent gizmoFollowComponent = EditorSessionInteractionServices.From(Parent).TranslationGizmoFollow.GetForCamera(SceneCamera);
             double frozenScale = 0.0;
             if (gizmoFollowComponent != null) {
                 frozenScale = gizmoFollowComponent.CurrentScale;
             }
 
             return TransformGizmoAxisLabelScaleResolver.Resolve(
-                EditorGizmoDragService.IsDragging(SceneCamera),
+                EditorSessionInteractionServices.From(Parent).GizmoDrag.IsDragging(SceneCamera),
                 computedScale,
                 frozenScale);
         }
@@ -846,7 +847,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the viewport tool mode is translation.</returns>
         bool IsTranslateToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
+            return EditorSessionInteractionServices.From(Parent).ViewportTool.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
         }
 
         /// <summary>

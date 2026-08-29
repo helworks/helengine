@@ -32,7 +32,7 @@ namespace helengine.editor {
     }
 
     /// <summary>
-    /// Groups editor-session teardown actions so detachment and process-wide
+    /// Groups editor-session teardown actions so detachment and session-owned
     /// state reset always run before owned resources are released.
     /// </summary>
     internal enum EditorSessionCleanupPhase {

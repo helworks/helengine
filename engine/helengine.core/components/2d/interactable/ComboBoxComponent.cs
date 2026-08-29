@@ -384,7 +384,7 @@ namespace helengine {
             listRoot.AddComponent(listBackground);
 
             var updateComponent = new ComboBoxUpdateComponent(this);
-            updateComponent.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+            updateComponent.UpdateOrder = OwnerCore.ObjectManager.GetUpdateOrderForLayer(1);
             entity.AddComponent(updateComponent);
 
             EnsureItemVisuals(items.Count);
@@ -557,7 +557,7 @@ namespace helengine {
                 return;
             }
 
-            InputSystem inputManager = Core.Instance.Input;
+            InputSystem inputManager = OwnerCore.Input;
             if (!inputManager.WasMouseLeftButtonPressed()) {
                 return;
             }
@@ -1050,7 +1050,7 @@ namespace helengine {
         /// <param name="layerMask">Layer mask the camera must include.</param>
         /// <returns>Camera containing the point, or null if none are found.</returns>
         ICamera FindTopmostCameraAt(int x, int y, ushort layerMask) {
-            List<ICamera> cameras = Core.Instance.ObjectManager.Cameras;
+            List<ICamera> cameras = OwnerCore.ObjectManager.Cameras;
             for (int i = cameras.Count - 1; i >= 0; i--) {
                 ICamera camera = cameras[i];
                 if ((camera.LayerMask & layerMask) == 0) {

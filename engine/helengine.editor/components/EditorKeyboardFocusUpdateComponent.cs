@@ -1,12 +1,14 @@
 namespace helengine.editor {
     /// <summary>
-    /// Polls editor input and forwards keyboard-focus commands into the shared focus service.
+    /// Polls editor input and forwards keyboard-focus commands into the owning session focus service.
     /// </summary>
     public class EditorKeyboardFocusUpdateComponent : UpdateComponent {
         readonly InputSystem Input;
+        readonly EditorSessionInteractionServices InteractionServices;
 
-        public EditorKeyboardFocusUpdateComponent(InputSystem input) {
+        public EditorKeyboardFocusUpdateComponent(InputSystem input, EditorSessionInteractionServices interactionServices) {
             Input = input ?? throw new ArgumentNullException(nameof(input));
+            InteractionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
         }
 
         /// <summary>
@@ -41,18 +43,18 @@ namespace helengine.editor {
             InputSystem input = Input;
 
             if (input.WasMouseLeftButtonPressed()) {
-                EditorKeyboardFocusService.HandlePointerPressed(input.GetMousePosition(), false);
+                InteractionServices.KeyboardFocus.HandlePointerPressed(input.GetMousePosition(), false);
             } else if (input.WasMouseRightButtonPressed()) {
-                EditorKeyboardFocusService.HandlePointerPressed(input.GetMousePosition(), true);
+                InteractionServices.KeyboardFocus.HandlePointerPressed(input.GetMousePosition(), true);
             }
 
             bool shiftPressed = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
             bool controlPressed = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
             if (input.WasKeyPressed(Keys.Tab)) {
                 if (controlPressed) {
-                    EditorKeyboardFocusService.HandleCtrlTab(!shiftPressed);
+                    InteractionServices.KeyboardFocus.HandleCtrlTab(!shiftPressed);
                 } else {
-                    EditorKeyboardFocusService.HandleTab(!shiftPressed);
+                    InteractionServices.KeyboardFocus.HandleTab(!shiftPressed);
                 }
             } else if (controlPressed && shiftPressed && input.WasKeyPressed(Keys.Z)) {
                 if (RedoShortcutRequested != null) {
@@ -79,28 +81,28 @@ namespace helengine.editor {
                     DeleteShortcutRequested();
                 }
             } else if (input.WasKeyPressed(Keys.Enter)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.Enter);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Enter);
             } else if (input.WasKeyPressed(Keys.Space)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.Space);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Space);
             } else if (input.WasKeyPressed(Keys.W)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.W);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.W);
             } else if (input.WasKeyPressed(Keys.R)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.R);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.R);
             } else if (input.WasKeyPressed(Keys.S)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.S);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.S);
             } else if (input.WasKeyPressed(Keys.F)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.F);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.F);
             } else if (input.WasKeyPressed(Keys.Up)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.Up);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Up);
             } else if (input.WasKeyPressed(Keys.Down)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.Down);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Down);
             } else if (input.WasKeyPressed(Keys.Left)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.Left);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Left);
             } else if (input.WasKeyPressed(Keys.Right)) {
-                EditorKeyboardFocusService.HandleActivationKey(Keys.Right);
+                InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Right);
             }
 
-            EditorKeyboardFocusService.Update();
+            InteractionServices.KeyboardFocus.Update();
         }
     }
 }

@@ -9,6 +9,7 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies transform-gizmo drag components request client-edge pointer wrapping only while a drag remains active.
     /// </summary>
     public class TransformGizmoPointerWrapTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Camera created for the current test so shared tool and drag state can be cleaned up.
         /// </summary>
@@ -18,13 +19,11 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Clears shared editor state after each gizmo pointer-wrap test.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
-            EditorGizmoHoverService.ClearHoveredHandle();
-            EditorInputCaptureService.Reset();
-
+            InteractionServices.Selection.ClearSelection();
+            InteractionServices.GizmoHover.ClearHoveredHandle();
             if (CameraUnderTest != null) {
-                EditorViewportToolService.ClearToolMode(CameraUnderTest);
-                EditorGizmoDragService.EndDrag(CameraUnderTest);
+                InteractionServices.ViewportTool.ClearToolMode(CameraUnderTest);
+                InteractionServices.GizmoDrag.EndDrag(CameraUnderTest);
             }
         }
 
@@ -35,10 +34,11 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenTranslationDragIsActive_EnablesPointerWrapUntilRelease() {
             TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
             EditorEntity selectedEntity = CreateSelectedEntity();
             EditorEntity handleEntity = CreateAxisHandleEntity();
             EditorEntity owner = new EditorEntity();
+            owner.RebindInteractionServices(InteractionServices);
             TransformTranslationGizmoDragComponent component = new TransformTranslationGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
             InitializeActiveTranslationDrag(component, selectedEntity, handleEntity);
@@ -57,10 +57,11 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenRotationDragIsActive_EnablesPointerWrapUntilRelease() {
             TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
             EditorEntity selectedEntity = CreateSelectedEntity();
             EditorEntity handleEntity = CreateAxisHandleEntity();
             EditorEntity owner = new EditorEntity();
+            owner.RebindInteractionServices(InteractionServices);
             TransformRotationGizmoDragComponent component = new TransformRotationGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
             InitializeActiveRotationDrag(component, selectedEntity, handleEntity);
@@ -79,10 +80,11 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenScaleDragIsActive_EnablesPointerWrapUntilRelease() {
             TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
             EditorEntity selectedEntity = CreateSelectedEntity();
             EditorEntity handleEntity = CreateAxisHandleEntity();
             EditorEntity owner = new EditorEntity();
+            owner.RebindInteractionServices(InteractionServices);
             TransformScaleGizmoDragComponent component = new TransformScaleGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
             InitializeActiveScaleDrag(component, selectedEntity, handleEntity);
@@ -135,7 +137,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 Orientation = float4.Identity
             };
 
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             return selectedEntity;
         }
 
@@ -150,7 +152,7 @@ namespace helengine.editor.tests.managers.gizmo {
             };
 
             handleEntity.AddComponent(new TransformGizmoHandleComponent(new float3(1f, 0f, 0f)));
-            EditorGizmoHoverService.SetHoveredHandle(handleEntity);
+            InteractionServices.GizmoHover.SetHoveredHandle(handleEntity);
             return handleEntity;
         }
 

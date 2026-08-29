@@ -28,6 +28,11 @@ namespace helengine {
         public ObjectManager EditorObjectManager { get; private set; }
 
         /// <summary>
+        /// Interaction graph owned by the active editor session.
+        /// </summary>
+        internal global::helengine.editor.EditorSessionInteractionServices SessionInteractionServices { get; set; }
+
+        /// <summary>
         /// Gets the project currently loaded into the editor.
         /// </summary>
         public Project Project { get; private set; }
@@ -66,7 +71,9 @@ namespace helengine {
             SceneEntityIdAllocator = new global::helengine.editor.EditorSceneEntityIdAllocator();
             base.Initialize(render3D, render2D, input, platformInfo, options);
 
-            EditorObjectManager = new ObjectManager(InitializationOptions);
+            EditorObjectManager = new ObjectManager(InitializationOptions) {
+                OwnerCore = this
+            };
         }
 
         /// <summary>
@@ -78,7 +85,7 @@ namespace helengine {
                 throw new InvalidOperationException("EditorCore must initialize SceneEntityIdAllocator before creating the entity factory.");
             }
 
-            return new global::helengine.editor.EditorEntityFactory(SceneEntityIdAllocator);
+            return new global::helengine.editor.EditorEntityFactory(this, SceneEntityIdAllocator);
         }
 
         /// <inheritdoc />

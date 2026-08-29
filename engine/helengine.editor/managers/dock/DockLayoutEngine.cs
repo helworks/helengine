@@ -1043,7 +1043,8 @@ namespace helengine.editor {
                 First = first;
                 Second = second;
 
-                separatorEntity = new EditorEntity {
+                Core ownerCore = renderManager2D.OwnerCore ?? throw new InvalidOperationException("Dock separator renderer must be bound to an owning core.");
+                separatorEntity = new EditorEntity(ownerCore) {
                     InternalEntity = true,
                     LayerMask = SeparatorLayerMask,
                     Enabled = true

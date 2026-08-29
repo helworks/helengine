@@ -217,7 +217,7 @@ namespace helengine.editor {
         /// Initializes a new preview panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
-        public PreviewPanel(FontAsset font) : this(font, TextureUtils.PixelTexture, EditorUiMetrics.Default) {
+        public PreviewPanel(FontAsset font) : this(font, null, EditorUiMetrics.Default) {
         }
 
         /// <summary>
@@ -225,7 +225,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and padding.</param>
-        public PreviewPanel(FontAsset font, EditorUiMetrics metrics) : this(font, TextureUtils.PixelTexture, metrics) {
+        public PreviewPanel(FontAsset font, EditorUiMetrics metrics) : this(font, null, metrics) {
         }
 
         /// <summary>
@@ -238,9 +238,7 @@ namespace helengine.editor {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
-            if (gridIcon == null) {
-                throw new ArgumentNullException(nameof(gridIcon));
-            }
+            gridIcon ??= OwnerCore.RenderManager2D.PixelTexture;
 
             Title = "Preview";
             MinSize = new int2(metrics.ScalePixels(220), metrics.ScalePixels(160));
@@ -262,7 +260,7 @@ namespace helengine.editor {
             contentRoot.AddChild(modelToolbarRoot);
 
             modelToolbarBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 RenderOrder2D = RenderOrder2D.PanelSurface
             };
@@ -274,7 +272,7 @@ namespace helengine.editor {
             modelToolbarRoot.AddChild(gridButtonRoot);
 
             gridButtonBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 RenderOrder2D = RenderOrder2D.PanelSurface
             };
             gridButtonRoot.AddComponent(gridButtonBackground);
@@ -310,7 +308,7 @@ namespace helengine.editor {
                 },
                 key => key == Keys.Enter || key == Keys.Space,
                 key => ToggleModelGrid());
-            EditorKeyboardFocusService.RegisterTarget(gridButtonFocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(gridButtonFocusTarget);
 
             boundsButtonRoot = new EditorEntity {
                 LayerMask = LayerMask
@@ -318,7 +316,7 @@ namespace helengine.editor {
             modelToolbarRoot.AddChild(boundsButtonRoot);
 
             boundsButtonBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 RenderOrder2D = RenderOrder2D.PanelSurface
             };
             boundsButtonRoot.AddComponent(boundsButtonBackground);
@@ -354,7 +352,7 @@ namespace helengine.editor {
                 },
                 key => key == Keys.Enter || key == Keys.Space,
                 key => CycleModelBoundsDisplayMode());
-            EditorKeyboardFocusService.RegisterTarget(boundsButtonFocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(boundsButtonFocusTarget);
 
             textureHost = new EditorEntity();
             textureHost.LayerMask = LayerMask;
@@ -873,7 +871,7 @@ namespace helengine.editor {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+            if (EditorSessionInteractionServices.From(this).InputCapture.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
                 return;
             }
 
@@ -928,7 +926,7 @@ namespace helengine.editor {
                 return;
             }
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+            if (EditorSessionInteractionServices.From(this).InputCapture.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
                 IsMiddleMouseDragging = false;
                 return;
             }
@@ -974,7 +972,7 @@ namespace helengine.editor {
                 return;
             }
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+            if (EditorSessionInteractionServices.From(this).InputCapture.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
                 IsLeftMouseDragging = false;
                 return;
             }

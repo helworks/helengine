@@ -6,12 +6,14 @@ namespace helengine.editor {
         /// <summary>
         /// Tracks visible context menus so one open submenu does not dismiss another active menu.
         /// </summary>
-        static readonly List<ContextMenu> VisibleMenus = new List<ContextMenu>();
-
         /// <summary>
-        /// Backing value for the shared submenu indicator appended to rows that open another menu.
+        /// Session interaction graph supplied by the owning editor composition root.
+        /// Context menus must never infer this graph from ambient core state or a
+        /// hierarchy that may still be awaiting attachment to its session root.
         /// </summary>
-        static string SubmenuIndicatorValue = "v";
+        readonly EditorSessionInteractionServices InitialInteractionServices;
+        EditorSessionInteractionServices InteractionServices => Root?.InteractionServices ?? InitialInteractionServices;
+        EditorContextMenuService MenuService => InteractionServices.ContextMenus;
 
         /// <summary>
         /// Horizontal gap preserved between the row label and the right-aligned submenu indicator.
@@ -127,12 +129,13 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask for menu entities.</param>
         /// <param name="backgroundOrder">Render order for menu backgrounds.</param>
         /// <param name="textOrder">Render order for menu text.</param>
-        public ContextMenu(FontAsset font, ushort layerMask, byte backgroundOrder, byte textOrder) {
+        public ContextMenu(FontAsset font, ushort layerMask, byte backgroundOrder, byte textOrder, EditorSessionInteractionServices interactionServices) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
             Font = font;
+            InitialInteractionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             TextOrder = textOrder;
             Rows = new List<ContextMenuRow>(8);
             ActiveItems = new List<ContextMenuItem>(8);
@@ -147,6 +150,7 @@ namespace helengine.editor {
                 Position = float3.Zero,
                 Enabled = false
             };
+            Root.RebindInteractionServices(InitialInteractionServices);
 
             Background = new RoundedRectComponent {
                 FillColor = ThemeManager.Colors.SurfacePrimary,
@@ -167,7 +171,7 @@ namespace helengine.editor {
             Root.AddChild(BackgroundBlockerEntity);
 
             BackgroundBlockerSurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(255, 255, 255, 0),
                 Size = new int2(0, 0),
                 RenderOrder2D = blockerOrder
@@ -204,14 +208,10 @@ namespace helengine.editor {
         /// <summary>
         /// Gets or sets the shared text appended to rows that open another menu.
         /// </summary>
-        public static string SubmenuIndicator {
-            get { return SubmenuIndicatorValue; }
+        public string SubmenuIndicator {
+            get { return MenuService.SubmenuIndicator; }
             set {
-                if (value == null) {
-                    throw new ArgumentNullException(nameof(value));
-                }
-
-                SubmenuIndicatorValue = value;
+                MenuService.SubmenuIndicator = value;
             }
         }
 
@@ -277,7 +277,7 @@ namespace helengine.editor {
         public void Hide() {
             Root.Enabled = false;
             UnregisterVisibleMenu();
-            EditorInputCaptureService.ClearBlocker(this);
+            InteractionServices.InputCapture.ClearBlocker(this);
         }
 
         /// <summary>
@@ -319,7 +319,7 @@ namespace helengine.editor {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (!IsPointerInside(pointer) && !IsPointerInsideAnyVisibleMenu(pointer)) {
+            if (!ContainsPointer(pointer) && !IsPointerInsideAnyVisibleMenu(pointer)) {
                 Hide();
             }
         }
@@ -340,7 +340,7 @@ namespace helengine.editor {
             }
 
             UnregisterVisibleMenu();
-            EditorInputCaptureService.ClearBlocker(this);
+            InteractionServices.InputCapture.ClearBlocker(this);
         }
 
         /// <summary>
@@ -365,7 +365,7 @@ namespace helengine.editor {
             Root.AddChild(rowEntity);
 
             var background = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 RenderOrder2D = Background.RenderOrder2D
             };
@@ -662,7 +662,7 @@ namespace helengine.editor {
         /// </summary>
         void UpdateInputBlocker() {
             if (!Root.Enabled) {
-                EditorInputCaptureService.ClearBlocker(this);
+                InteractionServices.InputCapture.ClearBlocker(this);
                 return;
             }
 
@@ -670,11 +670,11 @@ namespace helengine.editor {
                 (int)Math.Round(Root.Position.X),
                 (int)Math.Round(Root.Position.Y));
             if (MenuSize.X <= 0 || MenuSize.Y <= 0) {
-                EditorInputCaptureService.ClearBlocker(this);
+                InteractionServices.InputCapture.ClearBlocker(this);
                 return;
             }
 
-            EditorInputCaptureService.SetBlocker(this, worldPosition, MenuSize);
+            InteractionServices.InputCapture.SetBlocker(this, worldPosition, MenuSize);
         }
 
         /// <summary>
@@ -682,7 +682,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="pointer">Pointer position in window coordinates.</param>
         /// <returns>True when the pointer is inside the menu bounds.</returns>
-        bool IsPointerInside(int2 pointer) {
+        internal bool ContainsPointer(int2 pointer) {
             int2 worldPosition = new int2(
                 (int)Math.Round(Root.Position.X),
                 (int)Math.Round(Root.Position.Y));
@@ -704,36 +704,21 @@ namespace helengine.editor {
         /// <param name="pointer">Pointer position in window coordinates.</param>
         /// <returns>True when another visible menu already owns the click point.</returns>
         bool IsPointerInsideAnyVisibleMenu(int2 pointer) {
-            for (int i = 0; i < VisibleMenus.Count; i++) {
-                ContextMenu menu = VisibleMenus[i];
-                if (menu == null || ReferenceEquals(menu, this) || !menu.IsVisible) {
-                    continue;
-                }
-
-                if (menu.IsPointerInside(pointer)) {
-                    return true;
-                }
-            }
-
-            return false;
+            return MenuService.ContainsOtherMenuAt(this, pointer);
         }
 
         /// <summary>
         /// Adds this menu to the shared visible-menu set when it opens.
         /// </summary>
         void RegisterVisibleMenu() {
-            if (VisibleMenus.Contains(this)) {
-                return;
-            }
-
-            VisibleMenus.Add(this);
+            MenuService.Register(this);
         }
 
         /// <summary>
         /// Removes this menu from the shared visible-menu set when it closes.
         /// </summary>
         void UnregisterVisibleMenu() {
-            VisibleMenus.Remove(this);
+            MenuService.Unregister(this);
         }
 
         /// <summary>

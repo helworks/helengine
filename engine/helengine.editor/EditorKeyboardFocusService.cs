@@ -2,41 +2,41 @@ namespace helengine.editor {
     /// <summary>
     /// Tracks editor keyboard focus across dock groups and focus targets.
     /// </summary>
-    public static class EditorKeyboardFocusService {
+    public sealed class EditorKeyboardFocusService : IDisposable {
         /// <summary>
         /// Registered focus groups known to the editor.
         /// </summary>
-        static readonly List<IFocusGroup> RegisteredGroups = new List<IFocusGroup>();
+        readonly List<IFocusGroup> RegisteredGroups = new List<IFocusGroup>();
         /// <summary>
         /// Registered focus targets known to the editor.
         /// </summary>
-        static readonly List<IFocusTarget> RegisteredTargets = new List<IFocusTarget>();
+        readonly List<IFocusTarget> RegisteredTargets = new List<IFocusTarget>();
         /// <summary>
         /// Stable registration sequence assigned to each focus target.
         /// </summary>
-        static readonly Dictionary<IFocusTarget, int> TargetRegistrationOrder = new Dictionary<IFocusTarget, int>();
+        readonly Dictionary<IFocusTarget, int> TargetRegistrationOrder = new Dictionary<IFocusTarget, int>();
         /// <summary>
         /// Dock traversal order published by the current editor layout.
         /// </summary>
-        static readonly List<DockableEntity> DockOrder = new List<DockableEntity>();
+        readonly List<DockableEntity> DockOrder = new List<DockableEntity>();
         /// <summary>
         /// Next registration sequence assigned to a new focus target.
         /// </summary>
-        static int NextTargetRegistrationOrder;
+        int NextTargetRegistrationOrder;
         /// <summary>
         /// Root dock group that is currently active.
         /// </summary>
-        static IFocusGroup ActiveRootGroup;
+        IFocusGroup ActiveRootGroup;
         /// <summary>
         /// Target that is currently focused.
         /// </summary>
-        static IFocusTarget FocusedTarget;
+        IFocusTarget FocusedTarget;
 
         /// <summary>
         /// Registers one focus group if it has not already been registered.
         /// </summary>
         /// <param name="group">Group to register.</param>
-        public static void RegisterGroup(IFocusGroup group) {
+        public void RegisterGroup(IFocusGroup group) {
             if (group == null) {
                 throw new ArgumentNullException(nameof(group));
             }
@@ -50,7 +50,7 @@ namespace helengine.editor {
         /// Unregisters one focus group and clears active state if it owned the current activation.
         /// </summary>
         /// <param name="group">Group to unregister.</param>
-        public static void UnregisterGroup(IFocusGroup group) {
+        public void UnregisterGroup(IFocusGroup group) {
             if (group == null) {
                 throw new ArgumentNullException(nameof(group));
             }
@@ -68,7 +68,7 @@ namespace helengine.editor {
         /// Registers one focus target if it has not already been registered.
         /// </summary>
         /// <param name="target">Target to register.</param>
-        public static void RegisterTarget(IFocusTarget target) {
+        public void RegisterTarget(IFocusTarget target) {
             if (target == null) {
                 throw new ArgumentNullException(nameof(target));
             }
@@ -86,7 +86,7 @@ namespace helengine.editor {
         /// Unregisters one focus target and clears focused state if it was active.
         /// </summary>
         /// <param name="target">Target to unregister.</param>
-        public static void UnregisterTarget(IFocusTarget target) {
+        public void UnregisterTarget(IFocusTarget target) {
             if (target == null) {
                 throw new ArgumentNullException(nameof(target));
             }
@@ -106,7 +106,7 @@ namespace helengine.editor {
         /// Publishes the current dock traversal order from the editor layout.
         /// </summary>
         /// <param name="dockOrder">Visible dock order from the current layout.</param>
-        public static void SetDockOrder(IReadOnlyList<DockableEntity> dockOrder) {
+        public void SetDockOrder(IReadOnlyList<DockableEntity> dockOrder) {
             if (dockOrder == null) {
                 throw new ArgumentNullException(nameof(dockOrder));
             }
@@ -124,7 +124,7 @@ namespace helengine.editor {
         /// Applies focus to one target and activates its root dock.
         /// </summary>
         /// <param name="target">Target that should become focused.</param>
-        public static void SetFocusedTarget(IFocusTarget target) {
+        public void SetFocusedTarget(IFocusTarget target) {
             if (target == null) {
                 throw new ArgumentNullException(nameof(target));
             }
@@ -140,7 +140,7 @@ namespace helengine.editor {
         /// Moves dock-local focus forward or backward inside the active root dock.
         /// </summary>
         /// <param name="forward">True to move forward; false to move backward.</param>
-        public static void HandleTab(bool forward) {
+        public void HandleTab(bool forward) {
             IFocusGroup rootGroup = ResolveTraversalRootGroup();
             if (rootGroup == null) {
                 return;
@@ -173,7 +173,7 @@ namespace helengine.editor {
         /// Moves active focus to the next or previous visible dock.
         /// </summary>
         /// <param name="forward">True to move forward; false to move backward.</param>
-        public static void HandleCtrlTab(bool forward) {
+        public void HandleCtrlTab(bool forward) {
             if (DockOrder.Count == 0) {
                 return;
             }
@@ -207,7 +207,7 @@ namespace helengine.editor {
         /// Routes an activation key into the currently focused target when supported.
         /// </summary>
         /// <param name="key">Activation key to route.</param>
-        public static void HandleActivationKey(Keys key) {
+        public void HandleActivationKey(Keys key) {
             if (!IsTargetValid(FocusedTarget)) {
                 return;
             }
@@ -223,7 +223,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="point">Pointer location in screen coordinates.</param>
         /// <param name="isRightButton">True when the press came from the right mouse button.</param>
-        public static void HandlePointerPressed(int2 point, bool isRightButton) {
+        public void HandlePointerPressed(int2 point, bool isRightButton) {
             IFocusTarget target = FindTargetAtPoint(point);
             if (target != null) {
                 ApplyFocusedTarget(target);
@@ -247,7 +247,7 @@ namespace helengine.editor {
         /// <summary>
         /// Repairs focus state after targets or groups change availability.
         /// </summary>
-        public static void Update() {
+        public void Update() {
             if (IsTargetValid(FocusedTarget)) {
                 return;
             }
@@ -273,7 +273,7 @@ namespace helengine.editor {
         /// <summary>
         /// Clears all registered focus state and visuals.
         /// </summary>
-        public static void Reset() {
+        public void Dispose() {
             if (FocusedTarget != null) {
                 FocusedTarget.SetTargetFocused(false);
                 FocusedTarget = null;
@@ -291,7 +291,7 @@ namespace helengine.editor {
         /// Applies one target as the focused target and activates its root dock.
         /// </summary>
         /// <param name="target">Target that should become focused.</param>
-        static void ApplyFocusedTarget(IFocusTarget target) {
+        void ApplyFocusedTarget(IFocusTarget target) {
             if (FocusedTarget != null && !ReferenceEquals(FocusedTarget, target)) {
                 FocusedTarget.SetTargetFocused(false);
             }
@@ -305,7 +305,7 @@ namespace helengine.editor {
         /// Sets the active root dock and clears active state on all other registered groups.
         /// </summary>
         /// <param name="rootGroup">Root group that should become active.</param>
-        static void SetActiveRootGroup(IFocusGroup rootGroup) {
+        void SetActiveRootGroup(IFocusGroup rootGroup) {
             ActiveRootGroup = rootGroup;
             for (int i = 0; i < RegisteredGroups.Count; i++) {
                 IFocusGroup group = RegisteredGroups[i];
@@ -321,7 +321,7 @@ namespace helengine.editor {
         /// Resolves the root group that should currently drive traversal.
         /// </summary>
         /// <returns>Root group used for traversal, or null when none is available.</returns>
-        static IFocusGroup ResolveTraversalRootGroup() {
+        IFocusGroup ResolveTraversalRootGroup() {
             if (ActiveRootGroup != null && ActiveRootGroup.CanReceiveFocus) {
                 return ActiveRootGroup;
             }
@@ -357,7 +357,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="target">Target to validate.</param>
         /// <returns>True when the target remains focusable.</returns>
-        static bool IsTargetValid(IFocusTarget target) {
+        bool IsTargetValid(IFocusTarget target) {
             if (target == null) {
                 return false;
             }
@@ -383,7 +383,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="rootGroup">Root dock group to inspect.</param>
         /// <returns>Ordered valid targets for the root group.</returns>
-        static List<IFocusTarget> GetOrderedTargetsForRoot(IFocusGroup rootGroup) {
+        List<IFocusTarget> GetOrderedTargetsForRoot(IFocusGroup rootGroup) {
             List<IFocusTarget> targets = new List<IFocusTarget>();
             for (int i = 0; i < RegisteredTargets.Count; i++) {
                 IFocusTarget target = RegisteredTargets[i];
@@ -407,7 +407,7 @@ namespace helengine.editor {
         /// <param name="left">Left target to compare.</param>
         /// <param name="right">Right target to compare.</param>
         /// <returns>Sort order comparing the two targets.</returns>
-        static int CompareTargets(IFocusTarget left, IFocusTarget right) {
+        int CompareTargets(IFocusTarget left, IFocusTarget right) {
             int groupComparison = left.FocusGroup.GroupOrder.CompareTo(right.FocusGroup.GroupOrder);
             if (groupComparison != 0) {
                 return groupComparison;
@@ -426,7 +426,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="target">Target whose registration order should be returned.</param>
         /// <returns>Stable registration order for the target.</returns>
-        static int GetTargetRegistrationOrder(IFocusTarget target) {
+        int GetTargetRegistrationOrder(IFocusTarget target) {
             if (target == null) {
                 throw new ArgumentNullException(nameof(target));
             }
@@ -443,7 +443,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="rootGroup">Root dock group to inspect.</param>
         /// <returns>Preferred target for the root group, or null when none are available.</returns>
-        static IFocusTarget FindPreferredTargetForRoot(IFocusGroup rootGroup) {
+        IFocusTarget FindPreferredTargetForRoot(IFocusGroup rootGroup) {
             List<IFocusTarget> targets = GetOrderedTargetsForRoot(rootGroup);
             for (int i = 0; i < targets.Count; i++) {
                 if (targets[i].IsDefaultTarget) {
@@ -459,7 +459,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="point">Screen point to evaluate.</param>
         /// <returns>Target at the point, or null when none match.</returns>
-        static IFocusTarget FindTargetAtPoint(int2 point) {
+        IFocusTarget FindTargetAtPoint(int2 point) {
             IFocusTarget matchingTarget = null;
             int bestOrder = int.MinValue;
             for (int i = 0; i < RegisteredTargets.Count; i++) {
@@ -486,7 +486,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="point">Screen point to evaluate.</param>
         /// <returns>Root dock group at the point, or null when none match.</returns>
-        static IFocusGroup FindRootGroupAtPoint(int2 point) {
+        IFocusGroup FindRootGroupAtPoint(int2 point) {
             for (int i = DockOrder.Count - 1; i >= 0; i--) {
                 DockableEntity dock = DockOrder[i];
                 if (dock == null || !dock.CanReceiveFocus) {
@@ -518,7 +518,7 @@ namespace helengine.editor {
         /// Returns the current dock index inside the published dock order.
         /// </summary>
         /// <returns>Current dock index, or -1 when no active dock is published.</returns>
-        static int GetCurrentDockIndex() {
+        int GetCurrentDockIndex() {
             if (ActiveRootGroup == null) {
                 return -1;
             }

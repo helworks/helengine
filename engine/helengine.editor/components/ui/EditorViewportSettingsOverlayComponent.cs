@@ -511,7 +511,7 @@ namespace helengine.editor {
             UpdateInputBlocker();
             RaiseOpenStateChanged();
             if (GridToggleFocusTargetInternal != null) {
-                EditorKeyboardFocusService.SetFocusedTarget(GridToggleFocusTargetInternal);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.SetFocusedTarget(GridToggleFocusTargetInternal);
             }
         }
 
@@ -530,7 +530,7 @@ namespace helengine.editor {
             ClearInputBlocker();
             RaiseOpenStateChanged();
             if (settingsButtonFocusTarget != null && settingsButtonFocusTarget.CanReceiveFocus) {
-                EditorKeyboardFocusService.SetFocusedTarget(settingsButtonFocusTarget);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.SetFocusedTarget(settingsButtonFocusTarget);
             }
         }
 
@@ -545,7 +545,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (EditorInputCaptureService.IsPointerBlocked(screenPoint, owner => ReferenceEquals(owner, InputBlockerOwner))) {
+            if (EditorSessionInteractionServices.From(Parent).InputCapture.IsPointerBlocked(screenPoint, owner => ReferenceEquals(owner, InputBlockerOwner))) {
                 return;
             }
 
@@ -571,7 +571,7 @@ namespace helengine.editor {
         /// Removes the overlay input blocker if one is currently registered.
         /// </summary>
         public void ClearInputBlocker() {
-            EditorInputCaptureService.ClearBlocker(InputBlockerOwner);
+            EditorSessionInteractionServices.From(Parent).InputCapture.ClearBlocker(InputBlockerOwner);
         }
 
         /// <summary>
@@ -583,7 +583,7 @@ namespace helengine.editor {
             }
 
             int2 overlayPosition = GetOverlayScreenPosition();
-            EditorInputCaptureService.SetBlocker(InputBlockerOwner, overlayPosition, new int2(PanelWidth, PanelHeight));
+            EditorSessionInteractionServices.From(Parent).InputCapture.SetBlocker(InputBlockerOwner, overlayPosition, new int2(PanelWidth, PanelHeight));
         }
 
         /// <summary>
@@ -841,7 +841,7 @@ namespace helengine.editor {
                 () => OwnerViewport.Enabled && IsOpen,
                 ContainsOverlayPoint,
                 HandleOverlayGroupActiveChanged);
-            EditorKeyboardFocusService.RegisterGroup(OverlayFocusGroup);
+            EditorSessionInteractionServices.From(Parent).KeyboardFocus.RegisterGroup(OverlayFocusGroup);
 
             GridToggleFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
@@ -852,7 +852,7 @@ namespace helengine.editor {
                 HandleGridToggleFocusedChanged,
                 CanActivateButtonWithKey,
                 ActivateGridToggleFromKey);
-            EditorKeyboardFocusService.RegisterTarget(GridToggleFocusTargetInternal);
+            EditorSessionInteractionServices.From(Parent).KeyboardFocus.RegisterTarget(GridToggleFocusTargetInternal);
 
             PixelsPerWorldUnitFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
@@ -863,7 +863,7 @@ namespace helengine.editor {
                 HandlePixelsPerWorldUnitFocusedChanged,
                 CanAdjustSliderWithKey,
                 ActivatePixelsPerWorldUnitFromKey);
-            EditorKeyboardFocusService.RegisterTarget(PixelsPerWorldUnitFocusTargetInternal);
+            EditorSessionInteractionServices.From(Parent).KeyboardFocus.RegisterTarget(PixelsPerWorldUnitFocusTargetInternal);
 
             NearPlaneFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
@@ -874,7 +874,7 @@ namespace helengine.editor {
                 HandleNearPlaneFocusedChanged,
                 CanAdjustSliderWithKey,
                 ActivateNearPlaneFromKey);
-            EditorKeyboardFocusService.RegisterTarget(NearPlaneFocusTargetInternal);
+            EditorSessionInteractionServices.From(Parent).KeyboardFocus.RegisterTarget(NearPlaneFocusTargetInternal);
 
             FarPlaneFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
@@ -885,7 +885,7 @@ namespace helengine.editor {
                 HandleFarPlaneFocusedChanged,
                 CanAdjustSliderWithKey,
                 ActivateFarPlaneFromKey);
-            EditorKeyboardFocusService.RegisterTarget(FarPlaneFocusTargetInternal);
+            EditorSessionInteractionServices.From(Parent).KeyboardFocus.RegisterTarget(FarPlaneFocusTargetInternal);
 
             CameraSpeedModeFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
@@ -896,7 +896,7 @@ namespace helengine.editor {
                 HandleCameraSpeedModeFocusedChanged,
                 CanActivateButtonWithKey,
                 ActivateCameraSpeedModeFromKey);
-            EditorKeyboardFocusService.RegisterTarget(CameraSpeedModeFocusTargetInternal);
+            EditorSessionInteractionServices.From(Parent).KeyboardFocus.RegisterTarget(CameraSpeedModeFocusTargetInternal);
 
             ManualCameraSpeedFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
@@ -907,7 +907,7 @@ namespace helengine.editor {
                 HandleManualCameraSpeedFocusedChanged,
                 CanAdjustSliderWithKey,
                 ActivateManualCameraSpeedFromKey);
-            EditorKeyboardFocusService.RegisterTarget(ManualCameraSpeedFocusTargetInternal);
+            EditorSessionInteractionServices.From(Parent).KeyboardFocus.RegisterTarget(ManualCameraSpeedFocusTargetInternal);
 
             CloseButtonFocusTargetInternal = new EditorFocusTarget(
                 OverlayFocusGroup,
@@ -918,7 +918,7 @@ namespace helengine.editor {
                 HandleCloseButtonFocusedChanged,
                 CanActivateButtonWithKey,
                 ActivateCloseButtonFromKey);
-            EditorKeyboardFocusService.RegisterTarget(CloseButtonFocusTargetInternal);
+            EditorSessionInteractionServices.From(Parent).KeyboardFocus.RegisterTarget(CloseButtonFocusTargetInternal);
         }
 
         /// <summary>
@@ -926,28 +926,28 @@ namespace helengine.editor {
         /// </summary>
         void UnregisterFocusTargets() {
             if (GridToggleFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(GridToggleFocusTargetInternal);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.UnregisterTarget(GridToggleFocusTargetInternal);
             }
             if (PixelsPerWorldUnitFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(PixelsPerWorldUnitFocusTargetInternal);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.UnregisterTarget(PixelsPerWorldUnitFocusTargetInternal);
             }
             if (NearPlaneFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(NearPlaneFocusTargetInternal);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.UnregisterTarget(NearPlaneFocusTargetInternal);
             }
             if (FarPlaneFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(FarPlaneFocusTargetInternal);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.UnregisterTarget(FarPlaneFocusTargetInternal);
             }
             if (CameraSpeedModeFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(CameraSpeedModeFocusTargetInternal);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.UnregisterTarget(CameraSpeedModeFocusTargetInternal);
             }
             if (ManualCameraSpeedFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(ManualCameraSpeedFocusTargetInternal);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.UnregisterTarget(ManualCameraSpeedFocusTargetInternal);
             }
             if (CloseButtonFocusTargetInternal != null) {
-                EditorKeyboardFocusService.UnregisterTarget(CloseButtonFocusTargetInternal);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.UnregisterTarget(CloseButtonFocusTargetInternal);
             }
             if (OverlayFocusGroup != null) {
-                EditorKeyboardFocusService.UnregisterGroup(OverlayFocusGroup);
+                EditorSessionInteractionServices.From(Parent).KeyboardFocus.UnregisterGroup(OverlayFocusGroup);
             }
         }
 

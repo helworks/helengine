@@ -2,6 +2,7 @@ using System.Reflection;
 using helengine.directx11;
 using helengine.editor.tests.testing;
 using helengine.projectfile;
+using helengine.platforms;
 using helengine.ui;
 using helengine.vulkan;
 using Xunit;
@@ -12,6 +13,7 @@ namespace helengine.editor.tests;
 /// Verifies the real editor-session scene open and close path can load the authored Demodisc Tilt Trial scene and then dispose the session without throwing managed teardown exceptions.
 /// </summary>
 public sealed class DemodiscTiltTrialEditorSessionCloseTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
     /// <summary>
     /// Absolute Demodisc project file path used by the real editor-session constructor.
     /// </summary>
@@ -38,11 +40,7 @@ public sealed class DemodiscTiltTrialEditorSessionCloseTests : IDisposable {
         SessionValue?.Dispose();
         SessionValue = null;
         CoreValue = null;
-        EditorSelectionService.Reset();
-        EditorGizmoHoverService.ClearHoveredHandle();
-        EditorInputCaptureService.Reset();
-        EditorSceneMutationService.Reset();
-        EditorKeyboardFocusService.Reset();
+        InteractionServices.GizmoHover.ClearHoveredHandle();
     }
 
     /// <summary>
@@ -90,7 +88,8 @@ public sealed class DemodiscTiltTrialEditorSessionCloseTests : IDisposable {
             titleBarIcon,
             importers,
             ResolveBrowseOutputFolder,
-            shaderBackendRegistry);
+            shaderBackendRegistry,
+            new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(Path.GetDirectoryName(DemodiscProjectFilePath))));
     }
 
     /// <summary>

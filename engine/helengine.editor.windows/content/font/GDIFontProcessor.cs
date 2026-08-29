@@ -115,8 +115,13 @@ namespace helengine.editor {
         /// Generates a font asset and atlas for the supplied font using GDI-based rendering.
         /// </summary>
         /// <param name="font">Font to import.</param>
+        /// <param name="renderManager2D">Session-owned renderer that receives the generated atlas, or null for a headless managed texture.</param>
         /// <returns>Constructed <see cref="FontAsset"/> containing atlas texture and metrics.</returns>
-        public static FontAsset ImportFont(Font font) {
+        public static FontAsset ImportFont(Font font, RenderManager2D renderManager2D) {
+            if (font == null) {
+                throw new ArgumentNullException(nameof(font));
+            }
+
             Dictionary<char, TempFontChar> tempChars = new Dictionary<char, TempFontChar>();
 
             // Measure context for metrics (96 DPI by default)
@@ -201,7 +206,7 @@ namespace helengine.editor {
             rawTex.Width = (ushort)atlasImg.Width;
             rawTex.Height = (ushort)atlasImg.Height;
 
-            RuntimeTexture asset = CreateRuntimeTexture(rawTex);
+            RuntimeTexture asset = CreateRuntimeTexture(rawTex, renderManager2D);
 
             // Populate font asset with measured line height and space width
             FontAsset fontAsset = new FontAsset(
@@ -220,14 +225,15 @@ namespace helengine.editor {
         /// Creates one runtime texture for the generated atlas, using the active renderer when available and a lightweight managed texture otherwise.
         /// </summary>
         /// <param name="rawTex">Raw atlas texture data.</param>
+        /// <param name="renderManager2D">Session-owned renderer that receives the generated atlas, or null for a headless managed texture.</param>
         /// <returns>Runtime texture that carries the atlas dimensions.</returns>
-        static RuntimeTexture CreateRuntimeTexture(TextureAsset rawTex) {
+        static RuntimeTexture CreateRuntimeTexture(TextureAsset rawTex, RenderManager2D renderManager2D) {
             if (rawTex == null) {
                 throw new ArgumentNullException(nameof(rawTex));
             }
 
-            if (Core.Instance != null && Core.Instance.RenderManager2D != null) {
-                return Core.Instance.RenderManager2D.BuildTextureFromRaw(rawTex);
+            if (renderManager2D != null) {
+                return renderManager2D.BuildTextureFromRaw(rawTex);
             }
 
             return new ManagedRuntimeTexture {

@@ -98,7 +98,7 @@ namespace helengine.editor.tests {
             contentRoot.AddChild(rowEntity);
 
             SpriteComponent rowSprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = new int2(120, 24),
                 RenderOrder2D = 7
             };
@@ -148,7 +148,7 @@ namespace helengine.editor.tests {
             root.AddChild(buttonEntity);
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = new int2(400, 120),
                 RenderOrder2D = 5
             };
@@ -270,7 +270,7 @@ namespace helengine.editor.tests {
             };
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };
@@ -317,7 +317,7 @@ namespace helengine.editor.tests {
             viewportRoot.AddChild(entity);
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };

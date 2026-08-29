@@ -11,14 +11,14 @@ namespace helengine.editor.tests {
     /// Verifies viewport settings overlay lifetime and focus behavior.
     /// </summary>
     public class EditorViewportSettingsOverlayTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Resets shared keyboard-focus state after each overlay test.
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph?.Dispose();
-            EditorKeyboardFocusService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.TransformSnap.ResetDefaults();
         }
 
         /// <summary>
@@ -50,32 +50,32 @@ namespace helengine.editor.tests {
             EditorFocusTarget settingsTarget = GetPrivateField<EditorFocusTarget>(viewport, "SettingsButtonFocusTarget");
 
             settingsTarget.ActivateFromKey(Keys.Enter);
-            EditorKeyboardFocusService.HandleTab(true);
+            InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.PixelsPerWorldUnitFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
 
-            EditorKeyboardFocusService.HandleTab(true);
+            InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.NearPlaneFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
 
-            EditorKeyboardFocusService.HandleTab(true);
+            InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.FarPlaneFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
 
-            EditorKeyboardFocusService.HandleTab(true);
+            InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.CameraSpeedModeFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
 
-            EditorKeyboardFocusService.HandleTab(true);
+            InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.ManualCameraSpeedFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
 
-            EditorKeyboardFocusService.HandleTab(true);
+            InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.CloseButtonFocusTarget,
                 GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
@@ -522,8 +522,7 @@ namespace helengine.editor.tests {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
-            EditorKeyboardFocusService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.TransformSnap.ResetDefaults();
             return inputManager;
         }
 

@@ -9,6 +9,7 @@ namespace helengine.editor.tests {
     /// Verifies the editor open-file dialog used for scene loading.
     /// </summary>
     public class OpenFileDialogTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary project root used by the open dialog.
         /// </summary>
@@ -24,8 +25,6 @@ namespace helengine.editor.tests {
         public OpenFileDialogTests() {
             ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-open-file-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Scenes"));
-            EditorInputCaptureService.Reset();
-
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
             });
@@ -37,7 +36,6 @@ namespace helengine.editor.tests {
         /// Deletes temporary test state after each test.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }
@@ -354,7 +352,7 @@ namespace helengine.editor.tests {
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
-            Assert.True(EditorInputCaptureService.IsPointerBlocked(new int2(8, 8)));
+            Assert.True(InteractionServices.InputCapture.IsPointerBlocked(new int2(8, 8)));
             Input.SetMouseState(new MouseState(8, 8, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
 
             Input.EarlyUpdate();
@@ -375,7 +373,7 @@ namespace helengine.editor.tests {
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
-            Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(1256, 10)));
+            Assert.False(InteractionServices.InputCapture.IsPointerBlocked(new int2(1256, 10)));
         }
 
         /// <summary>
@@ -538,7 +536,7 @@ namespace helengine.editor.tests {
             };
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };

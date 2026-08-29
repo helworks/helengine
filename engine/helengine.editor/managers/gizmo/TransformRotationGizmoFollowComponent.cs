@@ -88,6 +88,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures the input system owned by the entity's renderer/session graph when attached.
+        /// </summary>
+        /// <param name="entity">Gizmo root that owns this follow component.</param>
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+            Input ??= entity.OwnerCore?.Input;
+        }
+
+        /// <summary>
         /// Updates gizmo visibility, position, and scale from the current editor selection.
         /// </summary>
         public override void Update() {
@@ -96,7 +105,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (!ShouldDisplayForSelection(selectedEntity)) {
                 SetHandleVisualState(false);
                 return;
@@ -112,7 +121,7 @@ namespace helengine.editor {
             SetHandleVisualState(true);
             RestoreVisibleHandleLocalScales();
 
-            if (!EditorGizmoDragService.IsDragging(SceneCamera)) {
+            if (!EditorSessionInteractionServices.From(Parent).GizmoDrag.IsDragging(SceneCamera)) {
                 double scaleValue = ComputeScaleForTargetPixels(GizmoRoot.Position, cameraEntity.Position);
                 if (scaleValue < MinimumScale) {
                     scaleValue = MinimumScale;
@@ -165,7 +174,7 @@ namespace helengine.editor {
         /// Applies highlight material state based on the currently hovered rotation ring.
         /// </summary>
         void UpdateAxisHighlightMaterials() {
-            Entity hoveredAxis = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
+            Entity hoveredAxis = EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredHandle(SceneCamera);
             for (int ringIndex = 0; ringIndex < GizmoRoot.Children.Count; ringIndex++) {
                 if (GizmoRoot.Children[ringIndex] is not EditorEntity ringEntity || !IsHandleEntity(ringEntity)) {
                     continue;
@@ -282,7 +291,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the viewport tool mode is rotation.</returns>
         bool IsRotateToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Rotate;
+            return EditorSessionInteractionServices.From(Parent).ViewportTool.GetToolMode(SceneCamera) == EditorViewportToolMode.Rotate;
         }
 
         /// <summary>
@@ -295,13 +304,13 @@ namespace helengine.editor {
                 return;
             }
 
-            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Rotate);
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Rotate, EditorSessionInteractionServices.From(Parent));
             if (activeSnapValue <= 0.0) {
                 SetSnapPreviewVisible(false);
                 return;
             }
 
-            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
+            Entity hoveredHandle = EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredHandle(SceneCamera);
             if (hoveredHandle == null || !IsOwnedHandleEntity(hoveredHandle)) {
                 SetSnapPreviewVisible(false);
                 return;

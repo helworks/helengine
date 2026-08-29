@@ -8,6 +8,7 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies scale-gizmo follow visibility, scale, and highlight behavior.
     /// </summary>
     public class TransformScaleGizmoFollowComponentTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Camera created for the current test so static tool and drag state can be cleaned up.
         /// </summary>
@@ -17,12 +18,12 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Clears shared editor state after each test.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
-            EditorGizmoHoverService.ClearHoveredHandle();
+            InteractionServices.Selection.ClearSelection();
+            InteractionServices.GizmoHover.ClearHoveredHandle();
 
             if (CameraUnderTest != null) {
-                EditorViewportToolService.ClearToolMode(CameraUnderTest);
-                EditorGizmoDragService.EndDrag(CameraUnderTest);
+                InteractionServices.ViewportTool.ClearToolMode(CameraUnderTest);
+                InteractionServices.GizmoDrag.EndDrag(CameraUnderTest);
             }
         }
 
@@ -33,7 +34,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenScaleToolIsActive_ShowsAndHighlightsScaleHandles() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -43,8 +44,8 @@ namespace helengine.editor.tests.managers.gizmo {
 
             EditorEntity selectedEntity = new EditorEntity();
             selectedEntity.Position = new float3(3f, 4f, 5f);
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
-            EditorGizmoHoverService.SetHoveredHandle(hoveredHandle);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
+            InteractionServices.GizmoHover.SetHoveredHandle(hoveredHandle);
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -69,7 +70,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenScaleToolIsInactive_HidesScaleHandles() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
@@ -79,7 +80,7 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
 
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -95,14 +96,14 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenViewportOwnedSpriteIsSelected_PositionsScaleGizmoAtPresentedBoundsCenter() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
 
             Entity selectedEntity = CreateViewportOwnedSpriteEntity(new float3(100f, 200f, 35f), new int2(64, 32));
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -116,13 +117,13 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenScaleToolIsActive_RestoresVisibleHandleLocalScales() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
 
-            EditorSelectionService.SetSelectedEntity(new EditorEntity());
+            InteractionServices.Selection.SetSelectedEntity(new EditorEntity());
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -158,13 +159,13 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenScaleToolIsActive_DoesNotDoubleScaleAxisTipLocalOffsets() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -40f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
 
-            EditorSelectionService.SetSelectedEntity(new EditorEntity());
+            InteractionServices.Selection.SetSelectedEntity(new EditorEntity());
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -182,7 +183,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhileDragging_PreservesExistingScaleUntilDragEnds() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
@@ -190,17 +191,17 @@ namespace helengine.editor.tests.managers.gizmo {
 
             EditorEntity selectedEntity = new EditorEntity();
             selectedEntity.Position = new float3(0f, 0f, 0f);
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
             float initialScale = gizmoRoot.Scale.X;
 
             sceneCamera.Parent.Position = new float3(0f, 2f, -20f);
-            EditorGizmoDragService.BeginDrag(sceneCamera, selectedEntity);
+            InteractionServices.GizmoDrag.BeginDrag(sceneCamera, selectedEntity);
             UpdateFollowComponent(gizmoRoot);
             float dragScale = gizmoRoot.Scale.X;
 
-            EditorGizmoDragService.EndDrag(sceneCamera);
+            InteractionServices.GizmoDrag.EndDrag(sceneCamera);
             UpdateFollowComponent(gizmoRoot);
             float releasedScale = gizmoRoot.Scale.X;
 
@@ -253,6 +254,7 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddChild(CreatePlaneEntity("Transform Scale Gizmo XY Plane", float4.Identity, material));
             gizmoRoot.AddChild(CreatePlaneEntity("Transform Scale Gizmo XZ Plane", CreateXzPlaneOrientation(), material));
             gizmoRoot.AddChild(CreatePlaneEntity("Transform Scale Gizmo YZ Plane", CreateYzPlaneOrientation(), material));
+            gizmoRoot.RebindInteractionServices(InteractionServices);
             return gizmoRoot;
         }
 

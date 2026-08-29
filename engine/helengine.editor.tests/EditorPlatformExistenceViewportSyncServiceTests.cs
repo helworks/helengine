@@ -5,13 +5,7 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies the event-driven sync that suppresses scene entities not existing on the active platform.
     /// </summary>
-    public sealed class EditorPlatformExistenceViewportSyncServiceTests : IDisposable {
-        /// <summary>
-        /// Clears static existence-changed subscribers after each test.
-        /// </summary>
-        public void Dispose() {
-            EntityPlatformExistenceEditingService.ResetExistenceChangedSubscribers();
-        }
+    public sealed class EditorPlatformExistenceViewportSyncServiceTests {
 
         /// <summary>
         /// Ensures entities excluded from the applied platform are suppressed and re-shown when another platform applies.
@@ -22,7 +16,8 @@ namespace helengine.editor.tests {
             EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService(Core.Instance.ObjectManager);
             EditorEntity sceneEntity = new EditorEntity { IsSceneOwned = true };
             EntitySaveComponent saveComponent = FindSaveComponent(sceneEntity);
-            new EntityPlatformExistenceEditingService().SetExists(saveComponent, "windows", false);
+            EntityPlatformExistenceEditingService existenceService = new EntityPlatformExistenceEditingService();
+            existenceService.SetExists(saveComponent, "windows", false);
 
             service.Apply("windows");
 
@@ -57,10 +52,11 @@ namespace helengine.editor.tests {
             EditorEntity sceneEntity = new EditorEntity { IsSceneOwned = true };
             EntitySaveComponent saveComponent = FindSaveComponent(sceneEntity);
             int raisedCount = 0;
-            EntityPlatformExistenceEditingService.ExistenceChanged += () => raisedCount++;
+            EntityPlatformExistenceEditingService existenceService = new EntityPlatformExistenceEditingService();
+            existenceService.ExistenceChanged += () => raisedCount++;
 
-            new EntityPlatformExistenceEditingService().SetExists(saveComponent, "windows", false);
-            new EntityPlatformExistenceEditingService().SetExists(saveComponent, "windows", true);
+            existenceService.SetExists(saveComponent, "windows", false);
+            existenceService.SetExists(saveComponent, "windows", true);
 
             Assert.Equal(2, raisedCount);
         }

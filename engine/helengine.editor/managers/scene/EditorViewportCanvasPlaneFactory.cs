@@ -31,7 +31,8 @@ namespace helengine.editor {
 
             RuntimeModel planeModel = render3D.BuildModelFromRaw(CreateCanvasPlaneModelAsset());
             RuntimeMaterial planeMaterial = EditorViewportCanvasPlaneMaterialFactory.Create(render3D, canvasTexture, builtInShaderLibrary);
-            var planeEntity = new EditorEntity {
+            Core ownerCore = render3D.OwnerCore ?? throw new InvalidOperationException("Viewport canvas plane renderer must be bound to an owning core.");
+            var planeEntity = new EditorEntity(ownerCore) {
                 Name = CanvasPlaneEntityName,
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneCanvasPlane,

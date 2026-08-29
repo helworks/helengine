@@ -181,7 +181,7 @@ namespace helengine {
             AnchorFlags = anchorFlags;
             AnchorDistances = anchorDistances;
 
-            if (Core.Instance != null && Core.Instance.RenderManager3D != null) {
+            if (OwnerCore != null && OwnerCore.RenderManager3D != null) {
                 RefreshSubscriptions();
                 RefreshAnchoring();
             }
@@ -233,7 +233,7 @@ namespace helengine {
             AnchorFlags = anchorFlags;
             AnchorDistances = anchorDistances;
 
-            if (Parent != null && Core.Instance != null && Core.Instance.RenderManager3D != null) {
+            if (Parent != null && OwnerCore != null && OwnerCore.RenderManager3D != null) {
                 RefreshSubscriptions();
                 RefreshAnchoring();
             }
@@ -409,11 +409,11 @@ namespace helengine {
             if (IsSubscribedToWindowResize) {
                 return;
             }
-            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+            if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
                 return;
             }
 
-            Core.Instance.RenderManager3D.WindowResized += HandleWindowResized;
+            OwnerCore.RenderManager3D.WindowResized += HandleWindowResized;
             IsSubscribedToWindowResize = true;
         }
 
@@ -425,7 +425,7 @@ namespace helengine {
                 return;
             }
 
-            Core.Instance.RenderManager3D.WindowResized -= HandleWindowResized;
+            OwnerCore.RenderManager3D.WindowResized -= HandleWindowResized;
             IsSubscribedToWindowResize = false;
         }
 
@@ -475,7 +475,7 @@ namespace helengine {
                 return anchorBoundsProvider.AnchorSpace;
             }
 
-            FallbackAnchorSpaceValue.Update(Core.Instance.RenderManager3D.MainWindowSize, new float2(0f, 0f));
+            FallbackAnchorSpaceValue.Update(OwnerCore.RenderManager3D.MainWindowSize, new float2(0f, 0f));
             return FallbackAnchorSpaceValue;
         }
 

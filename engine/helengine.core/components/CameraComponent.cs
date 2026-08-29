@@ -72,7 +72,7 @@ namespace helengine {
             set {
                 if (cameraDrawOrder != value) {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
-                        Core.Instance.ObjectManager.RemoveCamera(this);
+                        OwnerCore.ObjectManager.RemoveCamera(this);
                         cameraDrawOrder = value;
                         RegisterWithObjectManagerIfNeeded();
                     } else {
@@ -171,7 +171,7 @@ namespace helengine {
             set {
                 if (layerMask != value) {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
-                        Core.Instance.ObjectManager.RemoveCamera(this);
+                        OwnerCore.ObjectManager.RemoveCamera(this);
                         layerMask = value;
                         RegisterWithObjectManagerIfNeeded();
                     } else {
@@ -185,11 +185,18 @@ namespace helengine {
         /// Allocates render lists using the core initialization options.
         /// </summary>
         void InitializeLists() {
-            if (Core.Instance == null || Core.Instance.InitializationOptions == null) {
+            if (OwnerCore == null) {
+                // Components may be configured before attachment. The owning entity
+                // supplies the authoritative capacities when lifecycle registration runs.
+                renderList2D = new RenderList2D(0);
+                renderList3D = new RenderList3D(0);
+                return;
+            }
+            if (OwnerCore.InitializationOptions == null) {
                 throw new InvalidOperationException("Core initialization options must be set before creating camera lists.");
             }
 
-            CoreInitializationOptions settings = Core.Instance.InitializationOptions;
+            CoreInitializationOptions settings = OwnerCore.InitializationOptions;
             settings.Normalize();
 
             renderList2D = new RenderList2D(settings.RenderList2DInitialCapacity);
@@ -216,7 +223,7 @@ namespace helengine {
             if (newEnabled) {
                 RegisterWithObjectManagerIfNeeded();
             } else {
-                Core.Instance.ObjectManager.RemoveCamera(this);
+                OwnerCore.ObjectManager.RemoveCamera(this);
             }
         }
 
@@ -226,7 +233,7 @@ namespace helengine {
         /// <param name="entity">Entity losing the camera component.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
-            Core.Instance.ObjectManager.RemoveCamera(this);
+            OwnerCore.ObjectManager.RemoveCamera(this);
         }
 
         /// <summary>
@@ -249,7 +256,7 @@ namespace helengine {
                 return;
             }
 
-            Core.Instance.ObjectManager.RegisterCamera(this);
+            OwnerCore.ObjectManager.RegisterCamera(this);
         }
 
         /// <summary>

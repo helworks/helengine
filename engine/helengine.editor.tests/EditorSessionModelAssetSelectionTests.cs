@@ -13,6 +13,7 @@ namespace helengine.editor.tests {
     /// Verifies selecting filesystem model assets does not leak editor UI entities into the scene hierarchy.
     /// </summary>
     public class EditorSessionModelAssetSelectionTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary project root used by the model-selection session tests.
         /// </summary>
@@ -26,6 +27,8 @@ namespace helengine.editor.tests {
         /// Configurable input system used by input-driven picker tests.
         /// </summary>
         readonly TestInputBackend Input;
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes isolated editor services required by the model-selection tests.
@@ -40,12 +43,17 @@ namespace helengine.editor.tests {
             });
             Input = new TestInputBackend();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         /// <summary>
         /// Deletes the temporary project directories after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            InteractionServices.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -89,20 +97,20 @@ namespace helengine.editor.tests {
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
             MeshComponent meshComponent = new MeshComponent();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = new PropertiesPanel(
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(
                 CreateFont(),
                 contentManager,
-                new EditorFileSystemModelResolver(assetImportManager));
+                new EditorFileSystemModelResolver(assetImportManager)));
             panel.ShowEntityProperties(entity);
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             ComponentPropertyRow modelRow = FindModelRow(view);
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            AssetPickerModal modal = CreateAssetPickerModal();
             Action<AssetPickerRequest> handler = request => modal.Show(request.OnPicked, request.ExtensionFilter);
-            EditorAssetPickerService.PickRequested += handler;
+            InteractionServices.AssetPicker.PickRequested += handler;
 
             try {
                 InvokePrivate(view, "RequestModelPick", modelRow);
@@ -119,7 +127,7 @@ namespace helengine.editor.tests {
                 Assert.False(HasVisibleButton("Up"), DescribeVisibleControls());
                 Assert.False(HasRegisteredButtonArtifacts("Up"), DescribeRegisteredButtonArtifacts());
             } finally {
-                EditorAssetPickerService.PickRequested -= handler;
+                InteractionServices.AssetPicker.PickRequested -= handler;
             }
         }
 
@@ -137,20 +145,20 @@ namespace helengine.editor.tests {
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
             MeshComponent meshComponent = new MeshComponent();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = new PropertiesPanel(
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(
                 CreateFont(),
                 contentManager,
-                new EditorFileSystemModelResolver(assetImportManager));
+                new EditorFileSystemModelResolver(assetImportManager)));
             panel.ShowEntityProperties(entity);
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             ComponentPropertyRow modelRow = FindModelRow(view);
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            AssetPickerModal modal = CreateAssetPickerModal();
             Action<AssetPickerRequest> handler = request => modal.Show(request.OnPicked, request.ExtensionFilter);
-            EditorAssetPickerService.PickRequested += handler;
+            InteractionServices.AssetPicker.PickRequested += handler;
 
             try {
                 InvokePrivate(view, "RequestModelPick", modelRow);
@@ -161,16 +169,16 @@ namespace helengine.editor.tests {
 
                 AdvanceInput(new MouseState(0, 0, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
                 AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-                Assert.Same(row.Interactable, Core.Instance.PointerInteractionSystem.Hovering);
+                Assert.Same(row.Interactable, CoreValue.PointerInteractionSystem.Hovering);
                 AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-                Assert.Same(row.Interactable, Core.Instance.PointerInteractionSystem.Highlighted);
+                Assert.Same(row.Interactable, CoreValue.PointerInteractionSystem.Highlighted);
                 AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
 
                 Assert.False(modal.IsVisible);
                 Assert.False(HasVisibleButton("Up"), DescribeVisibleControls());
                 Assert.False(HasRegisteredButtonArtifacts("Up"), DescribeRegisteredButtonArtifacts());
             } finally {
-                EditorAssetPickerService.PickRequested -= handler;
+                InteractionServices.AssetPicker.PickRequested -= handler;
             }
         }
 
@@ -179,7 +187,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RequestModelPick_WhenAssetPickerModalIsShown_PositionsBackdropTopFlushToWindowControlCluster() {
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            AssetPickerModal modal = CreateAssetPickerModal();
             modal.Show(_ => { }, ".obj");
             modal.UpdateLayout(1280, 720);
 
@@ -203,20 +211,20 @@ namespace helengine.editor.tests {
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
             MeshComponent meshComponent = new MeshComponent();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = new PropertiesPanel(
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(
                 CreateFont(),
                 contentManager,
-                new EditorFileSystemModelResolver(assetImportManager));
+                new EditorFileSystemModelResolver(assetImportManager)));
             panel.ShowEntityProperties(entity);
 
             ComponentPropertiesView view = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
             ComponentPropertyRow modelRow = FindModelRow(view);
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            AssetPickerModal modal = CreateAssetPickerModal();
             Action<AssetPickerRequest> handler = request => modal.Show(request.OnPicked, request.ExtensionFilter);
-            EditorAssetPickerService.PickRequested += handler;
+            InteractionServices.AssetPicker.PickRequested += handler;
 
             try {
                 InvokePrivate(view, "RequestModelPick", modelRow);
@@ -231,7 +239,7 @@ namespace helengine.editor.tests {
                 Assert.False(HasVisibleButton("Up"), DescribeVisibleControls());
                 Assert.False(HasRegisteredButtonArtifacts("Up"), DescribeRegisteredButtonArtifacts());
             } finally {
-                EditorAssetPickerService.PickRequested -= handler;
+                InteractionServices.AssetPicker.PickRequested -= handler;
             }
         }
 
@@ -243,7 +251,7 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(TempProjectRootPath, contentManager);
-            PropertiesPanel propertiesPanel = new PropertiesPanel(CreateFont(), contentManager);
+            PropertiesPanel propertiesPanel = BindPanel(new PropertiesPanel(CreateFont(), contentManager));
             PreviewPanel previewPanel = new PreviewPanel(CreateFont());
             SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
             IReadOnlyList<string> supportedPlatforms = new List<string> { "windows" };
@@ -261,6 +269,19 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ActiveProjectPlatform", "windows");
 
             return session;
+        }
+
+        PropertiesPanel BindPanel(PropertiesPanel panel) {
+            panel.SetInteractionServices(InteractionServices);
+            panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
+            panel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
+            return panel;
+        }
+
+        AssetPickerModal CreateAssetPickerModal() {
+            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry);
+            modal.RebindToSession(CoreValue, InteractionServices);
+            return modal;
         }
 
         /// <summary>
@@ -303,7 +324,7 @@ namespace helengine.editor.tests {
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
         void CreateModalCamera(int width, int height) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorModalUi
             };
@@ -504,7 +525,7 @@ namespace helengine.editor.tests {
         /// <returns>Readable description of active buttons and interactables.</returns>
         string DescribeVisibleControls() {
             List<string> lines = new List<string>();
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = CoreValue.ObjectManager.Entities;
             for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
                 Entity entity = entities[entityIndex];
                 if (!entity.IsHierarchyEnabled || entity.Components == null) {
@@ -530,7 +551,7 @@ namespace helengine.editor.tests {
         /// <returns>Readable description of registered button artifacts.</returns>
         string DescribeRegisteredButtonArtifacts() {
             List<string> lines = new List<string>();
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = CoreValue.ObjectManager.Entities;
             for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
                 Entity entity = entities[entityIndex];
                 if (entity.Components == null) {
@@ -560,7 +581,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentException("Button label must be provided.", nameof(label));
             }
 
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = CoreValue.ObjectManager.Entities;
             for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
                 Entity entity = entities[entityIndex];
                 if (!entity.IsHierarchyEnabled || entity.Components == null) {
@@ -593,7 +614,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentException("Button label must be provided.", nameof(label));
             }
 
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = CoreValue.ObjectManager.Entities;
             for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
                 Entity entity = entities[entityIndex];
                 if (entity.Components == null) {
@@ -626,7 +647,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(entity));
             }
 
-            List<IInteractable2D> interactables = Core.Instance.ObjectManager.Interactables;
+            List<IInteractable2D> interactables = CoreValue.ObjectManager.Interactables;
             for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
                 if (entity.Components[componentIndex] is not InteractableComponent interactable) {
                     continue;
@@ -649,7 +670,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(entity));
             }
 
-            List<IDrawable2D> drawables = Core.Instance.ObjectManager.Drawables2D;
+            List<IDrawable2D> drawables = CoreValue.ObjectManager.Drawables2D;
             for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
                 Component component = entity.Components[componentIndex];
                 if (component is not IDrawable2D drawable) {

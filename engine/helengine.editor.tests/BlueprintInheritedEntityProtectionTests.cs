@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies blueprint-inherited entities stay read-only across history capture and recording.
     /// </summary>
     public sealed class BlueprintInheritedEntityProtectionTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Initializes one core host for inherited-entity protection tests.
         /// </summary>
@@ -18,7 +19,6 @@ namespace helengine.editor.tests {
         /// Clears the static history bridge callbacks after each test.
         /// </summary>
         public void Dispose() {
-            EditorEntityHistoryMutationService.Reset();
         }
 
         /// <summary>
@@ -26,10 +26,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void TryCaptureEntityState_WhenEntityIsBlueprintInherited_ReturnsFalse() {
-            EditorEntityHistoryMutationService.CaptureEntityState = entity => new SerializedEditorEntityState();
+            InteractionServices.EntityHistory.CaptureEntityState = entity => new SerializedEditorEntityState();
             EditorEntity inheritedEntity = CreateInheritedEntity();
 
-            bool captured = EditorEntityHistoryMutationService.TryCaptureEntityState(inheritedEntity, out SerializedEditorEntityState state);
+            bool captured = InteractionServices.EntityHistory.TryCaptureEntityState(inheritedEntity, out SerializedEditorEntityState state);
 
             Assert.False(captured);
             Assert.Null(state);
@@ -41,10 +41,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void TryRecordEntityStateChange_WhenEntityIsBlueprintInherited_ReturnsFalse() {
             bool recorded = false;
-            EditorEntityHistoryMutationService.RecordEntityStateChange = (entity, previousState) => recorded = true;
+            InteractionServices.EntityHistory.RecordEntityStateChange = (entity, previousState) => recorded = true;
             EditorEntity inheritedEntity = CreateInheritedEntity();
 
-            bool result = EditorEntityHistoryMutationService.TryRecordEntityStateChange(inheritedEntity, new SerializedEditorEntityState());
+            bool result = InteractionServices.EntityHistory.TryRecordEntityStateChange(inheritedEntity, new SerializedEditorEntityState());
 
             Assert.False(result);
             Assert.False(recorded);

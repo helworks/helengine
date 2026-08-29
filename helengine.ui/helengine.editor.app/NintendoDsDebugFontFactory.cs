@@ -15,10 +15,11 @@ namespace helengine.editor.app {
         /// <summary>
         /// Creates the Nintendo DS bottom-overlay debug font.
         /// </summary>
+        /// <param name="renderManager2D">Renderer owned by the caller's session, or null for headless generation.</param>
         /// <returns>Generated Nintendo DS debug font asset.</returns>
-        public static FontAsset CreateBottomOverlayFont() {
+        public static FontAsset CreateBottomOverlayFont(RenderManager2D renderManager2D) {
             using Font overlayFont = new Font("Consolas", BottomOverlayFontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel);
-            return GDIFontProcessor.ImportFont(overlayFont);
+            return GDIFontProcessor.ImportFont(overlayFont, renderManager2D);
         }
     }
 }

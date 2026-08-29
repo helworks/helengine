@@ -83,6 +83,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures the input system owned by the entity's renderer/session graph when attached.
+        /// </summary>
+        /// <param name="entity">Gizmo owner that receives this drag component.</param>
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+            Input ??= entity.OwnerCore?.Input;
+        }
+
+        /// <summary>
         /// Updates drag activation and applies translation while dragging.
         /// </summary>
         public override void Update() {
@@ -134,7 +143,7 @@ namespace helengine.editor {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer)) {
+            if (EditorSessionInteractionServices.From(Parent).InputCapture.IsPointerBlocked(pointer)) {
                 return;
             }
 
@@ -142,12 +151,12 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
+            Entity hoveredHandle = EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredHandle(SceneCamera);
             if (hoveredHandle == null) {
                 return;
             }
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (!CanTranslateSelection(selectedEntity)) {
                 return;
             }
@@ -188,12 +197,12 @@ namespace helengine.editor {
             DragSecondaryDirection = secondaryDirection;
             DragPlaneNormal = planeNormal;
             DragStartEntityPosition = selectionStartPosition;
-            if (!EditorEntityHistoryMutationService.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState)) {
+            if (!EditorSessionInteractionServices.From(Parent).EntityHistory.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState)) {
                 Logger.WriteWarning("Translation drag could not capture undo state for the selected entity; this move will not be undoable.");
             }
             DragStartEntityState = dragStartEntityState;
-            EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
-            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredHandle);
+            EditorSessionInteractionServices.From(Parent).GizmoDrag.BeginDrag(SceneCamera, selectedEntity);
+            EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, hoveredHandle);
         }
 
         /// <summary>
@@ -215,7 +224,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (!ReferenceEquals(EditorSelectionService.SelectedEntity, DraggedEntity)) {
+            if (!ReferenceEquals(EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity, DraggedEntity)) {
                 EndDrag();
                 return;
             }
@@ -223,7 +232,7 @@ namespace helengine.editor {
             int2 pointer = input.GetMousePosition();
             if (DragConstraintType == TransformGizmoHandleConstraintType.Axis) {
                 if (!TryComputeAxisParameter(pointer, DragStartEntityPosition, DragPrimaryDirection, out double currentAxisParameter)) {
-                    EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+                    EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
                     return;
                 }
 
@@ -234,7 +243,7 @@ namespace helengine.editor {
                 DragChanged = DragChanged || newPresentedPosition != DragStartEntityPosition;
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
-                    EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+                    EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
                     return;
                 }
 
@@ -247,7 +256,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
             }
 
-            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+            EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
         }
 
         /// <summary>
@@ -255,13 +264,13 @@ namespace helengine.editor {
         /// </summary>
         void EndDrag() {
             if (DragChanged) {
-                if (!EditorEntityHistoryMutationService.TryRecordEntityStateChange(DraggedEntity, DragStartEntityState)) {
+                if (!EditorSessionInteractionServices.From(Parent).EntityHistory.TryRecordEntityStateChange(DraggedEntity, DragStartEntityState)) {
                     Logger.WriteWarning("Translation drag move was not recorded into undo history; Ctrl+Z will not revert it.");
-                    EditorSceneMutationService.MarkSceneMutated();
+                    EditorSessionInteractionServices.From(Parent).SceneMutation.MarkSceneMutated();
                 }
             }
 
-            EditorGizmoDragService.EndDrag(SceneCamera);
+            EditorSessionInteractionServices.From(Parent).GizmoDrag.EndDrag(SceneCamera);
             IsDragging = false;
             DragChanged = false;
             DraggedEntity = null;
@@ -600,7 +609,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager used to read keyboard state.</param>
         /// <returns>Active translation snap value, or zero when no snap modifier is held.</returns>
         double ResolveActiveTranslationSnapValue(InputSystem input) {
-            return TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Translate);
+            return TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Translate, EditorSessionInteractionServices.From(Parent));
         }
 
         /// <summary>
@@ -630,7 +639,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the viewport tool mode is translation.</returns>
         bool IsTranslateToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
+            return EditorSessionInteractionServices.From(Parent).ViewportTool.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
         }
     }
 }

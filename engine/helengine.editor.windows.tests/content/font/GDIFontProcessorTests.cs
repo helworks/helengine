@@ -14,7 +14,7 @@ namespace helengine.editor.windows.tests.content.font {
         public void ImportFont_WhenGeneratingAtlas_ProducesIntermediateAlphaCoverage() {
             using Font font = new Font(FontFamily.GenericSansSerif, 32f, FontStyle.Regular, GraphicsUnit.Pixel);
 
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font);
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null);
 
             Assert.NotNull(fontAsset);
             Assert.NotNull(fontAsset.SourceTextureAsset);
@@ -29,7 +29,7 @@ namespace helengine.editor.windows.tests.content.font {
         public void ImportFont_WhenUsingNintendoDsDebugFontPixelSize_ProducesRecognizableCapitalH() {
             using Font font = new Font("Consolas", 6f, FontStyle.Regular, GraphicsUnit.Pixel);
 
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font);
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null);
 
             Assert.NotNull(fontAsset);
             Assert.NotNull(fontAsset.SourceTextureAsset);
@@ -89,7 +89,7 @@ namespace helengine.editor.windows.tests.content.font {
         public void ImportFont_WhenUsingNintendoDsDebugFontPixelSize_IncludesSpaceGlyphWithoutThrowing() {
             using Font font = new Font("Consolas", 8f, FontStyle.Regular, GraphicsUnit.Pixel);
 
-            FontAsset fontAsset = GDIFontProcessor.ImportFont(font);
+            FontAsset fontAsset = GDIFontProcessor.ImportFont(font, null);
 
             Assert.NotNull(fontAsset);
             Assert.True(fontAsset.Characters.TryGetValue(' ', out FontChar glyph));

@@ -8,6 +8,7 @@ namespace helengine.editor.tests {
     /// Verifies that editor context menus route pointer input to their visible rows.
     /// </summary>
     public class ContextMenuInteractionTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary content root used to initialize the test core.
         /// </summary>
@@ -41,7 +42,6 @@ namespace helengine.editor.tests {
         /// Removes the temporary content root created for the test.
         /// </summary>
         public void Dispose() {
-            ContextMenu.SubmenuIndicator = "v";
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -208,9 +208,9 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenGlobalSubmenuIndicatorChanges_UsesCustomizedRightIndicator() {
-            ContextMenu.SubmenuIndicator = ">>";
             ContextMenuItem item = new ContextMenuItem("Light", HandleMenuItemActivated, HandleMenuItemActivated, false);
             ContextMenu menu = CreateMenu();
+            menu.SubmenuIndicator = ">>";
             menu.Show(
                 new[] {
                     item
@@ -269,6 +269,39 @@ namespace helengine.editor.tests {
 
             Assert.Single(rows, row => row.Entity.Enabled);
             Assert.True(blockerSurface.RenderOrder2D < rows[0].Background.RenderOrder2D);
+        }
+
+        /// <summary>
+        /// Ensures an outside click dismisses a visible menu and releases the
+        /// blocker owned by the same explicit interaction graph.
+        /// </summary>
+        [Fact]
+        public void Update_WhenPointerClicksOutsideMenu_HidesAndReleasesInputBlocker() {
+            ContextMenu menu = CreateMenu();
+            menu.Show(
+                new[] {
+                    new ContextMenuItem("Open", HandleMenuItemActivated)
+                },
+                new int2(40, 24),
+                new int2(320, 240));
+
+            Assert.True(InteractionServices.InputCapture.IsPointerBlocked(new int2(menu.Position.X + 4, menu.Position.Y + 4)));
+
+            Input.SetMouseState(new MouseState(
+                menu.Position.X + menu.Size.X + 20,
+                menu.Position.Y + menu.Size.Y + 20,
+                0,
+                ButtonState.Pressed,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released,
+                ButtonState.Released));
+            Input.EarlyUpdate();
+            Input.Update();
+            menu.Update();
+
+            Assert.False(menu.IsVisible);
+            Assert.False(InteractionServices.InputCapture.IsPointerBlocked(new int2(menu.Position.X + 4, menu.Position.Y + 4)));
         }
 
         /// <summary>
@@ -402,7 +435,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Input-bound context menu.</returns>
         ContextMenu CreateMenu() {
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
             menu.SetInput(Core.Instance.Input);
             menu.Entity.InitializeHierarchy();
             return menu;

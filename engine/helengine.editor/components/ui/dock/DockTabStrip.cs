@@ -242,7 +242,7 @@ namespace helengine.editor {
                     },
                     key => key == Keys.Enter || key == Keys.Space,
                     key => ActivateTab(entry.Index));
-                EditorKeyboardFocusService.RegisterTarget(entry.FocusTarget);
+                EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(entry.FocusTarget);
                 AddChild(entry.Root);
                 entry.Root.Enabled = Enabled;
                 tabs.Add(entry);
@@ -458,7 +458,7 @@ namespace helengine.editor {
                 }
 
                 entry.FocusTarget.SetTargetFocused(false);
-                EditorKeyboardFocusService.UnregisterTarget(entry.FocusTarget);
+                EditorSessionInteractionServices.From(this).KeyboardFocus.UnregisterTarget(entry.FocusTarget);
                 entry.FocusTarget = null;
                 entry.IsKeyboardFocused = false;
             }

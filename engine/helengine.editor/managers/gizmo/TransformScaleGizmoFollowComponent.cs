@@ -86,7 +86,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (!ShouldDisplayForSelection(selectedEntity)) {
                 SetHandleVisualState(false);
                 return;
@@ -107,7 +107,7 @@ namespace helengine.editor {
             float4 yawFacingOrientation = TransformGizmoYawSnapper.ComputeSnappedYawFacingOrientation(selectedPosition, cameraEntity.Position);
             ApplyFacingToHandles(yawFacingOrientation);
 
-            if (!EditorGizmoDragService.IsDragging(SceneCamera)) {
+            if (!EditorSessionInteractionServices.From(Parent).GizmoDrag.IsDragging(SceneCamera)) {
                 float4 viewport = SceneCamera.Viewport;
                 double viewportHeight = viewport.W;
                 if (viewportHeight <= 0.0) {
@@ -186,7 +186,7 @@ namespace helengine.editor {
         /// Applies highlight material state based on the currently hovered scale handle.
         /// </summary>
         void UpdateHandleHighlightMaterials() {
-            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
+            Entity hoveredHandle = EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredHandle(SceneCamera);
             for (int handleIndex = 0; handleIndex < GizmoRoot.Children.Count; handleIndex++) {
                 if (GizmoRoot.Children[handleIndex] is not EditorEntity handleEntity) {
                     continue;
@@ -371,7 +371,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the viewport tool mode is scale.</returns>
         bool IsScaleToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Scale;
+            return EditorSessionInteractionServices.From(Parent).ViewportTool.GetToolMode(SceneCamera) == EditorViewportToolMode.Scale;
         }
 
         /// <summary>

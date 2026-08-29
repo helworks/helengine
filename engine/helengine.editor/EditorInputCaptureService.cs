@@ -2,11 +2,12 @@ namespace helengine.editor {
     /// <summary>
     /// Tracks UI regions that should block viewport input when the cursor is inside them.
     /// </summary>
-    public static class EditorInputCaptureService {
+    public sealed class EditorInputCaptureService : IDisposable {
         /// <summary>
         /// Stores registered input blockers keyed by their owner.
         /// </summary>
-        static readonly Dictionary<object, InputBlocker> Blockers = new Dictionary<object, InputBlocker>();
+        readonly Dictionary<object, InputBlocker> Blockers = new Dictionary<object, InputBlocker>();
+        bool IsDisposed;
 
         /// <summary>
         /// Registers or updates a blocking rectangle for the specified owner.
@@ -14,7 +15,8 @@ namespace helengine.editor {
         /// <param name="owner">Owning object that manages the blocking region.</param>
         /// <param name="position">Top-left window position of the blocking region.</param>
         /// <param name="size">Size of the blocking region in pixels.</param>
-        public static void SetBlocker(object owner, int2 position, int2 size) {
+        public void SetBlocker(object owner, int2 position, int2 size) {
+            EnsureNotDisposed();
             if (owner == null) {
                 throw new ArgumentNullException(nameof(owner));
             }
@@ -35,7 +37,8 @@ namespace helengine.editor {
         /// Removes a previously registered blocking region.
         /// </summary>
         /// <param name="owner">Owning object that registered the region.</param>
-        public static void ClearBlocker(object owner) {
+        public void ClearBlocker(object owner) {
+            EnsureNotDisposed();
             if (owner == null) {
                 throw new ArgumentNullException(nameof(owner));
             }
@@ -46,8 +49,13 @@ namespace helengine.editor {
         /// <summary>
         /// Clears every registered blocker so isolated editor sessions can start without stale UI capture regions.
         /// </summary>
-        public static void Reset() {
+        public void Dispose() {
+            if (IsDisposed) {
+                return;
+            }
+
             Blockers.Clear();
+            IsDisposed = true;
         }
 
         /// <summary>
@@ -55,7 +63,8 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="position">Pointer position in window coordinates.</param>
         /// <returns>True when the pointer is within a blocking region.</returns>
-        public static bool IsPointerBlocked(int2 position) {
+        public bool IsPointerBlocked(int2 position) {
+            EnsureNotDisposed();
             foreach (var entry in Blockers.Values) {
                 if (entry.Contains(position)) {
                     return true;
@@ -71,7 +80,8 @@ namespace helengine.editor {
         /// <param name="position">Pointer position in window coordinates.</param>
         /// <param name="ownerPredicate">Predicate that returns true when a blocker owner should be considered.</param>
         /// <returns>True when the pointer is within a matching blocking region.</returns>
-        public static bool IsPointerBlocked(int2 position, Func<object, bool> ownerPredicate) {
+        public bool IsPointerBlocked(int2 position, Func<object, bool> ownerPredicate) {
+            EnsureNotDisposed();
             if (ownerPredicate == null) {
                 throw new ArgumentNullException(nameof(ownerPredicate));
             }
@@ -87,6 +97,12 @@ namespace helengine.editor {
             }
 
             return false;
+        }
+
+        void EnsureNotDisposed() {
+            if (IsDisposed) {
+                throw new ObjectDisposedException(nameof(EditorInputCaptureService));
+            }
         }
 
         /// <summary>

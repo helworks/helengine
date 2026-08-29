@@ -339,7 +339,16 @@ namespace helengine.editor {
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used by viewport previews.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
         public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EditorSessionRendererResources rendererResources)
-            : base(font, metrics) {
+            : this(null, camera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics, builtInShaderLibrary, rendererResources) {
+        }
+
+        /// <summary>
+        /// Initializes a viewport against an explicit owning core so every
+        /// toolbar entity is registered with the same session graph even when
+        /// another core was constructed more recently.
+        /// </summary>
+        public EditorViewport(Core ownerCore, CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EditorSessionRendererResources rendererResources)
+            : base(ownerCore ?? rendererResources?.ObjectManager?.OwnerCore, font, metrics) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -356,8 +365,8 @@ namespace helengine.editor {
             ToolbarInputBlockerOwner = new object();
             ContentFocusGroup = new EditorFocusGroup(this, 0, () => Enabled, ContainsViewportContentPoint, HandleSubviewGroupActiveChanged);
             ToolbarFocusGroup = new EditorFocusGroup(this, 1, () => Enabled, ContainsToolbarPoint, HandleSubviewGroupActiveChanged);
-            EditorKeyboardFocusService.RegisterGroup(ContentFocusGroup);
-            EditorKeyboardFocusService.RegisterGroup(ToolbarFocusGroup);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterGroup(ContentFocusGroup);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterGroup(ToolbarFocusGroup);
             ViewportContentFocusTarget = new EditorFocusTarget(
                 ContentFocusGroup,
                 0,
@@ -367,7 +376,7 @@ namespace helengine.editor {
                 HandleViewportContentFocusedChanged,
                 CanActivateViewportContentKey,
                 ActivateViewportContentKey);
-            EditorKeyboardFocusService.RegisterTarget(ViewportContentFocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(ViewportContentFocusTarget);
             ToolModes = new[] {
                 EditorViewportToolMode.Translate,
                 EditorViewportToolMode.Rotate,
@@ -414,7 +423,7 @@ namespace helengine.editor {
             AddChild(ToolbarRoot);
 
             ToolbarBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 RenderOrder2D = ToolbarSurfaceOrder
             };
@@ -428,7 +437,7 @@ namespace helengine.editor {
             InitializeSnapControls();
             CameraAngleOverlayComponentValue = new EditorViewportCameraAngleOverlayComponent(Camera, Font, ToolbarHeight, false, BuiltInShaderLibrary, RendererResources);
             AddComponent(CameraAngleOverlayComponentValue);
-            ToolMode = EditorViewportToolService.GetToolMode(Camera);
+            ToolMode = EditorSessionInteractionServices.From(this).ViewportTool.GetToolMode(Camera);
             RefreshRenderOrderBias();
             UpdateViewport();
         }
@@ -506,7 +515,7 @@ namespace helengine.editor {
         /// Gets or sets the active gizmo tool mode for this viewport.
         /// </summary>
         public EditorViewportToolMode ToolMode {
-            get => EditorViewportToolService.GetToolMode(Camera);
+            get => EditorSessionInteractionServices.From(this).ViewportTool.GetToolMode(Camera);
             set => SetToolMode(value);
         }
         /// <summary>
@@ -578,7 +587,7 @@ namespace helengine.editor {
                 return;
             }
 
-            EditorInputCaptureService.ClearBlocker(ToolbarInputBlockerOwner);
+            EditorSessionInteractionServices.From(this).InputCapture.ClearBlocker(ToolbarInputBlockerOwner);
         }
 
         /// <summary>
@@ -613,7 +622,7 @@ namespace helengine.editor {
             ToolbarRoot.AddChild(buttonRoot);
 
             SpriteComponent buttonBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfaceInput,
                 RenderOrder2D = ToolbarSurfaceOrder
             };
@@ -651,7 +660,7 @@ namespace helengine.editor {
                 },
                 key => key == Keys.Enter || key == Keys.Space,
                 key => ToggleSettingsOverlay());
-            EditorKeyboardFocusService.RegisterTarget(SettingsButtonFocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(SettingsButtonFocusTarget);
 
             SettingsButtonRoot = buttonRoot;
             SettingsButtonBackground = buttonBackground;
@@ -691,7 +700,7 @@ namespace helengine.editor {
             ToolbarRoot.AddChild(buttonRoot);
 
             SpriteComponent buttonBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfaceInput,
                 RenderOrder2D = ToolbarSurfaceOrder
             };
@@ -729,7 +738,7 @@ namespace helengine.editor {
                 },
                 key => key == Keys.Enter || key == Keys.Space,
                 key => ToggleStatsOverlay());
-            EditorKeyboardFocusService.RegisterTarget(StatsButtonFocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(StatsButtonFocusTarget);
 
             StatsButtonRoot = buttonRoot;
             StatsButtonBackground = buttonBackground;
@@ -870,7 +879,7 @@ namespace helengine.editor {
             ToolbarRoot.AddChild(buttonRoot);
 
             SpriteComponent buttonBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
                 RenderOrder2D = ToolbarSurfaceOrder
             };
@@ -908,7 +917,7 @@ namespace helengine.editor {
                 },
                 key => key == Keys.Enter || key == Keys.Space,
                 key => ToolMode = toolMode);
-            EditorKeyboardFocusService.RegisterTarget(buttonFocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(buttonFocusTarget);
 
             ToolModes[buttonIndex] = toolMode;
             ToolButtonRoots[buttonIndex] = buttonRoot;
@@ -1028,7 +1037,7 @@ namespace helengine.editor {
             ToolbarRoot.AddChild(buttonRoot);
 
             SpriteComponent buttonBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfaceInput,
                 RenderOrder2D = ToolbarSurfaceOrder
             };
@@ -1068,7 +1077,7 @@ namespace helengine.editor {
                 },
                 key => key == Keys.Enter || key == Keys.Space,
                 key => AdjustSnapValue(capturedSlotIndex, capturedIsIncreaseButton));
-            EditorKeyboardFocusService.RegisterTarget(buttonFocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(buttonFocusTarget);
 
             if (isIncreaseButton) {
                 SnapIncreaseButtonRoots[slotIndex] = buttonRoot;
@@ -1404,7 +1413,7 @@ namespace helengine.editor {
                 return;
             }
 
-            TransformGizmoSnapSettingsService.SetSnapValue(ToolMode, SnapSlots[slotIndex], value);
+            EditorSessionInteractionServices.From(this).TransformSnap.SetSnapValue(ToolMode, SnapSlots[slotIndex], value);
             UpdateSnapControlTexts();
         }
 
@@ -1420,9 +1429,9 @@ namespace helengine.editor {
 
             TransformGizmoSnapSlot snapSlot = SnapSlots[slotIndex];
             if (isIncreaseButton) {
-                TransformGizmoSnapSettingsService.IncreaseSnapValue(ToolMode, snapSlot);
+                EditorSessionInteractionServices.From(this).TransformSnap.IncreaseSnapValue(ToolMode, snapSlot);
             } else {
-                TransformGizmoSnapSettingsService.DecreaseSnapValue(ToolMode, snapSlot);
+                EditorSessionInteractionServices.From(this).TransformSnap.DecreaseSnapValue(ToolMode, snapSlot);
             }
 
             UpdateSnapControlTexts();
@@ -1438,7 +1447,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                double snapValue = TransformGizmoSnapSettingsService.GetSnapValue(ToolMode, SnapSlots[slotIndex]);
+                double snapValue = EditorSessionInteractionServices.From(this).TransformSnap.GetSnapValue(ToolMode, SnapSlots[slotIndex]);
                 valueTextBox.Text = FormatSnapValue(snapValue);
             }
 
@@ -1450,9 +1459,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="toolMode">Tool mode to assign.</param>
         void SetToolMode(EditorViewportToolMode toolMode) {
-            EditorViewportToolService.SetToolMode(Camera, toolMode);
+            EditorSessionInteractionServices.From(this).ViewportTool.SetToolMode(Camera, toolMode);
             if (toolMode != EditorViewportToolMode.Translate) {
-                EditorGizmoHoverService.ClearHoveredHandle(Camera);
+                EditorSessionInteractionServices.From(this).GizmoHover.ClearHoveredHandle(Camera);
             }
 
             UpdateToolButtonVisuals();
@@ -2081,7 +2090,7 @@ namespace helengine.editor {
 
             int blockerX = (int)Math.Round(ToolbarRoot.Position.X);
             int blockerY = (int)Math.Round(ToolbarRoot.Position.Y);
-            EditorInputCaptureService.SetBlocker(ToolbarInputBlockerOwner, new int2(blockerX, blockerY), blockerSize);
+            EditorSessionInteractionServices.From(this).InputCapture.SetBlocker(ToolbarInputBlockerOwner, new int2(blockerX, blockerY), blockerSize);
         }
 
         /// <summary>

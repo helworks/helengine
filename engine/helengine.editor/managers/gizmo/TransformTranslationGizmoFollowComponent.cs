@@ -28,11 +28,6 @@ namespace helengine.editor {
         /// </summary>
         const double MinimumDirectionLengthSquared = 0.000000000001;
         /// <summary>
-        /// Active translation gizmo follow components keyed by the viewport camera that owns them.
-        /// </summary>
-        static readonly Dictionary<CameraComponent, TransformTranslationGizmoFollowComponent> FollowComponentByCamera =
-            new Dictionary<CameraComponent, TransformTranslationGizmoFollowComponent>();
-        /// <summary>
         /// Scene camera used to compute distance-based gizmo scaling.
         /// </summary>
         readonly CameraComponent SceneCamera;
@@ -186,22 +181,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="camera">Viewport camera that owns the translation gizmo.</param>
         /// <returns>Registered follow component when present; otherwise null.</returns>
-        public static TransformTranslationGizmoFollowComponent GetForCamera(CameraComponent camera) {
-            if (camera == null) {
-                throw new ArgumentNullException(nameof(camera));
-            }
-
-            FollowComponentByCamera.TryGetValue(camera, out TransformTranslationGizmoFollowComponent followComponent);
-            return followComponent;
-        }
-
         /// <summary>
         /// Registers this follow component for its viewport camera when attached.
         /// </summary>
         /// <param name="entity">Owning gizmo root entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
-            FollowComponentByCamera[SceneCamera] = this;
+            Input ??= entity.OwnerCore?.Input;
+            EditorSessionInteractionServices.From(entity).TranslationGizmoFollow.Register(SceneCamera, this);
         }
 
         /// <summary>
@@ -211,10 +198,7 @@ namespace helengine.editor {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
 
-            if (FollowComponentByCamera.TryGetValue(SceneCamera, out TransformTranslationGizmoFollowComponent followComponent) &&
-                ReferenceEquals(followComponent, this)) {
-                FollowComponentByCamera.Remove(SceneCamera);
-            }
+            EditorSessionInteractionServices.From(entity).TranslationGizmoFollow.Unregister(SceneCamera, this);
         }
 
         /// <summary>
@@ -226,7 +210,7 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (!ShouldDisplayForSelection(selectedEntity)) {
                 SetAxisVisualState(false);
                 return;
@@ -243,7 +227,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Scene camera must belong to an entity.");
             }
 
-            bool isDragging = EditorGizmoDragService.IsDragging(SceneCamera);
+            bool isDragging = EditorSessionInteractionServices.From(Parent).GizmoDrag.IsDragging(SceneCamera);
             EnsureHandleBaseTransformsCached();
             if (!isDragging) {
                 float4 viewport = SceneCamera.Viewport;
@@ -331,7 +315,7 @@ namespace helengine.editor {
         /// Applies highlight material state based on the currently hovered gizmo handle.
         /// </summary>
         void UpdateAxisHighlightMaterials() {
-            Entity hoveredAxis = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
+            Entity hoveredAxis = EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredHandle(SceneCamera);
             for (int axisIndex = 0; axisIndex < GizmoRoot.Children.Count; axisIndex++) {
                 if (GizmoRoot.Children[axisIndex] is not EditorEntity axisEntity || !IsHandleEntity(axisEntity)) {
                     continue;
@@ -541,7 +525,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the viewport tool mode is translation.</returns>
         bool IsTranslateToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
+            return EditorSessionInteractionServices.From(Parent).ViewportTool.GetToolMode(SceneCamera) == EditorViewportToolMode.Translate;
         }
 
         /// <summary>
@@ -631,13 +615,13 @@ namespace helengine.editor {
                 return;
             }
 
-            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Translate);
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Translate, EditorSessionInteractionServices.From(Parent));
             if (activeSnapValue <= 0.0) {
                 SetSnapPreviewVisible(false);
                 return;
             }
 
-            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
+            Entity hoveredHandle = EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredHandle(SceneCamera);
             if (hoveredHandle == null || !IsOwnedHandleEntity(hoveredHandle)) {
                 SetSnapPreviewVisible(false);
                 return;

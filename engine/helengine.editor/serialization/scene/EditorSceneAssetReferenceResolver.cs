@@ -641,7 +641,7 @@ namespace helengine.editor {
 
             ShaderAsset shaderAsset = RequireShaderPackageService().LoadShaderAsset(StandardShaderAssetId);
             RuntimeMaterial runtimeMaterial = RendererResources.RenderManager3D.BuildMaterialFromRaw(previewMaterialAsset, shaderAsset);
-            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(runtimeMaterial));
+            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(runtimeMaterial), RendererResources.RenderManager2D);
             return runtimeMaterial;
         }
 

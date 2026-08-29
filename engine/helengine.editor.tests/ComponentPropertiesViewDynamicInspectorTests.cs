@@ -7,6 +7,7 @@ namespace helengine.editor.tests {
     /// Verifies metadata-driven reflected inspector behavior.
     /// </summary>
     public class ComponentPropertiesViewDynamicInspectorTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary content root used by the test content manager.
         /// </summary>
@@ -23,14 +24,12 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            EditorSceneMutationService.Reset();
         }
 
         /// <summary>
         /// Cleans temporary test content.
         /// </summary>
         public void Dispose() {
-            EditorSceneMutationService.Reset();
             if (SceneMapComponent.Instance != null) {
                 SceneMapComponent.Instance.Dispose();
             }
@@ -232,11 +231,11 @@ namespace helengine.editor.tests {
             ComponentPropertyRow targetRow = GetSingleRow(view, "Target 1");
             targetRow.ScalarField.Text = "AlternateMainMenuScene";
             MethodInfo submitMethod = typeof(ComponentPropertiesView).GetMethod("HandleScalarSubmitted", BindingFlags.Instance | BindingFlags.NonPublic);
-            EditorSceneMutationService.SceneMutated += handleSceneMutated;
+            InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
             try {
                 submitMethod.Invoke(view, new object[] { targetRow.ScalarField });
             } finally {
-                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated -= handleSceneMutated;
             }
 
             Assert.Equal("AlternateMainMenuScene", sceneMapComponent.Mappings["MainMenu"]);

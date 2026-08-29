@@ -64,7 +64,6 @@ namespace helengine.editor.tests.testing {
             material.SupportsEmissive = !string.IsNullOrWhiteSpace(materialAsset.EmissiveTextureAssetId);
             material.CastsShadows = materialAsset.CastsShadows;
             material.ReceivesShadows = materialAsset.ReceivesShadows;
-            StandardMaterialTextureBindingDefaults.Apply(material);
             return material;
         }
 

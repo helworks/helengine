@@ -31,7 +31,8 @@ namespace helengine.editor {
 
             ModelAsset modelAsset = CreateBoxModelAsset(halfExtents);
             RuntimeModel model = CreateLineRuntimeModel(render3D, modelAsset);
-            return CreateOverlayEntity("Model Preview Bounds Box", model, generatedMaterialCache);
+            Core ownerCore = render3D.OwnerCore ?? throw new InvalidOperationException("Preview bounds renderer must be bound to an owning core.");
+            return CreateOverlayEntity("Model Preview Bounds Box", model, generatedMaterialCache, ownerCore);
         }
 
         /// <summary>
@@ -53,7 +54,8 @@ namespace helengine.editor {
 
             ModelAsset modelAsset = CreateSphereModelAsset(radius);
             RuntimeModel model = CreateLineRuntimeModel(render3D, modelAsset);
-            return CreateOverlayEntity("Model Preview Bounds Sphere", model, generatedMaterialCache);
+            Core ownerCore = render3D.OwnerCore ?? throw new InvalidOperationException("Preview bounds renderer must be bound to an owning core.");
+            return CreateOverlayEntity("Model Preview Bounds Sphere", model, generatedMaterialCache, ownerCore);
         }
 
         /// <summary>
@@ -62,16 +64,19 @@ namespace helengine.editor {
         /// <param name="name">Diagnostic name assigned to the overlay entity.</param>
         /// <param name="model">Line-list model drawn by the entity.</param>
         /// <returns>Configured overlay entity.</returns>
-        static EditorEntity CreateOverlayEntity(string name, RuntimeModel model, EngineGeneratedMaterialCache generatedMaterialCache) {
+        static EditorEntity CreateOverlayEntity(string name, RuntimeModel model, EngineGeneratedMaterialCache generatedMaterialCache, Core ownerCore) {
             if (string.IsNullOrWhiteSpace(name)) {
                 throw new ArgumentException("Overlay entity name must be provided.", nameof(name));
             }
             if (model == null) {
                 throw new ArgumentNullException(nameof(model));
             }
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
 
             RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial(generatedMaterialCache);
-            var entity = new EditorEntity {
+            var entity = new EditorEntity(ownerCore) {
                 Name = name,
                 Hidden = true,
                 InternalEntity = true,

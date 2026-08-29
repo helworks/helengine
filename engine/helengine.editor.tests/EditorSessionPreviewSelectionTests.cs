@@ -10,6 +10,7 @@ namespace helengine.editor.tests {
     /// Verifies the editor session routes selection changes through the preview source resolver.
     /// </summary>
     public class EditorSessionPreviewSelectionTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary project root used by the preview selection tests.
         /// </summary>
@@ -158,6 +159,8 @@ namespace helengine.editor.tests {
             assetImportManager.CurrentPlatformId = "windows";
 
             PropertiesPanel propertiesPanel = new PropertiesPanel(CreateFont(), contentManager);
+            propertiesPanel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
+            propertiesPanel.SetRendererResources(GeneratedAssetGraph.RendererResources);
             PreviewPanel previewPanel = new PreviewPanel(CreateFont());
             IReadOnlyList<string> supportedPlatforms = new List<string> { "windows" };
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, supportedPlatforms);
@@ -172,6 +175,7 @@ namespace helengine.editor.tests {
                 GeneratedAssetGraph.RendererResources);
 
             SetPrivateField(session, "assetImportManager", assetImportManager);
+            SetPrivateField(session, "interactionServices", InteractionServices);
             SetPrivateField(session, "propertiesPanel", propertiesPanel);
             SetPrivateField(session, "previewPanel", previewPanel);
             SetPrivateField(session, "previewSourceResolver", previewSourceResolver);

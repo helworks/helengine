@@ -150,8 +150,14 @@ namespace helengine.editor {
                     generatedMaterialCache,
                     rendererResources,
                     ownsAssetImportManager);
-            } catch {
-                DisposeOwned(dependencies.Lifetime, new List<Exception>());
+            } catch (Exception primaryException) {
+                List<Exception> cleanupFailures = new List<Exception>();
+                DisposeOwned(dependencies.Lifetime, cleanupFailures);
+                if (cleanupFailures.Count != 0) {
+                    cleanupFailures.Insert(0, primaryException);
+                    throw new AggregateException("Project authoring session construction and cleanup failed.", cleanupFailures);
+                }
+
                 throw;
             }
         }

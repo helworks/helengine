@@ -104,6 +104,7 @@ namespace helengine.editor {
         /// Root entity that owns all title bar visuals.
         /// </summary>
         readonly EditorEntity RootEntity;
+        InputSystem InputValue;
         /// <summary>
         /// Background sprite that spans the title bar.
         /// </summary>
@@ -388,7 +389,7 @@ namespace helengine.editor {
             };
 
             Background = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = RootEntity.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 Size = new int2(HostSize.X, Height),
                 RenderOrder2D = BackgroundOrder
@@ -467,33 +468,33 @@ namespace helengine.editor {
 
             byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
             byte menuTextOrder = RenderOrder2D.OverlayForeground;
-            FileMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            FileMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(FileMenu.Entity);
             FileMenuItems = BuildFileMenuItems();
-            AddMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            AddMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(AddMenu.Entity);
             AddMenuItems = BuildAddMenuItems();
-            LightMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            LightMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(LightMenu.Entity);
             LightMenuItems = BuildLightMenuItems();
-            BuildMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            BuildMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(BuildMenu.Entity);
             BuildMenuItems = BuildBuildMenuItems();
-            ToolsMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            ToolsMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(ToolsMenu.Entity);
             ToolsMenuItems = BuildToolsMenuItems();
-            UiMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            UiMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(UiMenu.Entity);
             UiMenuItems = BuildUiMenuItems();
-            UiShowMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            UiShowMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(UiShowMenu.Entity);
             UiShowMenuActionsByLabel = BuildUiShowMenuActionsByLabel();
             UiShowMenuItems = Array.Empty<ContextMenuItem>();
             ApplyUiShowMenuItems(new List<string>(UiShowMenuActionsByLabel.Keys));
-            UiSaveMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            UiSaveMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(UiSaveMenu.Entity);
             UiSaveMenuItems = BuildUiSaveMenuItems();
-            UiLoadMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+            UiLoadMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(UiLoadMenu.Entity);
             UiLoadMenuItems = BuildUiLoadMenuItems();
             ProjectMenuStates = [];
@@ -514,7 +515,7 @@ namespace helengine.editor {
             RootEntity.AddChild(NativeResizeBorderEntity);
 
             NativeResizeBorderSurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = RootEntity.OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(255, 255, 255, 0),
                 Size = new int2(HostSize.X, NativeResizeBorderHeight),
                 RenderOrder2D = NativeResizeBorderInputOrder
@@ -542,6 +543,7 @@ namespace helengine.editor {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
             }
+            InputValue = input;
             FileMenu.SetInput(input);
             AddMenu.SetInput(input);
             LightMenu.SetInput(input);
@@ -1017,7 +1019,10 @@ namespace helengine.editor {
                     false,
                     true,
                     out int buttonWidth);
-                ContextMenu menu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder);
+                ContextMenu menu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+                if (InputValue != null) {
+                    menu.SetInput(InputValue);
+                }
                 RootEntity.AddChild(menu.Entity);
                 IReadOnlyList<ContextMenuItem> menuItems = BuildProjectMenuItems(topLevelItems);
                 ProjectMenuStates.Add(new EditorTitleBarProjectMenuState(
@@ -1333,7 +1338,7 @@ namespace helengine.editor {
             };
 
             SpriteComponent border = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = RootEntity.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentQuaternary,
                 Size = new int2(GetButtonBorderWidth(), GetButtonHeight()),
                 RenderOrder2D = TextOrder
@@ -1378,7 +1383,7 @@ namespace helengine.editor {
         /// <returns>Transparent sprite component registered at the dedicated input-surface order.</returns>
         SpriteComponent CreateInputSurface(int2 size) {
             return new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = RootEntity.OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(255, 255, 255, 0),
                 Size = size,
                 RenderOrder2D = InputSurfaceOrder

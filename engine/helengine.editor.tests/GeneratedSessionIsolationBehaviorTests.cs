@@ -2,6 +2,7 @@ using System.Reflection;
 using helengine.directx11;
 using helengine.editor.tests.testing;
 using helengine.projectfile;
+using helengine.platforms;
 using helengine.ui;
 using helengine.vulkan;
 using Xunit;
@@ -24,6 +25,16 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             sessionA = CreateActualEditorSession(projectRootA);
             sessionB = CreateActualEditorSession(projectRootB);
 
+            // Materialize a secondary panel for A after B owns the ambient
+            // legacy core. The workspace composition must adopt the complete
+            // panel subtree into A before it can register or interact.
+            sessionA.HandleUiMenuActionForTest(EditorTitleBarUiMenuAction.ShowProperties);
+            EditorWorkspacePanelInstance secondaryPropertiesPanel = Assert.Single(
+                sessionA.GetPanelInstancesForTest("properties")
+                    .Where(instance => !string.Equals(instance.InstanceId, "properties-primary", StringComparison.OrdinalIgnoreCase)));
+            Assert.Same(sessionA.Core, secondaryPropertiesPanel.Dockable.OwnerCore);
+            Assert.Same(sessionA.InteractionServices, secondaryPropertiesPanel.Dockable.InteractionServices);
+
             EditorSessionRendererResources rendererResourcesA = GetPrivateField<EditorSessionRendererResources>(sessionA, "rendererResources");
             EditorSessionRendererResources rendererResourcesB = GetPrivateField<EditorSessionRendererResources>(sessionB, "rendererResources");
             GeneratedAssetProviderRegistry registryA = GetPrivateField<GeneratedAssetProviderRegistry>(sessionA, "generatedAssetProviderRegistry");
@@ -33,8 +44,20 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
 
             Assert.NotSame(rendererResourcesA, rendererResourcesB);
             Assert.NotSame(rendererResourcesA.RenderManager3D, rendererResourcesB.RenderManager3D);
+            Assert.NotSame(sessionA.Core.RenderManager2D.PixelTexture, sessionB.Core.RenderManager2D.PixelTexture);
             Assert.NotSame(registryA, registryB);
             Assert.NotSame(modelCacheA, modelCacheB);
+
+            EditorEntity selectedEntityB = new EditorEntity {
+                Name = "Session B entity"
+            };
+            CameraComponent cameraB = new CameraComponent();
+            selectedEntityB.AddComponent(cameraB);
+            sessionB.InteractionServices.Selection.SetSelectedEntity(selectedEntityB);
+            sessionB.InteractionServices.InputCapture.SetBlocker(selectedEntityB, new int2(2, 3), new int2(20, 20));
+            sessionB.InteractionServices.ViewportTool.SetToolMode(cameraB, EditorViewportToolMode.Translate);
+            sessionB.InteractionServices.GizmoHover.SetHoveredHandle(cameraB, selectedEntityB);
+            sessionB.InteractionServices.GizmoDrag.BeginDrag(cameraB, selectedEntityB);
 
             AssetBrowserEntry cubeEntry = AssetBrowserEntry.CreateGeneratedAsset(
                 "Cube",
@@ -54,7 +77,55 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             sessionA = null;
 
             Assert.Same(modelB, registryB.ResolveRuntimeModel(cubeEntry));
+            Assert.False(sessionB.Core.RenderManager2D.PixelTexture.IsDisposed);
+            Assert.Same(selectedEntityB, sessionB.InteractionServices.Selection.SelectedEntity);
+            Assert.True(sessionB.InteractionServices.InputCapture.IsPointerBlocked(new int2(4, 4)));
+            Assert.Same(selectedEntityB, sessionB.InteractionServices.GizmoHover.GetHoveredHandle(cameraB));
+            Assert.True(sessionB.InteractionServices.GizmoDrag.IsDragging(cameraB));
+            sessionB.Core.ObjectManager.Update();
             Assert.True(File.Exists(savedScenePath));
+
+            sessionB.InteractionServices.GizmoDrag.EndDrag(cameraB);
+            selectedEntityB.Dispose();
+            Assert.DoesNotContain(selectedEntityB, sessionB.Core.ObjectManager.Entities);
+        } finally {
+            sessionA?.Dispose();
+            sessionB?.Dispose();
+            DeleteProjectRoot(projectRootA);
+            DeleteProjectRoot(projectRootB);
+        }
+    }
+
+    [Fact]
+    public void ActualEditorSessions_KeepSessionAUsableAfterSessionBDisposes() {
+        string projectRootA = CreateProjectRoot();
+        string projectRootB = CreateProjectRoot();
+        EditorSession sessionA = null;
+        EditorSession sessionB = null;
+
+        try {
+            sessionA = CreateActualEditorSession(projectRootA);
+            AssetBrowserEntry cubeEntry = AssetBrowserEntry.CreateGeneratedAsset(
+                "Cube",
+                EngineGeneratedAssetProvider.CubeRelativePath,
+                AssetEntryKind.Model,
+                EngineGeneratedAssetProvider.ProviderIdValue,
+                EngineGeneratedModelCache.CubeAssetId);
+            RuntimeModel modelA = GetPrivateField<GeneratedAssetProviderRegistry>(sessionA, "generatedAssetProviderRegistry").ResolveRuntimeModel(cubeEntry);
+            sessionB = CreateActualEditorSession(projectRootB);
+
+            // Create A-owned scene state after B has become the ambient legacy
+            // core. The explicit editor factory must still bind the entity to A.
+            EditorEntity selectedEntityA = Assert.IsType<EditorEntity>(sessionA.Core.EntityFactory.Create("Session A entity"));
+            sessionA.InteractionServices.Selection.SetSelectedEntity(selectedEntityA);
+
+            sessionB.Dispose();
+            sessionB = null;
+
+            Assert.Same(modelA, GetPrivateField<GeneratedAssetProviderRegistry>(sessionA, "generatedAssetProviderRegistry").ResolveRuntimeModel(cubeEntry));
+            Assert.Same(selectedEntityA, sessionA.InteractionServices.Selection.SelectedEntity);
+            sessionA.Core.ObjectManager.Update();
+            selectedEntityA.Dispose();
         } finally {
             sessionA?.Dispose();
             sessionB?.Dispose();
@@ -191,7 +262,8 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
                 CreateTexture(),
                 Array.Empty<IAssetImporterRegistration>(),
                 () => projectRootPath,
-                shaderBackendRegistry);
+                shaderBackendRegistry,
+                new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(projectRootPath)));
             return session;
         } catch {
             core.Dispose();

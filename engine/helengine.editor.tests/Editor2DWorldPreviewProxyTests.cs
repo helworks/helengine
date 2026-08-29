@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies editor-owned 2D world-preview proxy mappings between authored scene entities and internal preview entities.
     /// </summary>
     public sealed class Editor2DWorldPreviewProxyTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by preview-proxy registry tests.
@@ -36,10 +37,10 @@ namespace helengine.editor.tests {
                 InternalEntity = true
             };
 
-            EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
+            InteractionServices.WorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
-            Assert.Same(sourceEntity, EditorWorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity));
-            Assert.Same(previewEntity, EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
+            Assert.Same(sourceEntity, InteractionServices.WorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity));
+            Assert.Same(previewEntity, InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
         }
 
         /// <summary>
@@ -53,12 +54,12 @@ namespace helengine.editor.tests {
             EditorEntity previewEntity = new EditorEntity {
                 InternalEntity = true
             };
-            EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
+            InteractionServices.WorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
 
-            EditorWorldSpace2DPreviewRegistry.RemoveBySourceEntity(sourceEntity);
+            InteractionServices.WorldSpace2DPreviewRegistry.RemoveBySourceEntity(sourceEntity);
 
-            Assert.Null(EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
-            Assert.Null(EditorWorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity));
+            Assert.Null(InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
+            Assert.Null(InteractionServices.WorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity));
         }
 
         /// <summary>
@@ -74,7 +75,7 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(128, 64),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -103,7 +104,7 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(32, 32),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -129,7 +130,7 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(32, 16),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -154,7 +155,7 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(32, 16),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -224,7 +225,7 @@ namespace helengine.editor.tests {
 
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(220, 110),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -260,7 +261,7 @@ namespace helengine.editor.tests {
 
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(32, 16),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -350,7 +351,7 @@ namespace helengine.editor.tests {
 
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(220, 220),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 

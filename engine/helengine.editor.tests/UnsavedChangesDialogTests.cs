@@ -19,8 +19,6 @@ namespace helengine.editor.tests {
         public UnsavedChangesDialogTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-unsaved-changes-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            EditorInputCaptureService.Reset();
-
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
@@ -31,7 +29,6 @@ namespace helengine.editor.tests {
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -288,7 +285,7 @@ namespace helengine.editor.tests {
             UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
             SpriteComponent closeButtonSeparator = GetPrivateField<SpriteComponent>(dialog, "CloseButtonSeparator");
 
-            Assert.Equal(TextureUtils.PixelTexture, closeButtonSeparator.Texture);
+            Assert.Equal(Core.Instance.RenderManager2D.PixelTexture, closeButtonSeparator.Texture);
             Assert.Equal(ThemeManager.Colors.AccentQuaternary, closeButtonSeparator.Color);
         }
 

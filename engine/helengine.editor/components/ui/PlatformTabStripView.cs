@@ -266,7 +266,7 @@ namespace helengine.editor {
             EnvironmentAddButton = CreateArrowButton("+", HandleEnvironmentAddClicked);
             EnvironmentAddHost.AddComponent(EnvironmentAddButton);
 
-            EditorKeyboardFocusService.RegisterGroup(this);
+            EditorSessionInteractionServices.From(RootValue).KeyboardFocus.RegisterGroup(this);
         }
 
         /// <summary>
@@ -528,7 +528,7 @@ namespace helengine.editor {
         /// </summary>
         public void Dispose() {
             ClearTabs();
-            EditorKeyboardFocusService.UnregisterGroup(this);
+            EditorSessionInteractionServices.From(RootValue).KeyboardFocus.UnregisterGroup(this);
             NativeOwnership.DisposeAndDelete(LeftArrowIconTexture);
             NativeOwnership.DisposeAndDelete(RightArrowIconTexture);
         }
@@ -650,7 +650,7 @@ namespace helengine.editor {
                 key => CanActivatePlatformKey(platformId, key),
                 key => ActivatePlatformKey(platformId, key));
 
-            EditorKeyboardFocusService.RegisterTarget(focusTarget);
+            EditorSessionInteractionServices.From(RootValue).KeyboardFocus.RegisterTarget(focusTarget);
 
             TabHosts.Add(tabHost);
             Tabs.Add(tab);
@@ -662,7 +662,7 @@ namespace helengine.editor {
         /// </summary>
         void ClearTabs() {
             for (int i = 0; i < TabFocusTargets.Count; i++) {
-                EditorKeyboardFocusService.UnregisterTarget(TabFocusTargets[i]);
+                EditorSessionInteractionServices.From(RootValue).KeyboardFocus.UnregisterTarget(TabFocusTargets[i]);
             }
 
             for (int i = TabHosts.Count - 1; i >= 0; i--) {
@@ -687,7 +687,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="platformId">Platform identifier represented by the clicked tab.</param>
         void HandleTabClicked(string platformId) {
-            EditorKeyboardFocusService.SetFocusedTarget(GetFocusTarget(platformId));
+            EditorSessionInteractionServices.From(RootValue).KeyboardFocus.SetFocusedTarget(GetFocusTarget(platformId));
         }
 
         /// <summary>
@@ -770,7 +770,7 @@ namespace helengine.editor {
                 return;
             }
 
-            EditorKeyboardFocusService.SetFocusedTarget(TabFocusTargets[nextIndex]);
+            EditorSessionInteractionServices.From(RootValue).KeyboardFocus.SetFocusedTarget(TabFocusTargets[nextIndex]);
         }
 
         /// <summary>

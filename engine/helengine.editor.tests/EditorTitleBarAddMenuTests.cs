@@ -236,6 +236,7 @@ namespace helengine.editor.tests {
             CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
 
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            titleBar.SetInput(core.Input);
             DockableEntity dockable = new DockableEntity(CreateFont());
             dockable.Position = new float3(0f, titleBar.Height, 0f);
             dockable.Size = new int2(640, 360);
@@ -271,6 +272,7 @@ namespace helengine.editor.tests {
             CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
 
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            titleBar.SetInput(core.Input);
             DockableEntity dockable = new DockableEntity(CreateFont());
             dockable.Position = new float3(0f, titleBar.Height, 0f);
             dockable.Size = new int2(640, 360);

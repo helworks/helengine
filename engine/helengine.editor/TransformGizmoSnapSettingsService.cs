@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Stores configurable snap values per transform-gizmo tool mode.
     /// </summary>
-    public static class TransformGizmoSnapSettingsService {
+    public sealed class TransformGizmoSnapSettingsService : IDisposable {
         /// <summary>
         /// Default translation snap value used by the first snap slot.
         /// </summary>
@@ -35,30 +35,30 @@ namespace helengine.editor {
         /// <summary>
         /// First snap-slot value stored per tool mode.
         /// </summary>
-        static readonly Dictionary<EditorViewportToolMode, double> Snap1ValuesByToolMode =
+        readonly Dictionary<EditorViewportToolMode, double> Snap1ValuesByToolMode =
             new Dictionary<EditorViewportToolMode, double>();
         /// <summary>
         /// Second snap-slot value stored per tool mode.
         /// </summary>
-        static readonly Dictionary<EditorViewportToolMode, double> Snap2ValuesByToolMode =
+        readonly Dictionary<EditorViewportToolMode, double> Snap2ValuesByToolMode =
             new Dictionary<EditorViewportToolMode, double>();
         /// <summary>
         /// Camera-scoped snap-settings states used by independent viewport instances.
         /// </summary>
-        static readonly Dictionary<CameraComponent, TransformGizmoSnapSettingsState> StatesByCamera =
+        readonly Dictionary<CameraComponent, TransformGizmoSnapSettingsState> StatesByCamera =
             new Dictionary<CameraComponent, TransformGizmoSnapSettingsState>();
 
         /// <summary>
         /// Initializes the snap store with default values for each tool mode.
         /// </summary>
-        static TransformGizmoSnapSettingsService() {
+        public TransformGizmoSnapSettingsService() {
             ResetDefaults();
         }
 
         /// <summary>
         /// Restores all snap values back to their default per-tool configuration.
         /// </summary>
-        public static void ResetDefaults() {
+        public void ResetDefaults() {
             Snap1ValuesByToolMode.Clear();
             Snap2ValuesByToolMode.Clear();
             StatesByCamera.Clear();
@@ -75,7 +75,7 @@ namespace helengine.editor {
         /// Restores the snap values for one viewport camera back to their default per-tool configuration.
         /// </summary>
         /// <param name="camera">Viewport camera whose snap state should be reset.</param>
-        public static void ResetDefaults(CameraComponent camera) {
+        public void ResetDefaults(CameraComponent camera) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -87,7 +87,7 @@ namespace helengine.editor {
         /// Removes any camera-scoped snap state associated with one viewport camera.
         /// </summary>
         /// <param name="camera">Viewport camera whose snap state should be discarded.</param>
-        public static void ClearState(CameraComponent camera) {
+        public void ClearState(CameraComponent camera) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -101,7 +101,7 @@ namespace helengine.editor {
         /// <param name="toolMode">Tool mode whose snap value should be read.</param>
         /// <param name="snapSlot">Snap slot to read.</param>
         /// <returns>Configured snap value.</returns>
-        public static double GetSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
+        public double GetSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
             ValidateSnapSlot(snapSlot);
 
             if (snapSlot == TransformGizmoSnapSlot.Snap1) {
@@ -118,7 +118,7 @@ namespace helengine.editor {
         /// <param name="toolMode">Tool mode whose snap value should be read.</param>
         /// <param name="snapSlot">Snap slot to read.</param>
         /// <returns>Configured snap value.</returns>
-        public static double GetSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
+        public double GetSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
             return GetSnapValue(GetOrCreateState(camera), toolMode, snapSlot);
         }
 
@@ -128,7 +128,7 @@ namespace helengine.editor {
         /// <param name="toolMode">Tool mode whose snap value should be updated.</param>
         /// <param name="snapSlot">Snap slot to update.</param>
         /// <param name="value">Snap value to persist.</param>
-        public static void SetSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot, double value) {
+        public void SetSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot, double value) {
             TransformGizmoSnapSettingsState state = CreateDefaultStateFromGlobal();
             SetSnapValue(state, toolMode, snapSlot, value);
             ApplyStateToGlobal(state);
@@ -141,7 +141,7 @@ namespace helengine.editor {
         /// <param name="toolMode">Tool mode whose snap value should be updated.</param>
         /// <param name="snapSlot">Snap slot to update.</param>
         /// <param name="value">Snap value to persist.</param>
-        public static void SetSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot, double value) {
+        public void SetSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot, double value) {
             SetSnapValue(GetOrCreateState(camera), toolMode, snapSlot, value);
         }
 
@@ -150,7 +150,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="toolMode">Tool mode whose snap value should be increased.</param>
         /// <param name="snapSlot">Snap slot to increase.</param>
-        public static void IncreaseSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
+        public void IncreaseSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
             AdjustSnapValue(toolMode, snapSlot, 2.0);
         }
 
@@ -160,7 +160,7 @@ namespace helengine.editor {
         /// <param name="camera">Viewport camera whose snap value should be increased.</param>
         /// <param name="toolMode">Tool mode whose snap value should be increased.</param>
         /// <param name="snapSlot">Snap slot to increase.</param>
-        public static void IncreaseSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
+        public void IncreaseSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
             AdjustSnapValue(GetOrCreateState(camera), toolMode, snapSlot, 2.0);
         }
 
@@ -169,7 +169,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="toolMode">Tool mode whose snap value should be decreased.</param>
         /// <param name="snapSlot">Snap slot to decrease.</param>
-        public static void DecreaseSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
+        public void DecreaseSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
             AdjustSnapValue(toolMode, snapSlot, 0.5);
         }
 
@@ -179,7 +179,7 @@ namespace helengine.editor {
         /// <param name="camera">Viewport camera whose snap value should be decreased.</param>
         /// <param name="toolMode">Tool mode whose snap value should be decreased.</param>
         /// <param name="snapSlot">Snap slot to decrease.</param>
-        public static void DecreaseSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
+        public void DecreaseSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
             AdjustSnapValue(GetOrCreateState(camera), toolMode, snapSlot, 0.5);
         }
 
@@ -189,7 +189,7 @@ namespace helengine.editor {
         /// <param name="isControlDown">True when either control key is pressed.</param>
         /// <param name="isShiftDown">True when either shift key is pressed.</param>
         /// <returns>Active snap slot, or <see cref="TransformGizmoSnapSlot.None"/> when snapping is inactive.</returns>
-        public static TransformGizmoSnapSlot ResolveActiveSnapSlot(bool isControlDown, bool isShiftDown) {
+        public TransformGizmoSnapSlot ResolveActiveSnapSlot(bool isControlDown, bool isShiftDown) {
             if (isShiftDown) {
                 return TransformGizmoSnapSlot.Snap2;
             }
@@ -208,7 +208,7 @@ namespace helengine.editor {
         /// <param name="isControlDown">True when either control key is pressed.</param>
         /// <param name="isShiftDown">True when either shift key is pressed.</param>
         /// <returns>Active snap value, or zero when no snap modifier is active.</returns>
-        public static double GetActiveSnapValue(EditorViewportToolMode toolMode, bool isControlDown, bool isShiftDown) {
+        public double GetActiveSnapValue(EditorViewportToolMode toolMode, bool isControlDown, bool isShiftDown) {
             TransformGizmoSnapSlot activeSnapSlot = ResolveActiveSnapSlot(isControlDown, isShiftDown);
             if (activeSnapSlot == TransformGizmoSnapSlot.None) {
                 return 0.0;
@@ -225,7 +225,7 @@ namespace helengine.editor {
         /// <param name="isControlDown">True when either control key is pressed.</param>
         /// <param name="isShiftDown">True when either shift key is pressed.</param>
         /// <returns>Active snap value, or zero when no snap modifier is active.</returns>
-        public static double GetActiveSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, bool isControlDown, bool isShiftDown) {
+        public double GetActiveSnapValue(CameraComponent camera, EditorViewportToolMode toolMode, bool isControlDown, bool isShiftDown) {
             TransformGizmoSnapSlot activeSnapSlot = ResolveActiveSnapSlot(isControlDown, isShiftDown);
             if (activeSnapSlot == TransformGizmoSnapSlot.None) {
                 return 0.0;
@@ -240,7 +240,7 @@ namespace helengine.editor {
         /// <param name="toolMode">Tool mode whose value is being updated.</param>
         /// <param name="snapSlot">Snap slot to update.</param>
         /// <param name="multiplier">Multiplier applied to the current value.</param>
-        static void AdjustSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot, double multiplier) {
+        void AdjustSnapValue(EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot, double multiplier) {
             ValidateSnapSlot(snapSlot);
             if (multiplier <= 0.0) {
                 throw new ArgumentOutOfRangeException(nameof(multiplier), "Snap multiplier must be greater than zero.");
@@ -344,7 +344,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="camera">Viewport camera whose snap state should be resolved.</param>
         /// <returns>Camera-scoped snap-state bundle.</returns>
-        static TransformGizmoSnapSettingsState GetOrCreateState(CameraComponent camera) {
+        TransformGizmoSnapSettingsState GetOrCreateState(CameraComponent camera) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -375,7 +375,7 @@ namespace helengine.editor {
         /// Creates one snap-state bundle from the current shared global values.
         /// </summary>
         /// <returns>Snap-state bundle mirroring the current shared values.</returns>
-        static TransformGizmoSnapSettingsState CreateDefaultStateFromGlobal() {
+        TransformGizmoSnapSettingsState CreateDefaultStateFromGlobal() {
             return new TransformGizmoSnapSettingsState(
                 Snap1ValuesByToolMode[EditorViewportToolMode.Translate],
                 Snap2ValuesByToolMode[EditorViewportToolMode.Translate],
@@ -389,7 +389,7 @@ namespace helengine.editor {
         /// Applies one snap-state bundle back onto the shared global snap values.
         /// </summary>
         /// <param name="state">Snap-state bundle whose values should become global defaults.</param>
-        static void ApplyStateToGlobal(TransformGizmoSnapSettingsState state) {
+        void ApplyStateToGlobal(TransformGizmoSnapSettingsState state) {
             if (state == null) {
                 throw new ArgumentNullException(nameof(state));
             }
@@ -455,6 +455,12 @@ namespace helengine.editor {
         /// <returns>Rounded snap value.</returns>
         static double RoundSnapValue(double value) {
             return Math.Round(value, SnapValuePrecisionDigits, MidpointRounding.AwayFromZero);
+        }
+
+        public void Dispose() {
+            Snap1ValuesByToolMode.Clear();
+            Snap2ValuesByToolMode.Clear();
+            StatesByCamera.Clear();
         }
     }
 }

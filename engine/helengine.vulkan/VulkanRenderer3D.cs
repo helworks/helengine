@@ -329,7 +329,7 @@ namespace helengine.vulkan {
             material.CastsShadows = materialAsset.CastsShadows;
             material.ReceivesShadows = materialAsset.ReceivesShadows;
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
-            StandardMaterialTextureBindingDefaults.Apply(material);
+            StandardMaterialTextureBindingDefaults.Apply(material, renderer2D);
             material.MaterialDescriptorSet = AllocateMaterialDescriptorSet();
             RegisterMaterial(material);
             return material;
@@ -1046,7 +1046,7 @@ namespace helengine.vulkan {
             if (runtimeMaterial == null) {
                 throw new ArgumentNullException(nameof(runtimeMaterial));
             } else if (runtimeMaterial.Layout.TextureBindings.Length == 0) {
-                return TextureUtils.PixelTexture;
+                return OwnerCore.RenderManager2D.PixelTexture;
             }
 
             RuntimeTexture runtimeTexture = runtimeMaterial.ResolveTexture();
@@ -1054,7 +1054,7 @@ namespace helengine.vulkan {
                 return runtimeTexture;
             }
 
-            return TextureUtils.BlackPixelTexture;
+            return OwnerCore.RenderManager2D.BlackPixelTexture;
         }
 
         /// <summary>

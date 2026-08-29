@@ -2,11 +2,11 @@ namespace helengine.editor {
     /// <summary>
     /// Stores active transform-gizmo drag state per viewport camera.
     /// </summary>
-    public static class EditorGizmoDragService {
+    public sealed class EditorGizmoDragService : IDisposable {
         /// <summary>
         /// Active dragged entity mapped by viewport camera.
         /// </summary>
-        static readonly Dictionary<CameraComponent, Entity> DraggedEntityByCamera =
+        readonly Dictionary<CameraComponent, Entity> DraggedEntityByCamera =
             new Dictionary<CameraComponent, Entity>();
 
         /// <summary>
@@ -14,7 +14,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="camera">Viewport camera driving the drag operation.</param>
         /// <param name="draggedEntity">Entity currently being transformed.</param>
-        public static void BeginDrag(CameraComponent camera, Entity draggedEntity) {
+        public void BeginDrag(CameraComponent camera, Entity draggedEntity) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -30,7 +30,7 @@ namespace helengine.editor {
         /// Clears the active drag registration for a viewport camera.
         /// </summary>
         /// <param name="camera">Viewport camera whose drag registration should be removed.</param>
-        public static void EndDrag(CameraComponent camera) {
+        public void EndDrag(CameraComponent camera) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }
@@ -41,7 +41,7 @@ namespace helengine.editor {
         /// <summary>
         /// Clears drag state for every viewport when a session is torn down.
         /// </summary>
-        public static void Reset() {
+        public void Dispose() {
             DraggedEntityByCamera.Clear();
         }
 
@@ -50,7 +50,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="camera">Viewport camera to query.</param>
         /// <returns>True when the camera has an active drag registration; otherwise false.</returns>
-        public static bool IsDragging(CameraComponent camera) {
+        public bool IsDragging(CameraComponent camera) {
             if (camera == null) {
                 throw new ArgumentNullException(nameof(camera));
             }

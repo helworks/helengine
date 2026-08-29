@@ -13,6 +13,7 @@ namespace helengine.editor.tests {
     /// Verifies the editor session handles title-bar add commands.
     /// </summary>
     public class EditorSessionAddMenuTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary project root used by add-menu session tests.
         /// </summary>
@@ -28,8 +29,6 @@ namespace helengine.editor.tests {
 
             EnsureEditorCoreHost();
             GeneratedAssetGraph = new TestGeneratedAssetGraph(Core.Instance);
-            EditorSelectionService.Reset();
-            EditorSceneMutationService.Reset();
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
@@ -40,8 +39,6 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            EditorSelectionService.Reset();
-            EditorSceneMutationService.Reset();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -55,7 +52,7 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForAddCommands();
             InvokePrivate(session, "HandleAddEmptyRequested");
 
-            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             Assert.Equal("Empty", selectedEntity.Name);
             Assert.Equal(float3.Zero, selectedEntity.LocalPosition);
             Assert.Equal(1, GetHierarchyNodeCount(session));
@@ -70,7 +67,7 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleAddCubeRequested");
 
-            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(selectedEntity.Components, component => component is MeshComponent));
 
             Assert.Equal("Cube", selectedEntity.Name);
@@ -88,7 +85,7 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleAddCameraRequested");
 
-            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             CameraComponent cameraComponent = Assert.IsType<CameraComponent>(Assert.Single(selectedEntity.Components, component => component is CameraComponent));
             EditorSceneCameraSuppressionComponent suppressionComponent = Assert.IsType<EditorSceneCameraSuppressionComponent>(Assert.Single(selectedEntity.Components, component => component is EditorSceneCameraSuppressionComponent));
             EditorEntity visualEntity = Assert.IsType<EditorEntity>(Assert.Single(selectedEntity.Children));
@@ -112,7 +109,7 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleAddSpotLightRequested");
 
-            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             SpotLightComponent lightComponent = Assert.IsType<SpotLightComponent>(Assert.Single(selectedEntity.Components, component => component is SpotLightComponent));
 
             Assert.Equal("Spot Light", selectedEntity.Name);
@@ -131,7 +128,7 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleAddPointLightRequested");
 
-            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             PointLightComponent lightComponent = Assert.IsType<PointLightComponent>(Assert.Single(selectedEntity.Components, component => component is PointLightComponent));
 
             Assert.Equal("Point Light", selectedEntity.Name);
@@ -148,7 +145,7 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleAddDirectionalLightRequested");
 
-            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             DirectionalLightComponent lightComponent = Assert.IsType<DirectionalLightComponent>(Assert.Single(selectedEntity.Components, component => component is DirectionalLightComponent));
 
             Assert.Equal("Directional Light", selectedEntity.Name);
@@ -165,7 +162,7 @@ namespace helengine.editor.tests {
 
             InvokePrivate(session, "HandleAddAmbientLightRequested");
 
-            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity selectedEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             AmbientLightComponent lightComponent = Assert.IsType<AmbientLightComponent>(Assert.Single(selectedEntity.Components, component => component is AmbientLightComponent));
 
             Assert.Equal("Ambient Light", selectedEntity.Name);
@@ -183,14 +180,13 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForAddCommands();
 
             try {
-                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
 
                 InvokePrivate(session, "HandleAddEmptyRequested");
 
                 Assert.True(raised);
             } finally {
-                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
-                EditorSceneMutationService.Reset();
+                InteractionServices.SceneMutation.SceneMutated -= handleSceneMutated;
             }
         }
 
@@ -202,9 +198,29 @@ namespace helengine.editor.tests {
             EnsureEditorCoreHost();
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
+            sceneHierarchyPanel.SetObjectManager(Core.Instance.ObjectManager);
+            sceneHierarchyPanel.SetInput(Core.Instance.Input);
             EditorSceneCreationService sceneCreationService = GeneratedAssetGraph.CreateSceneCreationService();
+            SceneSaveService sceneSaveService = new SceneSaveService(
+                TempProjectRootPath,
+                new ComponentPersistenceRegistry(),
+                new EditorAssetReferenceResolver(TempProjectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache,
+                GeneratedAssetGraph.RendererResources);
+            EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(sceneSaveService);
+            EditorUndoRedoService undoRedoService = new EditorUndoRedoService(new EditorHistoryContext());
+            EditorMutationService historyMutationService = new EditorMutationService(
+                undoRedoService,
+                historyCaptureService,
+                new ComponentHistoryAdapterRegistry(),
+                () => InteractionServices.SceneMutation.MarkSceneMutated());
 
             SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
+            SetPrivateField(session, "interactionServices", InteractionServices);
+            SetPrivateField(session, "HistoryCaptureService", historyCaptureService);
+            SetPrivateField(session, "UndoRedoService", undoRedoService);
+            SetPrivateField(session, "HistoryMutationService", historyMutationService);
             SetPrivateField(session, "SceneCreationService", sceneCreationService);
             SetPrivateField(session, "generatedAssetProviderRegistry", GeneratedAssetGraph.Registry);
             SetPrivateField(session, "generatedModelCache", GeneratedAssetGraph.ModelCache);
@@ -221,6 +237,7 @@ namespace helengine.editor.tests {
             if (Core.Instance is EditorCore editorCore
                 && editorCore.Project != null
                 && string.Equals(editorCore.Project.Path, TempProjectRootPath, StringComparison.Ordinal)) {
+                editorCore.SessionInteractionServices = InteractionServices;
                 return;
             }
 
@@ -231,6 +248,7 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
+            core.SessionInteractionServices = InteractionServices;
         }
 
         /// <summary>

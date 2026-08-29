@@ -152,20 +152,20 @@ namespace helengine.editor {
             }
 
             bool isTransformGizmoToolActive = IsTransformGizmoToolActive();
-            Entity hoveredAxis = isTransformGizmoToolActive ? EditorGizmoHoverService.GetHoveredAxis(SceneCamera) : null;
+            Entity hoveredAxis = isTransformGizmoToolActive ? EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredAxis(SceneCamera) : null;
 
             if (hoveredAxis != null && input.GetMouseLeftButtonState() == ButtonState.Pressed) {
                 return;
             }
 
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer)) {
-                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
+            if (EditorSessionInteractionServices.From(Parent).InputCapture.IsPointerBlocked(pointer)) {
+                EditorSessionInteractionServices.From(Parent).GizmoHover.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
             if (!IsPointerInsideViewport(input)) {
-                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
+                EditorSessionInteractionServices.From(Parent).GizmoHover.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
@@ -174,7 +174,7 @@ namespace helengine.editor {
                     return;
                 }
 
-                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
+                EditorSessionInteractionServices.From(Parent).GizmoHover.ClearHoveredHandle(SceneCamera);
                 QueuePick(input, EditorLayerMasks.SceneObjects, PickModeSelection);
                 return;
             }
@@ -194,7 +194,7 @@ namespace helengine.editor {
             base.ComponentRemoved(entity);
             DisposeReadbackTexture();
             DisposePickerRenderTarget();
-            EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
+            EditorSessionInteractionServices.From(Parent).GizmoHover.ClearHoveredHandle(SceneCamera);
         }
 
         /// <summary>
@@ -312,22 +312,22 @@ namespace helengine.editor {
         /// <param name="pickId">Pick identifier read from the picker target.</param>
         void ResolveHoverPick(int pickId) {
             if (pickId == 0) {
-                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
+                EditorSessionInteractionServices.From(Parent).GizmoHover.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
             if (!PickEntitiesById.TryGetValue(pickId, out Entity entity)) {
-                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
+                EditorSessionInteractionServices.From(Parent).GizmoHover.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
             Entity hoveredAxis = ResolveTransformHandleEntity(entity);
             if (hoveredAxis == null) {
-                EditorGizmoHoverService.ClearHoveredHandle(SceneCamera);
+                EditorSessionInteractionServices.From(Parent).GizmoHover.ClearHoveredHandle(SceneCamera);
                 return;
             }
 
-            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredAxis);
+            EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, hoveredAxis);
         }
 
         /// <summary>
@@ -763,7 +763,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the scene viewport tool mode is currently backed by a live gizmo.</returns>
         bool IsTransformGizmoToolActive() {
-            EditorViewportToolMode toolMode = EditorViewportToolService.GetToolMode(SceneCamera);
+            EditorViewportToolMode toolMode = EditorSessionInteractionServices.From(Parent).ViewportTool.GetToolMode(SceneCamera);
             return toolMode == EditorViewportToolMode.Translate ||
                    toolMode == EditorViewportToolMode.Rotate ||
                    toolMode == EditorViewportToolMode.Scale;
@@ -774,7 +774,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the original pick request came from an unblocked scene-viewport click.</returns>
         bool ShouldClearSelectionForMissedPick() {
-            if (EditorInputCaptureService.IsPointerBlocked(PendingPointer)) {
+            if (EditorSessionInteractionServices.From(Parent).InputCapture.IsPointerBlocked(PendingPointer)) {
                 return false;
             }
 
@@ -789,7 +789,7 @@ namespace helengine.editor {
                 return;
             }
 
-            EditorSelectionService.ClearSelection();
+            EditorSessionInteractionServices.From(Parent).Selection.ClearSelection();
         }
 
         /// <summary>
@@ -845,7 +845,7 @@ namespace helengine.editor {
                 return;
             }
 
-            EditorSelectionService.SetSelectedEntity(entity);
+            EditorSessionInteractionServices.From(Parent).Selection.SetSelectedEntity(entity);
         }
 
         /// <summary>

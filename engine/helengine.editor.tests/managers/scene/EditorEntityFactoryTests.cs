@@ -86,7 +86,7 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void CreateChild_ParentsChildBeforeReturning() {
             EditorCore editorCore = Assert.IsType<EditorCore>(Core.Instance);
-            IEntityFactory factory = new EditorEntityFactory(editorCore.SceneEntityIdAllocator);
+            IEntityFactory factory = new EditorEntityFactory(editorCore, editorCore.SceneEntityIdAllocator);
             EditorEntity parent = Assert.IsType<EditorEntity>(factory.Create("Parent"));
 
             Entity child = factory.CreateChild(parent, "Child");

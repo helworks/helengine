@@ -137,7 +137,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Viewport stats overlay must be attached to an EditorEntity.");
             }
 
-            OverlayRoot = new EditorEntity {
+            OverlayRoot = new EditorEntity(editorEntity.OwnerCore) {
                 InternalEntity = true,
                 LayerMask = editorEntity.LayerMask,
                 Position = new float3(OverlayMargin, DockableEntity.TitleBarHeight + ViewportTopOffset + OverlayMargin, 0.35f)
@@ -154,7 +154,7 @@ namespace helengine.editor {
             };
             OverlayRoot.AddComponent(OverlayBackground);
 
-            TextHost = new EditorEntity {
+            TextHost = new EditorEntity(editorEntity.OwnerCore) {
                 InternalEntity = true,
                 LayerMask = editorEntity.LayerMask,
                 Position = new float3(OverlayPaddingX, OverlayPaddingY, 0.1f)

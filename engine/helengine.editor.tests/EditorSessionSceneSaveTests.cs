@@ -10,6 +10,7 @@ namespace helengine.editor.tests {
     /// Verifies scene save routing from the editor session.
     /// </summary>
     public class EditorSessionSceneSaveTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary project root used by editor-session scene save tests.
         /// </summary>
@@ -31,14 +32,12 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
-            EditorSceneMutationService.Reset();
         }
 
         /// <summary>
         /// Deletes temporary project state after each test.
         /// </summary>
         public void Dispose() {
-            EditorSceneMutationService.Reset();
             GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
@@ -230,10 +229,10 @@ namespace helengine.editor.tests {
             Action handleSceneMutated = () => InvokePrivate(session, "HandleSceneMutated");
 
             try {
-                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
                 InvokePrivate(session, "HandleSceneSettingsDialogConfirmed", updatedSettings);
             } finally {
-                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated -= handleSceneMutated;
             }
 
             SceneSettingsAsset currentSceneSettings = GetPrivateField<SceneSettingsAsset>(session, "CurrentSceneSettings");
@@ -262,10 +261,10 @@ namespace helengine.editor.tests {
             Action handleSceneMutated = () => InvokePrivate(session, "HandleSceneMutated");
 
             try {
-                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
                 InvokePrivate(session, "HandleSceneSettingsDialogConfirmed", updatedSettings);
             } finally {
-                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated -= handleSceneMutated;
             }
 
             SceneSettingsAsset currentSceneSettings = GetPrivateField<SceneSettingsAsset>(session, "CurrentSceneSettings");
@@ -319,7 +318,15 @@ namespace helengine.editor.tests {
             sceneCanvasProfileState.ApplySceneSettings(currentSceneSettings);
             SceneSettingsDialog sceneSettingsDialog = new SceneSettingsDialog(CreateFont(), EditorUiMetrics.Default);
             EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine - project.heproj");
+            EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(saveService);
+            EditorUndoRedoService undoRedoService = new EditorUndoRedoService(new EditorHistoryContext());
+            EditorMutationService historyMutationService = new EditorMutationService(
+                undoRedoService,
+                historyCaptureService,
+                new ComponentHistoryAdapterRegistry(),
+                () => InteractionServices.SceneMutation.MarkSceneMutated());
 
+            SetPrivateField(session, "interactionServices", InteractionServices);
             SetPrivateField(session, "assetBrowserPanel", assetBrowserPanel);
             SetPrivateField(session, "saveFileDialog", saveFileDialog);
             SetPrivateField(session, "SceneSavePathResolver", pathResolver);
@@ -330,6 +337,9 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "sceneSettingsDialog", sceneSettingsDialog);
             SetPrivateField(session, "titleBar", titleBar);
             SetPrivateField(session, "ProjectDisplayName", "project.heproj");
+            SetPrivateField(session, "HistoryCaptureService", historyCaptureService);
+            SetPrivateField(session, "UndoRedoService", undoRedoService);
+            SetPrivateField(session, "HistoryMutationService", historyMutationService);
 
             return session;
         }

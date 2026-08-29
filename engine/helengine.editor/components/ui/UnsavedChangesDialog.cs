@@ -179,7 +179,7 @@ namespace helengine.editor {
             };
             DialogPanelRoot.AddChild(FooterHost);
             FooterBoundsSurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 0),
                 RenderOrder2D = RenderOrder2D.ModalInput,
                 Size = GetFooterBoundsSize()

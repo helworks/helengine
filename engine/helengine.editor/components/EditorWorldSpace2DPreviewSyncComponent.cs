@@ -79,7 +79,7 @@ namespace helengine {
         /// <param name="sourceComponent">Supported 2D component mirrored by the preview.</param>
         /// <returns>Resolved preview entity for the supplied source entity.</returns>
         EditorEntity EnsurePreviewEntity(Entity sourceEntity, Component sourceComponent) {
-            EditorEntity previewEntity = helengine.editor.EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
+            EditorEntity previewEntity = helengine.editor.EditorSessionInteractionServices.From(Parent).WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
             if (previewEntity != null) {
                 if (!OwnedPreviewEntitiesBySourceEntity.ContainsKey(sourceEntity)) {
                     OwnedPreviewEntitiesBySourceEntity.Add(sourceEntity, previewEntity);
@@ -90,7 +90,7 @@ namespace helengine {
 
             previewEntity = CreatePreviewEntity(sourceEntity, sourceComponent);
             OwnedPreviewEntitiesBySourceEntity[sourceEntity] = previewEntity;
-            helengine.editor.EditorWorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
+            helengine.editor.EditorSessionInteractionServices.From(Parent).WorldSpace2DPreviewRegistry.Register(sourceEntity, previewEntity);
             return previewEntity;
         }
 
@@ -101,7 +101,8 @@ namespace helengine {
         /// <param name="sourceComponent">Supported 2D component mirrored by the preview.</param>
         /// <returns>Newly created internal preview proxy entity.</returns>
         EditorEntity CreatePreviewEntity(Entity sourceEntity, Component sourceComponent) {
-            EditorEntity previewEntity = new EditorEntity {
+            Core ownerCore = RendererResources.ObjectManager.OwnerCore ?? throw new InvalidOperationException("World-space preview object manager must be bound to an owning core.");
+            EditorEntity previewEntity = new EditorEntity(ownerCore) {
                 Name = "World Space 2D Preview",
                 InternalEntity = true,
                 LayerMask = helengine.editor.EditorLayerMasks.SceneObjects
@@ -175,7 +176,7 @@ namespace helengine {
             }
 
             OwnedPreviewEntitiesBySourceEntity.Remove(sourceEntity);
-            helengine.editor.EditorWorldSpace2DPreviewRegistry.RemoveBySourceEntity(sourceEntity);
+            helengine.editor.EditorSessionInteractionServices.From(Parent).WorldSpace2DPreviewRegistry.RemoveBySourceEntity(sourceEntity);
             previewEntity.Dispose();
         }
 

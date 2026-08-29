@@ -73,6 +73,29 @@ public sealed class RendererSessionIsolationSourceTests {
     }
 
     [Fact]
+    public void PixelFallbackTextures_AreRendererOwnedAndNotProcessGlobal() {
+        string utilitySource = File.ReadAllText(Path.Combine(
+            TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
+            "engine",
+            "helengine.core",
+            "utils",
+            "TextureUtils.cs"));
+        string rendererSource = File.ReadAllText(Path.Combine(
+            TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
+            "engine",
+            "helengine.core",
+            "managers",
+            "rendering",
+            "RenderManager2D.cs"));
+
+        Assert.DoesNotContain("static RuntimeTexture PixelTexture", utilitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("static RuntimeTexture BlackPixelTexture", utilitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Core.Instance", utilitySource, StringComparison.Ordinal);
+        Assert.Contains("public RuntimeTexture PixelTexture", rendererSource, StringComparison.Ordinal);
+        Assert.Contains("public RuntimeTexture BlackPixelTexture", rendererSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SessionResourceDisposal_RetainsRetryStateUntilEveryChildSucceeds() {
         string source = File.ReadAllText(ResolveSourcePath("managers/scene/EditorSessionRendererResources.cs"));
         string normalized = source.Replace("\r\n", "\n", StringComparison.Ordinal);

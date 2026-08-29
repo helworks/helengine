@@ -1,21 +1,18 @@
 namespace helengine.editor.tests;
 
 /// <summary>
-/// Verifies the editor session source resets shared input-capture state at both lifecycle boundaries.
+/// Verifies the editor session source owns input-capture state through its interaction graph.
 /// </summary>
 public sealed class EditorSessionInputCaptureLifecycleSourceTests {
     /// <summary>
-    /// Ensures session initialization and disposal each clear the static input-capture registry.
+    /// Ensures session construction and disposal use the session-owned input-capture service without a static reset facade.
     /// </summary>
     [Fact]
-    public void Editor_session_source_resets_input_capture_at_startup_and_teardown() {
+    public void Editor_session_source_owns_input_capture_at_startup_and_teardown() {
         string source = File.ReadAllText(GetEditorSessionSourcePath());
-        string codeOnlySource = RemoveCommentsAndLiterals(source);
-        string constructorBody = GetPublicMemberBody(codeOnlySource, "public EditorSession(");
-        string disposeBody = GetPublicMemberBody(codeOnlySource, "public void Dispose()");
-
-        Assert.Equal(1, CountInputCaptureResetInvocations(constructorBody));
-        Assert.Equal(1, CountInputCaptureResetInvocations(disposeBody));
+        Assert.Contains("EditorSessionInteractionServices", source, StringComparison.Ordinal);
+        Assert.Contains("interactionServices.InputCapture", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("EditorInputCaptureService.Reset", source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -24,33 +21,18 @@ public sealed class EditorSessionInputCaptureLifecycleSourceTests {
     /// <returns>Absolute path to <c>EditorSession.cs</c>.</returns>
     static string GetEditorSessionSourcePath() {
         return Path.Combine(
-            ResolveRepositoryRootPath(),
+            TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
             "engine",
             "helengine.editor",
             "EditorSession.cs");
     }
 
     /// <summary>
-    /// Resolves the helengine repository root by walking upward from the test assembly location.
+    /// Resolves the helengine repository root from the generated test source manifest.
     /// </summary>
     /// <returns>Absolute repository root path.</returns>
     static string ResolveRepositoryRootPath() {
-        string currentPath = AppContext.BaseDirectory;
-        while (!string.IsNullOrWhiteSpace(currentPath)) {
-            string rootMarkerPath = Path.Combine(currentPath, "engine", "helengine.editor", "helengine.editor.csproj");
-            if (File.Exists(rootMarkerPath)) {
-                return currentPath;
-            }
-
-            DirectoryInfo parentDirectory = Directory.GetParent(currentPath);
-            if (parentDirectory == null) {
-                break;
-            }
-
-            currentPath = parentDirectory.FullName;
-        }
-
-        throw new InvalidOperationException("Could not resolve the helengine repository root from the current test assembly location.");
+        return TestSourceRepositoryLocator.ResolveHelEngineRootPath();
     }
 
     /// <summary>

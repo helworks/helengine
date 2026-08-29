@@ -10,6 +10,7 @@ namespace helengine.editor.tests {
     /// Verifies generated model picks in component property rows.
     /// </summary>
     public class ComponentPropertiesViewGeneratedAssetTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary content root used by the test content manager.
         /// </summary>
@@ -33,14 +34,12 @@ namespace helengine.editor.tests {
             GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             ShaderLibrary = GeneratedAssetGraph.ShaderLibrary;
             Registry = GeneratedAssetGraph.Registry;
-            EditorSceneMutationService.Reset();
         }
 
         /// <summary>
         /// Clears generated provider registrations and temporary test content.
         /// </summary>
         public void Dispose() {
-            EditorSceneMutationService.Reset();
             GeneratedAssetGraph.Dispose();
             CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
@@ -111,7 +110,7 @@ namespace helengine.editor.tests {
             MethodInfo handleModelPicked = typeof(ComponentPropertiesView).GetMethod("HandleModelPicked", BindingFlags.Instance | BindingFlags.NonPublic);
 
             try {
-                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
 
                 handleModelPicked.Invoke(view, new object[] {
                     modelRow,
@@ -120,8 +119,7 @@ namespace helengine.editor.tests {
 
                 Assert.True(raised);
             } finally {
-                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
-                EditorSceneMutationService.Reset();
+                InteractionServices.SceneMutation.SceneMutated -= handleSceneMutated;
             }
         }
 

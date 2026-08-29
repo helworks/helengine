@@ -8,13 +8,24 @@ namespace helengine.editor {
         /// <summary>
         /// Registered provider-backed custom property editors, shared through the central component editor registry.
         /// </summary>
-        readonly IReadOnlyList<IComponentPropertyEditorProvider> Providers;
+        IReadOnlyList<IComponentPropertyEditorProvider> Providers;
 
         /// <summary>
         /// Initializes the reflected descriptor builder against the currently registered custom editor providers.
         /// </summary>
-        public ReflectedComponentPropertyDescriptorBuilder() {
-            Providers = ComponentEditorRegistry.PropertyEditorProviders;
+        public ReflectedComponentPropertyDescriptorBuilder(ComponentEditorRegistry registry) {
+            if (registry == null) {
+                throw new ArgumentNullException(nameof(registry));
+            }
+            Providers = registry.PropertyEditorProviders;
+        }
+
+        /// <summary>Rebinds custom editor providers to the owning session graph.</summary>
+        public void SetRegistry(ComponentEditorRegistry registry) {
+            if (registry == null) {
+                throw new ArgumentNullException(nameof(registry));
+            }
+            Providers = registry.PropertyEditorProviders;
         }
 
         /// <summary>

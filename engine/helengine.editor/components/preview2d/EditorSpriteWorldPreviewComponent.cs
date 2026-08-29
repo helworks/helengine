@@ -48,7 +48,7 @@ namespace helengine {
                 return SourceComponentValue.Texture;
             }
 
-            return TextureUtils.PixelTexture;
+            return OwnerCore.RenderManager2D.PixelTexture;
         }
 
         /// <summary>

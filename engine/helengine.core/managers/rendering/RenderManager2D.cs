@@ -4,6 +4,46 @@ namespace helengine {
     /// </summary>
     public abstract class RenderManager2D : IDisposable {
         /// <summary>
+        /// Lazily created renderer-owned one-pixel fallback textures. These
+        /// values intentionally live on the renderer rather than in a
+        /// process-global utility cache so concurrent cores cannot share
+        /// native resources.
+        /// </summary>
+        RuntimeTexture PixelTextureValue;
+        RuntimeTexture BlackPixelTextureValue;
+
+        /// <summary>
+        /// Core that owns this renderer.
+        /// </summary>
+        public Core OwnerCore { get; internal set; }
+
+        /// <summary>
+        /// Gets the renderer-owned opaque white one-pixel texture.
+        /// </summary>
+        [NativeBorrowedReturn]
+        public RuntimeTexture PixelTexture {
+            get {
+                if (PixelTextureValue == null) {
+                    PixelTextureValue = TextureUtils.BuildSolidPixelTexture(this, 255, 255, 255, 255);
+                }
+                return PixelTextureValue;
+            }
+        }
+
+        /// <summary>
+        /// Gets the renderer-owned opaque black one-pixel texture.
+        /// </summary>
+        [NativeBorrowedReturn]
+        public RuntimeTexture BlackPixelTexture {
+            get {
+                if (BlackPixelTextureValue == null) {
+                    BlackPixelTextureValue = TextureUtils.BuildSolidPixelTexture(this, 0, 0, 0, 255);
+                }
+                return BlackPixelTextureValue;
+            }
+        }
+
+        /// <summary>
         /// Builds a runtime texture from raw texture data.
         /// </summary>
         /// <param name="data">Raw texture data.</param>
@@ -76,7 +116,26 @@ namespace helengine {
         /// <summary>
         /// Releases resources owned by the render manager.
         /// </summary>
-        public virtual void Dispose() { }
+        public virtual void Dispose() {
+            DisposeDefaultTextures();
+        }
+
+        /// <summary>
+        /// Releases lazily created fallback textures. Derived renderers should
+        /// call this from their disposal implementation while their backend is
+        /// still available.
+        /// </summary>
+        protected void DisposeDefaultTextures() {
+            if (PixelTextureValue != null) {
+                ReleaseTexture(PixelTextureValue);
+                PixelTextureValue = null;
+            }
+            if (BlackPixelTextureValue != null) {
+                ReleaseTexture(BlackPixelTextureValue);
+                BlackPixelTextureValue = null;
+            }
+        }
+
 
         /// <summary>
         /// Draws a sprite component.

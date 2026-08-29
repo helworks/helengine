@@ -134,7 +134,7 @@ namespace helengine {
         public override void Update() {
             base.Update();
 
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             if (core == null) {
                 return;
             }

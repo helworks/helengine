@@ -867,7 +867,7 @@ namespace helengine.editor {
                 ShaderRuntimeMaterialAccess.Require(previewMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, neutralPreviewTexture);
             }
 
-            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(previewMaterial));
+            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(previewMaterial), renderManager2D);
             return previewMaterial;
         }
 
@@ -878,7 +878,7 @@ namespace helengine.editor {
         RuntimeMaterial CreateNeutralPreviewMaterial() {
             RuntimeMaterial previewMaterial = EditorVisualMaterialFactory.CreateNonShadowCastingStandardMaterial(GeneratedMaterialCache);
             ShaderRuntimeMaterialAccess.Require(previewMaterial).Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, ResolveNeutralPreviewTexture());
-            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(previewMaterial));
+            StandardMaterialTextureBindingDefaults.Apply(ShaderRuntimeMaterialAccess.Require(previewMaterial), renderManager2D);
             return previewMaterial;
         }
 
@@ -1021,8 +1021,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="name">Display name assigned to the hidden entity.</param>
         /// <returns>Hidden editor entity instance.</returns>
-        static EditorEntity CreateHiddenEntity(string name) {
-            EditorEntity entity = new EditorEntity {
+        EditorEntity CreateHiddenEntity(string name) {
+            Core ownerCore = objectManager?.OwnerCore;
+            if (ownerCore == null) {
+                throw new InvalidOperationException("Model preview entities require an object manager bound to an owning core.");
+            }
+
+            EditorEntity entity = new EditorEntity(ownerCore) {
                 Name = name,
                 Hidden = true,
                 InternalEntity = true,

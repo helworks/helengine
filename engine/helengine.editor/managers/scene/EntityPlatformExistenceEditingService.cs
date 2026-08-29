@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Manages per-platform entity existence overrides stored on the hidden editor save component.
     /// </summary>
-    public sealed class EntityPlatformExistenceEditingService {
+    public sealed class EntityPlatformExistenceEditingService : IDisposable {
         /// <summary>
         /// Stable platform id used by the shared common entity state.
         /// </summary>
@@ -11,7 +11,12 @@ namespace helengine.editor {
         /// <summary>
         /// Raised after one entity existence override changes so viewport suppression can re-resolve event-driven.
         /// </summary>
-        public static event Action ExistenceChanged;
+        public event Action ExistenceChanged;
+
+        /// <inheritdoc />
+        public void Dispose() {
+            ExistenceChanged = null;
+        }
 
         /// <summary>
         /// Resolves whether one entity should exist on the supplied platform.
@@ -116,12 +121,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Removes all existence-changed subscribers between tests or editor shutdown.
-        /// </summary>
-        public static void ResetExistenceChangedSubscribers() {
-            ExistenceChanged = null;
-        }
-
         /// <summary>
         /// Returns whether the supplied platform id points at shared common state.
         /// </summary>

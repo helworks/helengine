@@ -571,6 +571,8 @@ namespace helengine.vulkan {
             if (fragmentShader.Handle != 0) {
                 context.Api.DestroyShaderModule(context.Device, fragmentShader, null);
             }
+
+            DisposeDefaultTextures();
         }
 
         /// <summary>

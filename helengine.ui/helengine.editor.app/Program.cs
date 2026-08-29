@@ -52,8 +52,8 @@ namespace helengine.editor.app {
             }
 
             try {
-                IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault();
-                FontAsset defaultFontAsset = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
+                IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault(null);
+                FontAsset defaultFontAsset = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel), null);
                 EditorCliBuildRunner runner = new EditorCliBuildRunner(importers, defaultFontAsset);
                 EditorBuildExecutionResult result = runner.Run(options);
                 if (result.Succeeded) {
@@ -90,7 +90,7 @@ namespace helengine.editor.app {
             }
 
             try {
-                FontAsset defaultFontAsset = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel));
+                FontAsset defaultFontAsset = GDIFontProcessor.ImportFont(new Font("Consolas", 12, FontStyle.Regular, GraphicsUnit.Pixel), null);
                 EditorCliCommandRunner runner = new EditorCliCommandRunner(
                     defaultFontAsset,
                     EditorHostImporterFactory.CreateAuthoringSessionFactory());

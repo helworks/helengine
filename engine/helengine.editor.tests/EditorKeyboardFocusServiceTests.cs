@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies keyboard-focus traversal, activation, and pointer synchronization for the editor focus service.
     /// </summary>
     public class EditorKeyboardFocusServiceTests {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Ensures dock-local traversal follows subgroup order before target tab order.
         /// </summary>
@@ -18,18 +19,16 @@ namespace helengine.editor.tests {
             TestFocusTarget contentTarget = new TestFocusTarget(contentGroup.FocusGroup, 0, false, 10, 40, 100, 100);
             TestFocusTarget translateTarget = new TestFocusTarget(toolbarGroup.FocusGroup, 0, false, 10, 2, 20, 16);
             TestFocusTarget rotateTarget = new TestFocusTarget(toolbarGroup.FocusGroup, 1, false, 34, 2, 20, 16);
+            InteractionServices.KeyboardFocus.RegisterGroup(viewportDock);
+            InteractionServices.KeyboardFocus.RegisterGroup(toolbarGroup.FocusGroup);
+            InteractionServices.KeyboardFocus.RegisterGroup(contentGroup.FocusGroup);
+            InteractionServices.KeyboardFocus.RegisterTarget(contentTarget);
+            InteractionServices.KeyboardFocus.RegisterTarget(translateTarget);
+            InteractionServices.KeyboardFocus.RegisterTarget(rotateTarget);
+            InteractionServices.KeyboardFocus.SetDockOrder(new[] { viewportDock });
+            InteractionServices.KeyboardFocus.SetFocusedTarget(contentTarget);
 
-            EditorKeyboardFocusService.Reset();
-            EditorKeyboardFocusService.RegisterGroup(viewportDock);
-            EditorKeyboardFocusService.RegisterGroup(toolbarGroup.FocusGroup);
-            EditorKeyboardFocusService.RegisterGroup(contentGroup.FocusGroup);
-            EditorKeyboardFocusService.RegisterTarget(contentTarget);
-            EditorKeyboardFocusService.RegisterTarget(translateTarget);
-            EditorKeyboardFocusService.RegisterTarget(rotateTarget);
-            EditorKeyboardFocusService.SetDockOrder(new[] { viewportDock });
-            EditorKeyboardFocusService.SetFocusedTarget(contentTarget);
-
-            EditorKeyboardFocusService.HandleTab(true);
+            InteractionServices.KeyboardFocus.HandleTab(true);
 
             Assert.True(translateTarget.IsFocused);
             Assert.False(contentTarget.IsFocused);
@@ -45,15 +44,13 @@ namespace helengine.editor.tests {
             DockableEntity viewportDock = CreateDock("Viewport", 0, 0, 400, 300);
             TestFocusTarget firstTarget = new TestFocusTarget(viewportDock, 0, false, 10, 10, 20, 20);
             TestFocusTarget secondTarget = new TestFocusTarget(viewportDock, 1, false, 40, 10, 20, 20);
+            InteractionServices.KeyboardFocus.RegisterGroup(viewportDock);
+            InteractionServices.KeyboardFocus.RegisterTarget(firstTarget);
+            InteractionServices.KeyboardFocus.RegisterTarget(secondTarget);
+            InteractionServices.KeyboardFocus.SetDockOrder(new[] { viewportDock });
+            InteractionServices.KeyboardFocus.SetFocusedTarget(secondTarget);
 
-            EditorKeyboardFocusService.Reset();
-            EditorKeyboardFocusService.RegisterGroup(viewportDock);
-            EditorKeyboardFocusService.RegisterTarget(firstTarget);
-            EditorKeyboardFocusService.RegisterTarget(secondTarget);
-            EditorKeyboardFocusService.SetDockOrder(new[] { viewportDock });
-            EditorKeyboardFocusService.SetFocusedTarget(secondTarget);
-
-            EditorKeyboardFocusService.HandleTab(false);
+            InteractionServices.KeyboardFocus.HandleTab(false);
 
             Assert.True(firstTarget.IsFocused);
             Assert.False(secondTarget.IsFocused);
@@ -69,16 +66,14 @@ namespace helengine.editor.tests {
             DockableEntity viewportDock = CreateDock("Viewport", 240, 0, 400, 300);
             TestFocusTarget hierarchyTarget = new TestFocusTarget(hierarchyDock, 0, false, 10, 10, 40, 20);
             TestFocusTarget viewportTarget = new TestFocusTarget(viewportDock, 0, true, 260, 20, 100, 80);
+            InteractionServices.KeyboardFocus.RegisterGroup(hierarchyDock);
+            InteractionServices.KeyboardFocus.RegisterGroup(viewportDock);
+            InteractionServices.KeyboardFocus.RegisterTarget(hierarchyTarget);
+            InteractionServices.KeyboardFocus.RegisterTarget(viewportTarget);
+            InteractionServices.KeyboardFocus.SetDockOrder(new[] { hierarchyDock, viewportDock });
+            InteractionServices.KeyboardFocus.SetFocusedTarget(hierarchyTarget);
 
-            EditorKeyboardFocusService.Reset();
-            EditorKeyboardFocusService.RegisterGroup(hierarchyDock);
-            EditorKeyboardFocusService.RegisterGroup(viewportDock);
-            EditorKeyboardFocusService.RegisterTarget(hierarchyTarget);
-            EditorKeyboardFocusService.RegisterTarget(viewportTarget);
-            EditorKeyboardFocusService.SetDockOrder(new[] { hierarchyDock, viewportDock });
-            EditorKeyboardFocusService.SetFocusedTarget(hierarchyTarget);
-
-            EditorKeyboardFocusService.HandleCtrlTab(true);
+            InteractionServices.KeyboardFocus.HandleCtrlTab(true);
 
             Assert.True(viewportTarget.IsFocused);
             Assert.False(hierarchyTarget.IsFocused);
@@ -94,16 +89,14 @@ namespace helengine.editor.tests {
             DockableEntity viewportDock = CreateDock("Viewport", 240, 0, 400, 300);
             TestFocusTarget hierarchyTarget = new TestFocusTarget(hierarchyDock, 0, true, 10, 10, 40, 20);
             TestFocusTarget viewportTarget = new TestFocusTarget(viewportDock, 0, false, 260, 20, 100, 80);
+            InteractionServices.KeyboardFocus.RegisterGroup(hierarchyDock);
+            InteractionServices.KeyboardFocus.RegisterGroup(viewportDock);
+            InteractionServices.KeyboardFocus.RegisterTarget(hierarchyTarget);
+            InteractionServices.KeyboardFocus.RegisterTarget(viewportTarget);
+            InteractionServices.KeyboardFocus.SetDockOrder(new[] { hierarchyDock, viewportDock });
+            InteractionServices.KeyboardFocus.SetFocusedTarget(viewportTarget);
 
-            EditorKeyboardFocusService.Reset();
-            EditorKeyboardFocusService.RegisterGroup(hierarchyDock);
-            EditorKeyboardFocusService.RegisterGroup(viewportDock);
-            EditorKeyboardFocusService.RegisterTarget(hierarchyTarget);
-            EditorKeyboardFocusService.RegisterTarget(viewportTarget);
-            EditorKeyboardFocusService.SetDockOrder(new[] { hierarchyDock, viewportDock });
-            EditorKeyboardFocusService.SetFocusedTarget(viewportTarget);
-
-            EditorKeyboardFocusService.HandleCtrlTab(false);
+            InteractionServices.KeyboardFocus.HandleCtrlTab(false);
 
             Assert.True(hierarchyTarget.IsFocused);
             Assert.False(viewportTarget.IsFocused);
@@ -117,13 +110,11 @@ namespace helengine.editor.tests {
             InitializeCore();
             DockableEntity viewportDock = CreateDock("Viewport", 0, 0, 400, 300);
             TestFocusTarget contentTarget = new TestFocusTarget(viewportDock, 0, true, 20, 40, 100, 100);
+            InteractionServices.KeyboardFocus.RegisterGroup(viewportDock);
+            InteractionServices.KeyboardFocus.RegisterTarget(contentTarget);
+            InteractionServices.KeyboardFocus.SetDockOrder(new[] { viewportDock });
 
-            EditorKeyboardFocusService.Reset();
-            EditorKeyboardFocusService.RegisterGroup(viewportDock);
-            EditorKeyboardFocusService.RegisterTarget(contentTarget);
-            EditorKeyboardFocusService.SetDockOrder(new[] { viewportDock });
-
-            EditorKeyboardFocusService.HandlePointerPressed(new int2(40, 60), false);
+            InteractionServices.KeyboardFocus.HandlePointerPressed(new int2(40, 60), false);
 
             Assert.True(contentTarget.IsFocused);
         }
@@ -136,14 +127,12 @@ namespace helengine.editor.tests {
             InitializeCore();
             DockableEntity viewportDock = CreateDock("Viewport", 0, 0, 400, 300);
             TestFocusTarget contentTarget = new TestFocusTarget(viewportDock, 0, true, 20, 40, 100, 100);
+            InteractionServices.KeyboardFocus.RegisterGroup(viewportDock);
+            InteractionServices.KeyboardFocus.RegisterTarget(contentTarget);
+            InteractionServices.KeyboardFocus.SetDockOrder(new[] { viewportDock });
+            InteractionServices.KeyboardFocus.SetFocusedTarget(contentTarget);
 
-            EditorKeyboardFocusService.Reset();
-            EditorKeyboardFocusService.RegisterGroup(viewportDock);
-            EditorKeyboardFocusService.RegisterTarget(contentTarget);
-            EditorKeyboardFocusService.SetDockOrder(new[] { viewportDock });
-            EditorKeyboardFocusService.SetFocusedTarget(contentTarget);
-
-            EditorKeyboardFocusService.HandlePointerPressed(new int2(300, 10), true);
+            InteractionServices.KeyboardFocus.HandlePointerPressed(new int2(300, 10), true);
 
             Assert.True(contentTarget.IsFocused);
         }
@@ -157,16 +146,14 @@ namespace helengine.editor.tests {
             DockableEntity hierarchyDock = CreateDock("Hierarchy", 0, 0, 240, 300);
             TestFocusTarget firstTarget = new TestFocusTarget(hierarchyDock, 0, false, 10, 10, 40, 20);
             TestFocusTarget secondTarget = new TestFocusTarget(hierarchyDock, 1, false, 10, 40, 40, 20);
+            InteractionServices.KeyboardFocus.RegisterGroup(hierarchyDock);
+            InteractionServices.KeyboardFocus.RegisterTarget(firstTarget);
+            InteractionServices.KeyboardFocus.RegisterTarget(secondTarget);
+            InteractionServices.KeyboardFocus.SetDockOrder(new[] { hierarchyDock });
+            InteractionServices.KeyboardFocus.SetFocusedTarget(firstTarget);
+            InteractionServices.KeyboardFocus.UnregisterTarget(firstTarget);
 
-            EditorKeyboardFocusService.Reset();
-            EditorKeyboardFocusService.RegisterGroup(hierarchyDock);
-            EditorKeyboardFocusService.RegisterTarget(firstTarget);
-            EditorKeyboardFocusService.RegisterTarget(secondTarget);
-            EditorKeyboardFocusService.SetDockOrder(new[] { hierarchyDock });
-            EditorKeyboardFocusService.SetFocusedTarget(firstTarget);
-            EditorKeyboardFocusService.UnregisterTarget(firstTarget);
-
-            EditorKeyboardFocusService.Update();
+            InteractionServices.KeyboardFocus.Update();
 
             Assert.True(secondTarget.IsFocused);
             Assert.False(firstTarget.IsFocused);

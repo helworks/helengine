@@ -5,6 +5,7 @@ namespace helengine.editor.tests.inspection {
     /// Verifies the central component editor registry and the built-in box collider scene selection editor.
     /// </summary>
     public sealed class ComponentEditorRegistryTests : IDisposable {
+        readonly ComponentEditorRegistry Registry = new ComponentEditorRegistry();
         /// <summary>
         /// Initializes the core services required by entity-backed selection editor tests.
         /// </summary>
@@ -17,6 +18,7 @@ namespace helengine.editor.tests.inspection {
         /// Disposes the active core instance after each test.
         /// </summary>
         public void Dispose() {
+            Registry.Dispose();
             Core.Instance?.Dispose();
         }
         /// <summary>
@@ -27,8 +29,8 @@ namespace helengine.editor.tests.inspection {
             BoxCollider3DComponent boxCollider = new BoxCollider3DComponent();
 
             bool supported = false;
-            for (int index = 0; index < ComponentEditorRegistry.SceneSelectionEditors.Count; index++) {
-                if (ComponentEditorRegistry.SceneSelectionEditors[index].Supports(boxCollider)) {
+            for (int index = 0; index < Registry.SceneSelectionEditors.Count; index++) {
+                if (Registry.SceneSelectionEditors[index].Supports(boxCollider)) {
                     supported = true;
                     break;
                 }
@@ -42,8 +44,8 @@ namespace helengine.editor.tests.inspection {
         /// </summary>
         [Fact]
         public void Registry_WithDefaults_ContainsBuiltInPropertyEditorProviders() {
-            Assert.Contains(ComponentEditorRegistry.PropertyEditorProviders, provider => provider is CameraClearSettingsPropertyEditorProvider);
-            Assert.Contains(ComponentEditorRegistry.PropertyEditorProviders, provider => provider is SceneMapPropertyEditorProvider);
+            Assert.Contains(Registry.PropertyEditorProviders, provider => provider is CameraClearSettingsPropertyEditorProvider);
+            Assert.Contains(Registry.PropertyEditorProviders, provider => provider is SceneMapPropertyEditorProvider);
         }
 
         /// <summary>
@@ -53,9 +55,9 @@ namespace helengine.editor.tests.inspection {
         public void RegisterSceneSelectionEditor_WithCustomEditor_AppearsInRegistry() {
             RecordingSceneSelectionEditor editor = new RecordingSceneSelectionEditor();
 
-            ComponentEditorRegistry.RegisterSceneSelectionEditor(editor);
+            Registry.RegisterSceneSelectionEditor(editor);
 
-            Assert.Contains(ComponentEditorRegistry.SceneSelectionEditors, registered => ReferenceEquals(registered, editor));
+            Assert.Contains(Registry.SceneSelectionEditors, registered => ReferenceEquals(registered, editor));
         }
 
         /// <summary>

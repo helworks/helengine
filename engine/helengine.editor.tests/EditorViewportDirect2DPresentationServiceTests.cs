@@ -51,7 +51,7 @@ namespace helengine.editor.tests {
             viewportEntity.AddChild(sourceEntity);
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(64, 64),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
 
             Core.Instance.Update();
@@ -83,7 +83,7 @@ namespace helengine.editor.tests {
             viewportEntity.AddChild(sourceEntity);
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(64, 32),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
 
             float3 presentedAnchorPosition = EditorViewportDirect2DPresentationService.ResolvePresentedWorldAnchorPosition(sourceEntity);
@@ -112,7 +112,7 @@ namespace helengine.editor.tests {
             viewportEntity.AddChild(sourceEntity);
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(64, 32),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
 
             float3 presentedAnchorPosition = EditorViewportDirect2DPresentationService.ResolvePresentedWorldAnchorPosition(sourceEntity);

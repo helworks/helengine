@@ -544,6 +544,7 @@ namespace helengine.directx11 {
             geometryVertexBuffer?.Dispose();
             rasterizerState2D?.Dispose();
             depthStencilState2D?.Dispose();
+            DisposeDefaultTextures();
         }
 
         /// <summary>
@@ -870,7 +871,8 @@ namespace helengine.directx11 {
             var key = (radius, border);
             if (!nineSliceCache.TryGetValue(key, out var atlas)) {
                 var coreAtlas = helengine.NineSliceAtlas.Generate(radius, border, aaPx: 1, padding: 2);
-                var rt = Core.Instance.RenderManager2D.BuildTextureFromRaw(coreAtlas.Texture);
+                Core ownerCore = OwnerCore ?? throw new InvalidOperationException("DirectX11 renderer is not attached to an owning Core.");
+                var rt = ownerCore.RenderManager2D.BuildTextureFromRaw(coreAtlas.Texture);
                 atlas = new NineSliceCacheEntry {
                     Texture = rt,
                     FillUv = coreAtlas.FillUV,

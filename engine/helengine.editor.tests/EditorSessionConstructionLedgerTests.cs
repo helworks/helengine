@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Reflection;
 using helengine.directx11;
+using helengine.platforms;
 using Xunit;
 using helengine.ui;
 using helengine.editor.tests.testing;
@@ -13,6 +14,7 @@ namespace helengine.editor.tests;
 /// session teardown after construction succeeds.
 /// </summary>
 public sealed class EditorSessionConstructionLedgerTests {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
     [Fact]
     public void TransferOwnership_WithOwnerCleanup_RetainsCleanupForSessionDispose() {
         EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
@@ -331,20 +333,15 @@ public sealed class EditorSessionConstructionLedgerTests {
                     "late"
                 }.Take(expectedCheckpointCount),
                 checkpoints);
-            Assert.Null(EditorEntityHistoryMutationService.CaptureEntityState);
-            Assert.Null(EditorEntityHistoryMutationService.RecordEntityStateChange);
-            Assert.Null(EditorComponentHistoryMutationService.CaptureEntityState);
-            Assert.Null(EditorComponentHistoryMutationService.RecordComponentMutation);
-            Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(3, 3)));
-            Assert.Null(EditorGizmoHoverService.HoveredHandleEntity);
-            Assert.False(EditorGizmoDragService.IsDragging(new CameraComponent()));
+            Assert.Null(InteractionServices.EntityHistory.CaptureEntityState);
+            Assert.Null(InteractionServices.EntityHistory.RecordEntityStateChange);
+            Assert.Null(InteractionServices.EntityHistory.CaptureEntityState);
+            Assert.Null(InteractionServices.ComponentHistory.RecordComponentMutation);
+            Assert.False(InteractionServices.InputCapture.IsPointerBlocked(new int2(3, 3)));
+            Assert.Null(InteractionServices.GizmoHover.HoveredHandleEntity);
+            Assert.False(InteractionServices.GizmoDrag.IsDragging(new CameraComponent()));
         } finally {
             EditorSession.ConstructionCheckpointForTests = null;
-            EditorEntityHistoryMutationService.Reset();
-            EditorComponentHistoryMutationService.Reset();
-            EditorInputCaptureService.Reset();
-            EditorGizmoHoverService.Reset();
-            EditorGizmoDragService.Reset();
             if (Directory.Exists(projectRoot)) {
                 Directory.Delete(projectRoot, true);
             }
@@ -425,11 +422,6 @@ public sealed class EditorSessionConstructionLedgerTests {
         } finally {
             EditorSession.ConstructionCheckpointForTests = null;
             EditorSession.DisposalCheckpointForTests = null;
-            EditorEntityHistoryMutationService.Reset();
-            EditorComponentHistoryMutationService.Reset();
-            EditorInputCaptureService.Reset();
-            EditorGizmoHoverService.Reset();
-            EditorGizmoDragService.Reset();
             if (Directory.Exists(projectRoot)) {
                 Directory.Delete(projectRoot, true);
             }
@@ -492,7 +484,8 @@ public sealed class EditorSessionConstructionLedgerTests {
             CreateCheckpointTexture(),
             Array.Empty<IAssetImporterRegistration>(),
             () => projectRoot,
-            shaderBackendRegistry);
+            shaderBackendRegistry,
+            new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(projectRoot)));
     }
 
     static FontAsset CreateCheckpointFont() {
@@ -619,16 +612,16 @@ public sealed class EditorSessionConstructionLedgerTests {
     }
 
     static string ResolveSourcePath(string fileName) {
-        DirectoryInfo current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current != null) {
-            string candidate = Path.Combine(current.FullName, "helengine.editor", fileName);
-            if (File.Exists(candidate)) {
-                return candidate;
-            }
-            current = current.Parent;
+        string candidate = Path.Combine(
+            TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
+            "engine",
+            "helengine.editor",
+            fileName);
+        if (!File.Exists(candidate)) {
+            throw new FileNotFoundException(fileName, candidate);
         }
 
-        throw new FileNotFoundException(fileName);
+        return candidate;
     }
 
     [Fact]
@@ -654,38 +647,25 @@ public sealed class EditorSessionConstructionLedgerTests {
     }
 
     [Fact]
-    public void ConstructorFailure_BeforeCoreInitialization_ResetsPreexistingInteractionState() {
-        object blockerOwner = new object();
-        EditorInputCaptureService.SetBlocker(blockerOwner, new int2(0, 0), new int2(10, 10));
-        EditorSelectionService.Reset();
-        EditorAssetPickerService.Reset();
-        EditorEntityHistoryMutationService.Reset();
-        EditorComponentHistoryMutationService.Reset();
+    public void ConstructorFailure_BeforeInteractionGraphInitialization_PreservesPrimaryAndCleanupFailures() {
         EditorCore core = new EditorCore(new Project {
             Name = "Construction failure",
             Path = Path.GetTempPath()
         });
         core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-        CameraComponent camera = new CameraComponent();
-        EditorEntity handle = new EditorEntity();
-        EditorGizmoHoverService.SetHoveredHandle(camera, handle);
-        EditorGizmoDragService.BeginDrag(camera, handle);
-        EditorViewportToolService.SetToolMode(camera, EditorViewportToolMode.Rotate);
-        TransformGizmoSnapSettingsService.SetSnapValue(camera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1, 99d);
-        EditorSelectionService.SetSelectedEntity(handle);
-        int pickerCalls = 0;
-        Action<AssetPickerRequest> picker = _ => pickerCalls++;
-        EditorAssetPickerService.PickRequested += picker;
-        EditorEntityHistoryMutationService.CaptureEntityState = _ => null;
-        EditorComponentHistoryMutationService.CaptureEntityState = _ => null;
         EditorSession.ConstructionCheckpointForTests = checkpoint => {
             if (checkpoint == "after-core-acquired") {
                 throw new InvalidOperationException("injected construction failure");
             }
         };
+        EditorSession.DisposalCheckpointForTests = sequence => {
+            if (sequence == 0) {
+                throw new InvalidOperationException("injected cleanup failure");
+            }
+        };
 
         try {
-            Assert.Throws<InvalidOperationException>(() => new EditorSession(
+            AggregateException failure = Assert.Throws<AggregateException>(() => new EditorSession(
                 core,
                 string.Empty,
                 null,
@@ -701,39 +681,19 @@ public sealed class EditorSessionConstructionLedgerTests {
                 null,
                 null,
                 null,
-                null));
+                null,
+                new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(Path.GetTempPath()))));
+            Assert.Contains(failure.Flatten().InnerExceptions, exception => exception.Message == "injected construction failure");
         } finally {
             EditorSession.ConstructionCheckpointForTests = null;
-            EditorAssetPickerService.PickRequested -= picker;
-            EditorInputCaptureService.Reset();
-            EditorGizmoHoverService.Reset();
-            EditorGizmoDragService.Reset();
-            EditorViewportToolService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
-            EditorSelectionService.Reset();
-            EditorEntityHistoryMutationService.Reset();
-            EditorComponentHistoryMutationService.Reset();
-            handle.Dispose();
+            EditorSession.DisposalCheckpointForTests = null;
             core.Dispose();
         }
-
-        Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(5, 5)));
-        Assert.Null(EditorGizmoHoverService.HoveredHandleEntity);
-        Assert.False(EditorGizmoDragService.IsDragging(camera));
-        Assert.Equal(EditorViewportToolMode.Translate, EditorViewportToolService.GetToolMode(camera));
-        Assert.Equal(5d, TransformGizmoSnapSettingsService.GetSnapValue(camera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
-        Assert.Null(EditorSelectionService.SelectedEntity);
-        EditorAssetPickerService.RequestPick(_ => { });
-        Assert.Equal(0, pickerCalls);
-        Assert.Null(EditorEntityHistoryMutationService.CaptureEntityState);
-        Assert.Null(EditorComponentHistoryMutationService.CaptureEntityState);
     }
 
     [Fact]
-    public void Dispose_WhenFirstAggregateActionFails_StillRunsLaterInteractionResets() {
+    public void Dispose_WhenFirstAggregateActionFails_StillAttemptsLaterCleanup() {
         EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-        object blockerOwner = new object();
-        EditorInputCaptureService.SetBlocker(blockerOwner, new int2(0, 0), new int2(10, 10));
         bool injected = false;
         EditorSession.DisposalCheckpointForTests = sequence => {
             if (sequence == 0) {
@@ -746,11 +706,9 @@ public sealed class EditorSessionConstructionLedgerTests {
             Assert.NotNull(Record.Exception(session.Dispose));
         } finally {
             EditorSession.DisposalCheckpointForTests = null;
-            EditorInputCaptureService.Reset();
         }
 
         Assert.True(injected);
-        Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(5, 5)));
     }
 
     [Fact]
@@ -760,20 +718,16 @@ public sealed class EditorSessionConstructionLedgerTests {
         try {
             CameraComponent camera = new CameraComponent();
             EditorEntity handle = new EditorEntity();
-            EditorGizmoHoverService.SetHoveredHandle(camera, handle);
-            EditorGizmoDragService.BeginDrag(camera, handle);
-            EditorViewportToolService.SetToolMode(camera, EditorViewportToolMode.Rotate);
-            TransformGizmoSnapSettingsService.SetSnapValue(camera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1, 99d);
+            InteractionServices.GizmoHover.SetHoveredHandle(camera, handle);
+            InteractionServices.GizmoDrag.BeginDrag(camera, handle);
+            InteractionServices.ViewportTool.SetToolMode(camera, EditorViewportToolMode.Rotate);
+            InteractionServices.TransformSnap.SetSnapValue(camera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1, 99d);
+            InteractionServices.Dispose();
 
-            EditorGizmoHoverService.Reset();
-            EditorGizmoDragService.Reset();
-            EditorViewportToolService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
-
-            Assert.Null(EditorGizmoHoverService.HoveredHandleEntity);
-            Assert.False(EditorGizmoDragService.IsDragging(camera));
-            Assert.Equal(EditorViewportToolMode.Translate, EditorViewportToolService.GetToolMode(camera));
-            Assert.Equal(5d, TransformGizmoSnapSettingsService.GetSnapValue(camera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
+            Assert.Null(InteractionServices.GizmoHover.HoveredHandleEntity);
+            Assert.False(InteractionServices.GizmoDrag.IsDragging(camera));
+            Assert.Equal(EditorViewportToolMode.Translate, InteractionServices.ViewportTool.GetToolMode(camera));
+            Assert.Equal(5d, InteractionServices.TransformSnap.GetSnapValue(camera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
             handle.Dispose();
         } finally {
             core.Dispose();

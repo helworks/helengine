@@ -7,6 +7,7 @@ namespace helengine.editor.tests {
     /// Verifies viewport picker behavior when multiple editor viewports coexist.
     /// </summary>
     public sealed class EditorViewportPickerTests {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Shared no-op additional gizmo entity resolver used by picker unit tests.
         /// </summary>
@@ -29,8 +30,7 @@ namespace helengine.editor.tests {
             try {
                 core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));
                 generatedAssetGraph = new TestGeneratedAssetGraph(core);
-                EditorInputCaptureService.Reset();
-                EditorGizmoHoverService.ClearHoveredHandle();
+                InteractionServices.GizmoHover.ClearHoveredHandle();
 
                 EditorEntity sceneCameraEntity = new EditorEntity();
                 CameraComponent sceneCamera = new CameraComponent {
@@ -66,7 +66,7 @@ namespace helengine.editor.tests {
                 sceneCameraEntity.AddComponent(picker);
 
                 EditorEntity hoveredHandle = new EditorEntity();
-                EditorGizmoHoverService.SetHoveredHandle(hoveredHandle);
+                InteractionServices.GizmoHover.SetHoveredHandle(hoveredHandle);
                 inputBackend.SetMouseState(new MouseState(
                     180,
                     180,
@@ -80,10 +80,9 @@ namespace helengine.editor.tests {
 
                 picker.Update();
 
-                Assert.Same(hoveredHandle, EditorGizmoHoverService.HoveredHandleEntity);
+                Assert.Same(hoveredHandle, InteractionServices.GizmoHover.HoveredHandleEntity);
             } finally {
-                EditorGizmoHoverService.ClearHoveredHandle();
-                EditorInputCaptureService.Reset();
+                InteractionServices.GizmoHover.ClearHoveredHandle();
                 generatedAssetGraph?.Dispose();
                 core.Dispose();
             }
@@ -103,8 +102,7 @@ namespace helengine.editor.tests {
             try {
                 core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputBackend, new PlatformInfo("test", "test-version"));
                 generatedAssetGraph = new TestGeneratedAssetGraph(core);
-                EditorInputCaptureService.Reset();
-                EditorGizmoHoverService.ClearHoveredHandle();
+                InteractionServices.GizmoHover.ClearHoveredHandle();
 
                 EditorEntity sceneCameraEntity = new EditorEntity();
                 CameraComponent sceneCamera = new CameraComponent {
@@ -146,8 +144,7 @@ namespace helengine.editor.tests {
                 Assert.Equal(gizmoCamera.NearPlaneDistance, pickerCamera.NearPlaneDistance);
                 Assert.Equal(gizmoCamera.FarPlaneDistance, pickerCamera.FarPlaneDistance);
             } finally {
-                EditorGizmoHoverService.ClearHoveredHandle();
-                EditorInputCaptureService.Reset();
+                InteractionServices.GizmoHover.ClearHoveredHandle();
                 generatedAssetGraph?.Dispose();
                 core.Dispose();
             }

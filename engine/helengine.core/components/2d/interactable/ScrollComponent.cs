@@ -266,11 +266,11 @@ namespace helengine {
                 return false;
             }
 
-            if (RequiresPointerInsideValue && !ContainsScreenPoint(Core.Instance.Input.GetMouseX(), Core.Instance.Input.GetMouseY())) {
+            if (RequiresPointerInsideValue && !ContainsScreenPoint(OwnerCore.Input.GetMouseX(), OwnerCore.Input.GetMouseY())) {
                 return false;
             }
 
-            int wheelDelta = Core.Instance.Input.GetMouseScrollWheelDelta();
+            int wheelDelta = OwnerCore.Input.GetMouseScrollWheelDelta();
             if (wheelDelta == 0) {
                 return false;
             }

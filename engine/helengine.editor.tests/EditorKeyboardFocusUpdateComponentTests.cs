@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies editor-global keyboard shortcuts are routed through the keyboard-focus update component without colliding with focus activation keys.
     /// </summary>
     public sealed class EditorKeyboardFocusUpdateComponentTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Test input backend used to simulate keyboard transitions.
         /// </summary>
@@ -24,7 +25,6 @@ namespace helengine.editor.tests {
         /// Clears shared keyboard-focus state after each test run.
         /// </summary>
         public void Dispose() {
-            EditorKeyboardFocusService.Reset();
         }
 
         /// <summary>
@@ -32,7 +32,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_when_ctrl_z_is_pressed_invokes_the_undo_callback() {
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input);
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices);
             int undoCount = 0;
             int redoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;
@@ -54,7 +54,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_loop_runs_the_component_when_the_owning_entity_hierarchy_is_initialized() {
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input);
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices);
             int undoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;
             EditorEntity ownerEntity = new EditorEntity {
@@ -77,7 +77,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_when_ctrl_y_is_pressed_invokes_the_redo_callback() {
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input);
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices);
             int undoCount = 0;
             int redoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;
@@ -98,7 +98,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_when_ctrl_shift_z_is_pressed_invokes_the_redo_callback() {
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input);
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices);
             int undoCount = 0;
             int redoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;

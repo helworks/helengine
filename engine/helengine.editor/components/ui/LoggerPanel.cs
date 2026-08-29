@@ -156,7 +156,7 @@ namespace helengine.editor {
             RowContextMenuItems = new List<ContextMenuItem> {
                 new ContextMenuItem("Copy", HandleCopyContextMenuRequested)
             };
-            RowContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            RowContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, EditorSessionInteractionServices.From(this));
             AddChild(RowContextMenu.Entity);
             ScrollComponent = new ScrollComponent();
             // The clipped scroll body cuts the trailing partial row off at the panel bottom instead of
@@ -182,7 +182,7 @@ namespace helengine.editor {
                 },
                 CanActivateWithKey,
                 HandleActivationKey);
-            EditorKeyboardFocusService.RegisterTarget(FocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(FocusTarget);
 
             AddComponent(new LoggerPanelUpdater(this));
 
@@ -206,7 +206,7 @@ namespace helengine.editor {
         /// </summary>
         public void Detach() {
             Logger.MessageLogged -= HandleMessageLogged;
-            EditorKeyboardFocusService.UnregisterTarget(FocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.UnregisterTarget(FocusTarget);
         }
 
         /// <summary>
@@ -327,7 +327,7 @@ namespace helengine.editor {
             rowEntity.Position = float3.Zero;
 
             var background = new SpriteComponent();
-            background.Texture = TextureUtils.PixelTexture;
+            background.Texture = OwnerCore.RenderManager2D.PixelTexture;
             background.Color = ThemeManager.Colors.SurfacePrimary;
             background.RenderOrder2D = rowBackgroundOrder;
             rowEntity.AddComponent(background);
@@ -512,13 +512,13 @@ namespace helengine.editor {
             if (isControlPressed) {
                 ToggleRowSelection(rowIndex);
                 EnsureFocusedRowVisible();
-                EditorKeyboardFocusService.SetFocusedTarget(FocusTarget);
+                EditorSessionInteractionServices.From(this).KeyboardFocus.SetFocusedTarget(FocusTarget);
                 return;
             }
 
             SelectSingleRow(rowIndex);
             EnsureFocusedRowVisible();
-            EditorKeyboardFocusService.SetFocusedTarget(FocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.SetFocusedTarget(FocusTarget);
         }
 
         /// <summary>
@@ -575,7 +575,7 @@ namespace helengine.editor {
 
             RowContextMenu.Show(RowContextMenuItems, localPointerPosition, GetContextMenuHostSize());
             EnsureFocusedRowVisible();
-            EditorKeyboardFocusService.SetFocusedTarget(FocusTarget);
+            EditorSessionInteractionServices.From(this).KeyboardFocus.SetFocusedTarget(FocusTarget);
         }
 
         /// <summary>
@@ -691,7 +691,7 @@ namespace helengine.editor {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+            if (EditorSessionInteractionServices.From(this).InputCapture.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
                 return;
             }
             if (!ContainsContentPoint(pointer)) {

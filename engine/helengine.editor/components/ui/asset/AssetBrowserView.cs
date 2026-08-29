@@ -291,7 +291,7 @@ namespace helengine.editor {
             Root.AddChild(ToolbarRoot);
 
             ToolbarBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 RenderOrder2D = ToolbarOrder
             };
@@ -308,7 +308,7 @@ namespace helengine.editor {
             UpButton.FocusGroup = focusGroup;
             UpButton.TabIndex = 0;
             if (focusGroup != null) {
-                EditorKeyboardFocusService.RegisterTarget(UpButton);
+                EditorSessionInteractionServices.From(Root).KeyboardFocus.RegisterTarget(UpButton);
             }
 
             PathTextHost = new EditorEntity {
@@ -594,7 +594,7 @@ namespace helengine.editor {
             };
 
             var background = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 RenderOrder2D = RowBackgroundOrder
             };
@@ -607,7 +607,7 @@ namespace helengine.editor {
             rowEntity.AddChild(iconHost);
 
             var iconBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
                 RenderOrder2D = IconBackgroundOrder
             };
@@ -663,7 +663,7 @@ namespace helengine.editor {
                 key => ActivateRow(row));
             row = new AssetBrowserRow(rowEntity, background, iconBackground, iconText, label, interactable, focusTarget);
             if (FocusGroup != null) {
-                EditorKeyboardFocusService.RegisterTarget(row.FocusTarget);
+                EditorSessionInteractionServices.From(Root).KeyboardFocus.RegisterTarget(row.FocusTarget);
             }
             interactable.CursorEvent += (pos, delta, state) => HandleRowCursor(row, state);
             ListRoot.AddChild(rowEntity);

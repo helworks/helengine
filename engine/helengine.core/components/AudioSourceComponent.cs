@@ -91,7 +91,7 @@ namespace helengine {
                 throw new InvalidOperationException("AudioSourceComponent requires one Clip asset before playback can begin.");
             }
 
-            AudioManager audioManager = Core.Instance?.AudioManager;
+            AudioManager audioManager = OwnerCore?.AudioManager;
             if (audioManager == null) {
                 return -1;
             }
@@ -112,7 +112,7 @@ namespace helengine {
                 return;
             }
 
-            AudioManager audioManager = Core.Instance?.AudioManager;
+            AudioManager audioManager = OwnerCore?.AudioManager;
             if (audioManager != null) {
                 audioManager.Stop(activeVoiceId);
             }

@@ -21,8 +21,6 @@ namespace helengine.editor.tests {
         public ProfilesDialogTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-profiles-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            EditorInputCaptureService.Reset();
-
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
@@ -33,7 +31,6 @@ namespace helengine.editor.tests {
         /// Deletes temporary test state after each test.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }

@@ -9,14 +9,17 @@ namespace helengine.editor {
         /// <param name="input">Input manager that provides keyboard modifier state.</param>
         /// <param name="toolMode">Tool mode whose active snap value should be resolved.</param>
         /// <returns>Configured snap value for the active modifier slot, or zero when no snap modifier is held.</returns>
-        public static double ResolveActiveSnapValue(InputSystem input, EditorViewportToolMode toolMode) {
+        public static double ResolveActiveSnapValue(InputSystem input, EditorViewportToolMode toolMode, EditorSessionInteractionServices interactions) {
             if (input == null) {
                 throw new ArgumentNullException(nameof(input));
+            }
+            if (interactions == null) {
+                throw new ArgumentNullException(nameof(interactions));
             }
 
             bool isControlDown = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
             bool isShiftDown = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
-            return TransformGizmoSnapSettingsService.GetActiveSnapValue(toolMode, isControlDown, isShiftDown);
+            return interactions.TransformSnap.GetActiveSnapValue(toolMode, isControlDown, isShiftDown);
         }
     }
 }

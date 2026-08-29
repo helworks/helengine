@@ -129,6 +129,7 @@ namespace helengine.editor.tests {
 
             return new TextComponentSpriteBakeService(
                 Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D),
+                Core.Instance.RenderManager2D,
                 reader,
                 assetsRootPath,
                 contentManager,

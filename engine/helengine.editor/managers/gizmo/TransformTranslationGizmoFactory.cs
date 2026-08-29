@@ -140,6 +140,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(builtInShaderLibrary));
             }
 
+            Core ownerCore = render3D.OwnerCore ?? sceneCamera.OwnerCore;
+            if (ownerCore == null) {
+                throw new InvalidOperationException("A translation gizmo requires a renderer or camera owner core.");
+            }
+
             ModelAsset xShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
             ModelAsset xTipAsset = TransformGizmoMeshFactory.CreateCone(TipRadius, TipLength, AxisSegments);
             ModelAsset yShaftAsset = TransformGizmoMeshFactory.CreateCylinder(ShaftRadius, ShaftLength, AxisSegments);
@@ -172,9 +177,9 @@ namespace helengine.editor {
             RuntimeModel snapPreviewModel = render3D.BuildModelFromRaw(TransformGizmoMeshFactory.CreateCenteredPlaneSquare(TransformGizmoGridPreviewMaterialFactory.PreviewCellSpan));
             RuntimeMaterial snapPreviewMaterial = TransformGizmoGridPreviewMaterialFactory.Create(render3D, builtInShaderLibrary);
 
-            EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewModel, snapPreviewMaterial);
+            EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewModel, snapPreviewMaterial, ownerCore);
 
-            EditorEntity gizmoRoot = new EditorEntity();
+            EditorEntity gizmoRoot = new EditorEntity(ownerCore);
             gizmoRoot.Name = "Transform Translation Gizmo";
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -273,7 +278,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            EditorEntity axisEntity = new EditorEntity();
+            EditorEntity axisEntity = new EditorEntity(gizmoRoot.OwnerCore);
             axisEntity.Name = axisName;
             axisEntity.InternalEntity = true;
             axisEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -283,7 +288,7 @@ namespace helengine.editor {
             axisEntity.AddComponent(new TransformGizmoHandleComponent(new float3(0f, 1f, 0f)));
             gizmoRoot.AddChild(axisEntity);
 
-            EditorEntity shaftEntity = new EditorEntity();
+            EditorEntity shaftEntity = new EditorEntity(gizmoRoot.OwnerCore);
             shaftEntity.Name = string.Concat(axisName, " Shaft");
             shaftEntity.InternalEntity = true;
             shaftEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -295,7 +300,7 @@ namespace helengine.editor {
             shaftEntity.AddComponent(shaftMesh);
             axisEntity.AddChild(shaftEntity);
 
-            EditorEntity tipEntity = new EditorEntity();
+            EditorEntity tipEntity = new EditorEntity(gizmoRoot.OwnerCore);
             tipEntity.Name = string.Concat(axisName, " Tip");
             tipEntity.InternalEntity = true;
             tipEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -337,7 +342,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            EditorEntity planeEntity = new EditorEntity();
+            EditorEntity planeEntity = new EditorEntity(gizmoRoot.OwnerCore);
             planeEntity.Name = handleName;
             planeEntity.InternalEntity = true;
             planeEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -361,7 +366,7 @@ namespace helengine.editor {
         /// <param name="previewModel">Runtime plane mesh used by the preview.</param>
         /// <param name="previewMaterial">Material used to render the procedural preview grid.</param>
         /// <returns>Configured snap-preview entity.</returns>
-        static EditorEntity CreateSnapPreviewEntity(RuntimeModel previewModel, RuntimeMaterial previewMaterial) {
+        static EditorEntity CreateSnapPreviewEntity(RuntimeModel previewModel, RuntimeMaterial previewMaterial, Core ownerCore) {
             if (previewModel == null) {
                 throw new ArgumentNullException(nameof(previewModel));
             }
@@ -369,8 +374,11 @@ namespace helengine.editor {
             if (previewMaterial == null) {
                 throw new ArgumentNullException(nameof(previewMaterial));
             }
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
 
-            var previewEntity = new EditorEntity {
+            var previewEntity = new EditorEntity(ownerCore) {
                 Name = "Transform Gizmo Snap Preview",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,

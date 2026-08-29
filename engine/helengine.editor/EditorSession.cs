@@ -268,7 +268,7 @@ namespace helengine.editor {
         /// <summary>
         /// Scene-owned canvas profile shared by viewport previews and scene settings UI.
         /// </summary>
-        readonly EditorSceneCanvasProfileState sceneCanvasProfileState;
+        EditorSceneCanvasProfileState sceneCanvasProfileState;
         /// <summary>
         /// UI camera entity used for 2D rendering.
         /// </summary>
@@ -348,6 +348,10 @@ namespace helengine.editor {
         /// Session-owned renderer-backed visual and preview resources.
         /// </summary>
         readonly EditorSessionRendererResources rendererResources;
+        /// <summary>
+        /// Session-owned mutable interaction state shared by this session's UI and tools.
+        /// </summary>
+        readonly EditorSessionInteractionServices interactionServices;
         /// <summary>
         /// Session-owned generated provider registry for this editor graph.
         /// </summary>
@@ -631,6 +635,7 @@ namespace helengine.editor {
         /// <param name="importers">Asset importers to register for import settings.</param>
         /// <param name="browseOutputFolderResolver">Host callback that opens a folder picker for build output selection.</param>
         /// <param name="shaderBackendRegistry">Registry populated by bootstrap code with the shader backends available to the editor host.</param>
+        /// <param name="platformProviderResolver">Explicit platform-provider resolver owned by the editor composition root.</param>
         public EditorSession(
             EditorCore core,
             string projectPath,
@@ -647,13 +652,14 @@ namespace helengine.editor {
             RuntimeTexture titleBarIcon,
             IReadOnlyList<IAssetImporterRegistration> importers,
             Func<string> browseOutputFolderResolver,
-            ShaderBackendRegistry shaderBackendRegistry) {
+            ShaderBackendRegistry shaderBackendRegistry,
+            AvailablePlatformProviderResolver platformProviderResolver) {
             EditorSessionConstructionLedger constructionLedger = new EditorSessionConstructionLedger();
             constructionLedger.BeforeCleanupAction = sequence => DisposalCheckpointForTests?.Invoke(sequence);
             ConstructionLedger = constructionLedger;
             try {
-            // Register process-wide resets and the detachment boundary before
-            // touching static interaction state or event publishers.
+            // Register session-owned cleanup and the detachment boundary before
+            // touching interaction state or event publishers.
             RegisterSessionCleanupActions(constructionLedger);
             this.core = core ?? throw new ArgumentNullException(nameof(core));
             constructionLedger.Register(this.core);
@@ -678,7 +684,7 @@ namespace helengine.editor {
             ProjectSupportedPlatforms = projectPlatformsService.Load().SupportedPlatforms.AsReadOnly();
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
-            availablePlatformProviderResolver = CreateAvailablePlatformProviderResolver();
+            availablePlatformProviderResolver = platformProviderResolver ?? throw new ArgumentNullException(nameof(platformProviderResolver));
             platformCatalogService = CreatePlatformCatalogService();
             EditorContentManager = new ContentManager(new HostFileSystemContentStreamSource(ResolveAssetsRootPath(this.projectPath)));
             constructionLedger.Register(EditorContentManager);
@@ -689,9 +695,10 @@ namespace helengine.editor {
             Importers = importers ?? throw new ArgumentNullException(nameof(importers));
             this.core.SetDefaultFontAssetForEditor(this.uiFont);
 
-            EditorKeyboardFocusService.Reset();
-            EditorInputCaptureService.Reset();
             core.Initialize(render3D, render2D, input, CreateEditorPlatformInfo());
+            interactionServices = new EditorSessionInteractionServices();
+            core.SessionInteractionServices = interactionServices;
+            constructionLedger.Register(interactionServices, EditorSessionCleanupPhase.Dispose);
             generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
             constructionLedger.Register(generatedAssetProviderRegistry, EditorSessionCleanupPhase.GeneratedProviderGraph);
             EditorComponentAddCatalog.Initialize();
@@ -731,7 +738,7 @@ namespace helengine.editor {
             PendingShaderBuildNotifications = new Queue<KeyValuePair<string, string>>(PendingShaderBuildNotificationInitialCapacity);
             previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D, sceneCanvasProfileState, generatedAssetProviderRegistry, generatedMaterialCache, builtInShaderAssetLibrary, rendererResources);
 
-            uiCameraEntity = new EditorEntity();
+            uiCameraEntity = new EditorEntity(core, interactionServices);
             uiCameraEntity.InternalEntity = true;
             uiCameraEntity.Position = new float3(0, 3, -8);
             uiCameraComponent = new CameraComponent();
@@ -740,7 +747,7 @@ namespace helengine.editor {
             uiCameraComponent.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 0f), false, 1.0f, false, 0);
             uiCameraEntity.AddComponent(uiCameraComponent);
 
-            modalUiCameraEntity = new EditorEntity();
+            modalUiCameraEntity = new EditorEntity(core, interactionServices);
             modalUiCameraEntity.InternalEntity = true;
             modalUiCameraEntity.Position = new float3(0, 3, -8);
             modalUiCameraComponent = new CameraComponent();
@@ -762,12 +769,12 @@ namespace helengine.editor {
             hiddenCameraComponent = primaryViewportState.PickerCamera;
             hiddenCameraTarget = primaryViewportState.PickerRenderTarget;
             ApplyEditorTheme(CurrentThemeId);
-            keyboardFocusEntity = new EditorEntity {
+            keyboardFocusEntity = new EditorEntity(core, interactionServices) {
                 InternalEntity = true,
                 Enabled = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
-            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(core.Input) {
+            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(core.Input, interactionServices) {
                 UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1),
                 SaveShortcutRequested = HandleGlobalSaveShortcut,
                 UndoShortcutRequested = HandleGlobalUndoShortcut,
@@ -779,8 +786,8 @@ namespace helengine.editor {
             keyboardFocusEntity.InitializeHierarchy();
 
             PlatformExistenceSyncService = new EditorPlatformExistenceViewportSyncService(core.ObjectManager);
-            RegisterDetacher(constructionLedger, () => EntityPlatformExistenceEditingService.ExistenceChanged -= ApplyPlatformExistenceSuppression);
-            EntityPlatformExistenceEditingService.ExistenceChanged += ApplyPlatformExistenceSuppression;
+            RegisterDetacher(constructionLedger, () => interactionServices.EntityExistence.ExistenceChanged -= ApplyPlatformExistenceSuppression);
+            interactionServices.EntityExistence.ExistenceChanged += ApplyPlatformExistenceSuppression;
 
             titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
             titleBar.SetInput(core.Input);
@@ -790,7 +797,7 @@ namespace helengine.editor {
             sessionStateService = new EditorSessionStateService(ResolveProjectRootPath(this.projectPath));
             InitializePanelRegistry();
 
-            dockingManager = new DockingManager(core.RenderManager2D, core.ObjectManager);
+            dockingManager = new DockingManager(core.RenderManager2D, core.ObjectManager, interactionServices);
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
             fileSystemModelResolver.SetRenderManager(core.RenderManager3D);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
@@ -811,6 +818,8 @@ namespace helengine.editor {
             constructionLedger.Register(propertiesPanel);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
             propertiesPanel.SetGeneratedAssetProviderRegistry(generatedAssetProviderRegistry);
+            propertiesPanel.SetEntityExistenceEditingService(interactionServices.EntityExistence);
+            propertiesPanel.SetComponentEditorRegistry(interactionServices.ComponentEditors);
             propertiesPanel.SetRendererResources(rendererResources);
             loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
             loggerPanel.SetInputServices(core.Input, core.TextClipboardService);
@@ -888,10 +897,10 @@ namespace helengine.editor {
                 HistoryCaptureService,
                 ComponentHistoryAdapterRegistry,
                 RaiseTrackedSceneMutated);
-            EditorEntityHistoryMutationService.CaptureEntityState = HistoryMutationService.CaptureEntityState;
-            EditorEntityHistoryMutationService.RecordEntityStateChange = HistoryMutationService.RecordEntityStateChange;
-            EditorComponentHistoryMutationService.CaptureEntityState = HistoryMutationService.CaptureEntityState;
-            EditorComponentHistoryMutationService.RecordComponentMutation = HistoryMutationService.RecordComponentMutation;
+            interactionServices.EntityHistory.CaptureEntityState = HistoryMutationService.CaptureEntityState;
+            interactionServices.EntityHistory.RecordEntityStateChange = HistoryMutationService.RecordEntityStateChange;
+            interactionServices.ComponentHistory.CaptureEntityState = HistoryMutationService.CaptureEntityState;
+            interactionServices.ComponentHistory.RecordComponentMutation = HistoryMutationService.RecordComponentMutation;
             propertiesPanel.HistoryMutationService = HistoryMutationService;
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
@@ -922,15 +931,15 @@ namespace helengine.editor {
             // Register the detach action before acquiring the first event
             // subscription. Partial construction can therefore unwind even if
             // one later subscription or dialog handler fails.
-            RegisterDetacher(constructionLedger, () => EditorSelectionService.SelectionChanged -= HandleSelectionChanged);
-            EditorSelectionService.SelectionChanged += HandleSelectionChanged;
+            RegisterDetacher(constructionLedger, () => interactionServices.Selection.SelectionChanged -= HandleSelectionChanged);
+            interactionServices.Selection.SelectionChanged += HandleSelectionChanged;
             ConstructionCheckpointForTests?.Invoke("after-first-subscription");
-            RegisterDetacher(constructionLedger, () => EditorAssetPickerService.PickRequested -= HandleAssetPickRequested);
-            EditorAssetPickerService.PickRequested += HandleAssetPickRequested;
-            RegisterDetacher(constructionLedger, () => EditorMeshModifierPickerService.PickRequested -= HandleMeshModifierPickRequested);
-            EditorMeshModifierPickerService.PickRequested += HandleMeshModifierPickRequested;
-            RegisterDetacher(constructionLedger, () => EditorSceneMutationService.SceneMutated -= HandleSceneMutated);
-            EditorSceneMutationService.SceneMutated += HandleSceneMutated;
+            RegisterDetacher(constructionLedger, () => interactionServices.AssetPicker.PickRequested -= HandleAssetPickRequested);
+            interactionServices.AssetPicker.PickRequested += HandleAssetPickRequested;
+            RegisterDetacher(constructionLedger, () => interactionServices.MeshModifierPicker.PickRequested -= HandleMeshModifierPickRequested);
+            interactionServices.MeshModifierPicker.PickRequested += HandleMeshModifierPickRequested;
+            RegisterDetacher(constructionLedger, () => interactionServices.SceneMutation.SceneMutated -= HandleSceneMutated);
+            interactionServices.SceneMutation.SceneMutated += HandleSceneMutated;
             RegisterDetacher(constructionLedger, () => titleBar.NewMapRequested -= HandleNewMapRequested);
             titleBar.NewMapRequested += HandleNewMapRequested;
             RegisterDetacher(constructionLedger, () => titleBar.OpenMapRequested -= HandleOpenMapRequested);
@@ -1054,6 +1063,11 @@ namespace helengine.editor {
         /// Gets the core editor instance.
         /// </summary>
         public EditorCore Core => core;
+
+        /// <summary>
+        /// Gets the mutable interaction state owned by this editor session.
+        /// </summary>
+        public EditorSessionInteractionServices InteractionServices => interactionServices;
 
         /// <summary>
         /// Gets the editor title bar UI.
@@ -1493,7 +1507,7 @@ namespace helengine.editor {
 
             int availableHeight = Math.Max(0, height - titleBar.Height);
             dockingManager.Layout.Layout(new int2(width, availableHeight), new float3(0, titleBar.Height, 0));
-            EditorKeyboardFocusService.SetDockOrder(dockingManager.Layout.GetVisibleDockablesInTraversalOrder());
+            interactionServices.KeyboardFocus.SetDockOrder(dockingManager.Layout.GetVisibleDockablesInTraversalOrder());
             SynchronizeViewportOverlayCameras();
             assetPickerModal?.UpdateLayout(width, height);
             meshModifierPickerModal?.UpdateLayout(width, height);
@@ -1827,41 +1841,50 @@ namespace helengine.editor {
             }
 
             if (!string.IsNullOrWhiteSpace(projectPath)) {
-                assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
+                assetPickerModal = RebindDialogToSession(new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry));
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
-                saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
+                saveFileDialog = RebindDialogToSession(new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry));
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
-                openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
+                openFileDialog = RebindDialogToSession(new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry));
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, openFileDialog.Dispose, openFileDialog.DisposeAuthoringResources, openFileDialog.Hide);
             } else {
                 assetPickerModal = null;
                 saveFileDialog = null;
                 openFileDialog = null;
             }
-            meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
+            meshModifierPickerModal = RebindDialogToSession(new MeshModifierPickerModal(uiFont, CurrentUiMetrics));
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
-            reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
+            reparentEntityDialog = RebindDialogToSession(new ReparentEntityDialog(uiFont, CurrentUiMetrics));
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
-            platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
+            platformsDialog = RebindDialogToSession(new PlatformsDialog(uiFont, CurrentUiMetrics));
             platformsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, platformsDialog.Dispose, hide: platformsDialog.Hide);
-            environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
+            environmentsDialog = RebindDialogToSession(new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics));
             environmentsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, environmentsDialog.Dispose, hide: environmentsDialog.Hide);
-            profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
+            profilesDialog = RebindDialogToSession(new ProfilesDialog(uiFont, CurrentUiMetrics));
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, profilesDialog.Dispose, hide: profilesDialog.Hide);
-            buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
+            buildDialog = RebindDialogToSession(new BuildDialog(uiFont, CurrentUiMetrics));
             buildDialog.SetRendererResources(rendererResources);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, buildDialog.Dispose, hide: buildDialog.Hide);
-            buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
+            buildDialogCopySettingsDialog = RebindDialogToSession(new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics));
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, buildDialogCopySettingsDialog.Dispose, hide: buildDialogCopySettingsDialog.Hide);
-            unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
+            unsavedChangesDialog = RebindDialogToSession(new UnsavedChangesDialog(uiFont, CurrentUiMetrics));
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
-            sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
+            sceneSettingsDialog = RebindDialogToSession(new SceneSettingsDialog(uiFont, CurrentUiMetrics));
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
-            preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
+            preferencesDialog = RebindDialogToSession(new EditorPreferencesDialog(uiFont, CurrentUiMetrics));
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             AttachScaleSensitiveDialogHandlers();
+        }
+
+        T RebindDialogToSession<T>(T dialog) where T : EditorEntity {
+            if (dialog == null) {
+                throw new ArgumentNullException(nameof(dialog));
+            }
+
+            EditorDialogBase.RebindEntityToSession(dialog, core, interactionServices);
+            return dialog;
         }
 
         /// <summary>
@@ -1931,19 +1954,19 @@ namespace helengine.editor {
             for (int i = 0; i < dockables.Count; i++) {
                 DockableEntity dockable = dockables[i];
                 if (!dockable.Enabled || dockable is EditorViewport) {
-                    EditorInputCaptureService.ClearBlocker(dockable);
+                    interactionServices.InputCapture.ClearBlocker(dockable);
                     continue;
                 }
 
                 int width = Math.Max(0, dockable.Size.X);
                 int height = Math.Max(0, dockable.Size.Y + DockableEntity.TitleBarHeight);
                 if (width <= 0 || height <= 0) {
-                    EditorInputCaptureService.ClearBlocker(dockable);
+                    interactionServices.InputCapture.ClearBlocker(dockable);
                     continue;
                 }
 
                 int2 position = new int2((int)Math.Round(dockable.Position.X), (int)Math.Round(dockable.Position.Y));
-                EditorInputCaptureService.SetBlocker(dockable, position, new int2(width, height));
+                interactionServices.InputCapture.SetBlocker(dockable, position, new int2(width, height));
             }
         }
 
@@ -1956,8 +1979,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Installs the process-wide reset and subscription-detachment actions
-        /// before construction can mutate any shared editor state.
+        /// Installs session-owned reset and subscription-detachment actions
+        /// before construction can mutate any editor state.
         /// </summary>
         /// <param name="ledger">Construction/live ownership ledger.</param>
         void RegisterSessionCleanupActions(EditorSessionConstructionLedger ledger) {
@@ -1965,19 +1988,6 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(ledger));
             }
 
-            ledger.Register(EditorInputCaptureService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorKeyboardFocusService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorSelectionService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorSceneMutationService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorAssetPickerService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorMeshModifierPickerService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EntityPlatformExistenceEditingService.ResetExistenceChangedSubscribers, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorEntityHistoryMutationService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorComponentHistoryMutationService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorGizmoHoverService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorGizmoDragService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorViewportToolService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(TransformGizmoSnapSettingsService.ResetDefaults, EditorSessionCleanupPhase.Reset);
             ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);
         }
 
@@ -2012,18 +2022,6 @@ namespace helengine.editor {
         EditorSessionConstructionLedger CreateUninitializedCleanupLedger() {
             EditorSessionConstructionLedger ledger = new EditorSessionConstructionLedger();
             ledger.BeforeCleanupAction = sequence => DisposalCheckpointForTests?.Invoke(sequence);
-            ledger.Register(EditorKeyboardFocusService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorSelectionService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorSceneMutationService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorAssetPickerService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorMeshModifierPickerService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EntityPlatformExistenceEditingService.ResetExistenceChangedSubscribers, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorEntityHistoryMutationService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorComponentHistoryMutationService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorGizmoHoverService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorGizmoDragService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(EditorViewportToolService.Reset, EditorSessionCleanupPhase.Reset);
-            ledger.Register(TransformGizmoSnapSettingsService.ResetDefaults, EditorSessionCleanupPhase.Reset);
             ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);
             RegisterCurrentScaleSensitiveDialogCleanup(ledger);
             ledger.Register(() => shaderModuleManager?.Dispose(), EditorSessionCleanupPhase.Dispose);
@@ -2043,6 +2041,11 @@ namespace helengine.editor {
             ledger.Register(() => SceneFileLoadService?.Dispose(), EditorSessionCleanupPhase.Dispose);
             ledger.Register(() => AuthoringSession?.Dispose(), EditorSessionCleanupPhase.Dispose);
             ledger.Register(() => core?.Dispose(), EditorSessionCleanupPhase.Dispose);
+            // Lightweight fixtures bypass the public constructor, so register
+            // their borrowed interaction graph here as well. It must run before
+            // the owning core is torn down and remains retryable with the rest
+            // of the ledger.
+            ledger.Register(() => interactionServices?.Dispose(), EditorSessionCleanupPhase.Dispose);
             return ledger;
         }
 
@@ -2079,15 +2082,8 @@ namespace helengine.editor {
                 }
             }
 
-            // Fully constructed sessions own the input reset as one ledger
-            // action. Uninitialized integration fixtures get an equivalent
-            // individually tracked action before their fallback ledger is
-            // transferred.
             if (ConstructionLedger == null) {
                 EditorSessionConstructionLedger uninitializedLedger = CreateUninitializedCleanupLedger();
-                uninitializedLedger.Register(() => {
-                    EditorInputCaptureService.Reset();
-                }, EditorSessionCleanupPhase.Reset);
                 ConstructionLedger = uninitializedLedger;
                 ConstructionLedger.TransferOwnership();
             }
@@ -2237,6 +2233,12 @@ namespace helengine.editor {
         EditorWorkspacePanelInstance CreateWorkspacePanelInstance(string panelTypeId, string instanceId) {
             EditorWorkspacePanelTypeDescriptor descriptor = PanelRegistry.GetDescriptor(panelTypeId);
             IEditorWorkspacePanelController controller = descriptor.CreateController(this);
+            // Workspace panels may be constructed after another editor session has
+            // become the ambient core. Adopt the complete panel subtree before
+            // registration so components and interaction menus belong to this
+            // session's explicit core/graph.
+            controller.Dockable.RebindOwnerCore(core);
+            controller.Dockable.RebindInteractionServices(interactionServices);
             if (WorkspacePanelControllerDecoratorForTests != null) {
                 controller = WorkspacePanelControllerDecoratorForTests(controller)
                     ?? throw new InvalidOperationException("The workspace controller test decorator returned null.");
@@ -2302,7 +2304,7 @@ namespace helengine.editor {
                 dockingManager.Layout.Add(instance.Dockable);
             }
 
-            EditorKeyboardFocusService.RegisterGroup(instance.Dockable);
+            interactionServices.KeyboardFocus.RegisterGroup(instance.Dockable);
             PanelInstances.Add(instance);
             RefreshWorkspaceDockOrder();
         }
@@ -2554,7 +2556,7 @@ namespace helengine.editor {
             UnwireWorkspacePanelEvents(instance);
             dockingManager.Layout.Remove(dockable);
             dockable.Enabled = false;
-            EditorKeyboardFocusService.UnregisterGroup(dockable);
+            interactionServices.KeyboardFocus.UnregisterGroup(dockable);
             if (ReferenceEquals(LastFocusedViewportInstance, instance)) {
                 LastFocusedViewportInstance = null;
             }
@@ -2871,7 +2873,7 @@ namespace helengine.editor {
         /// Refreshes keyboard traversal order from the current dock layout.
         /// </summary>
         void RefreshWorkspaceDockOrder() {
-            EditorKeyboardFocusService.SetDockOrder(dockingManager.Layout.GetVisibleDockablesInTraversalOrder());
+            interactionServices.KeyboardFocus.SetDockOrder(dockingManager.Layout.GetVisibleDockablesInTraversalOrder());
         }
 
         /// <summary>
@@ -3076,20 +3078,20 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(createEntity));
             }
 
-            Entity previousSelection = EditorSelectionService.SelectedEntity;
+            Entity previousSelection = interactionServices.Selection.SelectedEntity;
 
             SuppressSelectionHistoryRecording = true;
             try {
                 EditorEntity entity = createEntity();
                 RefreshHierarchy();
-                EditorSelectionService.SetSelectedEntity(entity);
+                interactionServices.Selection.SetSelectedEntity(entity);
                 HistoryMutationService.RecordCreatedEntity(entity, GetSceneEntityId(previousSelection));
             } catch (Exception ex) {
                 Logger.WriteError($"Scene entity creation failed: {ex.Message}");
                 if (previousSelection == null) {
-                    EditorSelectionService.ClearSelection();
+                    interactionServices.Selection.ClearSelection();
                 } else {
-                    EditorSelectionService.SetSelectedEntity(previousSelection);
+                    interactionServices.Selection.SetSelectedEntity(previousSelection);
                 }
             } finally {
                 SuppressSelectionHistoryRecording = false;
@@ -3168,7 +3170,7 @@ namespace helengine.editor {
             HistoryMutationService.RecordDeletedEntity(entity);
             SuppressSelectionHistoryRecording = true;
             try {
-                EditorSelectionService.ClearSelection();
+                interactionServices.Selection.ClearSelection();
                 DeleteSceneEntityById(entityId);
             } finally {
                 SuppressSelectionHistoryRecording = false;
@@ -3203,7 +3205,7 @@ namespace helengine.editor {
             try {
                 EditorEntity duplicatedEntity = RestoreSerializedEntity(duplicateState);
                 RefreshHierarchy();
-                EditorSelectionService.SetSelectedEntity(duplicatedEntity);
+            interactionServices.Selection.SetSelectedEntity(duplicatedEntity);
                 HistoryMutationService.RecordCreatedEntity(duplicatedEntity, previousSelectionEntityId);
             } catch (Exception ex) {
                 Logger.WriteError($"Scene entity duplication failed: {ex.Message}");
@@ -3297,7 +3299,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Selected authored scene entity when deletion should proceed; otherwise null.</returns>
         EditorEntity ResolveSelectedDeletableSceneEntity() {
-            if (EditorSelectionService.SelectedEntity is not EditorEntity editorEntity) {
+            if (interactionServices.Selection.SelectedEntity is not EditorEntity editorEntity) {
                 return null;
             }
             if (editorEntity.IsDisposed || editorEntity.InternalEntity) {
@@ -4240,7 +4242,9 @@ namespace helengine.editor {
             DeferCurrentSceneOwnedAssetsRelease();
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
-            sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
+            EditorSceneCanvasProfileState resetCanvasProfileState = sceneCanvasProfileState ?? throw new InvalidOperationException("Scene canvas profile state is required during scene reset.");
+            SceneSettingsAsset resetSceneSettings = CurrentSceneSettings ?? throw new InvalidOperationException("Scene settings are required during scene reset.");
+            resetCanvasProfileState.ApplySceneSettings(resetSceneSettings);
             UndoRedoService.Reset();
             MarkSceneClean();
             RefreshHierarchy();
@@ -4281,7 +4285,7 @@ namespace helengine.editor {
                 EditorEntity previousParent = targetEditorEntity.Parent as EditorEntity;
                 bool changed = ReparentService.Reparent(targetEditorEntity, selection.ParentEntity);
                 RefreshHierarchy();
-                EditorSelectionService.SetSelectedEntity(targetEditorEntity);
+                interactionServices.Selection.SetSelectedEntity(targetEditorEntity);
                 if (changed) {
                     HistoryMutationService.RecordEntityReparent(targetEditorEntity, previousParent, selection.ParentEntity);
                 }
@@ -4471,7 +4475,7 @@ namespace helengine.editor {
         /// Clears the current editor scene selection before authored scene entities start tearing down.
         /// </summary>
         void ClearSceneSelectionBeforeTeardown() {
-            EditorSelectionService.ClearSelection();
+            interactionServices?.Selection.ClearSelection();
         }
 
         /// <summary>
@@ -4544,7 +4548,7 @@ namespace helengine.editor {
         void RaiseTrackedSceneMutated() {
             IsTrackedSceneMutationNotification = true;
             try {
-                EditorSceneMutationService.MarkSceneMutated();
+                interactionServices.SceneMutation.MarkSceneMutated();
             } finally {
                 IsTrackedSceneMutationNotification = false;
             }
@@ -5448,7 +5452,7 @@ namespace helengine.editor {
                 CaptureSceneSettings = CaptureCurrentSceneSettings,
                 ApplySceneSettings = ApplySceneSettingsFromHistory,
                 RestoreSelectionByEntityId = RestoreSceneSelectionByEntityId,
-                ClearSelection = EditorSelectionService.ClearSelection,
+                ClearSelection = interactionServices.Selection.ClearSelection,
                 RefreshEditorState = RefreshEditorStateAfterHistoryMutation
             };
         }
@@ -5529,7 +5533,7 @@ namespace helengine.editor {
         void DeleteSceneEntityById(uint entityId) {
             EditorEntity entity = ResolveSceneEntityById(entityId);
             if (SelectedSceneEntity != null && IsDescendantOf(SelectedSceneEntity, entity)) {
-                EditorSelectionService.ClearSelection();
+                interactionServices.Selection.ClearSelection();
             }
 
             if (entity.Parent != null) {
@@ -5578,7 +5582,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="entityId">Stable scene entity id that should become selected.</param>
         void RestoreSceneSelectionByEntityId(uint entityId) {
-            EditorSelectionService.SetSelectedEntity(ResolveSceneEntityById(entityId));
+                interactionServices.Selection.SetSelectedEntity(ResolveSceneEntityById(entityId));
         }
 
         /// <summary>
@@ -6340,17 +6344,6 @@ namespace helengine.editor {
         /// <returns>Stable editor host platform metadata used by runtime systems during editor execution.</returns>
         PlatformInfo CreateEditorPlatformInfo() {
             return new PlatformInfo("editor", RequiredEngineVersion);
-        }
-
-        /// <summary>
-        /// Creates the available-platform resolver used by project platform workflows.
-        /// </summary>
-        /// <returns>Resolver that loads platforms from development overrides, launcher state, or built-in fallback sources.</returns>
-        AvailablePlatformProviderResolver CreateAvailablePlatformProviderResolver() {
-            EditorSourceBuildWorkspaceLocator workspaceLocator = new EditorSourceBuildWorkspaceLocator();
-            string sharedEngineUserSettingsRootPath = workspaceLocator.ResolveSharedEngineUserSettingsRootPath();
-            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(sharedEngineUserSettingsRootPath);
-            return new AvailablePlatformProviderResolver(options);
         }
 
         /// <summary>

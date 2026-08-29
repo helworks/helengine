@@ -15,7 +15,7 @@ public sealed class GdiFontImporterTests {
         string sourceFontPath = Path.Combine(repositoryRootPath, "vendor", "bepuphysics2", "Demos", "Content", "Carlito-Regular.ttf");
 
         using FileStream stream = new FileStream(sourceFontPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        FontAsset fontAsset = new GdiFontImporter().ImportFont(stream, new FontAssetProcessorSettings {
+        FontAsset fontAsset = new GdiFontImporter(null).ImportFont(stream, new FontAssetProcessorSettings {
             PixelSize = 32
         });
 
@@ -35,7 +35,7 @@ public sealed class GdiFontImporterTests {
         string sourceFontPath = Path.Combine(repositoryRootPath, "vendor", "bepuphysics2", "Demos", "Content", "Carlito-Regular.ttf");
 
         using FileStream stream = new FileStream(sourceFontPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        FontAsset fontAsset = new GdiFontImporter().ImportFont(stream, new FontAssetProcessorSettings {
+        FontAsset fontAsset = new GdiFontImporter(null).ImportFont(stream, new FontAssetProcessorSettings {
             PixelSize = 32
         });
 
@@ -49,7 +49,7 @@ public sealed class GdiFontImporterTests {
     public void ImportFont_WhenPixelSizeChanges_UsesRequestedPlatformSize() {
         string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         string sourceFontPath = Path.Combine(repositoryRootPath, "vendor", "bepuphysics2", "Demos", "Content", "Carlito-Regular.ttf");
-        GdiFontImporter importer = new GdiFontImporter();
+        GdiFontImporter importer = new GdiFontImporter(null);
 
         using FileStream smallStream = new FileStream(sourceFontPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         FontAsset smallFont = importer.ImportFont(smallStream, new FontAssetProcessorSettings {

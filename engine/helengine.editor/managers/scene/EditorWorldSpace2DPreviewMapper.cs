@@ -44,7 +44,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return EditorWorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity) != null;
+            return EditorSessionInteractionServices.From(entity).WorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity) != null;
         }
 
         /// <summary>
@@ -57,7 +57,7 @@ namespace helengine.editor {
                 return null;
             }
 
-            return EditorWorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity);
+            return EditorSessionInteractionServices.From(entity).WorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity);
         }
     }
 }

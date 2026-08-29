@@ -82,7 +82,6 @@ namespace helengine.editor.tests.managers.dock {
         /// Clears shared keyboard-focus state after each test.
         /// </summary>
         public void Dispose() {
-            EditorKeyboardFocusService.Reset();
         }
 
         /// <summary>
@@ -91,7 +90,6 @@ namespace helengine.editor.tests.managers.dock {
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            EditorKeyboardFocusService.Reset();
         }
 
         /// <summary>

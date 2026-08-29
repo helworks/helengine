@@ -177,7 +177,7 @@ namespace helengine {
                 }
 
                 AdditionalTextValue = value;
-                UpdateAdditionalLineRows(Core.Instance);
+                UpdateAdditionalLineRows(OwnerCore);
             }
         }
 
@@ -364,7 +364,7 @@ namespace helengine {
             Initialized = true;
             ActiveComponents.Add(this);
             ApplyFont();
-            UpdateAdditionalLineRows(Core.Instance);
+            UpdateAdditionalLineRows(OwnerCore);
             ApplyOverlayPresentationVisibility();
         }
 
@@ -445,7 +445,7 @@ namespace helengine {
                 return;
             }
 
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             OverlayHost.Enabled = !ShouldUsePlatformOwnedOverlayPresentation(core);
         }
 
@@ -503,7 +503,7 @@ namespace helengine {
 
             UpdateFrameCount = 0;
             RenderFrameCount = 0;
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             LastSampleElapsedSeconds = core == null ? 0d : core.TotalElapsedSeconds;
             if (Initialized && core != null) {
                 UpdateFpsText = ResolveUpdateOverlayText(core, 0d);
@@ -541,7 +541,7 @@ namespace helengine {
                 return;
             }
 
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             if (core == null) {
                 return;
             }
@@ -572,7 +572,7 @@ namespace helengine {
                 return;
             }
 
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             double elapsedSeconds = core.TotalElapsedSeconds - LastSampleElapsedSeconds;
             if (refreshIntervalSeconds > 0d && elapsedSeconds < refreshIntervalSeconds) {
                 return;
@@ -649,7 +649,7 @@ namespace helengine {
         /// Clears any previously published platform-owned overlay rows when this component tears down.
         /// </summary>
         void ClearPublishedOverlayTextRows() {
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             if (core == null) {
                 return;
             }
@@ -792,7 +792,7 @@ namespace helengine {
         /// </summary>
         /// <param name="textComponent">Text component that should receive the FPS overlay shadow.</param>
         void ApplyTextShadow(TextComponent textComponent) {
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             if (core != null
                 && core.PlatformInfo != null
                 && string.Equals(core.PlatformInfo.Name, "ps2", StringComparison.OrdinalIgnoreCase)) {
@@ -810,7 +810,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Effective scale used by the generated FPS text drawables.</returns>
         float ResolveEffectiveFontScale() {
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             if (core == null || core.PlatformInfo == null) {
                 return FontScale;
             }

@@ -59,7 +59,7 @@ namespace helengine.editor.windows.tests.rendering {
             using EditorBuiltInShaderAssetLibrary shaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
 
             try {
-                FontAsset importedFontAsset = GDIFontProcessor.ImportFont(font);
+                FontAsset importedFontAsset = GDIFontProcessor.ImportFont(font, renderer.Render2D);
                 RuntimeTexture runtimeFontTexture = renderer.Render2D.BuildTextureFromRaw(importedFontAsset.SourceTextureAsset);
                 FontAsset fontAsset = new FontAsset(
                     importedFontAsset.FontInfo,
@@ -82,7 +82,7 @@ namespace helengine.editor.windows.tests.rendering {
                 };
                 sourceEntity.AddComponent(sourceComponent);
 
-                using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderer, core.ObjectManager, shaderLibrary);
+                using EditorExact2DPreviewCaptureService service = new EditorExact2DPreviewCaptureService(renderer, core.RenderManager2D, core.ObjectManager, shaderLibrary);
                 service.CaptureTextPreview(sourceEntity, sourceComponent, new int2(128, 64));
 
                 renderer.Draw();

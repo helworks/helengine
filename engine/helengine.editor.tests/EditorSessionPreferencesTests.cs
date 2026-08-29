@@ -39,8 +39,6 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            EditorKeyboardFocusService.Reset();
-            EditorInputCaptureService.Reset();
             ThemeManager.SetTheme(OriginalTheme);
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);

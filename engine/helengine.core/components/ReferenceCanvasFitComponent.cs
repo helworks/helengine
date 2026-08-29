@@ -212,11 +212,11 @@ namespace helengine {
             if (IsSubscribedToWindowResizeValue) {
                 return;
             }
-            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+            if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
                 return;
             }
 
-            Core.Instance.RenderManager3D.WindowResized += HandleWindowResized;
+            OwnerCore.RenderManager3D.WindowResized += HandleWindowResized;
             IsSubscribedToWindowResizeValue = true;
         }
 
@@ -227,12 +227,12 @@ namespace helengine {
             if (!IsSubscribedToWindowResizeValue) {
                 return;
             }
-            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+            if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
                 IsSubscribedToWindowResizeValue = false;
                 return;
             }
 
-            Core.Instance.RenderManager3D.WindowResized -= HandleWindowResized;
+            OwnerCore.RenderManager3D.WindowResized -= HandleWindowResized;
             IsSubscribedToWindowResizeValue = false;
         }
 
@@ -286,7 +286,7 @@ namespace helengine {
         /// Applies the fit scale resolved from the current main-window size to the captured authored subtree.
         /// </summary>
         void ApplyCurrentScale() {
-            if (Parent == null || Core.Instance == null || Core.Instance.RenderManager3D == null || SnapshotsValue.Count == 0) {
+            if (Parent == null || OwnerCore == null || OwnerCore.RenderManager3D == null || SnapshotsValue.Count == 0) {
                 return;
             }
 
@@ -316,7 +316,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Anchor space that descendants should use for local anchoring.</returns>
         int2 ResolveCurrentAnchorSpaceSize() {
-            int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
+            int2 mainWindowSize = OwnerCore.RenderManager3D.MainWindowSize;
             double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
             double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
             if (LiveWindowMatchesReferenceAspect(liveWidth, liveHeight)) {
@@ -341,7 +341,7 @@ namespace helengine {
         /// <param name="anchorSpace">Anchor space resolved for the current live window.</param>
         /// <returns>Root-entity offset that places the fitted canvas inside the live window.</returns>
         float2 ResolveCurrentCanvasOrigin(int2 anchorSpaceSize) {
-            int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
+            int2 mainWindowSize = OwnerCore.RenderManager3D.MainWindowSize;
             double liveWidth = mainWindowSize.X > 0 ? mainWindowSize.X : ReferenceWidthValue;
             double liveHeight = mainWindowSize.Y > 0 ? mainWindowSize.Y : ReferenceHeightValue;
             float originX = (float)((liveWidth - anchorSpaceSize.X) * 0.5d);

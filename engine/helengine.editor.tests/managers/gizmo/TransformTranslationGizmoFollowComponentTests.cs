@@ -8,6 +8,8 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies translation-gizmo follow behavior for the reusable snap-preview grid.
     /// </summary>
     public class TransformTranslationGizmoFollowComponentTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        Core CoreUnderTest;
         /// <summary>
         /// Tolerance used for floating-point comparisons.
         /// </summary>
@@ -21,12 +23,12 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Clears shared editor state after each test.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
-            EditorGizmoHoverService.ClearHoveredHandle();
+            InteractionServices.Selection.ClearSelection();
+            InteractionServices.GizmoHover.ClearHoveredHandle();
 
             if (CameraUnderTest != null) {
-                EditorViewportToolService.ClearToolMode(CameraUnderTest);
-                EditorGizmoDragService.EndDrag(CameraUnderTest);
+                InteractionServices.ViewportTool.ClearToolMode(CameraUnderTest);
+                InteractionServices.GizmoDrag.EndDrag(CameraUnderTest);
             }
         }
 
@@ -37,7 +39,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenControlSnapIsActive_ShowsSnapPreviewWithSnapSizedWorldScale() {
             TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -46,15 +48,15 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
-            EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[0]);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
+            InteractionServices.GizmoHover.SetHoveredHandle(gizmoRoot.Children[0]);
 
             input.SetKeyboardState(new KeyboardState(Keys.LeftControl));
             input.EarlyUpdate();
 
             UpdateFollowComponent(gizmoRoot);
 
-            float expectedSnapScale = (float)TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1);
+            float expectedSnapScale = (float)InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1);
             Assert.True(previewEntity.Enabled);
             Assert.InRange(Math.Abs(previewEntity.Scale.X - expectedSnapScale), 0f, FloatTolerance);
             Assert.InRange(Math.Abs(previewEntity.Scale.Y - expectedSnapScale), 0f, FloatTolerance);
@@ -68,7 +70,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenNoSnapModifierIsActive_HidesSnapPreview() {
             TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -77,8 +79,8 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
-            EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[0]);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
+            InteractionServices.GizmoHover.SetHoveredHandle(gizmoRoot.Children[0]);
 
             input.SetKeyboardState(new KeyboardState());
             input.EarlyUpdate();
@@ -95,7 +97,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenViewportOwnedSpriteIsSelected_PositionsTranslationGizmoAtPresentedBoundsCenter() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -104,7 +106,7 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
             Entity selectedEntity = CreateViewportOwnedSpriteEntity(new float3(100f, 200f, 35f), new int2(64, 32));
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -118,7 +120,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenTranslateToolIsActive_RestoresVisibleHandleLocalScales() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -126,7 +128,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
-            EditorSelectionService.SetSelectedEntity(new EditorEntity());
+            InteractionServices.Selection.SetSelectedEntity(new EditorEntity());
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -162,7 +164,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhileTranslationDragIsActive_PreservesHandleOrientationUntilDragEnds() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -178,7 +180,7 @@ namespace helengine.editor.tests.managers.gizmo {
 
             EditorEntity selectedEntity = new EditorEntity();
             selectedEntity.Position = new float3(0f, 0f, 0f);
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             UpdateFollowComponent(gizmoRoot);
 
             EditorEntity xHandle = (EditorEntity)gizmoRoot.Children[0];
@@ -186,7 +188,7 @@ namespace helengine.editor.tests.managers.gizmo {
             float4 initialYawFacingOrientation = followComponent.CurrentYawFacingOrientation;
             float3 initialLocalOffset = xHandle.Position - gizmoRoot.Position;
 
-            EditorGizmoDragService.BeginDrag(sceneCamera, selectedEntity);
+            InteractionServices.GizmoDrag.BeginDrag(sceneCamera, selectedEntity);
             selectedEntity.Position = new float3(-8f, 0f, 0f);
             UpdateFollowComponent(gizmoRoot);
 
@@ -194,7 +196,7 @@ namespace helengine.editor.tests.managers.gizmo {
             float3 dragLocalOffset = xHandle.Position - gizmoRoot.Position;
             AssertQuaternionEquals(initialYawFacingOrientation, followComponent.CurrentYawFacingOrientation);
 
-            EditorGizmoDragService.EndDrag(sceneCamera);
+            InteractionServices.GizmoDrag.EndDrag(sceneCamera);
             UpdateFollowComponent(gizmoRoot);
 
             AssertVectorEquals(selectedEntity.Position, gizmoRoot.Position);
@@ -211,7 +213,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenPlaneHandleIsHovered_UsesPlaneHighlightMaterialWithoutChangingAxisMaterials() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial axisNormalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial axisHighlightMaterial = new TestRuntimeMaterial();
@@ -229,9 +231,9 @@ namespace helengine.editor.tests.managers.gizmo {
                 previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             EditorEntity planeHandle = (EditorEntity)gizmoRoot.Children[1];
-            EditorGizmoHoverService.SetHoveredHandle(planeHandle);
+            InteractionServices.GizmoHover.SetHoveredHandle(planeHandle);
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -250,7 +252,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenSingleAxisSnapPreviewIsShown_ConfiguresFocusedFadeAndPlanePreviewClearsIt() {
             TestInputBackend input = InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -260,11 +262,11 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             input.SetKeyboardState(new KeyboardState(Keys.LeftControl));
             input.EarlyUpdate();
 
-            EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[0]);
+            InteractionServices.GizmoHover.SetHoveredHandle(gizmoRoot.Children[0]);
             UpdateFollowComponent(gizmoRoot);
 
             ShaderRuntimeMaterial previewShaderMaterial = Assert.IsAssignableFrom<ShaderRuntimeMaterial>(previewMaterial);
@@ -273,7 +275,7 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal(1f, ReadSingle(axisPreviewParameters, 0));
             Assert.True(ReadSingle(axisPreviewParameters, 4) > 0f);
 
-            EditorGizmoHoverService.SetHoveredHandle(gizmoRoot.Children[1]);
+            InteractionServices.GizmoHover.SetHoveredHandle(gizmoRoot.Children[1]);
             UpdateFollowComponent(gizmoRoot);
 
             byte[] planePreviewParameters = previewShaderMaterial.Properties.GetConstantBufferData(0);
@@ -288,7 +290,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenCameraDistanceChanges_KeepsPlaneHandleAtAuthoredInset() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -297,7 +299,7 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -319,7 +321,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenGizmoScaleChanges_KeepsConeTipAtScaledShaftLength() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(0f, 2f, -8f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -328,7 +330,7 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -350,7 +352,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenYawFacingIsApplied_PreservesExpectedWorldHandleDirections() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera(new float3(8f, 2f, 0f));
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
 
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -359,7 +361,7 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
             EditorEntity selectedEntity = new EditorEntity();
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -383,6 +385,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <returns>Input manager used by the current test.</returns>
         TestInputBackend InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreUnderTest = core;
             var input = new TestInputBackend();
             core.Initialize(null, null, input, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
@@ -427,6 +430,7 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddChild(CreateAxisEntity("Transform Gizmo X", CreateXAxisOrientation(), axisMaterial));
             gizmoRoot.AddChild(CreatePlaneEntity("Transform Gizmo XZ Plane", planeMaterial));
             gizmoRoot.AddChild(previewEntity);
+            gizmoRoot.RebindInteractionServices(InteractionServices);
             return gizmoRoot;
         }
 

@@ -8,6 +8,7 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies scale-gizmo entity creation and box-tip layout.
     /// </summary>
     public class TransformScaleGizmoFactoryTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Tolerance used for axis-tip position comparisons after quaternion-based layout.
         /// </summary>
@@ -21,12 +22,12 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Clears static editor state that is shared across tests.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
-            EditorGizmoHoverService.ClearHoveredHandle();
+            InteractionServices.Selection.ClearSelection();
+            InteractionServices.GizmoHover.ClearHoveredHandle();
 
             if (CameraUnderTest != null) {
-                EditorViewportToolService.ClearToolMode(CameraUnderTest);
-                EditorGizmoDragService.EndDrag(CameraUnderTest);
+                InteractionServices.ViewportTool.ClearToolMode(CameraUnderTest);
+                InteractionServices.GizmoDrag.EndDrag(CameraUnderTest);
             }
         }
 
@@ -49,9 +50,9 @@ namespace helengine.editor.tests.managers.gizmo {
             Assert.Equal(6, gizmoRoot.Children.Count);
             Assert.Equal(9, render3D.BuiltModelAssets.Count);
 
-            AssertAxisHandle((EditorEntity)gizmoRoot.Children[0], "Transform Scale Gizmo X", new float3(TransformScaleGizmoFactory.ShaftLength, 0f, 0f), normalMaterial);
+            AssertAxisHandle((EditorEntity)gizmoRoot.Children[0], "Transform Scale Gizmo X", new float3(0f, TransformScaleGizmoFactory.ShaftLength, 0f), normalMaterial);
             AssertAxisHandle((EditorEntity)gizmoRoot.Children[1], "Transform Scale Gizmo Y", new float3(0f, TransformScaleGizmoFactory.ShaftLength, 0f), normalMaterial);
-            AssertAxisHandle((EditorEntity)gizmoRoot.Children[2], "Transform Scale Gizmo Z", new float3(0f, 0f, TransformScaleGizmoFactory.ShaftLength), normalMaterial);
+            AssertAxisHandle((EditorEntity)gizmoRoot.Children[2], "Transform Scale Gizmo Z", new float3(0f, TransformScaleGizmoFactory.ShaftLength, 0f), normalMaterial);
             AssertPlaneHandle((EditorEntity)gizmoRoot.Children[3], "Transform Scale Gizmo XY Plane", normalMaterial);
             AssertPlaneHandle((EditorEntity)gizmoRoot.Children[4], "Transform Scale Gizmo XZ Plane", normalMaterial);
             AssertPlaneHandle((EditorEntity)gizmoRoot.Children[5], "Transform Scale Gizmo YZ Plane", normalMaterial);
@@ -107,7 +108,7 @@ namespace helengine.editor.tests.managers.gizmo {
             MeshComponent tipMesh = FindMeshComponent(axisEntity.Children[1]);
             Assert.Same(expectedMaterial, Assert.Single(shaftMesh.Materials));
             Assert.Same(expectedMaterial, Assert.Single(tipMesh.Materials));
-            AssertVectorClose(expectedTipPosition, axisEntity.Children[1].Position);
+            AssertVectorClose(expectedTipPosition, axisEntity.Children[1].LocalPosition);
         }
 
         /// <summary>

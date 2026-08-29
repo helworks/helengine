@@ -287,11 +287,11 @@ namespace helengine.editor.tests {
             IReadOnlyList<EditorWorkspacePanelInstance> instances = harness.Session.GetPanelInstancesForTest("viewport");
             ViewportWorkspacePanelController firstController = harness.GetViewportControllerForTest(instances[0]);
             ViewportWorkspacePanelController secondController = harness.GetViewportControllerForTest(instances[1]);
-            EditorEntity selectedEntity = new EditorEntity();
+            EditorEntity selectedEntity = new EditorEntity(harness.OwnedCore);
 
             try {
-                EditorSelectionService.SetSelectedEntity(selectedEntity);
-                Core.Instance.ObjectManager.Update();
+                harness.Interactions.Selection.SetSelectedEntity(selectedEntity);
+                harness.OwnedCore.ObjectManager.Update();
 
                 IDrawable3D firstDrawable = FindFirstDrawableInSubtree(firstController.ViewportState.TranslationGizmoRoot);
                 IDrawable3D secondDrawable = FindFirstDrawableInSubtree(secondController.ViewportState.TranslationGizmoRoot);
@@ -302,7 +302,7 @@ namespace helengine.editor.tests {
                 Assert.True(QueueContainsDrawable(secondController.ViewportState.GizmoCamera.RenderQueue3D, secondDrawable));
                 Assert.False(QueueContainsDrawable(secondController.ViewportState.GizmoCamera.RenderQueue3D, firstDrawable));
             } finally {
-                EditorSelectionService.ClearSelection();
+                harness.Interactions.Selection.ClearSelection();
                 selectedEntity.Dispose();
             }
         }
@@ -332,7 +332,7 @@ namespace helengine.editor.tests {
 
             InvokePrivate(harness.Session, "HandleAddToSceneRequested", modelEntry);
 
-            EditorEntity createdEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity createdEntity = Assert.IsType<EditorEntity>(harness.Interactions.Selection.SelectedEntity);
             Assert.Equal("Cube", createdEntity.Name);
             Assert.Equal(orbitTarget, createdEntity.Position);
             MeshComponent meshComponent = Assert.IsType<MeshComponent>(Assert.Single(createdEntity.Components, component => component is MeshComponent));
@@ -396,14 +396,14 @@ namespace helengine.editor.tests {
             ViewportWorkspacePanelController controller = harness.GetViewportControllerForTest(instance);
             controller.ViewportState.Viewport.Size = new int2(1280, 720);
 
-            Entity selectedViewportEntity = new Entity();
+            Entity selectedViewportEntity = new Entity(harness.OwnedCore);
             selectedViewportEntity.InitComponents();
             selectedViewportEntity.InitChildren();
             selectedViewportEntity.AddComponent(new ViewportComponent {
                 BindingMode = ViewportComponent.FixedBindingMode,
                 FixedSize = new int2(40000, 20000)
             });
-            EditorSelectionService.SetSelectedEntity(selectedViewportEntity);
+            harness.Interactions.Selection.SetSelectedEntity(selectedViewportEntity);
 
             controller.ViewportState.Viewport.FocusSelectionRequested();
 
@@ -722,12 +722,23 @@ namespace helengine.editor.tests {
         /// Creates lightweight editor sessions suitable for workspace-instance tests.
         /// </summary>
         sealed class EditorSessionHarness : IDisposable {
+            readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
             readonly EditorCore CoreValue;
             readonly TestGeneratedAssetGraph GeneratedAssetGraph;
             /// <summary>
             /// Editor session under test.
             /// </summary>
             public EditorSession Session { get; }
+
+            /// <summary>
+            /// Core explicitly owned by the session represented by this harness.
+            /// </summary>
+            public EditorCore OwnedCore => CoreValue;
+
+            /// <summary>
+            /// Interaction services owned by the session represented by this harness.
+            /// </summary>
+            public helengine.editor.EditorSessionInteractionServices Interactions => InteractionServices;
 
             /// <summary>
             /// Generated provider registry owned by the harness graph.
@@ -783,9 +794,9 @@ namespace helengine.editor.tests {
                     new CoreInitializationOptions {
                         ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
                     });
+                CoreValue.SessionInteractionServices = InteractionServices;
                 ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
                 shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
-                EditorKeyboardFocusService.Reset();
                 GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
                 GeneratedAssetGraph.Registry.Register(GeneratedAssetGraph.CreateProvider());
 
@@ -828,7 +839,8 @@ namespace helengine.editor.tests {
                     GeneratedAssetGraph.RendererResources);
                 Session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
-                SetPrivateField(Session, "dockingManager", new DockingManager(Core.Instance.RenderManager2D, Core.Instance.ObjectManager));
+                SetPrivateField(Session, "dockingManager", new DockingManager(CoreValue.RenderManager2D, CoreValue.ObjectManager, InteractionServices));
+                SetPrivateField(Session, "interactionServices", InteractionServices);
                 SetPrivateField(Session, "core", CoreValue);
                 SetPrivateField(Session, "projectPath", TempProjectRootPath);
                 SetPrivateField(Session, "uiFont", Font);
@@ -887,15 +899,13 @@ namespace helengine.editor.tests {
                     .Concat(Session.GetPanelInstancesForTest("logger"))
                     .ToArray();
                 for (int index = 0; index < instances.Count; index++) {
-                    EditorKeyboardFocusService.UnregisterGroup(instances[index].Dockable);
+                    InteractionServices.KeyboardFocus.UnregisterGroup(instances[index].Dockable);
                     instances[index].Controller.Dispose();
                 }
 
                 AuthoringSession.Dispose();
                 GeneratedAssetGraph.Dispose();
-
-                EditorKeyboardFocusService.Reset();
-                EditorSelectionService.ClearSelection();
+                InteractionServices.Selection.ClearSelection();
                 CoreValue.Dispose();
                 if (Directory.Exists(TempProjectRootPath)) {
                     Directory.Delete(TempProjectRootPath, true);
@@ -1221,7 +1231,7 @@ namespace helengine.editor.tests {
             /// <param name="value">Snap value assigned to the viewport-local snap settings.</param>
             public void SetViewportSnapValue(EditorWorkspacePanelInstance instance, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot, double value) {
                 ViewportWorkspacePanelController controller = GetViewportController(instance);
-                TransformGizmoSnapSettingsService.SetSnapValue(controller.ViewportState.SceneCamera, toolMode, snapSlot, value);
+                InteractionServices.TransformSnap.SetSnapValue(controller.ViewportState.SceneCamera, toolMode, snapSlot, value);
             }
 
             /// <summary>
@@ -1233,7 +1243,7 @@ namespace helengine.editor.tests {
             /// <returns>Viewport-local snap value.</returns>
             public double GetViewportSnapValue(EditorWorkspacePanelInstance instance, EditorViewportToolMode toolMode, TransformGizmoSnapSlot snapSlot) {
                 ViewportWorkspacePanelController controller = GetViewportController(instance);
-                return TransformGizmoSnapSettingsService.GetSnapValue(controller.ViewportState.SceneCamera, toolMode, snapSlot);
+                return InteractionServices.TransformSnap.GetSnapValue(controller.ViewportState.SceneCamera, toolMode, snapSlot);
             }
 
             /// <summary>
@@ -1285,7 +1295,7 @@ namespace helengine.editor.tests {
                     throw new ArgumentException("Entity name must be provided.", nameof(entityName));
                 }
 
-                return Core.Instance.ObjectManager.Entities.Count(entity => entity is EditorEntity editorEntity && string.Equals(editorEntity.Name, entityName, StringComparison.Ordinal));
+                return CoreValue.ObjectManager.Entities.Count(entity => entity is EditorEntity editorEntity && string.Equals(editorEntity.Name, entityName, StringComparison.Ordinal));
             }
 
             /// <summary>

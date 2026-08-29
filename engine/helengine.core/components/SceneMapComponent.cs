@@ -120,13 +120,13 @@ namespace helengine {
                 return;
             } else if (string.IsNullOrWhiteSpace(InitialSceneId)) {
                 return;
-            } else if (Core.Instance == null || Core.Instance.SceneManager == null) {
+            } else if (OwnerCore == null || OwnerCore.SceneManager == null) {
                 throw new InvalidOperationException("SceneMapComponent startup redirection requires an initialized SceneManager.");
             }
 
             string resolvedSceneId = ResolveSceneId(InitialSceneId);
             StartupSceneWasRequested = true;
-            Core.Instance.SceneManager.LoadScene(resolvedSceneId, SceneLoadMode.Single);
+            OwnerCore.SceneManager.LoadScene(resolvedSceneId, SceneLoadMode.Single);
         }
 
         /// <summary>

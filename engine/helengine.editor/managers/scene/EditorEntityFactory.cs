@@ -9,10 +9,17 @@ namespace helengine.editor {
         readonly EditorSceneEntityIdAllocator EntityIdAllocator;
 
         /// <summary>
+        /// Core that owns every entity created by this factory.
+        /// </summary>
+        readonly Core OwnerCore;
+
+        /// <summary>
         /// Initializes one editor-authored entity factory.
         /// </summary>
+        /// <param name="ownerCore">Core whose object manager owns authored entities.</param>
         /// <param name="entityIdAllocator">Allocator that issues numeric scene entity ids for authored editor entities.</param>
-        public EditorEntityFactory(EditorSceneEntityIdAllocator entityIdAllocator) {
+        public EditorEntityFactory(Core ownerCore, EditorSceneEntityIdAllocator entityIdAllocator) {
+            OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             EntityIdAllocator = entityIdAllocator ?? throw new ArgumentNullException(nameof(entityIdAllocator));
         }
 
@@ -26,7 +33,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Entity name must be provided.", nameof(name));
             }
 
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(OwnerCore) {
                 Name = name,
                 IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects,

@@ -678,7 +678,7 @@ namespace helengine {
         void ResetSamplingWindow() {
             UpdateFrameCount = 0;
             RenderFrameCount = 0;
-            Core core = Core.Instance;
+            Core core = OwnerCore;
             LastSampleElapsedSeconds = core == null ? 0d : core.TotalElapsedSeconds;
             UpdateFpsText = "Update FPS: -- (-- ms)";
             RenderFpsText = "Render FPS: -- (-- ms)";
@@ -748,7 +748,7 @@ namespace helengine {
                 return;
             }
 
-            Core core = Core.Instance ?? throw new InvalidOperationException("DebugComponent requires an active Core instance.");
+            Core core = OwnerCore ?? throw new InvalidOperationException("DebugComponent requires an active Core instance.");
             double elapsedSeconds = core.TotalElapsedSeconds - LastSampleElapsedSeconds;
             if (RefreshIntervalSeconds > 0d && elapsedSeconds < RefreshIntervalSeconds) {
                 return;

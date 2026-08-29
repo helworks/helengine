@@ -319,7 +319,7 @@ namespace helengine.editor {
             BackdropRoot.AddChild(BackdropTopRoot);
 
             BackdropTopSurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 144),
                 RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
@@ -339,7 +339,7 @@ namespace helengine.editor {
             BackdropRoot.AddChild(BackdropBodyRoot);
 
             BackdropBodySurface = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = new byte4(0, 0, 0, 144),
                 RenderOrder2D = BackdropOrder,
                 Size = new int2(0, 0)
@@ -374,7 +374,7 @@ namespace helengine.editor {
             PanelRoot.AddChild(HeaderRoot);
 
             HeaderBackground = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.SurfacePrimary,
                 RenderOrder2D = PanelOrder,
                 Size = new int2(0, 0)

@@ -35,7 +35,7 @@ namespace helengine {
         /// </summary>
         public override void Update() {
             base.Update();
-            Entity selectedEntity = helengine.editor.EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = helengine.editor.EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (!ReferenceEquals(selectedEntity, visualizedEntity)) {
                 DisposeAllVisuals();
                 visualizedEntity = selectedEntity;
@@ -70,7 +70,7 @@ namespace helengine {
                 return;
             }
 
-            IReadOnlyList<helengine.editor.IComponentSceneSelectionEditor> editors = helengine.editor.ComponentEditorRegistry.SceneSelectionEditors;
+            IReadOnlyList<helengine.editor.IComponentSceneSelectionEditor> editors = helengine.editor.EditorSessionInteractionServices.From(Parent).ComponentEditors.SceneSelectionEditors;
             for (int componentIndex = 0; componentIndex < components.Count; componentIndex++) {
                 Component component = components[componentIndex];
                 if (component == null) {

@@ -13,8 +13,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void Create_WhenCalled_BuildsInternalCanvasPlaneOnDedicatedLayer() {
-            InitializeCore();
-            TestRenderManager3D render3D = new TestRenderManager3D();
+            TestRenderManager3D render3D = InitializeCore();
             var renderTarget = new TestRenderTarget {
                 Width = 1280,
                 Height = 720
@@ -64,12 +63,14 @@ namespace helengine.editor.tests.managers.scene {
         /// <summary>
         /// Initializes the core services required by canvas-plane factory tests.
         /// </summary>
-        void InitializeCore() {
+        TestRenderManager3D InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            TestRenderManager3D render3D = new TestRenderManager3D();
+            core.Initialize(render3D, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
+            return render3D;
         }
     }
 }

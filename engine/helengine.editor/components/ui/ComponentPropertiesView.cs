@@ -204,7 +204,7 @@ namespace helengine.editor {
         /// <summary>
         /// Builds reflected property descriptors for the default inspector path.
         /// </summary>
-        readonly ReflectedComponentPropertyDescriptorBuilder DescriptorBuilder;
+        ReflectedComponentPropertyDescriptorBuilder DescriptorBuilder;
         /// <summary>
         /// Builds and persists detached component overrides for non-common platform tabs.
         /// </summary>
@@ -391,7 +391,7 @@ namespace helengine.editor {
             ModelLabels = new Dictionary<RuntimeModel, string>();
             MaterialLabels = new Dictionary<RuntimeMaterial, string>();
             FontLabels = new Dictionary<FontAsset, string>();
-            DescriptorBuilder = new ReflectedComponentPropertyDescriptorBuilder();
+            DescriptorBuilder = new ReflectedComponentPropertyDescriptorBuilder(new ComponentEditorRegistry());
             PlatformEditingService = new ComponentPlatformEditingService();
             PlatformComponentMemberDescriptorResolver = new PlatformComponentMemberDescriptorResolver();
             CollapsedStates = new Dictionary<Component, bool>();
@@ -417,6 +417,11 @@ namespace helengine.editor {
         /// </summary>
         internal void SetGeneratedAssetProviderRegistry(GeneratedAssetProviderRegistry generatedAssetProviders) {
             GeneratedAssetProviders = generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders));
+        }
+
+        /// <summary>Binds custom inspector editors to the owning session graph.</summary>
+        internal void SetComponentEditorRegistry(ComponentEditorRegistry registry) {
+            DescriptorBuilder.SetRegistry(registry ?? throw new ArgumentNullException(nameof(registry)));
         }
 
         /// <summary>
@@ -1077,7 +1082,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Modifiers header row whose button was pressed.</param>
         void ShowMeshModifierAddMenu(ComponentPropertyRow row) {
-            EditorMeshModifierPickerService.RequestPick(kind => HandleMeshModifierKindSelected(row, kind));
+            EditorSessionInteractionServices.From(RootEntity).MeshModifierPicker.RequestPick(kind => HandleMeshModifierKindSelected(row, kind));
         }
 
         /// <summary>
@@ -3500,7 +3505,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Material row to update.</param>
         void RequestMaterialPick(ComponentPropertyRow row) {
-            EditorAssetPickerService.RequestPick(entry => HandleMaterialPicked(row, entry), MaterialExtension);
+            EditorSessionInteractionServices.From(RootEntity).AssetPicker.RequestPick(entry => HandleMaterialPicked(row, entry), MaterialExtension);
         }
 
         /// <summary>
@@ -3508,7 +3513,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Font row to update.</param>
         void RequestFontPick(ComponentPropertyRow row) {
-            EditorAssetPickerService.RequestPick(entry => HandleFontPicked(row, entry));
+            EditorSessionInteractionServices.From(RootEntity).AssetPicker.RequestPick(entry => HandleFontPicked(row, entry));
         }
 
         /// <summary>
@@ -4150,7 +4155,7 @@ namespace helengine.editor {
             RootEntity.AddChild(root);
 
             SpriteComponent background = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = RendererResources.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
                 RenderOrder2D = RenderOrder2D.PanelSurface,
                 Size = new int2(1, SectionHeaderHeight)
@@ -4400,7 +4405,7 @@ namespace helengine.editor {
         /// <param name="previousEntityState">Detached entity snapshot captured before the mutation.</param>
         void RecordCurrentEntityMutation(SerializedEditorEntityState previousEntityState) {
             if (previousEntityState == null || HistoryMutationService == null || CurrentEntity is not EditorEntity editorEntity || editorEntity.IsDisposed) {
-                EditorSceneMutationService.MarkSceneMutated();
+                EditorSessionInteractionServices.From(RootEntity).SceneMutation.MarkSceneMutated();
                 return;
             }
 
@@ -4417,7 +4422,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(row));
             }
             if (previousEntityState == null || HistoryMutationService == null || CurrentEntity is not EditorEntity editorEntity || editorEntity.IsDisposed) {
-                EditorSceneMutationService.MarkSceneMutated();
+                EditorSessionInteractionServices.From(RootEntity).SceneMutation.MarkSceneMutated();
                 return;
             }
 
@@ -4816,7 +4821,7 @@ namespace helengine.editor {
         /// <param name="rowEntity">Row root entity.</param>
         void BuildCustomSectionRow(ComponentPropertyRow row, EditorEntity rowEntity) {
             SpriteComponent background = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = RendererResources.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentSecondary,
                 RenderOrder2D = RenderOrder2D.PanelSurface,
                 Size = new int2(1, RowHeight)
@@ -4965,7 +4970,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Model row to update.</param>
         void RequestModelPick(ComponentPropertyRow row) {
-            EditorAssetPickerService.RequestPick(entry => HandleModelPicked(row, entry));
+            EditorSessionInteractionServices.From(RootEntity).AssetPicker.RequestPick(entry => HandleModelPicked(row, entry));
         }
 
         /// <summary>

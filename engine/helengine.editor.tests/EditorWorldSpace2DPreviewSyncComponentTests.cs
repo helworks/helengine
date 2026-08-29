@@ -8,6 +8,7 @@ namespace helengine.editor.tests {
     /// Verifies that the editor-owned world-space 2D preview synchronizer creates and removes internal preview proxies for supported scene entities.
     /// </summary>
     public sealed class EditorWorldSpace2DPreviewSyncComponentTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by the preview-sync tests.
@@ -39,16 +40,16 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(64, 32),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
 
-            EditorEntity syncHostEntity = new EditorEntity();
+            EditorEntity syncHostEntity = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
 
-            EditorEntity previewEntity = EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
+            EditorEntity previewEntity = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
             Assert.NotNull(previewEntity);
             Assert.True(previewEntity.InternalEntity);
             Assert.Contains(previewEntity.Components, component => component is EditorSpriteWorldPreviewComponent);
@@ -64,10 +65,10 @@ namespace helengine.editor.tests {
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(64, 32),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
 
-            EditorEntity syncHostEntity = new EditorEntity();
+            EditorEntity syncHostEntity = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
             syncComponent.Update();
@@ -75,7 +76,7 @@ namespace helengine.editor.tests {
             sourceEntity.Dispose();
             syncComponent.Update();
 
-            Assert.Null(EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
+            Assert.Null(InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity));
         }
 
         /// <summary>
@@ -91,13 +92,13 @@ namespace helengine.editor.tests {
                 Text = "Preview"
             });
 
-            EditorEntity syncHostEntity = new EditorEntity();
+            EditorEntity syncHostEntity = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
 
-            EditorEntity previewEntity = EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
+            EditorEntity previewEntity = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
             Assert.NotNull(previewEntity);
             Assert.True(previewEntity.InternalEntity);
             Assert.Contains(previewEntity.Components, component => component is EditorTextWorldPreviewComponent);
@@ -115,13 +116,13 @@ namespace helengine.editor.tests {
                 Size = new int2(64, 32)
             });
 
-            EditorEntity syncHostEntity = new EditorEntity();
+            EditorEntity syncHostEntity = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
 
-            EditorEntity previewEntity = EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
+            EditorEntity previewEntity = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
             Assert.NotNull(previewEntity);
             Assert.True(previewEntity.InternalEntity);
             Assert.Contains(previewEntity.Components, component => component is EditorRoundedRectWorldPreviewComponent);
@@ -142,17 +143,17 @@ namespace helengine.editor.tests {
             };
             internalChild.AddComponent(new SpriteComponent {
                 Size = new int2(24, 24),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
             internalRoot.AddChild(internalChild);
 
-            EditorEntity syncHostEntity = new EditorEntity();
+            EditorEntity syncHostEntity = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             syncComponent.Update();
 
-            Assert.Null(EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(internalChild));
+            Assert.Null(InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(internalChild));
         }
 
         /// <summary>
@@ -185,7 +186,7 @@ namespace helengine.editor.tests {
 
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(220, 220),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -193,14 +194,14 @@ namespace helengine.editor.tests {
             anchorComponent.SetAnchorDistances(right: 44f, bottom: 36f);
             sourceEntity.AddComponent(anchorComponent);
 
-            EditorEntity syncHostEntity = new EditorEntity();
+            EditorEntity syncHostEntity = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
             Core.Instance.Update();
             syncComponent.Update();
 
-            EditorEntity previewEntity = EditorWorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
+            EditorEntity previewEntity = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);
             Assert.NotNull(previewEntity);
             Assert.Equal(new float3(1016f, -464f, 0f), previewEntity.Position);
             Assert.Equal(new float3(220f, 220f, 1f), previewEntity.Scale);

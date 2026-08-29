@@ -1,6 +1,7 @@
 using helengine.directx11;
 using helengine.editor.tests.testing;
 using helengine.projectfile;
+using helengine.platforms;
 using helengine.ui;
 using helengine.vulkan;
 using Xunit;
@@ -28,42 +29,39 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
             ProjectFilePath = Path.Combine(TempProjectRootPath, "project.heproj");
             WriteCanonicalProjectFile(ProjectFilePath);
-            EditorEntityHistoryMutationService.Reset();
-            EditorComponentHistoryMutationService.Reset();
         }
 
         /// <summary>
-        /// Clears shared static history bridges and removes temporary project state after each test.
+        /// Removes temporary project state after each test.
         /// </summary>
         public void Dispose() {
-            EditorEntityHistoryMutationService.Reset();
-            EditorComponentHistoryMutationService.Reset();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
         }
 
         /// <summary>
-        /// Ensures the real editor-session constructor populates both static history bridges and dispose clears them again.
+        /// Ensures the real editor-session constructor populates its session history graph and dispose clears it again.
         /// </summary>
         [Fact]
         public void Constructor_and_dispose_initialize_and_clear_the_static_history_bridges() {
             EditorSession session = CreateSession();
+            EditorSessionInteractionServices sessionInteractionServices = session.InteractionServices;
 
             try {
-                Assert.NotNull(EditorEntityHistoryMutationService.CaptureEntityState);
-                Assert.NotNull(EditorEntityHistoryMutationService.RecordEntityStateChange);
-                Assert.NotNull(EditorComponentHistoryMutationService.CaptureEntityState);
-                Assert.NotNull(EditorComponentHistoryMutationService.RecordComponentMutation);
+                Assert.NotNull(sessionInteractionServices.EntityHistory.CaptureEntityState);
+                Assert.NotNull(sessionInteractionServices.EntityHistory.RecordEntityStateChange);
+                Assert.NotNull(sessionInteractionServices.EntityHistory.CaptureEntityState);
+                Assert.NotNull(sessionInteractionServices.ComponentHistory.RecordComponentMutation);
                 Assert.NotNull(session.ComponentHistoryAdapters);
             } finally {
                 session.Dispose();
             }
 
-            Assert.Null(EditorEntityHistoryMutationService.CaptureEntityState);
-            Assert.Null(EditorEntityHistoryMutationService.RecordEntityStateChange);
-            Assert.Null(EditorComponentHistoryMutationService.CaptureEntityState);
-            Assert.Null(EditorComponentHistoryMutationService.RecordComponentMutation);
+            Assert.Null(sessionInteractionServices.EntityHistory.CaptureEntityState);
+            Assert.Null(sessionInteractionServices.EntityHistory.RecordEntityStateChange);
+            Assert.Null(sessionInteractionServices.EntityHistory.CaptureEntityState);
+            Assert.Null(sessionInteractionServices.ComponentHistory.RecordComponentMutation);
         }
 
         /// <summary>
@@ -95,7 +93,8 @@ namespace helengine.editor.tests {
                 CreateTexture(),
                 Array.Empty<IAssetImporterRegistration>(),
                 ResolveBrowseOutputFolder,
-                shaderBackendRegistry);
+                shaderBackendRegistry,
+                new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath)));
         }
 
         /// <summary>
@@ -162,7 +161,7 @@ namespace helengine.editor.tests {
         /// <returns>Font asset with basic glyph coverage.</returns>
         FontAsset CreateFont() {
             Dictionary<char, FontChar> characters = new Dictionary<char, FontChar>();
-            string glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .:-_[]";
+            string glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .:-_[]+";
             for (int index = 0; index < glyphs.Length; index++) {
                 char glyph = glyphs[index];
                 if (characters.ContainsKey(glyph)) {

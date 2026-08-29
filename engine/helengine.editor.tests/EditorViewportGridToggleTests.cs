@@ -9,6 +9,7 @@ namespace helengine.editor.tests {
     /// Verifies viewport-local grid toggle behavior through the viewport settings overlay.
     /// </summary>
     public class EditorViewportGridToggleTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Ensures the overlay grid toggle target adds and removes only the scene-grid layer.
@@ -62,8 +63,7 @@ namespace helengine.editor.tests {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
-            EditorKeyboardFocusService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.TransformSnap.ResetDefaults();
         }
 
         public void Dispose() {

@@ -18,8 +18,6 @@ namespace helengine.editor.tests {
         public AssetPickerModalTests() {
             ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-asset-picker-modal-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
-            EditorInputCaptureService.Reset();
-
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
             });
@@ -30,7 +28,6 @@ namespace helengine.editor.tests {
         /// Deletes temporary modal state after each test.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }

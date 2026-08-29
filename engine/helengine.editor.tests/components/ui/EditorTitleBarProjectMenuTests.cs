@@ -81,6 +81,23 @@ namespace helengine.editor.tests.components.ui {
         }
 
         /// <summary>
+        /// Ensures menus created by a later project-menu refresh inherit the input
+        /// source that was already bound to the title bar.
+        /// </summary>
+        [Fact]
+        public void ApplyProjectMenus_AfterSetInput_BindsCurrentInputToDynamicMenu() {
+            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine");
+            InputSystem input = Core.Instance.Input;
+            titleBar.SetInput(input);
+
+            titleBar.ApplyProjectMenus(CreateDemoMenuItems());
+
+            EditorTitleBarProjectMenuState menuState = Assert.Single(GetProjectMenuStates(titleBar));
+            InputSystem boundInput = GetPrivateField<InputSystem>(menuState.Menu, "Input");
+            Assert.Same(input, boundInput);
+        }
+
+        /// <summary>
         /// Returns the deterministic contributed demo menu descriptors used by the title-bar tests.
         /// </summary>
         /// <returns>One contributed top-level demo menu item.</returns>

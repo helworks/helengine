@@ -165,9 +165,9 @@ namespace helengine.editor {
 
             byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
             byte menuTextOrder = RenderOrder2D.OverlayForeground;
-            AssetContextMenu = new ContextMenu(Font, LayerMask, menuBackgroundOrder, menuTextOrder);
+            AssetContextMenu = new ContextMenu(Font, LayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(this));
             AddChild(AssetContextMenu.Entity);
-            FileTemplateMenu = new ContextMenu(Font, LayerMask, menuBackgroundOrder, menuTextOrder);
+            FileTemplateMenu = new ContextMenu(Font, LayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(this));
             AddChild(FileTemplateMenu.Entity);
 
             CreateAssetItems = new List<ContextMenuItem> {
@@ -361,7 +361,7 @@ namespace helengine.editor {
                 }
             }
 
-            if (EditorInputCaptureService.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
+            if (EditorSessionInteractionServices.From(this).InputCapture.IsPointerBlocked(pointer, owner => !ReferenceEquals(owner, this))) {
                 return;
             }
 

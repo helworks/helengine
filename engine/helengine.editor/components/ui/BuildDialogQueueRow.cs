@@ -47,7 +47,7 @@ namespace helengine.editor {
             Root.AddChild(SeparatorHost);
 
             Separator = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Root.OwnerCore.RenderManager2D.PixelTexture,
                 Color = ThemeManager.Colors.AccentTertiary,
                 RenderOrder2D = panelOrder,
                 Size = new int2(

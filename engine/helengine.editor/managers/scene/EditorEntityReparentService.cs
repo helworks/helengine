@@ -58,7 +58,13 @@ namespace helengine.editor {
 
             float3 worldOffset = worldPosition - newParent.Position;
             float4 inverseParentOrientation = float4.Inverse(newParent.Orientation);
-            return float4.RotateVector(worldOffset, inverseParentOrientation);
+            float3 parentSpaceOffset = float4.RotateVector(worldOffset, inverseParentOrientation);
+            float3 parentScale = newParent.Scale;
+            if (parentScale.X == 0f || parentScale.Y == 0f || parentScale.Z == 0f) {
+                throw new InvalidOperationException("Cannot preserve world position when the new parent has a zero scale component.");
+            }
+
+            return parentSpaceOffset / parentScale;
         }
 
         /// <summary>

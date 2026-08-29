@@ -404,7 +404,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            Entity resolvedSourceEntity = EditorWorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity);
+            Entity resolvedSourceEntity = EditorSessionInteractionServices.From(previewEntity).WorldSpace2DPreviewRegistry.ResolveSourceEntity(previewEntity);
             if (resolvedSourceEntity == null) {
                 return false;
             }

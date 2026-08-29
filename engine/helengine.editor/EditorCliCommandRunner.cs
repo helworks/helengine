@@ -2,6 +2,7 @@ using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Requests;
 using helengine.directx11;
 using helengine.platforms;
+using helengine.projectfile;
 
 namespace helengine.editor {
     /// <summary>
@@ -92,7 +93,7 @@ namespace helengine.editor {
             if (shaderBackendRegistry == null) {
                 throw new ArgumentNullException(nameof(shaderBackendRegistry));
             }
-            string optionsProjectRootPath = Path.GetFullPath(options.ProjectPath);
+            string optionsProjectRootPath = ResolveCanonicalProjectRootPath(options.ProjectPath);
             if (!string.Equals(optionsProjectRootPath, bootstrap.ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
                 throw new InvalidOperationException("Nested editor commands must use the outer invocation project root.");
             }
@@ -178,6 +179,22 @@ namespace helengine.editor {
 
             string summary = repairReport.CreateSummary();
             return string.IsNullOrWhiteSpace(summary) ? message : $"{message} {summary}";
+        }
+
+        /// <summary>
+        /// Resolves a nested command's directory or `.heproj` input through the
+        /// canonical project-file contract before comparing invocation roots.
+        /// </summary>
+        /// <param name="projectPath">Project directory or canonical project file path.</param>
+        /// <returns>Absolute canonical project root path.</returns>
+        internal static string ResolveCanonicalProjectRootPath(string projectPath) {
+            string canonicalProjectFilePath = new ProjectFilePathResolver().Resolve(projectPath);
+            string projectRootPath = Path.GetDirectoryName(canonicalProjectFilePath);
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new InvalidOperationException("Canonical project file path does not include a project root directory.");
+            }
+
+            return Path.GetFullPath(projectRootPath);
         }
 
         /// <summary>

@@ -23,7 +23,6 @@ namespace helengine.editor.tests {
         public PreviewPanelTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-preview-panel-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            EditorInputCaptureService.Reset();
             Input = new TestInputBackend();
 
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
@@ -42,7 +41,6 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }

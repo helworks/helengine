@@ -89,6 +89,22 @@ public sealed class EditorProjectFileResolutionTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures nested CLI command comparisons canonicalize both directory and
+    /// direct `.heproj` inputs to the same project root.
+    /// </summary>
+    [Fact]
+    public void ResolveCliCommandRoot_WhenDirectoryAndHeprojShareRoot_ReturnsSameCanonicalRoot() {
+        string projectFilePath = Path.Combine(TempProjectRootPath, "project.heproj");
+        WriteCanonicalProjectFile(projectFilePath);
+
+        string fromDirectory = EditorCliCommandRunner.ResolveCanonicalProjectRootPath(TempProjectRootPath);
+        string fromProjectFile = EditorCliCommandRunner.ResolveCanonicalProjectRootPath(projectFilePath);
+
+        Assert.Equal(Path.GetFullPath(TempProjectRootPath), fromDirectory);
+        Assert.Equal(fromDirectory, fromProjectFile);
+    }
+
+    /// <summary>
     /// Invokes one non-public instance method and returns its result.
     /// </summary>
     /// <param name="target">Target object that owns the method.</param>

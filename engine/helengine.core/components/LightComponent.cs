@@ -85,18 +85,18 @@ namespace helengine {
         /// Registers this light in the object manager list that matches its concrete type.
         /// </summary>
         void RegisterWithObjectManager() {
-            if (Core.Instance == null || Core.Instance.ObjectManager == null) {
+            if (OwnerCore == null || OwnerCore.ObjectManager == null) {
                 throw new InvalidOperationException("Core object manager must exist before registering lights.");
             }
 
             if (this is DirectionalLightComponent directionalLight) {
-                Core.Instance.ObjectManager.RegisterDirectionalLight(directionalLight);
+                OwnerCore.ObjectManager.RegisterDirectionalLight(directionalLight);
             } else if (this is AmbientLightComponent ambientLight) {
-                Core.Instance.ObjectManager.RegisterAmbientLight(ambientLight);
+                OwnerCore.ObjectManager.RegisterAmbientLight(ambientLight);
             } else if (this is PointLightComponent pointLight) {
-                Core.Instance.ObjectManager.RegisterPointLight(pointLight);
+                OwnerCore.ObjectManager.RegisterPointLight(pointLight);
             } else if (this is SpotLightComponent spotLight) {
-                Core.Instance.ObjectManager.RegisterSpotLight(spotLight);
+                OwnerCore.ObjectManager.RegisterSpotLight(spotLight);
             } else {
                 throw new InvalidOperationException("Unsupported light component type.");
             }
@@ -106,18 +106,18 @@ namespace helengine {
         /// Removes this light from the object manager list that matches its concrete type.
         /// </summary>
         void RemoveFromObjectManager() {
-            if (Core.Instance == null || Core.Instance.ObjectManager == null) {
+            if (OwnerCore == null || OwnerCore.ObjectManager == null) {
                 throw new InvalidOperationException("Core object manager must exist before unregistering lights.");
             }
 
             if (this is DirectionalLightComponent directionalLight) {
-                Core.Instance.ObjectManager.RemoveDirectionalLight(directionalLight);
+                OwnerCore.ObjectManager.RemoveDirectionalLight(directionalLight);
             } else if (this is AmbientLightComponent ambientLight) {
-                Core.Instance.ObjectManager.RemoveAmbientLight(ambientLight);
+                OwnerCore.ObjectManager.RemoveAmbientLight(ambientLight);
             } else if (this is PointLightComponent pointLight) {
-                Core.Instance.ObjectManager.RemovePointLight(pointLight);
+                OwnerCore.ObjectManager.RemovePointLight(pointLight);
             } else if (this is SpotLightComponent spotLight) {
-                Core.Instance.ObjectManager.RemoveSpotLight(spotLight);
+                OwnerCore.ObjectManager.RemoveSpotLight(spotLight);
             } else {
                 throw new InvalidOperationException("Unsupported light component type.");
             }

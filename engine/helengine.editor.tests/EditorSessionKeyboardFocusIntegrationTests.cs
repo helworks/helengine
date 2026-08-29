@@ -7,9 +7,10 @@ using Xunit;
 
 namespace helengine.editor.tests {
     /// <summary>
-    /// Verifies editor-session wiring publishes dock order, routes keyboard focus updates, and resets shared focus state.
+    /// Verifies editor-session wiring publishes dock order, routes keyboard focus updates, and disposes session-owned focus state.
     /// </summary>
     public class EditorSessionKeyboardFocusIntegrationTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary project root used by session keyboard-focus integration tests.
         /// </summary>
@@ -26,13 +27,11 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Resets shared services and removes temporary project state after each test.
+        /// Resets fixture services and removes temporary project state after each test.
         /// </summary>
         public void Dispose() {
-            EditorKeyboardFocusService.Reset();
-            EditorSelectionService.ClearSelection();
-            EditorSceneMutationService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.Selection.ClearSelection();
+            InteractionServices.TransformSnap.ResetDefaults();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -192,7 +191,7 @@ namespace helengine.editor.tests {
                     secondSecondaryDock,
                     secondSecondaryTarget);
 
-                EditorKeyboardFocusService.SetFocusedTarget(firstTarget);
+                InteractionServices.KeyboardFocus.SetFocusedTarget(firstTarget);
 
                 inputManager.SetKeyboardState(new KeyboardState(Keys.LeftControl, Keys.Tab));
                 session.Update();
@@ -204,10 +203,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures disposing a session clears the static editor keyboard-focus state.
+        /// Ensures disposing a session clears its editor keyboard-focus state.
         /// </summary>
         [Fact]
-        public void Dispose_WhenCalled_ResetsStaticKeyboardFocusState() {
+        public void Dispose_WhenCalled_ResetsSessionKeyboardFocusState() {
             EditorSession session = CreateSessionForKeyboardFocus(
                 out DockingManager dockingManager,
                 out TestInputBackend inputManager,
@@ -220,7 +219,7 @@ namespace helengine.editor.tests {
             session.UpdateLayout(1280, 720);
 
             EditorFocusTarget viewportContentTarget = GetPrivateField<EditorFocusTarget>(mainViewport, "ViewportContentFocusTarget");
-            EditorKeyboardFocusService.SetFocusedTarget(viewportContentTarget);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(viewportContentTarget);
 
             Assert.NotNull(GetKeyboardFocusFocusedTarget());
 
@@ -250,10 +249,8 @@ namespace helengine.editor.tests {
             out EditorFocusTarget firstSecondaryTarget,
             out DockableEntity secondSecondaryDock,
             out EditorFocusTarget secondSecondaryTarget) {
-            EditorKeyboardFocusService.Reset();
-            EditorSelectionService.ClearSelection();
-            EditorSceneMutationService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.Selection.ClearSelection();
+            InteractionServices.TransformSnap.ResetDefaults();
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
 
@@ -267,6 +264,7 @@ namespace helengine.editor.tests {
             });
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"));
             core.InputSystem.SetKeyboardActive(true);
+            core.SessionInteractionServices = InteractionServices;
 
             FontAsset font = CreateFont();
             EditorUiMetrics metrics = new EditorUiMetrics(1.0d);
@@ -309,17 +307,18 @@ namespace helengine.editor.tests {
             SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(font);
             PropertiesPanel propertiesPanel = new PropertiesPanel(font, core.GetContentManager());
             AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(font, TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            assetBrowserPanel.SetRendererResources(rendererResources);
             firstSecondaryDock = propertiesPanel;
             secondSecondaryDock = assetBrowserPanel;
             firstSecondaryTarget = CreateFocusTarget(propertiesPanel);
             secondSecondaryTarget = CreateFocusTarget(assetBrowserPanel);
 
-            EditorKeyboardFocusService.RegisterGroup(mainViewport);
-            EditorKeyboardFocusService.RegisterGroup(sceneHierarchyPanel);
-            EditorKeyboardFocusService.RegisterGroup(propertiesPanel);
-            EditorKeyboardFocusService.RegisterGroup(assetBrowserPanel);
+            InteractionServices.KeyboardFocus.RegisterGroup(mainViewport);
+            InteractionServices.KeyboardFocus.RegisterGroup(sceneHierarchyPanel);
+            InteractionServices.KeyboardFocus.RegisterGroup(propertiesPanel);
+            InteractionServices.KeyboardFocus.RegisterGroup(assetBrowserPanel);
 
-            dockingManager = new DockingManager(core.RenderManager2D, core.ObjectManager);
+            dockingManager = new DockingManager(core.RenderManager2D, core.ObjectManager, InteractionServices);
             dockingManager.Layout.Add(mainViewport);
             dockingManager.Layout.Add(sceneHierarchyPanel);
             dockingManager.Layout.Add(propertiesPanel);
@@ -329,15 +328,16 @@ namespace helengine.editor.tests {
             dockingManager.Layout.DockRelative(propertiesPanel, sceneHierarchyPanel, DockInsertDirection.Bottom, 0.5f);
             dockingManager.Layout.DockRelative(assetBrowserPanel, mainViewport, DockInsertDirection.Bottom, 0.7f);
 
-            var keyboardFocusEntity = new EditorEntity {
+            var keyboardFocusEntity = new EditorEntity(core, InteractionServices) {
                 InternalEntity = true,
                 Enabled = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
-            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(core.Input) {
+            var keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(core.Input, InteractionServices) {
                 UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1)
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
+            keyboardFocusEntity.InitializeHierarchy();
 
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             EditorGameSolutionService gameSolutionService = new EditorGameSolutionService(TempProjectRootPath, "KeyboardFocus", new EditorVisualStudioLauncher());
@@ -346,6 +346,7 @@ namespace helengine.editor.tests {
                 new EditorDotNetScriptBuildTool(),
                 new EditorGameScriptAssemblyHost(TempProjectRootPath));
             SetPrivateField(session, "core", core);
+            SetPrivateField(session, "interactionServices", InteractionServices);
             SetPrivateField(session, "titleBar", new EditorTitleBar(font, 1280, 720, "Keyboard Focus"));
             SetPrivateField(session, "dockingManager", dockingManager);
             SetPrivateField(session, "mainViewport", mainViewport);
@@ -395,7 +396,7 @@ namespace helengine.editor.tests {
                 isFocused => { },
                 key => false,
                 key => { });
-            EditorKeyboardFocusService.RegisterTarget(focusTarget);
+            InteractionServices.KeyboardFocus.RegisterTarget(focusTarget);
 
             return focusTarget;
         }
@@ -461,20 +462,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Reads the published dock order from the shared keyboard-focus service.
+        /// Reads the published dock order from this session's keyboard-focus service.
         /// </summary>
         /// <returns>Current dock order snapshot.</returns>
         IReadOnlyList<DockableEntity> GetKeyboardFocusDockOrder() {
-            object value = GetPrivateStaticField(typeof(EditorKeyboardFocusService), "DockOrder");
+            object value = GetPrivateFieldValue(InteractionServices.KeyboardFocus, "DockOrder");
             return Assert.IsAssignableFrom<IReadOnlyList<DockableEntity>>(value);
         }
 
         /// <summary>
-        /// Reads the currently focused target from the shared keyboard-focus service.
+        /// Reads the currently focused target from this session's keyboard-focus service.
         /// </summary>
         /// <returns>Currently focused target, or null when no target is focused.</returns>
         IFocusTarget GetKeyboardFocusFocusedTarget() {
-            object value = GetPrivateStaticField(typeof(EditorKeyboardFocusService), "FocusedTarget");
+            object value = GetPrivateFieldValue(InteractionServices.KeyboardFocus, "FocusedTarget");
             if (value == null) {
                 return null;
             }
@@ -483,31 +484,16 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Reads the currently active root group from the shared keyboard-focus service.
+        /// Reads the currently active root group from this session's keyboard-focus service.
         /// </summary>
         /// <returns>Currently active root group, or null when no dock is active.</returns>
         IFocusGroup GetKeyboardFocusActiveRootGroup() {
-            object value = GetPrivateStaticField(typeof(EditorKeyboardFocusService), "ActiveRootGroup");
+            object value = GetPrivateFieldValue(InteractionServices.KeyboardFocus, "ActiveRootGroup");
             if (value == null) {
                 return null;
             }
 
             return Assert.IsAssignableFrom<IFocusGroup>(value);
-        }
-
-        /// <summary>
-        /// Reads one non-public static field.
-        /// </summary>
-        /// <param name="type">Type that owns the field.</param>
-        /// <param name="fieldName">Name of the field to read.</param>
-        /// <returns>Field value.</returns>
-        object GetPrivateStaticField(Type type, string fieldName) {
-            FieldInfo field = type.GetField(fieldName, BindingFlags.Static | BindingFlags.NonPublic);
-            if (field == null) {
-                throw new InvalidOperationException("Expected private static field was not found.");
-            }
-
-            return field.GetValue(null);
         }
 
         /// <summary>
@@ -518,12 +504,21 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
+            return Assert.IsType<T>(GetPrivateFieldValue(target, fieldName));
+        }
+
+        /// <summary>
+        /// Reads one non-public instance field without requiring a non-null value.
+        /// </summary>
+        /// <param name="target">Object that owns the field.</param>
+        /// <param name="fieldName">Name of the field to read.</param>
+        /// <returns>Field value.</returns>
+        object GetPrivateFieldValue(object target, string fieldName) {
             Type currentType = target.GetType();
             while (currentType != null) {
                 FieldInfo field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
                 if (field != null) {
-                    object value = field.GetValue(target);
-                    return Assert.IsType<T>(value);
+                    return field.GetValue(target);
                 }
 
                 currentType = currentType.BaseType;

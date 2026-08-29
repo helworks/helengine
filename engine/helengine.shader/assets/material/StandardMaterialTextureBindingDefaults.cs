@@ -22,19 +22,18 @@ namespace helengine {
         /// Applies the default white albedo texture when one shader runtime material exposes the standard diffuse binding but no authored texture is assigned.
         /// </summary>
         /// <param name="material">Shader runtime material whose diffuse binding should be normalized.</param>
-        public static void Apply(ShaderRuntimeMaterial material) {
+        /// <param name="renderManager2D">Renderer that owns fallback textures for this material.</param>
+        public static void Apply(ShaderRuntimeMaterial material, RenderManager2D renderManager2D) {
             if (material == null) {
                 throw new ArgumentNullException(nameof(material));
             }
-
-            Core core = Core.Instance;
-            if (core == null || core.RenderManager2D == null) {
-                return;
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
             }
 
-            ApplyDefaultTexture(material, DiffuseTextureBindingName);
-            ApplyDefaultTexture(material, EmissiveTextureBindingName, TextureUtils.BlackPixelTexture);
-            ApplyDefaultTexture(material, RoughnessTextureBindingName);
+            ApplyDefaultTexture(material, DiffuseTextureBindingName, renderManager2D.PixelTexture);
+            ApplyDefaultTexture(material, EmissiveTextureBindingName, renderManager2D.BlackPixelTexture);
+            ApplyDefaultTexture(material, RoughnessTextureBindingName, renderManager2D.PixelTexture);
         }
 
         /// <summary>
@@ -42,7 +41,7 @@ namespace helengine {
         /// </summary>
         /// <param name="material">Shader runtime material whose binding should be normalized.</param>
         /// <param name="bindingName">Standard-material texture binding name to normalize.</param>
-        static void ApplyDefaultTexture(ShaderRuntimeMaterial material, string bindingName, RuntimeTexture fallbackTexture = null) {
+        static void ApplyDefaultTexture(ShaderRuntimeMaterial material, string bindingName, RuntimeTexture fallbackTexture) {
             int bindingIndex = material.Layout.FindTextureBindingIndex(bindingName);
             if (bindingIndex < 0) {
                 return;
@@ -53,7 +52,7 @@ namespace helengine {
                 return;
             }
 
-            material.Properties.SetTexture(bindingIndex, fallbackTexture ?? TextureUtils.PixelTexture);
+            material.Properties.SetTexture(bindingIndex, fallbackTexture);
         }
     }
 }

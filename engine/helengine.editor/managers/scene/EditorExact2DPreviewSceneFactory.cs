@@ -7,8 +7,11 @@ namespace helengine.editor {
         /// Creates the hidden preview camera entity used by one exact 2D preview capture service.
         /// </summary>
         /// <returns>Configured hidden preview camera entity.</returns>
-        public static EditorEntity CreatePreviewCameraEntity() {
-            return new EditorEntity {
+        public static EditorEntity CreatePreviewCameraEntity(Core ownerCore) {
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
+            return new EditorEntity(ownerCore) {
                 Name = "Exact 2D Preview Camera",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneModelPreview
@@ -33,8 +36,11 @@ namespace helengine.editor {
         /// Creates the hidden preview content entity used to host one cloned 2D component.
         /// </summary>
         /// <returns>Configured hidden preview content entity.</returns>
-        public static EditorEntity CreatePreviewContentEntity() {
-            return new EditorEntity {
+        public static EditorEntity CreatePreviewContentEntity(Core ownerCore) {
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
+            return new EditorEntity(ownerCore) {
                 Name = "Exact 2D Preview Content",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneModelPreview

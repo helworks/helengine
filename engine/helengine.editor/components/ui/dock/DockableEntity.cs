@@ -35,47 +35,47 @@ namespace helengine.editor {
         /// <summary>
         /// Render order for panel background surfaces.
         /// </summary>
-        readonly byte backgroundOrder;
+        byte backgroundOrder;
         /// <summary>
         /// Render order for raised surfaces like title bars.
         /// </summary>
-        readonly byte surfaceOrder;
+        byte surfaceOrder;
         /// <summary>
         /// Render order for text labels.
         /// </summary>
-        readonly byte textOrder;
+        byte textOrder;
         /// <summary>
         /// Outline rendered around the full dockable panel area.
         /// </summary>
-        readonly RoundedRectComponent panelOutline;
+        RoundedRectComponent panelOutline;
         /// <summary>
         /// Entity that hosts the dockable title-bar panel menu button.
         /// </summary>
-        readonly EditorEntity PanelMenuButtonEntity;
+        EditorEntity PanelMenuButtonEntity;
         /// <summary>
         /// Surface rendered behind the panel menu button.
         /// </summary>
-        readonly RoundedRectComponent PanelMenuButtonBackground;
+        RoundedRectComponent PanelMenuButtonBackground;
         /// <summary>
         /// Entity that hosts the panel menu button label.
         /// </summary>
-        readonly EditorEntity PanelMenuButtonTextEntity;
+        EditorEntity PanelMenuButtonTextEntity;
         /// <summary>
         /// Text rendered inside the panel menu button.
         /// </summary>
-        readonly TextComponent PanelMenuButtonTextComponent;
+        TextComponent PanelMenuButtonTextComponent;
         /// <summary>
         /// Interactable used to toggle the panel menu.
         /// </summary>
-        readonly InteractableComponent PanelMenuButtonInteractivity;
+        InteractableComponent PanelMenuButtonInteractivity;
         /// <summary>
         /// Context menu shown when the panel menu button is activated.
         /// </summary>
-        readonly ContextMenu PanelMenu;
+        ContextMenu PanelMenu;
         /// <summary>
         /// Items displayed by the panel menu.
         /// </summary>
-        readonly IReadOnlyList<ContextMenuItem> PanelMenuItems;
+        IReadOnlyList<ContextMenuItem> PanelMenuItems;
         /// <summary>
         /// Width reserved for the panel menu button.
         /// </summary>
@@ -118,11 +118,30 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Initializes a new dockable entity against an explicit editor core.
+        /// </summary>
+        public DockableEntity(Core ownerCore, FontAsset font)
+            : this(ownerCore, font, EditorUiMetrics.Default) {
+        }
+
+        /// <summary>
         /// Initializes a new dockable entity with title bar, content area, and interaction handlers using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used to render the title text.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome.</param>
         public DockableEntity(FontAsset font, EditorUiMetrics metrics) {
+            InitializeDockable(font, metrics);
+        }
+
+        /// <summary>
+        /// Initializes a new dockable entity against an explicit editor core and scaled metrics.
+        /// </summary>
+        public DockableEntity(Core ownerCore, FontAsset font, EditorUiMetrics metrics)
+            : base(ownerCore) {
+            InitializeDockable(font, metrics);
+        }
+
+        void InitializeDockable(FontAsset font, EditorUiMetrics metrics) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -142,7 +161,7 @@ namespace helengine.editor {
             MinSize = new int2(160, 120);
 
             titleBar = new SpriteComponent();
-            titleBar.Texture = TextureUtils.PixelTexture;
+            titleBar.Texture = OwnerCore.RenderManager2D.PixelTexture;
             titleBar.Color = new byte4(194, 49, 175, 255);
             titleBar.RenderOrder2D = surfaceOrder;
             AddComponent(titleBar);
@@ -164,7 +183,7 @@ namespace helengine.editor {
             sceneViewArea.LayerMask = LayerMask;
             AddChild(sceneViewArea);
             areaSprite = new SpriteComponent();
-            areaSprite.Texture = TextureUtils.PixelTexture;
+            areaSprite.Texture = OwnerCore.RenderManager2D.PixelTexture;
             areaSprite.Color = new byte4(68, 49, 194, 255);
             areaSprite.RenderOrder2D = backgroundOrder;
             sceneViewArea.AddComponent(areaSprite);
@@ -206,7 +225,7 @@ namespace helengine.editor {
             PanelMenuButtonInteractivity.CursorEvent += PanelMenuButtonInteractivity_CursorEvent;
             PanelMenuButtonEntity.AddComponent(PanelMenuButtonInteractivity);
 
-            PanelMenu = new ContextMenu(font, EditorLayerMasks.EditorModalUi, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground);
+            PanelMenu = new ContextMenu(font, EditorLayerMasks.EditorModalUi, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, EditorSessionInteractionServices.From(this));
             AddChild(PanelMenu.Entity);
             PanelMenuItems = BuildPanelMenuItems();
 

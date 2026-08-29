@@ -12,6 +12,12 @@ namespace helengine {
         bool isInitialized;
         bool isDisposing;
         bool isDisposed;
+        /// <summary>
+        /// Core that owns this entity's object-manager and scene lifecycle.
+        /// Captured at construction so a live entity never follows a later
+        /// replacement of the process-wide Core.Instance reference.
+        /// </summary>
+        public Core OwnerCore { get; private set; }
         float3 position;
         float3 scale;
         float4 orientation;
@@ -30,13 +36,21 @@ namespace helengine {
         /// <summary>
         /// Initializes a new entity with default transforms and registers it with the object manager.
         /// </summary>
-        public Entity() {
+        public Entity() : this(Core.Instance) {
+        }
+
+        /// <summary>
+        /// Initializes an entity against an explicit owning core.
+        /// </summary>
+        /// <param name="ownerCore">Core whose object manager owns the entity.</param>
+        public Entity(Core ownerCore) {
+            OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             isEnabled = true;
             Orientation = float4.Identity;
             Scale = float3.One;
             LayerMask = 0b00000001;
 
-            Core.Instance.ObjectManager.RegisterEntity(this);
+            OwnerCore.ObjectManager.RegisterEntity(this);
         }
 
         /// <summary>
@@ -352,6 +366,8 @@ namespace helengine {
                 throw new InvalidOperationException("Adding the supplied child would create a hierarchy cycle.");
             }
 
+            entity.RebindOwnerCore(OwnerCore);
+
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
             entity.Parent = this;
             children.Add(entity);
@@ -383,6 +399,97 @@ namespace helengine {
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Rebinds an entity subtree to the explicit core of its new parent.
+        /// This closes the ownership gap for editor/UI entities that are
+        /// materialized before they are attached to their session root.
+        /// </summary>
+        /// <param name="ownerCore">Core that owns the new parent hierarchy.</param>
+        internal void RebindOwnerCore(Core ownerCore) {
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
+            if (ReferenceEquals(OwnerCore, ownerCore)) {
+                return;
+            }
+
+            Core previousOwnerCore = OwnerCore;
+            bool hierarchyEnabled = IsHierarchyEnabled;
+            if (previousOwnerCore?.ObjectManager != null) {
+                previousOwnerCore.ObjectManager.RemoveEntity(this);
+            }
+
+            if (components != null) {
+                for (int index = 0; index < components.Count; index++) {
+                    Component component = components[index];
+                    if (hierarchyEnabled && previousOwnerCore?.ObjectManager != null) {
+                        RemoveComponentRegistrations(previousOwnerCore.ObjectManager, component);
+                    }
+                    component.OwnerCore = ownerCore;
+                }
+            }
+
+            OwnerCore = ownerCore;
+            ownerCore.ObjectManager.RegisterEntity(this);
+            OwnerCoreChanged(ownerCore);
+
+            if (hierarchyEnabled) {
+                for (int index = 0; index < components.Count; index++) {
+                    RegisterComponentRegistrations(ownerCore.ObjectManager, components[index]);
+                }
+            }
+
+            if (children != null) {
+                for (int index = 0; index < children.Count; index++) {
+                    children[index].RebindOwnerCore(ownerCore);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Allows specialized entity types to update their session-owned graph
+        /// when an unattached subtree is adopted by another core.
+        /// </summary>
+        /// <param name="ownerCore">New owning core.</param>
+        protected virtual void OwnerCoreChanged(Core ownerCore) {
+        }
+
+        static void RemoveComponentRegistrations(ObjectManager objectManager, Component component) {
+            if (component is IUpdateable updateable) {
+                objectManager.RemoveFromUpdate(updateable, updateable.UpdateOrder);
+            }
+            if (component is IInteractable2D interactable) {
+                objectManager.RemoveInteractable(interactable);
+            }
+            if (component is IDrawable2D drawable2D) {
+                objectManager.RemoveFromRender2D(drawable2D);
+            }
+            if (component is IDrawable3D drawable3D) {
+                objectManager.RemoveFromRender3D(drawable3D);
+            }
+            if (component is ICamera camera) {
+                objectManager.RemoveCamera(camera);
+            }
+        }
+
+        static void RegisterComponentRegistrations(ObjectManager objectManager, Component component) {
+            if (component is IUpdateable updateable) {
+                objectManager.RegisterForUpdate(updateable);
+            }
+            if (component is IInteractable2D interactable) {
+                objectManager.RegisterInteractable(interactable);
+            }
+            if (component is IDrawable2D drawable2D) {
+                objectManager.RegisterForRender2D(drawable2D);
+            }
+            if (component is IDrawable3D drawable3D) {
+                objectManager.RegisterForRender3D(drawable3D);
+            }
+            if (component is ICamera camera) {
+                objectManager.RegisterCamera(camera);
+            }
         }
 
         /// <summary>
@@ -559,7 +666,7 @@ namespace helengine {
         /// Rebuilds render and camera registrations for this subtree after a parent change that preserved enabled state.
         /// </summary>
         void RefreshRegistrationsAfterParentChange() {
-            if (!IsHierarchyEnabled || Core.Instance == null || Core.Instance.ObjectManager == null) {
+            if (!IsHierarchyEnabled || OwnerCore == null || OwnerCore.ObjectManager == null) {
                 return;
             }
 
@@ -575,14 +682,14 @@ namespace helengine {
                 for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
                     Component component = entity.Components[componentIndex];
                     if (component is IDrawable2D drawable2D) {
-                        Core.Instance.ObjectManager.RemoveFromRender2D(drawable2D);
-                        Core.Instance.ObjectManager.RegisterForRender2D(drawable2D);
+                        entity.OwnerCore.ObjectManager.RemoveFromRender2D(drawable2D);
+                        entity.OwnerCore.ObjectManager.RegisterForRender2D(drawable2D);
                     } else if (component is IDrawable3D drawable3D) {
-                        Core.Instance.ObjectManager.RemoveFromRender3D(drawable3D);
-                        Core.Instance.ObjectManager.RegisterForRender3D(drawable3D);
+                        entity.OwnerCore.ObjectManager.RemoveFromRender3D(drawable3D);
+                        entity.OwnerCore.ObjectManager.RegisterForRender3D(drawable3D);
                     } else if (component is ICamera camera) {
-                        Core.Instance.ObjectManager.RemoveCamera(camera);
-                        Core.Instance.ObjectManager.RegisterCamera(camera);
+                        entity.OwnerCore.ObjectManager.RemoveCamera(camera);
+                        entity.OwnerCore.ObjectManager.RegisterCamera(camera);
                     }
                 }
             }
@@ -683,7 +790,7 @@ namespace helengine {
             }
 
             ReportDisposalStage("BeforeObjectManagerRemoveEntity", -1);
-            Core.Instance.ObjectManager.RemoveEntity(this);
+            OwnerCore.ObjectManager.RemoveEntity(this);
             ReportDisposalStage("AfterObjectManagerRemoveEntity", -1);
             isDisposed = true;
         }
@@ -722,11 +829,11 @@ namespace helengine {
         /// <param name="entity">Entity associated with the disposal stage.</param>
         /// <param name="componentIndex">Component index involved in the stage, or -1 for entity-level stages.</param>
         void ReportChildDisposalStage(string stage, Entity entity, int componentIndex) {
-            if (Core.Instance == null) {
+            if (OwnerCore == null) {
                 return;
             }
 
-            SceneManager sceneManager = Core.Instance.SceneManager;
+            SceneManager sceneManager = OwnerCore.SceneManager;
             if (sceneManager == null) {
                 return;
             }

@@ -9,6 +9,7 @@ namespace helengine.editor.tests {
     /// Verifies properties-panel edits emit scene-mutation notifications.
     /// </summary>
     public class PropertiesPanelMutationTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary content root used by the panel tests.
         /// </summary>
@@ -29,14 +30,12 @@ namespace helengine.editor.tests {
             });
             CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
-            EditorSceneMutationService.Reset();
         }
 
         /// <summary>
         /// Deletes temporary test content and clears shared mutation subscriptions.
         /// </summary>
         public void Dispose() {
-            EditorSceneMutationService.Reset();
             GeneratedAssetGraph.Dispose();
             CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
@@ -57,7 +56,7 @@ namespace helengine.editor.tests {
             };
 
             try {
-                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
                 panel.ShowEntityProperties(entity);
 
                 TextBoxComponent nameField = GetPrivateField<TextBoxComponent>(panel, "NameField");
@@ -68,8 +67,7 @@ namespace helengine.editor.tests {
                 Assert.True(raised);
                 Assert.Equal("Renamed", entity.Name);
             } finally {
-                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
-                EditorSceneMutationService.Reset();
+                InteractionServices.SceneMutation.SceneMutated -= handleSceneMutated;
             }
         }
 
@@ -525,11 +523,11 @@ namespace helengine.editor.tests {
             ComponentPropertyRow modifiersHeaderRow = GetSingleRow(view, "Modifiers");
             MeshModifierPickerRequest pickerRequest = null;
             Action<MeshModifierPickerRequest> pickerHandler = request => pickerRequest = request;
-            EditorMeshModifierPickerService.PickRequested += pickerHandler;
+            InteractionServices.MeshModifierPicker.PickRequested += pickerHandler;
             try {
                 InvokePrivate(view, "HandleMeshModifierActionButtonPressed", modifiersHeaderRow);
             } finally {
-                EditorMeshModifierPickerService.PickRequested -= pickerHandler;
+                InteractionServices.MeshModifierPicker.PickRequested -= pickerHandler;
             }
             Assert.NotNull(pickerRequest);
             pickerRequest.OnPicked(MeshComponentModifier.TessellateKind);
@@ -581,11 +579,11 @@ namespace helengine.editor.tests {
             ComponentPropertyRow modifiersHeaderRow = GetSingleRow(view, "Modifiers");
             MeshModifierPickerRequest pickerRequest = null;
             Action<MeshModifierPickerRequest> pickerHandler = request => pickerRequest = request;
-            EditorMeshModifierPickerService.PickRequested += pickerHandler;
+            InteractionServices.MeshModifierPicker.PickRequested += pickerHandler;
             try {
                 InvokePrivate(view, "HandleMeshModifierActionButtonPressed", modifiersHeaderRow);
             } finally {
-                EditorMeshModifierPickerService.PickRequested -= pickerHandler;
+                InteractionServices.MeshModifierPicker.PickRequested -= pickerHandler;
             }
             Assert.NotNull(pickerRequest);
             pickerRequest.OnPicked(MeshComponentModifier.UvwMapKind);
@@ -602,7 +600,7 @@ namespace helengine.editor.tests {
             InvokePrivate(view, "HandleBooleanCheckedChanged", previewRow.CheckBoxField, true);
 
             Assert.NotNull(mesh.Model);
-            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             Assert.NotEmpty(renderManager.BuiltModelAssets);
             ModelAsset previewAsset = renderManager.BuiltModelAssets[renderManager.BuiltModelAssets.Count - 1];
             for (int index = 0; index < previewAsset.Positions.Length; index++) {
@@ -636,11 +634,11 @@ namespace helengine.editor.tests {
             ComponentPropertyRow modifiersHeaderRow = GetSingleRow(view, "Modifiers");
             MeshModifierPickerRequest pickerRequest = null;
             Action<MeshModifierPickerRequest> pickerHandler = request => pickerRequest = request;
-            EditorMeshModifierPickerService.PickRequested += pickerHandler;
+            InteractionServices.MeshModifierPicker.PickRequested += pickerHandler;
             try {
                 InvokePrivate(view, "HandleMeshModifierActionButtonPressed", modifiersHeaderRow);
             } finally {
-                EditorMeshModifierPickerService.PickRequested -= pickerHandler;
+                InteractionServices.MeshModifierPicker.PickRequested -= pickerHandler;
             }
             Assert.NotNull(pickerRequest);
             pickerRequest.OnPicked(MeshComponentModifier.UvwMapKind);
@@ -655,7 +653,7 @@ namespace helengine.editor.tests {
             InvokePrivate(view, "HandleBooleanCheckedChanged", previewRow.CheckBoxField, true);
 
             Assert.NotNull(mesh.Model);
-            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             Assert.NotEmpty(renderManager.BuiltModelAssets);
             ModelAsset previewAsset = renderManager.BuiltModelAssets[renderManager.BuiltModelAssets.Count - 1];
             float maxAbsU = 0f;
@@ -671,6 +669,7 @@ namespace helengine.editor.tests {
             PropertiesPanel panel = new PropertiesPanel(
                 CreateFont(),
                 new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            panel.SetInteractionServices(InteractionServices);
             panel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
             panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
             return panel;

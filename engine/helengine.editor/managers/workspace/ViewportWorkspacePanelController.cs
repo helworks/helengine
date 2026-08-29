@@ -56,6 +56,7 @@ namespace helengine.editor {
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
         readonly EditorSessionRendererResources RendererResources;
+        Core OwnerCore => RendererResources.ObjectManager.OwnerCore ?? throw new InvalidOperationException("Viewport renderer resources must be bound to an owning core.");
 
         /// <summary>
         /// Initializes one workspace controller and its independent viewport runtime stack.
@@ -142,12 +143,12 @@ namespace helengine.editor {
                 PixelsPerWorldUnit = State.Viewport.CanvasPreviewSettings.PixelsPerWorldUnit,
                 IsGridVisible = IsGridVisible(),
                 IsSettingsOverlayOpen = State.Viewport.IsSettingsOverlayVisible,
-                TranslateSnap1 = TransformGizmoSnapSettingsService.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1),
-                TranslateSnap2 = TransformGizmoSnapSettingsService.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap2),
-                RotateSnap1 = TransformGizmoSnapSettingsService.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1),
-                RotateSnap2 = TransformGizmoSnapSettingsService.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2),
-                ScaleSnap1 = TransformGizmoSnapSettingsService.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap1),
-                ScaleSnap2 = TransformGizmoSnapSettingsService.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap2)
+                TranslateSnap1 = EditorSessionInteractionServices.From(State.Viewport).TransformSnap.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1),
+                TranslateSnap2 = EditorSessionInteractionServices.From(State.Viewport).TransformSnap.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap2),
+                RotateSnap1 = EditorSessionInteractionServices.From(State.Viewport).TransformSnap.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1),
+                RotateSnap2 = EditorSessionInteractionServices.From(State.Viewport).TransformSnap.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2),
+                ScaleSnap1 = EditorSessionInteractionServices.From(State.Viewport).TransformSnap.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap1),
+                ScaleSnap2 = EditorSessionInteractionServices.From(State.Viewport).TransformSnap.GetSnapValue(State.SceneCamera, EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap2)
             };
         }
 
@@ -182,7 +183,7 @@ namespace helengine.editor {
             State.Viewport.CanvasPreviewSettings.PixelsPerWorldUnit = document.PixelsPerWorldUnit;
             SetGridVisible(document.IsGridVisible);
             State.Viewport.SetSettingsOverlayOpen(document.IsSettingsOverlayOpen);
-            TransformGizmoSnapSettingsService.ResetDefaults(State.SceneCamera);
+            EditorSessionInteractionServices.From(State.Viewport).TransformSnap.ResetDefaults(State.SceneCamera);
             RestoreSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1, document.TranslateSnap1);
             RestoreSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap2, document.TranslateSnap2);
             RestoreSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1, document.RotateSnap1);
@@ -196,10 +197,10 @@ namespace helengine.editor {
         /// </summary>
         public void Dispose() {
             State.Viewport.ClearInputBlockers();
-            EditorGizmoHoverService.ClearHoveredHandle(State.SceneCamera);
-            EditorGizmoDragService.EndDrag(State.SceneCamera);
-            EditorViewportToolService.ClearToolMode(State.SceneCamera);
-            TransformGizmoSnapSettingsService.ClearState(State.SceneCamera);
+            EditorSessionInteractionServices.From(State.Viewport).GizmoHover.ClearHoveredHandle(State.SceneCamera);
+            EditorSessionInteractionServices.From(State.Viewport).GizmoDrag.EndDrag(State.SceneCamera);
+            EditorSessionInteractionServices.From(State.Viewport).ViewportTool.ClearToolMode(State.SceneCamera);
+            EditorSessionInteractionServices.From(State.Viewport).TransformSnap.ClearState(State.SceneCamera);
             State.TranslationGizmoRoot.Dispose();
             State.RotationGizmoRoot.Dispose();
             State.ScaleGizmoRoot.Dispose();
@@ -238,7 +239,7 @@ namespace helengine.editor {
             sceneCameraEntity.AddComponent(viewportBorderGizmoSyncComponent);
             sceneCameraEntity.AddComponent(new ComponentSceneSelectionEditorSyncComponent(render3D, GeneratedMaterialCache));
             CameraComponent gizmoCamera = CreateGizmoCamera(sceneCameraEntity, sceneCamera);
-            EditorViewport viewport = new EditorViewport(sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics, BuiltInShaderLibrary, RendererResources);
+            EditorViewport viewport = new EditorViewport(OwnerCore, sceneCamera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics, BuiltInShaderLibrary, RendererResources);
             viewport.SetInput(RendererResources.Input);
             EditorViewportCameraController cameraController = new EditorViewportCameraController(sceneCamera, RendererResources.Input);
             viewport.CameraController = cameraController;
@@ -327,7 +328,7 @@ namespace helengine.editor {
         /// Frames the current editor selection inside this viewport's scene camera.
         /// </summary>
         void HandleFocusSelectionRequested() {
-            SelectionFramingService.FocusSelection(State.SceneCamera, State.CameraController, EditorSelectionService.SelectedEntity);
+            SelectionFramingService.FocusSelection(State.SceneCamera, State.CameraController, EditorSessionInteractionServices.From(State.Viewport).Selection.SelectedEntity);
             SynchronizeGizmoCameraProjection(State.SceneCamera, State.GizmoCamera);
         }
 
@@ -336,7 +337,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Initialized scene camera entity.</returns>
         EditorEntity CreateSceneCameraEntity() {
-            EditorEntity sceneCameraEntity = new EditorEntity();
+            EditorEntity sceneCameraEntity = new EditorEntity(OwnerCore);
             sceneCameraEntity.InternalEntity = true;
             sceneCameraEntity.Position = new float3(0f, 3f, -8f);
             ApplyDefaultSceneCameraOrientation(sceneCameraEntity);
@@ -407,7 +408,7 @@ namespace helengine.editor {
         /// <param name="sceneCameraEntity">Scene camera entity whose transform seeds the picker camera.</param>
         /// <returns>Created picker-camera entity.</returns>
         EditorEntity CreatePickerCameraEntity(EditorEntity sceneCameraEntity) {
-            EditorEntity pickerCameraEntity = new EditorEntity();
+            EditorEntity pickerCameraEntity = new EditorEntity(OwnerCore);
             pickerCameraEntity.InternalEntity = true;
             pickerCameraEntity.Enabled = false;
             pickerCameraEntity.Position = sceneCameraEntity.Position;
@@ -495,7 +496,7 @@ namespace helengine.editor {
                 return;
             }
 
-            TransformGizmoSnapSettingsService.SetSnapValue(State.SceneCamera, toolMode, snapSlot, value);
+            EditorSessionInteractionServices.From(State.Viewport).TransformSnap.SetSnapValue(State.SceneCamera, toolMode, snapSlot, value);
         }
 
         /// <summary>

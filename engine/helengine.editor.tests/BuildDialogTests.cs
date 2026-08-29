@@ -9,6 +9,7 @@ namespace helengine.editor.tests {
     /// Verifies the local build dialog platform tabs, map selection, and queue rendering behavior.
     /// </summary>
     public sealed class BuildDialogTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Gets the temporary content root used by the dialog tests.
         /// </summary>
@@ -24,8 +25,6 @@ namespace helengine.editor.tests {
         public BuildDialogTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-build-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            EditorInputCaptureService.Reset();
-
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
@@ -37,7 +36,6 @@ namespace helengine.editor.tests {
         /// Deletes the temporary content root after each test.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -1227,7 +1225,7 @@ namespace helengine.editor.tests {
                 Assert.Equal(0f, background.BorderThickness);
                 Assert.Equal(BuildDialog.QueueColumnWidth - 4, background.Size.X);
                 Assert.Equal(BuildDialog.QueueRowHeight, background.Size.Y);
-                Assert.Equal(TextureUtils.PixelTexture, separator.Texture);
+                Assert.Equal(Core.Instance.RenderManager2D.PixelTexture, separator.Texture);
                 Assert.Equal(ThemeManager.Colors.AccentTertiary, separator.Color);
                 Assert.Equal(BuildDialog.QueueColumnWidth - 4, separator.Size.X);
                 Assert.Equal(1, separator.Size.Y);
@@ -1749,7 +1747,7 @@ namespace helengine.editor.tests {
             BuildDialog dialog = new BuildDialog(CreateFont());
             SpriteComponent closeButtonSeparator = GetPrivateField<SpriteComponent>(dialog, "CloseButtonSeparator");
 
-            Assert.Equal(TextureUtils.PixelTexture, closeButtonSeparator.Texture);
+            Assert.Equal(Core.Instance.RenderManager2D.PixelTexture, closeButtonSeparator.Texture);
             Assert.Equal(ThemeManager.Colors.AccentQuaternary, closeButtonSeparator.Color);
         }
 
@@ -1822,11 +1820,11 @@ namespace helengine.editor.tests {
                 });
             dialog.UpdateLayout(1280, 720);
 
-            Assert.True(EditorInputCaptureService.IsPointerBlocked(new int2(8, 8)));
+            Assert.True(InteractionServices.InputCapture.IsPointerBlocked(new int2(8, 8)));
 
             dialog.Hide();
 
-            Assert.False(EditorInputCaptureService.IsPointerBlocked(new int2(8, 8)));
+            Assert.False(InteractionServices.InputCapture.IsPointerBlocked(new int2(8, 8)));
         }
 
         /// <summary>

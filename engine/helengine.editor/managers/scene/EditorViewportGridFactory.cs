@@ -36,7 +36,8 @@ namespace helengine.editor {
             RuntimeModel gridModel = render3D.BuildModelFromRaw(TransformGizmoMeshFactory.CreateCenteredPlaneSquare(GridSize));
             RuntimeMaterial gridMaterial = EditorViewportGridMaterialFactory.Create(render3D, builtInShaderLibrary);
             float4 gridOrientation = CreateXzPlaneOrientation();
-            var gridEntity = new EditorEntity {
+            Core ownerCore = render3D.OwnerCore ?? throw new InvalidOperationException("Viewport grid renderer must be bound to an owning core.");
+            var gridEntity = new EditorEntity(ownerCore) {
                 Name = GridEntityName,
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGrid,

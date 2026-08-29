@@ -7,6 +7,7 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies translation gizmo drags preserve stored viewport-space coordinates for authored 2D content.
     /// </summary>
     public sealed class TransformTranslationGizmoDragComponentTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Input backend used to drive deterministic drag frames.
         /// </summary>
@@ -20,14 +21,11 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Clears shared editor gizmo state and disposes the active core instance after each drag test.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
-            EditorGizmoHoverService.ClearHoveredHandle();
-            EditorInputCaptureService.Reset();
-            EditorEntityHistoryMutationService.Reset();
-
+            InteractionServices.Selection.ClearSelection();
+            InteractionServices.GizmoHover.ClearHoveredHandle();
             if (SceneCameraValue != null) {
-                EditorViewportToolService.ClearToolMode(SceneCameraValue);
-                EditorGizmoDragService.EndDrag(SceneCameraValue);
+                InteractionServices.ViewportTool.ClearToolMode(SceneCameraValue);
+                InteractionServices.GizmoDrag.EndDrag(SceneCameraValue);
             }
 
             Core.Instance?.Dispose();
@@ -50,8 +48,8 @@ namespace helengine.editor.tests.managers.gizmo {
             float3 startPlanePoint = ResolvePlanePoint(sceneCamera, startPointer, presentedStartPosition, new float3(0f, 0f, 1f));
             float3 currentPlanePoint = ResolvePlanePoint(sceneCamera, currentPointer, presentedStartPosition, new float3(0f, 0f, 1f));
 
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             InitializeActivePlaneDrag(component, selectedEntity, handleEntity, presentedStartPosition, startPlanePoint);
 
             CompleteDragFrame(component, CreateMouseState(currentPointer.X, currentPointer.Y, ButtonState.Pressed));
@@ -82,8 +80,8 @@ namespace helengine.editor.tests.managers.gizmo {
             double currentAxisParameter = ResolveAxisParameter(sceneCamera, currentPointer, presentedStartPosition, axisDirection);
             float3 expectedPresentedWorldPosition = presentedStartPosition + (axisDirection * (float)(currentAxisParameter - startAxisParameter));
 
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             InitializeActiveAxisDrag(component, selectedEntity, handleEntity, presentedStartPosition, axisDirection, startAxisParameter);
 
             CompleteDragFrame(component, CreateMouseState(currentPointer.X, currentPointer.Y, ButtonState.Pressed));
@@ -123,8 +121,8 @@ namespace helengine.editor.tests.managers.gizmo {
             double currentAxisParameter = ResolveAxisParameter(sceneCamera, currentPointer, presentedStartPosition, axisDirection);
             float3 expectedWorldPosition = presentedStartPosition + (axisDirection * (float)(currentAxisParameter - startAxisParameter));
 
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             InitializeActiveAxisDrag(component, selectedEntity, handleEntity, presentedStartPosition, axisDirection, startAxisParameter);
 
             CompleteDragFrame(component, CreateMouseState(currentPointer.X, currentPointer.Y, ButtonState.Pressed));
@@ -146,10 +144,10 @@ namespace helengine.editor.tests.managers.gizmo {
             TransformTranslationGizmoDragComponent component = CreateDragComponent(sceneCamera);
             SerializedEditorEntityState dragStartState = new SerializedEditorEntityState();
             SerializedEditorEntityState recordedState = null;
-            EditorEntityHistoryMutationService.RecordEntityStateChange = (entity, previousState) => recordedState = previousState;
+            InteractionServices.EntityHistory.RecordEntityStateChange = (entity, previousState) => recordedState = previousState;
 
-            EditorViewportToolService.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             InitializeActivePlaneDrag(component, selectedEntity, handleEntity, new float3(0f, 0f, 25f), float3.Zero);
             SetPrivateField(component, "DragStartEntityState", dragStartState);
             SetPrivateField(component, "DragChanged", true);
@@ -238,6 +236,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <returns>Configured translation gizmo drag component.</returns>
         TransformTranslationGizmoDragComponent CreateDragComponent(CameraComponent sceneCamera) {
             EditorEntity owner = new EditorEntity();
+            owner.RebindInteractionServices(InteractionServices);
             TransformTranslationGizmoDragComponent component = new TransformTranslationGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
             return component;

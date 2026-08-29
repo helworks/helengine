@@ -19,6 +19,7 @@ namespace helengine.editor {
         /// Renderer used to allocate and draw the offscreen capture scene.
         /// </summary>
         readonly RenderManager3D RenderManager3D;
+        readonly RenderManager2D RenderManager2D;
         readonly ObjectManager ObjectManager;
         /// <summary>Session-owned built-in shader library used by exact preview capture.</summary>
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
@@ -59,6 +60,7 @@ namespace helengine.editor {
         /// <param name="defaultEditorFontAsset">Default editor font asset used to resolve generated editor-font references.</param>
         public TextComponentSpriteBakeService(
             RenderManager3D renderManager3D,
+            RenderManager2D renderManager2D,
             IRenderTargetTextureAssetReader renderTargetTextureAssetReader,
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -67,6 +69,7 @@ namespace helengine.editor {
             EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
             ObjectManager objectManager) {
             RenderManager3D = renderManager3D ?? throw new ArgumentNullException(nameof(renderManager3D));
+            RenderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             RenderTargetTextureAssetReader = renderTargetTextureAssetReader ?? throw new ArgumentNullException(nameof(renderTargetTextureAssetReader));
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
@@ -92,8 +95,8 @@ namespace helengine.editor {
             string stableKey = ComputeStableKey(request);
             string generatedTextureAssetId = string.Concat("generated:text-sprite:", stableKey);
 
-            using EditorExact2DPreviewCaptureService captureService = new EditorExact2DPreviewCaptureService(RenderManager3D, ObjectManager, BuiltInShaderLibrary);
-            Entity sourceEntity = new Entity();
+            using EditorExact2DPreviewCaptureService captureService = new EditorExact2DPreviewCaptureService(RenderManager3D, RenderManager2D, ObjectManager, BuiltInShaderLibrary);
+            Entity sourceEntity = new Entity(ObjectManager.OwnerCore ?? throw new InvalidOperationException("Text bake object manager must be bound to an owning core."));
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 

@@ -1,3 +1,4 @@
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -5,11 +6,19 @@ namespace helengine.editor.tests {
     /// Verifies custom editor tools can capture and record component mutations through the static history bridge without reaching into editor-session internals.
     /// </summary>
     public sealed class EditorComponentHistoryMutationServiceTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+
+        public EditorComponentHistoryMutationServiceTests() {
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        }
         /// <summary>
         /// Clears shared component-history bridge callbacks after each test.
         /// </summary>
         public void Dispose() {
-            EditorComponentHistoryMutationService.Reset();
+            CoreValue.Dispose();
+            InteractionServices.Dispose();
         }
 
         /// <summary>
@@ -29,13 +38,13 @@ namespace helengine.editor.tests {
                 }
             };
             int captureCount = 0;
-            EditorComponentHistoryMutationService.CaptureEntityState = editorEntity => {
+            InteractionServices.ComponentHistory.CaptureEntityState = editorEntity => {
                 captureCount++;
                 Assert.Same(entity, editorEntity);
                 return expectedState;
             };
 
-            bool captured = EditorComponentHistoryMutationService.TryCaptureEntityState(component, out SerializedEditorEntityState previousEntityState);
+            bool captured = InteractionServices.ComponentHistory.TryCaptureEntityState(component, out SerializedEditorEntityState previousEntityState);
 
             Assert.True(captured);
             Assert.Same(expectedState, previousEntityState);
@@ -59,14 +68,14 @@ namespace helengine.editor.tests {
                 }
             };
             int recordCount = 0;
-            EditorComponentHistoryMutationService.RecordComponentMutation = (editorEntity, historyComponent, historyState) => {
+            InteractionServices.ComponentHistory.RecordComponentMutation = (editorEntity, historyComponent, historyState) => {
                 recordCount++;
                 Assert.Same(entity, editorEntity);
                 Assert.Same(component, historyComponent);
                 Assert.Same(previousEntityState, historyState);
             };
 
-            bool recorded = EditorComponentHistoryMutationService.TryRecordComponentMutation(component, previousEntityState);
+            bool recorded = InteractionServices.ComponentHistory.TryRecordComponentMutation(component, previousEntityState);
 
             Assert.True(recorded);
             Assert.Equal(1, recordCount);
@@ -87,9 +96,9 @@ namespace helengine.editor.tests {
                 }
             };
             int recordCount = 0;
-            EditorComponentHistoryMutationService.RecordComponentMutation = (editorEntity, historyComponent, historyState) => recordCount++;
+            InteractionServices.ComponentHistory.RecordComponentMutation = (editorEntity, historyComponent, historyState) => recordCount++;
 
-            bool recorded = EditorComponentHistoryMutationService.TryRecordComponentMutation(component, previousEntityState);
+            bool recorded = InteractionServices.ComponentHistory.TryRecordComponentMutation(component, previousEntityState);
 
             Assert.False(recorded);
             Assert.Equal(0, recordCount);

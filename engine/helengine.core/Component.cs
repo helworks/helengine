@@ -30,6 +30,11 @@ namespace helengine {
         public Entity Parent { get; private set; }
 
         /// <summary>
+        /// Gets the core that owns the parent entity and all component lifecycle resources.
+        /// </summary>
+        public Core OwnerCore { get; internal set; }
+
+        /// <summary>
         /// Gets whether this component is the editor-owned suppression marker that disables gameplay update execution during scene authoring.
         /// </summary>
         public virtual bool IsEditorUpdateExecutionSuppressionMarker => false;
@@ -183,6 +188,7 @@ namespace helengine {
             }
 
             ThrowIfDisposed();
+            OwnerCore = entity.OwnerCore;
             Parent = entity;
         }
 

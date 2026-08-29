@@ -401,7 +401,7 @@ namespace helengine {
                 return;
             }
 
-            Core.Instance.RenderManager3D.WindowResized += HandleWindowResized;
+            OwnerCore.RenderManager3D.WindowResized += HandleWindowResized;
             IsSubscribedToWindowResizeValue = true;
         }
 
@@ -413,7 +413,7 @@ namespace helengine {
                 return;
             }
 
-            Core.Instance.RenderManager3D.WindowResized -= HandleWindowResized;
+            OwnerCore.RenderManager3D.WindowResized -= HandleWindowResized;
             IsSubscribedToWindowResizeValue = false;
         }
 
@@ -452,7 +452,7 @@ namespace helengine {
         /// <returns>Resolved viewport rectangle in pixel-space coordinates.</returns>
         float4 ResolveViewportBounds() {
             if (BindingModeValue == ScreenBindingMode) {
-                int2 screenSize = Core.Instance.RenderManager3D.MainWindowSize;
+                int2 screenSize = OwnerCore.RenderManager3D.MainWindowSize;
                 if (screenSize.X > 0 && screenSize.Y > 0) {
                     return new float4(0f, 0f, screenSize.X, screenSize.Y);
                 }
@@ -515,11 +515,11 @@ namespace helengine {
             }
 
             float4 viewport = cameraComponent.Viewport;
-            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+            if (OwnerCore == null || OwnerCore.RenderManager3D == null) {
                 return viewport;
             }
 
-            int2 mainWindowSize = Core.Instance.RenderManager3D.MainWindowSize;
+            int2 mainWindowSize = OwnerCore.RenderManager3D.MainWindowSize;
             if (mainWindowSize.X <= 0 || mainWindowSize.Y <= 0) {
                 return viewport;
             }

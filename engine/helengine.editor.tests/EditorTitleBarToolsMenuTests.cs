@@ -50,7 +50,10 @@ namespace helengine.editor.tests {
 
             Assert.False(fileMenu.IsVisible);
             Assert.True(toolsMenu.IsVisible);
-            Assert.Collection(activeItems, item => Assert.Equal("Environments...", item.Label));
+            Assert.Collection(
+                activeItems,
+                item => Assert.Equal("Environments...", item.Label),
+                item => Assert.Equal("Export Scene...", item.Label));
         }
 
         /// <summary>

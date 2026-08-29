@@ -103,8 +103,8 @@ namespace helengine {
                     RenderOrder2DValue = value;
                     UpdateSelectionRenderOrder();
                     if (Parent != null && Parent.IsHierarchyEnabled) {
-                        Core.Instance.ObjectManager.RemoveFromRender2D(this);
-                        Core.Instance.ObjectManager.RegisterForRender2D(this);
+                        OwnerCore.ObjectManager.RemoveFromRender2D(this);
+                        OwnerCore.ObjectManager.RegisterForRender2D(this);
                     }
                 }
             }
@@ -379,8 +379,8 @@ namespace helengine {
                         SelectionEntityValue.Enabled = Parent.IsHierarchyEnabled;
                     }
                     if (Parent.IsHierarchyEnabled && RenderOrder2DValue == 0) {
-                        Core.Instance.ObjectManager.RemoveFromRender2D(this);
-                        Core.Instance.ObjectManager.RegisterForRender2D(this);
+                        OwnerCore.ObjectManager.RemoveFromRender2D(this);
+                        OwnerCore.ObjectManager.RegisterForRender2D(this);
                     }
                     UpdateSelectionVisual();
                 }
@@ -440,7 +440,7 @@ namespace helengine {
             base.ComponentAdded(entity);
 
             if (entity.IsHierarchyEnabled) {
-                Core.Instance.ObjectManager.RegisterForRender2D(this);
+                OwnerCore.ObjectManager.RegisterForRender2D(this);
             }
 
             if (SelectionEnabled) {
@@ -459,9 +459,9 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (newEnabled) {
-                Core.Instance.ObjectManager.RegisterForRender2D(this);
+                OwnerCore.ObjectManager.RegisterForRender2D(this);
             } else {
-                Core.Instance.ObjectManager.RemoveFromRender2D(this);
+                OwnerCore.ObjectManager.RemoveFromRender2D(this);
                 IsFocusedValue = false;
                 IsSelectingTextValue = false;
             }
@@ -479,7 +479,7 @@ namespace helengine {
         /// <param name="entity">Owning entity.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
-            Core.Instance.ObjectManager.RemoveFromRender2D(this);
+            OwnerCore.ObjectManager.RemoveFromRender2D(this);
 
             IsFocusedValue = false;
             IsSelectingTextValue = false;
@@ -549,7 +549,7 @@ namespace helengine {
 
             if (SelectionUpdateComponentValue == null) {
                 SelectionUpdateComponentValue = new TextComponentSelectionUpdateComponent(this);
-                SelectionUpdateComponentValue.UpdateOrder = Core.Instance.ObjectManager.GetUpdateOrderForLayer(1);
+                SelectionUpdateComponentValue.UpdateOrder = OwnerCore.ObjectManager.GetUpdateOrderForLayer(1);
                 entity.AddComponent(SelectionUpdateComponentValue);
             }
         }
@@ -808,7 +808,7 @@ namespace helengine {
                 return;
             }
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = OwnerCore.Input;
             bool isShiftPressed = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
             bool isControlPressed = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
 
@@ -1055,7 +1055,7 @@ namespace helengine {
                 return;
             }
 
-            InputSystem input = Core.Instance.Input;
+            InputSystem input = OwnerCore.Input;
             if (input == null) {
                 return;
             }
@@ -1082,7 +1082,7 @@ namespace helengine {
                 return;
             }
 
-            Core.Instance.RenderManager2D.DrawText(this);
+            OwnerCore.RenderManager2D.DrawText(this);
         }
 
     }

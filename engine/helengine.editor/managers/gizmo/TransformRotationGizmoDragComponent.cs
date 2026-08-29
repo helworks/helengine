@@ -75,6 +75,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures the input system owned by the entity's renderer/session graph when attached.
+        /// </summary>
+        /// <param name="entity">Gizmo owner that receives this drag component.</param>
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+            Input ??= entity.OwnerCore?.Input;
+        }
+
+        /// <summary>
         /// Updates drag activation and applies rotation while dragging.
         /// </summary>
         public override void Update() {
@@ -126,7 +135,7 @@ namespace helengine.editor {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer)) {
+            if (EditorSessionInteractionServices.From(Parent).InputCapture.IsPointerBlocked(pointer)) {
                 return;
             }
 
@@ -134,12 +143,12 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
+            Entity hoveredHandle = EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredHandle(SceneCamera);
             if (hoveredHandle == null) {
                 return;
             }
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (!CanRotateSelection(selectedEntity)) {
                 return;
             }
@@ -167,10 +176,10 @@ namespace helengine.editor {
             DragStartRotationAngle = ResolveAxisTwistAngle(DragStartEntityOrientation, DragRotationAxis);
             DragAccumulatedAngle = 0.0;
             DragPreviousVector = dragVector;
-            EditorEntityHistoryMutationService.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState);
+            EditorSessionInteractionServices.From(Parent).EntityHistory.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState);
             DragStartEntityState = dragStartEntityState;
-            EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
-            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredHandle);
+            EditorSessionInteractionServices.From(Parent).GizmoDrag.BeginDrag(SceneCamera, selectedEntity);
+            EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, hoveredHandle);
         }
 
         /// <summary>
@@ -192,20 +201,20 @@ namespace helengine.editor {
                 return;
             }
 
-            if (!ReferenceEquals(EditorSelectionService.SelectedEntity, DraggedEntity)) {
+            if (!ReferenceEquals(EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity, DraggedEntity)) {
                 EndDrag();
                 return;
             }
 
             int2 pointer = input.GetMousePosition();
             if (!TryComputePlanePoint(pointer, DragRotationCenter, DragRotationAxis, out float3 planePoint)) {
-                EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+                EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
                 return;
             }
 
             float3 currentVector = NormalizeSafe(planePoint - DragRotationCenter, float3.Zero);
             if (currentVector == float3.Zero) {
-                EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+                EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
                 return;
             }
 
@@ -228,7 +237,7 @@ namespace helengine.editor {
                 DraggedEntity.Orientation = newOrientation;
             }
             DragChanged = DragChanged || !newOrientation.Equals(DragStartEntityOrientation);
-            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+            EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
         }
 
         /// <summary>
@@ -236,12 +245,12 @@ namespace helengine.editor {
         /// </summary>
         void EndDrag() {
             if (DragChanged) {
-                if (!EditorEntityHistoryMutationService.TryRecordEntityStateChange(DraggedEntity, DragStartEntityState)) {
-                    EditorSceneMutationService.MarkSceneMutated();
+                if (!EditorSessionInteractionServices.From(Parent).EntityHistory.TryRecordEntityStateChange(DraggedEntity, DragStartEntityState)) {
+                    EditorSessionInteractionServices.From(Parent).SceneMutation.MarkSceneMutated();
                 }
             }
 
-            EditorGizmoDragService.EndDrag(SceneCamera);
+            EditorSessionInteractionServices.From(Parent).GizmoDrag.EndDrag(SceneCamera);
             IsDragging = false;
             DragChanged = false;
             DraggedEntity = null;
@@ -399,7 +408,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager used to read snap modifiers.</param>
         /// <returns>Signed rotation angle in radians after optional snapping.</returns>
         double ResolveActiveRotationAngle(InputSystem input) {
-            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Rotate);
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Rotate, EditorSessionInteractionServices.From(Parent));
             if (activeSnapValue <= 0.0) {
                 return DragAccumulatedAngle;
             }
@@ -458,7 +467,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the viewport tool mode is rotation.</returns>
         bool IsRotateToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Rotate;
+            return EditorSessionInteractionServices.From(Parent).ViewportTool.GetToolMode(SceneCamera) == EditorViewportToolMode.Rotate;
         }
     }
 }

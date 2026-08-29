@@ -30,8 +30,6 @@ namespace helengine.editor.tests {
         /// Releases shared editor state and temporary directories after each test.
         /// </summary>
         public void Dispose() {
-            EditorInputCaptureService.Reset();
-
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }

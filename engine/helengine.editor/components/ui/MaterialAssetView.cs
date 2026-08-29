@@ -632,9 +632,9 @@ namespace helengine.editor {
 
             if (string.Equals(fieldId, TextureAssetIdFieldId, StringComparison.OrdinalIgnoreCase)) {
                 string textureExtensionFilter = string.Join(";", TextureImportFormatCatalog.AllTextureExtensions);
-                EditorAssetPickerService.RequestPick(entry => HandleTexturePicked(platformId, fieldId, entry), textureExtensionFilter);
+                EditorSessionInteractionServices.From(RootEntity).AssetPicker.RequestPick(entry => HandleTexturePicked(platformId, fieldId, entry), textureExtensionFilter);
             } else {
-                EditorAssetPickerService.RequestPick(entry => HandleShaderPicked(platformId, fieldId, entry), EditorFileTemplateRegistry.ShaderExtension);
+                EditorSessionInteractionServices.From(RootEntity).AssetPicker.RequestPick(entry => HandleShaderPicked(platformId, fieldId, entry), EditorFileTemplateRegistry.ShaderExtension);
             }
         }
 

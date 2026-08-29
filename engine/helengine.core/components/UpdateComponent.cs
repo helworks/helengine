@@ -16,9 +16,9 @@ namespace helengine {
             set {
                 if (updateOrder != value) {
                     if (Parent != null && Parent.IsInitialized && Parent.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
-                        Core.Instance.ObjectManager.RemoveFromUpdate(this, updateOrder);
+                        OwnerCore.ObjectManager.RemoveFromUpdate(this, updateOrder);
                         updateOrder = value;
-                        Core.Instance.ObjectManager.RegisterForUpdate(this);
+                        OwnerCore.ObjectManager.RegisterForUpdate(this);
                     } else {
                         updateOrder = value;
                     }
@@ -42,7 +42,7 @@ namespace helengine {
             base.ComponentInitialized(entity);
 
             if (entity.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, entity)) {
-                Core.Instance.ObjectManager.RegisterForUpdate(this);
+                OwnerCore.ObjectManager.RegisterForUpdate(this);
             }
         }
 
@@ -57,9 +57,9 @@ namespace helengine {
             }
 
             if (newEnabled) {
-                Core.Instance.ObjectManager.RegisterForUpdate(this);
+                OwnerCore.ObjectManager.RegisterForUpdate(this);
             } else {
-                Core.Instance.ObjectManager.RemoveFromUpdate(this, updateOrder);
+                OwnerCore.ObjectManager.RemoveFromUpdate(this, updateOrder);
             }
         }
 

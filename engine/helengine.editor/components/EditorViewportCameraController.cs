@@ -270,7 +270,7 @@ namespace helengine.editor {
         /// </summary>
         public override void Update() {
             InputSystem input = this.input;
-            bool isPointerBlocked = EditorInputCaptureService.IsPointerBlocked(input.GetMousePosition());
+            bool isPointerBlocked = EditorSessionInteractionServices.From(Parent).InputCapture.IsPointerBlocked(input.GetMousePosition());
             UpdateEffectiveSpeeds(selectionFramingService);
 
             if (!hasOrientationState) {
@@ -424,7 +424,7 @@ namespace helengine.editor {
                 return;
             }
 
-            double selectionExtent = selectionBounds.ResolveSelectionExtentForTest(EditorSelectionService.SelectedEntity);
+            double selectionExtent = selectionBounds.ResolveSelectionExtentForTest(EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity);
             if (selectionExtent <= 0.0) {
                 ApplyConfiguredSpeeds();
                 return;
@@ -558,7 +558,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>World-space target position used for orbit interactions.</returns>
         float3 ResolveOrbitTarget() {
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (selectedEntity != null) {
                 if (hasSelectionOrbitTargetOverride && ReferenceEquals(selectedEntity, selectionOrbitTargetOverrideEntity)) {
                     virtualTarget = selectionOrbitTargetOverride;

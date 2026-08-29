@@ -7,6 +7,7 @@ namespace helengine.editor {
         /// Renderer used to allocate render targets and preview materials.
         /// </summary>
         readonly RenderManager3D Render3D;
+        readonly RenderManager2D Render2D;
         readonly ObjectManager ObjectManagerValue;
         /// <summary>Session-owned built-in shader library used by the preview material.</summary>
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
@@ -65,18 +66,20 @@ namespace helengine.editor {
         /// Initializes one exact 2D preview capture service.
         /// </summary>
         /// <param name="render3D">Renderer used to allocate preview resources.</param>
-        public EditorExact2DPreviewCaptureService(RenderManager3D render3D, ObjectManager objectManager, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+        public EditorExact2DPreviewCaptureService(RenderManager3D render3D, RenderManager2D render2D, ObjectManager objectManager, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
             Render3D = render3D ?? throw new ArgumentNullException(nameof(render3D));
+            Render2D = render2D ?? throw new ArgumentNullException(nameof(render2D));
             ObjectManagerValue = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             PreviewSizeValue = new int2(1, 1);
 
-            PreviewCameraEntity = EditorExact2DPreviewSceneFactory.CreatePreviewCameraEntity();
+            Core ownerCore = ObjectManagerValue.OwnerCore ?? throw new InvalidOperationException("Preview object manager must be bound to an owning core.");
+            PreviewCameraEntity = EditorExact2DPreviewSceneFactory.CreatePreviewCameraEntity(ownerCore);
             PreviewCameraComponentValue = EditorExact2DPreviewSceneFactory.CreatePreviewCameraComponent(PreviewSizeValue);
             PreviewCameraEntity.AddComponent(PreviewCameraComponentValue);
 
-            PreviewContentEntity = EditorExact2DPreviewSceneFactory.CreatePreviewContentEntity();
-            PreviewMaterialValue = EditorExact2DPreviewMaterialFactory.Create(Render3D, TextureUtils.PixelTexture, BuiltInShaderLibrary);
+            PreviewContentEntity = EditorExact2DPreviewSceneFactory.CreatePreviewContentEntity(ownerCore);
+            PreviewMaterialValue = EditorExact2DPreviewMaterialFactory.Create(Render3D, Render2D.PixelTexture, BuiltInShaderLibrary);
         }
 
         /// <summary>

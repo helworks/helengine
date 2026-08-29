@@ -10,23 +10,26 @@ namespace helengine.editor.tests {
     public class PropertiesPanelWheelScrollTests : IDisposable {
         readonly string TempRootPath;
         readonly TestInputBackend Input;
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
 
         public PropertiesPanelWheelScrollTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-properties-panel-wheel-scroll-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            EditorInputCaptureService.Reset();
-            EditorSceneMutationService.Reset();
-
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             Input = new TestInputBackend();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         public void Dispose() {
-            EditorInputCaptureService.Reset();
-            EditorSceneMutationService.Reset();
+            GeneratedAssetGraph.Dispose();
+            InteractionServices.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -42,7 +45,10 @@ namespace helengine.editor.tests {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 120)
             };
-            EditorEntity entity = new EditorEntity { Name = "Tall" };
+            panel.SetInteractionServices(InteractionServices);
+            panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
+            panel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) { Name = "Tall" };
             entity.AddComponent(new PropertiesPanelComponentShellTests.TallPropertyTestComponent());
 
             panel.ShowEntityProperties(entity);
@@ -63,7 +69,7 @@ namespace helengine.editor.tests {
 
         void AdvanceInput(MouseState mouseState) {
             Input.SetMouseState(mouseState);
-            Core.Instance.Update();
+            CoreValue.Update();
         }
 
         FontAsset CreateFont() {

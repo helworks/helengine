@@ -7,13 +7,13 @@ namespace helengine.editor.tests {
     /// Verifies shared platform tab strip behavior.
     /// </summary>
     public sealed class PlatformTabStripViewTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Initializes the core services required by the shared platform tab strip tests.
         /// </summary>
         public PlatformTabStripViewTests() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            EditorKeyboardFocusService.Reset();
         }
 
         /// <summary>
@@ -72,7 +72,7 @@ namespace helengine.editor.tests {
             view.UpdateLayout(0, 0, 220);
 
             List<EditorFocusTarget> focusTargets = GetPrivateField<List<EditorFocusTarget>>(view, "TabFocusTargets");
-            EditorKeyboardFocusService.SetFocusedTarget(focusTargets[0]);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(focusTargets[0]);
             focusTargets[0].ActivateFromKey(Keys.Right);
 
             Assert.Equal("ps2", view.SelectedPlatformId);
@@ -101,7 +101,6 @@ namespace helengine.editor.tests {
         /// Clears shared keyboard focus state after each test.
         /// </summary>
         public void Dispose() {
-            EditorKeyboardFocusService.Reset();
         }
 
         /// <summary>

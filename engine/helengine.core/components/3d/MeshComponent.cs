@@ -43,9 +43,9 @@ namespace helengine {
             set {
                 if (renderOrder3D != value) {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
-                        Core.Instance.ObjectManager.RemoveFromRender3D(this);
+                        OwnerCore.ObjectManager.RemoveFromRender3D(this);
                         renderOrder3D = value;
-                        Core.Instance.ObjectManager.RegisterForRender3D(this);
+                        OwnerCore.ObjectManager.RegisterForRender3D(this);
                     } else {
                         renderOrder3D = value;
                     }
@@ -76,7 +76,7 @@ namespace helengine {
             base.ComponentAdded(entity);
 
             if (entity.IsHierarchyEnabled) {
-                Core.Instance.ObjectManager.RegisterForRender3D(this);
+                OwnerCore.ObjectManager.RegisterForRender3D(this);
             }
         }
 
@@ -86,7 +86,7 @@ namespace helengine {
         /// <param name="entity">Entity losing this mesh component.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
-            Core.Instance.ObjectManager.RemoveFromRender3D(this);
+            OwnerCore.ObjectManager.RemoveFromRender3D(this);
         }
 
         /// <summary>
@@ -97,9 +97,9 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (newEnabled) {
-                Core.Instance.ObjectManager.RegisterForRender3D(this);
+                OwnerCore.ObjectManager.RegisterForRender3D(this);
             } else {
-                Core.Instance.ObjectManager.RemoveFromRender3D(this);
+                OwnerCore.ObjectManager.RemoveFromRender3D(this);
             }
         }
 

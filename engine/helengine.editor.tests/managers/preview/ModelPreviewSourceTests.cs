@@ -192,7 +192,7 @@ namespace helengine.editor.tests {
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
             Assert.NotNull(diffuseTexture);
-            Assert.NotSame(TextureUtils.PixelTexture, diffuseTexture);
+            Assert.NotSame(Core.Instance.RenderManager2D.PixelTexture, diffuseTexture);
 
             source.Dispose();
         }
@@ -222,7 +222,7 @@ namespace helengine.editor.tests {
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
             Assert.NotNull(diffuseTexture);
-            Assert.NotSame(TextureUtils.PixelTexture, diffuseTexture);
+            Assert.NotSame(Core.Instance.RenderManager2D.PixelTexture, diffuseTexture);
 
             source.Dispose();
         }
@@ -292,7 +292,7 @@ namespace helengine.editor.tests {
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
             Assert.NotNull(diffuseTexture);
-            Assert.NotSame(TextureUtils.PixelTexture, diffuseTexture);
+            Assert.NotSame(Core.Instance.RenderManager2D.PixelTexture, diffuseTexture);
 
             source.Dispose();
         }

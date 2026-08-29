@@ -55,7 +55,7 @@ namespace helengine.editor.tests {
             };
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = new int2(80, 40),
                 RenderOrder2D = 220
             };
@@ -484,7 +484,7 @@ namespace helengine.editor.tests {
             };
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };

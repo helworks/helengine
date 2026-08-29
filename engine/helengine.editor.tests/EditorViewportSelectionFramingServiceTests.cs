@@ -6,6 +6,7 @@ namespace helengine.editor.tests {
     /// Verifies editor-only viewport selection framing behavior for scene-view focus operations.
     /// </summary>
     public sealed class EditorViewportSelectionFramingServiceTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Initializes the core services required by editor viewport framing tests.
         /// </summary>
@@ -18,7 +19,7 @@ namespace helengine.editor.tests {
         /// Disposes the active core instance after each framing test.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
+            InteractionServices.Selection.ClearSelection();
             Core.Instance?.Dispose();
         }
 

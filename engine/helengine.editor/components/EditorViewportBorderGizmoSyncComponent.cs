@@ -93,7 +93,8 @@ namespace helengine {
         /// <param name="sourceViewportComponent">Viewport component mirrored by the gizmo.</param>
         /// <returns>Newly created gizmo entity.</returns>
         EditorEntity CreateGizmoEntity(Entity sourceEntity, ViewportComponent sourceViewportComponent) {
-            EditorEntity gizmoEntity = new EditorEntity {
+            Core ownerCore = RendererResources.ObjectManager.OwnerCore ?? throw new InvalidOperationException("Viewport border gizmo object manager must be bound to an owning core.");
+            EditorEntity gizmoEntity = new EditorEntity(ownerCore) {
                 Name = "Viewport Border Gizmo",
                 InternalEntity = true,
                 LayerMask = helengine.editor.EditorLayerMasks.SceneObjects

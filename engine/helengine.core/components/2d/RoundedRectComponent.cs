@@ -13,9 +13,9 @@ namespace helengine {
             set {
                 if (renderOrder2D != value) {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
-                        Core.Instance.ObjectManager.RemoveFromRender2D(this);
+                        OwnerCore.ObjectManager.RemoveFromRender2D(this);
                         renderOrder2D = value;
-                        Core.Instance.ObjectManager.RegisterForRender2D(this);
+                        OwnerCore.ObjectManager.RegisterForRender2D(this);
                     } else {
                         renderOrder2D = value;
                     }
@@ -95,7 +95,7 @@ namespace helengine {
             base.ComponentAdded(entity);
 
             if (entity.IsHierarchyEnabled) {
-                Core.Instance.ObjectManager.RegisterForRender2D(this);
+                OwnerCore.ObjectManager.RegisterForRender2D(this);
             }
         }
 
@@ -105,7 +105,7 @@ namespace helengine {
         /// <param name="entity">Entity losing this shape component.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
-            Core.Instance.ObjectManager.RemoveFromRender2D(this);
+            OwnerCore.ObjectManager.RemoveFromRender2D(this);
         }
 
         /// <summary>
@@ -116,9 +116,9 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (newEnabled) {
-                Core.Instance.ObjectManager.RegisterForRender2D(this);
+                OwnerCore.ObjectManager.RegisterForRender2D(this);
             } else {
-                Core.Instance.ObjectManager.RemoveFromRender2D(this);
+                OwnerCore.ObjectManager.RemoveFromRender2D(this);
             }
         }
 
@@ -126,7 +126,7 @@ namespace helengine {
         /// Issues a draw call for this shape through the 2D render manager.
         /// </summary>
         public virtual void Draw() {
-            Core.Instance.RenderManager2D.DrawRoundedRect(this);
+            OwnerCore.RenderManager2D.DrawRoundedRect(this);
         }
     }
 }

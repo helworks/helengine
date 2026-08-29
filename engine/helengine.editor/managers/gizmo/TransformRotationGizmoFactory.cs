@@ -93,6 +93,11 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(snapPreviewMaterial));
             }
 
+            Core ownerCore = render3D.OwnerCore ?? sceneCamera.OwnerCore;
+            if (ownerCore == null) {
+                throw new InvalidOperationException("A rotation gizmo requires a renderer or camera owner core.");
+            }
+
             ModelAsset xRingAsset = TransformGizmoMeshFactory.CreateTubeRing(InnerRadius, OuterRadius, RingHeight, RingSegments);
             ModelAsset yRingAsset = TransformGizmoMeshFactory.CreateTubeRing(InnerRadius, OuterRadius, RingHeight, RingSegments);
             ModelAsset zRingAsset = TransformGizmoMeshFactory.CreateTubeRing(InnerRadius, OuterRadius, RingHeight, RingSegments);
@@ -104,11 +109,11 @@ namespace helengine.editor {
             RuntimeModel yRingModel = render3D.BuildModelFromRaw(yRingAsset);
             RuntimeModel zRingModel = render3D.BuildModelFromRaw(zRingAsset);
 
-            EditorEntity gizmoRoot = new EditorEntity();
+            EditorEntity gizmoRoot = new EditorEntity(ownerCore);
             gizmoRoot.Name = "Transform Rotation Gizmo";
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
-            EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewMaterial);
+            EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewMaterial, ownerCore);
             gizmoRoot.AddComponent(new TransformRotationGizmoFollowComponent(sceneCamera, render3D, gizmoRoot, gizmoMaterial, gizmoHighlightMaterial, snapPreviewEntity));
 
             CreateRingEntity(gizmoRoot, "Transform Rotation Gizmo X", CreateXAxisOrientation(), xRingModel, gizmoMaterial);
@@ -163,7 +168,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            EditorEntity ringEntity = new EditorEntity();
+            EditorEntity ringEntity = new EditorEntity(gizmoRoot.OwnerCore);
             ringEntity.Name = ringName;
             ringEntity.InternalEntity = true;
             ringEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -185,12 +190,15 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="previewMaterial">Material used to render the procedural preview disc.</param>
         /// <returns>Configured snap-preview entity.</returns>
-        static EditorEntity CreateSnapPreviewEntity(RuntimeMaterial previewMaterial) {
+        static EditorEntity CreateSnapPreviewEntity(RuntimeMaterial previewMaterial, Core ownerCore) {
             if (previewMaterial == null) {
                 throw new ArgumentNullException(nameof(previewMaterial));
             }
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
 
-            var previewEntity = new EditorEntity {
+            var previewEntity = new EditorEntity(ownerCore) {
                 Name = "Transform Rotation Gizmo Snap Preview",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,

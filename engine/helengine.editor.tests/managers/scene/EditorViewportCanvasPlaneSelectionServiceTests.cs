@@ -157,7 +157,7 @@ namespace helengine.editor.tests.managers.scene {
                 Position = position
             };
             var sprite = new SpriteComponent {
-                Texture = TextureUtils.PixelTexture,
+                Texture = Core.Instance.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };

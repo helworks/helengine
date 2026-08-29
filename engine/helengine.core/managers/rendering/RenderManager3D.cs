@@ -6,6 +6,13 @@ namespace helengine {
         private bool setOneWindow;
 
         /// <summary>
+        /// Core that owns this renderer. Renderers must use this explicit owner
+        /// when traversing scene state so a later Core construction cannot
+        /// redirect an existing session's draw path.
+        /// </summary>
+        public Core OwnerCore { get; internal set; }
+
+        /// <summary>
         /// Gets the primary window size when using a single window setup.
         /// </summary>
         public int2 MainWindowSize { get; private set; }

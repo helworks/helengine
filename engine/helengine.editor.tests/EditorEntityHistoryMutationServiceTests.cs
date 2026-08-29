@@ -5,11 +5,11 @@ namespace helengine.editor.tests {
     /// Verifies global editor tools can capture and record entity-scoped history through the static entity-history bridge.
     /// </summary>
     public sealed class EditorEntityHistoryMutationServiceTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Clears shared entity-history bridge callbacks after each test.
         /// </summary>
         public void Dispose() {
-            EditorEntityHistoryMutationService.Reset();
         }
 
         /// <summary>
@@ -27,13 +27,13 @@ namespace helengine.editor.tests {
                 }
             };
             int captureCount = 0;
-            EditorEntityHistoryMutationService.CaptureEntityState = editorEntity => {
+            InteractionServices.EntityHistory.CaptureEntityState = editorEntity => {
                 captureCount++;
                 Assert.Same(entity, editorEntity);
                 return expectedState;
             };
 
-            bool captured = EditorEntityHistoryMutationService.TryCaptureEntityState(entity, out SerializedEditorEntityState entityState);
+            bool captured = InteractionServices.EntityHistory.TryCaptureEntityState(entity, out SerializedEditorEntityState entityState);
 
             Assert.True(captured);
             Assert.Same(expectedState, entityState);
@@ -55,13 +55,13 @@ namespace helengine.editor.tests {
                 }
             };
             int recordCount = 0;
-            EditorEntityHistoryMutationService.RecordEntityStateChange = (editorEntity, historyState) => {
+            InteractionServices.EntityHistory.RecordEntityStateChange = (editorEntity, historyState) => {
                 recordCount++;
                 Assert.Same(entity, editorEntity);
                 Assert.Same(previousEntityState, historyState);
             };
 
-            bool recorded = EditorEntityHistoryMutationService.TryRecordEntityStateChange(entity, previousEntityState);
+            bool recorded = InteractionServices.EntityHistory.TryRecordEntityStateChange(entity, previousEntityState);
 
             Assert.True(recorded);
             Assert.Equal(1, recordCount);
@@ -82,9 +82,9 @@ namespace helengine.editor.tests {
                 }
             };
             int recordCount = 0;
-            EditorEntityHistoryMutationService.RecordEntityStateChange = (editorEntity, historyState) => recordCount++;
+            InteractionServices.EntityHistory.RecordEntityStateChange = (editorEntity, historyState) => recordCount++;
 
-            bool recorded = EditorEntityHistoryMutationService.TryRecordEntityStateChange(entity, previousEntityState);
+            bool recorded = InteractionServices.EntityHistory.TryRecordEntityStateChange(entity, previousEntityState);
 
             Assert.False(recorded);
             Assert.Equal(0, recordCount);

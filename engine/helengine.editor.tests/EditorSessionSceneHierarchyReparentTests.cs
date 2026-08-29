@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor;
 using helengine.editor.tests.testing;
+using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests {
@@ -9,6 +10,7 @@ namespace helengine.editor.tests {
     /// Verifies scene-hierarchy reparent workflow inside the editor session.
     /// </summary>
     public class EditorSessionSceneHierarchyReparentTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Tolerance used when comparing world-space transform values after reparenting.
         /// </summary>
@@ -22,6 +24,8 @@ namespace helengine.editor.tests {
         /// Configurable input system used to drive pointer-routing assertions.
         /// </summary>
         readonly TestInputBackend Input;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        uint NextEntityId = 1u;
 
         /// <summary>
         /// Initializes an isolated project root and core services for session reparent tests.
@@ -30,22 +34,24 @@ namespace helengine.editor.tests {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-scene-reparent-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempProjectRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
+            EditorCore core = new EditorCore(new Project {
+                Name = "Editor Session Scene Reparent",
+                Path = TempProjectRootPath
             });
             Input = new TestInputBackend();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
-            EditorSelectionService.ClearSelection();
-            EditorSceneMutationService.Reset();
+            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
+            });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+            InteractionServices.Selection.ClearSelection();
         }
 
         /// <summary>
         /// Deletes temporary project state and clears editor-wide services after each test.
         /// </summary>
         public void Dispose() {
-            EditorSelectionService.ClearSelection();
-            EditorSceneMutationService.Reset();
-
+            InteractionServices.Selection.ClearSelection();
+            GeneratedAssetGraph.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -179,23 +185,22 @@ namespace helengine.editor.tests {
 
             ReparentEntityDialog dialog = GetPrivateField<ReparentEntityDialog>(session, "reparentEntityDialog");
             dialog.Show(child, new Entity[] { null, rootB });
-            EditorSelectionService.ClearSelection();
-            EditorSceneMutationService.Reset();
+            InteractionServices.Selection.ClearSelection();
             Action handleSceneMutated = () => InvokePrivate(session, "HandleSceneMutated");
 
             try {
-                EditorSceneMutationService.SceneMutated += handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated += handleSceneMutated;
 
                 InvokePrivate(session, "HandleReparentEntityDialogConfirmed", new ReparentEntityDialogSelection(child, rootB));
 
                 Assert.Same(rootB, child.Parent);
                 Assert.DoesNotContain(child, rootA.Children);
                 Assert.Contains(child, rootB.Children);
-                Assert.Same(child, EditorSelectionService.SelectedEntity);
+                Assert.Same(child, InteractionServices.Selection.SelectedEntity);
                 Assert.False(dialog.IsVisible);
                 Assert.True(GetPrivateField<bool>(session, "IsSceneDirty"));
             } finally {
-                EditorSceneMutationService.SceneMutated -= handleSceneMutated;
+                InteractionServices.SceneMutation.SceneMutated -= handleSceneMutated;
             }
         }
 
@@ -242,10 +247,29 @@ namespace helengine.editor.tests {
             SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
             ReparentEntityDialog reparentEntityDialog = new ReparentEntityDialog(CreateFont());
             EditorEntityReparentService reparentService = new EditorEntityReparentService();
+            SceneSaveService saveService = new SceneSaveService(
+                TempProjectRootPath,
+                new ComponentPersistenceRegistry(),
+                new EditorAssetReferenceResolver(TempProjectRootPath),
+                GeneratedAssetGraph.ModelCache,
+                GeneratedAssetGraph.MaterialCache,
+                GeneratedAssetGraph.RendererResources);
+            EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(saveService);
+            EditorUndoRedoService undoRedoService = new EditorUndoRedoService(new EditorHistoryContext());
+            EditorMutationService historyMutationService = new EditorMutationService(
+                undoRedoService,
+                historyCaptureService,
+                new ComponentHistoryAdapterRegistry(),
+                () => InteractionServices.SceneMutation.MarkSceneMutated());
 
+            SetPrivateField(session, "core", Assert.IsType<EditorCore>(Core.Instance));
             SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
             SetPrivateField(session, "reparentEntityDialog", reparentEntityDialog);
             SetPrivateField(session, "ReparentService", reparentService);
+            SetPrivateField(session, "interactionServices", InteractionServices);
+            SetPrivateField(session, "HistoryCaptureService", historyCaptureService);
+            SetPrivateField(session, "UndoRedoService", undoRedoService);
+            SetPrivateField(session, "HistoryMutationService", historyMutationService);
 
             return session;
         }
@@ -256,10 +280,14 @@ namespace helengine.editor.tests {
         /// <param name="name">Display name assigned to the entity.</param>
         /// <returns>Configured scene entity.</returns>
         EditorEntity CreateSceneEntity(string name) {
-            return new EditorEntity {
+            EditorEntity entity = new EditorEntity {
                 Name = name,
+                IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects
             };
+            EntitySaveComponent saveComponent = Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
+            saveComponent.EntityId = NextEntityId++;
+            return entity;
         }
 
         /// <summary>

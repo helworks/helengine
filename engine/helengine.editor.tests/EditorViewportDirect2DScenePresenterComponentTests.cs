@@ -123,7 +123,7 @@ namespace helengine.editor.tests {
             drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
             drawableEntity.AddComponent(new SpriteComponent {
                 Size = new int2(32, 32),
-                Texture = TextureUtils.PixelTexture
+                Texture = Core.Instance.RenderManager2D.PixelTexture
             });
             viewportOwnedRoot.AddChild(drawableEntity);
 

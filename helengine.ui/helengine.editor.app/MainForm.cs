@@ -200,12 +200,12 @@ namespace helengine.editor.app {
             int renderHeight = Math.Max(1, ClientSize.Height);
             renderer3D.AddWindow(this.Handle, renderWidth, renderHeight);
 
-            FontAsset uiFont = CreateUiFont(initialUiMetrics);
-            FontAsset snapModifierFont = CreateSnapModifierFont(initialUiMetrics);
+            FontAsset uiFont = CreateUiFont(initialUiMetrics, renderer2D);
+            FontAsset snapModifierFont = CreateSnapModifierFont(initialUiMetrics, renderer2D);
             ContentManager contentManager = core.ContentManager;
-            EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons(contentManager, AppContext.BaseDirectory);
-            RuntimeTexture titleBarIcon = EditorToolbarIconLoader.LoadTitleBarIcon(contentManager, AppContext.BaseDirectory);
-            IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault();
+            EditorViewportToolbarIconSet toolbarIcons = EditorToolbarIconLoader.LoadDefaultToolbarIcons(contentManager, AppContext.BaseDirectory, renderer2D);
+            RuntimeTexture titleBarIcon = EditorToolbarIconLoader.LoadTitleBarIcon(contentManager, AppContext.BaseDirectory, renderer2D);
+            IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault(renderer2D);
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
             editorSession = new EditorSession(
                 core,
@@ -223,7 +223,8 @@ namespace helengine.editor.app {
                 titleBarIcon,
                 importers,
                 FolderDialog.OpenFolderDialog,
-                shaderBackendRegistry);
+                shaderBackendRegistry,
+                bootstrap.AvailablePlatformProviderResolver);
 
             editorSession.TitleChanged += SetWindowTitle;
             editorSession.CloseRequested += HandleEditorSessionCloseRequested;
@@ -536,12 +537,12 @@ namespace helengine.editor.app {
         /// </summary>
         /// <param name="metrics">Scaled editor UI metrics resolved for the current host DPI state.</param>
         /// <returns>Font asset used for editor UI chrome and panel text.</returns>
-        FontAsset CreateUiFont(EditorUiMetrics metrics) {
+        FontAsset CreateUiFont(EditorUiMetrics metrics, RenderManager2D renderManager2D) {
             if (metrics == null) {
                 throw new ArgumentNullException(nameof(metrics));
             }
 
-            return GDIFontProcessor.ImportFont(new Font("Consolas", metrics.UiFontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel));
+            return GDIFontProcessor.ImportFont(new Font("Consolas", metrics.UiFontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel), renderManager2D);
         }
 
         /// <summary>
@@ -549,12 +550,12 @@ namespace helengine.editor.app {
         /// </summary>
         /// <param name="metrics">Scaled editor UI metrics resolved for the current host DPI state.</param>
         /// <returns>Font asset used for viewport snap-modifier labels.</returns>
-        FontAsset CreateSnapModifierFont(EditorUiMetrics metrics) {
+        FontAsset CreateSnapModifierFont(EditorUiMetrics metrics, RenderManager2D renderManager2D) {
             if (metrics == null) {
                 throw new ArgumentNullException(nameof(metrics));
             }
 
-            return GDIFontProcessor.ImportFont(new Font("Consolas", metrics.SnapModifierFontPixelSize, FontStyle.Bold, GraphicsUnit.Pixel));
+            return GDIFontProcessor.ImportFont(new Font("Consolas", metrics.SnapModifierFontPixelSize, FontStyle.Bold, GraphicsUnit.Pixel), renderManager2D);
         }
 
         /// <summary>
@@ -697,8 +698,8 @@ namespace helengine.editor.app {
         void ReapplyCurrentUiScale() {
             EditorUiScaleSettings settings = uiScaleController.Load();
             EditorUiMetrics metrics = uiScaleController.ResolveMetrics(DeviceDpi);
-            FontAsset uiFont = CreateUiFont(metrics);
-            FontAsset snapModifierFont = CreateSnapModifierFont(metrics);
+            FontAsset uiFont = CreateUiFont(metrics, editorSession.Core.RenderManager2D);
+            FontAsset snapModifierFont = CreateSnapModifierFont(metrics, editorSession.Core.RenderManager2D);
             editorSession.ApplyUiScale(settings, metrics, uiFont, snapModifierFont);
             UpdateMinimumWindowSize();
         }

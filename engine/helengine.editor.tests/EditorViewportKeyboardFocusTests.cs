@@ -9,14 +9,14 @@ namespace helengine.editor.tests {
     /// Verifies keyboard-focus behavior and shortcut gating for editor viewports.
     /// </summary>
     public class EditorViewportKeyboardFocusTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Clears shared keyboard-focus and snap state after each test.
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph?.Dispose();
-            EditorKeyboardFocusService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.TransformSnap.ResetDefaults();
         }
 
         /// <summary>
@@ -31,15 +31,15 @@ namespace helengine.editor.tests {
             Core.Instance.InputSystem.EarlyUpdate();
 
             viewport.ToolMode = EditorViewportToolMode.Scale;
-            EditorKeyboardFocusService.SetFocusedTarget(contentTarget);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(contentTarget);
 
-            EditorKeyboardFocusService.HandleActivationKey(Keys.W);
+            InteractionServices.KeyboardFocus.HandleActivationKey(Keys.W);
             Assert.Equal(EditorViewportToolMode.Translate, viewport.ToolMode);
 
-            EditorKeyboardFocusService.HandleActivationKey(Keys.R);
+            InteractionServices.KeyboardFocus.HandleActivationKey(Keys.R);
             Assert.Equal(EditorViewportToolMode.Rotate, viewport.ToolMode);
 
-            EditorKeyboardFocusService.HandleActivationKey(Keys.S);
+            InteractionServices.KeyboardFocus.HandleActivationKey(Keys.S);
             Assert.Equal(EditorViewportToolMode.Scale, viewport.ToolMode);
         }
 
@@ -56,9 +56,9 @@ namespace helengine.editor.tests {
 
             bool wasRequested = false;
             viewport.FocusSelectionRequested = () => wasRequested = true;
-            EditorKeyboardFocusService.SetFocusedTarget(contentTarget);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(contentTarget);
 
-            EditorKeyboardFocusService.HandleActivationKey(Keys.F);
+            InteractionServices.KeyboardFocus.HandleActivationKey(Keys.F);
 
             Assert.True(wasRequested);
         }
@@ -75,8 +75,8 @@ namespace helengine.editor.tests {
             Core.Instance.InputSystem.EarlyUpdate();
 
             viewport.ToolMode = EditorViewportToolMode.Rotate;
-            EditorKeyboardFocusService.SetFocusedTarget(contentTarget);
-            EditorKeyboardFocusService.HandleActivationKey(Keys.S);
+            InteractionServices.KeyboardFocus.SetFocusedTarget(contentTarget);
+            InteractionServices.KeyboardFocus.HandleActivationKey(Keys.S);
 
             Assert.Equal(EditorViewportToolMode.Rotate, viewport.ToolMode);
         }
@@ -96,7 +96,7 @@ namespace helengine.editor.tests {
             bool[] snapDecreaseKeyboardStates = GetPrivateField<bool[]>(viewport, "SnapDecreaseKeyboardFocusStates");
 
             viewport.ToolMode = EditorViewportToolMode.Translate;
-            double initialSnapValue = TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1);
+            double initialSnapValue = InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1);
 
             toolTargets[1].SetTargetFocused(true);
             Assert.True(toolKeyboardStates[1]);
@@ -110,12 +110,12 @@ namespace helengine.editor.tests {
             snapIncreaseTargets[0].SetTargetFocused(true);
             Assert.True(snapIncreaseKeyboardStates[0]);
             snapIncreaseTargets[0].ActivateFromKey(Keys.Enter);
-            Assert.Equal(initialSnapValue * 2.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(initialSnapValue * 2.0, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
 
             snapDecreaseTargets[0].SetTargetFocused(true);
             Assert.True(snapDecreaseKeyboardStates[0]);
             snapDecreaseTargets[0].ActivateFromKey(Keys.Space);
-            Assert.Equal(initialSnapValue, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(initialSnapValue, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
         }
 
         /// <summary>
@@ -132,8 +132,8 @@ namespace helengine.editor.tests {
             snapValueTextBoxes[0].Text = "2.5";
             snapValueTextBoxes[0].IsFocused = false;
 
-            Assert.Equal(2.5, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
-            Assert.Equal(5.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(2.5, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(5.0, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
             viewport.ToolMode = EditorViewportToolMode.Rotate;
             Assert.Equal("5", snapValueTextBoxes[0].Text);
         }
@@ -152,7 +152,7 @@ namespace helengine.editor.tests {
             snapValueTextBoxes[1].Text = "invalid";
             snapValueTextBoxes[1].IsFocused = false;
 
-            Assert.Equal(15.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2));
+            Assert.Equal(15.0, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2));
             Assert.Equal("15", snapValueTextBoxes[1].Text);
         }
 
@@ -295,10 +295,10 @@ namespace helengine.editor.tests {
         public void EditorViewport_WhenMouseHitsContent_TheViewportDockBecomesActiveAndContentTargetFocused() {
             InitializeCore();
             EditorViewport viewport = CreateViewport();
-            EditorKeyboardFocusService.RegisterGroup(viewport);
-            EditorKeyboardFocusService.SetDockOrder(new[] { viewport });
+            InteractionServices.KeyboardFocus.RegisterGroup(viewport);
+            InteractionServices.KeyboardFocus.SetDockOrder(new[] { viewport });
 
-            EditorKeyboardFocusService.HandlePointerPressed(new int2(60, 90), false);
+            InteractionServices.KeyboardFocus.HandlePointerPressed(new int2(60, 90), false);
 
             RoundedRectComponent panelOutline = GetPrivateField<RoundedRectComponent>(viewport, "panelOutline");
             bool isViewportContentFocused = GetPrivateField<bool>(viewport, "IsViewportContentFocused");
@@ -321,8 +321,7 @@ namespace helengine.editor.tests {
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
-            EditorKeyboardFocusService.Reset();
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.TransformSnap.ResetDefaults();
             return inputManager;
         }
 

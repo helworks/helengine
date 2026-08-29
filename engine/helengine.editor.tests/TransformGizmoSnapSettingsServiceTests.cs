@@ -6,11 +6,12 @@ namespace helengine.editor.tests {
     /// Verifies per-tool transform-gizmo snap configuration and modifier-slot selection.
     /// </summary>
     public class TransformGizmoSnapSettingsServiceTests {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Restores default snap values before each test.
         /// </summary>
         public TransformGizmoSnapSettingsServiceTests() {
-            TransformGizmoSnapSettingsService.ResetDefaults();
+            InteractionServices.TransformSnap.ResetDefaults();
         }
 
         /// <summary>
@@ -18,12 +19,12 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetSnapValue_ReturnsPerToolDefaults() {
-            Assert.Equal(0.25, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
-            Assert.Equal(1.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap2));
-            Assert.Equal(5.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
-            Assert.Equal(15.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2));
-            Assert.Equal(0.1, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap1));
-            Assert.Equal(0.25, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap2));
+            Assert.Equal(0.25, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(1.0, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap2));
+            Assert.Equal(5.0, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(15.0, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2));
+            Assert.Equal(0.1, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(0.25, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Scale, TransformGizmoSnapSlot.Snap2));
         }
 
         /// <summary>
@@ -31,13 +32,13 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AdjustSnapValue_ChangesOnlyRequestedToolSlot() {
-            TransformGizmoSnapSettingsService.IncreaseSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1);
-            TransformGizmoSnapSettingsService.DecreaseSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2);
+            InteractionServices.TransformSnap.IncreaseSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1);
+            InteractionServices.TransformSnap.DecreaseSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2);
 
-            Assert.Equal(0.5, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
-            Assert.Equal(1.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap2));
-            Assert.Equal(5.0, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
-            Assert.Equal(7.5, TransformGizmoSnapSettingsService.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2));
+            Assert.Equal(0.5, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(1.0, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Translate, TransformGizmoSnapSlot.Snap2));
+            Assert.Equal(5.0, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap1));
+            Assert.Equal(7.5, InteractionServices.TransformSnap.GetSnapValue(EditorViewportToolMode.Rotate, TransformGizmoSnapSlot.Snap2));
         }
 
         /// <summary>
@@ -45,10 +46,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveActiveSnapSlot_PrefersShiftOverControl() {
-            TransformGizmoSnapSlot noSlot = TransformGizmoSnapSettingsService.ResolveActiveSnapSlot(false, false);
-            TransformGizmoSnapSlot snap1Slot = TransformGizmoSnapSettingsService.ResolveActiveSnapSlot(true, false);
-            TransformGizmoSnapSlot snap2Slot = TransformGizmoSnapSettingsService.ResolveActiveSnapSlot(false, true);
-            TransformGizmoSnapSlot preferredSlot = TransformGizmoSnapSettingsService.ResolveActiveSnapSlot(true, true);
+            TransformGizmoSnapSlot noSlot = InteractionServices.TransformSnap.ResolveActiveSnapSlot(false, false);
+            TransformGizmoSnapSlot snap1Slot = InteractionServices.TransformSnap.ResolveActiveSnapSlot(true, false);
+            TransformGizmoSnapSlot snap2Slot = InteractionServices.TransformSnap.ResolveActiveSnapSlot(false, true);
+            TransformGizmoSnapSlot preferredSlot = InteractionServices.TransformSnap.ResolveActiveSnapSlot(true, true);
 
             Assert.Equal(TransformGizmoSnapSlot.None, noSlot);
             Assert.Equal(TransformGizmoSnapSlot.Snap1, snap1Slot);
@@ -61,13 +62,13 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetActiveSnapValue_ReturnsCurrentToolModeSlotValue() {
-            double inactiveValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, false, false);
-            double translateControlValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, true, false);
-            double translateShiftValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Translate, false, true);
-            double rotateControlValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Rotate, true, false);
-            double rotateShiftValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Rotate, false, true);
-            double scaleControlValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Scale, true, false);
-            double scaleShiftValue = TransformGizmoSnapSettingsService.GetActiveSnapValue(EditorViewportToolMode.Scale, false, true);
+            double inactiveValue = InteractionServices.TransformSnap.GetActiveSnapValue(EditorViewportToolMode.Translate, false, false);
+            double translateControlValue = InteractionServices.TransformSnap.GetActiveSnapValue(EditorViewportToolMode.Translate, true, false);
+            double translateShiftValue = InteractionServices.TransformSnap.GetActiveSnapValue(EditorViewportToolMode.Translate, false, true);
+            double rotateControlValue = InteractionServices.TransformSnap.GetActiveSnapValue(EditorViewportToolMode.Rotate, true, false);
+            double rotateShiftValue = InteractionServices.TransformSnap.GetActiveSnapValue(EditorViewportToolMode.Rotate, false, true);
+            double scaleControlValue = InteractionServices.TransformSnap.GetActiveSnapValue(EditorViewportToolMode.Scale, true, false);
+            double scaleShiftValue = InteractionServices.TransformSnap.GetActiveSnapValue(EditorViewportToolMode.Scale, false, true);
 
             Assert.Equal(0.0, inactiveValue);
             Assert.Equal(0.25, translateControlValue);

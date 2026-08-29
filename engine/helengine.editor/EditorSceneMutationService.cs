@@ -2,16 +2,16 @@ namespace helengine.editor {
     /// <summary>
     /// Broadcasts scene-edit notifications to the active editor session.
     /// </summary>
-    public static class EditorSceneMutationService {
+    public sealed class EditorSceneMutationService : IDisposable {
         /// <summary>
         /// Raised when editor tools mutate the current scene.
         /// </summary>
-        public static event Action SceneMutated;
+        public event Action SceneMutated;
 
         /// <summary>
         /// Raises one scene-mutated notification.
         /// </summary>
-        public static void MarkSceneMutated() {
+        public void MarkSceneMutated() {
             if (SceneMutated != null) {
                 SceneMutated();
             }
@@ -20,7 +20,7 @@ namespace helengine.editor {
         /// <summary>
         /// Clears all subscribers between tests or editor shutdown.
         /// </summary>
-        public static void Reset() {
+        public void Dispose() {
             SceneMutated = null;
         }
     }

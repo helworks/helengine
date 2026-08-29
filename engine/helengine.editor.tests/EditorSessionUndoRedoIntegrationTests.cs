@@ -10,6 +10,7 @@ namespace helengine.editor.tests {
     /// Verifies editor-session undo and redo handlers can replay authored scene mutations through the real session history pipeline.
     /// </summary>
     public sealed class EditorSessionUndoRedoIntegrationTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Temporary project root used by the current editor-session history integration test.
         /// </summary>
@@ -30,9 +31,7 @@ namespace helengine.editor.tests {
             InputBackend = new TestInputBackend();
             EnsureEditorCoreHost();
             GeneratedAssetGraph = new TestGeneratedAssetGraph(Core.Instance);
-            EditorSelectionService.ClearSelection();
-            EditorSceneMutationService.Reset();
-            EditorKeyboardFocusService.Reset();
+            InteractionServices.Selection.ClearSelection();
         }
 
         /// <summary>
@@ -40,11 +39,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            EditorSelectionService.ClearSelection();
-            EditorSceneMutationService.Reset();
-            EditorKeyboardFocusService.Reset();
-            EditorEntityHistoryMutationService.Reset();
-            EditorComponentHistoryMutationService.Reset();
+            InteractionServices.Selection.ClearSelection();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -77,22 +72,22 @@ namespace helengine.editor.tests {
         public void Handle_global_undo_and_redo_shortcuts_restore_the_previous_selection_for_created_entities() {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity previousSelection = CreateUserSceneEntity(100u, "Existing");
-            EditorSelectionService.SetSelectedEntity(previousSelection);
+            InteractionServices.Selection.SetSelectedEntity(previousSelection);
 
             InvokePrivate(session, "HandleAddEmptyRequested");
 
-            EditorEntity createdEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity createdEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             Assert.NotSame(previousSelection, createdEntity);
             Assert.Equal(2, CountUserSceneEntities());
 
             InvokePrivate(session, "HandleGlobalUndoShortcut");
 
-            Assert.Same(previousSelection, EditorSelectionService.SelectedEntity);
+            Assert.Same(previousSelection, InteractionServices.Selection.SelectedEntity);
             Assert.Equal(1, CountUserSceneEntities());
 
             InvokePrivate(session, "HandleGlobalRedoShortcut");
 
-            EditorEntity redoneEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity redoneEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             Assert.NotSame(previousSelection, redoneEntity);
             Assert.Equal(2, CountUserSceneEntities());
         }
@@ -163,7 +158,7 @@ namespace helengine.editor.tests {
             InvokePrivate(session, "MarkSceneClean");
             Assert.False(GetPrivateField<bool>(session, "IsSceneDirty"));
 
-            EditorSceneMutationService.MarkSceneMutated();
+            InteractionServices.SceneMutation.MarkSceneMutated();
             Assert.True(GetPrivateField<bool>(session, "IsSceneDirty"));
 
             InvokePrivate(session, "HandleGlobalUndoShortcut");
@@ -179,7 +174,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Keyboard_focus_update_component_routes_keyboard_shortcuts_into_session_history() {
             EditorSession session = CreateSessionForUndoRedo();
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input) {
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices) {
                 UndoShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalUndoShortcut"),
                 RedoShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalRedoShortcut")
             };
@@ -223,12 +218,12 @@ namespace helengine.editor.tests {
         public void Handle_global_delete_shortcut_deletes_the_selected_scene_entity() {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity selectedEntity = CreateUserSceneEntity(300u, "Delete Me");
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             InvokePrivate(session, "HandleGlobalDeleteShortcut");
 
             Assert.Equal(0, CountUserSceneEntities());
-            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.Null(InteractionServices.Selection.SelectedEntity);
             Assert.True(GetPrivateField<bool>(session, "IsSceneDirty"));
         }
 
@@ -239,23 +234,23 @@ namespace helengine.editor.tests {
         public void Handle_global_delete_shortcut_can_be_undone_and_redone() {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity selectedEntity = CreateUserSceneEntity(301u, "Delete Undo");
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             InvokePrivate(session, "HandleGlobalDeleteShortcut");
 
             Assert.Equal(0, CountUserSceneEntities());
-            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.Null(InteractionServices.Selection.SelectedEntity);
 
             InvokePrivate(session, "HandleGlobalUndoShortcut");
 
-            EditorEntity restoredEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity restoredEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             Assert.Equal(1, CountUserSceneEntities());
             Assert.Equal("Delete Undo", restoredEntity.Name);
 
             InvokePrivate(session, "HandleGlobalRedoShortcut");
 
             Assert.Equal(0, CountUserSceneEntities());
-            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.Null(InteractionServices.Selection.SelectedEntity);
         }
 
         /// <summary>
@@ -267,24 +262,24 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForUndoRedo();
 
             InvokePrivate(session, "HandleAddEmptyRequested");
-            EditorEntity movedEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity movedEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             float3 originalPosition = movedEntity.Position;
             float3 draggedPosition = new float3(5f, 0f, 3f);
 
-            Assert.True(EditorEntityHistoryMutationService.TryCaptureEntityState(movedEntity, out SerializedEditorEntityState dragStartState));
+            Assert.True(InteractionServices.EntityHistory.TryCaptureEntityState(movedEntity, out SerializedEditorEntityState dragStartState));
             movedEntity.Position = draggedPosition;
-            Assert.True(EditorEntityHistoryMutationService.TryRecordEntityStateChange(movedEntity, dragStartState));
+            Assert.True(InteractionServices.EntityHistory.TryRecordEntityStateChange(movedEntity, dragStartState));
 
             InvokePrivate(session, "HandleGlobalUndoShortcut");
 
-            EditorEntity restoredEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity restoredEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             Assert.Equal(originalPosition.X, restoredEntity.Position.X, 3);
             Assert.Equal(originalPosition.Y, restoredEntity.Position.Y, 3);
             Assert.Equal(originalPosition.Z, restoredEntity.Position.Z, 3);
 
             InvokePrivate(session, "HandleGlobalRedoShortcut");
 
-            EditorEntity redoneEntity = Assert.IsType<EditorEntity>(EditorSelectionService.SelectedEntity);
+            EditorEntity redoneEntity = Assert.IsType<EditorEntity>(InteractionServices.Selection.SelectedEntity);
             Assert.Equal(draggedPosition.X, redoneEntity.Position.X, 3);
             Assert.Equal(draggedPosition.Y, redoneEntity.Position.Y, 3);
             Assert.Equal(draggedPosition.Z, redoneEntity.Position.Z, 3);
@@ -299,22 +294,22 @@ namespace helengine.editor.tests {
             EditorEntity firstEntity = CreateUserSceneEntity(401u, "First");
             EditorEntity secondEntity = CreateUserSceneEntity(402u, "Second");
 
-            EditorSelectionService.SetSelectedEntity(firstEntity);
+            InteractionServices.Selection.SetSelectedEntity(firstEntity);
             InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(firstEntity, true));
-            EditorSelectionService.SetSelectedEntity(secondEntity);
+            InteractionServices.Selection.SetSelectedEntity(secondEntity);
             InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(secondEntity, true));
 
             InvokePrivate(session, "HandleGlobalUndoShortcut");
-            Assert.Same(firstEntity, EditorSelectionService.SelectedEntity);
+            Assert.Same(firstEntity, InteractionServices.Selection.SelectedEntity);
 
             InvokePrivate(session, "HandleGlobalUndoShortcut");
-            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.Null(InteractionServices.Selection.SelectedEntity);
 
             InvokePrivate(session, "HandleGlobalRedoShortcut");
-            Assert.Same(firstEntity, EditorSelectionService.SelectedEntity);
+            Assert.Same(firstEntity, InteractionServices.Selection.SelectedEntity);
 
             InvokePrivate(session, "HandleGlobalRedoShortcut");
-            Assert.Same(secondEntity, EditorSelectionService.SelectedEntity);
+            Assert.Same(secondEntity, InteractionServices.Selection.SelectedEntity);
         }
 
         /// <summary>
@@ -326,13 +321,13 @@ namespace helengine.editor.tests {
             EditorEntity entity = CreateUserSceneEntity(403u, "Reselected");
             EditorUndoRedoService undoRedoService = GetPrivateField<EditorUndoRedoService>(session, "UndoRedoService");
 
-            EditorSelectionService.SetSelectedEntity(entity);
+            InteractionServices.Selection.SetSelectedEntity(entity);
             InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(entity, true));
             InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(entity, true));
 
             Assert.True(undoRedoService.CanUndo);
             InvokePrivate(session, "HandleGlobalUndoShortcut");
-            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.Null(InteractionServices.Selection.SelectedEntity);
             Assert.False(undoRedoService.CanUndo);
         }
 
@@ -344,7 +339,7 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForUndoRedo();
             EditorUndoRedoService undoRedoService = GetPrivateField<EditorUndoRedoService>(session, "UndoRedoService");
 
-            EditorSelectionService.ClearSelection();
+            InteractionServices.Selection.ClearSelection();
             InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(null, false));
 
             Assert.False(undoRedoService.CanUndo);
@@ -358,7 +353,7 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity entity = CreateUserSceneEntity(404u, "Dirtyless");
 
-            EditorSelectionService.SetSelectedEntity(entity);
+            InteractionServices.Selection.SetSelectedEntity(entity);
             InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(entity, true));
             InvokePrivate(session, "RefreshSceneDirtyState");
 
@@ -381,12 +376,12 @@ namespace helengine.editor.tests {
                 BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/games/split_play/GoldenCoin.hblueprint"),
                 SourceEntityId = 501u
             });
-            EditorSelectionService.SetSelectedEntity(inheritedEntity);
+            InteractionServices.Selection.SetSelectedEntity(inheritedEntity);
 
             InvokePrivate(session, "HandleGlobalDeleteShortcut");
 
             Assert.Equal(1, CountUserSceneEntities());
-            Assert.Same(inheritedEntity, EditorSelectionService.SelectedEntity);
+            Assert.Same(inheritedEntity, InteractionServices.Selection.SelectedEntity);
         }
 
         /// <summary>
@@ -402,7 +397,7 @@ namespace helengine.editor.tests {
             });
             EditorUndoRedoService undoRedoService = GetPrivateField<EditorUndoRedoService>(session, "UndoRedoService");
 
-            EditorSelectionService.SetSelectedEntity(inheritedEntity);
+            InteractionServices.Selection.SetSelectedEntity(inheritedEntity);
             InvokePrivate(session, "RecordSelectionChangeHistory", new EditorSelectionChangedEventArgs(inheritedEntity, true));
 
             Assert.False(undoRedoService.CanUndo);
@@ -416,13 +411,13 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForUndoRedo();
             OpenFileDialog openFileDialog = GetPrivateField<OpenFileDialog>(session, "openFileDialog");
             EditorEntity selectedEntity = CreateUserSceneEntity(302u, "Blocked Delete");
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             openFileDialog.Show(string.Empty);
             InvokePrivate(session, "HandleGlobalDeleteShortcut");
 
             Assert.Equal(1, CountUserSceneEntities());
-            Assert.Same(selectedEntity, EditorSelectionService.SelectedEntity);
+            Assert.Same(selectedEntity, InteractionServices.Selection.SelectedEntity);
         }
 
         /// <summary>
@@ -432,8 +427,8 @@ namespace helengine.editor.tests {
         public void Keyboard_focus_update_component_routes_delete_into_the_session_handler() {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity selectedEntity = CreateUserSceneEntity(303u, "Delete Key");
-            EditorSelectionService.SetSelectedEntity(selectedEntity);
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input) {
+            InteractionServices.Selection.SetSelectedEntity(selectedEntity);
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices) {
                 DeleteShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalDeleteShortcut")
             };
 
@@ -443,7 +438,7 @@ namespace helengine.editor.tests {
             component.Update();
 
             Assert.Equal(0, CountUserSceneEntities());
-            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.Null(InteractionServices.Selection.SelectedEntity);
         }
 
         /// <summary>
@@ -456,7 +451,7 @@ namespace helengine.editor.tests {
             InvokePrivate(session, "HandleGlobalDeleteShortcut");
 
             Assert.Equal(0, CountUserSceneEntities());
-            Assert.Null(EditorSelectionService.SelectedEntity);
+            Assert.Null(InteractionServices.Selection.SelectedEntity);
             Assert.False(GetPrivateField<bool>(session, "IsSceneDirty"));
         }
 
@@ -475,11 +470,11 @@ namespace helengine.editor.tests {
 
             session.ComponentHistoryAdapters.Register<CameraComponent>(adapter);
 
-            bool captured = EditorComponentHistoryMutationService.TryCaptureEntityState(camera, out SerializedEditorEntityState previousEntityState);
+            bool captured = InteractionServices.ComponentHistory.TryCaptureEntityState(camera, out SerializedEditorEntityState previousEntityState);
             Assert.True(captured);
 
             camera.NearPlaneDistance = 3.5f;
-            bool recorded = EditorComponentHistoryMutationService.TryRecordComponentMutation(camera, previousEntityState);
+            bool recorded = InteractionServices.ComponentHistory.TryRecordComponentMutation(camera, previousEntityState);
 
             Assert.True(recorded);
             Assert.Equal(1, adapter.InvocationCount);
@@ -504,11 +499,11 @@ namespace helengine.editor.tests {
             entity.AddComponent(camera);
             session.ComponentHistoryAdapters.Register<CameraComponent>(adapter);
 
-            bool captured = EditorComponentHistoryMutationService.TryCaptureEntityState(camera, out SerializedEditorEntityState previousEntityState);
+            bool captured = InteractionServices.ComponentHistory.TryCaptureEntityState(camera, out SerializedEditorEntityState previousEntityState);
             Assert.True(captured);
 
             camera.NearPlaneDistance = 3.5f;
-            bool recorded = EditorComponentHistoryMutationService.TryRecordComponentMutation(camera, previousEntityState);
+            bool recorded = InteractionServices.ComponentHistory.TryRecordComponentMutation(camera, previousEntityState);
             Assert.True(recorded);
             Assert.Equal(1, adapter.InvocationCount);
             Assert.Equal(3.5f, camera.NearPlaneDistance, 3);
@@ -541,6 +536,7 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
             SetPrivateField(session, "core", Assert.IsType<EditorCore>(Core.Instance));
+            SetPrivateField(session, "interactionServices", InteractionServices);
             SetPrivateField(session, "projectPath", TempProjectRootPath);
             SetPrivateField(session, "openFileDialog", new OpenFileDialog(CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
             SetPrivateField(session, "saveFileDialog", new SaveFileDialog(CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
@@ -571,10 +567,11 @@ namespace helengine.editor.tests {
 
             SetPrivateField(session, "UndoRedoService", undoRedoService);
             SetPrivateField(session, "HistoryMutationService", historyMutationService);
-            EditorEntityHistoryMutationService.CaptureEntityState = historyMutationService.CaptureEntityState;
-            EditorEntityHistoryMutationService.RecordEntityStateChange = historyMutationService.RecordEntityStateChange;
-            EditorComponentHistoryMutationService.CaptureEntityState = historyMutationService.CaptureEntityState;
-            EditorComponentHistoryMutationService.RecordComponentMutation = historyMutationService.RecordComponentMutation;
+            InteractionServices.EntityHistory.CaptureEntityState = historyMutationService.CaptureEntityState;
+            InteractionServices.EntityHistory.RecordEntityStateChange = historyMutationService.RecordEntityStateChange;
+            InteractionServices.EntityHistory.CaptureEntityState = historyMutationService.CaptureEntityState;
+            InteractionServices.ComponentHistory.CaptureEntityState = historyMutationService.CaptureEntityState;
+            InteractionServices.ComponentHistory.RecordComponentMutation = historyMutationService.RecordComponentMutation;
 
             MethodInfo handleSceneMutatedMethod = typeof(EditorSession).GetMethod("HandleSceneMutated", BindingFlags.Instance | BindingFlags.NonPublic);
             if (handleSceneMutatedMethod == null) {
@@ -582,7 +579,7 @@ namespace helengine.editor.tests {
             }
 
             Action sceneMutatedHandler = (Action)Delegate.CreateDelegate(typeof(Action), session, handleSceneMutatedMethod);
-            EditorSceneMutationService.SceneMutated += sceneMutatedHandler;
+            InteractionServices.SceneMutation.SceneMutated += sceneMutatedHandler;
 
             return session;
         }

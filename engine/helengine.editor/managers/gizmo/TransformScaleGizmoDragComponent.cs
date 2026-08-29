@@ -91,6 +91,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Captures the input system owned by the entity's renderer/session graph when attached.
+        /// </summary>
+        /// <param name="entity">Gizmo owner that receives this drag component.</param>
+        public override void ComponentAdded(Entity entity) {
+            base.ComponentAdded(entity);
+            Input ??= entity.OwnerCore?.Input;
+        }
+
+        /// <summary>
         /// Updates drag activation and applies scaling while dragging.
         /// </summary>
         public override void Update() {
@@ -142,7 +151,7 @@ namespace helengine.editor {
             }
 
             int2 pointer = input.GetMousePosition();
-            if (EditorInputCaptureService.IsPointerBlocked(pointer)) {
+            if (EditorSessionInteractionServices.From(Parent).InputCapture.IsPointerBlocked(pointer)) {
                 return;
             }
 
@@ -150,12 +159,12 @@ namespace helengine.editor {
                 return;
             }
 
-            Entity hoveredHandle = EditorGizmoHoverService.GetHoveredHandle(SceneCamera);
+            Entity hoveredHandle = EditorSessionInteractionServices.From(Parent).GizmoHover.GetHoveredHandle(SceneCamera);
             if (hoveredHandle == null) {
                 return;
             }
 
-            Entity selectedEntity = EditorSelectionService.SelectedEntity;
+            Entity selectedEntity = EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity;
             if (!CanScaleSelection(selectedEntity)) {
                 return;
             }
@@ -197,10 +206,10 @@ namespace helengine.editor {
             DragPlaneNormal = planeNormal;
             DragStartEntityScale = selectedEntity.LocalScale;
             DragStartEntityPosition = selectionStartPosition;
-            EditorEntityHistoryMutationService.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState);
+            EditorSessionInteractionServices.From(Parent).EntityHistory.TryCaptureEntityState(selectedEntity, out SerializedEditorEntityState dragStartEntityState);
             DragStartEntityState = dragStartEntityState;
-            EditorGizmoDragService.BeginDrag(SceneCamera, selectedEntity);
-            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, hoveredHandle);
+            EditorSessionInteractionServices.From(Parent).GizmoDrag.BeginDrag(SceneCamera, selectedEntity);
+            EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, hoveredHandle);
         }
 
         /// <summary>
@@ -222,7 +231,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (!ReferenceEquals(EditorSelectionService.SelectedEntity, DraggedEntity)) {
+            if (!ReferenceEquals(EditorSessionInteractionServices.From(Parent).Selection.SelectedEntity, DraggedEntity)) {
                 EndDrag();
                 return;
             }
@@ -230,7 +239,7 @@ namespace helengine.editor {
             int2 pointer = input.GetMousePosition();
             if (DragConstraintType == TransformGizmoHandleConstraintType.Axis) {
                 if (!TryComputeAxisParameter(pointer, DragStartEntityPosition, DragPrimaryDirection, out double currentAxisParameter)) {
-                    EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+                    EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
                     return;
                 }
 
@@ -242,7 +251,7 @@ namespace helengine.editor {
                 DragChanged = DragChanged || newScale != DragStartEntityScale;
             } else if (DragConstraintType == TransformGizmoHandleConstraintType.Plane) {
                 if (!TryComputePlanePoint(pointer, DragStartEntityPosition, DragPlaneNormal, out float3 currentPlanePoint)) {
-                    EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+                    EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
                     return;
                 }
 
@@ -256,7 +265,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Transform gizmo handle constraint type is not supported.");
             }
 
-            EditorGizmoHoverService.SetHoveredHandle(SceneCamera, DragHandleEntity);
+            EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, DragHandleEntity);
         }
 
         /// <summary>
@@ -264,12 +273,12 @@ namespace helengine.editor {
         /// </summary>
         void EndDrag() {
             if (DragChanged) {
-                if (!EditorEntityHistoryMutationService.TryRecordEntityStateChange(DraggedEntity, DragStartEntityState)) {
-                    EditorSceneMutationService.MarkSceneMutated();
+                if (!EditorSessionInteractionServices.From(Parent).EntityHistory.TryRecordEntityStateChange(DraggedEntity, DragStartEntityState)) {
+                    EditorSessionInteractionServices.From(Parent).SceneMutation.MarkSceneMutated();
                 }
             }
 
-            EditorGizmoDragService.EndDrag(SceneCamera);
+            EditorSessionInteractionServices.From(Parent).GizmoDrag.EndDrag(SceneCamera);
             IsDragging = false;
             DragChanged = false;
             DraggedEntity = null;
@@ -504,7 +513,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager used to read snap modifiers.</param>
         /// <returns>Resolved scale vector for the selected entity.</returns>
         float3 ResolveAxisDragScale(double deltaParameter, InputSystem input) {
-            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale);
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale, EditorSessionInteractionServices.From(Parent));
             if (activeSnapValue <= 0.0) {
                 return TransformScaleGizmoScaleResolver.ResolveAxisScale(
                     DragStartEntityScale,
@@ -528,7 +537,7 @@ namespace helengine.editor {
         /// <param name="input">Input manager used to read snap modifiers.</param>
         /// <returns>Resolved scale vector for the selected entity.</returns>
         float3 ResolvePlaneDragScale(float3 planeDelta, InputSystem input) {
-            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale);
+            double activeSnapValue = TransformGizmoActiveSnapValueResolver.ResolveActiveSnapValue(input, EditorViewportToolMode.Scale, EditorSessionInteractionServices.From(Parent));
             if (activeSnapValue <= 0.0) {
                 return TransformScaleGizmoScaleResolver.ResolvePlaneScale(
                     DragStartEntityScale,
@@ -574,7 +583,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>True when the viewport tool mode is scale.</returns>
         bool IsScaleToolActive() {
-            return EditorViewportToolService.GetToolMode(SceneCamera) == EditorViewportToolMode.Scale;
+            return EditorSessionInteractionServices.From(Parent).ViewportTool.GetToolMode(SceneCamera) == EditorViewportToolMode.Scale;
         }
     }
 }

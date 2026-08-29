@@ -181,7 +181,7 @@ namespace helengine.editor {
         /// <summary>
         /// Stores and resolves per-platform entity existence overrides for the selected entity.
         /// </summary>
-        readonly EntityPlatformExistenceEditingService ExistencePlatformEditingService;
+        EntityPlatformExistenceEditingService ExistencePlatformEditingService;
         /// <summary>
         /// Builds and persists component overrides, removed common components, and platform-only components for the active platform tab.
         /// </summary>
@@ -421,6 +421,18 @@ namespace helengine.editor {
                     ComponentView.HistoryMutationService = value;
                 }
             }
+        }
+
+        /// <summary>
+        /// Binds entity-existence edits to the owning session's interaction graph.
+        /// </summary>
+        internal void SetEntityExistenceEditingService(EntityPlatformExistenceEditingService service) {
+            ExistencePlatformEditingService = service ?? throw new ArgumentNullException(nameof(service));
+        }
+
+        /// <summary>Binds custom inspector editors to the owning session graph.</summary>
+        internal void SetComponentEditorRegistry(ComponentEditorRegistry registry) {
+            ComponentView.SetComponentEditorRegistry(registry ?? throw new ArgumentNullException(nameof(registry)));
         }
 
         /// <summary>
@@ -726,6 +738,19 @@ namespace helengine.editor {
             AnimationClipView.SetRendererResources(rendererResources);
             ComponentPlatformTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
             ComponentEnvironmentTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
+        }
+
+        /// <summary>
+        /// Rebinds this panel and its detached modal host to the interaction graph
+        /// owned by the containing editor session.
+        /// </summary>
+        internal void SetInteractionServices(EditorSessionInteractionServices interactionServices) {
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
+
+            RebindInteractionServices(interactionServices);
+            ModalHost?.RebindInteractionServices(interactionServices);
         }
 
         /// <summary>
@@ -2556,7 +2581,7 @@ namespace helengine.editor {
         /// <param name="previousEntityState">Detached snapshot captured before the mutation.</param>
         void RecordSelectedEntityStateChange(SerializedEditorEntityState previousEntityState) {
             if (previousEntityState == null || HistoryMutationService == null || SelectedEntity is not EditorEntity editorEntity || editorEntity.IsDisposed) {
-                EditorSceneMutationService.MarkSceneMutated();
+                EditorSessionInteractionServices.From(this).SceneMutation.MarkSceneMutated();
                 return;
             }
 

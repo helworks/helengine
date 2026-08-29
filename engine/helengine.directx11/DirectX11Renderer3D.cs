@@ -656,7 +656,7 @@ namespace helengine.directx11 {
             material.CastsShadows = materialAsset.CastsShadows;
             material.ReceivesShadows = materialAsset.ReceivesShadows;
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
-            StandardMaterialTextureBindingDefaults.Apply(material);
+            StandardMaterialTextureBindingDefaults.Apply(material, renderer2D);
             RegisterMaterial(material);
             return material;
         }
@@ -1859,7 +1859,8 @@ namespace helengine.directx11 {
 
             RenderCustomPasses();
 
-            var cameras = Core.Instance.ObjectManager.Cameras;
+            Core ownerCore = OwnerCore ?? throw new InvalidOperationException("DirectX11 renderer is not attached to an owning Core.");
+            var cameras = ownerCore.ObjectManager.Cameras;
 
             for (int i = 0; i < surfaces.Count; i++) {
                 var surface = surfaces[i];
@@ -1969,7 +1970,8 @@ namespace helengine.directx11 {
             }
 
             List<LightComponent> lights = new List<LightComponent>();
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            Core ownerCore = OwnerCore ?? throw new InvalidOperationException("DirectX11 renderer is not attached to an owning Core.");
+            List<Entity> entities = ownerCore.ObjectManager.Entities;
             for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
                 Entity entity = entities[entityIndex];
                 if (entity == null || !entity.IsHierarchyEnabled) {
