@@ -331,7 +331,7 @@ namespace helengine.editor {
         SceneAssetReference CreatePreparedReference(EditorPreparedAssetWrite prepared, string normalizedPath) {
             return global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
                 prepared.AssetId,
-                normalizedPath,
+                prepared.RelativePath,
                 prepared.ContentHash);
         }
 

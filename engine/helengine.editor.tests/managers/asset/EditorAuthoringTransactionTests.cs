@@ -147,6 +147,66 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     [Fact]
+    public void CreateReference_UsesTheCurrentStagedMaterialHashBeforePublication() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            first.WriteMaterial("materials/rendering/textured_cube_grid/Cube00.hasset", CreateGeneratedMaterial("initial"));
+            first.Commit();
+        }
+
+        using EditorAuthoringTransaction second = session.BeginTransaction();
+        EditorAssetWriteResult staged = second.WriteMaterial(
+            "Materials/rendering/textured_cube_grid/Cube00.hasset",
+            CreateGeneratedMaterial("replacement"));
+
+        SceneAssetReference reference = session.CreateReference(
+            "materials/rendering/textured_cube_grid/Cube00.hasset",
+            AssetEntryKind.Material);
+
+        Assert.Equal(staged.ContentHash, reference.ContentHash);
+        Assert.Equal("Materials/rendering/textured_cube_grid/Cube00.hasset", reference.RelativePath);
+        second.Commit();
+    }
+
+    [Fact]
+    public void ResolveReference_UsesTheCurrentStagedMaterialPayloadBeforePublication() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        EditorAssetWriteResult original;
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            original = first.WriteMaterial(
+                "materials/rendering/textured_cube_grid/Cube00.hasset",
+                CreateGeneratedMaterial("initial"));
+            first.Commit();
+        }
+
+        SceneAssetReference savedReference = session.CreateReference(
+            "materials/rendering/textured_cube_grid/Cube00.hasset",
+            AssetEntryKind.Material);
+        using EditorAuthoringTransaction second = session.BeginTransaction();
+        GeneratedMaterialAssetDefinition replacement = CreateGeneratedMaterial("replacement");
+        replacement.GetOrCreatePlatform("windows").SetFieldValue("roughness", "0.75");
+        EditorAssetWriteResult staged = second.WriteMaterial(
+            "Materials/rendering/textured_cube_grid/Cube00.hasset",
+            replacement);
+
+        AssetReferenceResolution resolution = session.ResolveReference(savedReference, AssetEntryKind.Material);
+
+        Assert.Equal(original.AssetId, resolution.CanonicalReference.AssetId);
+        Assert.Equal(staged.ContentHash, resolution.CanonicalReference.ContentHash);
+        Assert.Equal("Materials/rendering/textured_cube_grid/Cube00.hasset", resolution.CanonicalReference.RelativePath);
+        Assert.Empty(resolution.FullPath);
+        Assert.True(resolution.ReferenceChanged);
+        Assert.Equal(
+            new[] {
+                EditorAssetRepairKind.PathHealing,
+                EditorAssetRepairKind.HashHealing,
+                EditorAssetRepairKind.CanonicalReferenceRefresh
+            },
+            session.RepairReport.Snapshot.Select(record => record.Kind));
+        second.Commit();
+    }
+
+    [Fact]
     public void WriteGeneratedCacheAsset_IsStagedAndPublishedThroughTheSameTransaction() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         using EditorAuthoringTransaction transaction = session.BeginTransaction();

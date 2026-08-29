@@ -283,6 +283,95 @@ namespace helengine.editor {
             });
         }
 
+        /// <summary>
+        /// Resolves a reference against an output already prepared by the
+        /// caller's authoring transaction.  Scene serialization can run
+        /// before that transaction publishes its material or native payload;
+        /// consulting only the durable identity index in that window would
+        /// return the previous content hash and force a second-pass repair.
+        /// </summary>
+        /// <param name="reference">Reference being resolved.</param>
+        /// <param name="expectedKind">Required authored asset category.</param>
+        /// <param name="transaction">Active transaction owned by the session.</param>
+        /// <returns>A staged resolution, or <c>null</c> when the path is not staged.</returns>
+        internal AssetReferenceResolution ResolveStagedReference(
+            SceneAssetReference reference,
+            AssetEntryKind expectedKind,
+            EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+            if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+            if (reference.SourceKind != SceneAssetReferenceSourceKind.FileSystem) {
+                throw new InvalidOperationException("Only filesystem-backed asset references can be resolved by the editor resolver.");
+            }
+
+            return ExecuteSynchronizedRead(() => {
+                if (!transaction.TryCreateReference(reference.RelativePath, expectedKind, out SceneAssetReference stagedReference)) {
+                    return null;
+                }
+
+                bool idChanged = !string.Equals(reference.AssetId, stagedReference.AssetId, StringComparison.Ordinal);
+                bool pathChanged = !string.Equals(reference.RelativePath, stagedReference.RelativePath, StringComparison.Ordinal);
+                bool hashChanged = !string.Equals(reference.ContentHash, stagedReference.ContentHash, StringComparison.Ordinal);
+                bool providerChanged = !string.Equals(reference.ProviderId, stagedReference.ProviderId, StringComparison.Ordinal);
+                bool referenceChanged = idChanged || pathChanged || hashChanged || providerChanged ||
+                    reference.SourceKind != stagedReference.SourceKind;
+                AssetReferenceResolutionTier tier = string.Equals(reference.AssetId, stagedReference.AssetId, StringComparison.Ordinal)
+                    ? AssetReferenceResolutionTier.AssetId
+                    : AssetReferenceResolutionTier.Path;
+                EditorAssetResolutionCandidateScore evidence = new EditorAssetResolutionCandidateScore(
+                    string.Equals(reference.AssetId, stagedReference.AssetId, StringComparison.Ordinal),
+                    string.Equals(reference.RelativePath, stagedReference.RelativePath, PathComparison),
+                    string.Equals(reference.ContentHash, stagedReference.ContentHash, StringComparison.Ordinal),
+                    true,
+                    stagedReference.RelativePath);
+                if (referenceChanged) {
+                    string evidenceText = evidence.ToEvidenceString();
+                    if (pathChanged) {
+                        AppendRepair(
+                            EditorAssetRepairKind.PathHealing,
+                            stagedReference.RelativePath,
+                            reference.AssetId,
+                            stagedReference.AssetId,
+                            tier,
+                            evidenceText,
+                            "Healed the saved asset path to the staged authored source.");
+                    }
+                    if (hashChanged) {
+                        AppendRepair(
+                            EditorAssetRepairKind.HashHealing,
+                            stagedReference.RelativePath,
+                            reference.AssetId,
+                            stagedReference.AssetId,
+                            tier,
+                            evidenceText,
+                            "Healed the saved content hash to the staged authored source.");
+                    }
+                    AppendRepair(
+                        EditorAssetRepairKind.CanonicalReferenceRefresh,
+                        stagedReference.RelativePath,
+                        reference.AssetId,
+                        stagedReference.AssetId,
+                        tier,
+                        evidenceText,
+                        "Refreshed the saved asset reference to its staged identity, path, and hash.");
+                }
+
+                return new AssetReferenceResolution(
+                    string.Empty,
+                    stagedReference,
+                    tier,
+                    referenceChanged,
+                    false,
+                    evidence,
+                    true);
+            });
+        }
+
         /// <summary>Refreshes the identity index once for a multi-reference load or build scope.</summary>
         public void BeginResolutionScope() {
             EnsureNotDisposed();

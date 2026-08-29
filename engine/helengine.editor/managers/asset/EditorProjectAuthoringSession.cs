@@ -330,6 +330,14 @@ namespace helengine.editor {
         /// <returns>Resolved and canonicalized asset reference data.</returns>
         public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
+            EditorAuthoringTransaction activeTransaction;
+            lock (TransactionGate) {
+                activeTransaction = ActiveTransaction;
+            }
+            if (activeTransaction != null &&
+                ReferenceResolver.ResolveStagedReference(reference, expectedKind, activeTransaction) is AssetReferenceResolution stagedResolution) {
+                return stagedResolution;
+            }
             return ReferenceResolver.Resolve(reference, expectedKind);
         }
 
