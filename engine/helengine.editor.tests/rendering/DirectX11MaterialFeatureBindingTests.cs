@@ -284,7 +284,7 @@ namespace helengine.editor.tests.rendering {
         public void Visit_WhenSubmissionMaterialIsNull_DoesNotThrow() {
             Core core = CreateInitializedCore();
             using TestVisitDirectX11Renderer3D renderer = new TestVisitDirectX11Renderer3D();
-            Entity parent = new Entity();
+            Entity parent = new Entity(Core.Instance);
             RuntimeModel model = renderer.BuildModelFromRaw(CreateTriangleModelAsset());
             TestDrawable3D drawable = new TestDrawable3D(parent, model, new RuntimeMaterial[] { null });
             var submission = new RenderFrameDrawableSubmission(

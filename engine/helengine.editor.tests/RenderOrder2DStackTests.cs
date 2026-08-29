@@ -14,8 +14,8 @@ namespace helengine.editor.tests {
             InitializeCore();
 
             FontAsset font = CreateFont();
-            DockableEntity docked = new DockableEntity(font);
-            DockableEntity floating = new DockableEntity(font);
+            DockableEntity docked = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font);
+            DockableEntity floating = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font);
             DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
 
             layout.DockAsRoot(docked);

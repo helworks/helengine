@@ -54,7 +54,8 @@ namespace helengine.editor {
             using EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
             using EngineGeneratedModelCache generatedModelCache = new EngineGeneratedModelCache(core);
             using EngineGeneratedMaterialCache generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
-            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, DefaultFontAsset);
+            using EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
+            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, DefaultFontAsset, interactionServices);
             // Renderer binding is supplied to the authoring factory before recovery restores cached assets.
             // The registry is declared after its borrowed caches so reverse
             // using-declaration disposal retires the provider graph first.

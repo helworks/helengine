@@ -10,12 +10,14 @@ namespace helengine.editor.tests.testing;
 public sealed class TestGeneratedAssetGraph : IDisposable {
     readonly Core CoreValue;
     readonly EditorSceneEntityIdAllocator SceneEntityIdAllocatorValue;
+    readonly bool OwnsInteractionServices;
 
     public GeneratedAssetProviderRegistry Registry { get; }
     public EngineGeneratedModelCache ModelCache { get; }
     public EngineGeneratedMaterialCache MaterialCache { get; }
     public EditorBuiltInShaderAssetLibrary ShaderLibrary { get; }
     public EditorSessionRendererResources RendererResources { get; }
+    public EditorSessionInteractionServices InteractionServices { get; }
     public ObjectManager ObjectManager => CoreValue.ObjectManager;
 
     public TestGeneratedAssetGraph(Core core) {
@@ -32,7 +34,14 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         MaterialCache = new EngineGeneratedMaterialCache(core, ShaderLibrary);
         SceneEntityIdAllocatorValue = (core as EditorCore)?.SceneEntityIdAllocator ?? new EditorSceneEntityIdAllocator();
         IEntityFactory entityFactory = core.EntityFactory ?? new EditorEntityFactory(core, SceneEntityIdAllocatorValue);
-        RendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, entityFactory, SceneEntityIdAllocatorValue, core.Input, () => core.FrameDeltaSeconds, core is EditorCore editorCore ? editorCore.DefaultFontAssetForEditor : null);
+        InteractionServices = core is EditorCore editorCore && editorCore.SessionInteractionServices != null
+            ? editorCore.SessionInteractionServices
+            : core.SessionInteractionGraph as EditorSessionInteractionServices ?? new EditorSessionInteractionServices();
+        OwnsInteractionServices = core.SessionInteractionGraph == null;
+        if (OwnsInteractionServices) {
+            core.SessionInteractionGraph = InteractionServices;
+        }
+        RendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, entityFactory, SceneEntityIdAllocatorValue, core.Input, () => core.FrameDeltaSeconds, core is EditorCore editorCoreWithFont ? editorCoreWithFont.DefaultFontAssetForEditor : null, InteractionServices);
         Registry = new GeneratedAssetProviderRegistry();
     }
 
@@ -65,6 +74,9 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         MaterialCache.Dispose();
         ModelCache.Dispose();
         ShaderLibrary.Dispose();
+        if (OwnsInteractionServices && ReferenceEquals(CoreValue.SessionInteractionGraph, InteractionServices)) {
+            CoreValue.SessionInteractionGraph = null;
+        }
     }
 
     /// <summary>Creates a standalone shader library for renderer-only factory tests.</summary>

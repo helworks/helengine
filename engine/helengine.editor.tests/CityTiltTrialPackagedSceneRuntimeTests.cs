@@ -55,7 +55,7 @@ public sealed class CityTiltTrialPackagedSceneRuntimeTests {
         core.InputSystem.SetKeyboardActive(true);
         BepuRuntimeComponentRegistration.Register(core);
 
-        RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+        RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
         IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
         InvokeBepuLoadedSceneBinding(core, rootEntities);
 
@@ -117,7 +117,7 @@ public sealed class CityTiltTrialPackagedSceneRuntimeTests {
         core.InputSystem.SetKeyboardActive(true);
         BepuRuntimeComponentRegistration.Register(core);
 
-        RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+        RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
         IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
         InvokeBepuLoadedSceneBinding(core, rootEntities);
 

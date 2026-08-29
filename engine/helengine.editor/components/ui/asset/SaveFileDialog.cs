@@ -233,10 +233,6 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
-        public SaveFileDialog(FontAsset font, string projectPath, GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, EditorUiMetrics.Default, projectPath, generatedAssetProviders) {
-        }
-
         /// <summary>
         /// Initializes a new save-file dialog rooted at the project assets folder using one shared metrics source.
         /// </summary>
@@ -244,12 +240,23 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
         public SaveFileDialog(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
             GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, metrics, projectPath, new AssetBrowserDataSource(projectPath, generatedAssetProviders, false)) {
+            : this(ownerCore, interactionServices, font, metrics, projectPath, new AssetBrowserDataSource(projectPath, generatedAssetProviders, false)) {
         }
+
+        /// <summary>Initializes a save dialog with default metrics and explicit session graph.</summary>
+        public SaveFileDialog(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            string projectPath,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default, projectPath, generatedAssetProviders) { }
 
         /// <summary>
         /// Initializes a save-file dialog over a session-owned reference resolver.
@@ -260,12 +267,14 @@ namespace helengine.editor {
         /// <param name="referenceResolver">Session-owned resolver borrowed by this dialog browser.</param>
         /// <summary>Initializes a save dialog over the session resolver and generated provider registry.</summary>
         internal SaveFileDialog(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
             EditorAssetReferenceResolver referenceResolver,
             GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, metrics, projectPath, new AssetBrowserDataSource(
+            : this(ownerCore, interactionServices, font, metrics, projectPath, new AssetBrowserDataSource(
                 new EditorAssetManager(projectPath, referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver))),
                 generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders)),
                 false)) {
@@ -275,10 +284,12 @@ namespace helengine.editor {
         /// Initializes a save-file dialog over a data source whose lifetime is owned by the dialog.
         /// </summary>
         SaveFileDialog(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
-            AssetBrowserDataSource dataSource) {
+            AssetBrowserDataSource dataSource) : base(ownerCore, interactionServices) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -304,14 +315,14 @@ namespace helengine.editor {
             byte iconBackgroundOrder = RenderOrder2D.ModalBackground;
             TextOrder = RenderOrder2D.ModalForeground;
 
-            BackdropRoot = new EditorEntity {
+            BackdropRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             AddChild(BackdropRoot);
 
-            BackdropTopRoot = new EditorEntity {
+            BackdropTopRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -331,7 +342,7 @@ namespace helengine.editor {
             };
             BackdropTopRoot.AddComponent(BackdropTopInteractable);
 
-            BackdropBodyRoot = new EditorEntity {
+            BackdropBodyRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -351,7 +362,7 @@ namespace helengine.editor {
             };
             BackdropBodyRoot.AddComponent(BackdropBodyInteractable);
 
-            PanelRoot = new EditorEntity {
+            PanelRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -367,7 +378,7 @@ namespace helengine.editor {
             };
             PanelRoot.AddComponent(PanelBackground);
 
-            HeaderRoot = new EditorEntity {
+            HeaderRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -387,7 +398,7 @@ namespace helengine.editor {
             HeaderInteractable.CursorEvent += HandleHeaderCursor;
             HeaderRoot.AddComponent(HeaderInteractable);
 
-            HeaderHost = new EditorEntity {
+            HeaderHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -403,6 +414,8 @@ namespace helengine.editor {
             HeaderHost.AddComponent(HeaderText);
 
             BrowserView = new AssetBrowserView(
+                OwnerCore,
+                InteractionServices,
                 Font,
                 EditorUiMetrics.Default,
                 projectPath,
@@ -418,7 +431,7 @@ namespace helengine.editor {
             BrowserView.AssetActivated += HandleAssetActivated;
             PanelRoot.AddChild(BrowserView.Entity);
 
-            FileNameLabelHost = new EditorEntity {
+            FileNameLabelHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -433,7 +446,7 @@ namespace helengine.editor {
             };
             FileNameLabelHost.AddComponent(FileNameLabel);
 
-            FileNameFieldHost = new EditorEntity {
+            FileNameFieldHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -442,7 +455,7 @@ namespace helengine.editor {
             FileNameField = new TextBoxComponent(new int2(GetFileNameFieldWidthPixels(), GetFileNameFieldHeightPixels()), font, "Scene Name");
             FileNameFieldHost.AddComponent(FileNameField);
 
-            StatusHost = new EditorEntity {
+            StatusHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -457,7 +470,7 @@ namespace helengine.editor {
             };
             StatusHost.AddComponent(StatusText);
 
-            CancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -467,7 +480,7 @@ namespace helengine.editor {
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(TextOrder, TextOrder);
 
-            SaveButtonHost = new EditorEntity {
+            SaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };

@@ -6,20 +6,22 @@ namespace helengine.bepu.tests {
     /// Verifies the new BEPU-backed world package can be constructed by tests.
     /// </summary>
     public sealed class BepuPhysicsWorld3DTests : IDisposable {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal core services required for entity-backed world tests.
         /// </summary>
         public BepuPhysicsWorld3DTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
         /// Ends one world test lifecycle.
         /// </summary>
         public void Dispose() {
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -134,7 +136,7 @@ namespace helengine.bepu.tests {
         /// </summary>
         [Fact]
         public void BindScene_WithDynamicBoxEntity_RegistersOneRuntimeBody() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(CoreValue);
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Dynamic,
@@ -242,7 +244,7 @@ namespace helengine.bepu.tests {
                     new float3(-1f, 0f, 1f)
                 ],
                 [0, 1, 2]);
-            Entity entity = new Entity();
+            Entity entity = new Entity(CoreValue);
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Static
@@ -357,7 +359,7 @@ namespace helengine.bepu.tests {
         /// </summary>
         [Fact]
         public void Step_WithTriggerOverlap_CollectsEnterStayAndExitEventsWithoutSolidResolution() {
-            Entity triggerEntity = new Entity();
+            Entity triggerEntity = new Entity(CoreValue);
             triggerEntity.LocalPosition = float3.Zero;
             triggerEntity.InitComponents();
             triggerEntity.AddComponent(new RigidBody3DComponent {
@@ -492,8 +494,8 @@ namespace helengine.bepu.tests {
         /// <param name="position">Authored box center position.</param>
         /// <param name="size">Full box size.</param>
         /// <returns>Configured static box entity.</returns>
-        static Entity CreateStaticBoxEntity(float3 position, float3 size) {
-            Entity entity = new Entity();
+        Entity CreateStaticBoxEntity(float3 position, float3 size) {
+            Entity entity = new Entity(CoreValue);
             entity.LocalPosition = position;
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
@@ -512,8 +514,8 @@ namespace helengine.bepu.tests {
         /// <param name="position">Authored box center position.</param>
         /// <param name="size">Full box size.</param>
         /// <returns>Configured dynamic box entity.</returns>
-        static Entity CreateDynamicBoxEntity(float3 position, float3 size) {
-            Entity entity = new Entity();
+        Entity CreateDynamicBoxEntity(float3 position, float3 size) {
+            Entity entity = new Entity(CoreValue);
             entity.LocalPosition = position;
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
@@ -533,8 +535,8 @@ namespace helengine.bepu.tests {
         /// <param name="position">Authored sphere center position.</param>
         /// <param name="radius">Sphere radius.</param>
         /// <returns>Configured dynamic sphere entity.</returns>
-        static Entity CreateDynamicSphereEntity(float3 position, float radius) {
-            Entity entity = new Entity();
+        Entity CreateDynamicSphereEntity(float3 position, float radius) {
+            Entity entity = new Entity(CoreValue);
             entity.LocalPosition = position;
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
@@ -554,8 +556,8 @@ namespace helengine.bepu.tests {
         /// <param name="position">Authored box center position.</param>
         /// <param name="size">Full box size.</param>
         /// <returns>Configured kinematic box entity.</returns>
-        static Entity CreateKinematicBoxEntity(float3 position, float3 size) {
-            Entity entity = new Entity();
+        Entity CreateKinematicBoxEntity(float3 position, float3 size) {
+            Entity entity = new Entity(CoreValue);
             entity.LocalPosition = position;
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
@@ -573,7 +575,7 @@ namespace helengine.bepu.tests {
         /// Creates one static mesh ground entity backed by one cooked BEPU mesh payload.
         /// </summary>
         /// <returns>Configured static mesh ground entity.</returns>
-        static Entity CreateStaticMeshGroundEntity() {
+        Entity CreateStaticMeshGroundEntity() {
             BepuStaticMeshCollisionCookProcessor3D processor = new BepuStaticMeshCollisionCookProcessor3D();
             StaticMeshCollisionData3D collisionData = new StaticMeshCollisionData3D(
                 [
@@ -584,7 +586,7 @@ namespace helengine.bepu.tests {
                 ],
                 [0, 1, 2, 2, 1, 3]);
 
-            Entity entity = new Entity();
+            Entity entity = new Entity(CoreValue);
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Static,

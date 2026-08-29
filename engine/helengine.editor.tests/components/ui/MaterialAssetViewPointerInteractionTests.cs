@@ -56,7 +56,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     }
 
     MaterialAssetView CreateView() {
-        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, null, TempRootPath);
+        MaterialAssetView view = new MaterialAssetView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, null, TempRootPath);
         view.SetRendererResources(GeneratedAssetGraph.RendererResources);
         return view;
     }
@@ -131,7 +131,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     /// <param name="width">Viewport width in pixels.</param>
     /// <param name="height">Viewport height in pixels.</param>
     void CreateUiCamera(int width, int height) {
-        EditorEntity cameraEntity = new EditorEntity {
+        EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
             InternalEntity = true,
             LayerMask = 1
         };

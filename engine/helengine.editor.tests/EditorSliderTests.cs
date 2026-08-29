@@ -59,7 +59,7 @@ namespace helengine.editor.tests {
         /// <param name="scaleMode">Mapping mode used by the slider.</param>
         /// <returns>Slider configured for the requested test case.</returns>
         EditorSlider CreateSlider(double minimumValue, double maximumValue, double initialValue, EditorSliderScaleMode scaleMode) {
-            return new EditorSlider(minimumValue, maximumValue, initialValue, scaleMode, 120, 10);
+            return new EditorSlider(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), minimumValue, maximumValue, initialValue, scaleMode, 120, 10);
         }
 
         /// <summary>

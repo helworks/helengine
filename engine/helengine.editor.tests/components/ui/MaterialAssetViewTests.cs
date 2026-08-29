@@ -29,6 +29,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
             ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
         });
         CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        CoreValue.SessionInteractionGraph = InteractionServices;
         GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
     }
 
@@ -44,7 +45,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     }
 
     MaterialAssetView CreateView(EditorEntity overlayHost = null) {
-        MaterialAssetView view = new MaterialAssetView(CreateFont(), 1, overlayHost, TempRootPath);
+        MaterialAssetView view = new MaterialAssetView(CoreValue, InteractionServices, CreateFont(), 1, overlayHost, TempRootPath);
         view.SetRendererResources(GeneratedAssetGraph.RendererResources);
         return view;
     }
@@ -115,7 +116,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     /// </summary>
     [Fact]
     public void UpdateLayout_when_schema_row_is_laid_out_uses_a_forty_sixty_split() {
-        MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel("windows", CreateFont(), 1, RenderOrder2D.PanelForeground);
+        MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel(CoreValue, InteractionServices, "windows", CreateFont(), 1, RenderOrder2D.PanelForeground);
 
         panel.UpdateLayout(0, 0, 200);
 
@@ -134,7 +135,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
     /// </summary>
     [Fact]
     public void Show_when_color_picker_is_requested_hosts_the_overlay_under_the_modal_root() {
-        EditorEntity modalHost = new EditorEntity {
+        EditorEntity modalHost = new EditorEntity(CoreValue, InteractionServices) {
             LayerMask = 1
         };
         MaterialAssetView view = CreateView(modalHost);
@@ -198,8 +199,8 @@ public sealed class MaterialAssetViewTests : IDisposable {
 
         InvokePrivate(checkBox, "SetCheckedState", false, true);
 
-        Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, candidate => candidate.Parent == null);
-        Assert.DoesNotContain(Core.Instance.ObjectManager.Interactables, candidate => ReferenceEquals(candidate, interactable) && candidate.Parent == null);
+        Assert.DoesNotContain(CoreValue.ObjectManager.Interactables, candidate => candidate.Parent == null);
+        Assert.DoesNotContain(CoreValue.ObjectManager.Interactables, candidate => ReferenceEquals(candidate, interactable) && candidate.Parent == null);
     }
 
     /// <summary>
@@ -444,4 +445,3 @@ public sealed class MaterialAssetViewTests : IDisposable {
         method.Invoke(target, arguments);
     }
 }
-

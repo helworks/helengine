@@ -43,7 +43,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ComponentAdded_WhenFontIsMissing_DoesNotBuildOverlayChildren() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CoreUpdateAndDraw_WhenFontIsMissing_DoesNotThrow() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -85,7 +85,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void FontProperty_WhenAssignedAfterAttachment_BuildsOverlayChildren() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -121,7 +121,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void FontScale_WhenAssignedBeforeAttachment_ScalesOverlayTextAndRowSpacing() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -152,7 +152,7 @@ namespace helengine.editor.tests {
             });
             threeDsCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("3ds", "test-version"));
 
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -184,7 +184,7 @@ namespace helengine.editor.tests {
             });
             ps2Core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("ps2", "test-version"));
 
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -210,7 +210,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AdditionalText_WhenAssignedBeforeAttachment_DoesNotBuildVisibleAdditionalOverlayRows() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -245,7 +245,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void FontProperty_WhenClearedAfterAttachment_RemovesOverlayChildren() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -268,7 +268,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RemoveComponent_WhenOverlayWasBuilt_DisposesOverlayEntities() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -292,7 +292,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Dispose_WhenOwningEntityIsDisposed_RemovesComponentFromActiveSamplingList() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -313,7 +313,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void OverlayHost_WhenDisposedExternally_ThrowsInvalidOperationExceptionOnLaterAccess() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -334,7 +334,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CoreUpdateAndDraw_WhenSamplingFrames_FormatsFpsWithOneDecimalPlace() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -359,7 +359,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CoreUpdateAndDraw_WhenExplicitElapsedSecondsAreUsed_UsesCoreTimingForFpsSamplingAndRenderDrawMilliseconds() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -384,7 +384,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CoreUpdateAndDraw_WhenRendererProvidesOverlayRows_UsesRendererOwnedOverlayText() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -410,7 +410,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CoreUpdateAndDraw_WhenPlatformOwnsOverlayPresentation_HidesGenericPerformanceRows() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -439,7 +439,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CoreUpdateAndDraw_WhenPlatformPublishesOverlayTextRows_UsesAllPublishedVisibleRows() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -474,7 +474,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CoreUpdateAndDraw_WhenPlatformPublishesOnlyDetailRows_KeepsCompactUpdateAndRenderSummaryRows() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -510,7 +510,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CoreUpdateAndDraw_WhenPlatformOwnsOverlayPresentation_PublishesResolvedRowsAndDisablesSceneHierarchy() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -553,7 +553,7 @@ namespace helengine.editor.tests {
         public void ComponentAdded_WhenRendererProvidesOverlayRows_UsesRendererOwnedTextImmediatelyAfterOverlayBuild() {
             Core.Instance.SetPerformanceOverlayMetrics(true, 0d, 0d, 0d, 0d, 0d, 0d, 0, 0);
 
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 
@@ -573,7 +573,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ComponentAdded_WhenRendererHasNotPublishedOverlayMetrics_UsesDefaultOverlayText() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
 

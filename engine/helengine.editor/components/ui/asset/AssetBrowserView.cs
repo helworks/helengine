@@ -3,6 +3,8 @@ namespace helengine.editor {
     /// Shared asset browser view that renders the toolbar and list for asset navigation.
     /// </summary>
     public class AssetBrowserView {
+        readonly Core OwnerCoreValue;
+        readonly EditorSessionInteractionServices InteractionServicesValue;
         /// <summary>
         /// Height of each row in the asset list.
         /// </summary>
@@ -171,6 +173,8 @@ namespace helengine.editor {
         /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
         /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
         public AssetBrowserView(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             string projectPath,
             ushort layerMask,
@@ -182,6 +186,8 @@ namespace helengine.editor {
             IFocusGroup focusGroup,
             GeneratedAssetProviderRegistry generatedAssetProviders)
             : this(
+                ownerCore,
+                interactionServices,
                 font,
                 EditorUiMetrics.Default,
                 projectPath,
@@ -209,6 +215,8 @@ namespace helengine.editor {
         /// <param name="includeGeneratedEntries">True to include generated-provider roots and entries.</param>
         /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
         public AssetBrowserView(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
@@ -221,6 +229,8 @@ namespace helengine.editor {
             IFocusGroup focusGroup,
             GeneratedAssetProviderRegistry generatedAssetProviders)
             : this(
+                ownerCore,
+                interactionServices,
                 font,
                 metrics,
                 projectPath,
@@ -249,6 +259,8 @@ namespace helengine.editor {
         /// <param name="focusGroup">Dock focus group that owns the browser controls, or null for non-traversable modal uses.</param>
         /// <param name="dataSource">Data source supplied by the project owner, or null to create one.</param>
         internal AssetBrowserView(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
@@ -271,6 +283,8 @@ namespace helengine.editor {
             }
 
             Font = font;
+            OwnerCoreValue = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
+            InteractionServicesValue = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             Metrics = metrics;
             DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
             ToolbarOrder = toolbarOrder;
@@ -279,12 +293,12 @@ namespace helengine.editor {
             TextOrder = textOrder;
             FocusGroup = focusGroup;
 
-            Root = new EditorEntity {
+            Root = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
 
-            ToolbarRoot = new EditorEntity {
+            ToolbarRoot = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
@@ -297,7 +311,7 @@ namespace helengine.editor {
             };
             ToolbarRoot.AddComponent(ToolbarBackground);
 
-            UpButtonHost = new EditorEntity {
+            UpButtonHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
@@ -311,7 +325,7 @@ namespace helengine.editor {
                 EditorSessionInteractionServices.From(Root).KeyboardFocus.RegisterTarget(UpButton);
             }
 
-            PathTextHost = new EditorEntity {
+            PathTextHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
@@ -327,7 +341,7 @@ namespace helengine.editor {
             };
             PathTextHost.AddComponent(PathText);
 
-            ListHitHost = new EditorEntity {
+            ListHitHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
@@ -339,7 +353,7 @@ namespace helengine.editor {
             ListHitInteractable.CursorEvent += HandleListHitCursor;
             ListHitHost.AddComponent(ListHitInteractable);
 
-            ListRoot = new EditorEntity {
+            ListRoot = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
@@ -588,7 +602,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>New row container.</returns>
         AssetBrowserRow CreateRow() {
-            var rowEntity = new EditorEntity {
+            var rowEntity = new EditorEntity(OwnerCoreValue, InteractionServicesValue) {
                 LayerMask = Root.LayerMask,
                 Position = float3.Zero
             };
@@ -600,7 +614,7 @@ namespace helengine.editor {
             };
             rowEntity.AddComponent(background);
 
-            var iconHost = new EditorEntity {
+            var iconHost = new EditorEntity(OwnerCoreValue, InteractionServicesValue) {
                 LayerMask = Root.LayerMask,
                 Position = new float3(IconPadding, 0, 0.2f)
             };
@@ -613,7 +627,7 @@ namespace helengine.editor {
             };
             iconHost.AddComponent(iconBackground);
 
-            var iconTextHost = new EditorEntity {
+            var iconTextHost = new EditorEntity(OwnerCoreValue, InteractionServicesValue) {
                 LayerMask = Root.LayerMask,
                 Position = new float3(0, 0, 0.1f)
             };
@@ -628,7 +642,7 @@ namespace helengine.editor {
             };
             iconTextHost.AddComponent(iconText);
 
-            var labelHost = new EditorEntity {
+            var labelHost = new EditorEntity(OwnerCoreValue, InteractionServicesValue) {
                 LayerMask = Root.LayerMask,
                 Position = new float3(IconPadding + IconSize + LabelPadding, 0, 0.2f)
             };

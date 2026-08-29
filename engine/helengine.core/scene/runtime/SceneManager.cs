@@ -3,6 +3,7 @@ namespace helengine {
     /// Tracks loaded built scenes, loads packaged payloads, and tears down runtime scene entities during unload.
     /// </summary>
     public sealed class SceneManager {
+        readonly Core OwnerCore;
         /// <summary>
         /// Catalog used to resolve built scenes by stable identifier.
         /// </summary>
@@ -124,6 +125,7 @@ namespace helengine {
         /// <param name="sceneTransitionDiagnosticsProvider">Optional diagnostics provider that receives live scene-manager transition stages.</param>
         /// <param name="entityDisposalDiagnosticsProvider">Optional diagnostics provider that receives live entity-disposal stages during scene teardown.</param>
         public SceneManager(
+            Core ownerCore,
             RuntimeSceneCatalog sceneCatalog,
             ContentManager contentManager,
             RuntimeSceneLoadService sceneLoadService,
@@ -131,6 +133,7 @@ namespace helengine {
             ISceneIdPathResolver scenePathResolver,
             IRuntimeSceneTransitionDiagnosticsProvider sceneTransitionDiagnosticsProvider,
             IRuntimeEntityDisposalDiagnosticsProvider entityDisposalDiagnosticsProvider) {
+            OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             if (sceneCatalog == null && scenePathResolver == null) {
                 throw new InvalidOperationException("A runtime scene manager requires either a scene catalog or a scene path resolver.");
             }
@@ -499,11 +502,11 @@ namespace helengine {
                         trackedSceneRecord.RootEntities);
                     try {
                         DispatchSceneLoaded(sceneLoadedEventArgs);
-                        Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
+                        OwnerCore.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
                     } finally {
-                        Core.Instance?.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
+                        OwnerCore.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
                         NativeOwnership.Delete(sceneLoadedEventArgs);
-                        Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventArgsRelease");
+                        OwnerCore.ReportSceneTransitionStage("AfterSceneLoadedEventArgsRelease");
                     }
                     RecordTraceState("LoadSceneImmediateAfterSceneLoadedEvent", sceneId);
                     RecordTraceState("LoadSceneImmediateEnd", sceneId);
@@ -563,21 +566,21 @@ namespace helengine {
             SceneLoadedEventArgs sceneLoadedEventArgs = new SceneLoadedEventArgs(trackedSceneRecord.SceneId, trackedSceneRecord.CookedRelativePath, trackedSceneRecord.RootEntities);
             try {
                 DispatchSceneLoaded(sceneLoadedEventArgs);
-                Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
+                OwnerCore.ReportSceneTransitionStage("AfterSceneLoadedEventDispatch");
             } finally {
-                Core.Instance?.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
+                OwnerCore.ReportSceneTransitionStage("BeforeSceneLoadedEventArgsRelease");
                 NativeOwnership.Delete(sceneLoadedEventArgs);
-                Core.Instance?.ReportSceneTransitionStage("AfterSceneLoadedEventArgsRelease");
+                OwnerCore.ReportSceneTransitionStage("AfterSceneLoadedEventArgsRelease");
             }
 
             ReleaseTransientSceneAsset(TransitionSceneAsset);
-            Core.Instance?.ReportSceneTransitionStage("AfterTransitionSceneAssetRelease");
+            OwnerCore.ReportSceneTransitionStage("AfterTransitionSceneAssetRelease");
             TransitionSceneAsset = null;
             TransitionLoadOperation = null;
             TransitionSceneContentPath = string.Empty;
             SceneTransitionProgressValue = 1f;
             IsSceneTransitionActiveValue = false;
-            Core.Instance?.ReportSceneTransitionStage("AfterSceneTransitionCommit");
+            OwnerCore.ReportSceneTransitionStage("AfterSceneTransitionCommit");
         }
 
         /// <summary>
@@ -686,11 +689,7 @@ namespace helengine {
         /// Clears any fixed-step physics backlog carried by the previous scene so the next single-scene load starts without catch-up debt.
         /// </summary>
         void ResetPhysicsTimingForSingleLoad() {
-            if (Core.Instance == null) {
-                return;
-            }
-
-            Core.Instance.ResetPhysicsTimingState();
+            OwnerCore.ResetPhysicsTimingState();
         }
 
         /// <summary>
@@ -1248,11 +1247,11 @@ namespace helengine {
             if (ownedAsset.IsDisposed) {
                 return;
             }
-            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+            if (OwnerCore.RenderManager2D == null) {
                 throw new InvalidOperationException("Font asset release requires an initialized 2D render manager.");
             }
 
-            Core.Instance.RenderManager2D.ReleaseFont(ownedAsset);
+            OwnerCore.RenderManager2D.ReleaseFont(ownedAsset);
         }
 
         /// <summary>
@@ -1266,11 +1265,11 @@ namespace helengine {
             if (ownedAsset.IsDisposed) {
                 return;
             }
-            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+            if (OwnerCore.RenderManager2D == null) {
                 throw new InvalidOperationException("Runtime texture release requires an initialized 2D render manager.");
             }
 
-            Core.Instance.RenderManager2D.ReleaseTexture(ownedAsset);
+            OwnerCore.RenderManager2D.ReleaseTexture(ownedAsset);
         }
 
         /// <summary>
@@ -1289,11 +1288,11 @@ namespace helengine {
             if (ownedAsset == null) {
                 throw new ArgumentNullException(nameof(ownedAsset));
             }
-            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+            if (OwnerCore.RenderManager3D == null) {
                 throw new InvalidOperationException("Runtime model release requires an initialized 3D render manager.");
             }
 
-            Core.Instance.RenderManager3D.ReleaseModel(ownedAsset);
+            OwnerCore.RenderManager3D.ReleaseModel(ownedAsset);
         }
 
         /// <summary>
@@ -1304,11 +1303,11 @@ namespace helengine {
             if (ownedAsset == null) {
                 throw new ArgumentNullException(nameof(ownedAsset));
             }
-            if (Core.Instance == null || Core.Instance.RenderManager3D == null) {
+            if (OwnerCore.RenderManager3D == null) {
                 throw new InvalidOperationException("Runtime material release requires an initialized 3D render manager.");
             }
 
-            Core.Instance.RenderManager3D.ReleaseMaterial(ownedAsset);
+            OwnerCore.RenderManager3D.ReleaseMaterial(ownedAsset);
         }
 
         /// <summary>
@@ -1360,17 +1359,17 @@ namespace helengine {
         /// Flushes any renderer-owned runtime asset releases that were deferred during scene unload before the next scene begins loading.
         /// </summary>
         void FlushReleasedAssets() {
-            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
+            if (OwnerCore.RenderManager2D == null) {
                 throw new InvalidOperationException("Deferred runtime texture release flushing requires an initialized 2D render manager.");
             }
 
-            Core.Instance.RenderManager2D.FlushReleasedTextures();
-            if (Core.Instance.RenderManager3D == null) {
+            OwnerCore.RenderManager2D.FlushReleasedTextures();
+            if (OwnerCore.RenderManager3D == null) {
                 throw new InvalidOperationException("Deferred runtime asset release flushing requires an initialized 3D render manager.");
             }
 
-            Core.Instance.RenderManager3D.FlushReleasedAssets();
-            Core.Instance.RenderManager2D.FlushReleasedTextures();
+            OwnerCore.RenderManager3D.FlushReleasedAssets();
+            OwnerCore.RenderManager2D.FlushReleasedTextures();
         }
 
         /// <summary>
@@ -1384,7 +1383,7 @@ namespace helengine {
             LastTraceSceneId = sceneId ?? string.Empty;
             LastTraceLoadedSceneCount = LoadedSceneRecords.Count;
             LastTracePendingOperationCount = PendingOperations.Count;
-            Core.Instance?.ReportSceneTransitionStage($"SceneManager:{LastTraceStage}");
+            OwnerCore.ReportSceneTransitionStage($"SceneManager:{LastTraceStage}");
             SceneTransitionDiagnosticsProvider?.ReportSceneTransitionStage(
                 stage,
                 LastTraceSceneId,

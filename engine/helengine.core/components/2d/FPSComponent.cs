@@ -329,13 +329,13 @@ namespace helengine {
                 Parent.InitChildren();
             }
 
-            OverlayHost = new Entity();
+            OverlayHost = new Entity(OwnerCore ?? throw new InvalidOperationException("FPS overlay requires an owning core."));
             OverlayHost.LayerMask = Parent.LayerMask;
             OverlayHost.InitChildren();
             OverlayHost.InitComponents();
             Parent.AddChild(OverlayHost);
 
-            UpdateRowHost = new Entity();
+            UpdateRowHost = new Entity(OwnerCore ?? throw new InvalidOperationException("FPS overlay requires an owning core."));
             UpdateRowHost.LayerMask = Parent.LayerMask;
             UpdateRowHost.InitChildren();
             UpdateRowHost.InitComponents();
@@ -348,7 +348,7 @@ namespace helengine {
             UpdateTextComponent.FontScale = ResolveEffectiveFontScale();
             UpdateRowHost.AddComponent(UpdateTextComponent);
 
-            RenderRowHost = new Entity();
+            RenderRowHost = new Entity(OwnerCore ?? throw new InvalidOperationException("FPS overlay requires an owning core."));
             RenderRowHost.LayerMask = Parent.LayerMask;
             RenderRowHost.InitChildren();
             RenderRowHost.InitComponents();
@@ -766,7 +766,7 @@ namespace helengine {
                 return;
             }
 
-            Entity rowHost = new Entity();
+            Entity rowHost = new Entity(OwnerCore ?? throw new InvalidOperationException("FPS overlay requires an owning core."));
             rowHost.LayerMask = Parent.LayerMask;
             rowHost.InitChildren();
             rowHost.InitComponents();

@@ -688,7 +688,7 @@ namespace helengine.editor {
             platformCatalogService = CreatePlatformCatalogService();
             EditorContentManager = new ContentManager(new HostFileSystemContentStreamSource(ResolveAssetsRootPath(this.projectPath)));
             constructionLedger.Register(EditorContentManager);
-            EditorContentManagerConfiguration.ConfigureEditorContentManager(EditorContentManager);
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(EditorContentManager, render2D);
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
             ViewportToolbarIcons = toolbarIcons ?? throw new ArgumentNullException(nameof(toolbarIcons));
@@ -698,6 +698,7 @@ namespace helengine.editor {
             core.Initialize(render3D, render2D, input, CreateEditorPlatformInfo());
             interactionServices = new EditorSessionInteractionServices();
             core.SessionInteractionServices = interactionServices;
+            core.SessionInteractionGraph = interactionServices;
             constructionLedger.Register(interactionServices, EditorSessionCleanupPhase.Dispose);
             generatedAssetProviderRegistry = new GeneratedAssetProviderRegistry();
             constructionLedger.Register(generatedAssetProviderRegistry, EditorSessionCleanupPhase.GeneratedProviderGraph);
@@ -712,7 +713,7 @@ namespace helengine.editor {
             constructionLedger.Register(generatedModelCache);
             generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
             constructionLedger.Register(generatedMaterialCache);
-            rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, uiFont);
+            rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, uiFont, interactionServices);
             constructionLedger.Register(rendererResources);
             EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(
                 assetImportManager,
@@ -789,7 +790,7 @@ namespace helengine.editor {
             RegisterDetacher(constructionLedger, () => interactionServices.EntityExistence.ExistenceChanged -= ApplyPlatformExistenceSuppression);
             interactionServices.EntityExistence.ExistenceChanged += ApplyPlatformExistenceSuppression;
 
-            titleBar = new EditorTitleBar(uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
+            titleBar = new EditorTitleBar(core, interactionServices, uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
             titleBar.SetInput(core.Input);
             PanelRegistry = new EditorWorkspacePanelRegistry();
             PanelInstances = new List<EditorWorkspacePanelInstance>();
@@ -802,18 +803,18 @@ namespace helengine.editor {
             fileSystemModelResolver.SetRenderManager(core.RenderManager3D);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
-            sceneHierarchyPanel = new SceneHierarchyPanel(uiFont, CurrentUiMetrics);
+            sceneHierarchyPanel = new SceneHierarchyPanel(core, interactionServices, uiFont, CurrentUiMetrics);
             sceneHierarchyPanel.SetObjectManager(core.ObjectManager);
             sceneHierarchyPanel.RefreshHierarchy();
             constructionLedger.Register(sceneHierarchyPanel);
             EditorAssetManager assetBrowserManager = new EditorAssetManager(this.projectPath, authoredAssetReferenceResolver);
             AssetBrowserDataSource assetBrowserDataSource = new AssetBrowserDataSource(assetBrowserManager, generatedAssetProviderRegistry);
             constructionLedger.Register(assetBrowserDataSource);
-            assetBrowserPanel = new AssetBrowserPanel(uiFont, this.projectPath, CurrentUiMetrics, assetBrowserDataSource);
+            assetBrowserPanel = new AssetBrowserPanel(core, interactionServices, uiFont, this.projectPath, CurrentUiMetrics, assetBrowserDataSource);
             assetBrowserPanel.SetRendererResources(rendererResources);
             constructionLedger.Register(assetBrowserPanel);
             constructionLedger.Register(assetBrowserPanel.DisposeAuthoringResources);
-            propertiesPanel = new PropertiesPanel(uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver, this.projectPath);
+            propertiesPanel = new PropertiesPanel(core, interactionServices, uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver, this.projectPath);
             propertiesPanel.SetInput(core.Input);
             constructionLedger.Register(propertiesPanel);
             propertiesPanel.SetAssetReferenceResolver(authoredAssetReferenceResolver);
@@ -821,17 +822,17 @@ namespace helengine.editor {
             propertiesPanel.SetEntityExistenceEditingService(interactionServices.EntityExistence);
             propertiesPanel.SetComponentEditorRegistry(interactionServices.ComponentEditors);
             propertiesPanel.SetRendererResources(rendererResources);
-            loggerPanel = new LoggerPanel(uiFont, CurrentUiMetrics);
+            loggerPanel = new LoggerPanel(core, interactionServices, uiFont, CurrentUiMetrics);
             loggerPanel.SetInputServices(core.Input, core.TextClipboardService);
             constructionLedger.Register(loggerPanel);
             LogAuthoringRepairReport();
-            previewPanel = new PreviewPanel(uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
+            previewPanel = new PreviewPanel(core, interactionServices, uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             previewPanel.SetRendererResources(rendererResources);
             previewPanel.SetInput(core.Input);
             constructionLedger.Register(previewPanel);
-            assetPickerModal = new AssetPickerModal(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
+            assetPickerModal = new AssetPickerModal(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
-            meshModifierPickerModal = new MeshModifierPickerModal(uiFont, CurrentUiMetrics);
+            meshModifierPickerModal = new MeshModifierPickerModal(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
@@ -856,30 +857,30 @@ namespace helengine.editor {
                 buildConfigService,
                 CreateBuildExecutorRouter());
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
-            saveFileDialog = new SaveFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
+            saveFileDialog = new SaveFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
-            openFileDialog = new OpenFileDialog(uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
+            openFileDialog = new OpenFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, openFileDialog.Dispose, openFileDialog.DisposeAuthoringResources, openFileDialog.Hide);
-            reparentEntityDialog = new ReparentEntityDialog(uiFont, CurrentUiMetrics);
+            reparentEntityDialog = new ReparentEntityDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
-            platformsDialog = new PlatformsDialog(uiFont, CurrentUiMetrics);
+            platformsDialog = new PlatformsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             platformsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, platformsDialog.Dispose, hide: platformsDialog.Hide);
-            environmentsDialog = new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics);
+            environmentsDialog = new EnvironmentsDialog(core, interactionServices, uiFont, projectEnvironmentsService, CurrentUiMetrics);
             environmentsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, environmentsDialog.Dispose, hide: environmentsDialog.Hide);
-            profilesDialog = new ProfilesDialog(uiFont, CurrentUiMetrics);
+            profilesDialog = new ProfilesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, profilesDialog.Dispose, hide: profilesDialog.Hide);
-            buildDialog = new BuildDialog(uiFont, CurrentUiMetrics);
+            buildDialog = new BuildDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             buildDialog.SetRendererResources(rendererResources);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, buildDialog.Dispose, hide: buildDialog.Hide);
-            buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics);
+            buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, buildDialogCopySettingsDialog.Dispose, hide: buildDialogCopySettingsDialog.Hide);
-            unsavedChangesDialog = new UnsavedChangesDialog(uiFont, CurrentUiMetrics);
+            unsavedChangesDialog = new UnsavedChangesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
-            sceneSettingsDialog = new SceneSettingsDialog(uiFont, CurrentUiMetrics);
+            sceneSettingsDialog = new SceneSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
-            preferencesDialog = new EditorPreferencesDialog(uiFont, CurrentUiMetrics);
+            preferencesDialog = new EditorPreferencesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
             sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(EditorContentManager, this.projectPath, fileSystemModelResolver, fileSystemFontResolver, fileSystemTextureResolver, authoredAssetReferenceResolver, generatedAssetProviderRegistry, rendererResources);
@@ -1841,50 +1842,41 @@ namespace helengine.editor {
             }
 
             if (!string.IsNullOrWhiteSpace(projectPath)) {
-                assetPickerModal = RebindDialogToSession(new AssetPickerModal(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry));
+                assetPickerModal = new AssetPickerModal(core, interactionServices, uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
-                saveFileDialog = RebindDialogToSession(new SaveFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry));
+                saveFileDialog = new SaveFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
-                openFileDialog = RebindDialogToSession(new OpenFileDialog(uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry));
+                openFileDialog = new OpenFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
                 RegisterScaleSensitiveDialogCleanup(ConstructionLedger, openFileDialog.Dispose, openFileDialog.DisposeAuthoringResources, openFileDialog.Hide);
             } else {
                 assetPickerModal = null;
                 saveFileDialog = null;
                 openFileDialog = null;
             }
-            meshModifierPickerModal = RebindDialogToSession(new MeshModifierPickerModal(uiFont, CurrentUiMetrics));
+            meshModifierPickerModal = new MeshModifierPickerModal(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
-            reparentEntityDialog = RebindDialogToSession(new ReparentEntityDialog(uiFont, CurrentUiMetrics));
+            reparentEntityDialog = new ReparentEntityDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, reparentEntityDialog.Dispose, hide: reparentEntityDialog.Hide);
-            platformsDialog = RebindDialogToSession(new PlatformsDialog(uiFont, CurrentUiMetrics));
+            platformsDialog = new PlatformsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             platformsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, platformsDialog.Dispose, hide: platformsDialog.Hide);
-            environmentsDialog = RebindDialogToSession(new EnvironmentsDialog(uiFont, projectEnvironmentsService, CurrentUiMetrics));
+            environmentsDialog = new EnvironmentsDialog(core, interactionServices, uiFont, projectEnvironmentsService, CurrentUiMetrics);
             environmentsDialog.SetObjectManager(core.ObjectManager);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, environmentsDialog.Dispose, hide: environmentsDialog.Hide);
-            profilesDialog = RebindDialogToSession(new ProfilesDialog(uiFont, CurrentUiMetrics));
+            profilesDialog = new ProfilesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, profilesDialog.Dispose, hide: profilesDialog.Hide);
-            buildDialog = RebindDialogToSession(new BuildDialog(uiFont, CurrentUiMetrics));
+            buildDialog = new BuildDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             buildDialog.SetRendererResources(rendererResources);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, buildDialog.Dispose, hide: buildDialog.Hide);
-            buildDialogCopySettingsDialog = RebindDialogToSession(new BuildDialogCopySettingsDialog(uiFont, CurrentUiMetrics));
+            buildDialogCopySettingsDialog = new BuildDialogCopySettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, buildDialogCopySettingsDialog.Dispose, hide: buildDialogCopySettingsDialog.Hide);
-            unsavedChangesDialog = RebindDialogToSession(new UnsavedChangesDialog(uiFont, CurrentUiMetrics));
+            unsavedChangesDialog = new UnsavedChangesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
-            sceneSettingsDialog = RebindDialogToSession(new SceneSettingsDialog(uiFont, CurrentUiMetrics));
+            sceneSettingsDialog = new SceneSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
-            preferencesDialog = RebindDialogToSession(new EditorPreferencesDialog(uiFont, CurrentUiMetrics));
+            preferencesDialog = new EditorPreferencesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             AttachScaleSensitiveDialogHandlers();
-        }
-
-        T RebindDialogToSession<T>(T dialog) where T : EditorEntity {
-            if (dialog == null) {
-                throw new ArgumentNullException(nameof(dialog));
-            }
-
-            EditorDialogBase.RebindEntityToSession(dialog, core, interactionServices);
-            return dialog;
         }
 
         /// <summary>
@@ -2233,12 +2225,6 @@ namespace helengine.editor {
         EditorWorkspacePanelInstance CreateWorkspacePanelInstance(string panelTypeId, string instanceId) {
             EditorWorkspacePanelTypeDescriptor descriptor = PanelRegistry.GetDescriptor(panelTypeId);
             IEditorWorkspacePanelController controller = descriptor.CreateController(this);
-            // Workspace panels may be constructed after another editor session has
-            // become the ambient core. Adopt the complete panel subtree before
-            // registration so components and interaction menus belong to this
-            // session's explicit core/graph.
-            controller.Dockable.RebindOwnerCore(core);
-            controller.Dockable.RebindInteractionServices(interactionServices);
             if (WorkspacePanelControllerDecoratorForTests != null) {
                 controller = WorkspacePanelControllerDecoratorForTests(controller)
                     ?? throw new InvalidOperationException("The workspace controller test decorator returned null.");
@@ -2444,7 +2430,7 @@ namespace helengine.editor {
         /// <param name="session">Owning editor session.</param>
         /// <returns>Created scene hierarchy panel controller.</returns>
         IEditorWorkspacePanelController CreateSceneHierarchyPanelController(EditorSession session) {
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(session.uiFont, session.CurrentUiMetrics);
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(session.core, session.interactionServices, session.uiFont, session.CurrentUiMetrics);
             panel.SetObjectManager(session.core.ObjectManager);
             panel.SetInput(session.core.Input);
             panel.RefreshHierarchy();
@@ -2459,7 +2445,7 @@ namespace helengine.editor {
         IEditorWorkspacePanelController CreateAssetBrowserPanelController(EditorSession session) {
             EditorAssetManager manager = new EditorAssetManager(session.projectPath, session.authoredAssetReferenceResolver);
             AssetBrowserDataSource dataSource = new AssetBrowserDataSource(manager, session.generatedAssetProviderRegistry);
-            AssetBrowserPanel panel = new AssetBrowserPanel(session.uiFont, session.projectPath, session.CurrentUiMetrics, dataSource);
+            AssetBrowserPanel panel = new AssetBrowserPanel(session.core, session.interactionServices, session.uiFont, session.projectPath, session.CurrentUiMetrics, dataSource);
             panel.SetRendererResources(session.rendererResources);
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.DisposeAuthoringResources);
         }
@@ -2474,6 +2460,8 @@ namespace helengine.editor {
             fileSystemModelResolver.SetRenderManager(session.rendererResources.RenderManager3D);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(session.assetImportManager);
             PropertiesPanel panel = new PropertiesPanel(
+                session.core,
+                session.interactionServices,
                 session.uiFont,
                 session.EditorContentManager,
                 fileSystemModelResolver,
@@ -2497,7 +2485,7 @@ namespace helengine.editor {
         /// <param name="session">Owning editor session.</param>
         /// <returns>Created logger panel controller.</returns>
         IEditorWorkspacePanelController CreateLoggerPanelController(EditorSession session) {
-            LoggerPanel panel = new LoggerPanel(session.uiFont, session.CurrentUiMetrics);
+            LoggerPanel panel = new LoggerPanel(session.core, session.interactionServices, session.uiFont, session.CurrentUiMetrics);
             panel.SetInputServices(session.core.Input, session.core.TextClipboardService);
             return new SessionWorkspacePanelController(panel, SessionWorkspacePanelController.NoState, SessionWorkspacePanelController.NoRestore, panel.Detach);
         }
@@ -2508,7 +2496,7 @@ namespace helengine.editor {
         /// <param name="session">Owning editor session.</param>
         /// <returns>Created preview panel controller.</returns>
         IEditorWorkspacePanelController CreatePreviewPanelController(EditorSession session) {
-            PreviewPanel panel = new PreviewPanel(session.uiFont, session.ViewportToolbarIcons.GridIcon, session.CurrentUiMetrics);
+            PreviewPanel panel = new PreviewPanel(session.core, session.interactionServices, session.uiFont, session.ViewportToolbarIcons.GridIcon, session.CurrentUiMetrics);
             panel.SetRendererResources(session.rendererResources);
             return CreatePreviewPanelSessionController(panel);
         }

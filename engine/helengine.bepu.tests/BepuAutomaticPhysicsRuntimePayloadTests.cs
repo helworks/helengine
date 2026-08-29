@@ -56,7 +56,7 @@ namespace helengine.bepu.tests {
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             BepuRuntimeComponentRegistration.Register(core);
 
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             BepuPhysicsWorld3D world = (BepuPhysicsWorld3D)core.PhysicsRuntime;
             world.BindScene(rootEntities);

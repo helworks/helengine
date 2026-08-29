@@ -196,16 +196,16 @@ namespace helengine.editor {
         /// Initializes one project-platforms dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public PlatformsDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes one project-platforms dialog using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public PlatformsDialog(FontAsset font, EditorUiMetrics metrics)
-            : base("PlatformsDialog", "Platforms", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public PlatformsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public PlatformsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics)
+            : base(ownerCore, interactionServices, "PlatformsDialog", "Platforms", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -401,7 +401,7 @@ namespace helengine.editor {
         /// <param name="count">Minimum number of pooled rows required.</param>
         void EnsurePlatformRowPool(int count) {
             for (int index = PlatformRows.Count; index < count; index++) {
-                PlatformsDialogRow row = new PlatformsDialogRow(DialogFont, LayerMask, GetPlatformCheckBoxSize(), DialogTextOrder);
+                PlatformsDialogRow row = new PlatformsDialogRow(OwnerCore, InteractionServices, DialogFont, LayerMask, GetPlatformCheckBoxSize(), DialogTextOrder);
                 PlatformListRoot.AddChild(row.CheckBoxHost);
                 PlatformListRoot.AddChild(row.LabelHost);
                 row.CheckBox.CheckedChanged += HandlePlatformCheckBoxChanged;
@@ -634,7 +634,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Dialog-owned internal host entity.</returns>
         EditorEntity CreateInternalHost() {
-            return new EditorEntity {
+            return new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

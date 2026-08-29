@@ -1027,7 +1027,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Model preview entities require an object manager bound to an owning core.");
             }
 
-            EditorEntity entity = new EditorEntity(ownerCore) {
+            EditorEntity entity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = name,
                 Hidden = true,
                 InternalEntity = true,

@@ -182,7 +182,7 @@ namespace helengine.editor {
         /// <returns>Configured internal preview-camera entity.</returns>
         EditorEntity CreatePreviewCameraEntity() {
             Core ownerCore = ObjectManager.OwnerCore ?? throw new InvalidOperationException("Canvas preview object manager must be bound to an owning core.");
-            return new EditorEntity(ownerCore) {
+            return new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = "Viewport Canvas Preview Camera",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneObjects

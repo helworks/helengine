@@ -91,8 +91,8 @@ namespace helengine.editor.tests {
         /// <returns>Editor session instance configured for generated-asset selection tests.</returns>
         EditorSession CreateSessionForGeneratedSelection() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            PropertiesPanel propertiesPanel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
-            PreviewPanel previewPanel = new PreviewPanel(CreateFont());
+            PropertiesPanel propertiesPanel = new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PreviewPanel previewPanel = new PreviewPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             SetPrivateField(session, "propertiesPanel", propertiesPanel);
             SetPrivateField(session, "previewPanel", previewPanel);

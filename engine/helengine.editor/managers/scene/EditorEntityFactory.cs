@@ -33,7 +33,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Entity name must be provided.", nameof(name));
             }
 
-            EditorEntity entity = new EditorEntity(OwnerCore) {
+            EditorEntity entity = new EditorEntity(OwnerCore, EditorEntity.RequireInteractionServices(OwnerCore)) {
                 Name = name,
                 IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects,

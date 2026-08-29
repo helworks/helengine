@@ -13,7 +13,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Constructor_CreatesPanelMenuButtonInsideTitleBar() {
             InitializeCore();
-            DockableEntity dock = new DockableEntity(CreateFont());
+            DockableEntity dock = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             EditorEntity panelMenuButtonEntity = GetPrivateField<EditorEntity>(dock, "PanelMenuButtonEntity");
 
@@ -26,7 +26,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Constructor_PlacesPanelMenuOnModalUiLayerBelowModalSurfaces() {
             InitializeCore();
-            DockableEntity dock = new DockableEntity(CreateFont());
+            DockableEntity dock = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             ContextMenu panelMenu = GetPrivateField<ContextMenu>(dock, "PanelMenu");
             RoundedRectComponent menuBackground = GetPrivateField<RoundedRectComponent>(panelMenu, "Background");
 
@@ -41,7 +41,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ActivatePanelMenuActionForTest_WhenCloseIsRequested_RaisesCloseRequested() {
             InitializeCore();
-            DockableEntity dock = new DockableEntity(CreateFont());
+            DockableEntity dock = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dock.CloseRequested += () => raised = true;
 

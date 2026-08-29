@@ -33,7 +33,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSceneViewportIs1280By720_UsesMatchingWorldPresented2DSize() {
-            EditorEntity sceneCameraEntity = new EditorEntity();
+            EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 1280f, 720f)
             };
@@ -57,7 +57,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenTextHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
-            EditorEntity sceneCameraEntity = new EditorEntity();
+            EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -72,7 +72,7 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(presenter);
             sceneCameraEntity.InitializeHierarchy();
 
-            Entity drawableEntity = new Entity();
+            Entity drawableEntity = new Entity(Core.Instance);
             drawableEntity.InitComponents();
             drawableEntity.InitChildren();
             drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
@@ -92,7 +92,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenViewportOwnedSpriteHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
-            EditorEntity sceneCameraEntity = new EditorEntity();
+            EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -107,7 +107,7 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(presenter);
             sceneCameraEntity.InitializeHierarchy();
 
-            Entity viewportOwnedRoot = new Entity();
+            Entity viewportOwnedRoot = new Entity(Core.Instance);
             viewportOwnedRoot.InitComponents();
             viewportOwnedRoot.InitChildren();
             viewportOwnedRoot.LayerMask = EditorLayerMasks.SceneObjects;
@@ -117,7 +117,7 @@ namespace helengine.editor.tests {
             });
             sceneCameraEntity.AddChild(viewportOwnedRoot);
 
-            Entity drawableEntity = new Entity();
+            Entity drawableEntity = new Entity(Core.Instance);
             drawableEntity.InitComponents();
             drawableEntity.InitChildren();
             drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
@@ -138,7 +138,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenRoundedRectHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
-            EditorEntity sceneCameraEntity = new EditorEntity();
+            EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -153,7 +153,7 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(presenter);
             sceneCameraEntity.InitializeHierarchy();
 
-            Entity viewportOwnedRoot = new Entity();
+            Entity viewportOwnedRoot = new Entity(Core.Instance);
             viewportOwnedRoot.InitComponents();
             viewportOwnedRoot.InitChildren();
             viewportOwnedRoot.LayerMask = EditorLayerMasks.SceneObjects;
@@ -163,7 +163,7 @@ namespace helengine.editor.tests {
             });
             sceneCameraEntity.AddChild(viewportOwnedRoot);
 
-            Entity drawableEntity = new Entity();
+            Entity drawableEntity = new Entity(Core.Instance);
             drawableEntity.InitComponents();
             drawableEntity.InitChildren();
             drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;

@@ -12,6 +12,8 @@ namespace helengine.editor {
         /// <param name="textOrder">Render order used by row text.</param>
         /// <param name="onClicked">Callback invoked when the row is selected.</param>
         public EnvironmentsDialogRow(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             ushort layerMask,
             int2 buttonSize,
@@ -23,7 +25,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(onClicked));
             }
 
-            SelectHost = new EditorEntity {
+            SelectHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -36,7 +38,7 @@ namespace helengine.editor {
             SelectHost.AddComponent(selectButton);
             SelectButton = selectButton;
 
-            ProtectedHost = new EditorEntity {
+            ProtectedHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true

@@ -14,13 +14,13 @@ public sealed class BepuEntityWorldPoseTests {
     public void CreatePose_WithParentedEntity_UsesWorldTransform() {
         InitializeCore();
 
-        Entity parent = new Entity();
+        Entity parent = new Entity(Core.Instance);
         parent.InitChildren();
         parent.LocalPosition = new float3(4f, 0f, 7f);
         float4.CreateFromYawPitchRoll((float)(Math.PI / 2d), 0f, 0f, out float4 parentOrientation);
         parent.LocalOrientation = parentOrientation;
 
-        Entity child = new Entity();
+        Entity child = new Entity(Core.Instance);
         child.InitChildren();
         child.LocalPosition = new float3(1f, 0f, 0f);
         float4.CreateFromYawPitchRoll(0f, (float)(Math.PI / 6d), 0f, out float4 childOrientation);
@@ -40,14 +40,14 @@ public sealed class BepuEntityWorldPoseTests {
     public void CopyBodyToEntity_WithParentedEntity_RestoresLocalTransformFromWorldPose() {
         InitializeCore();
 
-        Entity parent = new Entity();
+        Entity parent = new Entity(Core.Instance);
         parent.InitChildren();
         parent.LocalPosition = new float3(4f, 2f, 7f);
         parent.LocalScale = new float3(2f, 3f, 4f);
         float4.CreateFromYawPitchRoll((float)(Math.PI / 2d), 0f, 0f, out float4 parentOrientation);
         parent.LocalOrientation = parentOrientation;
 
-        Entity child = new Entity();
+        Entity child = new Entity(Core.Instance);
         child.InitChildren();
         child.LocalPosition = new float3(1.5f, -0.25f, 0.75f);
         float4.CreateFromYawPitchRoll(0f, (float)(Math.PI / 6d), (float)(Math.PI / 8d), out float4 childOrientation);
@@ -70,7 +70,7 @@ public sealed class BepuEntityWorldPoseTests {
     public void CopyPoseToEntity_NormalizesCopiedOrientation() {
         InitializeCore();
 
-        Entity entity = new Entity();
+        Entity entity = new Entity(Core.Instance);
         entity.InitChildren();
         RigidBody3DComponent rigidBody = new RigidBody3DComponent();
         float4.CreateFromYawPitchRoll(0f, (float)(Math.PI / 6d), (float)(Math.PI / 8d), out float4 normalizedOrientation);

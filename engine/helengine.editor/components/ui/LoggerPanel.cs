@@ -123,15 +123,15 @@ namespace helengine.editor {
         /// Initializes a new logger panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for log text.</param>
-        public LoggerPanel(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes a new logger panel with the provided font and shared metrics source.
         /// </summary>
         /// <param name="font">Font used for log text.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and rows.</param>
-        public LoggerPanel(FontAsset font, EditorUiMetrics metrics) : base(font, metrics) {
+        public LoggerPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public LoggerPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics) : base(ownerCore, interactionServices, font, metrics) {
             this.font = font;
             Title = "Logger";
             MinSize = new int2(metrics.ScalePixels(260), metrics.ScalePixels(160));
@@ -139,7 +139,7 @@ namespace helengine.editor {
             rowBackgroundOrder = RenderOrder2D.PanelSurface;
             textOrder = RenderOrder2D.PanelForeground;
 
-            ScrollBody = new EditorClippedScrollBody(LayerMask);
+            ScrollBody = new EditorClippedScrollBody(OwnerCore, InteractionServices, LayerMask);
             AddChild(ScrollBody.HostEntity);
             contentRoot = ScrollBody.ContentRoot;
 
@@ -156,7 +156,7 @@ namespace helengine.editor {
             RowContextMenuItems = new List<ContextMenuItem> {
                 new ContextMenuItem("Copy", HandleCopyContextMenuRequested)
             };
-            RowContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, EditorSessionInteractionServices.From(this));
+            RowContextMenu = new ContextMenu(OwnerCore, font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
             AddChild(RowContextMenu.Entity);
             ScrollComponent = new ScrollComponent();
             // The clipped scroll body cuts the trailing partial row off at the panel bottom instead of
@@ -322,7 +322,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Row elements container.</returns>
         LoggerPanelRow CreateRow() {
-            var rowEntity = new EditorEntity();
+            var rowEntity = new EditorEntity(OwnerCore, InteractionServices);
             rowEntity.LayerMask = LayerMask;
             rowEntity.Position = float3.Zero;
 
@@ -336,7 +336,7 @@ namespace helengine.editor {
             interactable.Size = new int2(Math.Max(Size.X, MinSize.X), GetRowHeightPixels());
             rowEntity.AddComponent(interactable);
 
-            var labelHost = new EditorEntity();
+            var labelHost = new EditorEntity(OwnerCore, InteractionServices);
             labelHost.LayerMask = LayerMask;
             labelHost.Position = new float3(GetRowPaddingPixels(), 2, 0.2f);
             rowEntity.AddChild(labelHost);

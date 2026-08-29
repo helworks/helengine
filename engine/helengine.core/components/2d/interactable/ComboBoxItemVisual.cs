@@ -51,16 +51,20 @@ namespace helengine {
         /// <summary>
         /// Initializes a new visual entry for a combo box item.
         /// </summary>
+        /// <param name="ownerCore">Core that owns the item hierarchy.</param>
         /// <param name="font">Font used for the item label.</param>
         /// <param name="layerMask">Layer mask applied to the item entities.</param>
         /// <param name="backgroundOrder">Render order used for the background.</param>
         /// <param name="textOrder">Render order used for the label text.</param>
-        public ComboBoxItemVisual(FontAsset font, ushort layerMask, byte backgroundOrder, byte textOrder) {
+        public ComboBoxItemVisual(Core ownerCore, FontAsset font, ushort layerMask, byte backgroundOrder, byte textOrder) {
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
-            Root = new Entity();
+            Root = new Entity(ownerCore);
             Root.LayerMask = layerMask;
             Root.Enabled = true;
             Root.InitComponents();
@@ -75,7 +79,7 @@ namespace helengine {
             Interactable.CursorEvent += HandleCursorEvent;
             Root.AddComponent(Interactable);
 
-            LabelHost = new Entity();
+            LabelHost = new Entity(ownerCore);
             LabelHost.LayerMask = layerMask;
             LabelHost.Enabled = true;
             LabelHost.InitComponents();

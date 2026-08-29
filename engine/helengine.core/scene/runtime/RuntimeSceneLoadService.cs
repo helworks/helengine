@@ -3,6 +3,7 @@ namespace helengine {
     /// Materializes packaged scene assets into live runtime entities for <see cref="SceneManager"/> and explicit raw-load test seams.
     /// </summary>
     public sealed class RuntimeSceneLoadService {
+        readonly Core OwnerCore;
         /// <summary>
         /// Resolver used to rebuild runtime assets referenced by packaged scene records.
         /// </summary>
@@ -62,8 +63,9 @@ namespace helengine {
         /// Initializes a new runtime scene-load service with the default runtime component registry.
         /// </summary>
         /// <param name="referenceResolver">Resolver used to rebuild packaged runtime assets.</param>
-        public RuntimeSceneLoadService(RuntimeSceneAssetReferenceResolver referenceResolver)
+        public RuntimeSceneLoadService(Core ownerCore, RuntimeSceneAssetReferenceResolver referenceResolver)
         {
+            OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             ComponentRegistry = RuntimeComponentRegistry.CreateDefault();
         }
@@ -74,8 +76,10 @@ namespace helengine {
         /// <param name="referenceResolver">Resolver used to rebuild packaged runtime assets.</param>
         /// <param name="componentRegistry">Registry used to deserialize packaged runtime components.</param>
         public RuntimeSceneLoadService(
+            Core ownerCore,
             RuntimeSceneAssetReferenceResolver referenceResolver,
             RuntimeComponentRegistry componentRegistry) {
+            OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             ReferenceResolver = referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver));
             ComponentRegistry = componentRegistry ?? throw new ArgumentNullException(nameof(componentRegistry));
         }
@@ -185,7 +189,7 @@ namespace helengine {
             }
 
             RecordTraceState("LoadEntityBegin", rootEntityIndex, entityDepth, string.Empty);
-            Entity entity = new Entity {
+            Entity entity = new Entity(OwnerCore) {
                 Static = entityAsset.IsStatic,
                 Enabled = entityAsset.Enabled,
                 LayerMask = entityAsset.LayerMask,
@@ -243,7 +247,7 @@ namespace helengine {
             LastTraceRootEntityIndex = rootEntityIndex;
             LastTraceEntityDepth = entityDepth;
             LastTraceComponentTypeId = componentTypeId ?? string.Empty;
-            Core.Instance?.ReportSceneTransitionStage($"SceneLoad:{LastTraceStage}");
+            OwnerCore.ReportSceneTransitionStage($"SceneLoad:{LastTraceStage}");
         }
     }
 }

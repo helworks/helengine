@@ -13,8 +13,8 @@ namespace helengine.editor.tests.components.ui {
         [Fact]
         public void EditorColorFieldControl_SetValue_FormatsTheTextboxAndUpdatesTheSwatch() {
             InitializeCore();
-            EditorEntity host = new EditorEntity();
-            EditorColorFieldControl control = new EditorColorFieldControl(CreateFont(), 1);
+            EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorColorFieldControl control = new EditorColorFieldControl(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             host.AddChild(control);
 
             control.SetValue(new byte4(0x33, 0x66, 0x99, 0xff));
@@ -31,8 +31,8 @@ namespace helengine.editor.tests.components.ui {
         [Fact]
         public void EditorColorFieldControl_WhenSwatchToggles_OpensTheOverlayBelowTheField() {
             InitializeCore();
-            EditorEntity host = new EditorEntity();
-            EditorColorFieldControl control = new EditorColorFieldControl(CreateFont(), 1);
+            EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorColorFieldControl control = new EditorColorFieldControl(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             host.AddChild(control);
 
             bool requested = false;
@@ -53,8 +53,8 @@ namespace helengine.editor.tests.components.ui {
             InitializeCore();
             Core.Instance.RenderManager3D.AddWindow(IntPtr.Zero, 400, 300);
 
-            EditorEntity host = new EditorEntity();
-            EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
+            EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
             host.AddChild(overlay);
 
             overlay.SetAnchorPosition(380f, 260f, 24);

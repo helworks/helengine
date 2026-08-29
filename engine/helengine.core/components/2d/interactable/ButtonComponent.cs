@@ -369,7 +369,7 @@ namespace helengine {
             entity.AddComponent(interactableComponent);
 
             // Create text entity as child
-            textEntity = new Entity();
+            textEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Button text requires an owning core."));
             textEntity.LayerMask = entity.LayerMask;
             textEntity.Enabled = true;
             textEntity.InitComponents();

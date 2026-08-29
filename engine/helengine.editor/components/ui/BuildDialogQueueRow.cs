@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask applied to the row hierarchy.</param>
         /// <param name="panelOrder">Render order used for row backgrounds and separators.</param>
         /// <param name="textOrder">Render order used for row labels and buttons.</param>
-        public BuildDialogQueueRow(FontAsset font, EditorUiMetrics metrics, ushort layerMask, byte panelOrder, byte textOrder) {
+        public BuildDialogQueueRow(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics, ushort layerMask, byte panelOrder, byte textOrder) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -20,7 +20,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(metrics));
             }
 
-            Root = new EditorEntity {
+            Root = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -39,7 +39,7 @@ namespace helengine.editor {
             };
             Root.AddComponent(Background);
 
-            SeparatorHost = new EditorEntity {
+            SeparatorHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -56,7 +56,7 @@ namespace helengine.editor {
             };
             SeparatorHost.AddComponent(Separator);
 
-            RemoveButtonHost = new EditorEntity {
+            RemoveButtonHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -73,7 +73,7 @@ namespace helengine.editor {
             RemoveButton.SetRenderOrders(panelOrder, textOrder);
             RemoveButtonHost.AddComponent(RemoveButton);
 
-            TextHost = new EditorEntity {
+            TextHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true

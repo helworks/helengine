@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask applied to the row hierarchy.</param>
         /// <param name="panelOrder">Render order used for panel-background controls.</param>
         /// <param name="textOrder">Render order used for text and checkbox visuals.</param>
-        public BuildDialogSceneRow(FontAsset font, EditorUiMetrics metrics, ushort layerMask, byte panelOrder, byte textOrder) {
+        public BuildDialogSceneRow(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics, ushort layerMask, byte panelOrder, byte textOrder) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -20,14 +20,14 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(metrics));
             }
 
-            Root = new EditorEntity {
+            Root = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
                 Enabled = false
             };
 
-            OrderHost = new EditorEntity {
+            OrderHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -43,7 +43,7 @@ namespace helengine.editor {
             OrderField.SetRenderOrders(panelOrder, textOrder);
             OrderHost.AddComponent(OrderField);
 
-            LabelHost = new EditorEntity {
+            LabelHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -58,7 +58,7 @@ namespace helengine.editor {
             };
             LabelHost.AddComponent(LabelText);
 
-            CheckBoxHost = new EditorEntity {
+            CheckBoxHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true

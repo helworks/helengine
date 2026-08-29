@@ -3,24 +3,35 @@ namespace helengine {
     /// Registers packaged scene component support required by the BEPU-backed 3D physics runtime.
     /// </summary>
     public static class BepuRuntimeComponentRegistration {
-        /// <summary>
-        /// Stores the last core instance that registered the BEPU-backed runtime hook.
-        /// </summary>
-        static Core RuntimeCore;
+        sealed class RegistrationState {
+            internal readonly Core Core;
+            internal BepuPhysicsWorld3D RuntimeWorld;
+            internal bool SceneBindingRegistered;
 
-        /// <summary>
-        /// Last default world attached through this registration hook; used by scene-load callbacks emitted by the active core.
-        /// </summary>
-        static BepuPhysicsWorld3D RuntimeWorld;
+            internal RegistrationState(Core core) {
+                Core = core ?? throw new ArgumentNullException(nameof(core));
+            }
+        }
+
+        static RegistrationState GetRegistrationState(Core core) {
+            ValidateCore(core);
+            RegistrationState state = core.PhysicsRuntimeRegistrationState as RegistrationState;
+            if (state != null) {
+                return state;
+            }
+
+            state = new RegistrationState(core);
+            core.PhysicsRuntimeRegistrationState = state;
+            return state;
+        }
 
         /// <summary>
         /// Hooks scene-load binding on one initialized core instance and defers BEPU-backed runtime attachment until one supported physics scene loads.
         /// </summary>
         /// <param name="core">Initialized core that owns the runtime scene loader.</param>
         public static void Register(Core core) {
-            ValidateCore(core);
-            RuntimeCore = core;
-            RuntimeWorld = core.PhysicsRuntime as BepuPhysicsWorld3D;
+            RegistrationState state = GetRegistrationState(core);
+            state.RuntimeWorld = core.PhysicsRuntime as BepuPhysicsWorld3D;
             RegisterSceneBinding(core);
         }
 
@@ -31,9 +42,8 @@ namespace helengine {
         /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each fixed simulation step.</param>
         /// <param name="solveSubstepCount">Substep count applied to each fixed simulation step.</param>
         public static void Register(Core core, int solveVelocityIterationCount, int solveSubstepCount) {
-            ValidateCore(core);
-            RuntimeCore = core;
-            RuntimeWorld = BepuPhysicsWorld3D.CreateWithSolveSchedule(solveVelocityIterationCount, solveSubstepCount);
+            RegistrationState state = GetRegistrationState(core);
+            state.RuntimeWorld = BepuPhysicsWorld3D.CreateWithSolveSchedule(core, solveVelocityIterationCount, solveSubstepCount);
             RegisterSceneBinding(core);
         }
 
@@ -44,7 +54,7 @@ namespace helengine {
         /// <returns>Constructed BEPU-backed physics world.</returns>
         public static BepuPhysicsWorld3D CreateRuntimeWorld(Core core) {
             ValidateCore(core);
-            return BepuPhysicsWorld3D.CreateDefault();
+            return BepuPhysicsWorld3D.CreateDefault(core);
         }
 
         /// <summary>
@@ -56,7 +66,8 @@ namespace helengine {
             ValidateCore(core);
             ValidateWorld(world);
 
-            RuntimeWorld = world;
+            RegistrationState state = GetRegistrationState(core);
+            state.RuntimeWorld = world;
             core.AttachPhysicsRuntime(world);
         }
 
@@ -66,10 +77,12 @@ namespace helengine {
         /// <param name="core">Initialized core that owns the runtime scene manager.</param>
         public static void RegisterSceneBinding(Core core) {
             ValidateCore(core);
+            RegistrationState state = GetRegistrationState(core);
 
-            if (core.SceneManager != null) {
-                core.SceneManager.SceneLoaded += BindLoadedScene;
-                core.SceneManager.SceneUnloading += DetachUnloadingScene;
+            if (core.SceneManager != null && !state.SceneBindingRegistered) {
+                core.SceneManager.SceneLoaded += (sceneManager, eventArgs) => BindLoadedScene(state, sceneManager, eventArgs);
+                core.SceneManager.SceneUnloading += (sceneManager, eventArgs) => DetachUnloadingScene(state, sceneManager, eventArgs);
+                state.SceneBindingRegistered = true;
             }
         }
 
@@ -98,21 +111,14 @@ namespace helengine {
         /// </summary>
         /// <param name="sceneManager">Scene manager that emitted the load notification.</param>
         /// <param name="eventArgs">Scene load payload containing the materialized root entities.</param>
-        static void BindLoadedScene(SceneManager sceneManager, SceneLoadedEventArgs eventArgs) {
+        static void BindLoadedScene(RegistrationState state, SceneManager sceneManager, SceneLoadedEventArgs eventArgs) {
             if (sceneManager == null) {
                 throw new ArgumentNullException(nameof(sceneManager));
             }
             if (eventArgs == null) {
                 throw new ArgumentNullException(nameof(eventArgs));
             }
-            if (Core.Instance == null) {
-                throw new InvalidOperationException("A core instance is required before binding a loaded scene to the BEPU-backed 3D physics runtime.");
-            }
-            if (RuntimeWorld == null) {
-                RuntimeCore = Core.Instance;
-            }
-
-            HandleLoadedScene(Core.Instance, eventArgs.RootEntities);
+            HandleLoadedScene(state.Core, eventArgs.RootEntities);
         }
 
         /// <summary>
@@ -120,18 +126,14 @@ namespace helengine {
         /// </summary>
         /// <param name="sceneManager">Scene manager that emitted the unloading notification.</param>
         /// <param name="eventArgs">Scene unload payload containing the still-live root entities.</param>
-        static void DetachUnloadingScene(SceneManager sceneManager, SceneUnloadingEventArgs eventArgs) {
+        static void DetachUnloadingScene(RegistrationState state, SceneManager sceneManager, SceneUnloadingEventArgs eventArgs) {
             if (sceneManager == null) {
                 throw new ArgumentNullException(nameof(sceneManager));
             }
             if (eventArgs == null) {
                 throw new ArgumentNullException(nameof(eventArgs));
             }
-            if (Core.Instance == null) {
-                throw new InvalidOperationException("A core instance is required before detaching an unloading scene from the BEPU-backed 3D physics runtime.");
-            }
-
-            HandleUnloadingScene(Core.Instance, eventArgs.RootEntities);
+            HandleUnloadingScene(state.Core, eventArgs.RootEntities);
         }
 
         /// <summary>
@@ -143,13 +145,13 @@ namespace helengine {
             ValidateCore(core);
             ValidateRootEntities(rootEntities);
 
-            RuntimeCore = core;
+            RegistrationState state = GetRegistrationState(core);
             if (!SceneRequiresRuntime(rootEntities)) {
-                DetachRuntimeWorld(core);
+                DetachRuntimeWorld(core, state);
                 return;
             }
 
-            BepuPhysicsWorld3D world = EnsureRuntimeWorldAttached(core);
+            BepuPhysicsWorld3D world = EnsureRuntimeWorldAttached(core, state);
             world.BindScene(rootEntities);
             core.ReportSceneTransitionStage("AfterBepuSceneBinding");
         }
@@ -163,10 +165,11 @@ namespace helengine {
             ValidateCore(core);
             ValidateRootEntities(rootEntities);
 
-            if (RuntimeWorld == null || !SceneRequiresRuntime(rootEntities)) {
+            RegistrationState state = GetRegistrationState(core);
+            if (state.RuntimeWorld == null || !SceneRequiresRuntime(rootEntities)) {
                 return;
             }
-            if (ReferenceEquals(core.PhysicsRuntime, RuntimeWorld)) {
+            if (ReferenceEquals(core.PhysicsRuntime, state.RuntimeWorld)) {
                 core.DetachPhysicsRuntime();
             }
         }
@@ -176,27 +179,27 @@ namespace helengine {
         /// </summary>
         /// <param name="core">Initialized core that should own the BEPU-backed runtime.</param>
         /// <returns>Attached BEPU-backed runtime world.</returns>
-        static BepuPhysicsWorld3D EnsureRuntimeWorldAttached(Core core) {
+        static BepuPhysicsWorld3D EnsureRuntimeWorldAttached(Core core, RegistrationState state) {
             ValidateCore(core);
 
-            if (RuntimeWorld == null) {
-                RuntimeWorld = CreateRuntimeWorld(core);
+            if (state.RuntimeWorld == null) {
+                state.RuntimeWorld = CreateRuntimeWorld(core);
             }
-            if (!ReferenceEquals(core.PhysicsRuntime, RuntimeWorld)) {
-                AttachRuntimeWorld(core, RuntimeWorld);
+            if (!ReferenceEquals(core.PhysicsRuntime, state.RuntimeWorld)) {
+                AttachRuntimeWorld(core, state.RuntimeWorld);
             }
 
-            return RuntimeWorld;
+            return state.RuntimeWorld;
         }
 
         /// <summary>
         /// Detaches the currently attached BEPU-backed runtime when one loaded scene does not require physics simulation.
         /// </summary>
         /// <param name="core">Initialized core that currently owns the runtime attachment.</param>
-        static void DetachRuntimeWorld(Core core) {
+        static void DetachRuntimeWorld(Core core, RegistrationState state) {
             ValidateCore(core);
 
-            if (ReferenceEquals(core.PhysicsRuntime, RuntimeWorld)) {
+            if (ReferenceEquals(core.PhysicsRuntime, state.RuntimeWorld)) {
                 core.DetachPhysicsRuntime();
             }
         }

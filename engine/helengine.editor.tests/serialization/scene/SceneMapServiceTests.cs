@@ -322,7 +322,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         /// <returns>Initialized empty root entity.</returns>
         Entity CreateRootEntity() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
             entity.InitializeHierarchy();

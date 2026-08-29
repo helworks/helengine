@@ -41,7 +41,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void ActivateScope_WhenEnvironmentOverrideExists_ProjectsPlatformThenEnvironmentTransform() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LocalPosition = new float3(1f, 2f, 3f),
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity

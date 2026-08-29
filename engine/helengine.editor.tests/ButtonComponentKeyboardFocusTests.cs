@@ -13,7 +13,7 @@ namespace helengine.editor.tests {
         public void ButtonComponent_WhenFocused_ActivatesFromEnterAndSpace() {
             InitializeCore();
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 200, 60);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             int activationCount = 0;
             ButtonComponent button = new ButtonComponent("Run", new int2(96, 28), CreateFont(), () => activationCount++);
             button.FocusGroup = focusGroup.FocusGroup;
@@ -35,7 +35,7 @@ namespace helengine.editor.tests {
         public void ButtonComponent_ComponentRemoved_ClearsItsKeyboardFocusState() {
             InitializeCore();
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 200, 60);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             ButtonComponent button = new ButtonComponent("Run", new int2(96, 28), CreateFont(), null);
             button.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(button);

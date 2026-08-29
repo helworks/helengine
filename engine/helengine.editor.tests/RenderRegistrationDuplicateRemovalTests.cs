@@ -95,7 +95,7 @@ namespace helengine.editor.tests {
             Core core = new();
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             ObjectManager objectManager = core.ObjectManager;
-            Entity entity = new();
+            Entity entity = new Entity(core);
 
             objectManager.RegisterEntity(entity);
 

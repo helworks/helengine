@@ -423,7 +423,7 @@ namespace helengine.editor.tests.serialization.scene {
                 WheelNotchSize = 120,
                 RequiresPointerInside = false
             };
-            component.ContentRoot = new EditorEntity();
+            component.ContentRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
 
             SceneComponentAssetRecord record = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
             ScrollComponent deserialized = Assert.IsType<ScrollComponent>(descriptor.DeserializeComponent(record, null, null));

@@ -92,9 +92,9 @@ namespace helengine.editor {
         /// Initializes the remove-component confirmation dialog.
         /// </summary>
         /// <param name="font">Font used by the dialog chrome and body text.</param>
-        public RemoveComponentDialog(FontAsset font)
-            : base("Remove Component Dialog", "Remove Component", font, PanelWidth, PanelHeight, HeaderHeight) {
-            MessageHost = new EditorEntity {
+        public RemoveComponentDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : base(ownerCore, interactionServices, "Remove Component Dialog", "Remove Component", font, EditorUiMetrics.Default, PanelWidth, PanelHeight, HeaderHeight) {
+            MessageHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -110,7 +110,7 @@ namespace helengine.editor {
             };
             MessageHost.AddComponent(MessageText);
 
-            CancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -121,7 +121,7 @@ namespace helengine.editor {
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
-            RemoveButtonHost = new EditorEntity {
+            RemoveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

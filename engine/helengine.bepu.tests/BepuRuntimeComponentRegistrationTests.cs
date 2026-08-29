@@ -29,7 +29,7 @@ namespace helengine.bepu.tests {
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
             BepuRuntimeComponentRegistration.Register(core);
-            BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateNonPhysicsEntity()]);
+            BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateNonPhysicsEntity(core)]);
 
             Assert.Null(core.PhysicsRuntime);
         }
@@ -45,7 +45,7 @@ namespace helengine.bepu.tests {
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
             BepuRuntimeComponentRegistration.Register(core);
-            BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity()]);
+            BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity(core)]);
 
             BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
             Assert.Equal(4, world.SolveVelocityIterationCount);
@@ -65,7 +65,7 @@ namespace helengine.bepu.tests {
         core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
         BepuRuntimeComponentRegistration.Register(core, 1, 1);
-        BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity()]);
+        BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity(core)]);
 
         BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
         Assert.Equal(1, world.SolveVelocityIterationCount);
@@ -98,10 +98,10 @@ namespace helengine.bepu.tests {
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
             BepuRuntimeComponentRegistration.Register(core);
-            BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity()]);
+        BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity(core)]);
             Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
 
-            BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateNonPhysicsEntity()]);
+        BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateNonPhysicsEntity(core)]);
 
             Assert.Null(core.PhysicsRuntime);
         }
@@ -117,7 +117,7 @@ namespace helengine.bepu.tests {
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
 
             BepuRuntimeComponentRegistration.Register(core);
-            Entity physicsEntity = CreateStaticBoxPhysicsEntity();
+            Entity physicsEntity = CreateStaticBoxPhysicsEntity(core);
             BepuRuntimeComponentRegistration.HandleLoadedScene(core, [physicsEntity]);
             Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
 
@@ -127,11 +127,50 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures simultaneous runtime cores keep independent BEPU registration state even after the second core becomes ambient.
+        /// </summary>
+        [Fact]
+        public void HandleLoadedScene_WithTwoCores_KeepsWorldsAndCallbacksBoundToTheirOwningCore() {
+            Core firstCore = CreateInitializedCore();
+            Core secondCore = CreateInitializedCore();
+            try {
+                BepuRuntimeComponentRegistration.Register(firstCore);
+                BepuRuntimeComponentRegistration.Register(secondCore);
+
+                Entity firstEntity = CreateStaticBoxPhysicsEntity(firstCore);
+                Entity secondEntity = CreateStaticBoxPhysicsEntity(secondCore);
+                BepuRuntimeComponentRegistration.HandleLoadedScene(firstCore, [firstEntity]);
+                BepuRuntimeComponentRegistration.HandleLoadedScene(secondCore, [secondEntity]);
+
+                BepuPhysicsWorld3D firstWorld = Assert.IsType<BepuPhysicsWorld3D>(firstCore.PhysicsRuntime);
+                BepuPhysicsWorld3D secondWorld = Assert.IsType<BepuPhysicsWorld3D>(secondCore.PhysicsRuntime);
+                Assert.NotSame(firstWorld, secondWorld);
+
+                secondCore.Dispose();
+                BepuRuntimeComponentRegistration.HandleLoadedScene(firstCore, [firstEntity]);
+
+                Assert.Same(firstWorld, firstCore.PhysicsRuntime);
+                Assert.Equal(1, firstWorld.RegisteredBodyCount);
+            } finally {
+                firstCore.Dispose();
+                secondCore.Dispose();
+            }
+        }
+
+        static Core CreateInitializedCore() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            return core;
+        }
+
+        /// <summary>
         /// Creates one root entity without any authored physics components.
         /// </summary>
         /// <returns>Entity that should not require physics runtime attachment.</returns>
-        static Entity CreateNonPhysicsEntity() {
-            Entity entity = new Entity();
+        static Entity CreateNonPhysicsEntity(Core ownerCore) {
+            Entity entity = new Entity(ownerCore);
             entity.InitComponents();
             return entity;
         }
@@ -140,8 +179,8 @@ namespace helengine.bepu.tests {
         /// Creates one static box body that requires the BEPU-backed runtime to bind the scene.
         /// </summary>
         /// <returns>Entity that should trigger lazy physics runtime attachment.</returns>
-        static Entity CreateStaticBoxPhysicsEntity() {
-            Entity entity = new Entity();
+        static Entity CreateStaticBoxPhysicsEntity(Core ownerCore) {
+            Entity entity = new Entity(ownerCore);
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Static,

@@ -314,38 +314,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Initializes a new component properties view.
-        /// </summary>
-        /// <param name="font">Font used for row labels.</param>
-        /// <param name="contentManager">Content manager used to load serialized assets.</param>
-        public ComponentPropertiesView(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, null, EditorLayerMasks.EditorUi) { }
-
-        /// <summary>
-        /// Initializes a new component properties view with support for file-system model source resolution.
-        /// </summary>
-        /// <param name="font">Font used for row labels.</param>
-        /// <param name="contentManager">Content manager used to load serialized assets.</param>
-        /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
-        public ComponentPropertiesView(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver)
-            : this(font, contentManager, fileSystemModelResolver, null, EditorLayerMasks.EditorUi) {
-        }
-
-        /// <summary>
-        /// Initializes a new component properties view with support for file-system model and font source resolution.
-        /// </summary>
-        /// <param name="font">Font used for row labels.</param>
-        /// <param name="contentManager">Content manager used to load serialized assets.</param>
-        /// <param name="fileSystemModelResolver">Resolver that imports or loads processed model assets for file-system model sources.</param>
-        /// <param name="fileSystemFontResolver">Resolver that imports or loads processed font assets for file-system font sources.</param>
-        public ComponentPropertiesView(
-            FontAsset font,
-            ContentManager contentManager,
-            EditorFileSystemModelResolver fileSystemModelResolver,
-            EditorFileSystemFontResolver fileSystemFontResolver)
-            : this(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.EditorUi) {
-        }
-
-        /// <summary>
         /// Initializes a new component properties view with support for file-system model and font source resolution on the requested UI layer.
         /// </summary>
         /// <param name="font">Font used for row labels.</param>
@@ -354,6 +322,8 @@ namespace helengine.editor {
         /// <param name="fileSystemFontResolver">Resolver that imports or loads processed font assets for file-system font sources.</param>
         /// <param name="layerMask">Layer used by the view root and all generated rows.</param>
         public ComponentPropertiesView(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             ContentManager contentManager,
             EditorFileSystemModelResolver fileSystemModelResolver,
@@ -376,7 +346,7 @@ namespace helengine.editor {
             ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
                 ? null
                 : Path.GetFullPath(projectRootPath);
-            RootEntity = new EditorEntity();
+            RootEntity = new EditorEntity(ownerCore, interactionServices);
             RootEntity.LayerMask = layerMask;
             RootEntity.Position = float3.Zero;
             RootEntity.Enabled = false;
@@ -411,6 +381,33 @@ namespace helengine.editor {
         public void SetAssetReferenceResolver(EditorAssetReferenceResolver resolver) {
             AssetReferenceFactory = new SceneAssetReferenceFactory(resolver ?? throw new ArgumentNullException(nameof(resolver)));
         }
+
+        /// <summary>Initializes an inspector with the default UI layer and no file-system resolvers.</summary>
+        public ComponentPropertiesView(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            ContentManager contentManager)
+            : this(ownerCore, interactionServices, font, contentManager, null, null, EditorLayerMasks.EditorUi) { }
+
+        /// <summary>Initializes an inspector with an explicit model resolver.</summary>
+        public ComponentPropertiesView(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            ContentManager contentManager,
+            EditorFileSystemModelResolver fileSystemModelResolver)
+            : this(ownerCore, interactionServices, font, contentManager, fileSystemModelResolver, null, EditorLayerMasks.EditorUi) { }
+
+        /// <summary>Initializes an inspector with explicit file-system resolvers.</summary>
+        public ComponentPropertiesView(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            ContentManager contentManager,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorFileSystemFontResolver fileSystemFontResolver)
+            : this(ownerCore, interactionServices, font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.EditorUi) { }
 
         /// <summary>
         /// Binds this view to the generated-asset registry owned by its editor session.
@@ -1017,7 +1014,7 @@ namespace helengine.editor {
             }
 
             if (row.ActionButtonHost == null || row.ActionButton == null) {
-                EditorEntity buttonHost = new EditorEntity();
+                EditorEntity buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
                 buttonHost.LayerMask = RootEntity.LayerMask;
                 buttonHost.Position = float3.Zero;
                 row.Entity.AddChild(buttonHost);
@@ -4148,7 +4145,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Prepared component section instance.</returns>
         ComponentSectionView CreateSection() {
-            EditorEntity root = new EditorEntity();
+            EditorEntity root = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             root.LayerMask = RootEntity.LayerMask;
             root.Position = float3.Zero;
             root.Enabled = false;
@@ -4179,7 +4176,7 @@ namespace helengine.editor {
             };
             root.AddComponent(interactable);
 
-            EditorEntity titleHost = new EditorEntity {
+            EditorEntity titleHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices) {
                 LayerMask = RootEntity.LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -4195,14 +4192,14 @@ namespace helengine.editor {
             };
             titleHost.AddComponent(titleText);
 
-            EditorEntity removeButtonHost = new EditorEntity {
+            EditorEntity removeButtonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices) {
                 LayerMask = RootEntity.LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             root.AddChild(removeButtonHost);
 
-            EditorEntity revertButtonHost = new EditorEntity {
+            EditorEntity revertButtonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices) {
                 LayerMask = RootEntity.LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -4702,7 +4699,7 @@ namespace helengine.editor {
         /// <param name="kind">Row layout kind.</param>
         /// <returns>New row instance.</returns>
         ComponentPropertyRow CreateRow(ComponentPropertyRowKind kind) {
-            var rowEntity = new EditorEntity();
+            var rowEntity = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             rowEntity.LayerMask = RootEntity.LayerMask;
             rowEntity.Position = float3.Zero;
             RootEntity.AddChild(rowEntity);
@@ -4718,7 +4715,7 @@ namespace helengine.editor {
             };
             rowEntity.AddComponent(overrideOutline);
 
-            var labelHost = new EditorEntity();
+            var labelHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             labelHost.LayerMask = RootEntity.LayerMask;
             labelHost.Position = float3.Zero;
             rowEntity.AddChild(labelHost);
@@ -4734,7 +4731,7 @@ namespace helengine.editor {
             var row = new ComponentPropertyRow(kind, rowEntity, labelHost, label);
             row.OverrideOutline = overrideOutline;
 
-            var revertButtonHost = new EditorEntity();
+            var revertButtonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             revertButtonHost.LayerMask = RootEntity.LayerMask;
             revertButtonHost.Position = float3.Zero;
             revertButtonHost.Enabled = false;
@@ -4799,7 +4796,7 @@ namespace helengine.editor {
 
             string[] placeholders = new[] { "R", "G", "B", "A" };
             for (int index = 0; index < row.Vector4FieldHosts.Length; index++) {
-                var fieldHost = new EditorEntity();
+                var fieldHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
                 fieldHost.LayerMask = RootEntity.LayerMask;
                 fieldHost.Position = float3.Zero;
                 rowEntity.AddChild(fieldHost);
@@ -4851,7 +4848,7 @@ namespace helengine.editor {
 
             string[] placeholders = new[] { "X", "Y", "Z" };
             for (int i = 0; i < row.VectorFieldHosts.Length; i++) {
-                var fieldHost = new EditorEntity();
+                var fieldHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
                 fieldHost.LayerMask = RootEntity.LayerMask;
                 fieldHost.Position = float3.Zero;
                 rowEntity.AddChild(fieldHost);
@@ -4872,7 +4869,7 @@ namespace helengine.editor {
         /// <param name="row">Row to populate.</param>
         /// <param name="rowEntity">Row root entity.</param>
         void BuildMaterialRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var valueHost = new EditorEntity();
+            var valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             valueHost.LayerMask = RootEntity.LayerMask;
             valueHost.Position = float3.Zero;
             rowEntity.AddChild(valueHost);
@@ -4885,7 +4882,7 @@ namespace helengine.editor {
             valueText.RenderOrder2D = TextOrder;
             valueHost.AddComponent(valueText);
 
-            var buttonHost = new EditorEntity();
+            var buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             buttonHost.LayerMask = RootEntity.LayerMask;
             buttonHost.Position = float3.Zero;
             rowEntity.AddChild(buttonHost);
@@ -4905,7 +4902,7 @@ namespace helengine.editor {
         /// <param name="row">Row to populate.</param>
         /// <param name="rowEntity">Row root entity.</param>
         void BuildFontRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var valueHost = new EditorEntity();
+            var valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             valueHost.LayerMask = RootEntity.LayerMask;
             valueHost.Position = float3.Zero;
             rowEntity.AddChild(valueHost);
@@ -4918,7 +4915,7 @@ namespace helengine.editor {
             valueText.RenderOrder2D = TextOrder;
             valueHost.AddComponent(valueText);
 
-            var buttonHost = new EditorEntity();
+            var buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             buttonHost.LayerMask = RootEntity.LayerMask;
             buttonHost.Position = float3.Zero;
             rowEntity.AddChild(buttonHost);
@@ -4938,7 +4935,7 @@ namespace helengine.editor {
         /// <param name="row">Row to populate.</param>
         /// <param name="rowEntity">Row root entity.</param>
         void BuildModelRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var valueHost = new EditorEntity();
+            var valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             valueHost.LayerMask = RootEntity.LayerMask;
             valueHost.Position = float3.Zero;
             rowEntity.AddChild(valueHost);
@@ -4951,7 +4948,7 @@ namespace helengine.editor {
             valueText.RenderOrder2D = TextOrder;
             valueHost.AddComponent(valueText);
 
-            var buttonHost = new EditorEntity();
+            var buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             buttonHost.LayerMask = RootEntity.LayerMask;
             buttonHost.Position = float3.Zero;
             rowEntity.AddChild(buttonHost);
@@ -5113,7 +5110,7 @@ namespace helengine.editor {
         /// <param name="row">Row to populate.</param>
         /// <param name="rowEntity">Row root entity.</param>
         void BuildScalarRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var fieldHost = new EditorEntity();
+            var fieldHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             fieldHost.LayerMask = RootEntity.LayerMask;
             fieldHost.Position = float3.Zero;
             rowEntity.AddChild(fieldHost);
@@ -5140,7 +5137,7 @@ namespace helengine.editor {
                 return;
             }
 
-            EditorEntity buttonHost = new EditorEntity();
+            EditorEntity buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             buttonHost.LayerMask = RootEntity.LayerMask;
             buttonHost.Position = float3.Zero;
             row.Entity.AddChild(buttonHost);
@@ -5221,7 +5218,7 @@ namespace helengine.editor {
         /// <param name="row">Row to populate.</param>
         /// <param name="rowEntity">Row root entity.</param>
         void BuildBooleanRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var checkBoxHost = new EditorEntity();
+            var checkBoxHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             checkBoxHost.LayerMask = RootEntity.LayerMask;
             checkBoxHost.Position = float3.Zero;
             rowEntity.AddChild(checkBoxHost);
@@ -5241,7 +5238,7 @@ namespace helengine.editor {
         /// <param name="row">Row to populate.</param>
         /// <param name="rowEntity">Row root entity.</param>
         void BuildComboBoxRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var comboBoxHost = new EditorEntity();
+            var comboBoxHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             comboBoxHost.LayerMask = RootEntity.LayerMask;
             comboBoxHost.Position = float3.Zero;
             rowEntity.AddChild(comboBoxHost);
@@ -5260,7 +5257,7 @@ namespace helengine.editor {
         /// <param name="row">Row to populate.</param>
         /// <param name="rowEntity">Row root entity.</param>
         void BuildReadOnlyRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var valueHost = new EditorEntity();
+            var valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             valueHost.LayerMask = RootEntity.LayerMask;
             valueHost.Position = float3.Zero;
             rowEntity.AddChild(valueHost);

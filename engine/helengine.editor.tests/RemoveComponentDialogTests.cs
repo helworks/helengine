@@ -38,7 +38,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenNamesProvided_UpdatesMessageText() {
-            RemoveComponentDialog dialog = new RemoveComponentDialog(CreateFont());
+            RemoveComponentDialog dialog = new RemoveComponentDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show("Cube", "Mesh Component");
 
@@ -52,7 +52,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleRemoveClicked_RaisesConfirmRequested() {
-            RemoveComponentDialog dialog = new RemoveComponentDialog(CreateFont());
+            RemoveComponentDialog dialog = new RemoveComponentDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.ConfirmRequested += () => raised = true;
             dialog.Show("Cube", "Mesh Component");
@@ -68,7 +68,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleCancelClicked_RaisesCancelRequested() {
-            RemoveComponentDialog dialog = new RemoveComponentDialog(CreateFont());
+            RemoveComponentDialog dialog = new RemoveComponentDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.CancelRequested += () => raised = true;
             dialog.Show("Cube", "Mesh Component");
@@ -84,7 +84,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleCloseClicked_RaisesCancelRequested() {
-            RemoveComponentDialog dialog = new RemoveComponentDialog(CreateFont());
+            RemoveComponentDialog dialog = new RemoveComponentDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.CancelRequested += () => raised = true;
             dialog.Show("Cube", "Mesh Component");
@@ -100,7 +100,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsMessageAndFooterImmediately() {
-            RemoveComponentDialog dialog = new RemoveComponentDialog(CreateFont());
+            RemoveComponentDialog dialog = new RemoveComponentDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show("Cube", "Mesh Component");
 

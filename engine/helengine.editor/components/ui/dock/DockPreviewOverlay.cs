@@ -8,7 +8,7 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes the overlay with a highlight outline and disables it by default.
         /// </summary>
-        public DockPreviewOverlay() {
+        public DockPreviewOverlay(Core ownerCore, EditorSessionInteractionServices interactionServices) : base(ownerCore, interactionServices) {
             LayerMask = 0b1000000000000000;
             InternalEntity = true;
             highlight = new RoundedRectComponent();

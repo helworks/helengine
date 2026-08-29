@@ -4,20 +4,22 @@ namespace helengine.physics3d.tests {
     /// </summary>
     [Collection(Physics3DTestCollection.Name)]
     public sealed class PhysicsWorld3DDynamicsTests : IDisposable {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal core services required for entity-backed physics tests.
         /// </summary>
         public PhysicsWorld3DDynamicsTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
         /// Detaches the active core singleton after each test so later tests start from a clean runtime.
         /// </summary>
         public void Dispose() {
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -1555,8 +1557,8 @@ namespace helengine.physics3d.tests {
         /// </summary>
         /// <param name="localPosition">Initial local position.</param>
         /// <returns>Initialized entity.</returns>
-        static Entity CreateEntity(float3 localPosition) {
-            Entity entity = new Entity {
+        Entity CreateEntity(float3 localPosition) {
+            Entity entity = new Entity(CoreValue) {
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity
@@ -1571,7 +1573,7 @@ namespace helengine.physics3d.tests {
         /// </summary>
         /// <param name="localPosition">Initial local position.</param>
         /// <returns>Initialized dynamic box entity.</returns>
-        static Entity CreateDynamicBoxEntity(float3 localPosition) {
+        Entity CreateDynamicBoxEntity(float3 localPosition) {
             return CreateDynamicBoxEntity(localPosition, CreateDynamicBody());
         }
 
@@ -1581,7 +1583,7 @@ namespace helengine.physics3d.tests {
         /// <param name="localPosition">Initial local position.</param>
         /// <param name="body">Rigid body component that should drive the box.</param>
         /// <returns>Initialized dynamic box entity.</returns>
-        static Entity CreateDynamicBoxEntity(float3 localPosition, RigidBody3DComponent body) {
+        Entity CreateDynamicBoxEntity(float3 localPosition, RigidBody3DComponent body) {
             if (body == null) {
                 throw new ArgumentNullException(nameof(body));
             }
@@ -1600,7 +1602,7 @@ namespace helengine.physics3d.tests {
         /// <param name="localPosition">Initial local position.</param>
         /// <param name="body">Rigid body component that should drive the sphere.</param>
         /// <returns>Initialized dynamic sphere entity.</returns>
-        static Entity CreateDynamicSphereEntity(float3 localPosition, RigidBody3DComponent body) {
+        Entity CreateDynamicSphereEntity(float3 localPosition, RigidBody3DComponent body) {
             if (body == null) {
                 throw new ArgumentNullException(nameof(body));
             }

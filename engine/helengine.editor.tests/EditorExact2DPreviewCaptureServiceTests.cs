@@ -36,7 +36,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void CaptureTextPreview_WhenRequested_CreatesOrResizesRenderTargetToRequestedSize() {
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void CaptureTextPreview_WhenTextEffectsAreConfigured_CopiesEffectsToPreviewComponent() {
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 
@@ -89,7 +89,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void CaptureRoundedRectPreview_WhenRequested_BindsPreviewTextureOnReturnedMaterial() {
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 
@@ -112,7 +112,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Dispose_WhenCalled_ReleasesOwnedRenderTargetResources() {
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 

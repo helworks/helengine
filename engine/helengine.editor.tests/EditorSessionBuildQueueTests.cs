@@ -587,9 +587,9 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ProjectLocalSettingsService", new EditorProjectLocalSettingsService(TempProjectRootPath, [
                 "windows"
             ]));
-            SetPrivateField(session, "buildDialog", new BuildDialog(CreateFont()));
-            SetPrivateField(session, "buildDialogCopySettingsDialog", new BuildDialogCopySettingsDialog(CreateFont()));
-            SetPrivateField(session, "profilesDialog", new ProfilesDialog(CreateFont()));
+            SetPrivateField(session, "buildDialog", new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()));
+            SetPrivateField(session, "buildDialogCopySettingsDialog", new BuildDialogCopySettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()));
+            SetPrivateField(session, "profilesDialog", new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()));
             SetPrivateField(session, "profileSettingsService", new EditorProfileSettingsService(TempProjectRootPath));
             SetPrivateField(session, "buildConfigService", buildConfigService);
             SetPrivateField(session, "buildQueueService", buildQueueService);

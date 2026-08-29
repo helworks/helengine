@@ -41,7 +41,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_ActivatesBuildTabAndLoadsTheCurrentPlatformRows() {
-            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
@@ -80,7 +80,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsSelectorTabsAndActiveContentImmediately() {
-            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
@@ -99,7 +99,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenTabsChange_KeepsDraftEditsOutOfTheSourceDocumentUntilSave() {
-            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformSelectionChanges_LoadsTheSelectedPlatformValues() {
-            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
             document.Platforms[0].Version = "1.0.0";
             document.Platforms[1].Version = "1.0.1";
@@ -166,7 +166,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSaveClicked_PreservesEditedPlatformVersionInTheReturnedDocument() {
-            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
             document.Platforms[0].Version = "1.0.0";
 
@@ -187,7 +187,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformSelectorIsCreated_UsesModalRenderOrdersForTheComboBox() {
-            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
@@ -206,7 +206,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Show_WithScaledMetrics_UsesScaledSelectorAndFooterLayout() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            ProfilesDialog dialog = new ProfilesDialog(CreateFont(), metrics);
+            ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics);
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
@@ -243,7 +243,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSaveClicked_RaisesConfirmedSelectionWithCurrentPlatformAndDocument() {
-            ProfilesDialog dialog = new ProfilesDialog(CreateFont());
+            ProfilesDialog dialog = new ProfilesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorProfileSettingsDocument document = CreateProfileDocument();
 
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());

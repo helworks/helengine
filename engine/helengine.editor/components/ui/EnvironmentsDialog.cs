@@ -141,17 +141,14 @@ namespace helengine.editor {
         /// Initializes an environment dialog using a non-persisting mutation service for isolated callers.
         /// </summary>
         /// <param name="font">Font used for labels and controls.</param>
-        public EnvironmentsDialog(FontAsset font) : this(font, new EditorProjectEnvironmentsService(Path.GetTempPath()), EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes an environment dialog using a project environment service.
         /// </summary>
         /// <param name="font">Font used for labels and controls.</param>
         /// <param name="environmentService">Project environment service used for mutations.</param>
         /// <param name="metrics">Scaled editor UI metrics.</param>
-        public EnvironmentsDialog(FontAsset font, EditorProjectEnvironmentsService environmentService, EditorUiMetrics metrics)
-            : base("EnvironmentsDialog", "Environments", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public EnvironmentsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorProjectEnvironmentsService environmentService, EditorUiMetrics metrics)
+            : base(ownerCore, interactionServices, "EnvironmentsDialog", "Environments", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             } else if (environmentService == null) {
@@ -439,6 +436,8 @@ namespace helengine.editor {
         void EnsureEnvironmentRowPool(int count) {
             for (int index = EnvironmentRows.Count; index < count; index++) {
                 EnvironmentsDialogRow row = new EnvironmentsDialogRow(
+                    OwnerCore,
+                    InteractionServices,
                     DialogFont,
                     LayerMask,
                     GetEnvironmentRowButtonSize(),
@@ -581,7 +580,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Dialog-owned internal host.</returns>
         EditorEntity CreateInternalHost() {
-            return new EditorEntity {
+            return new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

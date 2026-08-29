@@ -217,7 +217,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         /// <returns>Entity ready to receive authored light components.</returns>
         Entity CreateLightEntity() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             return entity;
         }

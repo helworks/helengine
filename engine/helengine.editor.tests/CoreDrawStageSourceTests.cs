@@ -11,8 +11,8 @@ public sealed class CoreDrawStageSourceTests {
     /// </summary>
     [Fact]
     public void Draw_RecordsDistinctMarkersBeforeFpsAndDebugFrameCounters() {
-        string engineRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-        string coreSource = File.ReadAllText(Path.Combine(engineRootPath, "helengine.core", "Core.cs"));
+        string engineRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
+        string coreSource = File.ReadAllText(Path.Combine(engineRootPath, "engine", "helengine.core", "Core.cs"));
 
         int fpsMarkerIndex = coreSource.IndexOf("LastSceneTransitionStage = \"BeforeFpsRenderFrame\";", StringComparison.Ordinal);
         int fpsCallIndex = coreSource.IndexOf("FPSComponent.RecordRenderFrame();", StringComparison.Ordinal);

@@ -73,7 +73,7 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SetPrivateField(session, "projectPath", TempProjectRootPath);
             SetPrivateField(session, "projectEnvironmentsService", new EditorProjectEnvironmentsService(TempProjectRootPath));
-            SetPrivateField(session, "environmentsDialog", new EnvironmentsDialog(CreateFont()));
+            SetPrivateField(session, "environmentsDialog", new EnvironmentsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorProjectEnvironmentsService(TempProjectRootPath), EditorUiMetrics.Default));
             return session;
         }
 

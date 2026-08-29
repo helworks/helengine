@@ -18,7 +18,7 @@ namespace helengine.editor {
             byte backgroundOrder,
             byte textOrder) {
             Dockable = dockable;
-            Root = new EditorEntity {
+            Root = new EditorEntity(Dockable.OwnerCore, Dockable.InteractionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
@@ -30,7 +30,7 @@ namespace helengine.editor {
             };
             Root.AddComponent(Background);
 
-            LabelHost = new EditorEntity {
+            LabelHost = new EditorEntity(Dockable.OwnerCore, Dockable.InteractionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };

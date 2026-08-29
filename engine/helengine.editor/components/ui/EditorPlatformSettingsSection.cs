@@ -128,14 +128,14 @@ namespace helengine.editor {
             ValueColumnWidth = valueColumnWidth;
             Rows = new List<EditorPlatformSettingBinding>();
 
-            RootHost = new EditorEntity {
+            RootHost = new EditorEntity(parent.OwnerCore, parent.InteractionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             parent.AddChild(RootHost);
 
-            TitleHost = new EditorEntity {
+            TitleHost = new EditorEntity(parent.OwnerCore, parent.InteractionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -321,14 +321,14 @@ namespace helengine.editor {
             string value = ResolveInitialValue(setting, Values);
             Values[setting.SettingId] = value;
 
-            RowHost = new EditorEntity {
+            RowHost = new EditorEntity(parent.OwnerCore, parent.InteractionServices) {
                 LayerMask = parent.LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             parent.AddChild(RowHost);
 
-            LabelHost = new EditorEntity {
+            LabelHost = new EditorEntity(parent.OwnerCore, parent.InteractionServices) {
                 LayerMask = parent.LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -344,7 +344,7 @@ namespace helengine.editor {
             };
             LabelHost.AddComponent(LabelText);
 
-            ControlHost = new EditorEntity {
+            ControlHost = new EditorEntity(parent.OwnerCore, parent.InteractionServices) {
                 LayerMask = parent.LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

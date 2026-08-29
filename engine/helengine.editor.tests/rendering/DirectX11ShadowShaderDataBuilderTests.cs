@@ -423,7 +423,7 @@ namespace helengine.editor.tests.rendering {
         /// <param name="position">Position assigned to the entity.</param>
         /// <returns>Initialized entity.</returns>
         Entity CreateEntity(float3 position) {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.LocalPosition = position;
             return entity;

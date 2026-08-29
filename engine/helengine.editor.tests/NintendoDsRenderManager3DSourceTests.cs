@@ -9,7 +9,7 @@ public sealed class NintendoDsRenderManager3DSourceTests {
     /// </summary>
     [Fact]
     public void Nintendo_ds_textured_draws_bypass_static_display_lists() {
-        string sourcePath = @"C:\dev\helworks\helengine-ds\src\platform\ds\NintendoDsRenderManager3D.cpp";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-ds", "src", "platform", "ds", "NintendoDsRenderManager3D.cpp");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("} else if (useHardwareTexture) {", source, StringComparison.Ordinal);

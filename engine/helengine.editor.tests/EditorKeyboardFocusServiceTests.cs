@@ -177,7 +177,7 @@ namespace helengine.editor.tests {
         /// <param name="height">Height of the dock content area.</param>
         /// <returns>Configured dockable entity.</returns>
         DockableEntity CreateDock(string title, int left, int top, int width, int height) {
-            DockableEntity dock = new DockableEntity(CreateFont());
+            DockableEntity dock = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dock.Title = title;
             dock.Position = new float3(left, top, 0f);
             dock.Size = new int2(width, height);

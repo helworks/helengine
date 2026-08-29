@@ -3,15 +3,20 @@ namespace helengine.physics3d.tests {
     /// Verifies fixed-step host scheduling preserves BEPU scene progression after intermittent long frames.
     /// </summary>
     [Collection(Physics3DTestCollection.Name)]
-    public sealed class PhysicsWorld3DFixedStepSchedulingTests {
+    public sealed class PhysicsWorld3DFixedStepSchedulingTests : IDisposable {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal core services required for entity-backed physics tests.
         /// </summary>
         public PhysicsWorld3DFixedStepSchedulingTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+        }
+
+        public void Dispose() {
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -69,7 +74,7 @@ namespace helengine.physics3d.tests {
         /// Creates the authored city-style collapsing box tower used to reproduce visible fixed-step lag.
         /// </summary>
         /// <returns>Initialized root entities containing one static ground body and eight dynamic boxes.</returns>
-        static Entity[] CreateCityEightBoxTowerEntities() {
+        Entity[] CreateCityEightBoxTowerEntities() {
             Entity groundEntity = CreateEntity(new float3(0f, -0.5f, 0f));
             groundEntity.AddComponent(new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Static,
@@ -138,8 +143,8 @@ namespace helengine.physics3d.tests {
         /// </summary>
         /// <param name="localPosition">Initial local position.</param>
         /// <returns>Initialized entity.</returns>
-        static Entity CreateEntity(float3 localPosition) {
-            Entity entity = new Entity {
+        Entity CreateEntity(float3 localPosition) {
+            Entity entity = new Entity(CoreValue) {
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity
@@ -154,7 +159,7 @@ namespace helengine.physics3d.tests {
         /// </summary>
         /// <param name="localPosition">Initial local position.</param>
         /// <returns>Initialized dynamic box entity.</returns>
-        static Entity CreateDynamicBoxEntity(float3 localPosition) {
+        Entity CreateDynamicBoxEntity(float3 localPosition) {
             Entity entity = CreateEntity(localPosition);
             entity.AddComponent(new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Dynamic,

@@ -90,7 +90,8 @@ namespace helengine {
                 ModelTessellationProcessor.Apply(preparedAsset, maximumEdgeLength, bakeScaleAtLoadTime ? float3.One : worldScale);
             }
 
-            RuntimeModel preparedModel = Core.Instance.RenderManager3D.BuildModelFromRaw(preparedAsset);
+            Core ownerCore = meshComponent.OwnerCore ?? throw new InvalidOperationException("Load-time mesh preparation requires an owning core.");
+            RuntimeModel preparedModel = ownerCore.RenderManager3D.BuildModelFromRaw(preparedAsset);
             preparedModel.SetRawModelAsset(preparedAsset);
             meshComponent.Model = preparedModel;
             meshComponent.SetSyntheticBooleanMember(TessellateAtCookTimeMemberName, true);

@@ -132,6 +132,19 @@ namespace helengine {
         public ObjectManager ObjectManager { get; private set; }
 
         /// <summary>
+        /// Explicit interaction graph attached by an editor composition root.
+        /// Stored opaquely so the runtime assembly does not depend on editor
+        /// types; editor factories validate the value before using it.
+        /// </summary>
+        internal object SessionInteractionGraph { get; set; }
+
+        /// <summary>
+        /// Opaque per-core runtime-module state. Runtime modules use this slot
+        /// for event-bound state instead of process-global registration caches.
+        /// </summary>
+        internal object PhysicsRuntimeRegistrationState { get; set; }
+
+        /// <summary>
         /// Gets the shared runtime audio manager when one backend has been configured by the active host.
         /// </summary>
         public AudioManager AudioManager { get; private set; }
@@ -598,10 +611,10 @@ namespace helengine {
             }
 
             ContentManager contentManager = GetContentManager();
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
-            SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(contentManager);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, RenderManager2D);
+            SceneAssetReferenceResolver = new RuntimeSceneAssetReferenceResolver(this, contentManager);
             SceneRuntimeComponentRegistry = RuntimeComponentRegistry.CreateDefault();
-            SceneLoadService = new RuntimeSceneLoadService(SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
+            SceneLoadService = new RuntimeSceneLoadService(this, SceneAssetReferenceResolver, SceneRuntimeComponentRegistry);
             SceneManager = CreateSceneManager(contentManager, InitializationOptions.SceneCatalog);
             RuntimeDiagnosticsService = new RuntimeDiagnosticsService(
                 InitializationOptions.RuntimeDiagnosticsProvider,
@@ -619,7 +632,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Host-owned authored entity factory.</returns>
         protected virtual IEntityFactory CreateEntityFactory() {
-            return new RuntimeEntityFactory();
+            return new RuntimeEntityFactory(this);
         }
 
         /// <summary>
@@ -1029,6 +1042,7 @@ namespace helengine {
             }
 
             return new SceneManager(
+                this,
                 sceneCatalog,
                 contentManager,
                 SceneLoadService,

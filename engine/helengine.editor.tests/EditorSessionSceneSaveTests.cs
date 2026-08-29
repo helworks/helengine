@@ -304,8 +304,8 @@ namespace helengine.editor.tests {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
 
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
-            SaveFileDialog saveFileDialog = new SaveFileDialog(CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            SaveFileDialog saveFileDialog = new SaveFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             SceneSavePathResolver pathResolver = new SceneSavePathResolver(TempProjectRootPath);
             SceneSaveService saveService = new SceneSaveService(
                 TempProjectRootPath,
@@ -316,8 +316,8 @@ namespace helengine.editor.tests {
             SceneSettingsAsset currentSceneSettings = new SceneSettingsAsset();
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             sceneCanvasProfileState.ApplySceneSettings(currentSceneSettings);
-            SceneSettingsDialog sceneSettingsDialog = new SceneSettingsDialog(CreateFont(), EditorUiMetrics.Default);
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine - project.heproj");
+            SceneSettingsDialog sceneSettingsDialog = new SceneSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default);
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine - project.heproj");
             EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(saveService);
             EditorUndoRedoService undoRedoService = new EditorUndoRedoService(new EditorHistoryContext());
             EditorMutationService historyMutationService = new EditorMutationService(

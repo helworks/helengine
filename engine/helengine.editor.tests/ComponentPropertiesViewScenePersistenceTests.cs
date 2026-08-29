@@ -44,11 +44,11 @@ namespace helengine.editor.tests {
             File.WriteAllText(modelPath, "raw obj source");
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             AssetImportManager assetImportManager = CreateAssetImportManager();
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
-            ComponentPropertiesView view = new ComponentPropertiesView(
+            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
                 CreateFont(),
                 contentManager,
                 new EditorFileSystemModelResolver(assetImportManager));
@@ -90,7 +90,7 @@ namespace helengine.editor.tests {
         /// <param name="component">Component to add to the entity.</param>
         /// <returns>Entity containing the supplied component.</returns>
         EditorEntity CreateEntityWithComponent(Component component) {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             entity.AddComponent(component);
             return entity;
         }

@@ -36,10 +36,10 @@ namespace helengine.editor.tests.managers.gizmo {
             CameraComponent sceneCamera = CreateSceneCamera();
             InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
 
-            EditorEntity parentEntity = new EditorEntity {
+            EditorEntity parentEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Scale = new float3(2f, 2f, 2f)
             };
-            EditorEntity selectedEntity = new EditorEntity {
+            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = float3.Zero,
                 LocalScale = new float3(1f, 1f, 1f),
                 Orientation = float4.Identity
@@ -48,8 +48,7 @@ namespace helengine.editor.tests.managers.gizmo {
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             EditorEntity handleEntity = CreateAxisHandleEntity();
-            EditorEntity owner = new EditorEntity();
-            owner.RebindInteractionServices(InteractionServices);
+            EditorEntity owner = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TransformScaleGizmoDragComponent component = new TransformScaleGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
 
@@ -80,7 +79,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Configured scene camera component used by the drag controller.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 Position = new float3(0f, 0f, 100f),
                 Orientation = float4.Identity
@@ -99,7 +98,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Hovered handle entity.</returns>
         EditorEntity CreateAxisHandleEntity() {
-            EditorEntity handleEntity = new EditorEntity {
+            EditorEntity handleEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 Orientation = float4.Identity
             };

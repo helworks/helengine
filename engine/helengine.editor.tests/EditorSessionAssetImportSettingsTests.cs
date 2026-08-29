@@ -340,7 +340,7 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSession();
             AssetImportManager manager = GetPrivateField<AssetImportManager>(session, "assetImportManager");
             TestRenderManager3D renderManager = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             MeshComponent meshComponent = new MeshComponent {
                 Model = new TestRuntimeModel()
             };
@@ -379,7 +379,7 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(TempProjectRootPath, contentManager);
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), contentManager);
+            PropertiesPanel panel = new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), contentManager);
             IReadOnlyList<string> supportedPlatforms = new List<string> { "windows", "android" };
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, supportedPlatforms);
             localSettingsService.SaveActivePlatform("android");

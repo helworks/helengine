@@ -7,6 +7,7 @@ namespace helengine.editor {
         public RenderManager2D RenderManager2D { get; }
         public ObjectManager ObjectManager { get; }
         public InputSystem Input { get; }
+        public EditorSessionInteractionServices InteractionServices { get; }
         public Func<double> FrameDeltaSecondsProvider { get; }
         public IEntityFactory EntityFactory { get; }
         public EditorSceneEntityIdAllocator SceneEntityIdAllocator { get; }
@@ -23,12 +24,13 @@ namespace helengine.editor {
         bool IsDisposed;
 
         /// <summary>Creates all renderer-backed editor resources for one renderer owner.</summary>
-        public EditorSessionRendererResources(RenderManager3D renderManager3D, RenderManager2D renderManager2D, ObjectManager objectManager, IEntityFactory entityFactory, EditorSceneEntityIdAllocator sceneEntityIdAllocator, InputSystem input, Func<double> frameDeltaSecondsProvider, FontAsset defaultFontAsset) {
+        public EditorSessionRendererResources(RenderManager3D renderManager3D, RenderManager2D renderManager2D, ObjectManager objectManager, IEntityFactory entityFactory, EditorSceneEntityIdAllocator sceneEntityIdAllocator, InputSystem input, Func<double> frameDeltaSecondsProvider, FontAsset defaultFontAsset, EditorSessionInteractionServices interactionServices) {
             if (renderManager3D == null) {
                 throw new ArgumentNullException(nameof(renderManager3D));
             }
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             Input = input ?? throw new ArgumentNullException(nameof(input));
+            InteractionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             FrameDeltaSecondsProvider = frameDeltaSecondsProvider ?? throw new ArgumentNullException(nameof(frameDeltaSecondsProvider));
             EntityFactory = entityFactory ?? throw new ArgumentNullException(nameof(entityFactory));
             SceneEntityIdAllocator = sceneEntityIdAllocator ?? throw new ArgumentNullException(nameof(sceneEntityIdAllocator));

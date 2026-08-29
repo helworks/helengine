@@ -117,19 +117,19 @@ namespace helengine.editor {
         /// Initializes a new reparent dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public ReparentEntityDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes a new reparent dialog using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public ReparentEntityDialog(FontAsset font, EditorUiMetrics metrics) : base("ReparentEntityDialog", "Reparent", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public ReparentEntityDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public ReparentEntityDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics) : base(ownerCore, interactionServices, "ReparentEntityDialog", "Reparent", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             AvailableParentEntitiesInternal = new List<Entity>(8);
             SetDialogMinimumSize(PanelWidth, PanelHeight);
 
-            TargetHost = new EditorEntity {
+            TargetHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -145,12 +145,12 @@ namespace helengine.editor {
             };
             TargetHost.AddComponent(TargetText);
 
-            ParentHierarchyView = new SceneHierarchyPickerView(DialogFont, LayerMask, DialogPanelOrder, DialogTextOrder);
+            ParentHierarchyView = new SceneHierarchyPickerView(OwnerCore, InteractionServices, DialogFont, LayerMask, DialogPanelOrder, DialogTextOrder);
             ParentHierarchyView.Entity.InternalEntity = true;
             ParentHierarchyView.ParentEntitySelected += HandleParentEntitySelected;
             DialogPanelRoot.AddChild(ParentHierarchyView.Entity);
 
-            StatusHost = new EditorEntity {
+            StatusHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -166,7 +166,7 @@ namespace helengine.editor {
             };
             StatusHost.AddComponent(StatusText);
 
-            CancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -177,7 +177,7 @@ namespace helengine.editor {
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
-            ApplyButtonHost = new EditorEntity {
+            ApplyButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

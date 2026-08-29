@@ -18,7 +18,7 @@ namespace helengine.editor.tests {
     /// </summary>
     [Fact]
     public void Update_WhenRunningUpdateables_doesNotReportPerUpdateableStageString() {
-        string source = File.ReadAllText(@"C:\dev\helworks\helengine\engine\helengine.core\managers\ObjectManager.cs");
+        string source = File.ReadAllText(Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.core", "managers", "ObjectManager.cs"));
 
         Assert.DoesNotContain("Core.Instance.ReportSceneTransitionStage($\"ObjectManagerUpdate:", source, StringComparison.Ordinal);
     }

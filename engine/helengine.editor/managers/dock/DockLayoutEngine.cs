@@ -974,7 +974,7 @@ namespace helengine.editor {
                 }
 
                 if (tabStrip == null) {
-                    tabStrip = new DockTabStrip(Entity.TitleFont, Entity.UiMetrics, SetActiveTab);
+                    tabStrip = new DockTabStrip(Entity.OwnerCore, Entity.InteractionServices, Entity.TitleFont, Entity.UiMetrics, SetActiveTab);
                 }
 
                 DockableEntity active = Entity;
@@ -1044,7 +1044,7 @@ namespace helengine.editor {
                 Second = second;
 
                 Core ownerCore = renderManager2D.OwnerCore ?? throw new InvalidOperationException("Dock separator renderer must be bound to an owning core.");
-                separatorEntity = new EditorEntity(ownerCore) {
+                separatorEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                     InternalEntity = true,
                     LayerMask = SeparatorLayerMask,
                     Enabled = true

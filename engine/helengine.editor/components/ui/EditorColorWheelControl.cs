@@ -54,13 +54,14 @@ public sealed class EditorColorWheelControl : EditorEntity {
     /// Initializes a new hue wheel control.
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
-    public EditorColorWheelControl(ushort layerMask, RenderManager2D renderManager2D) {
+    public EditorColorWheelControl(Core ownerCore, EditorSessionInteractionServices interactionServices, ushort layerMask, RenderManager2D renderManager2D)
+        : base(ownerCore, interactionServices) {
         RenderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
         LayerMask = layerMask;
         InternalEntity = true;
         Name = "Color Wheel";
 
-        WheelHost = CreateChildHost(layerMask);
+        WheelHost = CreateChildHost(ownerCore, interactionServices, layerMask);
         AddChild(WheelHost);
 
         WheelSprite = new SpriteComponent {
@@ -77,7 +78,7 @@ public sealed class EditorColorWheelControl : EditorEntity {
         WheelInteractable.CursorEvent += HandleWheelCursor;
         AddComponent(WheelInteractable);
 
-        MarkerHost = CreateChildHost(layerMask);
+        MarkerHost = CreateChildHost(ownerCore, interactionServices, layerMask);
         AddChild(MarkerHost);
 
         HueMarker = new RoundedRectComponent {
@@ -135,8 +136,8 @@ public sealed class EditorColorWheelControl : EditorEntity {
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the child host.</param>
     /// <returns>Created internal child host.</returns>
-    static EditorEntity CreateChildHost(ushort layerMask) {
-        return new EditorEntity {
+    static EditorEntity CreateChildHost(Core ownerCore, EditorSessionInteractionServices interactionServices, ushort layerMask) {
+        return new EditorEntity(ownerCore, interactionServices) {
             LayerMask = layerMask,
             InternalEntity = true,
             Position = float3.Zero

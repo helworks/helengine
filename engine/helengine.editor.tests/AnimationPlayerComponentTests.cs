@@ -12,7 +12,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Advance_WhenOffsetPositionTrackIsPlaying_AddsOffsetOnTopOfBaseLocalPosition() {
             InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.LocalPosition = new float3(5f, 0f, 0f);
             AnimationPlayerComponent component = new AnimationPlayerComponent();
@@ -42,7 +42,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Advance_WhenLoopingPlaybackExceedsDuration_WrapsCurrentTime() {
             InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);
@@ -73,7 +73,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Stop_WhenPlaybackIsActive_RestoresBaseTransformAndClearsPlaybackState() {
             InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.LocalPosition = new float3(3f, 0f, 0f);
             AnimationPlayerComponent component = new AnimationPlayerComponent();
@@ -107,7 +107,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Advance_WhenScaleTrackIsPlaying_UpdatesEntityLocalScale() {
             InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.LocalScale = new float3(1f, 1f, 1f);
             AnimationPlayerComponent component = new AnimationPlayerComponent();
@@ -137,7 +137,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Advance_WhenRotationTrackIsPlaying_UpdatesEntityLocalOrientation() {
             InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);
@@ -171,7 +171,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenRunningInsideCoreUpdate_UsesCurrentCoreDeltaTime() {
             Core core = InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);
@@ -202,7 +202,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ComponentAdded_WhenAutomaticPlaybackIsConfigured_StartsAssignedClip() {
             InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             AnimationClipAsset clip = new AnimationClipAsset {
                 Id = "Animations/AutoPlay.hanim",
@@ -236,7 +236,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RebaseCurrentPoseToLocalTransform_WhenOffsetTrackIsPlaying_PreservesExternallyAssignedPosition() {
             InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);
@@ -269,7 +269,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Play_WhenClipContainsMultiplePositionTracks_ThrowsInvalidOperationException() {
             InitializeCore();
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             AnimationPlayerComponent component = new AnimationPlayerComponent();
             entity.AddComponent(component);

@@ -32,7 +32,7 @@ public sealed class CityRenderOnlySlopePackagedSceneRuntimeTests {
         core.Initialize(new TestRenderManager3D(ShaderCompileTarget.DirectX11), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         BepuRuntimeComponentRegistration.Register(core);
 
-        RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+        RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
         IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
 
         Assert.Single(core.ObjectManager.Cameras);

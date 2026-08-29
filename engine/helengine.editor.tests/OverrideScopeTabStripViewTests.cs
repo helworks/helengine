@@ -16,7 +16,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void SetPlatforms_HidesEnvironmentTabsUntilPlusIsPressed() {
-            OverrideScopeTabStripView view = new OverrideScopeTabStripView(CreateFont(), 1, 120, 24, 0, 24);
+            OverrideScopeTabStripView view = new OverrideScopeTabStripView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, 120, 24, 0, 24);
 
             view.SetPlatforms(["windows"], "windows", ["debug", "release"], "release");
 

@@ -167,7 +167,8 @@ namespace helengine.render.validation {
                     new EditorSceneEntityIdAllocator(),
                     core.Input,
                     () => core.FrameDeltaSeconds,
-                    null);
+                    null,
+                    interactionServices);
                 renderer3D.AddWindow(window.Handle, Options.FrameWidth, Options.FrameHeight);
 
                 CameraComponent validationSceneCamera = CreateScene(core, renderer3D, renderer2D, Options.FrameWidth, Options.FrameHeight, backend);
@@ -318,7 +319,7 @@ namespace helengine.render.validation {
             ShaderMaterialAsset materialAsset = RenderShaderFactory.BuildMaterialAsset();
             mesh.Materials = new[] { renderer3D.BuildMaterialFromRaw(materialAsset, shaderAsset) };
 
-            CreateOverlaySprites(renderer2D);
+            CreateOverlaySprites(core, renderer2D);
             return camera;
         }
 
@@ -1235,7 +1236,7 @@ namespace helengine.render.validation {
         /// Creates two overlay sprites used to validate multi-quad 2D rendering.
         /// </summary>
         /// <param name="renderer2D">Renderer used to create runtime textures for this backend.</param>
-        void CreateOverlaySprites(RenderManager2D renderer2D) {
+        void CreateOverlaySprites(Core core, RenderManager2D renderer2D) {
             var whitePixelTextureAsset = new TextureAsset {
                 Width = 1,
                 Height = 1,
@@ -1244,18 +1245,20 @@ namespace helengine.render.validation {
             RuntimeTexture pixelTexture = renderer2D.BuildTextureFromRaw(whitePixelTextureAsset);
             int secondSpriteX = OverlaySpriteMargin + OverlaySpriteWidth + OverlaySpriteMargin;
             CreateOverlaySprite(
+                core,
                 OverlaySpriteMargin,
                 OverlaySpriteMargin,
                 new byte4(255, 32, 32, 255),
                 10,
                 pixelTexture);
             CreateOverlaySprite(
+                core,
                 secondSpriteX,
                 OverlaySpriteMargin,
                 new byte4(255, 240, 32, 255),
                 11,
                 pixelTexture);
-            CreateTransparentCenterOverlay(pixelTexture);
+            CreateTransparentCenterOverlay(core, pixelTexture);
         }
 
         /// <summary>
@@ -1266,8 +1269,11 @@ namespace helengine.render.validation {
         /// <param name="color">Sprite tint color.</param>
         /// <param name="renderOrder">Render order used for deterministic layering.</param>
         /// <param name="texture">Texture used by the sprite.</param>
-        void CreateOverlaySprite(int x, int y, byte4 color, byte renderOrder, RuntimeTexture texture) {
-            var overlayEntity = new Entity {
+        void CreateOverlaySprite(Core core, int x, int y, byte4 color, byte renderOrder, RuntimeTexture texture) {
+            if (core == null) {
+                throw new ArgumentNullException(nameof(core));
+            }
+            var overlayEntity = new Entity(core) {
                 LayerMask = ValidationSceneLayerMask,
                 Position = new float3(x, y, 0f)
             };
@@ -1286,15 +1292,16 @@ namespace helengine.render.validation {
         /// Creates a fully transparent center overlay so validation fails when alpha-blended UI rendering is broken.
         /// </summary>
         /// <param name="texture">Texture used by the overlay sprite.</param>
-        void CreateTransparentCenterOverlay(RuntimeTexture texture) {
+        void CreateTransparentCenterOverlay(Core core, RuntimeTexture texture) {
             if (texture == null) {
                 throw new ArgumentNullException(nameof(texture));
             }
 
-            int2 windowSize = Core.Instance.RenderManager3D.MainWindowSize;
+            int2 windowSize = core.RenderManager3D.MainWindowSize;
             int centerX = Math.Max(0, (windowSize.X - TransparentOverlaySize) / 2);
             int centerY = Math.Max(0, (windowSize.Y - TransparentOverlaySize) / 2);
             CreateOverlaySprite(
+                core,
                 centerX,
                 centerY,
                 new byte4(255, 255, 255, 0),
@@ -1403,4 +1410,3 @@ namespace helengine.render.validation {
         }
     }
 }
-

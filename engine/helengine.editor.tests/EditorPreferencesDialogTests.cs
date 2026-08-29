@@ -39,7 +39,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOverrideModeSelected_LoadsThemeAndEnablesOverridePercentSelector() {
-            EditorPreferencesDialog dialog = new EditorPreferencesDialog(CreateFont(), new EditorUiMetrics(1d));
+            EditorPreferencesDialog dialog = new EditorPreferencesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorUiMetrics(1d));
 
             dialog.Show(new EditorPreferencesSettings(
                 new EditorUiScaleSettings(EditorUiScaleMode.Override, 150),
@@ -63,7 +63,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_WhenComboBoxesAreCreated_UsesModalOverlayRenderOrdersForDropdowns() {
-            EditorPreferencesDialog dialog = new EditorPreferencesDialog(CreateFont(), new EditorUiMetrics(1d));
+            EditorPreferencesDialog dialog = new EditorPreferencesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorUiMetrics(1d));
 
             ComboBoxComponent themeComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ThemeComboBox");
             ComboBoxComponent scaleModeComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ScaleModeComboBox");
@@ -82,7 +82,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsThemeControlsImmediatelyAndUsesLargeMinimumSize() {
-            EditorPreferencesDialog dialog = new EditorPreferencesDialog(CreateFont(), new EditorUiMetrics(1d));
+            EditorPreferencesDialog dialog = new EditorPreferencesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorUiMetrics(1d));
 
             dialog.Show(new EditorPreferencesSettings(
                 new EditorUiScaleSettings(EditorUiScaleMode.Override, 150),
@@ -103,7 +103,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleApplyClicked_WhenInvoked_ReturnsCombinedEditorPreferences() {
-            EditorPreferencesDialog dialog = new EditorPreferencesDialog(CreateFont(), new EditorUiMetrics(1d));
+            EditorPreferencesDialog dialog = new EditorPreferencesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorUiMetrics(1d));
             EditorPreferencesSettings confirmedSettings = null;
             dialog.ConfirmRequested += settings => confirmedSettings = settings;
 

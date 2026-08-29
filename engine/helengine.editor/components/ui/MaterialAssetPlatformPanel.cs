@@ -83,7 +83,7 @@ public sealed class MaterialAssetPlatformPanel : IDisposable {
     /// <param name="font">Font used for text rendering.</param>
     /// <param name="layerMask">Layer mask applied to the panel hierarchy.</param>
     /// <param name="textOrder">Render order used for text labels and values.</param>
-    public MaterialAssetPlatformPanel(string platformId, FontAsset font, ushort layerMask, byte textOrder) {
+    public MaterialAssetPlatformPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, string platformId, FontAsset font, ushort layerMask, byte textOrder) {
         if (string.IsNullOrWhiteSpace(platformId)) {
             throw new ArgumentException("Platform id must be provided.", nameof(platformId));
         } else if (font == null) {
@@ -93,11 +93,11 @@ public sealed class MaterialAssetPlatformPanel : IDisposable {
         PlatformId = platformId;
         FieldRowsValue = new List<MaterialAssetFieldEditorRow>(8);
 
-        RootValue = new EditorEntity();
+        RootValue = new EditorEntity(ownerCore, interactionServices);
         RootValue.LayerMask = layerMask;
         RootValue.InternalEntity = true;
 
-        SchemaLabelHost = new EditorEntity();
+        SchemaLabelHost = new EditorEntity(ownerCore, interactionServices);
         SchemaLabelHost.LayerMask = layerMask;
         RootValue.AddChild(SchemaLabelHost);
 
@@ -108,7 +108,7 @@ public sealed class MaterialAssetPlatformPanel : IDisposable {
         SchemaLabelText.RenderOrder2D = textOrder;
         SchemaLabelHost.AddComponent(SchemaLabelText);
 
-        SchemaComboHost = new EditorEntity();
+        SchemaComboHost = new EditorEntity(ownerCore, interactionServices);
         SchemaComboHost.LayerMask = layerMask;
         RootValue.AddChild(SchemaComboHost);
 

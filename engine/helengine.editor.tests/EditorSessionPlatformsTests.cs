@@ -228,8 +228,8 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ActiveProjectPlatform", activePlatform);
             SetPrivateField(session, "ProjectDisplayName", "project.heproj");
             SetPrivateField(session, "assetImportManager", assetImportManager);
-            SetPrivateField(session, "titleBar", new EditorTitleBar(CreateFont(), 1280, 720, "helengine - project.heproj [WINDOWS]"));
-            SetPrivateField(session, "platformsDialog", new PlatformsDialog(CreateFont()));
+            SetPrivateField(session, "titleBar", new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine - project.heproj [WINDOWS]"));
+            SetPrivateField(session, "platformsDialog", new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()));
             SetPrivateField(session, "projectPlatformsService", new EditorProjectPlatformsService(TempProjectRootPath));
             SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath)));
 

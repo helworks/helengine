@@ -133,10 +133,6 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
-        public OpenFileDialog(FontAsset font, string projectPath, GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, EditorUiMetrics.Default, projectPath, generatedAssetProviders) {
-        }
-
         /// <summary>
         /// Initializes a new open-file dialog rooted at the project assets folder using one shared metrics source.
         /// </summary>
@@ -144,12 +140,23 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
         /// <param name="projectPath">Project root that owns the assets folder.</param>
         public OpenFileDialog(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
             GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, metrics, projectPath, new AssetBrowserDataSource(projectPath, generatedAssetProviders, false)) {
+            : this(ownerCore, interactionServices, font, metrics, projectPath, new AssetBrowserDataSource(projectPath, generatedAssetProviders, false)) {
         }
+
+        /// <summary>Initializes an open dialog with default metrics and explicit session graph.</summary>
+        public OpenFileDialog(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            string projectPath,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default, projectPath, generatedAssetProviders) { }
 
         /// <summary>
         /// Initializes an open-file dialog over a session-owned reference resolver.
@@ -160,12 +167,14 @@ namespace helengine.editor {
         /// <param name="referenceResolver">Session-owned resolver borrowed by this dialog browser.</param>
         /// <summary>Initializes an open dialog over the session resolver and generated provider registry.</summary>
         internal OpenFileDialog(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
             EditorAssetReferenceResolver referenceResolver,
             GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, metrics, projectPath, new AssetBrowserDataSource(
+            : this(ownerCore, interactionServices, font, metrics, projectPath, new AssetBrowserDataSource(
                 new EditorAssetManager(projectPath, referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver))),
                 generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders)),
                 false)) {
@@ -175,11 +184,13 @@ namespace helengine.editor {
         /// Initializes an open-file dialog over a data source whose lifetime is owned by the dialog.
         /// </summary>
         OpenFileDialog(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
             AssetBrowserDataSource dataSource)
-            : base("OpenFileDialog", "Open Map", font, metrics, MinPanelWidth, MinPanelHeight, HeaderHeight) {
+            : base(ownerCore, interactionServices, "OpenFileDialog", "Open Map", font, metrics, MinPanelWidth, MinPanelHeight, HeaderHeight) {
             if (string.IsNullOrWhiteSpace(projectPath)) {
                 throw new ArgumentException("Project path must be provided.", nameof(projectPath));
             }
@@ -195,6 +206,8 @@ namespace helengine.editor {
             byte iconBackgroundOrder = DialogPanelOrder;
 
             BrowserView = new AssetBrowserView(
+                OwnerCore,
+                InteractionServices,
                 Font,
                 EditorUiMetrics.Default,
                 projectPath,
@@ -212,7 +225,7 @@ namespace helengine.editor {
             BrowserView.SelectionCleared += HandleSelectionCleared;
             DialogPanelRoot.AddChild(BrowserView.Entity);
 
-            StatusHost = new EditorEntity {
+            StatusHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -228,7 +241,7 @@ namespace helengine.editor {
             };
             StatusHost.AddComponent(StatusText);
 
-            CancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -239,7 +252,7 @@ namespace helengine.editor {
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
-            OpenButtonHost = new EditorEntity {
+            OpenButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

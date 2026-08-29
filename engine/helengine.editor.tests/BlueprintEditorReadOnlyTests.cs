@@ -31,7 +31,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void RefreshHierarchy_WhenEntityIsInheritedBlueprint_AppendsBlueprintSuffixAndUsesSecondaryTextColor() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Blueprint Child"
             };
             entity.AddComponent(new BlueprintInheritedEntityComponent {
@@ -39,7 +39,7 @@ namespace helengine.editor.tests {
                 SourceEntityId = 7u
             });
 
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             panel.RefreshHierarchy();
 
             SceneHierarchyRow row = FindVisibleRow(panel, entity);
@@ -50,7 +50,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void ShowComponents_WhenReadOnlyRequested_UsesReadOnlyRowsAndDisablesSectionRemoveButtons() {
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateInheritedEntity();
 
             view.ShowComponents(entity, ComponentPlatformEditingService.CommonPlatformId, true);
@@ -65,7 +65,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void ShowEntityProperties_WhenEntityIsInheritedBlueprint_HidesTransformEditingAndUsesReadOnlyComponentRows() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
             EditorEntity entity = CreateInheritedEntity();
 
             panel.ShowEntityProperties(entity, new[] { "windows" });
@@ -87,7 +87,7 @@ namespace helengine.editor.tests {
         }
 
         EditorEntity CreateInheritedEntity() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Blueprint Child"
             };
             entity.AddComponent(new DirectionalLightComponent {
@@ -140,7 +140,7 @@ namespace helengine.editor.tests {
         }
 
         void CreateUiCamera(int width, int height, ushort layerMask) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask
             };

@@ -38,7 +38,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PopulatesProtectedEnvironmentRows() {
-            EnvironmentsDialog dialog = new EnvironmentsDialog(CreateFont());
+            EnvironmentsDialog dialog = new EnvironmentsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorProjectEnvironmentsService(TempRootPath), EditorUiMetrics.Default);
 
             dialog.Show(new EditorProjectEnvironmentsDocument {
                 Environments = [
@@ -61,7 +61,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddClicked_WhenIdIsValid_AddsCustomEnvironment() {
-            EnvironmentsDialog dialog = new EnvironmentsDialog(CreateFont());
+            EnvironmentsDialog dialog = new EnvironmentsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorProjectEnvironmentsService(TempRootPath), EditorUiMetrics.Default);
             dialog.Show(new EditorProjectEnvironmentsService(Path.Combine(TempRootPath, "project")).Load());
             TextBoxComponent idTextBox = GetPrivateField<TextBoxComponent>(dialog, "EnvironmentIdTextBox");
             idTextBox.Text = "QA";
@@ -78,7 +78,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleRenameClicked_WhenSelectedEnvironmentIsProtected_ShowsValidation() {
-            EnvironmentsDialog dialog = new EnvironmentsDialog(CreateFont());
+            EnvironmentsDialog dialog = new EnvironmentsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorProjectEnvironmentsService(TempRootPath), EditorUiMetrics.Default);
             dialog.Show(new EditorProjectEnvironmentsService(Path.Combine(TempRootPath, "project")).Load());
             EnvironmentsDialogRow debugRow = FindRow(dialog, "debug");
             InvokePrivate(dialog, "HandleEnvironmentRowClicked", debugRow.SelectButton);

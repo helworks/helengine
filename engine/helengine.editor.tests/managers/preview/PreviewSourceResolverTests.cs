@@ -38,7 +38,7 @@ namespace helengine.editor.tests {
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             AssetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             AssetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
             AssetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj", ".x" }));
@@ -200,7 +200,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Editor entity with one camera component.</returns>
         EditorEntity CreateCameraEntity() {
-            EditorEntity cameraEntity = new EditorEntity();
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             float4 orientation;
             float4.CreateFromYawPitchRoll(0.1f, -0.2f, 0f, out orientation);
             cameraEntity.Position = new float3(6f, 2f, -5f);

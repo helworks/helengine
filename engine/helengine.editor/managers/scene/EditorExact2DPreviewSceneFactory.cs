@@ -11,7 +11,7 @@ namespace helengine.editor {
             if (ownerCore == null) {
                 throw new ArgumentNullException(nameof(ownerCore));
             }
-            return new EditorEntity(ownerCore) {
+            return new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = "Exact 2D Preview Camera",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneModelPreview
@@ -40,7 +40,7 @@ namespace helengine.editor {
             if (ownerCore == null) {
                 throw new ArgumentNullException(nameof(ownerCore));
             }
-            return new EditorEntity(ownerCore) {
+            return new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = "Exact 2D Preview Content",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneModelPreview

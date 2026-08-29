@@ -33,15 +33,15 @@ namespace helengine.editor {
         /// Initializes one clipped scroll body on the supplied render layer.
         /// </summary>
         /// <param name="layerMask">Render layer shared with the owning panel.</param>
-        public EditorClippedScrollBody(ushort layerMask) {
-            HostEntity = new EditorEntity();
+        public EditorClippedScrollBody(Core ownerCore, EditorSessionInteractionServices interactionServices, ushort layerMask) {
+            HostEntity = new EditorEntity(ownerCore, interactionServices);
             HostEntity.LayerMask = layerMask;
             HostEntity.Position = float3.Zero;
 
             ClipComponent = new ClipRectComponent();
             HostEntity.AddComponent(ClipComponent);
 
-            ContentRoot = new EditorEntity();
+            ContentRoot = new EditorEntity(ownerCore, interactionServices);
             ContentRoot.LayerMask = layerMask;
             ContentRoot.Position = float3.Zero;
             HostEntity.AddChild(ContentRoot);

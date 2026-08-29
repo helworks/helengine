@@ -13,14 +13,14 @@ public sealed class EntityWorldTransformMatrixTests {
     public void World_transform_matrix_preserves_parent_scale_rotation_composition() {
         InitializeCore();
 
-        Entity parent = new Entity();
+        Entity parent = new Entity(Core.Instance);
         parent.InitChildren();
         parent.LocalPosition = new float3(3f, 5f, 7f);
         parent.LocalScale = new float3(2f, 1.5f, 3f);
         float4.CreateFromYawPitchRoll((float)(Math.PI / 4d), 0f, (float)(Math.PI / 10d), out float4 parentOrientation);
         parent.LocalOrientation = parentOrientation;
 
-        Entity child = new Entity();
+        Entity child = new Entity(Core.Instance);
         child.InitChildren();
         child.LocalPosition = new float3(1.25f, -0.75f, 2.5f);
         child.LocalScale = new float3(6f, 1f, 10f);

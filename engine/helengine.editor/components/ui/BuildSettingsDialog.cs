@@ -174,16 +174,16 @@ namespace helengine.editor {
         /// Initializes a new build-settings dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public BuildSettingsDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes a new build-settings dialog using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public BuildSettingsDialog(FontAsset font, EditorUiMetrics metrics)
-            : base("BuildSettingsDialog", "Build Platforms", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public BuildSettingsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public BuildSettingsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics)
+            : base(ownerCore, interactionServices, "BuildSettingsDialog", "Build Platforms", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             SetDialogMinimumSize(PanelWidth, PanelHeight);
 
             PlatformLabelHosts = new List<EditorEntity>(8);
@@ -196,7 +196,7 @@ namespace helengine.editor {
             PlatformHeaderHosts = new List<EditorEntity>(3);
             PlatformHeaderTexts = new List<TextComponent>(3);
 
-            StatusHost = new EditorEntity {
+            StatusHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -212,7 +212,7 @@ namespace helengine.editor {
             };
             StatusHost.AddComponent(StatusText);
 
-            CancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -223,7 +223,7 @@ namespace helengine.editor {
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
-            SaveButtonHost = new EditorEntity {
+            SaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -369,7 +369,7 @@ namespace helengine.editor {
         /// <param name="platform">Platform descriptor to render.</param>
         /// <param name="isChecked">True when the platform should start selected.</param>
         void CreatePlatformRow(AvailablePlatformDescriptor platform, bool isChecked) {
-            EditorEntity labelHost = new EditorEntity {
+            EditorEntity labelHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -387,7 +387,7 @@ namespace helengine.editor {
             labelHost.AddComponent(labelText);
             PlatformLabelTexts.Add(labelText);
 
-            EditorEntity statusHost = new EditorEntity {
+            EditorEntity statusHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -405,7 +405,7 @@ namespace helengine.editor {
             statusHost.AddComponent(statusText);
             PlatformStatusTexts.Add(statusText);
 
-            EditorEntity checkBoxHost = new EditorEntity {
+            EditorEntity checkBoxHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -574,7 +574,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="text">Header label text.</param>
         void CreateTableHeaderCell(string text) {
-            EditorEntity headerHost = new EditorEntity {
+            EditorEntity headerHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

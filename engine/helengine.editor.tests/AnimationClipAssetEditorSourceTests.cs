@@ -10,7 +10,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void EditorSession_routes_hanim_assets_to_animation_clip_settings_view() {
-            string source = File.ReadAllText(@"C:\dev\helworks\helengine\engine\helengine.editor\EditorSession.cs");
+            string source = File.ReadAllText(Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.editor", "EditorSession.cs"));
 
             Assert.Contains("bool IsAnimationClipAssetEntry(AssetBrowserEntry entry)", source, StringComparison.Ordinal);
             Assert.Contains("propertiesPanels[index].ShowAnimationClipSettings(", source, StringComparison.Ordinal);
@@ -23,7 +23,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void PropertiesPanel_owns_animation_clip_asset_view() {
-            string source = File.ReadAllText(@"C:\dev\helworks\helengine\engine\helengine.editor\components\ui\PropertiesPanel.cs");
+            string source = File.ReadAllText(Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.editor", "components", "ui", "PropertiesPanel.cs"));
 
             Assert.Contains("readonly AnimationClipAssetView AnimationClipView;", source, StringComparison.Ordinal);
             Assert.Contains("public void ShowAnimationClipSettings(", source, StringComparison.Ordinal);

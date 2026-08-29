@@ -76,7 +76,7 @@ namespace helengine.editor {
             }
 
             RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial(generatedMaterialCache);
-            var entity = new EditorEntity(ownerCore) {
+            var entity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = name,
                 Hidden = true,
                 InternalEntity = true,

@@ -1,7 +1,7 @@
 namespace helengine.editor.tests;
 
 /// <summary>
-/// Verifies editor-session teardown clears the static scene selection before disposing authored scene entities.
+/// Verifies editor-session teardown clears session selection before disposing authored scene entities.
 /// </summary>
 public sealed class EditorSessionSceneTeardownSelectionSourceTests {
     /// <summary>
@@ -9,15 +9,19 @@ public sealed class EditorSessionSceneTeardownSelectionSourceTests {
     /// </summary>
     [Fact]
     public void Editor_session_source_clears_selection_before_scene_teardown() {
-        string sourcePath = @"C:\dev\helworks\helengine\engine\helengine.editor\EditorSession.cs";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.editor", "EditorSession.cs");
         string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
 
         Assert.Contains(
-            "ClearSceneSelectionBeforeTeardown();\n            assetBrowserPanel.AssetSelected -= HandleAssetSelected;",
+            "ledger.Register(ClearSceneSelectionBeforeTeardown, EditorSessionCleanupPhase.Reset);",
             source,
             StringComparison.Ordinal);
         Assert.Contains(
-            "propertiesPanel.ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested;\n            EditorSelectionService.SelectionChanged -= HandleSelectionChanged;",
+            "RegisterDetacher(ConstructionLedger, () => panel.AssetSelected -= HandleAssetSelected);",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RegisterDetacher(ConstructionLedger, () => ((PropertiesPanel)instance.Dockable).ImportSettingsApplyRequested -= HandleImportSettingsApplyRequested);",
             source,
             StringComparison.Ordinal);
         Assert.Contains(

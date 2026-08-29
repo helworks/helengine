@@ -172,8 +172,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public SceneSettingsDialog(FontAsset font, EditorUiMetrics metrics)
-            : base("SceneSettingsDialog", "Scene Settings", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public SceneSettingsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public SceneSettingsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics)
+            : base(ownerCore, interactionServices, "SceneSettingsDialog", "Scene Settings", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             SetDialogMinimumSize(PanelWidth, PanelHeight);
 
             CanvasWidthLabelHost = CreateDialogHost();
@@ -340,7 +343,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>New host entity configured for dialog content.</returns>
         EditorEntity CreateDialogHost() {
-            return new EditorEntity {
+            return new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

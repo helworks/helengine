@@ -50,10 +50,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ClickingHierarchyRow_SelectsTheRowEntity() {
-            EditorEntity selectedEntity = new EditorEntity {
+            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Selected From Hierarchy"
             };
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             InteractableComponent rowInteractable = FindHierarchyRowInteractable();
 
@@ -69,15 +69,15 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ClickingHierarchyArrow_CollapsesAndExpandsTheParentBranch() {
-            EditorEntity parent = new EditorEntity {
+            EditorEntity parent = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Parent"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Child"
             };
             parent.AddChild(child);
 
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             panel.RefreshHierarchy();
 
             SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
@@ -103,15 +103,15 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ClickingHierarchyRowBody_SelectsWithoutCollapsingTheBranch() {
-            EditorEntity parent = new EditorEntity {
+            EditorEntity parent = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Parent"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Child"
             };
             parent.AddChild(child);
 
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             panel.RefreshHierarchy();
 
             SceneHierarchyRow parentRow = FindVisibleRow(panel, parent);
@@ -129,10 +129,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RightClickingHierarchyRow_ReparentMenuItem_RaisesReparentRequested() {
-            EditorEntity selectedEntity = new EditorEntity {
+            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Selected From Hierarchy"
             };
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()) {
                 Position = new float3(32, 40, 0),
                 Size = new int2(320, 240)
             };
@@ -173,11 +173,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RefreshHierarchy_WithScaledMetrics_UsesScaledTitleBarOffsetAndRowHeight() {
-            EditorEntity selectedEntity = new EditorEntity {
+            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Scaled Hierarchy Entity"
             };
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont(), metrics) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics) {
                 Size = new int2(320, 240)
             };
 
@@ -197,10 +197,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void RefreshHierarchy_WhenSceneContainsMoreRowsThanViewport_OnlyEnablesVisibleRows() {
             for (int entityIndex = 0; entityIndex < 20; entityIndex++) {
-                new EditorEntity();
+                new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             }
 
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()) {
                 Size = new int2(320, 176)
             };
 
@@ -230,10 +230,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RefreshHierarchy_AssignsVisibleRowsToTheHierarchyContentLayer() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Layered Hierarchy Entity"
             };
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()) {
                 Position = new float3(24f, 32f, 0f),
                 Size = new int2(320, 176)
             };
@@ -261,10 +261,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RefreshHierarchy_ConfiguresContentCameraViewportToMatchPanelBody() {
-            new EditorEntity {
+            new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Viewport Hierarchy Entity"
             };
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()) {
                 Position = new float3(40f, 64f, 0f),
                 Size = new int2(320, 176)
             };
@@ -284,10 +284,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RefreshHierarchy_UsesPanelContentCameraTierBelowModalUiTier() {
-            new EditorEntity {
+            new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Hierarchy Camera Tier Entity"
             };
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()) {
                 Position = new float3(40f, 64f, 0f),
                 Size = new int2(320, 176)
             };
@@ -305,10 +305,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RefreshHierarchy_WhenModalUiTierIsCompared_RendersBelowModalDialogs() {
-            new EditorEntity {
+            new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Modal Comparison Entity"
             };
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()) {
                 Position = new float3(24f, 32f, 0f),
                 Size = new int2(320, 176)
             };
@@ -326,12 +326,12 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateContextMenuInput_WhenPointerTargetsClippedOverflow_DoesNotResolveAHiddenRow() {
             for (int entityIndex = 0; entityIndex < 20; entityIndex++) {
-                new EditorEntity {
+                new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                     Name = $"Hierarchy {entityIndex}"
                 };
             }
 
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont()) {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()) {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 176)
             };
@@ -482,7 +482,7 @@ namespace helengine.editor.tests {
         /// <param name="height">Viewport height.</param>
         /// <param name="layerMask">Layer mask rendered by the camera.</param>
         void CreateUiCamera(int width, int height, ushort layerMask) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask
             };

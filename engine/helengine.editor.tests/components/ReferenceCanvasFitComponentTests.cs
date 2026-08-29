@@ -410,7 +410,7 @@ namespace helengine.editor.tests.components {
         /// <param name="localPosition">Local position assigned to the entity.</param>
         /// <returns>Initialized entity ready to receive hierarchy content.</returns>
         static Entity CreateEntity(float3 localPosition) {
-            Entity entity = new Entity {
+            Entity entity = new Entity(Core.Instance) {
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity

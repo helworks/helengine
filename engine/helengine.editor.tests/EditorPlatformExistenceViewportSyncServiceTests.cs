@@ -14,7 +14,7 @@ namespace helengine.editor.tests {
         public void Apply_WhenEntityDoesNotExistOnPlatform_SuppressesItUntilAnotherPlatformApplies() {
             CreateCore();
             EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService(Core.Instance.ObjectManager);
-            EditorEntity sceneEntity = new EditorEntity { IsSceneOwned = true };
+            EditorEntity sceneEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
             EntitySaveComponent saveComponent = FindSaveComponent(sceneEntity);
             EntityPlatformExistenceEditingService existenceService = new EntityPlatformExistenceEditingService();
             existenceService.SetExists(saveComponent, "windows", false);
@@ -36,7 +36,7 @@ namespace helengine.editor.tests {
         public void Apply_LeavesEditorInternalEntitiesUntouched() {
             CreateCore();
             EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService(Core.Instance.ObjectManager);
-            EditorEntity internalEntity = new EditorEntity { InternalEntity = true };
+            EditorEntity internalEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { InternalEntity = true };
 
             service.Apply("windows");
 
@@ -49,7 +49,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void SetExists_WhenOverrideChanges_RaisesExistenceChanged() {
             CreateCore();
-            EditorEntity sceneEntity = new EditorEntity { IsSceneOwned = true };
+            EditorEntity sceneEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
             EntitySaveComponent saveComponent = FindSaveComponent(sceneEntity);
             int raisedCount = 0;
             EntityPlatformExistenceEditingService existenceService = new EntityPlatformExistenceEditingService();

@@ -39,7 +39,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSaveClicked_RaisesSaveRequested() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.SaveRequested += () => raised = true;
             dialog.Show();
@@ -55,7 +55,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleDontSaveClicked_RaisesDontSaveRequested() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.DontSaveRequested += () => raised = true;
             dialog.Show();
@@ -71,7 +71,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_UsesModalBand() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
 
             Assert.Equal(RenderOrder2D.ModalBackground, panelBackground.RenderOrder2D);
@@ -82,7 +82,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_UsesDistinctHeaderColor() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
             SpriteComponent headerBackground = GetPrivateField<SpriteComponent>(dialog, "HeaderBackground");
 
@@ -95,7 +95,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsMessageAndFooterImmediately() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show();
 
@@ -111,7 +111,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PositionsHeaderFlushToPanelEdges() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 
@@ -129,7 +129,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PositionsBackdropTopFlushToWindowControlCluster() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 
@@ -144,7 +144,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_AnchorsMessageAndFooterButtonsToResizablePanelEdges() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 
@@ -210,7 +210,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateLayout_WithScaledMetrics_UsesScaledMessageAndFooterLayout() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont(), metrics);
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics);
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 
@@ -232,7 +232,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PositionsCloseButtonAsFullHeightRightEdgeChrome() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 
@@ -248,7 +248,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_ExposesCornerResizeGripsByDefault() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 
@@ -282,7 +282,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_CreatesCloseButtonLeftSeparator() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             SpriteComponent closeButtonSeparator = GetPrivateField<SpriteComponent>(dialog, "CloseButtonSeparator");
 
             Assert.Equal(Core.Instance.RenderManager2D.PixelTexture, closeButtonSeparator.Texture);
@@ -294,7 +294,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleHeaderCursor_WhenDragged_MovesPanelPosition() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 
@@ -314,7 +314,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleTopLeftResizeGrip_WhenDraggedOutward_ResizesAndRepositionsThePanel() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 
@@ -341,7 +341,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleTopLeftResizeGrip_WhenDraggedSmaller_ClampsToThePanelMinimumSize() {
-            UnsavedChangesDialog dialog = new UnsavedChangesDialog(CreateFont());
+            UnsavedChangesDialog dialog = new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show();
             dialog.UpdateLayout(1280, 720);
 

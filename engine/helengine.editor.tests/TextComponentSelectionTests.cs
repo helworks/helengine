@@ -23,7 +23,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextComponent_WhenSelectionIsEnabledAndDragged_CreatesASelectionRange() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextComponent textComponent = new TextComponent {
                 Font = CreateFont(),
                 Text = "Name"
@@ -65,7 +65,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextComponent_WhenSelectionIsEnabled_ShiftArrowExtendsTheSelection() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextComponent textComponent = new TextComponent {
                 Font = CreateFont(),
                 Text = "Name"
@@ -110,7 +110,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextComponent_WhenParentHasScreenOffset_DragSelectionUsesLocalTextCoordinates() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(120f, 0f, 0f)
             };
             TextComponent textComponent = new TextComponent {
@@ -154,7 +154,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextComponent_WhenTextContainsLineBreaks_DragSelectionUsesThePointerLine() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextComponent textComponent = new TextComponent {
                 Font = CreateFont(),
                 Text = "One\nTwo"

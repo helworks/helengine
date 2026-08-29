@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenSupportedPlatformsAreProvided_CreatesTabsAndSelectsTheActivePlatform() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
 
             view.Show(
                 ["assimp", "custom"],
@@ -59,7 +59,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenManyPlatformsAreProvided_RevealsTheSelectedPlatformInTheSharedStrip() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
 
             view.Show(
                 ["assimp"],
@@ -79,7 +79,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenProcessorSectionIsVisible_UsesAttachedLowerPanelChrome() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
 
             view.Show(
                 ["assimp"],
@@ -103,7 +103,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenModelProcessorSettingsExist_UsesTheActivePlatformFlipWindingValue() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
 
             view.Show(
                 ["assimp"],
@@ -123,7 +123,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenTextureProcessorSettingsExist_UsesTheActivePlatformTextureValues() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["ds"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
@@ -152,7 +152,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenFontAtlasTextureProcessorSettingsExist_UsesTheActivePlatformFontAtlasTextureValues() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["ds"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
@@ -187,7 +187,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenIndexedTextureProcessorSettingsExist_ShowsQuantizedIndexingMethodSelector() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
@@ -216,7 +216,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenTextureFormatIsNotIndexed_HidesIndexingMethodSelector() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
@@ -243,7 +243,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleTextureColorFormatChanged_WhenIndexedFormatIsSelected_DefaultsQuantizedIndexingMethod() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
@@ -274,7 +274,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Apply_WhenIndexedTextureUsesImplicitDefaultIndexingMethod_DoesNotRaiseARequest() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetImportSettingsApplyRequest raisedRequest = null;
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
@@ -306,7 +306,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenImageTextureCapabilityMetadataExists_ConstrainsTextureFormatOptions() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
@@ -339,7 +339,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenFontTextureCapabilityMetadataExists_ConstrainsFontTextureFormatOptions() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 FontAtlasTexture = new TextureAssetProcessorSettings {
@@ -372,7 +372,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenFontSettingsExist_UsesTheActivePlatformFontPixelSize() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             AssetPlatformProcessorSettings dsSettings = new AssetPlatformProcessorSettings();
             AssetPlatformSettingsSectionRegistry.Shared.SetSection(dsSettings, "font", new FontAssetProcessorSettings {
@@ -403,7 +403,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleTextureColorFormatChanged_WhenFontEntryIsActive_UpdatesFontAtlasTextureSettingsOnly() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetImportSettingsApplyRequest raisedRequest = null;
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
@@ -441,7 +441,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Apply_WhenFontPixelSizeChanges_RaisesPlatformScopedRequest() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetImportSettingsApplyRequest raisedRequest = null;
             AssetProcessorSettings settings = new AssetProcessorSettings();
             AssetPlatformProcessorSettings windowsSettings = new AssetPlatformProcessorSettings();
@@ -475,7 +475,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenTextureCapabilityCombinationIsInvalid_RepairsPendingSelection() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetProcessorSettings settings = new AssetProcessorSettings();
             settings.Platforms["external-platform"] = new AssetPlatformProcessorSettings {
                 Texture = new TextureAssetProcessorSettings {
@@ -503,7 +503,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Apply_WhenPendingSettingsChanged_RaisesOneRichSettingsRequest() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetImportSettingsApplyRequest raisedRequest = null;
             view.ApplyRequested += request => raisedRequest = request;
 
@@ -530,7 +530,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Apply_WhenImporterSelectionChanges_RaisesACommitRequestImmediately() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
             AssetImportSettingsApplyRequest raisedRequest = null;
             view.ApplyRequested += request => raisedRequest = request;
 
@@ -554,8 +554,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenModelSettingsAreShownRepeatedly_DoesNotLeakPlatformTabEntitiesIntoSceneHierarchy() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             view.Show(
                 ["assimp"],
@@ -588,7 +588,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformTabsAreRebuilt_DisposesPreviousTabHosts() {
-            AssetImportSettingsView view = new AssetImportSettingsView(CreateFont(), 1);
+            AssetImportSettingsView view = new AssetImportSettingsView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1);
 
             view.Show(
                 ["assimp"],
@@ -620,7 +620,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void PropertiesPanel_WhenAssetSettingsAreApplied_ForwardsTheRichApplyPayload() {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), contentManager);
+            PropertiesPanel panel = new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), contentManager);
             AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile(
                 "Sponza.obj",
                 "Models/Sponza.obj",

@@ -72,7 +72,7 @@ namespace helengine.editor {
             ModelAsset modelAsset = TransformGizmoAxisLabelModelFactory.Create(font, text);
             RuntimeModel model = render3D.BuildModelFromRaw(modelAsset);
             Core ownerCore = render3D.OwnerCore ?? throw new InvalidOperationException("Preview dimension-label renderer must be bound to an owning core.");
-            var entity = new EditorEntity(ownerCore) {
+            var entity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = "Model Preview Bounds " + axisName + " Dimension",
                 Hidden = true,
                 InternalEntity = true,

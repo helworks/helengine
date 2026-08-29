@@ -302,7 +302,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_WhenPreviewSourceIsCreated_KeepsTheModelOutOfTheMainViewportQueue() {
-            EditorEntity mainCameraEntity = new EditorEntity();
+            EditorEntity mainCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CameraComponent mainCamera = new CameraComponent {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 CameraDrawOrder = 0,

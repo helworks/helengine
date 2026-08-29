@@ -483,16 +483,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager) : this(font, contentManager, null, new EditorEntity(), null, EditorUiMetrics.Default, null) { }
-
         /// <summary>
         /// Initializes a new properties panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver) : this(font, contentManager, fileSystemModelResolver, new EditorEntity(), null, EditorUiMetrics.Default, null) { }
-
         /// <summary>
         /// Initializes a new properties panel with the provided font and modal host.
         /// </summary>
@@ -500,8 +496,6 @@ namespace helengine.editor {
         /// <param name="contentManager">Content manager used by nested asset-editing views.</param>
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
         /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost) : this(font, contentManager, fileSystemModelResolver, modalHost, null, EditorUiMetrics.Default, null) { }
-
         /// <summary>
         /// Initializes a new properties panel with the provided font, modal host, and script component provider.
         /// </summary>
@@ -510,10 +504,6 @@ namespace helengine.editor {
         /// <param name="fileSystemModelResolver">Resolver that loads processed runtime models for file-system model source entries.</param>
         /// <param name="modalHost">Shared root entity used to host screen-wide dialogs.</param>
         /// <param name="scriptComponentCatalogProvider">Provider used to discover components from the current game script assembly.</param>
-        public PropertiesPanel(FontAsset font, ContentManager contentManager, EditorFileSystemModelResolver fileSystemModelResolver, EditorEntity modalHost, IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider)
-            : this(font, contentManager, fileSystemModelResolver, modalHost, scriptComponentCatalogProvider, EditorUiMetrics.Default, null) {
-        }
-
         /// <summary>
         /// Initializes a new properties panel with the provided font, modal host, script component provider, and shared dock metrics.
         /// </summary>
@@ -523,7 +513,76 @@ namespace helengine.editor {
         /// <param name="modalHost">Preferred shared root entity for screen-wide dialogs when it already uses the modal layer.</param>
         /// <param name="scriptComponentCatalogProvider">Provider used to discover components from the current game script assembly.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
+        /// <summary>Initializes a properties panel with an explicit owner graph and default modal host.</summary>
         public PropertiesPanel(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            ContentManager contentManager)
+            : this(
+                ownerCore,
+                interactionServices,
+                font,
+                contentManager,
+                null,
+                new EditorEntity(ownerCore, interactionServices) {
+                    LayerMask = EditorLayerMasks.EditorModalUi,
+                    InternalEntity = true
+                },
+                null,
+                EditorUiMetrics.Default,
+                null,
+                null) { }
+
+        /// <summary>Initializes a properties panel with an explicit model resolver and default modal host.</summary>
+        public PropertiesPanel(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            ContentManager contentManager,
+            EditorFileSystemModelResolver fileSystemModelResolver)
+            : this(
+                ownerCore,
+                interactionServices,
+                font,
+                contentManager,
+                fileSystemModelResolver,
+                new EditorEntity(ownerCore, interactionServices) {
+                    LayerMask = EditorLayerMasks.EditorModalUi,
+                    InternalEntity = true
+                },
+                null,
+                EditorUiMetrics.Default,
+                null,
+                null) { }
+
+        /// <summary>Initializes a properties panel with explicit model, modal, and script collaborators.</summary>
+        public PropertiesPanel(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            ContentManager contentManager,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorEntity modalHost,
+            IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider)
+            : this(ownerCore, interactionServices, font, contentManager, fileSystemModelResolver, modalHost, scriptComponentCatalogProvider, EditorUiMetrics.Default, null, null) { }
+
+        /// <summary>Initializes a properties panel with an explicit model and modal host.</summary>
+        public PropertiesPanel(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            ContentManager contentManager,
+            EditorFileSystemModelResolver fileSystemModelResolver,
+            EditorEntity modalHost)
+            : this(ownerCore, interactionServices, font, contentManager, fileSystemModelResolver, modalHost, null, EditorUiMetrics.Default, null, null) { }
+
+        /// <summary>
+        /// Initializes a new properties panel with the provided font, modal host, and script component provider.
+        /// </summary>
+        public PropertiesPanel(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             ContentManager contentManager,
             EditorFileSystemModelResolver fileSystemModelResolver,
@@ -531,7 +590,7 @@ namespace helengine.editor {
             IEditorScriptComponentCatalogProvider scriptComponentCatalogProvider,
             EditorUiMetrics metrics,
             EditorFileSystemFontResolver fileSystemFontResolver = null,
-            string projectRootPath = null) : base(font, metrics) {
+            string projectRootPath = null) : base(ownerCore, interactionServices, font, metrics) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -546,7 +605,7 @@ namespace helengine.editor {
             if (modalHost.LayerMask == EditorLayerMasks.EditorModalUi) {
                 ModalHost = modalHost;
             } else {
-                ModalHost = new EditorEntity {
+                ModalHost = new EditorEntity(OwnerCore, InteractionServices) {
                     InternalEntity = true,
                     LayerMask = EditorLayerMasks.EditorModalUi,
                     Position = float3.Zero
@@ -559,7 +618,7 @@ namespace helengine.editor {
 
             textOrder = RenderOrder2D.PanelForeground;
 
-            contentRoot = new EditorEntity();
+            contentRoot = new EditorEntity(OwnerCore, InteractionServices);
             contentRoot.LayerMask = LayerMask;
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
@@ -567,7 +626,7 @@ namespace helengine.editor {
             ContentClipComponent = new ClipRectComponent();
             contentRoot.AddComponent(ContentClipComponent);
 
-            ContentCameraEntity = new EditorEntity {
+            ContentCameraEntity = new EditorEntity(OwnerCore, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.PropertiesPanelContent
             };
@@ -578,7 +637,7 @@ namespace helengine.editor {
             };
             ContentCameraEntity.AddComponent(ContentCameraComponent);
 
-            ScrollContentRoot = new EditorEntity();
+            ScrollContentRoot = new EditorEntity(OwnerCore, InteractionServices);
             ScrollContentRoot.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             ScrollContentRoot.Position = float3.Zero;
             contentRoot.AddChild(ScrollContentRoot);
@@ -598,25 +657,25 @@ namespace helengine.editor {
             assetIdText = AddLine();
             statusText = AddLine();
 
-            importSettingsView = new AssetImportSettingsView(font, EditorLayerMasks.PropertiesPanelContent);
+            importSettingsView = new AssetImportSettingsView(OwnerCore, InteractionServices, font, EditorLayerMasks.PropertiesPanelContent);
             importSettingsView.ApplyRequested += HandleImportSettingsApplyRequested;
             importSettingsView.LayoutInvalidated += LayoutLines;
             ScrollContentRoot.AddChild(importSettingsView.Root);
 
-            MaterialView = new MaterialAssetView(font, EditorLayerMasks.PropertiesPanelContent, ModalHost, projectRootPath);
+            MaterialView = new MaterialAssetView(OwnerCore, InteractionServices, font, EditorLayerMasks.PropertiesPanelContent, ModalHost, projectRootPath);
             ScrollContentRoot.AddChild(MaterialView.Root);
-            AnimationClipView = new AnimationClipAssetView(font, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
+            AnimationClipView = new AnimationClipAssetView(OwnerCore, InteractionServices, font, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
             ScrollContentRoot.AddChild(AnimationClipView.Root);
 
-            TransformRoot = new EditorEntity();
+            TransformRoot = new EditorEntity(OwnerCore, InteractionServices);
             TransformRoot.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             TransformRoot.Position = new float3(0, 0, 0.2f);
             ScrollContentRoot.AddChild(TransformRoot);
 
             if (fileSystemModelResolver == null && fileSystemFontResolver == null) {
-                ComponentView = new ComponentPropertiesView(font, contentManager, null, null, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
+                ComponentView = new ComponentPropertiesView(OwnerCore, InteractionServices, font, contentManager, null, null, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
             } else {
-                ComponentView = new ComponentPropertiesView(font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
+                ComponentView = new ComponentPropertiesView(OwnerCore, InteractionServices, font, contentManager, fileSystemModelResolver, fileSystemFontResolver, EditorLayerMasks.PropertiesPanelContent, projectRootPath);
             }
             ComponentView.HistoryMutationService = HistoryMutationServiceValue;
             TransformPlatformEditingService = new EntityPlatformTransformEditingService();
@@ -625,7 +684,7 @@ namespace helengine.editor {
             ComponentView.RemoveRequested += HandleComponentRemoveRequested;
             ScrollContentRoot.AddChild(ComponentView.Root);
 
-            AddComponentButtonRoot = new EditorEntity();
+            AddComponentButtonRoot = new EditorEntity(OwnerCore, InteractionServices);
             AddComponentButtonRoot.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             AddComponentButtonRoot.Position = float3.Zero;
             AddComponentButtonRoot.Enabled = true;
@@ -637,12 +696,12 @@ namespace helengine.editor {
             AddComponentButtonRoot.AddComponent(AddComponentButton);
             AddComponentButtonRoot.Enabled = false;
 
-            AddComponentDialog = new ComponentAddDialog(font);
+            AddComponentDialog = new ComponentAddDialog(OwnerCore, InteractionServices, font);
             AddComponentDialog.ComponentSelected += HandleAddComponentSelected;
             ModalHost.Enabled = true;
             ModalHost.AddChild(AddComponentDialog);
 
-            RemoveComponentDialog = new RemoveComponentDialog(font);
+            RemoveComponentDialog = new RemoveComponentDialog(OwnerCore, InteractionServices, font);
             RemoveComponentDialog.ConfirmRequested += HandleRemoveComponentConfirmed;
             RemoveComponentDialog.CancelRequested += HandleRemoveComponentCanceled;
             ModalHost.AddChild(RemoveComponentDialog);
@@ -656,6 +715,8 @@ namespace helengine.editor {
             CreateTransformRowOverrideChrome(RotationRow, out RotationOverrideOutline, out RotationRevertButtonHost, out RotationRevertButton, HandleRotationOverrideRevertClicked);
             CreateTransformRowOverrideChrome(ScaleRow, out ScaleOverrideOutline, out ScaleRevertButtonHost, out ScaleRevertButton, HandleScaleOverrideRevertClicked);
             ComponentPlatformTabStrip = new PlatformTabStripView(
+                OwnerCore,
+                InteractionServices,
                 font,
                 EditorLayerMasks.PropertiesPanelContent,
                 ComponentPlatformTabWidth,
@@ -668,6 +729,8 @@ namespace helengine.editor {
             TransformRoot.AddChild(ComponentPlatformTabStrip.Root);
             ComponentPlatformTabStrip.Root.Enabled = false;
             ComponentEnvironmentTabStrip = new PlatformTabStripView(
+                OwnerCore,
+                InteractionServices,
                 font,
                 EditorLayerMasks.PropertiesPanelContent,
                 ComponentPlatformTabWidth,
@@ -738,19 +801,6 @@ namespace helengine.editor {
             AnimationClipView.SetRendererResources(rendererResources);
             ComponentPlatformTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
             ComponentEnvironmentTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
-        }
-
-        /// <summary>
-        /// Rebinds this panel and its detached modal host to the interaction graph
-        /// owned by the containing editor session.
-        /// </summary>
-        internal void SetInteractionServices(EditorSessionInteractionServices interactionServices) {
-            if (interactionServices == null) {
-                throw new ArgumentNullException(nameof(interactionServices));
-            }
-
-            RebindInteractionServices(interactionServices);
-            ModalHost?.RebindInteractionServices(interactionServices);
         }
 
         /// <summary>
@@ -1379,7 +1429,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>The created text component.</returns>
         TextComponent AddLine() {
-            var host = new EditorEntity();
+            var host = new EditorEntity(OwnerCore, InteractionServices);
             host.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             host.Position = float3.Zero;
             ScrollContentRoot.AddChild(host);
@@ -1446,12 +1496,12 @@ namespace helengine.editor {
                 throw new ArgumentException("Label must be provided.", nameof(label));
             }
 
-            row = new EditorEntity();
+            row = new EditorEntity(OwnerCore, InteractionServices);
             row.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             row.Position = float3.Zero;
             TransformRoot.AddChild(row);
 
-            var labelHost = new EditorEntity();
+            var labelHost = new EditorEntity(OwnerCore, InteractionServices);
             labelHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             labelHost.Position = float3.Zero;
             row.AddChild(labelHost);
@@ -1468,7 +1518,7 @@ namespace helengine.editor {
             fields = new TextBoxComponent[3];
             string[] placeholders = new[] { "X", "Y", "Z" };
             for (int i = 0; i < fieldHosts.Length; i++) {
-                var fieldHost = new EditorEntity();
+                var fieldHost = new EditorEntity(OwnerCore, InteractionServices);
                 fieldHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
                 fieldHost.Position = float3.Zero;
                 row.AddChild(fieldHost);
@@ -1513,7 +1563,7 @@ namespace helengine.editor {
             };
             row.AddComponent(outline);
 
-            revertButtonHost = new EditorEntity();
+            revertButtonHost = new EditorEntity(OwnerCore, InteractionServices);
             revertButtonHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             revertButtonHost.Position = float3.Zero;
             revertButtonHost.Enabled = false;
@@ -1539,12 +1589,12 @@ namespace helengine.editor {
             out TextComponent labelText,
             out EditorEntity fieldHost,
             out TextBoxComponent field) {
-            row = new EditorEntity();
+            row = new EditorEntity(OwnerCore, InteractionServices);
             row.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             row.Position = float3.Zero;
             TransformRoot.AddChild(row);
 
-            var labelHost = new EditorEntity();
+            var labelHost = new EditorEntity(OwnerCore, InteractionServices);
             labelHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             labelHost.Position = float3.Zero;
             row.AddChild(labelHost);
@@ -1557,7 +1607,7 @@ namespace helengine.editor {
             labelText.RenderOrder2D = textOrder;
             labelHost.AddComponent(labelText);
 
-            fieldHost = new EditorEntity();
+            fieldHost = new EditorEntity(OwnerCore, InteractionServices);
             fieldHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             fieldHost.Position = float3.Zero;
             row.AddChild(fieldHost);
@@ -1578,13 +1628,13 @@ namespace helengine.editor {
             out TextComponent labelText,
             out EditorEntity checkBoxHost,
             out CheckBoxComponent checkBox) {
-            row = new EditorEntity();
+            row = new EditorEntity(OwnerCore, InteractionServices);
             row.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             row.Position = float3.Zero;
             row.Enabled = false;
             TransformRoot.AddChild(row);
 
-            var labelHost = new EditorEntity();
+            var labelHost = new EditorEntity(OwnerCore, InteractionServices);
             labelHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             labelHost.Position = float3.Zero;
             row.AddChild(labelHost);
@@ -1597,7 +1647,7 @@ namespace helengine.editor {
             labelText.RenderOrder2D = textOrder;
             labelHost.AddComponent(labelText);
 
-            checkBoxHost = new EditorEntity();
+            checkBoxHost = new EditorEntity(OwnerCore, InteractionServices);
             checkBoxHost.LayerMask = EditorLayerMasks.PropertiesPanelContent;
             checkBoxHost.Position = float3.Zero;
             row.AddChild(checkBoxHost);

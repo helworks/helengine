@@ -41,7 +41,7 @@ namespace helengine.editor.tests {
         /// <param name="layerMask">Layer mask exposed by the created camera.</param>
         /// <returns>Camera entity containing one registered camera component.</returns>
         Entity CreateCameraEntity(ushort layerMask) {
-            var entity = new Entity();
+            var entity = new Entity(Core.Instance);
             entity.InitComponents();
 
             var camera = new CameraComponent {
@@ -58,7 +58,7 @@ namespace helengine.editor.tests {
         /// <param name="layerMask">Layer mask assigned to the mesh entity.</param>
         /// <returns>Mesh entity containing one registered mesh component.</returns>
         Entity CreateMeshEntity(ushort layerMask) {
-            var entity = new Entity {
+            var entity = new Entity(Core.Instance) {
                 LayerMask = layerMask
             };
             entity.InitComponents();

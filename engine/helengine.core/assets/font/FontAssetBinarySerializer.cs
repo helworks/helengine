@@ -33,14 +33,17 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Source stream containing the packaged font.</param>
         /// <returns>Deserialized font asset.</returns>
-        public static FontAsset Deserialize(Stream stream) {
+        public static FontAsset Deserialize(Stream stream, RenderManager2D renderManager2D) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
+            }
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
             }
 
             EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
             try {
-                return Deserialize(stream, header);
+                return Deserialize(stream, header, renderManager2D);
             } finally {
                 NativeOwnership.Delete(header);
             }
@@ -52,7 +55,7 @@ namespace helengine {
         /// <param name="stream">Source stream positioned at the payload.</param>
         /// <param name="header">Previously decoded HELE header.</param>
         /// <returns>Deserialized font asset.</returns>
-        public static FontAsset Deserialize(Stream stream, [NativeNoEscape] EngineBinaryHeader header) {
+        public static FontAsset Deserialize(Stream stream, [NativeNoEscape] EngineBinaryHeader header, RenderManager2D renderManager2D) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -61,8 +64,8 @@ namespace helengine {
             }
 
             ValidateHeader(header);
-            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
-                throw new InvalidOperationException("Font assets require an initialized core renderer before deserialization.");
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
             }
 
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
@@ -121,7 +124,7 @@ namespace helengine {
             }
 
             if (sourceTexture.Width > 0 && sourceTexture.Height > 0 && sourceTexture.Colors != null && sourceTexture.Colors.Length > 0) {
-                RuntimeTexture texture = Core.Instance.RenderManager2D.BuildTextureFromRaw(sourceTexture);
+                RuntimeTexture texture = renderManager2D.BuildTextureFromRaw(sourceTexture);
                 return new FontAsset(fontInfo, texture, characters, lineHeight, atlasWidth, atlasHeight) {
                     SourceTextureAsset = sourceTexture,
                     CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath

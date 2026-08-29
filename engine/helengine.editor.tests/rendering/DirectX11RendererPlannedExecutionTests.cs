@@ -131,21 +131,21 @@ namespace helengine.editor.tests.rendering {
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
 
-            Entity firstLightEntity = new Entity();
+            Entity firstLightEntity = new Entity(Core.Instance);
             firstLightEntity.InitComponents();
             DirectionalLightComponent lowImportanceLight = new DirectionalLightComponent();
             lowImportanceLight.Intensity = 1.0f;
             lowImportanceLight.ShadowsEnabled = false;
             firstLightEntity.AddComponent(lowImportanceLight);
 
-            Entity secondLightEntity = new Entity();
+            Entity secondLightEntity = new Entity(Core.Instance);
             secondLightEntity.InitComponents();
             PointLightComponent highestImportanceLight = new PointLightComponent();
             highestImportanceLight.Intensity = 4.0f;
             highestImportanceLight.ShadowsEnabled = true;
             secondLightEntity.AddComponent(highestImportanceLight);
 
-            Entity thirdLightEntity = new Entity();
+            Entity thirdLightEntity = new Entity(Core.Instance);
             thirdLightEntity.InitComponents();
             SpotLightComponent mediumImportanceLight = new SpotLightComponent();
             mediumImportanceLight.Intensity = 2.0f;
@@ -169,13 +169,13 @@ namespace helengine.editor.tests.rendering {
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
 
-            Entity directionalLightEntity = new Entity();
+            Entity directionalLightEntity = new Entity(Core.Instance);
             directionalLightEntity.InitComponents();
             DirectionalLightComponent directionalLight = new DirectionalLightComponent();
             directionalLight.Intensity = 2.0f;
             directionalLightEntity.AddComponent(directionalLight);
 
-            Entity pointLightEntity = new Entity();
+            Entity pointLightEntity = new Entity(Core.Instance);
             pointLightEntity.InitComponents();
             PointLightComponent pointLight = new PointLightComponent();
             pointLight.ShadowsEnabled = true;
@@ -203,7 +203,7 @@ namespace helengine.editor.tests.rendering {
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
 
-            Entity lightEntity = new Entity();
+            Entity lightEntity = new Entity(Core.Instance);
             lightEntity.InitComponents();
             DirectionalLightComponent light = new DirectionalLightComponent();
             light.Intensity = 2.0f;
@@ -231,7 +231,7 @@ namespace helengine.editor.tests.rendering {
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
 
-            Entity pointLightEntity = new Entity();
+            Entity pointLightEntity = new Entity(Core.Instance);
             pointLightEntity.InitComponents();
             PointLightComponent pointLight = new PointLightComponent();
             pointLight.ShadowsEnabled = true;
@@ -260,7 +260,7 @@ namespace helengine.editor.tests.rendering {
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
 
-            Entity pointLightEntity = new Entity();
+            Entity pointLightEntity = new Entity(Core.Instance);
             pointLightEntity.InitComponents();
             PointLightComponent pointLight = new PointLightComponent();
             pointLight.ShadowsEnabled = true;

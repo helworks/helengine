@@ -136,7 +136,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateComponent_WhenRunningInsideCoreUpdate_CanReadCurrentDeltaTime() {
             TestClockDrivenCore core = CreateClockDrivenCore(1.0d, 1.1d);
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             TestDeltaTimeProbeComponent component = new TestDeltaTimeProbeComponent();
             entity.AddComponent(component);

@@ -32,7 +32,7 @@ namespace helengine.editor {
             RuntimeModel gridModel = render3D.BuildModelFromRaw(TransformGizmoMeshFactory.CreateCenteredPlaneSquare(sideLength));
             RuntimeMaterial gridMaterial = EditorViewportGridMaterialFactory.Create(render3D, builtInShaderLibrary);
             Core ownerCore = render3D.OwnerCore ?? throw new InvalidOperationException("Preview grid renderer must be bound to an owning core.");
-            var gridEntity = new EditorEntity(ownerCore) {
+            var gridEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = GridEntityName,
                 Hidden = true,
                 InternalEntity = true,

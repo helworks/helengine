@@ -110,7 +110,7 @@ namespace helengine.editor.tests {
         EditorSession CreateSession(EditorGameScriptHotReloadService scriptHotReloadService) {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SetPrivateField(session, "projectPath", TempProjectRootPath);
-            SetPrivateField(session, "titleBar", new EditorTitleBar(CreateFont(), 1280, 720, "helengine"));
+            SetPrivateField(session, "titleBar", new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine"));
             SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);

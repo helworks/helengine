@@ -86,7 +86,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         /// <returns>Viewport camera entity used to evaluate plane-hit mapping.</returns>
         EditorEntity CreateViewportCameraEntity() {
-            var cameraEntity = new EditorEntity {
+            var cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(1f, 1f, 10f),
                 Orientation = float4.Identity
             };
@@ -152,7 +152,7 @@ namespace helengine.editor.tests.managers.scene {
         /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
         /// <returns>Created scene entity that should be returned by the selection bridge.</returns>
         EditorEntity CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
-            var entity = new EditorEntity {
+            var entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 Position = position
             };

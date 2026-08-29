@@ -10,12 +10,12 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask applied to the row hierarchy.</param>
         /// <param name="checkBoxSize">Scaled size used for the row checkbox.</param>
         /// <param name="textOrder">Render order used for the row checkbox and label.</param>
-        public PlatformsDialogRow(FontAsset font, ushort layerMask, int2 checkBoxSize, byte textOrder) {
+        public PlatformsDialogRow(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask, int2 checkBoxSize, byte textOrder) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
-            CheckBoxHost = new EditorEntity {
+            CheckBoxHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -25,7 +25,7 @@ namespace helengine.editor {
             CheckBoxHost.AddComponent(CheckBox);
             CheckBox.SetRenderOrders(textOrder, textOrder);
 
-            LabelHost = new EditorEntity {
+            LabelHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true

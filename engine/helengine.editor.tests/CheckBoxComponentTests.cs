@@ -13,7 +13,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void CheckBoxComponent_WhenClicked_TogglesCheckedStateAndRaisesChangedEvent() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CheckBoxComponent checkBox = new CheckBoxComponent(new int2(20, 20), CreateFont(), false);
             bool raisedValue = false;
             int raisedCount = 0;
@@ -42,7 +42,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void SetRenderOrders_WhenCalledAfterComponentAdded_UpdatesBackgroundAndCheckMarkRenderOrder() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CheckBoxComponent checkBox = new CheckBoxComponent(new int2(20, 20), CreateFont(), true);
             entity.AddComponent(checkBox);
 

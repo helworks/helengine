@@ -14,8 +14,8 @@ namespace helengine {
         bool isDisposed;
         /// <summary>
         /// Core that owns this entity's object-manager and scene lifecycle.
-        /// Captured at construction so a live entity never follows a later
-        /// replacement of the process-wide Core.Instance reference.
+        /// Captured at construction so a live entity never follows another
+        /// core after it has been created.
         /// </summary>
         public Core OwnerCore { get; private set; }
         float3 position;
@@ -32,12 +32,6 @@ namespace helengine {
         /// </summary>
         [NativeOwnedMember]
         List<Entity> children;
-
-        /// <summary>
-        /// Initializes a new entity with default transforms and registers it with the object manager.
-        /// </summary>
-        public Entity() : this(Core.Instance) {
-        }
 
         /// <summary>
         /// Initializes an entity against an explicit owning core.
@@ -365,8 +359,9 @@ namespace helengine {
             if (WouldCreateHierarchyCycle(entity)) {
                 throw new InvalidOperationException("Adding the supplied child would create a hierarchy cycle.");
             }
-
-            entity.RebindOwnerCore(OwnerCore);
+            if (!ReferenceEquals(entity.OwnerCore, OwnerCore)) {
+                throw new InvalidOperationException("Parent and child entities must belong to the same owning core.");
+            }
 
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
             entity.Parent = this;
@@ -399,97 +394,6 @@ namespace helengine {
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Rebinds an entity subtree to the explicit core of its new parent.
-        /// This closes the ownership gap for editor/UI entities that are
-        /// materialized before they are attached to their session root.
-        /// </summary>
-        /// <param name="ownerCore">Core that owns the new parent hierarchy.</param>
-        internal void RebindOwnerCore(Core ownerCore) {
-            if (ownerCore == null) {
-                throw new ArgumentNullException(nameof(ownerCore));
-            }
-            if (ReferenceEquals(OwnerCore, ownerCore)) {
-                return;
-            }
-
-            Core previousOwnerCore = OwnerCore;
-            bool hierarchyEnabled = IsHierarchyEnabled;
-            if (previousOwnerCore?.ObjectManager != null) {
-                previousOwnerCore.ObjectManager.RemoveEntity(this);
-            }
-
-            if (components != null) {
-                for (int index = 0; index < components.Count; index++) {
-                    Component component = components[index];
-                    if (hierarchyEnabled && previousOwnerCore?.ObjectManager != null) {
-                        RemoveComponentRegistrations(previousOwnerCore.ObjectManager, component);
-                    }
-                    component.OwnerCore = ownerCore;
-                }
-            }
-
-            OwnerCore = ownerCore;
-            ownerCore.ObjectManager.RegisterEntity(this);
-            OwnerCoreChanged(ownerCore);
-
-            if (hierarchyEnabled) {
-                for (int index = 0; index < components.Count; index++) {
-                    RegisterComponentRegistrations(ownerCore.ObjectManager, components[index]);
-                }
-            }
-
-            if (children != null) {
-                for (int index = 0; index < children.Count; index++) {
-                    children[index].RebindOwnerCore(ownerCore);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Allows specialized entity types to update their session-owned graph
-        /// when an unattached subtree is adopted by another core.
-        /// </summary>
-        /// <param name="ownerCore">New owning core.</param>
-        protected virtual void OwnerCoreChanged(Core ownerCore) {
-        }
-
-        static void RemoveComponentRegistrations(ObjectManager objectManager, Component component) {
-            if (component is IUpdateable updateable) {
-                objectManager.RemoveFromUpdate(updateable, updateable.UpdateOrder);
-            }
-            if (component is IInteractable2D interactable) {
-                objectManager.RemoveInteractable(interactable);
-            }
-            if (component is IDrawable2D drawable2D) {
-                objectManager.RemoveFromRender2D(drawable2D);
-            }
-            if (component is IDrawable3D drawable3D) {
-                objectManager.RemoveFromRender3D(drawable3D);
-            }
-            if (component is ICamera camera) {
-                objectManager.RemoveCamera(camera);
-            }
-        }
-
-        static void RegisterComponentRegistrations(ObjectManager objectManager, Component component) {
-            if (component is IUpdateable updateable) {
-                objectManager.RegisterForUpdate(updateable);
-            }
-            if (component is IInteractable2D interactable) {
-                objectManager.RegisterInteractable(interactable);
-            }
-            if (component is IDrawable2D drawable2D) {
-                objectManager.RegisterForRender2D(drawable2D);
-            }
-            if (component is IDrawable3D drawable3D) {
-                objectManager.RegisterForRender3D(drawable3D);
-            }
-            if (component is ICamera camera) {
-                objectManager.RegisterCamera(camera);
-            }
         }
 
         /// <summary>

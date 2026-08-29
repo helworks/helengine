@@ -9,7 +9,7 @@ public sealed class TriggerPairKey3DSourceTests {
     /// </summary>
     [Fact]
     public void Trigger_pair_key_3d_source_does_not_override_hash_code() {
-        string sourcePath = @"C:\dev\helworks\helengine\engine\helengine.physics\TriggerPairKey3D.cs";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.physics", "TriggerPairKey3D.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.DoesNotContain("HashCode.Combine(", source, StringComparison.Ordinal);

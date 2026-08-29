@@ -35,7 +35,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreatePhysicsSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -64,7 +64,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateLegacyPhysicsSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
                 () => sceneLoadService.Load(sceneAsset));
 
@@ -99,7 +99,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateSpherePhysicsSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -128,7 +128,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateAutomaticSpherePhysicsSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -159,7 +159,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCapsulePhysicsSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -188,7 +188,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateKinematicPushSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -220,7 +220,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterSlopeSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -247,7 +247,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterSteepSlopeSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -274,7 +274,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterStepsSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -301,7 +301,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterMovingPlatformRideSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);
@@ -330,7 +330,7 @@ namespace helengine.physics3d.tests {
             BepuRuntimeComponentRegistration.Register(core);
 
             SceneAsset sceneAsset = CreateCharacterCeilingLiftSceneAsset();
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> rootEntities = sceneLoadService.Load(sceneAsset);
             PhysicsWorld3D world = PhysicsWorld3D.CreateMediumDefault();
             world.BindScene(rootEntities);

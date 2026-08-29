@@ -717,7 +717,7 @@ public sealed class EditorSessionConstructionLedgerTests {
         core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         try {
             CameraComponent camera = new CameraComponent();
-            EditorEntity handle = new EditorEntity();
+            EditorEntity handle = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             InteractionServices.GizmoHover.SetHoveredHandle(camera, handle);
             InteractionServices.GizmoDrag.BeginDrag(camera, handle);
             InteractionServices.ViewportTool.SetToolMode(camera, EditorViewportToolMode.Rotate);

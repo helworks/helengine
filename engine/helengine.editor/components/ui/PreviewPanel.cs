@@ -217,24 +217,27 @@ namespace helengine.editor {
         /// Initializes a new preview panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
-        public PreviewPanel(FontAsset font) : this(font, null, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes a new preview panel with the provided font and shared metrics source.
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and padding.</param>
-        public PreviewPanel(FontAsset font, EditorUiMetrics metrics) : this(font, null, metrics) {
-        }
-
         /// <summary>
         /// Initializes a new preview panel with a model-grid toolbar icon and shared metrics source.
         /// </summary>
         /// <param name="font">Font used for the title bar.</param>
         /// <param name="gridIcon">Icon drawn by the model-preview grid toggle button.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and padding.</param>
-        public PreviewPanel(FontAsset font, RuntimeTexture gridIcon, EditorUiMetrics metrics) : base(font, metrics) {
+        public PreviewPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, null, EditorUiMetrics.Default) { }
+
+        public PreviewPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics)
+            : this(ownerCore, interactionServices, font, null, metrics) { }
+
+        public PreviewPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, RuntimeTexture gridIcon)
+            : this(ownerCore, interactionServices, font, gridIcon, EditorUiMetrics.Default) { }
+
+        public PreviewPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, RuntimeTexture gridIcon, EditorUiMetrics metrics) : base(ownerCore, interactionServices, font, metrics) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -247,12 +250,12 @@ namespace helengine.editor {
             modelGridIcon = gridIcon;
             IsModelGridVisibleValue = true;
 
-            contentRoot = new EditorEntity();
+            contentRoot = new EditorEntity(OwnerCore, InteractionServices);
             contentRoot.LayerMask = LayerMask;
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
-            modelToolbarRoot = new EditorEntity {
+            modelToolbarRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Enabled = false,
                 Position = new float3(0f, 0f, 0.4f)
@@ -266,7 +269,7 @@ namespace helengine.editor {
             };
             modelToolbarRoot.AddComponent(modelToolbarBackground);
 
-            gridButtonRoot = new EditorEntity {
+            gridButtonRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask
             };
             modelToolbarRoot.AddChild(gridButtonRoot);
@@ -277,7 +280,7 @@ namespace helengine.editor {
             };
             gridButtonRoot.AddComponent(gridButtonBackground);
 
-            EditorEntity gridIconHost = new EditorEntity {
+            EditorEntity gridIconHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };
@@ -310,7 +313,7 @@ namespace helengine.editor {
                 key => ToggleModelGrid());
             EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(gridButtonFocusTarget);
 
-            boundsButtonRoot = new EditorEntity {
+            boundsButtonRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask
             };
             modelToolbarRoot.AddChild(boundsButtonRoot);
@@ -321,7 +324,7 @@ namespace helengine.editor {
             };
             boundsButtonRoot.AddComponent(boundsButtonBackground);
 
-            boundsButtonLabelHost = new EditorEntity {
+            boundsButtonLabelHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };
@@ -354,7 +357,7 @@ namespace helengine.editor {
                 key => CycleModelBoundsDisplayMode());
             EditorSessionInteractionServices.From(this).KeyboardFocus.RegisterTarget(boundsButtonFocusTarget);
 
-            textureHost = new EditorEntity();
+            textureHost = new EditorEntity(OwnerCore, InteractionServices);
             textureHost.LayerMask = LayerMask;
             textureHost.Position = new float3(GetContentPaddingPixels(), GetContentPaddingPixels(), 0.2f);
             contentRoot.AddChild(textureHost);
@@ -365,7 +368,7 @@ namespace helengine.editor {
             textureSprite.Size = new int2(1, 1);
             textureHost.AddComponent(textureSprite);
 
-            resolutionLabelHost = new EditorEntity();
+            resolutionLabelHost = new EditorEntity(OwnerCore, InteractionServices);
             resolutionLabelHost.LayerMask = LayerMask;
             resolutionLabelHost.Enabled = false;
             contentRoot.AddChild(resolutionLabelHost);

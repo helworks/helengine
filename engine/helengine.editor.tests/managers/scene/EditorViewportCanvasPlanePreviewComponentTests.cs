@@ -102,7 +102,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         /// <returns>Scene camera component used by the preview component.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity();
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             var sceneCamera = new CameraComponent {
                 LayerMask = EditorLayerMasks.SceneObjects | EditorLayerMasks.SceneGrid | EditorLayerMasks.SceneCameraVisuals | EditorLayerMasks.SceneCanvasPlane,
                 Viewport = new float4(0f, 0f, 640f, 360f)
@@ -116,7 +116,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         /// <returns>Scene entity registered on the authored scene-object layer.</returns>
         EditorEntity CreateSceneRoundedRectEntity() {
-            var sceneEntity = new EditorEntity {
+            var sceneEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 IsSceneOwned = true
             };

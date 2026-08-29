@@ -4,20 +4,22 @@ namespace helengine.physics3d.tests {
     /// </summary>
     [Collection(Physics3DTestCollection.Name)]
     public sealed class PhysicsSceneFeatureAnalyzer3DTests : IDisposable {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal core services required for entity-backed feature-analysis tests.
         /// </summary>
         public PhysicsSceneFeatureAnalyzer3DTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
         /// Leaves the active core singleton attached after each test.
         /// </summary>
         public void Dispose() {
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -425,8 +427,8 @@ namespace helengine.physics3d.tests {
         /// </summary>
         /// <param name="localPosition">Initial local position.</param>
         /// <returns>Initialized entity.</returns>
-        static Entity CreateEntity(float3 localPosition) {
-            Entity entity = new Entity {
+        Entity CreateEntity(float3 localPosition) {
+            Entity entity = new Entity(CoreValue) {
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity

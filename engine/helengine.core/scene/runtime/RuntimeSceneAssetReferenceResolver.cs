@@ -4,6 +4,17 @@ namespace helengine {
     /// </summary>
     public sealed class RuntimeSceneAssetReferenceResolver : IDisposable {
         /// <summary>
+        /// Core that owns every runtime asset and entity materialized through this resolver.
+        /// </summary>
+        readonly Core OwnerCore;
+        readonly RenderManager3D RenderManager3D;
+        readonly RenderManager2D RenderManager2D;
+
+        /// <summary>
+        /// Gets the core that owns this resolver's runtime assets.
+        /// </summary>
+        internal Core OwningCore => OwnerCore;
+        /// <summary>
         /// Content manager used to load packaged runtime assets.
         /// </summary>
         readonly ContentManager AssetContentManager;
@@ -85,10 +96,15 @@ namespace helengine {
         /// Initializes a new packaged scene asset resolver.
         /// </summary>
         /// <param name="assetContentManager">Content manager used to load packaged assets.</param>
-        public RuntimeSceneAssetReferenceResolver(ContentManager assetContentManager) {
+        public RuntimeSceneAssetReferenceResolver(Core ownerCore, ContentManager assetContentManager) {
+            OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             }
+            // Headless cores are valid composition roots.  Keep the resolver bound to
+            // the explicit owner and validate a renderer only when that asset kind is used.
+            RenderManager3D = ownerCore.RenderManager3D;
+            RenderManager2D = ownerCore.RenderManager2D;
 
             AssetContentManager = assetContentManager;
             ActiveGeneratedModelsByKey = new Dictionary<string, RuntimeModel>(StringComparer.Ordinal);
@@ -105,6 +121,7 @@ namespace helengine {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
             }
+            RenderManager3D renderer = RequireRenderManager3D();
 
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 string generatedAssetKey = BuildGeneratedAssetCacheKey(reference);
@@ -115,13 +132,13 @@ namespace helengine {
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
                 RuntimeModel generatedModel = TrackOwnedModel(
-                    Core.Instance.RenderManager3D.BuildModelFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource));
+                    renderer.BuildModelFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource));
                 ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
                 return generatedModel;
 #else
                 ModelAsset generatedModelAsset = AssetContentManager.Load<ModelAsset>(generatedFullPath, RuntimeContentProcessorIds.ModelAsset);
                 try {
-                    RuntimeModel generatedModel = TrackOwnedModel(Core.Instance.RenderManager3D.BuildModelFromRaw(generatedModelAsset));
+                    RuntimeModel generatedModel = TrackOwnedModel(renderer.BuildModelFromRaw(generatedModelAsset));
                     ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);
                     return generatedModel;
                 } finally {
@@ -132,12 +149,12 @@ namespace helengine {
 
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromCooked(fullPath, AssetContentManager.ContentStreamSource);
+            RuntimeModel runtimeModel = renderer.BuildModelFromCooked(fullPath, AssetContentManager.ContentStreamSource);
             return TrackOwnedModel(runtimeModel);
 #else
             ModelAsset modelAsset = AssetContentManager.Load<ModelAsset>(fullPath, RuntimeContentProcessorIds.ModelAsset);
             try {
-                RuntimeModel runtimeModel = Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+                RuntimeModel runtimeModel = renderer.BuildModelFromRaw(modelAsset);
                 return TrackOwnedModel(runtimeModel);
             } finally {
                 ReleaseTransientModelAsset(modelAsset);
@@ -155,6 +172,7 @@ namespace helengine {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
             }
+            RenderManager3D renderer = RequireRenderManager3D();
 
             if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
                 string generatedAssetKey = BuildGeneratedAssetCacheKey(reference);
@@ -165,12 +183,12 @@ namespace helengine {
                 string generatedFullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
                 RuntimeMaterial generatedCookedRuntimeMaterial = TrackOwnedMaterial(
-                    Core.Instance.RenderManager3D.BuildMaterialFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource));
+                    renderer.BuildMaterialFromCooked(generatedFullPath, AssetContentManager.ContentStreamSource));
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);
                 return generatedCookedRuntimeMaterial;
 #else
                 RuntimeMaterial generatedRawRuntimeMaterial = TrackOwnedMaterial(
-                    Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
+                    renderer.BuildMaterialFromRawAsset(
                         AssetContentManager,
                         generatedFullPath));
                 ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);
@@ -180,10 +198,10 @@ namespace helengine {
 
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromCooked(fullPath, AssetContentManager.ContentStreamSource);
+            RuntimeMaterial runtimeMaterial = renderer.BuildMaterialFromCooked(fullPath, AssetContentManager.ContentStreamSource);
             return TrackOwnedMaterial(runtimeMaterial);
 #else
-            RuntimeMaterial runtimeMaterial = Core.Instance.RenderManager3D.BuildMaterialFromRawAsset(
+            RuntimeMaterial runtimeMaterial = renderer.BuildMaterialFromRawAsset(
                 AssetContentManager,
                 fullPath);
             return TrackOwnedMaterial(runtimeMaterial);
@@ -231,26 +249,27 @@ namespace helengine {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
             }
+            RenderManager2D renderer = RequireRenderManager2D();
 
             LastTextureLoadStage = "ResolveTextureBegin";
             LastTextureRelativePath = reference.RelativePath ?? string.Empty;
             string fullPath = ResolveFileBackedAssetPath(reference);
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
             LastTextureLoadStage = "ResolveTextureBeforeBuild";
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(fullPath, AssetContentManager.ContentStreamSource);
-            Core.Instance.ReportSceneTransitionStage("Ownership:ResolveTextureAfterBuild");
+            RuntimeTexture runtimeTexture = renderer.BuildTextureFromCooked(fullPath, AssetContentManager.ContentStreamSource);
+            OwnerCore.ReportSceneTransitionStage("Ownership:ResolveTextureAfterBuild");
             LastTextureLoadStage = "ResolveTextureAfterBuild";
             RuntimeTexture trackedRuntimeTexture = TrackOwnedTexture(runtimeTexture);
-            Core.Instance.ReportSceneTransitionStage("Ownership:ResolveTextureAfterTrack");
+            OwnerCore.ReportSceneTransitionStage("Ownership:ResolveTextureAfterTrack");
             LastTextureLoadStage = "ResolveTextureTracked";
-            Core.Instance.ReportSceneTransitionStage("Ownership:ResolveTextureBeforeReturn");
+            OwnerCore.ReportSceneTransitionStage("Ownership:ResolveTextureBeforeReturn");
             return trackedRuntimeTexture;
 #else
             LastTextureLoadStage = "ResolveTextureBeforeContentLoad";
             TextureAsset textureAsset = AssetContentManager.Load<TextureAsset>(fullPath, RuntimeContentProcessorIds.TextureAsset);
             try {
                 LastTextureLoadStage = "ResolveTextureBeforeBuild";
-                RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(textureAsset);
+                RuntimeTexture runtimeTexture = renderer.BuildTextureFromRaw(textureAsset);
                 LastTextureLoadStage = "ResolveTextureAfterBuild";
                 RuntimeTexture trackedRuntimeTexture = TrackOwnedTexture(runtimeTexture);
                 LastTextureLoadStage = "ResolveTextureTracked";
@@ -519,19 +538,24 @@ namespace helengine {
             if (string.IsNullOrWhiteSpace(fontAsset.CookedAtlasTextureRelativePath)) {
                 return;
             }
-            if (Core.Instance == null || Core.Instance.RenderManager2D == null) {
-                throw new InvalidOperationException("External cooked font atlases require an initialized 2D render manager.");
-            }
-
+            RenderManager2D renderer = RequireRenderManager2D();
             string atlasFullPath = ResolvePackagedContentPath(fontAsset.CookedAtlasTextureRelativePath);
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromCooked(atlasFullPath, AssetContentManager.ContentStreamSource);
+            RuntimeTexture runtimeTexture = renderer.BuildTextureFromCooked(atlasFullPath, AssetContentManager.ContentStreamSource);
             fontAsset.AttachCookedRuntimeTexture(runtimeTexture);
 #else
             TextureAsset cookedAtlasTextureAsset = AssetContentManager.Load<TextureAsset>(atlasFullPath, RuntimeContentProcessorIds.TextureAsset);
-            RuntimeTexture runtimeTexture = Core.Instance.RenderManager2D.BuildTextureFromRaw(cookedAtlasTextureAsset);
+            RuntimeTexture runtimeTexture = renderer.BuildTextureFromRaw(cookedAtlasTextureAsset);
             fontAsset.AttachProcessedTexture(runtimeTexture, cookedAtlasTextureAsset);
 #endif
+        }
+
+        RenderManager3D RequireRenderManager3D() {
+            return RenderManager3D ?? throw new InvalidOperationException("The owning core must provide a 3D renderer to resolve this asset.");
+        }
+
+        RenderManager2D RequireRenderManager2D() {
+            return RenderManager2D ?? throw new InvalidOperationException("The owning core must provide a 2D renderer to resolve this asset.");
         }
 
         /// <summary>

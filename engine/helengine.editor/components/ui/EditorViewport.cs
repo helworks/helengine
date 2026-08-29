@@ -338,17 +338,13 @@ namespace helengine.editor {
         /// <param name="toolbarIcons">Runtime toolbar icon textures used by the transform and snap buttons.</param>
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile used by viewport previews.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar.</param>
-        public EditorViewport(CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EditorSessionRendererResources rendererResources)
-            : this(null, camera, font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics, builtInShaderLibrary, rendererResources) {
-        }
-
         /// <summary>
         /// Initializes a viewport against an explicit owning core so every
         /// toolbar entity is registered with the same session graph even when
         /// another core was constructed more recently.
         /// </summary>
         public EditorViewport(Core ownerCore, CameraComponent camera, FontAsset font, FontAsset snapModifierFont, EditorViewportToolbarIconSet toolbarIcons, EditorSceneCanvasProfileState sceneCanvasProfileState, EditorUiMetrics metrics, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EditorSessionRendererResources rendererResources)
-            : base(ownerCore ?? rendererResources?.ObjectManager?.OwnerCore, font, metrics) {
+            : base(ownerCore, rendererResources?.InteractionServices ?? throw new ArgumentNullException(nameof(rendererResources)), font, metrics) {
             Camera = camera ?? throw new ArgumentNullException(nameof(camera));
             Font = font ?? throw new ArgumentNullException(nameof(font));
             SnapModifierFont = snapModifierFont ?? throw new ArgumentNullException(nameof(snapModifierFont));
@@ -416,7 +412,7 @@ namespace helengine.editor {
             SnapDecreaseFocusTargets = new EditorFocusTarget[SnapSlots.Length];
             SnapDecreaseKeyboardFocusStates = new bool[SnapSlots.Length];
 
-            ToolbarRoot = new EditorEntity {
+            ToolbarRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.2f)
             };
@@ -615,7 +611,7 @@ namespace helengine.editor {
         /// Initializes the viewport settings button.
         /// </summary>
         void InitializeSettingsButton() {
-            EditorEntity buttonRoot = new EditorEntity {
+            EditorEntity buttonRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -628,7 +624,7 @@ namespace helengine.editor {
             };
             buttonRoot.AddComponent(buttonBackground);
 
-            EditorEntity iconHost = new EditorEntity {
+            EditorEntity iconHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };
@@ -693,7 +689,7 @@ namespace helengine.editor {
         /// Initializes the viewport stats toggle button on the toolbar.
         /// </summary>
         void InitializeStatsButton() {
-            EditorEntity buttonRoot = new EditorEntity {
+            EditorEntity buttonRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -706,7 +702,7 @@ namespace helengine.editor {
             };
             buttonRoot.AddComponent(buttonBackground);
 
-            EditorEntity iconHost = new EditorEntity {
+            EditorEntity iconHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };
@@ -872,7 +868,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(iconTexture));
             }
 
-            EditorEntity buttonRoot = new EditorEntity {
+            EditorEntity buttonRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -885,7 +881,7 @@ namespace helengine.editor {
             };
             buttonRoot.AddComponent(buttonBackground);
 
-            EditorEntity iconHost = new EditorEntity {
+            EditorEntity iconHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };
@@ -940,13 +936,13 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(slotIndex), "Snap slot index must be inside toolbar bounds.");
             }
 
-            EditorEntity labelRoot = new EditorEntity {
+            EditorEntity labelRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
             ToolbarRoot.AddChild(labelRoot);
 
-            EditorEntity magnetIconRoot = new EditorEntity {
+            EditorEntity magnetIconRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };
@@ -960,7 +956,7 @@ namespace helengine.editor {
             };
             magnetIconRoot.AddComponent(magnetIcon);
 
-            EditorEntity modifierTextRoot = new EditorEntity {
+            EditorEntity modifierTextRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };
@@ -975,7 +971,7 @@ namespace helengine.editor {
             };
             modifierTextRoot.AddComponent(modifierText);
 
-            EditorEntity valueRoot = new EditorEntity {
+            EditorEntity valueRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -1030,7 +1026,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(iconTexture));
             }
 
-            EditorEntity buttonRoot = new EditorEntity {
+            EditorEntity buttonRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero
             };
@@ -1043,7 +1039,7 @@ namespace helengine.editor {
             };
             buttonRoot.AddComponent(buttonBackground);
 
-            EditorEntity iconHost = new EditorEntity {
+            EditorEntity iconHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, 0f, 0.1f)
             };

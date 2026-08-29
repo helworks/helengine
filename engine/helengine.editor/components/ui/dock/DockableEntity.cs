@@ -113,31 +113,16 @@ namespace helengine.editor {
         /// Initializes a new dockable entity with title bar, content area, and interaction handlers.
         /// </summary>
         /// <param name="font">Font used to render the title text.</param>
-        public DockableEntity(FontAsset font)
-            : this(font, EditorUiMetrics.Default) {
-        }
-
-        /// <summary>
-        /// Initializes a new dockable entity against an explicit editor core.
-        /// </summary>
-        public DockableEntity(Core ownerCore, FontAsset font)
-            : this(ownerCore, font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes a new dockable entity with title bar, content area, and interaction handlers using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used to render the title text.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome.</param>
-        public DockableEntity(FontAsset font, EditorUiMetrics metrics) {
-            InitializeDockable(font, metrics);
-        }
+        public DockableEntity(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
 
-        /// <summary>
-        /// Initializes a new dockable entity against an explicit editor core and scaled metrics.
-        /// </summary>
-        public DockableEntity(Core ownerCore, FontAsset font, EditorUiMetrics metrics)
-            : base(ownerCore) {
+        public DockableEntity(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics)
+            : base(ownerCore, interactionServices) {
             InitializeDockable(font, metrics);
         }
 
@@ -166,7 +151,7 @@ namespace helengine.editor {
             titleBar.RenderOrder2D = surfaceOrder;
             AddComponent(titleBar);
 
-            titleBarText = new EditorEntity();
+            titleBarText = new EditorEntity(OwnerCore, InteractionServices);
             titleBarText.Position = new float3(Metrics.ScalePixels(8), GetTitleTextTopOffset(), 0);
             titleBarText.LayerMask = LayerMask;
             AddChild(titleBarText);
@@ -178,7 +163,7 @@ namespace helengine.editor {
             titleBarText.AddComponent(titleComponent);
             titleTextComponent = titleComponent;
 
-            EditorEntity sceneViewArea = new EditorEntity();
+            EditorEntity sceneViewArea = new EditorEntity(OwnerCore, InteractionServices);
             sceneViewArea.Position = new float3(0, TitleBarHeightPixels, 0);
             sceneViewArea.LayerMask = LayerMask;
             AddChild(sceneViewArea);
@@ -197,7 +182,7 @@ namespace helengine.editor {
             AddComponent(panelOutline);
 
             PanelMenuButtonWidth = Math.Max(TitleBarHeightPixels, Metrics.ScalePixels(24));
-            PanelMenuButtonEntity = new EditorEntity();
+            PanelMenuButtonEntity = new EditorEntity(OwnerCore, InteractionServices);
             PanelMenuButtonEntity.LayerMask = LayerMask;
             AddChild(PanelMenuButtonEntity);
 
@@ -209,7 +194,7 @@ namespace helengine.editor {
             PanelMenuButtonBackground.RenderOrder2D = surfaceOrder;
             PanelMenuButtonEntity.AddComponent(PanelMenuButtonBackground);
 
-            PanelMenuButtonTextEntity = new EditorEntity();
+            PanelMenuButtonTextEntity = new EditorEntity(OwnerCore, InteractionServices);
             PanelMenuButtonTextEntity.LayerMask = LayerMask;
             PanelMenuButtonTextEntity.Position = new float3(Metrics.ScalePixels(5), GetTitleTextTopOffset(), 0f);
             PanelMenuButtonEntity.AddChild(PanelMenuButtonTextEntity);
@@ -225,7 +210,7 @@ namespace helengine.editor {
             PanelMenuButtonInteractivity.CursorEvent += PanelMenuButtonInteractivity_CursorEvent;
             PanelMenuButtonEntity.AddComponent(PanelMenuButtonInteractivity);
 
-            PanelMenu = new ContextMenu(font, EditorLayerMasks.EditorModalUi, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, EditorSessionInteractionServices.From(this));
+            PanelMenu = new ContextMenu(OwnerCore, font, EditorLayerMasks.EditorModalUi, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
             AddChild(PanelMenu.Entity);
             PanelMenuItems = BuildPanelMenuItems();
 

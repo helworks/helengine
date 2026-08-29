@@ -90,7 +90,8 @@ namespace helengine.editor {
         /// <param name="scaleMode">Mapping mode used for normalized positions.</param>
         /// <param name="width">Total slider width in pixels.</param>
         /// <param name="height">Total slider height in pixels.</param>
-        public EditorSlider(double minimumValue, double maximumValue, double initialValue, EditorSliderScaleMode scaleMode, int width, int height) {
+        public EditorSlider(Core ownerCore, EditorSessionInteractionServices interactionServices, double minimumValue, double maximumValue, double initialValue, EditorSliderScaleMode scaleMode, int width, int height)
+            : base(ownerCore, interactionServices) {
             if (maximumValue <= minimumValue) {
                 throw new ArgumentOutOfRangeException(nameof(maximumValue), "Maximum slider value must be greater than the minimum value.");
             }
@@ -117,7 +118,7 @@ namespace helengine.editor {
             Enabled = true;
             LayerMask = EditorLayerMasks.EditorUi;
 
-            TrackHost = new EditorEntity {
+            TrackHost = new EditorEntity(OwnerCore, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = LayerMask,
                 Position = new float3(0f, (float)Math.Round((SliderHeight - TrackHeight) * 0.5), 0f)
@@ -144,7 +145,7 @@ namespace helengine.editor {
             };
             TrackHost.AddComponent(TrackFill);
 
-            ThumbHost = new EditorEntity {
+            ThumbHost = new EditorEntity(OwnerCore, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = LayerMask,
                 Position = float3.Zero

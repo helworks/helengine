@@ -111,7 +111,7 @@ namespace helengine.editor.tests {
         /// <param name="viewport">Viewport assigned to the created camera.</param>
         /// <returns>Editor entity with one camera component.</returns>
         EditorEntity CreateCameraEntity(float4 viewport) {
-            EditorEntity cameraEntity = new EditorEntity();
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             cameraEntity.Position = new float3(3f, 4f, -9f);
             float4 orientation;
             float4.CreateFromYawPitchRoll(0.25f, -0.15f, 0f, out orientation);

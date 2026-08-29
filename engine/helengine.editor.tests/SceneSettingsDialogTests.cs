@@ -14,7 +14,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Constructor_WhenDialogIsCreated_ConfiguresCanvasFieldsWithModalRenderOrders() {
             InitializeCore();
-            SceneSettingsDialog dialog = new SceneSettingsDialog(CreateFont(), EditorUiMetrics.Default);
+            SceneSettingsDialog dialog = new SceneSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default);
 
             byte dialogPanelOrder = GetNonPublicProperty<byte>(dialog, "DialogPanelOrder");
             byte dialogTextOrder = GetNonPublicProperty<byte>(dialog, "DialogTextOrder");
@@ -31,7 +31,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Show_WhenSceneSettingsDontUnloadIsTrue_PopulatesTheDontUnloadCheckbox() {
             InitializeCore();
-            SceneSettingsDialog dialog = new SceneSettingsDialog(CreateFont(), EditorUiMetrics.Default);
+            SceneSettingsDialog dialog = new SceneSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default);
             SceneSettingsAsset sceneSettings = new SceneSettingsAsset {
                 CanvasProfile = new SceneCanvasProfile {
                     Width = 1280,

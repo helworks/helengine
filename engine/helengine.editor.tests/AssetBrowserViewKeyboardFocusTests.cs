@@ -7,6 +7,9 @@ namespace helengine.editor.tests {
     /// Verifies keyboard-focus behavior for asset-browser rows and toolbar controls.
     /// </summary>
     public class AssetBrowserViewKeyboardFocusTests : IDisposable {
+        Core CoreValue;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly GeneratedAssetProviderRegistry GeneratedAssetProviders = new GeneratedAssetProviderRegistry();
         /// <summary>
         /// Temporary project roots created by the current test instance.
         /// </summary>
@@ -22,6 +25,9 @@ namespace helengine.editor.tests {
                     Directory.Delete(path, true);
                 }
             }
+            InteractionServices.Dispose();
+            GeneratedAssetProviders.Dispose();
+            CoreValue?.Dispose();
         }
 
         /// <summary>
@@ -36,7 +42,7 @@ namespace helengine.editor.tests {
             InitializeCore(projectRoot);
 
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 400, 300);
-            AssetBrowserView browserView = new AssetBrowserView(
+            AssetBrowserView browserView = new AssetBrowserView(CoreValue, InteractionServices,
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
@@ -46,7 +52,7 @@ namespace helengine.editor.tests {
                 4,
                 true,
                 focusGroup.FocusGroup,
-                new GeneratedAssetProviderRegistry());
+                GeneratedAssetProviders);
 
             browserView.UpdateLayout(320, 240);
 
@@ -72,7 +78,7 @@ namespace helengine.editor.tests {
 
             InitializeCore(projectRoot);
 
-            AssetBrowserView browserView = new AssetBrowserView(
+            AssetBrowserView browserView = new AssetBrowserView(CoreValue, InteractionServices,
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
@@ -82,7 +88,7 @@ namespace helengine.editor.tests {
                 4,
                 true,
                 null,
-                new GeneratedAssetProviderRegistry());
+                GeneratedAssetProviders);
 
             browserView.UpdateLayout(320, 240);
 
@@ -107,7 +113,7 @@ namespace helengine.editor.tests {
             InitializeCore(projectRoot);
 
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 400, 300);
-            AssetBrowserView browserView = new AssetBrowserView(
+            AssetBrowserView browserView = new AssetBrowserView(CoreValue, InteractionServices,
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
@@ -117,7 +123,7 @@ namespace helengine.editor.tests {
                 4,
                 true,
                 focusGroup.FocusGroup,
-                new GeneratedAssetProviderRegistry());
+                GeneratedAssetProviders);
 
             browserView.UpdateLayout(320, 240);
 
@@ -148,13 +154,14 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "robot"));
             Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "ruler"));
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(projectRoot)
             });
             TestInputBackend input = new TestInputBackend();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
+            CoreValue.SessionInteractionGraph = InteractionServices;
 
-            AssetBrowserView browserView = new AssetBrowserView(
+            AssetBrowserView browserView = new AssetBrowserView(CoreValue, InteractionServices,
                 CreateFont(),
                 projectRoot,
                 EditorLayerMasks.EditorUi,
@@ -164,7 +171,7 @@ namespace helengine.editor.tests {
                 4,
                 true,
                 null,
-                new GeneratedAssetProviderRegistry());
+                GeneratedAssetProviders);
 
             int browserHeight = AssetBrowserView.ToolbarHeight + (AssetBrowserView.RowHeight * 4) - 1;
             browserView.UpdateLayout(320, browserHeight);
@@ -181,7 +188,7 @@ namespace helengine.editor.tests {
             Assert.Equal(0f, listRoot.LocalPosition.Y);
 
             input.SetMouseState(new MouseState(40, 60, -120, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-            Core.Instance.Update();
+            CoreValue.Update();
 
             Assert.Equal(1, scrollComponent.ScrollOffset);
             Assert.Equal(-AssetBrowserView.RowHeight, listRoot.LocalPosition.Y);
@@ -208,10 +215,11 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="projectRoot">Project root used as the content path.</param>
         void InitializeCore(string projectRoot) {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(projectRoot)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.SessionInteractionGraph = InteractionServices;
         }
 
         /// <summary>
@@ -236,12 +244,12 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Registered focus-target count.</returns>
         int GetRegisteredTargetCount() {
-            FieldInfo field = typeof(EditorKeyboardFocusService).GetField("RegisteredTargets", BindingFlags.Static | BindingFlags.NonPublic);
+            FieldInfo field = typeof(EditorKeyboardFocusService).GetField("RegisteredTargets", BindingFlags.Instance | BindingFlags.NonPublic);
             if (field == null) {
                 throw new InvalidOperationException("Expected RegisteredTargets field was not found.");
             }
 
-            object value = field.GetValue(null);
+            object value = field.GetValue(InteractionServices.KeyboardFocus);
             List<IFocusTarget> targets = Assert.IsType<List<IFocusTarget>>(value);
             return targets.Count;
         }
@@ -281,4 +289,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

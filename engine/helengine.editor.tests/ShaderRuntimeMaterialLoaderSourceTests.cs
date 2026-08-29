@@ -10,7 +10,7 @@ public sealed class ShaderRuntimeMaterialLoaderSourceTests {
     [Fact]
     public void ShaderRuntimeMaterialLoader_source_uses_generic_cooked_texture_resolution_symbol() {
         string sourcePath = Path.Combine(
-            ResolveRepositoryRootPath(),
+            TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
             "engine",
             "helengine.shader",
             "assets",
@@ -19,30 +19,8 @@ public sealed class ShaderRuntimeMaterialLoaderSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("#if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED", source, StringComparison.Ordinal);
-        Assert.Contains("BuildTextureFromCooked(diffuseTexturePath)", source, StringComparison.Ordinal);
+        Assert.Contains("BuildTextureFromCooked(texturePath, assetContentManager.ContentStreamSource)", source, StringComparison.Ordinal);
         Assert.Contains("BuildTextureFromRaw(textureAsset)", source, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Resolves the helengine repository root from the current test assembly location.
-    /// </summary>
-    /// <returns>Absolute repository root path.</returns>
-    static string ResolveRepositoryRootPath() {
-        string currentPath = AppContext.BaseDirectory;
-        while (!string.IsNullOrWhiteSpace(currentPath)) {
-            string rootMarkerPath = Path.Combine(currentPath, "engine", "helengine.editor", "helengine.editor.csproj");
-            if (File.Exists(rootMarkerPath)) {
-                return currentPath;
-            }
-
-            DirectoryInfo parentDirectory = Directory.GetParent(currentPath);
-            if (parentDirectory == null) {
-                break;
-            }
-
-            currentPath = parentDirectory.FullName;
-        }
-
-        throw new InvalidOperationException("Could not resolve the helengine repository root from the current test assembly location.");
-    }
 }

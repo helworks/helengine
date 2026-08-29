@@ -26,7 +26,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Try_capture_entity_state_when_component_belongs_to_a_live_editor_entity_returns_true() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             SpriteComponent component = new SpriteComponent();
             entity.AddComponent(component);
             SerializedEditorEntityState expectedState = new SerializedEditorEntityState {
@@ -56,7 +56,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Try_record_component_mutation_when_callbacks_are_available_invokes_the_session_bridge() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             SpriteComponent component = new SpriteComponent();
             entity.AddComponent(component);
             SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState {

@@ -46,7 +46,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Configured scene camera component.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 Position = float3.Zero,
                 Orientation = float4.Identity

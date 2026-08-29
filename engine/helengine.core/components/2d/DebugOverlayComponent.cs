@@ -56,7 +56,7 @@ namespace helengine {
             initialized = true;
 
             entity.InitChildren();
-            bgEntity = new Entity();
+            bgEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Debug overlay requires an owning core."));
             bgEntity.LayerMask = entity.LayerMask;
             bgEntity.InitComponents();
             entity.AddChild(bgEntity);
@@ -70,7 +70,7 @@ namespace helengine {
             bg.RenderOrder2D = RenderOrder2D;
             bgEntity.AddComponent(bg);
 
-            textEntity = new Entity();
+            textEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Debug overlay requires an owning core."));
             textEntity.LayerMask = entity.LayerMask;
             textEntity.InitComponents();
             entity.AddChild(textEntity);

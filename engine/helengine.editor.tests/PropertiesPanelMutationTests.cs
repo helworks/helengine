@@ -29,6 +29,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.SessionInteractionGraph = InteractionServices;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
@@ -51,7 +52,7 @@ namespace helengine.editor.tests {
             bool raised = false;
             Action handleSceneMutated = () => raised = true;
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Original"
             };
 
@@ -80,7 +81,7 @@ namespace helengine.editor.tests {
             int mutationNotificationCount = 0;
             PropertiesPanel panel = CreatePanel();
             panel.HistoryMutationService = CreateHistoryMutationService(undoRedoService, () => mutationNotificationCount++);
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Original",
                 IsSceneOwned = true
             };
@@ -105,7 +106,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateTransformEdits_WhenSelectedEntityWasDisposed_ClearsTheInspector() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "DisposedSelection"
             };
             entity.AddComponent(new CameraComponent());
@@ -129,7 +130,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenEntityIsSelected_PositionsTheFirstSectionBelowTheTopEdge() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Original"
             };
 
@@ -146,7 +147,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenCameraScalarFieldIsSubmitted_UpdatesTheCameraComponent() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent camera = new CameraComponent();
             camera.NearPlaneDistance = 0.1f;
             entity.AddComponent(camera);
@@ -169,7 +170,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenClearDepthIsSubmitted_UpdatesCameraClearSettings() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent camera = new CameraComponent();
             camera.ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
             entity.AddComponent(camera);
@@ -195,7 +196,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenClearColorEnabledChanges_UpdatesCameraClearSettings() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent camera = new CameraComponent();
             camera.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
             entity.AddComponent(camera);
@@ -220,7 +221,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenSuppressedCameraClearColorEnabledChanges_UpdatesTheLiveCameraValue() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent camera = new CameraComponent();
             camera.ClearSettings = new CameraClearSettings(false, new float4(0f, 0f, 0f, 1f), true, 1f, false, 0);
             entity.AddComponent(camera);
@@ -245,7 +246,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenWindowsTabScalarFieldIsSubmitted_CreatesIndependentOverrideWithoutChangingTheCommonComponent() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Camera"
             };
             CameraComponent camera = new CameraComponent {
@@ -276,7 +277,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenNintendo3DsExistsIsUnchecked_PersistsAndClearsThePlatformExistenceOverride() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "PlatformEntity"
             };
 
@@ -303,7 +304,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenPs2TransformOverrideIsEdited_SwitchingTabsSwapsBetweenCommonAndOverrideValues() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "PlatformEntity",
                 Position = new float3(1f, 2f, 3f),
                 Scale = new float3(4f, 5f, 6f),
@@ -335,7 +336,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenPs2PositionOverrideIsReverted_LaterCommonChangesFlowBackIntoThePlatformView() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "PlatformEntity",
                 Position = new float3(1f, 2f, 3f),
                 Scale = float3.One,
@@ -380,7 +381,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenWindowsComponentRowIsReverted_LaterCommonChangesFlowBackIntoThePlatformView() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Camera"
             };
             CameraComponent camera = new CameraComponent {
@@ -434,7 +435,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenWindowsPlatformOnlyCameraScalarIsEdited_PersistsAcrossTabRebuilds() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Platform Camera"
             };
             EditorComponentAddDescriptor descriptor = new EditorComponentAddDescriptor(
@@ -477,7 +478,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenDsSyntheticTextMemberIsSubmitted_PersistsDetachedPlatformMemberValue() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Text Entity"
             };
             TextComponent text = new TextComponent {
@@ -510,7 +511,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenPlatformMeshTessellationIsEdited_PersistsPerPlatformDetachedValues() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Mesh Entity"
             };
             MeshComponent mesh = new MeshComponent();
@@ -561,7 +562,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenWorldUvwMapPreviewIsEnabled_SwapsMeshModelWithWorldProjectedTexCoords() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Ground Box",
                 Position = new float3(10f, 0f, 4f),
                 Scale = new float3(8f, 1f, 8f)
@@ -617,7 +618,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowEntityProperties_WhenBoxUvwMapPreviewIsEnabled_ProjectsLocalPositionsPerAxis() {
             PropertiesPanel panel = CreatePanel();
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Ground Box",
                 Scale = new float3(8f, 1f, 8f)
             };
@@ -666,10 +667,9 @@ namespace helengine.editor.tests {
         }
 
         PropertiesPanel CreatePanel() {
-            PropertiesPanel panel = new PropertiesPanel(
+            PropertiesPanel panel = new PropertiesPanel(CoreValue, InteractionServices,
                 CreateFont(),
                 new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
-            panel.SetInteractionServices(InteractionServices);
             panel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
             panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
             return panel;
@@ -861,4 +861,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

@@ -9,8 +9,8 @@ public sealed class PsVitaLambertFallbackSourceTests {
     /// </summary>
     [Fact]
     public void PsVita_runtime_model_copies_normals_for_lambert_fallback() {
-        string headerPath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRuntimeModel.hpp";
-        string sourcePath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRuntimeModel.cpp";
+        string headerPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-psvita", "src", "platform", "psvita", "rendering", "PsVitaRuntimeModel.hpp");
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-psvita", "src", "platform", "psvita", "rendering", "PsVitaRuntimeModel.cpp");
         string headerSource = File.ReadAllText(headerPath);
         string source = File.ReadAllText(sourcePath);
 
@@ -25,8 +25,8 @@ public sealed class PsVitaLambertFallbackSourceTests {
     /// </summary>
     [Fact]
     public void PsVita_render_manager_uses_existing_lights_and_colored_vertices_for_lambert_fallback() {
-        string headerPath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRenderManager3D.hpp";
-        string sourcePath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRenderManager3D.cpp";
+        string headerPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-psvita", "src", "platform", "psvita", "rendering", "PsVitaRenderManager3D.hpp");
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-psvita", "src", "platform", "psvita", "rendering", "PsVitaRenderManager3D.cpp");
         string headerSource = File.ReadAllText(headerPath);
         string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
 
@@ -46,8 +46,8 @@ public sealed class PsVitaLambertFallbackSourceTests {
     /// </summary>
     [Fact]
     public void PsVita_render_manager_honors_material_cull_mode_in_lambert_fallback() {
-        string headerPath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRenderManager3D.hpp";
-        string sourcePath = @"C:\dev\helworks\helengine-psvita\src\platform\psvita\rendering\PsVitaRenderManager3D.cpp";
+        string headerPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-psvita", "src", "platform", "psvita", "rendering", "PsVitaRenderManager3D.hpp");
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-psvita", "src", "platform", "psvita", "rendering", "PsVitaRenderManager3D.cpp");
         string headerSource = File.ReadAllText(headerPath);
         string source = File.ReadAllText(sourcePath);
 

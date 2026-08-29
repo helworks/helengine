@@ -15,8 +15,8 @@ public sealed class EditorColorPickerOverlayTests {
     public void Open_WhenPickerIsCreated_ShowsWheelTriangleAlphaAndHexFields() {
         InitializeCore();
 
-        EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
+        EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
 
         overlay.Open(new byte4(32, 64, 96, 255));
@@ -37,8 +37,8 @@ public sealed class EditorColorPickerOverlayTests {
     public void HueWheel_WhenHueChanges_UpdatesTheHexTextbox() {
         InitializeCore();
 
-        EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
+        EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
         overlay.Open(new byte4(255, 0, 0, 255));
 
@@ -54,8 +54,8 @@ public sealed class EditorColorPickerOverlayTests {
     public void Triangle_WhenSelectionChanges_UpdatesThePreviewAndTextbox() {
         InitializeCore();
 
-        EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
+        EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
         overlay.Open(new byte4(255, 255, 255, 255));
 
@@ -72,8 +72,8 @@ public sealed class EditorColorPickerOverlayTests {
     public void AlphaSlider_WhenChanged_UpdatesOnlyTheAlphaChannel() {
         InitializeCore();
 
-        EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
+        EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
         overlay.Open(new byte4(32, 64, 96, 255));
 
@@ -89,8 +89,8 @@ public sealed class EditorColorPickerOverlayTests {
     public void Open_WhenPickerIsCreated_KeepsTheTriangleInsideTheWheelInnerRadius() {
         InitializeCore();
 
-        EditorEntity host = new EditorEntity();
-        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
+        EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);
         host.AddChild(overlay);
         overlay.Open(new byte4(255, 255, 255, 255));
 

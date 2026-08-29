@@ -69,7 +69,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveSelection_WhenPreviewProxyIsClicked_SelectsTheUnderlying2DEntity() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             SpriteComponent spriteComponent = new SpriteComponent {
@@ -78,7 +78,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(spriteComponent);
 
-            EditorEntity previewEntity = new EditorEntity {
+            EditorEntity previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
@@ -93,7 +93,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveSelection_WhenTextPreviewProxyIsClicked_SelectsTheUnderlyingSourceEntity() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             TextComponent textComponent = new TextComponent {
@@ -102,7 +102,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(textComponent);
 
-            EditorEntity previewEntity = new EditorEntity {
+            EditorEntity previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, textComponent));
@@ -117,7 +117,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveSelection_WhenRoundedRectPreviewProxyIsClicked_SelectsTheUnderlyingSourceEntity() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
@@ -126,7 +126,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(roundedRectComponent);
 
-            EditorEntity previewEntity = new EditorEntity {
+            EditorEntity previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, roundedRectComponent));
@@ -144,7 +144,7 @@ namespace helengine.editor.tests {
             CameraComponent sceneCamera = CreateSceneCamera(new float4(0f, 0f, 320f, 180f));
             InteractableComponent interactable = CreateSceneInteractableEntity(new float3(20f, 30f, 0f), new int2(100, 60), 4);
 
-            Entity overlappingMeshEntity = new Entity {
+            Entity overlappingMeshEntity = new Entity(Core.Instance) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
             overlappingMeshEntity.InitComponents();
@@ -170,7 +170,7 @@ namespace helengine.editor.tests {
         public void ResolveSelectableEntityAtPointer_WhenViewportOwnedEntityUsesWorldPreview_ReturnsNullForScreenSpace2DPath() {
             CameraComponent sceneCamera = CreateSceneCamera(new float4(0f, 0f, 320f, 180f));
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -178,7 +178,7 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(320, 180)
             });
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 Position = new float3(20f, 30f, 0f)
             };
             contentEntity.InitComponents();
@@ -209,7 +209,7 @@ namespace helengine.editor.tests {
         public void ResolveSelectableWorldPreviewEntityAtPointer_WhenViewportOwnedPreviewIsUnderPointer_ReturnsTheUnderlyingSourceEntity() {
             CameraComponent sceneCamera = CreateSceneCamera(new float4(0f, 0f, 500f, 400f));
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -217,7 +217,7 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(500, 400)
             });
 
-            Entity sourceEntity = new Entity {
+            Entity sourceEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(-50f, -30f, 0f)
             };
             sourceEntity.InitComponents();
@@ -231,7 +231,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(spriteComponent);
 
-            EditorEntity previewEntity = new EditorEntity {
+            EditorEntity previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
@@ -253,7 +253,7 @@ namespace helengine.editor.tests {
         /// <param name="viewport">Viewport rectangle used by direct scene selection.</param>
         /// <returns>Configured scene camera component.</returns>
         CameraComponent CreateSceneCamera(float4 viewport) {
-            Entity cameraEntity = new Entity {
+            Entity cameraEntity = new Entity(Core.Instance) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
             cameraEntity.InitComponents();
@@ -276,7 +276,7 @@ namespace helengine.editor.tests {
         /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
         /// <returns>Interactable component registered for hit resolution.</returns>
         InteractableComponent CreateSceneInteractableEntity(float3 position, int2 size, byte renderOrder) {
-            Entity entity = new Entity {
+            Entity entity = new Entity(Core.Instance) {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 Position = position
             };

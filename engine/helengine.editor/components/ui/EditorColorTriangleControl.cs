@@ -64,7 +64,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     /// Initializes a new saturation/value triangle control.
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
-    public EditorColorTriangleControl(ushort layerMask, RenderManager2D renderManager2D) : this(layerMask, 124, renderManager2D) {
+    public EditorColorTriangleControl(Core ownerCore, EditorSessionInteractionServices interactionServices, ushort layerMask, RenderManager2D renderManager2D) : this(ownerCore, interactionServices, layerMask, 124, renderManager2D) {
     }
 
     /// <summary>
@@ -72,7 +72,8 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
     /// <param name="triangleSize">Square control size used by the triangle texture and hit area.</param>
-    public EditorColorTriangleControl(ushort layerMask, int triangleSize, RenderManager2D renderManager2D) {
+    public EditorColorTriangleControl(Core ownerCore, EditorSessionInteractionServices interactionServices, ushort layerMask, int triangleSize, RenderManager2D renderManager2D)
+        : base(ownerCore, interactionServices) {
         RenderManager2D = renderManager2D ?? throw new ArgumentNullException(nameof(renderManager2D));
         if (triangleSize <= 0) {
             throw new ArgumentOutOfRangeException(nameof(triangleSize), "Triangle size must be greater than zero.");
@@ -83,7 +84,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
         Name = "Color Triangle";
         TriangleSizeValue = triangleSize;
 
-        TriangleHost = CreateChildHost(layerMask);
+        TriangleHost = CreateChildHost(ownerCore, interactionServices, layerMask);
         AddChild(TriangleHost);
 
         TriangleSprite = new SpriteComponent {
@@ -100,7 +101,7 @@ public sealed class EditorColorTriangleControl : EditorEntity {
         TriangleInteractable.CursorEvent += HandleTriangleCursor;
         AddComponent(TriangleInteractable);
 
-        MarkerHost = CreateChildHost(layerMask);
+        MarkerHost = CreateChildHost(ownerCore, interactionServices, layerMask);
         AddChild(MarkerHost);
 
         SelectionMarker = new RoundedRectComponent {
@@ -178,8 +179,8 @@ public sealed class EditorColorTriangleControl : EditorEntity {
     /// </summary>
     /// <param name="layerMask">Layer mask applied to the child host.</param>
     /// <returns>Created internal child host.</returns>
-    static EditorEntity CreateChildHost(ushort layerMask) {
-        return new EditorEntity {
+    static EditorEntity CreateChildHost(Core ownerCore, EditorSessionInteractionServices interactionServices, ushort layerMask) {
+        return new EditorEntity(ownerCore, interactionServices) {
             LayerMask = layerMask,
             InternalEntity = true,
             Position = float3.Zero

@@ -38,7 +38,7 @@ namespace helengine.editor.tests.managers.rendering {
         [Fact]
         public void Build_WhenDrawableIsInsideOneClipOwner_EmitsPushDrawablePopSequence() {
             RenderList2D renderList = new RenderList2D(4);
-            EditorEntity clipHost = new EditorEntity {
+            EditorEntity clipHost = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(40f, 60f, 0f)
             };
             ClipRectComponent clip = new ClipRectComponent {
@@ -72,7 +72,7 @@ namespace helengine.editor.tests.managers.rendering {
         [Fact]
         public void Build_WhenNestedClipOwnersOverlap_EmitsIntersectedNestedClipRect() {
             RenderList2D renderList = new RenderList2D(4);
-            EditorEntity outer = new EditorEntity {
+            EditorEntity outer = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(10f, 10f, 0f)
             };
             ClipRectComponent outerClip = new ClipRectComponent {
@@ -80,7 +80,7 @@ namespace helengine.editor.tests.managers.rendering {
             };
             outer.AddComponent(outerClip);
 
-            EditorEntity inner = new EditorEntity {
+            EditorEntity inner = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(60f, 20f, 0f)
             };
             outer.AddChild(inner);

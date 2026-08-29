@@ -3,6 +3,15 @@ namespace helengine {
     /// Creates authored scene entities for non-editor hosts.
     /// </summary>
     public class RuntimeEntityFactory : IEntityFactory {
+        readonly Core OwnerCore;
+
+        /// <summary>
+        /// Initializes an entity factory bound to one explicit runtime core.
+        /// </summary>
+        public RuntimeEntityFactory(Core ownerCore) {
+            OwnerCore = ownerCore ?? throw new ArgumentNullException(nameof(ownerCore));
+        }
+
         /// <summary>
         /// Creates one authored root entity.
         /// </summary>
@@ -13,7 +22,7 @@ namespace helengine {
                 throw new ArgumentException("Entity name must be provided.", nameof(name));
             }
 
-            Entity entity = new Entity {
+            Entity entity = new Entity(OwnerCore) {
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity
@@ -31,6 +40,9 @@ namespace helengine {
         public Entity CreateChild(Entity parent, string name) {
             if (parent == null) {
                 throw new ArgumentNullException(nameof(parent));
+            }
+            if (!ReferenceEquals(parent.OwnerCore, OwnerCore)) {
+                throw new InvalidOperationException("The parent entity belongs to a different runtime core.");
             }
 
             Entity entity = Create(name);

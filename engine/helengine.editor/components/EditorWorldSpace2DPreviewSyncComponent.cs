@@ -102,7 +102,7 @@ namespace helengine {
         /// <returns>Newly created internal preview proxy entity.</returns>
         EditorEntity CreatePreviewEntity(Entity sourceEntity, Component sourceComponent) {
             Core ownerCore = RendererResources.ObjectManager.OwnerCore ?? throw new InvalidOperationException("World-space preview object manager must be bound to an owning core.");
-            EditorEntity previewEntity = new EditorEntity(ownerCore) {
+            EditorEntity previewEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = "World Space 2D Preview",
                 InternalEntity = true,
                 LayerMask = helengine.editor.EditorLayerMasks.SceneObjects

@@ -337,7 +337,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Initialized scene camera entity.</returns>
         EditorEntity CreateSceneCameraEntity() {
-            EditorEntity sceneCameraEntity = new EditorEntity(OwnerCore);
+            EditorEntity sceneCameraEntity = new EditorEntity(OwnerCore, EditorEntity.RequireInteractionServices(OwnerCore));
             sceneCameraEntity.InternalEntity = true;
             sceneCameraEntity.Position = new float3(0f, 3f, -8f);
             ApplyDefaultSceneCameraOrientation(sceneCameraEntity);
@@ -408,7 +408,7 @@ namespace helengine.editor {
         /// <param name="sceneCameraEntity">Scene camera entity whose transform seeds the picker camera.</param>
         /// <returns>Created picker-camera entity.</returns>
         EditorEntity CreatePickerCameraEntity(EditorEntity sceneCameraEntity) {
-            EditorEntity pickerCameraEntity = new EditorEntity(OwnerCore);
+            EditorEntity pickerCameraEntity = new EditorEntity(OwnerCore, EditorEntity.RequireInteractionServices(OwnerCore));
             pickerCameraEntity.InternalEntity = true;
             pickerCameraEntity.Enabled = false;
             pickerCameraEntity.Position = sceneCameraEntity.Position;

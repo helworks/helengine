@@ -12,11 +12,11 @@ namespace helengine.editor.tests {
         [Fact]
         public void ResolveSelectableEntity_WhenEntityIsInsideBlueprintInstance_ReturnsTheInstanceRoot() {
             CreateCore();
-            EditorEntity instanceRoot = new EditorEntity { Name = "Coin01", IsSceneOwned = true };
+            EditorEntity instanceRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { Name = "Coin01", IsSceneOwned = true };
             instanceRoot.AddComponent(new BlueprintInstanceComponent());
-            EditorEntity expandedChild = new EditorEntity { Name = "GoldenCoin", IsSceneOwned = true };
+            EditorEntity expandedChild = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { Name = "GoldenCoin", IsSceneOwned = true };
             instanceRoot.AddChild(expandedChild);
-            EditorEntity expandedMesh = new EditorEntity { Name = "CoinMesh", IsSceneOwned = true };
+            EditorEntity expandedMesh = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { Name = "CoinMesh", IsSceneOwned = true };
             expandedChild.AddChild(expandedMesh);
 
             Assert.Same(instanceRoot, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(expandedMesh));
@@ -30,12 +30,12 @@ namespace helengine.editor.tests {
         [Fact]
         public void ResolveSelectableEntity_WhenBlueprintInstancesNest_ReturnsTheOutermostRoot() {
             CreateCore();
-            EditorEntity outerRoot = new EditorEntity { IsSceneOwned = true };
+            EditorEntity outerRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
             outerRoot.AddComponent(new BlueprintInstanceComponent());
-            EditorEntity innerRoot = new EditorEntity { IsSceneOwned = true };
+            EditorEntity innerRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
             innerRoot.AddComponent(new BlueprintInstanceComponent());
             outerRoot.AddChild(innerRoot);
-            EditorEntity innerChild = new EditorEntity { IsSceneOwned = true };
+            EditorEntity innerChild = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
             innerRoot.AddChild(innerChild);
 
             Assert.Same(outerRoot, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(innerChild));
@@ -47,8 +47,8 @@ namespace helengine.editor.tests {
         [Fact]
         public void ResolveSelectableEntity_WhenEntityIsNotInsideBlueprintInstance_ReturnsTheEntity() {
             CreateCore();
-            EditorEntity parentEntity = new EditorEntity { IsSceneOwned = true };
-            EditorEntity childEntity = new EditorEntity { IsSceneOwned = true };
+            EditorEntity parentEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
+            EditorEntity childEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
             parentEntity.AddChild(childEntity);
 
             Assert.Same(childEntity, EditorViewportSceneSelectionFilter.ResolveSelectableEntity(childEntity));

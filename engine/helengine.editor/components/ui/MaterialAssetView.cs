@@ -188,19 +188,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
-        public MaterialAssetView(FontAsset font, ushort layerMask) : this(font, layerMask, null, null) {
-        }
-
         /// <summary>
         /// Initializes a new view for material asset editing with a separate host for shared overlay UI.
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
         /// <param name="overlayHost">Entity that should host non-scrolling overlay UI such as the color picker.</param>
-        public MaterialAssetView(FontAsset font, ushort layerMask, EditorEntity overlayHost)
-            : this(font, layerMask, overlayHost, null) {
-        }
-
         /// <summary>
         /// Initializes one material view with an authoritative project root.
         /// </summary>
@@ -208,7 +201,7 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
         /// <param name="overlayHost">Entity that should host non-scrolling overlay UI.</param>
         /// <param name="projectRootPath">Canonical project root used by settings persistence.</param>
-        public MaterialAssetView(FontAsset font, ushort layerMask, EditorEntity overlayHost, string projectRootPath) {
+        public MaterialAssetView(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask, EditorEntity overlayHost, string projectRootPath) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -225,11 +218,11 @@ namespace helengine.editor {
                 : new MaterialAssetSettingsService(ProjectRootPath);
             SchemaSettingsService = new MaterialAssetSchemaSettingsService();
 
-            RootEntity = new EditorEntity();
+            RootEntity = new EditorEntity(ownerCore, interactionServices);
             RootEntity.LayerMask = layerMask;
             RootEntity.InternalEntity = true;
 
-            PlatformTabStrip = new PlatformTabStripView(font, layerMask, 88, RowHeight, 0, RowHeight);
+            PlatformTabStrip = new PlatformTabStripView(RootEntity.OwnerCore, RootEntity.InteractionServices, font, layerMask, 88, RowHeight, 0, RowHeight);
             PlatformTabStrip.Root.Enabled = false;
             PlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, TextOrder);
             PlatformTabStrip.Root.Position = float3.Zero;
@@ -263,6 +256,8 @@ namespace helengine.editor {
             PlatformTabStrip.SetRenderManager2D(rendererResources.RenderManager2D);
             if (ColorPickerOverlay == null) {
                 ColorPickerOverlay = new EditorColorPickerOverlayComponent(
+                    RootEntity.OwnerCore,
+                    RootEntity.InteractionServices,
                     Font,
                     ColorPickerOverlayLayerMask,
                     rendererResources.RenderManager3D,
@@ -825,7 +820,7 @@ namespace helengine.editor {
             }
 
             EditorEntity labelHost = CreateTextHost(RootEntity.LayerMask, out TextComponent labelText, field.DisplayName);
-            EditorEntity valueHost = new EditorEntity();
+                EditorEntity valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             valueHost.LayerMask = RootEntity.LayerMask;
 
             if (field.FieldKind == PlatformMaterialFieldKind.Boolean) {
@@ -843,7 +838,7 @@ namespace helengine.editor {
             }
 
             if (field.FieldKind == PlatformMaterialFieldKind.Color) {
-                EditorColorFieldControl colorControl = new EditorColorFieldControl(Font, RootEntity.LayerMask);
+                EditorColorFieldControl colorControl = new EditorColorFieldControl(RootEntity.OwnerCore, RootEntity.InteractionServices, Font, RootEntity.LayerMask);
                 colorControl.ColorChanged += color => HandleColorFieldChanged(platformId, field.FieldId, color);
                 colorControl.Submitted += color => HandleColorFieldSubmitted(platformId, field.FieldId, color);
                 colorControl.PickerRequested += () => HandleColorFieldPickerRequested(platformId, field.FieldId, colorControl);
@@ -857,7 +852,7 @@ namespace helengine.editor {
             valueHost.AddComponent(textBox);
 
             if (IsAssetPickerField(field)) {
-                EditorEntity buttonHost = new EditorEntity();
+                EditorEntity buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
                 buttonHost.LayerMask = RootEntity.LayerMask;
                 ButtonComponent button = new ButtonComponent("Pick", new int2(ButtonWidth, RowHeight), Font, () => RequestAssetPick(platformId, field.FieldId));
                 buttonHost.AddComponent(button);
@@ -1129,7 +1124,7 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier represented by the new panel.</param>
         /// <returns>Created platform panel.</returns>
         MaterialAssetPlatformPanel CreatePlatformPanel(string platformId) {
-            MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel(platformId, Font, RootEntity.LayerMask, TextOrder);
+            MaterialAssetPlatformPanel panel = new MaterialAssetPlatformPanel(RootEntity.OwnerCore, RootEntity.InteractionServices, platformId, Font, RootEntity.LayerMask, TextOrder);
             panel.SchemaComboBoxControl.SelectionChanged += (index, value) => HandleSchemaSelectionChanged(platformId, index, value);
             return panel;
         }
@@ -1255,7 +1250,7 @@ namespace helengine.editor {
         /// <param name="text">Initial text content.</param>
         /// <returns>Host entity that owns the text component.</returns>
         EditorEntity CreateTextHost(ushort layerMask, out TextComponent textComponent, string text) {
-            EditorEntity host = new EditorEntity();
+            EditorEntity host = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             host.LayerMask = layerMask;
 
             textComponent = new TextComponent();

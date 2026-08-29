@@ -110,7 +110,7 @@ namespace helengine.editor.tests {
         /// <param name="name">Entity display name.</param>
         /// <returns>Configured editor entity.</returns>
         EditorEntity CreateSceneEntity(uint entityId, string name) {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = name
             };
             EntitySaveComponent saveComponent = Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));

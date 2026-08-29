@@ -4,20 +4,22 @@ namespace helengine.physics3d.tests {
     /// </summary>
     [Collection(Physics3DTestCollection.Name)]
     public sealed class BoxBoxContactConstraint3DTests : IDisposable {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal core services required for entity-backed constraint tests.
         /// </summary>
         public BoxBoxContactConstraint3DTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
         /// Detaches the active core singleton after each test so later tests start from a clean runtime.
         /// </summary>
         public void Dispose() {
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -25,8 +27,8 @@ namespace helengine.physics3d.tests {
         /// </summary>
         [Fact]
         public void MatchManifold_WithAlignedNormalAndChangedFeatureIds_RedistributesCachedNormalImpulses() {
-            Entity firstEntity = new Entity();
-            Entity secondEntity = new Entity();
+            Entity firstEntity = new Entity(CoreValue);
+            Entity secondEntity = new Entity(CoreValue);
             BoxBoxContactConstraint3D constraint = new BoxBoxContactConstraint3D(firstEntity, secondEntity) {
                 NormalImpulse0 = 4f,
                 NormalImpulse1 = 2f,
@@ -62,8 +64,8 @@ namespace helengine.physics3d.tests {
         /// </summary>
         [Fact]
         public void MatchManifold_WithAlignedNormalAndPartialFeatureMatches_PreservesMatchedSupportBeforeRedistribution() {
-            Entity firstEntity = new Entity();
-            Entity secondEntity = new Entity();
+            Entity firstEntity = new Entity(CoreValue);
+            Entity secondEntity = new Entity(CoreValue);
             BoxBoxContactConstraint3D constraint = new BoxBoxContactConstraint3D(firstEntity, secondEntity) {
                 NormalImpulse0 = 4f,
                 NormalImpulse1 = 2f,
@@ -96,8 +98,8 @@ namespace helengine.physics3d.tests {
         /// </summary>
         [Fact]
         public void MatchManifold_WithLargeNormalChange_ResetsCachedImpulses() {
-            Entity firstEntity = new Entity();
-            Entity secondEntity = new Entity();
+            Entity firstEntity = new Entity(CoreValue);
+            Entity secondEntity = new Entity(CoreValue);
             BoxBoxContactConstraint3D constraint = new BoxBoxContactConstraint3D(firstEntity, secondEntity) {
                 NormalImpulse0 = 4f,
                 NormalImpulse1 = 2f,

@@ -214,7 +214,7 @@ namespace helengine.editor {
             }
 
             if (ShowCameraStats) {
-                OverlayRoot = new EditorEntity(editorEntity.OwnerCore) {
+                OverlayRoot = new EditorEntity(editorEntity.OwnerCore, editorEntity.InteractionServices) {
                     InternalEntity = true,
                     LayerMask = editorEntity.LayerMask,
                     Position = new float3(OverlayMarginX, DockableEntity.TitleBarHeight + ViewportTopOffset + OverlayMarginY, 0.35f)
@@ -231,7 +231,7 @@ namespace helengine.editor {
                 };
                 OverlayRoot.AddComponent(OverlayBackground);
 
-                TextHost = new EditorEntity(editorEntity.OwnerCore) {
+                TextHost = new EditorEntity(editorEntity.OwnerCore, editorEntity.InteractionServices) {
                     InternalEntity = true,
                     LayerMask = editorEntity.LayerMask,
                     Position = new float3(OverlayPaddingX, OverlayPaddingY, 0.1f)
@@ -429,7 +429,7 @@ namespace helengine.editor {
             }
 
             Core ownerCore = RendererResources.ObjectManager.OwnerCore ?? throw new InvalidOperationException("Viewport axis-label object manager must be bound to an owning core.");
-            var axisLabelEntity = new EditorEntity(ownerCore) {
+            var axisLabelEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = string.Concat("Transform Gizmo Axis Label ", axisIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,

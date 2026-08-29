@@ -28,7 +28,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void IsTextPreviewDirty_WhenOnlyTransformChanges_ReturnsFalse() {
-            Entity sourceEntity = new Entity {
+            Entity sourceEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(10f, 20f, 30f)
             };
             sourceEntity.InitComponents();
@@ -57,7 +57,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void IsTextPreviewDirty_WhenVisibleTextDataChanges_ReturnsTrue() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 
@@ -83,7 +83,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void IsTextPreviewDirty_WhenAlignmentChanges_ReturnsTrue() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 
@@ -112,7 +112,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void IsTextPreviewDirty_WhenTextEffectsChange_ReturnsTrue() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 
@@ -138,7 +138,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void IsRoundedRectPreviewDirty_WhenVisibleShapeDataChanges_ReturnsTrue() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
 

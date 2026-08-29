@@ -30,7 +30,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            EditorEntity visualEntity = new EditorEntity(entity.OwnerCore) {
+            EditorEntity visualEntity = new EditorEntity(entity.OwnerCore, EditorEntity.RequireInteractionServices(entity.OwnerCore)) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneCameraVisuals,
                 LocalPosition = float3.Zero,

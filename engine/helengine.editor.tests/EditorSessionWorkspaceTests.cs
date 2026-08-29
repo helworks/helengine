@@ -287,7 +287,7 @@ namespace helengine.editor.tests {
             IReadOnlyList<EditorWorkspacePanelInstance> instances = harness.Session.GetPanelInstancesForTest("viewport");
             ViewportWorkspacePanelController firstController = harness.GetViewportControllerForTest(instances[0]);
             ViewportWorkspacePanelController secondController = harness.GetViewportControllerForTest(instances[1]);
-            EditorEntity selectedEntity = new EditorEntity(harness.OwnedCore);
+            EditorEntity selectedEntity = new EditorEntity(harness.OwnedCore, harness.Interactions);
 
             try {
                 harness.Interactions.Selection.SetSelectedEntity(selectedEntity);
@@ -803,7 +803,7 @@ namespace helengine.editor.tests {
                 Font = CreateFont();
                 ViewportToolbarIcons = CreateViewportToolbarIcons();
                 ContentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-                EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ContentManager);
+                EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(ContentManager, CoreValue.RenderManager2D);
                 AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, ContentManager);
                 assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
                 assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
@@ -846,7 +846,7 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "uiFont", Font);
                 SetPrivateField(Session, "SnapModifierFont", Font);
                 SetPrivateField(Session, "ViewportToolbarIcons", ViewportToolbarIcons);
-                SetPrivateField(Session, "titleBar", new EditorTitleBar(Font, EditorUiMetrics.Default, 1280, 720, "Workspace"));
+                SetPrivateField(Session, "titleBar", new EditorTitleBar(CoreValue, InteractionServices, Font, EditorUiMetrics.Default, 1280, 720, "Workspace"));
                 SetPrivateField(Session, "EditorContentManager", ContentManager);
                 SetPrivateField(Session, "CurrentUiMetrics", EditorUiMetrics.Default);
                 SetPrivateField(Session, "SceneCreationService", GeneratedAssetGraph.CreateSceneCreationService());
@@ -956,7 +956,7 @@ namespace helengine.editor.tests {
                     throw new ArgumentException("Entity id must be non-zero.", nameof(entityId));
                 }
 
-                EditorEntity cameraEntity = new EditorEntity();
+                EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
                 EntitySaveComponent saveComponent = FindComponent<EntitySaveComponent>(cameraEntity);
                 if (saveComponent == null) {
                     throw new InvalidOperationException("Camera entity is missing the required save component.");
@@ -1331,4 +1331,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

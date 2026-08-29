@@ -35,7 +35,11 @@ namespace helengine {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));
             }
 
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(assetContentManager);
+            Core ownerCore = (renderManager3D as RenderManager3D)?.OwnerCore
+                ?? throw new InvalidOperationException("Shader material loading requires a renderer attached to an owning core.");
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(
+                assetContentManager,
+                ownerCore.RenderManager2D ?? throw new InvalidOperationException("Shader material loading requires an owning 2D renderer."));
             ShaderRuntimeContentRegistration.Register(assetContentManager);
             ShaderMaterialAsset materialAsset = assetContentManager.Load<ShaderMaterialAsset>(materialAssetPath, ShaderRuntimeContentProcessorIds.ShaderMaterialAsset);
             string shaderPackagePath = ResolveShaderPackagePath(materialAsset.ShaderAssetId, renderManager3D.ShaderCompileTarget);
@@ -45,17 +49,20 @@ namespace helengine {
                 assetContentManager,
                 materialAsset.DiffuseTextureAssetId,
                 runtimeMaterial,
-                StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName);
+                StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName,
+                ownerCore.RenderManager2D);
             ApplyImportedTexture(
                 assetContentManager,
                 materialAsset.EmissiveTextureAssetId,
                 runtimeMaterial,
-                StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName);
+                StandardMaterialTextureBindingDefaults.EmissiveTextureBindingName,
+                ownerCore.RenderManager2D);
             ApplyImportedTexture(
                 assetContentManager,
                 materialAsset.RoughnessTextureAssetId,
                 runtimeMaterial,
-                StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName);
+                StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName,
+                ownerCore.RenderManager2D);
             return runtimeMaterial;
         }
 
@@ -85,7 +92,8 @@ namespace helengine {
             ContentManager assetContentManager,
             string textureAssetId,
             RuntimeMaterial runtimeMaterial,
-            string bindingName) {
+            string bindingName,
+            RenderManager2D renderManager2D) {
             if (assetContentManager == null) {
                 throw new ArgumentNullException(nameof(assetContentManager));
             } else if (runtimeMaterial == null) {
@@ -102,17 +110,16 @@ namespace helengine {
                 return;
             }
 
-            Core core = Core.Instance;
-            if (core == null || core.RenderManager2D == null) {
+            if (renderManager2D == null) {
                 throw new InvalidOperationException("Shader-backed runtime material loading requires a 2D render manager before imported textures can be materialized.");
             }
 
             string texturePath = ResolveImportedTexturePackagePath(textureAssetId);
 #if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED
-            RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromCooked(texturePath, assetContentManager.ContentStreamSource);
+            RuntimeTexture runtimeTexture = renderManager2D.BuildTextureFromCooked(texturePath, assetContentManager.ContentStreamSource);
 #else
             TextureAsset textureAsset = assetContentManager.Load<TextureAsset>(texturePath, RuntimeContentProcessorIds.TextureAsset);
-            RuntimeTexture runtimeTexture = core.RenderManager2D.BuildTextureFromRaw(textureAsset);
+            RuntimeTexture runtimeTexture = renderManager2D.BuildTextureFromRaw(textureAsset);
 #endif
             shaderRuntimeMaterial.Properties.SetTexture(textureBindingIndex, runtimeTexture);
         }

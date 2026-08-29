@@ -38,7 +38,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PopulatesCheckboxesAndActivePlatformDropdown() {
-            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+            PlatformsDialog dialog = new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 new[] { "windows", "ps2", "linux" },
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSaveClicked_WhenActivePlatformIsNotEnabled_LeavesDialogOpenAndShowsValidation() {
-            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+            PlatformsDialog dialog = new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(new[] { "windows", "ps2" }, new[] { "windows", "ps2" }, "ps2");
 
             PlatformsDialogRow ps2Row = FindRowForPlatform(dialog, "ps2");
@@ -78,7 +78,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_ParentsPlatformRowsUnderPlatformListViewportAndLaysThemOutImmediately() {
-            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+            PlatformsDialog dialog = new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 new[] { "windows", "ps2", "linux" },
@@ -109,7 +109,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_DoesNotLeavePlatformListViewportAtDefaultOriginUntilLaterLayout() {
-            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+            PlatformsDialog dialog = new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 new[] { "windows", "ps2" },
@@ -126,7 +126,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformCountExceedsVisibleRowCount_ScrollsToRevealRemainingPlatforms() {
-            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+            PlatformsDialog dialog = new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             // Uses only glyphs present in CreateFont(); avoids digits, which the test font does not define.
             char[] suffixLetters = { 'a', 'c', 'f', 'g', 'i', 'l', 'n', 'o', 'r', 's', 't', 'u', 'w', 'x' };
@@ -153,7 +153,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformCountIsWithinVisibleRowCount_HidesScrollBar() {
-            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+            PlatformsDialog dialog = new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(new[] { "windows", "ps2", "linux" }, new[] { "windows" }, "windows");
 
@@ -166,7 +166,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformCountExceedsVisibleRowCount_ShowsDraggableScrollBarThatScrollsTheList() {
-            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+            PlatformsDialog dialog = new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             // Uses only glyphs present in CreateFont(); avoids digits, which the test font does not define.
             char[] suffixLetters = { 'a', 'c', 'f', 'g', 'i', 'l', 'n', 'o', 'r', 's', 't', 'u', 'w', 'x' };
@@ -192,7 +192,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Hide_WhenClosed_DisablesPooledPlatformRowsWithoutDisposingThem() {
-            PlatformsDialog dialog = new PlatformsDialog(CreateFont());
+            PlatformsDialog dialog = new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 new[] { "windows", "ps2" },

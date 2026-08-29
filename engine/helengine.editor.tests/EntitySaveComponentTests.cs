@@ -39,7 +39,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void EditorEntity_WhenConstructed_AttachesEntitySaveComponent() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
 
             Assert.Contains(entity.Components, component => component is EntitySaveComponent);
         }
@@ -49,9 +49,9 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ShowComponents_WhenEntityContainsHiddenSaveComponent_DoesNotShowItInThePropertiesView() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             entity.AddComponent(new MeshComponent());
-            ComponentPropertiesView view = new ComponentPropertiesView(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
 
             view.ShowComponents(entity);
 

@@ -11,6 +11,8 @@ namespace helengine.editor.tests {
         /// </summary>
         readonly string TempRootPath;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly Core CoreValue;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
 
         /// <summary>
         /// Initializes the core services required by the reflection-based component catalog tests.
@@ -19,11 +21,12 @@ namespace helengine.editor.tests {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-component-add-catalog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
-            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.SessionInteractionGraph = InteractionServices;
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
@@ -31,6 +34,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -41,7 +45,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetAvailableComponents_WhenEntityAlreadyHasCamera_DoesNotIncludeCameraDescriptor() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(new CameraComponent());
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
@@ -55,7 +59,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetAvailableComponents_WhenEntityHasEditorCameraVisualComponent_StillIncludesMeshDescriptor() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             EditorCameraVisualAttachmentService.Attach(entity, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources.CameraVisuals);
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
@@ -68,7 +72,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetAvailableComponents_WhenEntityHasNoComponents_DoesNotIncludeRuntimeSceneIdDescriptor() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
 
@@ -80,7 +84,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetAvailableComponents_WhenEntityHasNoComponents_DoesNotIncludeCameraDescriptor() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
 
@@ -92,7 +96,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetAvailableComponents_WhenEntityHasNoComponents_StillIncludesRotateDescriptor() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
 
@@ -104,7 +108,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void GetAvailableComponents_WhenEntityAlreadyHasDebugComponent_DoesNotIncludeSecondDebugDescriptor() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(new DebugComponent());
 
             IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
@@ -141,7 +145,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AddAction_WhenMeshDescriptorIsInvoked_AttachesMeshComponent() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             EditorComponentAddDescriptor meshDescriptor = Assert.Single(EditorComponentAddCatalog.GetAvailableComponents(entity), component => string.Equals(component.DisplayName, "Mesh", StringComparison.Ordinal));
 
             meshDescriptor.AddAction(entity);
@@ -161,4 +165,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

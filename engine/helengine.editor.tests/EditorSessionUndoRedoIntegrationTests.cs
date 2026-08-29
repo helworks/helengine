@@ -538,11 +538,11 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "core", Assert.IsType<EditorCore>(Core.Instance));
             SetPrivateField(session, "interactionServices", InteractionServices);
             SetPrivateField(session, "projectPath", TempProjectRootPath);
-            SetPrivateField(session, "openFileDialog", new OpenFileDialog(CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
-            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
-            SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(CreateFont()));
-            SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(CreateFont(), EditorUiMetrics.Default));
-            SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(CreateFont(), EditorUiMetrics.Default));
+            SetPrivateField(session, "openFileDialog", new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
+            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
+            SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()));
+            SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default));
+            SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default));
             SetPrivateField(session, "sceneCatalogService", new EditorProjectSceneCatalogService(TempProjectRootPath));
             SetPrivateField(session, "SceneSaveService", saveService);
             SetPrivateField(session, "SceneFileLoadService", loadService);
@@ -611,7 +611,7 @@ namespace helengine.editor.tests {
         /// <param name="name">Display name assigned to the entity.</param>
         /// <returns>Created user-authored scene entity.</returns>
         EditorEntity CreateUserSceneEntity(uint entityId, string name) {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = name,
                 IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects

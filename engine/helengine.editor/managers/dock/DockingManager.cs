@@ -41,7 +41,7 @@ namespace helengine.editor {
         public DockingManager(RenderManager2D renderManager2D, ObjectManager objectManager, EditorSessionInteractionServices interactionServices, int padding = 0, int gap = 0) {
             this.interactionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             layout = new DockLayoutEngine(renderManager2D, objectManager, padding, gap);
-            previewOverlay = new DockPreviewOverlay();
+            previewOverlay = new DockPreviewOverlay(renderManager2D?.OwnerCore ?? throw new ArgumentNullException(nameof(renderManager2D)), interactionServices);
         }
 
         /// <summary>

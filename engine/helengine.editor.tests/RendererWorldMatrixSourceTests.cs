@@ -9,7 +9,7 @@ public sealed class RendererWorldMatrixSourceTests {
     /// </summary>
     [Fact]
     public void DirectX11_renderer_source_uses_exact_entity_world_matrix() {
-        string sourcePath = @"C:\dev\helworks\helengine\engine\helengine.directx11\DirectX11Renderer3D.cs";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.directx11", "DirectX11Renderer3D.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("return drawable.Parent.WorldTransformMatrix;", source, StringComparison.Ordinal);
@@ -21,7 +21,7 @@ public sealed class RendererWorldMatrixSourceTests {
     /// </summary>
     [Fact]
     public void Vulkan_renderer_source_uses_exact_entity_world_matrix() {
-        string sourcePath = @"C:\dev\helworks\helengine\engine\helengine.vulkan\VulkanRenderer3D.cs";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.vulkan", "VulkanRenderer3D.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Equal(2, CountOccurrences(source, "float4x4 world = entity.WorldTransformMatrix;"));
@@ -32,7 +32,7 @@ public sealed class RendererWorldMatrixSourceTests {
     /// </summary>
     [Fact]
     public void DirectX11_renderer_source_transposes_uploaded_normal_matrix() {
-        string sourcePath = @"C:\dev\helworks\helengine\engine\helengine.directx11\DirectX11Renderer3D.cs";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.directx11", "DirectX11Renderer3D.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("float4x4.Transpose(ref inverseTransposeNormalMatrix, out float4x4 normalMatrixTransposed);", source, StringComparison.Ordinal);
@@ -44,7 +44,7 @@ public sealed class RendererWorldMatrixSourceTests {
     /// </summary>
     [Fact]
     public void Vulkan_renderer_source_transposes_uploaded_normal_matrix() {
-        string sourcePath = @"C:\dev\helworks\helengine\engine\helengine.vulkan\VulkanRenderer3D.cs";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.vulkan", "VulkanRenderer3D.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("float4x4.Transpose(ref normalMatrix, out float4x4 normalMatrixTransposed);", source, StringComparison.Ordinal);

@@ -13,7 +13,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void DockTabStrip_WhenUpdated_CreatesPersistentFocusTargetsForVisibleTabs() {
             InitializeCore();
-            DockTabStrip strip = new DockTabStrip(CreateFont(), HandleTabSelected);
+            DockTabStrip strip = new DockTabStrip(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), HandleTabSelected);
             DockableEntity first = CreateDock("First");
             DockableEntity second = CreateDock("Second");
 
@@ -53,7 +53,7 @@ namespace helengine.editor.tests {
         public void DockTabStrip_WhenEnterIsPressedOnFocusedTab_SelectsThatTab() {
             InitializeCore();
             int selectedIndex = -1;
-            DockTabStrip strip = new DockTabStrip(CreateFont(), index => selectedIndex = index);
+            DockTabStrip strip = new DockTabStrip(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), index => selectedIndex = index);
             DockableEntity first = CreateDock("First");
             DockableEntity second = CreateDock("Second");
 
@@ -93,7 +93,7 @@ namespace helengine.editor.tests {
         /// <param name="title">Title shown by the dock.</param>
         /// <returns>Configured dockable entity.</returns>
         DockableEntity CreateDock(string title) {
-            DockableEntity dock = new DockableEntity(CreateFont());
+            DockableEntity dock = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dock.Title = title;
             return dock;
         }

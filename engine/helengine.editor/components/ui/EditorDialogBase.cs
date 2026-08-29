@@ -317,10 +317,6 @@ namespace helengine.editor {
         /// <param name="dialogWidth">Fixed panel width for the dialog.</param>
         /// <param name="dialogHeight">Fixed panel height for the dialog.</param>
         /// <param name="dialogHeaderHeight">Fixed title-bar height for the dialog.</param>
-        protected EditorDialogBase(string dialogName, string dialogTitle, FontAsset font, int dialogWidth, int dialogHeight, int dialogHeaderHeight)
-            : this(dialogName, dialogTitle, font, EditorUiMetrics.Default, dialogWidth, dialogHeight, dialogHeaderHeight) {
-        }
-
         /// <summary>
         /// Initializes the shared dialog shell for one concrete editor dialog using one shared metrics source.
         /// </summary>
@@ -331,7 +327,8 @@ namespace helengine.editor {
         /// <param name="dialogWidth">Unscaled panel width for the dialog.</param>
         /// <param name="dialogHeight">Unscaled panel height for the dialog.</param>
         /// <param name="dialogHeaderHeight">Unscaled title-bar height for the dialog.</param>
-        protected EditorDialogBase(string dialogName, string dialogTitle, FontAsset font, EditorUiMetrics metrics, int dialogWidth, int dialogHeight, int dialogHeaderHeight) {
+        protected EditorDialogBase(Core ownerCore, EditorSessionInteractionServices interactionServices, string dialogName, string dialogTitle, FontAsset font, EditorUiMetrics metrics, int dialogWidth, int dialogHeight, int dialogHeaderHeight)
+            : base(ownerCore, interactionServices) {
             if (string.IsNullOrWhiteSpace(dialogName)) {
                 throw new ArgumentException("A dialog name is required.", nameof(dialogName));
             }
@@ -363,14 +360,14 @@ namespace helengine.editor {
             Name = dialogName;
             Enabled = false;
 
-            BackdropRoot = new EditorEntity {
+            BackdropRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             AddChild(BackdropRoot);
 
-            BackdropTopRoot = new EditorEntity {
+            BackdropTopRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -390,7 +387,7 @@ namespace helengine.editor {
             };
             BackdropTopRoot.AddComponent(BackdropTopInteractable);
 
-            BackdropBodyRoot = new EditorEntity {
+            BackdropBodyRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -410,7 +407,7 @@ namespace helengine.editor {
             };
             BackdropBodyRoot.AddComponent(BackdropBodyInteractable);
 
-            PanelRoot = new EditorEntity {
+            PanelRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -427,14 +424,14 @@ namespace helengine.editor {
             };
             PanelRoot.AddComponent(PanelBackground);
 
-            ContentRoot = new EditorEntity {
+            ContentRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             PanelRoot.AddChild(ContentRoot);
 
-            HeaderRoot = new EditorEntity {
+            HeaderRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -455,7 +452,7 @@ namespace helengine.editor {
             HeaderInteractable.CursorEvent += HandleHeaderCursor;
             HeaderRoot.AddComponent(HeaderInteractable);
 
-            TitleHost = new EditorEntity {
+            TitleHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -471,7 +468,7 @@ namespace helengine.editor {
             };
             TitleHost.AddComponent(TitleText);
 
-            CloseButtonHost = new EditorEntity {
+            CloseButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -493,7 +490,7 @@ namespace helengine.editor {
             CloseButton.UseSquareCorners();
             CloseButton.SetTextColor(ThemeManager.Colors.AccentQuaternary);
 
-            ResizeTopLeftHost = new EditorEntity {
+            ResizeTopLeftHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -516,7 +513,7 @@ namespace helengine.editor {
             ResizeTopLeftInteractable.CursorEvent += HandleTopLeftResizeCursor;
             ResizeTopLeftHost.AddComponent(ResizeTopLeftInteractable);
 
-            ResizeBottomLeftHost = new EditorEntity {
+            ResizeBottomLeftHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -539,7 +536,7 @@ namespace helengine.editor {
             ResizeBottomLeftInteractable.CursorEvent += HandleBottomLeftResizeCursor;
             ResizeBottomLeftHost.AddComponent(ResizeBottomLeftInteractable);
 
-            ResizeBottomRightHost = new EditorEntity {
+            ResizeBottomRightHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -712,65 +709,6 @@ namespace helengine.editor {
         /// </summary>
         protected void HideDialogImmediately() {
             ClearDialogBackdrop();
-        }
-
-        /// <summary>
-        /// Adopts a dialog that was materialized by a host factory into the
-        /// explicit session core. This is required when a live session is
-        /// recreated while another session is the ambient legacy core. Pixel
-        /// textures captured during construction are rewritten to the new
-        /// renderer so no dialog resource remains owned by the old core.
-        /// </summary>
-        /// <param name="ownerCore">Core that owns the dialog after adoption.</param>
-        /// <param name="interactionServices">Interaction graph for the owning session.</param>
-        internal void RebindToSession(Core ownerCore, EditorSessionInteractionServices interactionServices) {
-            RebindEntityToSession(this, ownerCore, interactionServices);
-        }
-
-        /// <summary>
-        /// Adopts any editor entity subtree into one explicit session graph.
-        /// Dialog-like editor entities that do not derive from this shell use
-        /// the same operation during scale-sensitive recreation.
-        /// </summary>
-        internal static void RebindEntityToSession(EditorEntity entity, Core ownerCore, EditorSessionInteractionServices interactionServices) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (ownerCore == null) {
-                throw new ArgumentNullException(nameof(ownerCore));
-            }
-            if (interactionServices == null) {
-                throw new ArgumentNullException(nameof(interactionServices));
-            }
-
-            RuntimeTexture previousPixelTexture = entity.OwnerCore.RenderManager2D?.PixelTexture;
-            entity.RebindOwnerCore(ownerCore);
-            entity.RebindInteractionServices(interactionServices);
-            RuntimeTexture sessionPixelTexture = ownerCore.RenderManager2D?.PixelTexture;
-            if (previousPixelTexture == null || sessionPixelTexture == null || ReferenceEquals(previousPixelTexture, sessionPixelTexture)) {
-                return;
-            }
-
-            ReplacePixelTextures(entity, previousPixelTexture, sessionPixelTexture);
-        }
-
-        static void ReplacePixelTextures(EditorEntity entity, RuntimeTexture previousPixelTexture, RuntimeTexture sessionPixelTexture) {
-            if (entity.Components != null) {
-                for (int index = 0; index < entity.Components.Count; index++) {
-                    if (entity.Components[index] is SpriteComponent sprite && ReferenceEquals(sprite.Texture, previousPixelTexture)) {
-                        sprite.Texture = sessionPixelTexture;
-                    }
-                }
-            }
-
-            if (entity.Children == null) {
-                return;
-            }
-            for (int index = 0; index < entity.Children.Count; index++) {
-                if (entity.Children[index] is EditorEntity child) {
-                    ReplacePixelTextures(child, previousPixelTexture, sessionPixelTexture);
-                }
-            }
         }
 
         /// <summary>

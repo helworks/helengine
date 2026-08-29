@@ -41,11 +41,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void PropertiesPanel_WhenWheelScrollsOverTallEntityContent_AdvancesScrollOffset() {
-            PropertiesPanel panel = new PropertiesPanel(CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
+            PropertiesPanel panel = new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))) {
                 Position = new float3(32f, 40f, 0f),
                 Size = new int2(320, 120)
             };
-            panel.SetInteractionServices(InteractionServices);
             panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
             panel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
             EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) { Name = "Tall" };

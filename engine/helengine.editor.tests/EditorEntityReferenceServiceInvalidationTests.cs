@@ -69,7 +69,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Initialized entity.</returns>
         static Entity CreateInitializedEntity() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
             return entity;

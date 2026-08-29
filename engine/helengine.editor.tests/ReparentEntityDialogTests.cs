@@ -38,7 +38,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_UsesDistinctHeaderColor() {
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            ReparentEntityDialog dialog = new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
             SpriteComponent headerBackground = GetPrivateField<SpriteComponent>(dialog, "HeaderBackground");
 
@@ -51,11 +51,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PositionsHeaderFlushToPanelEdges() {
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
-            EditorEntity root = new EditorEntity {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            EditorEntity root = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Root"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Child"
             };
             root.AddChild(child);
@@ -77,11 +77,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PositionsCloseButtonAsFullHeightRightEdgeChrome() {
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
-            EditorEntity root = new EditorEntity {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            EditorEntity root = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Root"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Child"
             };
             root.AddChild(child);
@@ -102,11 +102,11 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateLayout_WithScaledMetrics_UsesScaledContentAndFooterLayout() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont(), metrics);
-            EditorEntity root = new EditorEntity {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics);
+            EditorEntity root = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Root"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Child"
             };
             root.AddChild(child);
@@ -131,11 +131,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsHierarchyAndFooterImmediately() {
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
-            EditorEntity root = new EditorEntity {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            EditorEntity root = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Root"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Child"
             };
             root.AddChild(child);
@@ -160,7 +160,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_CreatesCloseButtonLeftSeparator() {
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            ReparentEntityDialog dialog = new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             SpriteComponent closeButtonSeparator = GetPrivateField<SpriteComponent>(dialog, "CloseButtonSeparator");
 
             Assert.Equal(Core.Instance.RenderManager2D.PixelTexture, closeButtonSeparator.Texture);
@@ -172,11 +172,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleHeaderCursor_WhenDragged_MovesPanelPosition() {
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
-            EditorEntity root = new EditorEntity {
+            ReparentEntityDialog dialog = new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            EditorEntity root = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Root"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Child"
             };
             root.AddChild(child);

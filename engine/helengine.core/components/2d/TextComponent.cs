@@ -528,7 +528,7 @@ namespace helengine {
                     entity.InitChildren();
                 }
 
-                SelectionEntityValue = new Entity();
+                SelectionEntityValue = new Entity(OwnerCore ?? throw new InvalidOperationException("Text selection requires an owning core."));
                 SelectionEntityValue.LayerMask = entity.LayerMask;
                 SelectionEntityValue.Enabled = false;
                 SelectionEntityValue.InitComponents();

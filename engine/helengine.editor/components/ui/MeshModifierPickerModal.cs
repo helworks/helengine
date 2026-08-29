@@ -70,26 +70,19 @@ namespace helengine.editor {
         bool IsInitialized;
 
         /// <summary>
-        /// Initializes a new modifier picker modal.
-        /// </summary>
-        /// <param name="font">Font used for labels and buttons.</param>
-        public MeshModifierPickerModal(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
-        /// <summary>
         /// Initializes a new modifier picker modal using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public MeshModifierPickerModal(FontAsset font, EditorUiMetrics metrics)
-            : base("MeshModifierPickerModal", "Add Modifier", font, metrics, PanelWidth, ResolvePanelHeight(), HeaderHeight) {
+        public MeshModifierPickerModal(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics)
+            : base(ownerCore, interactionServices, "MeshModifierPickerModal", "Add Modifier", font, metrics, PanelWidth, ResolvePanelHeight(), HeaderHeight) {
             SetDialogMinimumSize(PanelWidth, ResolvePanelHeight());
 
             EntryButtonHosts = new EditorEntity[ModifierKinds.Length];
             EntryButtons = new ButtonComponent[ModifierKinds.Length];
             for (int index = 0; index < ModifierKinds.Length; index++) {
                 string kind = ModifierKinds[index];
-                EditorEntity buttonHost = new EditorEntity {
+                EditorEntity buttonHost = new EditorEntity(OwnerCore, InteractionServices) {
                     LayerMask = LayerMask,
                     Position = float3.Zero,
                     InternalEntity = true

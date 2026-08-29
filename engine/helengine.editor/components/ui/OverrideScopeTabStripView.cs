@@ -15,18 +15,18 @@ namespace helengine.editor {
         /// <summary>
         /// Initializes one two-level override scope strip.
         /// </summary>
-        public OverrideScopeTabStripView(FontAsset font, ushort layerMask, int tabWidth, int tabHeight, int tabSpacing, int arrowButtonWidth) {
+        public OverrideScopeTabStripView(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask, int tabWidth, int tabHeight, int tabSpacing = 4, int arrowButtonWidth = 16) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
-            RootValue = new EditorEntity {
+            RootValue = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 InternalEntity = true,
                 Enabled = true
             };
-            PlatformTabsValue = new PlatformTabStripView(font, layerMask, tabWidth, tabHeight, tabSpacing, arrowButtonWidth);
-            EnvironmentTabsValue = new PlatformTabStripView(font, layerMask, tabWidth, tabHeight, tabSpacing, arrowButtonWidth);
+            PlatformTabsValue = new PlatformTabStripView(ownerCore, interactionServices, font, layerMask, tabWidth, tabHeight, tabSpacing, arrowButtonWidth);
+            EnvironmentTabsValue = new PlatformTabStripView(ownerCore, interactionServices, font, layerMask, tabWidth, tabHeight, tabSpacing, arrowButtonWidth);
             TabHeightValue = tabHeight;
         PlatformTabsValue.SetEnvironmentAddButtonVisible(true);
             PlatformTabsValue.EnvironmentOverrideRequested += HandleEnvironmentOverrideRequested;

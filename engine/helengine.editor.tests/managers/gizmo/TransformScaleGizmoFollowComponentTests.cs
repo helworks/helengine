@@ -42,7 +42,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity hoveredHandle = (EditorEntity)gizmoRoot.Children[0];
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial));
 
-            EditorEntity selectedEntity = new EditorEntity();
+            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             selectedEntity.Position = new float3(3f, 4f, 5f);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             InteractionServices.GizmoHover.SetHoveredHandle(hoveredHandle);
@@ -79,7 +79,7 @@ namespace helengine.editor.tests.managers.gizmo {
             }
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
 
-            EditorEntity selectedEntity = new EditorEntity();
+            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
@@ -123,7 +123,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
 
-            InteractionServices.Selection.SetSelectedEntity(new EditorEntity());
+            InteractionServices.Selection.SetSelectedEntity(new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()));
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -165,7 +165,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
 
-            InteractionServices.Selection.SetSelectedEntity(new EditorEntity());
+            InteractionServices.Selection.SetSelectedEntity(new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()));
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -189,7 +189,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial);
             gizmoRoot.AddComponent(new TransformScaleGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, new TestRuntimeMaterial()));
 
-            EditorEntity selectedEntity = new EditorEntity();
+            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             selectedEntity.Position = new float3(0f, 0f, 0f);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
@@ -225,7 +225,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="cameraPosition">World-space camera position.</param>
         /// <returns>Configured scene camera component.</returns>
         CameraComponent CreateSceneCamera(float3 cameraPosition) {
-            EditorEntity cameraEntity = new EditorEntity();
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             cameraEntity.InternalEntity = true;
             cameraEntity.Position = cameraPosition;
 
@@ -243,7 +243,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="material">Material assigned to the handle meshes.</param>
         /// <returns>Configured scale gizmo root entity.</returns>
         EditorEntity CreateGizmoRoot(RuntimeMaterial material) {
-            EditorEntity gizmoRoot = new EditorEntity();
+            EditorEntity gizmoRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
             gizmoRoot.Name = "Transform Scale Gizmo";
@@ -254,7 +254,6 @@ namespace helengine.editor.tests.managers.gizmo {
             gizmoRoot.AddChild(CreatePlaneEntity("Transform Scale Gizmo XY Plane", float4.Identity, material));
             gizmoRoot.AddChild(CreatePlaneEntity("Transform Scale Gizmo XZ Plane", CreateXzPlaneOrientation(), material));
             gizmoRoot.AddChild(CreatePlaneEntity("Transform Scale Gizmo YZ Plane", CreateYzPlaneOrientation(), material));
-            gizmoRoot.RebindInteractionServices(InteractionServices);
             return gizmoRoot;
         }
 
@@ -266,7 +265,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="material">Material assigned to the axis meshes.</param>
         /// <returns>Configured axis entity.</returns>
         EditorEntity CreateAxisEntity(string name, float4 orientation, RuntimeMaterial material) {
-            EditorEntity axisEntity = new EditorEntity();
+            EditorEntity axisEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             axisEntity.Name = name;
             axisEntity.InternalEntity = true;
             axisEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -275,7 +274,7 @@ namespace helengine.editor.tests.managers.gizmo {
             axisEntity.Orientation = orientation;
             axisEntity.AddComponent(new TransformGizmoHandleComponent(new float3(0f, 1f, 0f)));
 
-            EditorEntity shaftEntity = new EditorEntity();
+            EditorEntity shaftEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             shaftEntity.Name = string.Concat(name, " Shaft");
             shaftEntity.InternalEntity = true;
             shaftEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -287,7 +286,7 @@ namespace helengine.editor.tests.managers.gizmo {
             shaftEntity.AddComponent(shaftMesh);
             axisEntity.AddChild(shaftEntity);
 
-            EditorEntity tipEntity = new EditorEntity();
+            EditorEntity tipEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             tipEntity.Name = string.Concat(name, " Tip");
             tipEntity.InternalEntity = true;
             tipEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -310,7 +309,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="material">Material assigned to the plane mesh.</param>
         /// <returns>Configured plane-handle entity.</returns>
         EditorEntity CreatePlaneEntity(string name, float4 orientation, RuntimeMaterial material) {
-            EditorEntity planeEntity = new EditorEntity();
+            EditorEntity planeEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             planeEntity.Name = name;
             planeEntity.InternalEntity = true;
             planeEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -450,7 +449,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="size">Authored sprite size.</param>
         /// <returns>Viewport-owned authored sprite entity.</returns>
         Entity CreateViewportOwnedSpriteEntity(float3 localPosition, int2 size) {
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -458,7 +457,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 FixedSize = new int2(1280, 720)
             });
 
-            Entity selectedEntity = new Entity {
+            Entity selectedEntity = new Entity(Core.Instance) {
                 LocalPosition = localPosition
             };
             selectedEntity.InitComponents();

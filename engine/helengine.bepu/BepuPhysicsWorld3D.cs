@@ -20,6 +20,11 @@ namespace helengine {
         static readonly SpringSettings DefaultContactSpringSettings = new SpringSettings(30f, 1f);
 
         /// <summary>
+        /// Core that owns this simulation's diagnostics and entity graph.
+        /// </summary>
+        Core OwnerCoreValue;
+
+        /// <summary>
         /// Stores the default velocity-iteration count used by the standard runtime solve schedule.
         /// </summary>
         const int DefaultSolveVelocityIterationCount = 4;
@@ -117,16 +122,7 @@ namespace helengine {
         /// <summary>
         /// Initializes one BEPU-backed physics world.
         /// </summary>
-        public BepuPhysicsWorld3D() {
-            SolveVelocityIterationCountValue = DefaultSolveVelocityIterationCount;
-            SolveSubstepCountValue = DefaultSolveSubstepCount;
-            BufferPoolValue = new BufferPool(DefaultBufferPoolBlockSize, DefaultBufferPoolResourceCount);
-            BodyRegistryValue = new BepuBodyRegistry3D();
-            TriggerEventsValue = new List<TriggerEvent3D>();
-            ActiveTriggerPairsValue = new List<TriggerPairKey3D>();
-            CurrentTriggerPairsValue = new List<TriggerPairKey3D>();
-            ProfilerStopwatch = new Stopwatch();
-            ResetSimulation();
+        public BepuPhysicsWorld3D() : this(null, DefaultSolveVelocityIterationCount, DefaultSolveSubstepCount, true) {
         }
 
         /// <summary>
@@ -134,13 +130,23 @@ namespace helengine {
         /// </summary>
         /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each simulation step.</param>
         /// <param name="solveSubstepCount">Substep count applied to each simulation step.</param>
-        public BepuPhysicsWorld3D(int solveVelocityIterationCount, int solveSubstepCount) {
+        public BepuPhysicsWorld3D(int solveVelocityIterationCount, int solveSubstepCount) : this(null, solveVelocityIterationCount, solveSubstepCount, true) {
+        }
+
+        /// <summary>
+        /// Initializes one BEPU-backed physics world with an explicit owner and solve schedule.
+        /// </summary>
+        /// <param name="ownerCore">Core whose runtime owns this simulation, or null for a standalone simulation.</param>
+        /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each simulation step.</param>
+        /// <param name="solveSubstepCount">Substep count applied to each simulation step.</param>
+        BepuPhysicsWorld3D(Core ownerCore, int solveVelocityIterationCount, int solveSubstepCount, bool initialize) {
             if (solveVelocityIterationCount <= 0) {
                 throw new ArgumentOutOfRangeException(nameof(solveVelocityIterationCount), "Velocity iteration count must be greater than zero.");
             } else if (solveSubstepCount <= 0) {
                 throw new ArgumentOutOfRangeException(nameof(solveSubstepCount), "Substep count must be greater than zero.");
             }
 
+            OwnerCoreValue = ownerCore;
             SolveVelocityIterationCountValue = solveVelocityIterationCount;
             SolveSubstepCountValue = solveSubstepCount;
             BufferPoolValue = new BufferPool(DefaultBufferPoolBlockSize, DefaultBufferPoolResourceCount);
@@ -153,11 +159,36 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Initializes one BEPU-backed physics world bound to an explicit owning core.
+        /// </summary>
+        /// <param name="ownerCore">Core whose runtime owns this simulation.</param>
+        public BepuPhysicsWorld3D(Core ownerCore) : this(ownerCore ?? throw new ArgumentNullException(nameof(ownerCore)), DefaultSolveVelocityIterationCount, DefaultSolveSubstepCount, true) {
+        }
+
+        /// <summary>
+        /// Initializes one BEPU-backed physics world with an explicit owner and solve schedule.
+        /// </summary>
+        /// <param name="ownerCore">Core whose runtime owns this simulation.</param>
+        /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each fixed simulation step.</param>
+        /// <param name="solveSubstepCount">Substep count applied to each fixed simulation step.</param>
+        public BepuPhysicsWorld3D(Core ownerCore, int solveVelocityIterationCount, int solveSubstepCount) : this(ownerCore ?? throw new ArgumentNullException(nameof(ownerCore)), solveVelocityIterationCount, solveSubstepCount, true) {
+        }
+
+        /// <summary>
         /// Creates one default BEPU-backed physics world.
         /// </summary>
         /// <returns>Constructed physics world instance.</returns>
         public static BepuPhysicsWorld3D CreateDefault() {
             return new BepuPhysicsWorld3D();
+        }
+
+        /// <summary>
+        /// Creates one default BEPU-backed physics world owned by an explicit core.
+        /// </summary>
+        /// <param name="ownerCore">Core whose runtime owns this simulation.</param>
+        /// <returns>Constructed BEPU-backed physics world.</returns>
+        public static BepuPhysicsWorld3D CreateDefault(Core ownerCore) {
+            return new BepuPhysicsWorld3D(ownerCore);
         }
 
         /// <summary>
@@ -168,6 +199,17 @@ namespace helengine {
         /// <returns>Constructed physics world instance.</returns>
         public static BepuPhysicsWorld3D CreateWithSolveSchedule(int solveVelocityIterationCount, int solveSubstepCount) {
             return new BepuPhysicsWorld3D(solveVelocityIterationCount, solveSubstepCount);
+        }
+
+        /// <summary>
+        /// Creates one BEPU-backed physics world with an explicit owner and solve schedule.
+        /// </summary>
+        /// <param name="ownerCore">Core whose runtime owns this simulation.</param>
+        /// <param name="solveVelocityIterationCount">Velocity-iteration count applied to each fixed simulation step.</param>
+        /// <param name="solveSubstepCount">Substep count used by each fixed simulation step.</param>
+        /// <returns>Constructed BEPU-backed physics world.</returns>
+        public static BepuPhysicsWorld3D CreateWithSolveSchedule(Core ownerCore, int solveVelocityIterationCount, int solveSubstepCount) {
+            return new BepuPhysicsWorld3D(ownerCore, solveVelocityIterationCount, solveSubstepCount);
         }
 
         /// <summary>
@@ -388,7 +430,7 @@ namespace helengine {
                 throw new InvalidOperationException("Simulation must exist before timestep diagnostics can be wired.");
             }
 
-            Core core = Core.Instance;
+            Core core = OwnerCoreValue;
             if (core == null || !(core.InitializationOptions.RuntimeDiagnosticsProvider is IRuntimeUpdateStageDiagnosticsProvider)) {
                 return;
             }
@@ -412,8 +454,8 @@ namespace helengine {
         /// </summary>
         /// <param name="stageName">Stable native narrow-phase transition name.</param>
         void OnNarrowPhaseStageReported(string stageName) {
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage(stageName);
+            if (OwnerCoreValue != null) {
+                OwnerCoreValue.ReportSceneTransitionStage(stageName);
             }
         }
 
@@ -423,8 +465,8 @@ namespace helengine {
         /// <param name="dt">Simulation timestep in seconds.</param>
         /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
         void OnSimulationSlept(float dt, IThreadDispatcher threadDispatcher) {
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuSleepBeforePredictBoundingBoxes");
+            if (OwnerCoreValue != null) {
+                OwnerCoreValue.ReportSceneTransitionStage("AfterBepuSleepBeforePredictBoundingBoxes");
             }
         }
 
@@ -434,8 +476,8 @@ namespace helengine {
         /// <param name="dt">Simulation timestep in seconds.</param>
         /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
         void OnSimulationBeforeCollisionDetection(float dt, IThreadDispatcher threadDispatcher) {
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuPredictBoundingBoxesBeforeCollisionDetection");
+            if (OwnerCoreValue != null) {
+                OwnerCoreValue.ReportSceneTransitionStage("AfterBepuPredictBoundingBoxesBeforeCollisionDetection");
             }
         }
 
@@ -445,8 +487,8 @@ namespace helengine {
         /// <param name="dt">Simulation timestep in seconds.</param>
         /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
         void OnSimulationCollisionsDetected(float dt, IThreadDispatcher threadDispatcher) {
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuCollisionDetectionBeforeSolve");
+            if (OwnerCoreValue != null) {
+                OwnerCoreValue.ReportSceneTransitionStage("AfterBepuCollisionDetectionBeforeSolve");
             }
         }
 
@@ -456,8 +498,8 @@ namespace helengine {
         /// <param name="dt">Simulation timestep in seconds.</param>
         /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
         void OnSimulationConstraintsSolved(float dt, IThreadDispatcher threadDispatcher) {
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuSolveBeforeOptimize");
+            if (OwnerCoreValue != null) {
+                OwnerCoreValue.ReportSceneTransitionStage("AfterBepuSolveBeforeOptimize");
             }
         }
 
@@ -467,8 +509,8 @@ namespace helengine {
         /// <param name="dt">Simulation timestep in seconds.</param>
         /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
         void OnSimulationBeforeCollisionOverlapDispatch(float dt, IThreadDispatcher threadDispatcher) {
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuBroadPhaseUpdateBeforeOverlapDispatch");
+            if (OwnerCoreValue != null) {
+                OwnerCoreValue.ReportSceneTransitionStage("AfterBepuBroadPhaseUpdateBeforeOverlapDispatch");
             }
         }
 
@@ -478,8 +520,8 @@ namespace helengine {
         /// <param name="dt">Simulation timestep in seconds.</param>
         /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
         void OnSimulationAfterCollisionOverlapDispatch(float dt, IThreadDispatcher threadDispatcher) {
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuOverlapDispatchBeforeNarrowPhaseFlush");
+            if (OwnerCoreValue != null) {
+                OwnerCoreValue.ReportSceneTransitionStage("AfterBepuOverlapDispatchBeforeNarrowPhaseFlush");
             }
         }
 
@@ -489,8 +531,8 @@ namespace helengine {
         /// <param name="dt">Simulation timestep in seconds.</param>
         /// <param name="threadDispatcher">Optional dispatcher used by the active BEPU simulation.</param>
         void OnSimulationAfterCollisionFlush(float dt, IThreadDispatcher threadDispatcher) {
-            if (Core.Instance != null) {
-                Core.Instance.ReportSceneTransitionStage("AfterBepuNarrowPhaseFlush");
+            if (OwnerCoreValue != null) {
+                OwnerCoreValue.ReportSceneTransitionStage("AfterBepuNarrowPhaseFlush");
             }
         }
 

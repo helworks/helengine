@@ -89,10 +89,6 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
-        public AssetPickerModal(FontAsset font, string projectPath, GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, EditorUiMetrics.Default, projectPath, generatedAssetProviders) {
-        }
-
         /// <summary>
         /// Initializes a new asset picker modal for the provided project path using one shared metrics source.
         /// </summary>
@@ -100,12 +96,23 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the picker.</param>
         /// <param name="projectPath">Path to the project root.</param>
         public AssetPickerModal(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
             GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, metrics, projectPath, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
+            : this(ownerCore, interactionServices, font, metrics, projectPath, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
         }
+
+        /// <summary>Initializes an asset picker with the default metrics and explicit session graph.</summary>
+        public AssetPickerModal(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            string projectPath,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default, projectPath, generatedAssetProviders) { }
 
         /// <summary>
         /// Initializes an asset picker over a session-owned reference resolver.
@@ -116,12 +123,14 @@ namespace helengine.editor {
         /// <param name="referenceResolver">Session-owned resolver borrowed by this picker browser.</param>
         /// <summary>Initializes a picker over the session resolver and generated provider registry.</summary>
         internal AssetPickerModal(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
             EditorAssetReferenceResolver referenceResolver,
             GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, metrics, projectPath, new AssetBrowserDataSource(
+            : this(ownerCore, interactionServices, font, metrics, projectPath, new AssetBrowserDataSource(
                 new EditorAssetManager(projectPath, referenceResolver ?? throw new ArgumentNullException(nameof(referenceResolver))),
                 generatedAssetProviders ?? throw new ArgumentNullException(nameof(generatedAssetProviders)))) {
         }
@@ -130,11 +139,13 @@ namespace helengine.editor {
         /// Initializes an asset picker over a data source whose lifetime is owned by the picker.
         /// </summary>
         AssetPickerModal(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             EditorUiMetrics metrics,
             string projectPath,
             AssetBrowserDataSource dataSource)
-            : base("AssetPickerModal", "Select Asset", font, metrics, MinPanelWidth, MinPanelHeight, EditorTitleBar.HeightPixels) {
+            : base(ownerCore, interactionServices, "AssetPickerModal", "Select Asset", font, metrics, MinPanelWidth, MinPanelHeight, EditorTitleBar.HeightPixels) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -154,6 +165,8 @@ namespace helengine.editor {
             SetDialogMinimumSize(GetMinimumPanelWidthPixels(), GetMinimumPanelHeightPixels());
 
             BrowserView = new AssetBrowserView(
+                OwnerCore,
+                InteractionServices,
                 Font,
                 EditorUiMetrics.Default,
                 projectPath,

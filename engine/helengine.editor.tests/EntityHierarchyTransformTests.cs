@@ -13,14 +13,14 @@ public sealed class EntityHierarchyTransformTests {
     public void Child_world_position_applies_parent_scale_before_parent_rotation() {
         InitializeCore();
 
-        Entity parent = new Entity();
+        Entity parent = new Entity(Core.Instance);
         parent.InitChildren();
         parent.LocalPosition = new float3(10f, 20f, 30f);
         parent.LocalScale = new float3(2f, 3f, 4f);
         float4.CreateFromYawPitchRoll((float)(Math.PI / 2d), 0f, 0f, out float4 parentOrientation);
         parent.LocalOrientation = parentOrientation;
 
-        Entity child = new Entity();
+        Entity child = new Entity(Core.Instance);
         child.InitChildren();
         child.LocalPosition = new float3(1f, 2f, 3f);
         parent.AddChild(child);

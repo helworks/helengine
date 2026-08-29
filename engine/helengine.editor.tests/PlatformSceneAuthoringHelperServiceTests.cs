@@ -38,10 +38,10 @@ public sealed class PlatformSceneAuthoringHelperServiceTests : IDisposable {
             SupportedPlatforms = ["windows", "wii", "ds", "3ds"]
         });
         PlatformSceneAuthoringHelperService service = new PlatformSceneAuthoringHelperService();
-        EditorEntity rootEntity = new EditorEntity {
+        EditorEntity rootEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
             Name = "HandheldRoot"
         };
-        EditorEntity childEntity = new EditorEntity {
+        EditorEntity childEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
             Name = "HandheldChild"
         };
         rootEntity.AddChild(childEntity);
@@ -75,7 +75,7 @@ public sealed class PlatformSceneAuthoringHelperServiceTests : IDisposable {
             SupportedPlatforms = ["windows", "wii", "ds", "3ds"]
         });
         PlatformSceneAuthoringHelperService service = new PlatformSceneAuthoringHelperService();
-        EditorEntity rootEntity = new EditorEntity {
+        EditorEntity rootEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
             Name = "DesktopRoot"
         };
 

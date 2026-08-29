@@ -150,11 +150,12 @@ namespace helengine {
         /// </summary>
         /// <returns>Trigger-event runtime exposed by the active physics backend.</returns>
         IPhysicsTriggerEventRuntime3D ResolveRequiredTriggerRuntime() {
-            if (Core.Instance == null) {
-                throw new InvalidOperationException("A core instance must exist before gameplay trigger observation can run.");
+            Core ownerCore = Parent?.OwnerCore;
+            if (ownerCore == null) {
+                throw new InvalidOperationException("SceneEntityTriggerObserverComponent requires its entity to belong to an owning core before gameplay trigger observation can run.");
             }
 
-            IPhysicsTriggerEventRuntime3D triggerRuntime = Core.Instance.PhysicsRuntime as IPhysicsTriggerEventRuntime3D;
+            IPhysicsTriggerEventRuntime3D triggerRuntime = ownerCore.PhysicsRuntime as IPhysicsTriggerEventRuntime3D;
             if (triggerRuntime == null) {
                 throw new InvalidOperationException("SceneEntityTriggerObserverComponent requires a physics runtime that supports trigger events.");
             }
@@ -172,11 +173,14 @@ namespace helengine {
                 throw new InvalidOperationException("SceneEntityTriggerObserverComponent requires a serialized target entity reference.");
             } else if (TargetEntityReference.EntityId == 0u) {
                 throw new InvalidOperationException("SceneEntityTriggerObserverComponent requires a non-zero target scene entity id.");
-            } else if (Core.Instance == null) {
-                throw new InvalidOperationException("A core instance must exist before gameplay trigger observation can resolve scene references.");
             }
 
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            Core ownerCore = Parent?.OwnerCore;
+            if (ownerCore == null || ownerCore.ObjectManager == null) {
+                throw new InvalidOperationException("SceneEntityTriggerObserverComponent requires its entity to belong to an initialized core before gameplay trigger observation can resolve scene references.");
+            }
+
+            List<Entity> entities = ownerCore.ObjectManager.Entities;
             for (int entityIndex = 0; entityIndex < entities.Count; entityIndex++) {
                 Entity match = TryFindEntityBySceneIdRecursive(entities[entityIndex], TargetEntityReference.EntityId);
                 if (match != null) {

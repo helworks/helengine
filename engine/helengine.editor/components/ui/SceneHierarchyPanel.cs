@@ -89,15 +89,15 @@ namespace helengine.editor {
         /// Initializes a new scene hierarchy panel with the provided font.
         /// </summary>
         /// <param name="font">Font used for row labels.</param>
-        public SceneHierarchyPanel(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes a new scene hierarchy panel with the provided font and shared metrics source.
         /// </summary>
         /// <param name="font">Font used for row labels.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock chrome and rows.</param>
-        public SceneHierarchyPanel(FontAsset font, EditorUiMetrics metrics) : base(font, metrics) {
+        public SceneHierarchyPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public SceneHierarchyPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics) : base(ownerCore, interactionServices, font, metrics) {
             this.font = font;
             Title = "Scene";
             MinSize = new int2(metrics.ScalePixels(220), metrics.ScalePixels(160));
@@ -105,12 +105,12 @@ namespace helengine.editor {
             rowBackgroundOrder = RenderOrder2D.PanelSurface;
             rowTextOrder = RenderOrder2D.PanelForeground;
 
-            contentRoot = new EditorEntity();
+            contentRoot = new EditorEntity(OwnerCore, InteractionServices);
             contentRoot.LayerMask = LayerMask;
             contentRoot.Position = new float3(0, TitleBarHeightPixels, 0.05f);
             AddChild(contentRoot);
 
-            contentCameraEntity = new EditorEntity {
+            contentCameraEntity = new EditorEntity(OwnerCore, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneHierarchyContent
             };
@@ -121,7 +121,7 @@ namespace helengine.editor {
             };
             contentCameraEntity.AddComponent(contentCameraComponent);
 
-            scrollContentRoot = new EditorEntity();
+            scrollContentRoot = new EditorEntity(OwnerCore, InteractionServices);
             scrollContentRoot.LayerMask = EditorLayerMasks.SceneHierarchyContent;
             scrollContentRoot.Position = float3.Zero;
             contentRoot.AddChild(scrollContentRoot);
@@ -139,7 +139,7 @@ namespace helengine.editor {
             lastLayoutNodeNames = new List<string>(64);
             expandedEntities = new Dictionary<Entity, bool>();
             parentEntities = new HashSet<Entity>();
-            hierarchyContextMenu = new ContextMenu(font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, EditorSessionInteractionServices.From(this));
+            hierarchyContextMenu = new ContextMenu(OwnerCore, font, LayerMask, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
             AddChild(hierarchyContextMenu.Entity);
             rowContextMenuItems = new List<ContextMenuItem> {
                 new ContextMenuItem("Reparent", HandleReparentRequested)
@@ -536,7 +536,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Newly created row elements.</returns>
         SceneHierarchyRow CreateRow() {
-            var rowEntity = new EditorEntity();
+            var rowEntity = new EditorEntity(OwnerCore, InteractionServices);
             rowEntity.LayerMask = EditorLayerMasks.SceneHierarchyContent;
             rowEntity.Position = float3.Zero;
 
@@ -550,7 +550,7 @@ namespace helengine.editor {
             interactable.Size = new int2(Size.X, GetRowHeightPixels());
             rowEntity.AddComponent(interactable);
 
-            var arrowHost = new EditorEntity();
+            var arrowHost = new EditorEntity(OwnerCore, InteractionServices);
             arrowHost.LayerMask = EditorLayerMasks.SceneHierarchyContent;
             arrowHost.Position = new float3(GetRowPaddingLeftPixels(), 2, 0.2f);
             rowEntity.AddChild(arrowHost);
@@ -563,7 +563,7 @@ namespace helengine.editor {
             arrow.RenderOrder2D = rowTextOrder;
             arrowHost.AddComponent(arrow);
 
-            var labelHost = new EditorEntity();
+            var labelHost = new EditorEntity(OwnerCore, InteractionServices);
             labelHost.LayerMask = EditorLayerMasks.SceneHierarchyContent;
             labelHost.Position = new float3(8, 2, 0.2f);
             rowEntity.AddChild(labelHost);

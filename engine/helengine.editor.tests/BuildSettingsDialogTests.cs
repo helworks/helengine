@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenAvailablePlatformsProvided_CreatesOneCheckboxRowPerPlatform() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 CreateAvailablePlatforms("windows", "linux", "android"),
@@ -65,7 +65,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpenedRepeatedly_DisposesPreviousDynamicPlatformRows() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 CreateAvailablePlatforms("windows", "linux"),
@@ -100,7 +100,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_ParentsPlatformRowsUnderDialogContentRootAndLaysThemOutImmediately() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 new List<AvailablePlatformDescriptor> {
@@ -126,7 +126,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenAvailablePlatformsIncludeMissingEntries_RendersDedicatedStatusColumn() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 new List<AvailablePlatformDescriptor> {
@@ -156,7 +156,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenSupportedPlatformsProvided_ChecksMatchingPlatformRows() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 CreateAvailablePlatforms("windows", "linux", "android"),
@@ -177,7 +177,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformRowsAreCreated_MarksDialogOwnedEntitiesAsInternal() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 CreateAvailablePlatforms("windows", "linux"),
@@ -213,7 +213,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleCloseClicked_RaisesCancelRequested() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.CancelRequested += () => raised = true;
             dialog.Show(
@@ -233,7 +233,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformRowsAreCreated_UsesModalRenderOrdersForCheckBoxes() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 CreateAvailablePlatforms("windows"),
@@ -254,7 +254,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_UsesDistinctHeaderColor() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
             SpriteComponent headerBackground = GetPrivateField<SpriteComponent>(dialog, "HeaderBackground");
 
@@ -267,7 +267,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_WithScaledMetrics_UsesScaledHeaderAndPanelSize() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont(), new EditorUiMetrics(1.5));
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorUiMetrics(1.5));
             RoundedRectComponent panelBackground = GetPrivateField<RoundedRectComponent>(dialog, "PanelBackground");
             SpriteComponent headerBackground = GetPrivateField<SpriteComponent>(dialog, "HeaderBackground");
 
@@ -280,7 +280,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PositionsHeaderFlushToPanelEdges() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 CreateAvailablePlatforms("windows"),
                 new List<string> {
@@ -302,7 +302,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PositionsCloseButtonAsFullHeightRightEdgeChrome() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 CreateAvailablePlatforms("windows"),
                 new List<string> {
@@ -322,7 +322,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WithScaledMetrics_UsesScaledDialogChrome() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont(), new EditorUiMetrics(1.5));
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new EditorUiMetrics(1.5));
             dialog.Show(
                 CreateAvailablePlatforms("windows"),
                 new List<string> {
@@ -348,7 +348,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_CreatesCloseButtonLeftSeparator() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             SpriteComponent closeButtonSeparator = GetPrivateField<SpriteComponent>(dialog, "CloseButtonSeparator");
 
             Assert.Equal(Core.Instance.RenderManager2D.PixelTexture, closeButtonSeparator.Texture);
@@ -360,7 +360,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleHeaderCursor_WhenDragged_MovesPanelPosition() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 CreateAvailablePlatforms("windows"),
                 new List<string> {
@@ -384,7 +384,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleBottomRightResizeGrip_WhenDragged_RepositionsFooterAndStatusWithTheShell() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 CreateAvailablePlatforms("windows"),
                 new List<string> {
@@ -428,7 +428,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSaveClicked_WhenNoPlatformsRemainSelected_ShowsValidationErrorAndDoesNotRaiseConfirm() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.ConfirmRequested += selection => raised = true;
 
@@ -453,7 +453,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSaveClicked_WhenPlatformsAreSelected_RaisesConfirmWithStablePlatformOrder() {
-            BuildSettingsDialog dialog = new BuildSettingsDialog(CreateFont());
+            BuildSettingsDialog dialog = new BuildSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildSettingsSelection raisedSelection = null;
             dialog.ConfirmRequested += selection => raisedSelection = selection;
 

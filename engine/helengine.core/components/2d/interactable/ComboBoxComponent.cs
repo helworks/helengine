@@ -346,7 +346,7 @@ namespace helengine {
                 entity.InitChildren();
             }
 
-            labelEntity = new Entity();
+            labelEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
             labelEntity.LayerMask = entity.LayerMask;
             labelEntity.Enabled = true;
             labelEntity.InitComponents();
@@ -358,7 +358,7 @@ namespace helengine {
             labelText.RenderOrder2D = textOrder;
             labelEntity.AddComponent(labelText);
 
-            arrowEntity = new Entity();
+            arrowEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
             arrowEntity.LayerMask = entity.LayerMask;
             arrowEntity.Enabled = true;
             arrowEntity.InitComponents();
@@ -370,7 +370,7 @@ namespace helengine {
             arrowText.RenderOrder2D = textOrder;
             arrowEntity.AddComponent(arrowText);
 
-            listRoot = new Entity();
+            listRoot = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
             listRoot.LayerMask = entity.LayerMask;
             listRoot.InitComponents();
             listRoot.InitChildren();
@@ -792,7 +792,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Newly created item visual.</returns>
         ComboBoxItemVisual CreateItemVisual() {
-            ComboBoxItemVisual entry = new ComboBoxItemVisual(font, listRoot.LayerMask, listBackgroundOrder, listTextOrder);
+            ComboBoxItemVisual entry = new ComboBoxItemVisual(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."), font, listRoot.LayerMask, listBackgroundOrder, listTextOrder);
             entry.Background.FillColor = ThemeManager.Colors.SurfaceInput;
             entry.Background.BorderColor = ThemeManager.Colors.AccentTertiary;
             entry.Label.Color = ThemeManager.Colors.InputForegroundPrimary;

@@ -85,7 +85,7 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask applied to the picker visuals.</param>
         /// <param name="rowBackgroundOrder">Render order used for row background sprites.</param>
         /// <param name="rowTextOrder">Render order used for row labels and glyphs.</param>
-        public SceneHierarchyPickerView(FontAsset font, ushort layerMask, byte rowBackgroundOrder, byte rowTextOrder) {
+        public SceneHierarchyPickerView(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask, byte rowBackgroundOrder, byte rowTextOrder) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -94,7 +94,7 @@ namespace helengine.editor {
             this.rowBackgroundOrder = rowBackgroundOrder;
             this.rowTextOrder = rowTextOrder;
 
-            rootEntity = new EditorEntity {
+            rootEntity = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 Enabled = false
@@ -357,7 +357,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Newly created row.</returns>
         SceneHierarchyRow CreateRow() {
-            EditorEntity rowEntity = new EditorEntity {
+            EditorEntity rowEntity = new EditorEntity(rootEntity.OwnerCore, rootEntity.InteractionServices) {
                 LayerMask = rootEntity.LayerMask,
                 Position = float3.Zero,
                 Enabled = false
@@ -375,7 +375,7 @@ namespace helengine.editor {
             };
             rowEntity.AddComponent(interactable);
 
-            EditorEntity arrowHost = new EditorEntity {
+            EditorEntity arrowHost = new EditorEntity(rootEntity.OwnerCore, rootEntity.InteractionServices) {
                 LayerMask = rootEntity.LayerMask,
                 Position = new float3(RowPaddingLeft, 2, 0.2f)
             };
@@ -390,7 +390,7 @@ namespace helengine.editor {
             };
             arrowHost.AddComponent(arrow);
 
-            EditorEntity labelHost = new EditorEntity {
+            EditorEntity labelHost = new EditorEntity(rootEntity.OwnerCore, rootEntity.InteractionServices) {
                 LayerMask = rootEntity.LayerMask,
                 Position = new float3(8, 2, 0.2f)
             };

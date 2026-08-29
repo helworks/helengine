@@ -147,7 +147,7 @@ namespace helengine {
                 thumbOrder = ThumbRenderOrder;
             }
 
-            visualsRoot = new Entity();
+            visualsRoot = new Entity(OwnerCore ?? throw new InvalidOperationException("Scroll-bar visuals require an owning core."));
             visualsRoot.LayerMask = entity.LayerMask;
             visualsRoot.Enabled = true;
             visualsRoot.InitComponents();
@@ -174,7 +174,7 @@ namespace helengine {
             interactableComponent.CursorEvent += HandleCursorEvent;
             visualsRoot.AddComponent(interactableComponent);
 
-            thumbHost = new Entity();
+            thumbHost = new Entity(OwnerCore ?? throw new InvalidOperationException("Scroll-bar visuals require an owning core."));
             thumbHost.LayerMask = entity.LayerMask;
             thumbHost.Enabled = true;
             thumbHost.InitComponents();

@@ -71,7 +71,8 @@ namespace helengine.editor {
             this.sourceCameraComponent = sourceCameraComponent;
             this.sceneCanvasProfileState = sceneCanvasProfileState;
 
-            previewEntity = new EditorEntity(objectManager.OwnerCore ?? throw new InvalidOperationException("Camera preview object manager must be bound to an owning core."));
+            Core ownerCore = objectManager.OwnerCore ?? throw new InvalidOperationException("Camera preview object manager must be bound to an owning core.");
+            previewEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore));
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = EditorLayerMasks.SceneObjects;
             previewCameraComponent = new CameraComponent();
@@ -101,7 +102,8 @@ namespace helengine.editor {
             this.sourceCameraComponent = sourceCameraComponent ?? throw new ArgumentNullException(nameof(sourceCameraComponent));
             sceneCanvasProfileState = null;
 
-            previewEntity = new EditorEntity(objectManager.OwnerCore ?? throw new InvalidOperationException("Camera preview object manager must be bound to an owning core."));
+            Core ownerCore = objectManager.OwnerCore ?? throw new InvalidOperationException("Camera preview object manager must be bound to an owning core.");
+            previewEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore));
             previewEntity.InternalEntity = true;
             previewEntity.LayerMask = EditorLayerMasks.SceneObjects;
             previewCameraComponent = new CameraComponent();

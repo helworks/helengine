@@ -7,12 +7,15 @@ namespace helengine.editor.tests {
     /// Verifies keyboard-focus behavior for scene-hierarchy rows.
     /// </summary>
     public class SceneHierarchyPanelKeyboardFocusTests : IDisposable {
+        Core CoreValue;
         readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
         /// <summary>
         /// Clears shared editor selection and keyboard-focus state after each test.
         /// </summary>
         public void Dispose() {
             InteractionServices.Selection.ClearSelection();
+            CoreValue?.Dispose();
+            InteractionServices.Dispose();
         }
 
         /// <summary>
@@ -22,7 +25,7 @@ namespace helengine.editor.tests {
         public void SceneHierarchyPanel_WhenRowIsActivated_SelectsTheRepresentedEntity() {
             InitializeCore();
             SceneHierarchyPanel panel = CreatePanel();
-            EditorEntity cube = new EditorEntity {
+            EditorEntity cube = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Cube"
             };
 
@@ -42,7 +45,7 @@ namespace helengine.editor.tests {
         public void SceneHierarchyPanel_WhenRowsAreRelaidOut_ReusesExistingFocusTargetsAndUpdatesTabIndex() {
             InitializeCore();
             SceneHierarchyPanel panel = CreatePanel();
-            EditorEntity first = new EditorEntity {
+            EditorEntity first = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "First"
             };
 
@@ -51,7 +54,7 @@ namespace helengine.editor.tests {
             List<SceneHierarchyRow> rows = GetPrivateField<List<SceneHierarchyRow>>(panel, "rows");
             EditorFocusTarget firstTarget = rows[0].FocusTarget;
 
-            EditorEntity second = new EditorEntity {
+            EditorEntity second = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Second"
             };
 
@@ -73,10 +76,10 @@ namespace helengine.editor.tests {
         public void SceneHierarchyPanel_WhenSelectionChanges_MarksTheMatchingRowAsSelected() {
             InitializeCore();
             SceneHierarchyPanel panel = CreatePanel();
-            EditorEntity first = new EditorEntity {
+            EditorEntity first = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "First"
             };
-            EditorEntity second = new EditorEntity {
+            EditorEntity second = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Second"
             };
 
@@ -102,19 +105,19 @@ namespace helengine.editor.tests {
             int panelHeight = (SceneHierarchyPanel.RowHeight * 7) + (SceneHierarchyPanel.RowHeight / 2);
             SceneHierarchyPanel panel = CreatePanel();
             panel.Size = new int2(280, panelHeight);
-            new EditorEntity {
+            new EditorEntity(CoreValue, InteractionServices) {
                 Name = "First"
             };
-            new EditorEntity {
+            new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Second"
             };
-            new EditorEntity {
+            new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Third"
             };
-            new EditorEntity {
+            new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Fourth"
             };
-            new EditorEntity {
+            new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Fifth"
             };
 
@@ -132,10 +135,10 @@ namespace helengine.editor.tests {
         public void SceneHierarchyPanel_WhenRightKeyIsPressedOnCollapsedParent_ExpandsTheFocusedBranch() {
             TestInputBackend input = InitializeCore();
             SceneHierarchyPanel panel = CreateRegisteredPanel();
-            EditorEntity parent = new EditorEntity {
+            EditorEntity parent = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Parent"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Child"
             };
             parent.AddChild(child);
@@ -165,10 +168,10 @@ namespace helengine.editor.tests {
         public void SceneHierarchyPanel_WhenLeftKeyIsPressedOnExpandedParent_CollapsesTheFocusedBranch() {
             TestInputBackend input = InitializeCore();
             SceneHierarchyPanel panel = CreateRegisteredPanel();
-            EditorEntity parent = new EditorEntity {
+            EditorEntity parent = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Parent"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Child"
             };
             parent.AddChild(child);
@@ -194,13 +197,13 @@ namespace helengine.editor.tests {
         public void SceneHierarchyPanel_WhenDownKeyIsPressed_MovesFocusToTheNextVisibleRow() {
             TestInputBackend input = InitializeCore();
             SceneHierarchyPanel panel = CreateRegisteredPanel();
-            EditorEntity parent = new EditorEntity {
+            EditorEntity parent = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Parent"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Child"
             };
-            EditorEntity sibling = new EditorEntity {
+            EditorEntity sibling = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Sibling"
             };
             parent.AddChild(child);
@@ -227,13 +230,13 @@ namespace helengine.editor.tests {
         public void SceneHierarchyPanel_WhenUpKeyIsPressed_MovesFocusToThePreviousVisibleRow() {
             TestInputBackend input = InitializeCore();
             SceneHierarchyPanel panel = CreateRegisteredPanel();
-            EditorEntity parent = new EditorEntity {
+            EditorEntity parent = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Parent"
             };
-            EditorEntity child = new EditorEntity {
+            EditorEntity child = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Child"
             };
-            EditorEntity sibling = new EditorEntity {
+            EditorEntity sibling = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Sibling"
             };
             parent.AddChild(child);
@@ -256,19 +259,20 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Input manager bound to the created core.</returns>
         TestInputBackend InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             TestInputBackend input = new TestInputBackend();
-            core.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
-            core.InputSystem.SetKeyboardActive(true);
+            CoreValue.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
+            CoreValue.SessionInteractionGraph = InteractionServices;
+            CoreValue.InputSystem.SetKeyboardActive(true);
             InteractionServices.Selection.ClearSelection();
 
-            EditorEntity keyboardFocusEntity = new EditorEntity {
+            EditorEntity keyboardFocusEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 Enabled = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
-            EditorKeyboardFocusUpdateComponent keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices) {
-                UpdateOrder = core.ObjectManager.GetUpdateOrderForLayer(1)
+            EditorKeyboardFocusUpdateComponent keyboardFocusUpdateComponent = new EditorKeyboardFocusUpdateComponent(CoreValue.Input, InteractionServices) {
+                UpdateOrder = CoreValue.ObjectManager.GetUpdateOrderForLayer(1)
             };
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
             keyboardFocusEntity.InitializeHierarchy();
@@ -347,9 +351,9 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Panel bound to the current test core graph.</returns>
         SceneHierarchyPanel CreatePanel() {
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(CreateFont());
-            panel.SetObjectManager(Core.Instance.ObjectManager);
-            panel.SetInput(Core.Instance.Input);
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CoreValue, InteractionServices, CreateFont());
+            panel.SetObjectManager(CoreValue.ObjectManager);
+            panel.SetInput(CoreValue.Input);
             panel.InitializeHierarchy();
             return panel;
         }
@@ -403,10 +407,9 @@ namespace helengine.editor.tests {
         /// <param name="key">Key to press.</param>
         void PressKey(TestInputBackend input, Keys key) {
             input.SetKeyboardState(new KeyboardState(key));
-            Core.Instance.Update();
+            CoreValue.Update();
             input.SetKeyboardState(new KeyboardState());
-            Core.Instance.Update();
+            CoreValue.Update();
         }
     }
 }
-

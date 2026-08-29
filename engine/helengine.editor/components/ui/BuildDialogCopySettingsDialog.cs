@@ -95,15 +95,15 @@ namespace helengine.editor {
         /// Initializes a new copy-settings chooser modal.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public BuildDialogCopySettingsDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes a new copy-settings chooser modal using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public BuildDialogCopySettingsDialog(FontAsset font, EditorUiMetrics metrics) : base("BuildDialogCopySettingsDialog", "Copy Settings", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public BuildDialogCopySettingsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public BuildDialogCopySettingsDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics) : base(ownerCore, interactionServices, "BuildDialogCopySettingsDialog", "Copy Settings", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -113,7 +113,7 @@ namespace helengine.editor {
 
             SourcePlatformIds = new List<string>(8);
 
-            SourceLabelHost = new EditorEntity {
+            SourceLabelHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -128,7 +128,7 @@ namespace helengine.editor {
             };
             SourceLabelHost.AddComponent(SourceLabelText);
 
-            SourceComboHost = new EditorEntity {
+            SourceComboHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -139,7 +139,7 @@ namespace helengine.editor {
             ConfigureDialogComboBox(SourceComboBox);
             SourceComboHost.AddComponent(SourceComboBox);
 
-            CopyButtonHost = new EditorEntity {
+            CopyButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -150,7 +150,7 @@ namespace helengine.editor {
             CopyButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CopyButtonHost.AddComponent(CopyButton);
 
-            CancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -161,7 +161,7 @@ namespace helengine.editor {
             CancelButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             CancelButtonHost.AddComponent(CancelButton);
 
-            EmptyStateHost = new EditorEntity {
+            EmptyStateHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

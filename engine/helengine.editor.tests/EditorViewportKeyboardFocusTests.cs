@@ -1,6 +1,8 @@
 using System.Reflection;
 using helengine.directx11;
 using helengine.editor.tests.testing;
+using helengine.projectfile;
+using helengine.ui;
 using helengine.vulkan;
 using Xunit;
 
@@ -313,10 +315,14 @@ namespace helengine.editor.tests {
         /// <returns>Configurable input system used by the test.</returns>
         TestInputBackend InitializeCore() {
             TestInputBackend inputManager = new TestInputBackend();
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            EditorCore core = new EditorCore(new Project {
+                Name = "Viewport keyboard focus",
+                Path = Path.GetTempPath()
+            });
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });
+            core.SessionInteractionServices = InteractionServices;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
@@ -330,11 +336,11 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured editor viewport.</returns>
         EditorViewport CreateViewport() {
-            EditorEntity cameraEntity = new EditorEntity();
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, InteractionServices);
             CameraComponent camera = new CameraComponent();
             cameraEntity.AddComponent(camera);
 
-            EditorViewport viewport = new EditorViewport(
+            EditorViewport viewport = new EditorViewport(Core.Instance,
                 camera,
                 CreateFont(),
                 CreateFont(),

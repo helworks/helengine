@@ -137,18 +137,18 @@ namespace helengine.editor {
         /// Initializes a new unsaved-changes dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public UnsavedChangesDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes a new unsaved-changes dialog using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public UnsavedChangesDialog(FontAsset font, EditorUiMetrics metrics) : base("UnsavedChangesDialog", "Unsaved Changes", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public UnsavedChangesDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public UnsavedChangesDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics) : base(ownerCore, interactionServices, "UnsavedChangesDialog", "Unsaved Changes", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             SetDialogMinimumSize(PanelWidth, PanelHeight);
 
-            MessageHost = new EditorEntity {
+            MessageHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -167,12 +167,12 @@ namespace helengine.editor {
             };
             MessageHost.AddComponent(MessageText);
 
-            SaveButtonHost = new EditorEntity {
+            SaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
-            FooterHost = new EditorEntity {
+            FooterHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -189,7 +189,7 @@ namespace helengine.editor {
             FooterHost.AddComponent(FooterAnchor);
             FooterAnchor.SetAnchorDistances(right: GetPanelPaddingPixels(), bottom: GetPanelPaddingPixels());
 
-            SaveButtonHost = new EditorEntity {
+            SaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -200,7 +200,7 @@ namespace helengine.editor {
             SaveButtonHost.AddComponent(SaveButton);
             SaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
-            DontSaveButtonHost = new EditorEntity {
+            DontSaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -211,7 +211,7 @@ namespace helengine.editor {
             DontSaveButtonHost.AddComponent(DontSaveButton);
             DontSaveButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
-            CancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

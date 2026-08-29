@@ -14,7 +14,7 @@ namespace helengine.editor.tests {
         public void SetGroupActive_WhenTrue_ShowsTheDockOutline() {
             InitializeCore();
             DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
-            DockableEntity dock = new DockableEntity(CreateFont());
+            DockableEntity dock = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             layout.DockAsRoot(dock);
 
             RoundedRectComponent panelOutline = GetPrivateField<RoundedRectComponent>(dock, "panelOutline");

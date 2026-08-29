@@ -10,7 +10,7 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void LoadSceneImmediate_whenTrackingMaterializedScene_emitsPostMaterializationTraceStages() {
-            string sourcePath = @"C:\dev\helworks\helengine\engine\helengine.core\scene\runtime\SceneManager.cs";
+            string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.core", "scene", "runtime", "SceneManager.cs");
             string source = File.ReadAllText(sourcePath);
 
             Assert.Contains("LoadSceneImmediateAfterLoadedSceneRecordListAdd", source, StringComparison.Ordinal);

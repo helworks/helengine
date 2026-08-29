@@ -99,7 +99,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ClickingParentedContextMenuRow_InvokesMenuItemAction() {
-            EditorEntity host = new EditorEntity {
+            EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = 0b0000000000000010,
                 Position = new float3(32f, 40f, 0f)
@@ -392,7 +392,7 @@ namespace helengine.editor.tests {
         /// <param name="height">Viewport height.</param>
         /// <param name="layerMask">Layer mask used by the camera.</param>
         void CreateUiCamera(int width, int height, ushort layerMask) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask
             };
@@ -410,7 +410,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="layerMask">Layer mask used by the camera.</param>
         void CreateNormalizedUiCamera(ushort layerMask) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask
             };
@@ -435,7 +435,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Input-bound context menu.</returns>
         ContextMenu CreateMenu() {
-            ContextMenu menu = new ContextMenu(CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
+            ContextMenu menu = new ContextMenu(Core.Instance, CreateFont(), 0b0000000000000010, RenderOrder2D.OverlayBackground, RenderOrder2D.OverlayForeground, InteractionServices);
             menu.SetInput(Core.Instance.Input);
             menu.Entity.InitializeHierarchy();
             return menu;

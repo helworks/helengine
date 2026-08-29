@@ -41,6 +41,7 @@ namespace helengine.editor {
         /// Root entity that owns the entire tab strip hierarchy.
         /// </summary>
         readonly EditorEntity RootValue;
+        readonly EditorSessionInteractionServices InteractionServicesValue;
         /// <summary>
         /// Viewport entity that clips the scrolling tab content.
         /// </summary>
@@ -175,12 +176,14 @@ namespace helengine.editor {
         /// <param name="tabSpacing">Horizontal spacing between adjacent tabs.</param>
         /// <param name="arrowButtonWidth">Width used by each overflow arrow button.</param>
         public PlatformTabStripView(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             ushort layerMask,
             int tabWidth,
             int tabHeight,
-            int tabSpacing,
-            int arrowButtonWidth) {
+            int tabSpacing = 4,
+            int arrowButtonWidth = 16) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             } else if (tabWidth < 1) {
@@ -194,6 +197,7 @@ namespace helengine.editor {
             }
 
             Font = font;
+            InteractionServicesValue = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             LayerMaskValue = layerMask;
             TabWidthValue = tabWidth;
             TabHeightValue = tabHeight;
@@ -206,14 +210,14 @@ namespace helengine.editor {
             TabFocusTargets = new List<EditorFocusTarget>(8);
             SelectedPlatformIdValue = string.Empty;
 
-            RootValue = new EditorEntity {
+            RootValue = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
                 Enabled = true
             };
 
-            LeftArrowHost = new EditorEntity {
+            LeftArrowHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -224,7 +228,7 @@ namespace helengine.editor {
             LeftArrowButton = CreateArrowButton(string.Empty, HandleLeftArrowClicked);
             LeftArrowHost.AddComponent(LeftArrowButton);
 
-            ViewportRoot = new EditorEntity {
+            ViewportRoot = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -237,7 +241,7 @@ namespace helengine.editor {
             };
             ViewportRoot.AddComponent(ViewportClipRect);
 
-            TabsContentRoot = new EditorEntity {
+            TabsContentRoot = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -245,7 +249,7 @@ namespace helengine.editor {
             };
             ViewportRoot.AddChild(TabsContentRoot);
 
-            RightArrowHost = new EditorEntity {
+            RightArrowHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -256,7 +260,7 @@ namespace helengine.editor {
             RightArrowButton = CreateArrowButton(string.Empty, HandleRightArrowClicked);
             RightArrowHost.AddComponent(RightArrowButton);
 
-            EnvironmentAddHost = new EditorEntity {
+            EnvironmentAddHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -266,7 +270,7 @@ namespace helengine.editor {
             EnvironmentAddButton = CreateArrowButton("+", HandleEnvironmentAddClicked);
             EnvironmentAddHost.AddComponent(EnvironmentAddButton);
 
-            EditorSessionInteractionServices.From(RootValue).KeyboardFocus.RegisterGroup(this);
+            InteractionServicesValue.KeyboardFocus.RegisterGroup(this);
         }
 
         /// <summary>
@@ -578,7 +582,7 @@ namespace helengine.editor {
         /// <returns>Attached icon sprite.</returns>
         SpriteComponent AttachArrowIcon(EditorEntity arrowHost, RuntimeTexture iconTexture) {
             int iconSize = Math.Max(6, TabHeightValue / 3);
-            EditorEntity iconHost = new EditorEntity {
+            EditorEntity iconHost = new EditorEntity(RootValue.OwnerCore, InteractionServicesValue) {
                 LayerMask = LayerMaskValue,
                 Position = new float3((ArrowButtonWidthValue - iconSize) / 2f, (TabHeightValue - iconSize) / 2f, 0.2f),
                 InternalEntity = true,
@@ -625,7 +629,7 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier represented by the tab.</param>
         /// <param name="tabIndex">Tab index used for ordering.</param>
         void AddTab(string platformId, int tabIndex) {
-            EditorEntity tabHost = new EditorEntity {
+            EditorEntity tabHost = new EditorEntity(RootValue.OwnerCore, InteractionServicesValue) {
                 LayerMask = LayerMaskValue,
                 Position = float3.Zero,
                 InternalEntity = true,

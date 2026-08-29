@@ -153,7 +153,7 @@ namespace helengine {
             Interactable.CursorEvent += HandleCursorEvent;
             entity.AddComponent(Interactable);
 
-            CheckMarkEntity = new Entity();
+            CheckMarkEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Check-box visuals require an owning core."));
             CheckMarkEntity.LayerMask = entity.LayerMask;
             CheckMarkEntity.Enabled = true;
             CheckMarkEntity.InitComponents();

@@ -144,7 +144,7 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
     /// <returns>Configured project content manager rooted at the Demodisc assets folder.</returns>
     static ContentManager CreateProjectContentManager() {
         ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(DemodiscProjectRootPath, "assets")));
-        EditorContentManagerConfiguration.ConfigureEditorContentManager(contentManager);
+        EditorContentManagerConfiguration.ConfigureEditorContentManager(contentManager, Core.Instance.RenderManager2D);
         return contentManager;
     }
 
@@ -247,7 +247,7 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
     /// </summary>
     /// <returns>Importer registrations used by the editor host.</returns>
     static IReadOnlyList<IAssetImporterRegistration> LoadEditorHostImporters() {
-        string appAssemblyPath = @"C:\dev\helworks\helengine\helengine.ui\helengine.editor.app\bin\Debug\net9.0-windows\helengine.editor.app.dll";
+        string appAssemblyPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "helengine.ui", "helengine.editor.app", "bin", "Debug", "net9.0-windows", "helengine.editor.app.dll");
         Assembly appAssembly = Assembly.LoadFrom(appAssemblyPath);
         Type importerFactoryType = appAssembly.GetType("helengine.editor.app.EditorHostImporterFactory", throwOnError: true);
         MethodInfo createDefaultMethod = importerFactoryType.GetMethod(
@@ -257,7 +257,7 @@ public sealed class DemodiscTiltTrialSceneLoadTests {
             throw new InvalidOperationException("Editor host importer factory did not expose its default importer set.");
         }
 
-        object result = createDefaultMethod.Invoke(null, null);
+        object result = createDefaultMethod.Invoke(null, new object[] { null });
         return Assert.IsAssignableFrom<IReadOnlyList<IAssetImporterRegistration>>(result);
     }
 

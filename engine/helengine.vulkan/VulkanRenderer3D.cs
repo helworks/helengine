@@ -377,7 +377,8 @@ namespace helengine.vulkan {
                 return;
             }
 
-            var cameras = Core.Instance.ObjectManager.Cameras;
+            Core ownerCore = OwnerCore ?? throw new InvalidOperationException("Vulkan renderer must be attached to an owning core before drawing.");
+            var cameras = ownerCore.ObjectManager.Cameras;
             for (int i = 0; i < surfaces.Count; i++) {
                 DrawSurface(surfaces[i], cameras);
             }

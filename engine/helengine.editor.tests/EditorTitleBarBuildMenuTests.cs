@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PlacesBuildButtonImmediatelyToTheRightOfAdd() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             EditorEntity addButton = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
             EditorEntity buildButton = GetPrivateField<EditorEntity>(titleBar, "BuildMenuButtonEntity");
@@ -54,7 +54,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ToggleBuildMenu_ShowsBuildSettingsAndProfilesAndHidesOtherMenus() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleFileMenu");
             InvokePrivate(titleBar, "ToggleBuildMenu");
@@ -81,7 +81,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildMenu_WhenPlatformsActivated_RaisesPlatformsRequested() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             bool raised = false;
             bool buildSettingsRaised = false;
             titleBar.PlatformsRequested += () => raised = true;
@@ -104,7 +104,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildMenu_WhenProfilesActivated_RaisesProfilesRequested() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             bool raised = false;
             titleBar.ProfilesRequested += () => raised = true;
 
@@ -124,7 +124,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildMenu_WhenBuildActivated_RaisesBuildRequested() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             bool raised = false;
             titleBar.BuildRequested += () => raised = true;
 
@@ -144,7 +144,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildMenu_WhenBuildScriptsActivated_RaisesBuildScriptsRequested() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             bool raised = false;
             titleBar.BuildScriptsRequested += () => raised = true;
 
@@ -164,7 +164,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildMenu_WhenOpenInIDEActivated_RaisesOpenInIDERequested() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             bool raised = false;
             titleBar.OpenInIDERequested += () => raised = true;
 

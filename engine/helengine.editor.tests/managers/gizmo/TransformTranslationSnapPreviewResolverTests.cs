@@ -117,7 +117,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="orientation">World-space handle orientation.</param>
         /// <returns>Configured axis handle entity.</returns>
         Entity CreateAxisHandle(float4 orientation) {
-            var handleEntity = new EditorEntity {
+            var handleEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Orientation = orientation
             };
             handleEntity.AddComponent(new TransformGizmoHandleComponent(new float3(0f, 1f, 0f)));
@@ -130,7 +130,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="orientation">World-space handle orientation.</param>
         /// <returns>Configured plane handle entity.</returns>
         Entity CreatePlaneHandle(float4 orientation) {
-            var handleEntity = new EditorEntity {
+            var handleEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Orientation = orientation
             };
             handleEntity.AddComponent(new TransformGizmoHandleComponent(new float3(1f, 0f, 0f), new float3(0f, 1f, 0f)));

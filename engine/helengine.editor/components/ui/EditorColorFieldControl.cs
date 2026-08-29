@@ -44,7 +44,8 @@ public sealed class EditorColorFieldControl : EditorEntity {
     /// </summary>
     /// <param name="font">Font used by the textbox.</param>
     /// <param name="layerMask">Layer mask applied to the control hierarchy.</param>
-    public EditorColorFieldControl(FontAsset font, ushort layerMask) {
+    public EditorColorFieldControl(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask)
+        : base(ownerCore, interactionServices) {
         if (font == null) {
             throw new ArgumentNullException(nameof(font));
         }
@@ -55,7 +56,7 @@ public sealed class EditorColorFieldControl : EditorEntity {
 
         SizeValue = new int2(180, ControlHeight);
 
-        TextBoxHost = new EditorEntity {
+        TextBoxHost = new EditorEntity(OwnerCore, InteractionServices) {
             LayerMask = layerMask,
             InternalEntity = true,
             Position = float3.Zero
@@ -67,7 +68,7 @@ public sealed class EditorColorFieldControl : EditorEntity {
         HexTextBoxControl.Submitted += HandleTextSubmitted;
         TextBoxHost.AddComponent(HexTextBoxControl);
 
-        SwatchHost = new EditorEntity {
+        SwatchHost = new EditorEntity(OwnerCore, InteractionServices) {
             LayerMask = layerMask,
             InternalEntity = true,
             Position = float3.Zero

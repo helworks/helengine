@@ -179,7 +179,7 @@ namespace helengine.editor {
 
             EditorEntity snapPreviewEntity = CreateSnapPreviewEntity(snapPreviewModel, snapPreviewMaterial, ownerCore);
 
-            EditorEntity gizmoRoot = new EditorEntity(ownerCore);
+            EditorEntity gizmoRoot = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore));
             gizmoRoot.Name = "Transform Translation Gizmo";
             gizmoRoot.InternalEntity = true;
             gizmoRoot.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -278,7 +278,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            EditorEntity axisEntity = new EditorEntity(gizmoRoot.OwnerCore);
+            EditorEntity axisEntity = new EditorEntity(gizmoRoot.OwnerCore, gizmoRoot.InteractionServices);
             axisEntity.Name = axisName;
             axisEntity.InternalEntity = true;
             axisEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -288,7 +288,7 @@ namespace helengine.editor {
             axisEntity.AddComponent(new TransformGizmoHandleComponent(new float3(0f, 1f, 0f)));
             gizmoRoot.AddChild(axisEntity);
 
-            EditorEntity shaftEntity = new EditorEntity(gizmoRoot.OwnerCore);
+            EditorEntity shaftEntity = new EditorEntity(gizmoRoot.OwnerCore, gizmoRoot.InteractionServices);
             shaftEntity.Name = string.Concat(axisName, " Shaft");
             shaftEntity.InternalEntity = true;
             shaftEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -300,7 +300,7 @@ namespace helengine.editor {
             shaftEntity.AddComponent(shaftMesh);
             axisEntity.AddChild(shaftEntity);
 
-            EditorEntity tipEntity = new EditorEntity(gizmoRoot.OwnerCore);
+            EditorEntity tipEntity = new EditorEntity(gizmoRoot.OwnerCore, gizmoRoot.InteractionServices);
             tipEntity.Name = string.Concat(axisName, " Tip");
             tipEntity.InternalEntity = true;
             tipEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -342,7 +342,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(material));
             }
 
-            EditorEntity planeEntity = new EditorEntity(gizmoRoot.OwnerCore);
+            EditorEntity planeEntity = new EditorEntity(gizmoRoot.OwnerCore, gizmoRoot.InteractionServices);
             planeEntity.Name = handleName;
             planeEntity.InternalEntity = true;
             planeEntity.LayerMask = EditorLayerMasks.SceneGizmo;
@@ -378,7 +378,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(ownerCore));
             }
 
-            var previewEntity = new EditorEntity(ownerCore) {
+            var previewEntity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = "Transform Gizmo Snap Preview",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,

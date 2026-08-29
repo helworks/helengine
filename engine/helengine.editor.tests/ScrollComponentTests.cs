@@ -45,7 +45,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ScrollComponent_WhenWheelMovesInsideBounds_AdvancesOffset() {
-            EditorEntity host = new EditorEntity {
+            EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(20f, 30f, 0f)
             };
             ScrollComponent scroll = new ScrollComponent {
@@ -67,7 +67,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ScrollComponent_WhenWheelMovesOutsideBounds_DoesNotAdvanceOffset() {
-            EditorEntity host = new EditorEntity {
+            EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(20f, 30f, 0f)
             };
             ScrollComponent scroll = new ScrollComponent {
@@ -89,7 +89,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ScrollComponent_WhenWheelExceedsAvailableRange_ClampsOffset() {
-            EditorEntity host = new EditorEntity {
+            EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(20f, 30f, 0f)
             };
             ScrollComponent scroll = new ScrollComponent {
@@ -113,11 +113,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ScrollComponent_WhenViewportIsOwnedByTheScrollComponent_UsesItsOwnClipBoundsForWheelHitTesting() {
-            EditorEntity viewport = new EditorEntity {
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(20f, 30f, 0f)
             };
 
-            EditorEntity itemsRoot = new EditorEntity();
+            EditorEntity itemsRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             viewport.AddChild(itemsRoot);
 
             ScrollComponent scroll = new ScrollComponent {
@@ -140,11 +140,11 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ScrollComponent_WhenVisibleCountIsAuto_UsesViewportAndItemExtent() {
-            EditorEntity viewport = new EditorEntity {
+            EditorEntity viewport = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(20f, 30f, 0f)
             };
 
-            EditorEntity itemsRoot = new EditorEntity();
+            EditorEntity itemsRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             viewport.AddChild(itemsRoot);
 
             ScrollComponent scroll = new ScrollComponent {

@@ -39,7 +39,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ToggleToolsMenu_ShowsEnvironmentsCommandAndHidesOtherMenus() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleFileMenu");
             InvokePrivate(titleBar, "ToggleToolsMenu");
@@ -61,7 +61,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ToolsMenu_WhenEnvironmentsActivated_RaisesEnvironmentsRequested() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             bool raised = false;
             titleBar.EnvironmentsRequested += () => raised = true;
 

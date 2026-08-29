@@ -122,7 +122,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AddComponent_WhenEditorModeAndEntityLacksSuppressionMarker_RunsLifecycleNormally() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
             EditorUpdateLifecycleProbeComponent component = new EditorUpdateLifecycleProbeComponent();
@@ -138,7 +138,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void InitializeHierarchy_WhenEditorModeAndEntityLacksSuppressionMarker_RunsInitializedLifecycle() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
             EditorUpdateLifecycleProbeComponent component = new EditorUpdateLifecycleProbeComponent();
@@ -155,7 +155,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured user scene entity.</returns>
         EditorEntity CreateUserSceneEntity() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
             entity.AddComponent(new EditorUpdateExecutionSuppressionComponent());

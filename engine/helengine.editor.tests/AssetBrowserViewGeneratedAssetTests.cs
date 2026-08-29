@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RefreshEntries_WhenMaterialExtensionFilterIsActive_KeepsGeneratedMaterialEntriesVisible() {
-            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
+            AssetBrowserView browserView = new AssetBrowserView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
 
             Assert.True(browserView.TryNavigateTo(EngineGeneratedAssetProvider.EngineRootPath));
             Assert.True(browserView.TryNavigateTo(EngineGeneratedAssetProvider.EngineMaterialsPath));
@@ -81,7 +81,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RefreshEntries_WhenEngineRootIsPresent_PinsItFirstAndMarksItReadOnly() {
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Aardvark"));
-            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
+            AssetBrowserView browserView = new AssetBrowserView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
 
             browserView.UpdateLayout(320, 240);
 
@@ -105,7 +105,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void DoesEntryMatchExtensionFilter_when_multiple_extensions_are_provided_matches_any_token() {
-            AssetBrowserView browserView = new AssetBrowserView(CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
+            AssetBrowserView browserView = new AssetBrowserView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, EditorLayerMasks.EditorUi, 1, 2, 3, 4, true, null, Registry);
             browserView.SetExtensionFilter(".png;.jpg");
 
             MethodInfo method = typeof(AssetBrowserView).GetMethod("DoesEntryMatchExtensionFilter", BindingFlags.Instance | BindingFlags.NonPublic);

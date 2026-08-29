@@ -198,8 +198,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public EditorPreferencesDialog(FontAsset font, EditorUiMetrics metrics)
-            : base("EditorPreferencesDialog", "Preferences", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public EditorPreferencesDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public EditorPreferencesDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics)
+            : base(ownerCore, interactionServices, "EditorPreferencesDialog", "Preferences", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             ThemeDefinitions = CreateThemeDefinitions();
             ThemeItems = CreateThemeItems(ThemeDefinitions);
 
@@ -528,7 +531,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>New host entity configured for dialog content.</returns>
         EditorEntity CreateDialogHost() {
-            return new EditorEntity {
+            return new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

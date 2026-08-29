@@ -80,20 +80,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
-        public AssetBrowserPanel(FontAsset font, string projectPath, GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, projectPath, EditorUiMetrics.Default, OpenFolderInExplorer, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
-        }
-
         /// <summary>
         /// Initializes a new asset browser panel for the provided project path using the supplied scaled dock metrics.
         /// </summary>
         /// <param name="font">Font used for labels.</param>
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
-        public AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, projectPath, metrics, OpenFolderInExplorer, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
-        }
-
         /// <summary>
         /// Initializes a new asset browser panel for the provided project path using the supplied folder launcher.
         /// </summary>
@@ -102,12 +94,35 @@ namespace helengine.editor {
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
         /// <param name="openFolderAction">Callback used when the user chooses to open the current folder in Explorer.</param>
         public AssetBrowserPanel(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
             FontAsset font,
             string projectPath,
             EditorUiMetrics metrics,
             Action<string> openFolderAction,
             GeneratedAssetProviderRegistry generatedAssetProviders)
-            : this(font, projectPath, metrics, openFolderAction, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
+            : this(ownerCore, interactionServices, font, projectPath, metrics, openFolderAction, new AssetBrowserDataSource(projectPath, generatedAssetProviders)) {
+        }
+
+        /// <summary>Initializes a panel with the default scaled metrics and explicit session graph.</summary>
+        public AssetBrowserPanel(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            string projectPath,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(ownerCore, interactionServices, font, projectPath, EditorUiMetrics.Default, OpenFolderInExplorer, generatedAssetProviders) {
+        }
+
+        /// <summary>Initializes a panel with explicit scaled metrics and session graph.</summary>
+        public AssetBrowserPanel(
+            Core ownerCore,
+            EditorSessionInteractionServices interactionServices,
+            FontAsset font,
+            string projectPath,
+            EditorUiMetrics metrics,
+            GeneratedAssetProviderRegistry generatedAssetProviders)
+            : this(ownerCore, interactionServices, font, projectPath, metrics, OpenFolderInExplorer, generatedAssetProviders) {
         }
 
         /// <summary>
@@ -117,14 +132,14 @@ namespace helengine.editor {
         /// <param name="projectPath">Path to the project root.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dock title bar and browser content.</param>
         /// <param name="dataSource">Data source whose manager shares the project session resources.</param>
-        internal AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, AssetBrowserDataSource dataSource)
-            : this(font, projectPath, metrics, OpenFolderInExplorer, dataSource) {
+        internal AssetBrowserPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, string projectPath, EditorUiMetrics metrics, AssetBrowserDataSource dataSource)
+            : this(ownerCore, interactionServices, font, projectPath, metrics, OpenFolderInExplorer, dataSource) {
         }
 
         /// <summary>
         /// Initializes an asset browser panel with an explicit data source and folder launcher.
         /// </summary>
-        AssetBrowserPanel(FontAsset font, string projectPath, EditorUiMetrics metrics, Action<string> openFolderAction, AssetBrowserDataSource dataSource) : base(font, metrics) {
+        AssetBrowserPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, string projectPath, EditorUiMetrics metrics, Action<string> openFolderAction, AssetBrowserDataSource dataSource) : base(ownerCore, interactionServices, font, metrics) {
             if (openFolderAction == null) {
                 throw new ArgumentNullException(nameof(openFolderAction));
             }
@@ -140,13 +155,15 @@ namespace helengine.editor {
             byte iconBackgroundOrder = RenderOrder2D.PanelSurface;
             byte textOrder = RenderOrder2D.PanelForeground;
 
-            ContentRoot = new EditorEntity {
+            ContentRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0, TitleBarHeightPixels, 0.05f)
             };
             AddChild(ContentRoot);
 
             BrowserView = new AssetBrowserView(
+                OwnerCore,
+                InteractionServices,
                 Font,
                 UiMetrics,
                 projectPath,
@@ -165,9 +182,9 @@ namespace helengine.editor {
 
             byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
             byte menuTextOrder = RenderOrder2D.OverlayForeground;
-            AssetContextMenu = new ContextMenu(Font, LayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(this));
+            AssetContextMenu = new ContextMenu(OwnerCore, Font, LayerMask, menuBackgroundOrder, menuTextOrder, InteractionServices);
             AddChild(AssetContextMenu.Entity);
-            FileTemplateMenu = new ContextMenu(Font, LayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(this));
+            FileTemplateMenu = new ContextMenu(OwnerCore, Font, LayerMask, menuBackgroundOrder, menuTextOrder, InteractionServices);
             AddChild(FileTemplateMenu.Entity);
 
             CreateAssetItems = new List<ContextMenuItem> {

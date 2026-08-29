@@ -176,7 +176,7 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         /// <returns>Initialized entity ready to receive light components.</returns>
         static Entity CreateInitializedEntity() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             return entity;
         }

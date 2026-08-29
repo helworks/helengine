@@ -51,7 +51,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void FlushPendingEntries_WithScaledMetrics_UsesScaledTitleBarOffsetAndRowHeight() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            LoggerPanel panel = new LoggerPanel(CreateFont(), metrics) {
+            LoggerPanel panel = new LoggerPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics) {
                 Size = new int2(320, 240)
             };
 
@@ -526,7 +526,7 @@ namespace helengine.editor.tests {
         /// <param name="messages">Messages to enqueue into the logger panel.</param>
         /// <returns>Populated logger panel.</returns>
         LoggerPanel CreatePanelWithEntries(params string[] messages) {
-            LoggerPanel panel = new LoggerPanel(CreateFont()) {
+            LoggerPanel panel = new LoggerPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()) {
                 Size = new int2(320, 240)
             };
             panel.SetInputServices(Core.Instance.Input, ClipboardService);

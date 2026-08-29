@@ -38,8 +38,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsSearchListAndFooterImmediately() {
-            ComponentAddDialog dialog = new ComponentAddDialog(CreateFont());
-            EditorEntity targetEntity = new EditorEntity {
+            ComponentAddDialog dialog = new ComponentAddDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            EditorEntity targetEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Cube"
             };
 
@@ -66,8 +66,8 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_UsesAutomaticVisibleRowResolutionFromScrollComponent() {
-            ComponentAddDialog dialog = new ComponentAddDialog(CreateFont());
-            EditorEntity targetEntity = new EditorEntity {
+            ComponentAddDialog dialog = new ComponentAddDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            EditorEntity targetEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Cube"
             };
 

@@ -33,7 +33,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Constructor_UsesDefaultTitleBarHeightWithNativeResizeArea() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             Assert.Equal(33, titleBar.Height);
         }
@@ -44,7 +44,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Constructor_ReservesTopResizeAreaAboveTitleBarControls() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
             RoundedRectComponent fileButtonBackground = FindComponent<RoundedRectComponent>(fileButtonEntity);
@@ -63,7 +63,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void DragRegion_PressInsideNativeResizeBorder_DoesNotRequestWindowDrag() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             InteractableComponent dragRegion = GetPrivateField<InteractableComponent>(titleBar, "DragRegion");
             bool wasDragRequested = false;
             titleBar.DragRequested += () => wasDragRequested = true;
@@ -79,7 +79,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void DragRegion_PressBelowNativeResizeBorder_RequestsWindowDrag() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             InteractableComponent dragRegion = GetPrivateField<InteractableComponent>(titleBar, "DragRegion");
             bool wasDragRequested = false;
             titleBar.DragRequested += () => wasDragRequested = true;
@@ -95,7 +95,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Constructor_CreatesTopmostNativeResizeBorderInputShield() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             InteractableComponent resizeBorderInteractable = GetPrivateField<InteractableComponent>(titleBar, "NativeResizeBorderInteractable");
             SpriteComponent resizeBorderSurface = GetPrivateField<SpriteComponent>(titleBar, "NativeResizeBorderSurface");
 
@@ -113,7 +113,7 @@ namespace helengine.editor.tests {
             ThemeManager.SetTheme(ThemeManager.CreateNeon90s());
             const string title = "Main Editor Title";
 
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, title);
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, title);
 
             TextComponent titleText = FindTextComponent(titleBar.Entity, title);
 
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
                 Height = 128
             };
 
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title", iconTexture);
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title", iconTexture);
 
             EditorEntity iconEntity = GetPrivateField<EditorEntity>(titleBar, "IconEntity");
             SpriteComponent iconSprite = GetPrivateField<SpriteComponent>(titleBar, "IconSprite");
@@ -155,7 +155,7 @@ namespace helengine.editor.tests {
             };
             EditorUiMetrics metrics = new EditorUiMetrics(1.5);
 
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), metrics, 1280, 720, "Main Editor Title", iconTexture);
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics, 1280, 720, "Main Editor Title", iconTexture);
 
             EditorEntity iconEntity = GetPrivateField<EditorEntity>(titleBar, "IconEntity");
             SpriteComponent iconSprite = GetPrivateField<SpriteComponent>(titleBar, "IconSprite");
@@ -172,7 +172,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void FileMenu_UsesOverlayRenderOrdersAboveDockPanels() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
 
             fileMenu.Show(
@@ -195,7 +195,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void AddMenu_UsesOverlayRenderOrdersAboveDockPanels() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             ContextMenu addMenu = GetPrivateField<ContextMenu>(titleBar, "AddMenu");
 
             addMenu.Show(
@@ -218,7 +218,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Constructor_BuildsUiMenuButtonBesideBuildButton() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity uiButtonEntity = GetPrivateField<EditorEntity>(titleBar, "UiMenuButtonEntity");
 
@@ -231,7 +231,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ActivateUiMenuItemForTest_WhenSaveSlotThreeIsRequested_RaisesUiMenuAction() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
             EditorTitleBarUiMenuAction? action = null;
             titleBar.UiMenuActionRequested += value => action = value;
 
@@ -246,7 +246,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ApplyUiShowMenuItems_WhenPanelTypesChange_RebuildsShowSubmenuItems() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             titleBar.ApplyUiShowMenuItems(["Viewport", "Preview", "Logger"]);
             titleBar.ShowUiShowMenuForTest();
@@ -263,7 +263,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Layout_UsesFullHeightForLeftSideTitleBarButtons() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
@@ -278,7 +278,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Layout_UsesFullHeightForRightSideWindowControlButtons() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity minimizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MinimizeButtonEntity");
             EditorEntity maximizeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "MaximizeButtonEntity");
@@ -295,7 +295,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Layout_UsesNoHorizontalGapBetweenTitleBarButtons() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
@@ -314,7 +314,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Layout_UsesHoverOnlyBackgroundForTitleBarButtons() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
@@ -335,7 +335,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Layout_UsesSquareCornersForTitleBarButtons() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
@@ -357,7 +357,7 @@ namespace helengine.editor.tests {
         public void Layout_UsesLightTextForTitleBarButtons() {
             InitializeCore();
             ThemeManager.SetTheme(ThemeManager.CreateNeon90s());
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
@@ -379,7 +379,7 @@ namespace helengine.editor.tests {
         public void Layout_UsesSinglePixelSharedVerticalBordersForTitleBarButtons() {
             InitializeCore();
             ThemeManager.SetTheme(ThemeManager.CreateNeon90s());
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity addButtonEntity = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
@@ -416,7 +416,7 @@ namespace helengine.editor.tests {
         public void Layout_AlignsCloseButtonToRightWindowWall() {
             InitializeCore();
             const int windowWidth = 1280;
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), windowWidth, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), windowWidth, 720, "Main Editor Title");
 
             EditorEntity closeButtonEntity = GetPrivateField<EditorEntity>(titleBar, "CloseButtonEntity");
             RoundedRectComponent closeBackground = FindComponent<RoundedRectComponent>(closeButtonEntity);
@@ -430,7 +430,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Layout_ReservesLeftIconSlotBeforeFileButton() {
             InitializeCore();
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Main Editor Title");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Main Editor Title");
 
             EditorEntity fileButtonEntity = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
 

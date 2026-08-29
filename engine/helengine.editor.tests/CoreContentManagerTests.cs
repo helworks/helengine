@@ -84,7 +84,7 @@ namespace helengine.editor.tests {
 
             ContentManager contentManager = core.GetContentManager(projectSource);
 
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             EditorContentManagerConfiguration.ConfigureProjectContentManager(contentManager);
             EditorContentManagerConfiguration.ConfigureProjectContentManager(contentManager);
 

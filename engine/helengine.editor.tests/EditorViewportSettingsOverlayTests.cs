@@ -12,12 +12,14 @@ namespace helengine.editor.tests {
     /// </summary>
     public class EditorViewportSettingsOverlayTests : IDisposable {
         readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        Core CoreValue;
         TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Resets shared keyboard-focus state after each overlay test.
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph?.Dispose();
+            CoreValue?.Dispose();
             InteractionServices.TransformSnap.ResetDefaults();
         }
 
@@ -36,7 +38,7 @@ namespace helengine.editor.tests {
             Assert.True(overlayComponent.IsOpen);
             Assert.Same(
                 overlayComponent.GridToggleFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
         }
 
         /// <summary>
@@ -53,32 +55,32 @@ namespace helengine.editor.tests {
             InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.PixelsPerWorldUnitFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
 
             InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.NearPlaneFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
 
             InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.FarPlaneFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
 
             InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.CameraSpeedModeFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
 
             InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.ManualCameraSpeedFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
 
             InteractionServices.KeyboardFocus.HandleTab(true);
             Assert.Same(
                 overlayComponent.CloseButtonFocusTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
         }
 
         /// <summary>
@@ -212,7 +214,7 @@ namespace helengine.editor.tests {
             EditorViewport viewport = CreateViewport();
             viewport.Size = new int2(400, 280);
             InvokePrivateMethod(viewport, "UpdateViewport");
-            EditorEntity uiCameraEntity = new EditorEntity();
+            EditorEntity uiCameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent uiCamera = new CameraComponent {
                 LayerMask = EditorLayerMasks.EditorUi,
                 CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi,
@@ -226,8 +228,8 @@ namespace helengine.editor.tests {
             int pointerY = (int)Math.Round(overlayComponent.NearPlaneSlider.Position.Y + 8f);
             InteractableComponent nearPlaneTrack = Assert.IsType<InteractableComponent>(overlayComponent.NearPlaneSlider.Components.Single(component => component is InteractableComponent));
             IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
-                Core.Instance.ObjectManager.Interactables,
-                Core.Instance.ObjectManager.Drawables2D,
+                CoreValue.ObjectManager.Interactables,
+                CoreValue.ObjectManager.Drawables2D,
                 uiCamera,
                 pointerX,
                 pointerY);
@@ -247,7 +249,7 @@ namespace helengine.editor.tests {
             EditorViewport viewport = CreateViewport();
             viewport.Size = new int2(400, 280);
             InvokePrivateMethod(viewport, "UpdateViewport");
-            EditorEntity uiCameraEntity = new EditorEntity();
+            EditorEntity uiCameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent uiCamera = new CameraComponent {
                 LayerMask = EditorLayerMasks.EditorUi,
                 CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi,
@@ -262,8 +264,8 @@ namespace helengine.editor.tests {
             int pointerY = (int)Math.Round(valueTextBox.Parent.Position.Y + 8f);
             InteractableComponent textBoxInteractable = GetPrivateField<InteractableComponent>(valueTextBox, "interactableComponent");
             IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
-                Core.Instance.ObjectManager.Interactables,
-                Core.Instance.ObjectManager.Drawables2D,
+                CoreValue.ObjectManager.Interactables,
+                CoreValue.ObjectManager.Drawables2D,
                 uiCamera,
                 pointerX,
                 pointerY);
@@ -283,7 +285,7 @@ namespace helengine.editor.tests {
             EditorViewport viewport = CreateViewport();
             viewport.Size = new int2(400, 280);
             InvokePrivateMethod(viewport, "UpdateViewport");
-            EditorEntity uiCameraEntity = new EditorEntity();
+            EditorEntity uiCameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent uiCamera = new CameraComponent {
                 LayerMask = EditorLayerMasks.EditorUi,
                 CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi,
@@ -330,7 +332,7 @@ namespace helengine.editor.tests {
             Assert.False(overlayComponent.IsOpen);
             Assert.Same(
                 settingsTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
         }
 
         /// <summary>
@@ -349,7 +351,7 @@ namespace helengine.editor.tests {
             Assert.False(overlayComponent.IsOpen);
             Assert.Same(
                 settingsTarget,
-                GetPrivateStaticField<IFocusTarget>(typeof(EditorKeyboardFocusService), "FocusedTarget"));
+                GetPrivateField<IFocusTarget>(InteractionServices.KeyboardFocus, "FocusedTarget"));
         }
 
         /// <summary>
@@ -514,11 +516,12 @@ namespace helengine.editor.tests {
         /// </summary>
         TestInputBackend InitializeCore() {
             TestInputBackend inputManager = new TestInputBackend();
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new FakeContentStreamSource()
             });
-            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+            CoreValue.SessionInteractionGraph = InteractionServices;
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
@@ -531,11 +534,11 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Configured editor viewport.</returns>
         EditorViewport CreateViewport() {
-            EditorEntity cameraEntity = new EditorEntity();
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent camera = new CameraComponent();
             cameraEntity.AddComponent(camera);
 
-            EditorViewport viewport = new EditorViewport(
+            EditorViewport viewport = new EditorViewport(CoreValue,
                 camera,
                 CreateFont(),
                 CreateFont(),
@@ -544,7 +547,7 @@ namespace helengine.editor.tests {
                 EditorUiMetrics.Default,
                 GeneratedAssetGraph.ShaderLibrary,
                 GeneratedAssetGraph.RendererResources);
-            viewport.CameraController = new EditorViewportCameraController(camera, Core.Instance.Input);
+            viewport.CameraController = new EditorViewportCameraController(camera, CoreValue.Input);
             viewport.Position = new float3(20f, 20f, 0f);
             viewport.Size = new int2(400, 280);
             return viewport;
@@ -563,7 +566,7 @@ namespace helengine.editor.tests {
                 FieldInfo field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
                 if (field != null) {
                     object value = field.GetValue(target);
-                    return Assert.IsType<T>(value);
+                    return Assert.IsAssignableFrom<T>(value);
                 }
 
                 currentType = currentType.BaseType;
@@ -596,23 +599,6 @@ namespace helengine.editor.tests {
             inputManager.SetMouseState(mouseState);
             inputManager.EarlyUpdate();
             inputManager.Update();
-        }
-
-        /// <summary>
-        /// Reads one non-public static field and casts it to the requested type.
-        /// </summary>
-        /// <typeparam name="T">Expected field type.</typeparam>
-        /// <param name="type">Type that owns the field.</param>
-        /// <param name="fieldName">Name of the field to read.</param>
-        /// <returns>Field value cast to the requested type.</returns>
-        T GetPrivateStaticField<T>(Type type, string fieldName) {
-            FieldInfo field = type.GetField(fieldName, BindingFlags.Static | BindingFlags.NonPublic);
-            if (field == null) {
-                throw new InvalidOperationException("Expected private static field was not found.");
-            }
-
-            object value = field.GetValue(null);
-            return Assert.IsAssignableFrom<T>(value);
         }
 
         /// <summary>

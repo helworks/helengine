@@ -7,13 +7,15 @@ namespace helengine.editor.tests.managers.dock {
     /// Verifies keyboard-focus traversal and lifetime behavior exposed by the dock layout engine.
     /// </summary>
     public class DockLayoutEngineKeyboardFocusTests : IDisposable {
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        Core CoreValue;
         /// <summary>
         /// Ensures traversal order follows visible leaf panels and excludes hidden sibling tabs.
         /// </summary>
         [Fact]
         public void GetVisibleDockablesInTraversalOrder_WhenTabsAndSplitsExist_ReturnsVisibleActiveDockablesInLeafOrder() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
+            DockLayoutEngine layout = new DockLayoutEngine(CoreValue.RenderManager2D, CoreValue.ObjectManager);
             DockableEntity left = CreateDock("Left");
             DockableEntity top = CreateDock("Top");
             DockableEntity topReplacement = CreateDock("TopReplacement");
@@ -39,7 +41,7 @@ namespace helengine.editor.tests.managers.dock {
         [Fact]
         public void DockLayoutEngine_WhenTabbedPanelIsRemoved_DisposesTabFocusTargets() {
             InitializeCore();
-            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
+            DockLayoutEngine layout = new DockLayoutEngine(CoreValue.RenderManager2D, CoreValue.ObjectManager);
             DockableEntity first = CreateDock("First");
             DockableEntity second = CreateDock("Second");
 
@@ -61,7 +63,7 @@ namespace helengine.editor.tests.managers.dock {
         public void Layout_WhenTabbedPanelUsesScaledMetrics_PinsTabStripToOnePixelSeparator() {
             InitializeCore();
             EditorUiMetrics scaledMetrics = new EditorUiMetrics(1.5d);
-            DockLayoutEngine layout = new DockLayoutEngine(Core.Instance.RenderManager2D, Core.Instance.ObjectManager);
+            DockLayoutEngine layout = new DockLayoutEngine(CoreValue.RenderManager2D, CoreValue.ObjectManager);
             DockableEntity first = CreateDock("First", scaledMetrics);
             DockableEntity second = CreateDock("Second", scaledMetrics);
 
@@ -82,14 +84,17 @@ namespace helengine.editor.tests.managers.dock {
         /// Clears shared keyboard-focus state after each test.
         /// </summary>
         public void Dispose() {
+            InteractionServices.Dispose();
+            CoreValue?.Dispose();
         }
 
         /// <summary>
         /// Initializes the core services required by dock-layout keyboard-focus tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(null, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.SessionInteractionGraph = InteractionServices;
         }
 
         /// <summary>
@@ -108,7 +113,7 @@ namespace helengine.editor.tests.managers.dock {
         /// <param name="metrics">Scaled dock metrics applied to the entity.</param>
         /// <returns>Configured dockable entity.</returns>
         DockableEntity CreateDock(string title, EditorUiMetrics metrics) {
-            DockableEntity dock = new DockableEntity(CreateFont(), metrics);
+            DockableEntity dock = new DockableEntity(CoreValue, InteractionServices, CreateFont(), metrics);
             dock.Title = title;
             return dock;
         }
@@ -118,12 +123,12 @@ namespace helengine.editor.tests.managers.dock {
         /// </summary>
         /// <returns>Registered focus-target count.</returns>
         int GetRegisteredTargetCount() {
-            FieldInfo field = typeof(EditorKeyboardFocusService).GetField("RegisteredTargets", BindingFlags.Static | BindingFlags.NonPublic);
+            FieldInfo field = typeof(EditorKeyboardFocusService).GetField("RegisteredTargets", BindingFlags.Instance | BindingFlags.NonPublic);
             if (field == null) {
                 throw new InvalidOperationException("Expected RegisteredTargets field was not found.");
             }
 
-            object value = field.GetValue(null);
+            object value = field.GetValue(InteractionServices.KeyboardFocus);
             List<IFocusTarget> targets = Assert.IsType<List<IFocusTarget>>(value);
             return targets.Count;
         }

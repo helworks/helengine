@@ -63,7 +63,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateChild_ParentsChildBeforeReturning() {
-            IEntityFactory factory = new RuntimeEntityFactory();
+            IEntityFactory factory = new RuntimeEntityFactory(Core.Instance);
             Entity parent = factory.Create("Parent");
             parent.InitChildren();
 

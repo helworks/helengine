@@ -202,8 +202,8 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// </summary>
     /// <param name="font">Font used for overlay labels and button text.</param>
     /// <param name="overlayLayerMask">Layer mask applied to overlay visuals.</param>
-    public EditorColorPickerOverlayComponent(FontAsset font, ushort overlayLayerMask, RenderManager3D renderManager3D, RenderManager2D renderManager2D, InputSystem input)
-        : base("EditorColorPickerOverlay", "Color Picker", font, EditorUiMetrics.Default, PanelWidth, PanelHeight + DialogHeaderHeight, DialogHeaderHeight) {
+        public EditorColorPickerOverlayComponent(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort overlayLayerMask, RenderManager3D renderManager3D, RenderManager2D renderManager2D, InputSystem input)
+        : base(ownerCore, interactionServices, "EditorColorPickerOverlay", "Color Picker", font, EditorUiMetrics.Default, PanelWidth, PanelHeight + DialogHeaderHeight, DialogHeaderHeight) {
         if (font == null) {
             throw new ArgumentNullException(nameof(font));
         }
@@ -552,12 +552,12 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// Creates the wheel and triangle controls inside the picker area.
     /// </summary>
     void CreateColorControls() {
-        HueWheelControl = new EditorColorWheelControl(LayerMask, RenderManager2D);
+        HueWheelControl = new EditorColorWheelControl(OwnerCore, InteractionServices, LayerMask, RenderManager2D);
         HueWheelControl.HueChanged += HandleHueChanged;
         HueWheelControl.Position = new float3(WheelLeft, WheelTop, 0.2f);
         DialogContentRoot.AddChild(HueWheelControl);
 
-        SaturationValueTriangleControl = new EditorColorTriangleControl(LayerMask, TriangleSize, RenderManager2D);
+        SaturationValueTriangleControl = new EditorColorTriangleControl(OwnerCore, InteractionServices, LayerMask, TriangleSize, RenderManager2D);
         SaturationValueTriangleControl.SelectionChanged += HandleTriangleSelectionChanged;
         SaturationValueTriangleControl.Position = new float3(TriangleLeft, TriangleTop, 0.25f);
         DialogContentRoot.AddChild(SaturationValueTriangleControl);
@@ -576,7 +576,7 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// Creates the preview area that mirrors the currently edited color.
     /// </summary>
     void CreatePreviewArea() {
-        PreviewHost = new EditorEntity {
+        PreviewHost = new EditorEntity(OwnerCore, InteractionServices) {
             LayerMask = LayerMask,
             InternalEntity = true,
             Position = new float3(SidePanelLeft, PanelPadding, 0.2f)
@@ -598,7 +598,7 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     /// Creates the HTML hex textbox used for direct color entry.
     /// </summary>
     void CreateHexTextbox() {
-        HexTextboxHost = new EditorEntity {
+        HexTextboxHost = new EditorEntity(OwnerCore, InteractionServices) {
             LayerMask = LayerMask,
             InternalEntity = true,
             Position = new float3(SidePanelLeft, PanelPadding + PreviewSize + SectionSpacing, 0.2f)
@@ -618,7 +618,7 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
     void CreateAlphaSliderRow() {
         int rowTop = PanelPadding + PreviewSize + SectionSpacing + HexTextboxHeight + SectionSpacing;
 
-        AlphaLabelHost = new EditorEntity {
+        AlphaLabelHost = new EditorEntity(OwnerCore, InteractionServices) {
             LayerMask = LayerMask,
             InternalEntity = true,
             Position = new float3(SidePanelLeft, rowTop, 0.2f)
@@ -633,7 +633,7 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
         };
         AlphaLabelHost.AddComponent(AlphaLabelText);
 
-        AlphaSliderControl = new EditorSlider(0.0, 255.0, 255.0, EditorSliderScaleMode.Linear, AlphaSliderWidth, 16);
+        AlphaSliderControl = new EditorSlider(OwnerCore, InteractionServices, 0.0, 255.0, 255.0, EditorSliderScaleMode.Linear, AlphaSliderWidth, 16);
         AlphaSliderControl.ApplyLayerMask(LayerMask);
         AlphaSliderControl.SetRenderOrders(RenderOrder2D.ModalOverlayBackground, RenderOrder2D.ModalOverlayForeground);
         AlphaSliderControl.KeyboardStep = 1.0;
@@ -641,7 +641,7 @@ public sealed class EditorColorPickerOverlayComponent : EditorDialogBase {
         AlphaSliderControl.Position = new float3(SidePanelLeft + AlphaLabelWidth + 8, rowTop + 4, 0.2f);
         DialogContentRoot.AddChild(AlphaSliderControl);
 
-        AlphaValueHost = new EditorEntity {
+        AlphaValueHost = new EditorEntity(OwnerCore, InteractionServices) {
             LayerMask = LayerMask,
             InternalEntity = true,
             Position = new float3(SidePanelLeft + AlphaLabelWidth + 8 + AlphaSliderWidth + 8, rowTop, 0.2f)

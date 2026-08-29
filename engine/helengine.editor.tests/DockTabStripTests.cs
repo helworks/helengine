@@ -15,9 +15,9 @@ namespace helengine.editor.tests {
             InitializeCore();
 
             FontAsset font = CreateFont();
-            DockTabStrip strip = new DockTabStrip(font, HandleTabSelected);
-            DockableEntity first = new DockableEntity(font);
-            DockableEntity second = new DockableEntity(font);
+            DockTabStrip strip = new DockTabStrip(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font, HandleTabSelected);
+            DockableEntity first = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font);
+            DockableEntity second = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font);
 
             first.Title = "First";
             second.Title = "Second";
@@ -47,9 +47,9 @@ namespace helengine.editor.tests {
             FontAsset scaledFont = CreateFont(24f);
             EditorUiMetrics initialMetrics = new EditorUiMetrics(1d);
             EditorUiMetrics scaledMetrics = new EditorUiMetrics(1.5d);
-            DockTabStrip strip = new DockTabStrip(initialFont, initialMetrics, HandleTabSelected);
-            DockableEntity first = new DockableEntity(initialFont, initialMetrics);
-            DockableEntity second = new DockableEntity(initialFont, initialMetrics);
+            DockTabStrip strip = new DockTabStrip(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), initialFont, initialMetrics, HandleTabSelected);
+            DockableEntity first = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), initialFont, initialMetrics);
+            DockableEntity second = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), initialFont, initialMetrics);
 
             first.Title = "First";
             second.Title = "Second";

@@ -8,6 +8,17 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="contentManager">Content manager to configure.</param>
         public static void ConfigureSharedAssetContentManager(ContentManager contentManager) {
+            ConfigureSharedAssetProcessors(contentManager);
+        }
+
+        public static void ConfigureSharedAssetContentManager(ContentManager contentManager, RenderManager2D renderManager2D) {
+            ConfigureSharedAssetProcessors(contentManager);
+            if (renderManager2D == null) {
+                throw new ArgumentNullException(nameof(renderManager2D));
+            }
+        }
+
+        static void ConfigureSharedAssetProcessors(ContentManager contentManager) {
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }
@@ -60,16 +71,16 @@ namespace helengine.editor {
         /// Ensures the editor-specific asset processors needed by the properties panel and asset browser are registered.
         /// </summary>
         /// <param name="contentManager">Content manager to configure.</param>
-        public static void ConfigureEditorContentManager(ContentManager contentManager) {
+        public static void ConfigureEditorContentManager(ContentManager contentManager, RenderManager2D renderManager2D) {
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }
 
-            ConfigureSharedAssetContentManager(contentManager);
+            ConfigureSharedAssetContentManager(contentManager, renderManager2D);
             RegisterProcessorIfMissing(
                 contentManager,
                 RuntimeContentProcessorIds.FontAsset,
-                new BinaryContentProcessor<global::helengine.FontAsset>(global::helengine.FontAssetBinarySerializer.Deserialize),
+                new BinaryContentProcessor<global::helengine.FontAsset>(stream => global::helengine.FontAssetBinarySerializer.Deserialize(stream, renderManager2D)),
                 new[] { ".hefont" });
         }
 

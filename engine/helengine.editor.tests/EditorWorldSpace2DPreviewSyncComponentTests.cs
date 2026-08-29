@@ -35,7 +35,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSupported2DSceneEntityAppears_CreatesPreviewProxy() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSourceEntityIsRemoved_RemovesPreviewProxy() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
@@ -84,7 +84,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSourceEntityUsesTextComponent_CreatesPreviewProxy() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new TextComponent {
@@ -109,7 +109,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSourceEntityUsesRoundedRectComponent_CreatesPreviewProxy() {
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new RoundedRectComponent {
@@ -133,12 +133,12 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSpriteEntityBelongsToInternalEditorHierarchy_DoesNotCreatePreviewProxy() {
-            EditorEntity internalRoot = new EditorEntity {
+            EditorEntity internalRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
 
-            EditorEntity internalChild = new EditorEntity {
+            EditorEntity internalChild = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LayerMask = EditorLayerMasks.EditorUi
             };
             internalChild.AddComponent(new SpriteComponent {
@@ -162,7 +162,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenViewportOwnedSpriteUsesBottomRightAnchor_SynchronizerPlacesPreviewAtBottomRight() {
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -174,12 +174,12 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             });
 
-            Entity generatedRootEntity = new Entity();
+            Entity generatedRootEntity = new Entity(Core.Instance);
             generatedRootEntity.InitComponents();
             generatedRootEntity.InitChildren();
             viewportEntity.AddChild(generatedRootEntity);
 
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             generatedRootEntity.AddChild(sourceEntity);

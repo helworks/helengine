@@ -100,12 +100,12 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenAxisDraggingParentedSceneEntity_PreservesWorldSpaceDragResult() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
-            Entity parentEntity = new Entity {
+            Entity parentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(10f, 0f, 0f)
             };
             parentEntity.InitComponents();
             parentEntity.InitChildren();
-            Entity selectedEntity = new Entity {
+            Entity selectedEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(2f, 0f, 0f)
             };
             selectedEntity.InitComponents();
@@ -137,7 +137,7 @@ namespace helengine.editor.tests.managers.gizmo {
         public void Update_WhenDragWithChangesEnds_RecordsEntityStateChangeIntoUndoHistory() {
             InitializeCore();
             CameraComponent sceneCamera = CreateSceneCamera();
-            EditorEntity selectedEntity = new EditorEntity {
+            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 LocalPosition = new float3(0f, 0f, 25f)
             };
             Entity handleEntity = CreateHandleEntity();
@@ -171,7 +171,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Configured scene camera component.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 Position = new float3(0f, 0f, 100f),
                 Orientation = float4.Identity
@@ -190,7 +190,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Viewport-owner entity.</returns>
         Entity CreateViewportOwner() {
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -206,7 +206,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="viewportEntity">Viewport-owner parent for the authored 2D entity.</param>
         /// <returns>Viewport-owned child entity.</returns>
         Entity CreateViewportChild(Entity viewportEntity) {
-            Entity selectedEntity = new Entity {
+            Entity selectedEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(0f, 0f, 25f)
             };
             selectedEntity.InitComponents();
@@ -223,7 +223,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Handle entity retained by the active drag state.</returns>
         Entity CreateHandleEntity() {
-            Entity handleEntity = new Entity();
+            Entity handleEntity = new Entity(Core.Instance);
             handleEntity.InitComponents();
             handleEntity.InitChildren();
             return handleEntity;
@@ -235,8 +235,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="sceneCamera">Scene camera used by the gizmo drag component.</param>
         /// <returns>Configured translation gizmo drag component.</returns>
         TransformTranslationGizmoDragComponent CreateDragComponent(CameraComponent sceneCamera) {
-            EditorEntity owner = new EditorEntity();
-            owner.RebindInteractionServices(InteractionServices);
+            EditorEntity owner = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TransformTranslationGizmoDragComponent component = new TransformTranslationGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
             return component;

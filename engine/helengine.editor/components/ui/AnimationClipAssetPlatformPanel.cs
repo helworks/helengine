@@ -138,24 +138,20 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the panel entities.</param>
-        public AnimationClipAssetPlatformPanel(FontAsset font, ushort layerMask)
-            : this(font, layerMask, null) {
-        }
-
         /// <summary>
         /// Initializes one platform panel with an authoritative project root.
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the panel entities.</param>
         /// <param name="projectRootPath">Canonical project root used for clip writes.</param>
-        public AnimationClipAssetPlatformPanel(FontAsset font, ushort layerMask, string projectRootPath) {
+        public AnimationClipAssetPlatformPanel(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask, string projectRootPath) {
             Font = font ?? throw new ArgumentNullException(nameof(font));
             ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
                 ? null
                 : Path.GetFullPath(projectRootPath);
             TextOrder = RenderOrder2D.PanelForeground;
 
-            RootEntity = new EditorEntity();
+            RootEntity = new EditorEntity(ownerCore, interactionServices);
             RootEntity.LayerMask = layerMask;
             RootEntity.InternalEntity = true;
             RootEntity.Enabled = false;
@@ -163,7 +159,7 @@ namespace helengine.editor {
             OverrideModeLabelHost = CreateTextHost(layerMask, out OverrideModeLabelText, OverrideModeLabel);
             RootEntity.AddChild(OverrideModeLabelHost);
 
-            OverrideModeComboHost = new EditorEntity();
+            OverrideModeComboHost = new EditorEntity(ownerCore, interactionServices);
             OverrideModeComboHost.LayerMask = layerMask;
             RootEntity.AddChild(OverrideModeComboHost);
 
@@ -393,7 +389,7 @@ namespace helengine.editor {
         /// <param name="text">Initial text value.</param>
         /// <returns>Created host entity.</returns>
         EditorEntity CreateTextHost(ushort layerMask, out TextComponent textComponent, string text) {
-            EditorEntity host = new EditorEntity();
+            EditorEntity host = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
             host.LayerMask = layerMask;
             textComponent = new TextComponent();
             textComponent.Font = Font;

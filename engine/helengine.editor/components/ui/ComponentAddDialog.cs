@@ -176,8 +176,8 @@ namespace helengine.editor {
         /// Initializes a new searchable component picker modal.
         /// </summary>
         /// <param name="font">Font used for labels and the search box.</param>
-        public ComponentAddDialog(FontAsset font)
-            : base("Add Component Dialog", "Add Component", font, PanelWidth, PanelHeight, HeaderHeight) {
+        public ComponentAddDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : base(ownerCore, interactionServices, "Add Component Dialog", "Add Component", font, EditorUiMetrics.Default, PanelWidth, PanelHeight, HeaderHeight) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -189,7 +189,7 @@ namespace helengine.editor {
             ScriptDescriptors = new List<EditorComponentAddDescriptor>(16);
             LastActivatedTicks = 0;
 
-            SearchFieldHost = new EditorEntity {
+            SearchFieldHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -201,7 +201,7 @@ namespace helengine.editor {
             SearchFieldHost.AddComponent(SearchField);
             SearchField.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
 
-            ListHost = new EditorEntity {
+            ListHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -212,14 +212,14 @@ namespace helengine.editor {
             ListScrollComponent.ScrollOffsetChanged += HandleScrollOffsetChanged;
             ListHost.AddComponent(ListScrollComponent);
 
-            EmptyStateHost = new EditorEntity {
+            EmptyStateHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(EmptyStateHost);
 
-            FooterHost = new EditorEntity {
+            FooterHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -542,7 +542,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Newly created row container.</returns>
         ContextMenuRow CreateRow() {
-            EditorEntity rowEntity = new EditorEntity {
+            EditorEntity rowEntity = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true,
@@ -562,7 +562,7 @@ namespace helengine.editor {
             };
             rowEntity.AddComponent(interactable);
 
-            EditorEntity labelHost = new EditorEntity {
+            EditorEntity labelHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -578,7 +578,7 @@ namespace helengine.editor {
             };
             labelHost.AddComponent(label);
 
-            EditorEntity indicatorHost = new EditorEntity {
+            EditorEntity indicatorHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true,

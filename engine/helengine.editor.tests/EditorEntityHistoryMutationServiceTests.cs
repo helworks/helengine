@@ -17,7 +17,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Try_capture_entity_state_when_entity_is_live_and_callback_exists_returns_true() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             SerializedEditorEntityState expectedState = new SerializedEditorEntityState {
                 EntityId = 7u,
                 ParentEntityId = 0u,
@@ -45,7 +45,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Try_record_entity_state_change_when_entity_is_live_and_callback_exists_returns_true() {
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState {
                 EntityId = 3u,
                 ParentEntityId = 0u,
@@ -72,7 +72,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Try_record_entity_state_change_when_entity_is_not_one_live_editor_entity_returns_false() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             SerializedEditorEntityState previousEntityState = new SerializedEditorEntityState {
                 EntityId = 9u,
                 ParentEntityId = 0u,

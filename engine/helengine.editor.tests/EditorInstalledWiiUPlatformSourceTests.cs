@@ -11,7 +11,7 @@ public sealed class EditorInstalledWiiUPlatformSourceTests {
     /// </summary>
     [Fact]
     public void Editor_installed_platform_catalog_registers_wiiu_builder() {
-        string sourcePath = @"C:\dev\helworks\helengine\user_settings\platforms.json";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "user_settings", "platforms.json");
         string source = File.ReadAllText(sourcePath);
         using JsonDocument document = JsonDocument.Parse(source);
         JsonElement platforms = document.RootElement.GetProperty("platforms");

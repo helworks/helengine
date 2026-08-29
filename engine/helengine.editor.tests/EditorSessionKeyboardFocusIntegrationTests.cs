@@ -10,7 +10,9 @@ namespace helengine.editor.tests {
     /// Verifies editor-session wiring publishes dock order, routes keyboard focus updates, and disposes session-owned focus state.
     /// </summary>
     public class EditorSessionKeyboardFocusIntegrationTests : IDisposable {
+        Core CoreValue;
         readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly GeneratedAssetProviderRegistry GeneratedAssetProviders = new GeneratedAssetProviderRegistry();
         /// <summary>
         /// Temporary project root used by session keyboard-focus integration tests.
         /// </summary>
@@ -32,6 +34,9 @@ namespace helengine.editor.tests {
         public void Dispose() {
             InteractionServices.Selection.ClearSelection();
             InteractionServices.TransformSnap.ResetDefaults();
+            CoreValue?.Dispose();
+            GeneratedAssetProviders.Dispose();
+            InteractionServices.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -263,12 +268,14 @@ namespace helengine.editor.tests {
                 Path = TempProjectRootPath
             });
             core.Initialize(TestDirectX11RenderManager3D.Create(), new TestRenderManager2D(), inputManager, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             core.InputSystem.SetKeyboardActive(true);
             core.SessionInteractionServices = InteractionServices;
+            core.SessionInteractionGraph = InteractionServices;
 
             FontAsset font = CreateFont();
             EditorUiMetrics metrics = new EditorUiMetrics(1.0d);
-            EditorEntity uiCameraEntity = new EditorEntity {
+            EditorEntity uiCameraEntity = new EditorEntity(core, InteractionServices) {
                 InternalEntity = true
             };
             CameraComponent uiCameraComponent = new CameraComponent {
@@ -276,7 +283,7 @@ namespace helengine.editor.tests {
                 CameraDrawOrder = EditorUiCameraDrawOrders.SharedUi
             };
             uiCameraEntity.AddComponent(uiCameraComponent);
-            EditorEntity modalUiCameraEntity = new EditorEntity {
+            EditorEntity modalUiCameraEntity = new EditorEntity(core, InteractionServices) {
                 InternalEntity = true
             };
             CameraComponent modalUiCameraComponent = new CameraComponent {
@@ -284,7 +291,7 @@ namespace helengine.editor.tests {
                 CameraDrawOrder = EditorUiCameraDrawOrders.ModalUi
             };
             modalUiCameraEntity.AddComponent(modalUiCameraComponent);
-            EditorEntity sceneCameraEntity = new EditorEntity {
+            EditorEntity sceneCameraEntity = new EditorEntity(core, InteractionServices) {
                 InternalEntity = true,
                 Position = new float3(0f, 3f, -8f)
             };
@@ -301,12 +308,13 @@ namespace helengine.editor.tests {
                 core.SceneEntityIdAllocator,
                 core.Input,
                 () => core.FrameDeltaSeconds,
-                null);
-            mainViewport = new EditorViewport(sceneCameraComponent, font, font, CreateToolbarIcons(), new EditorSceneCanvasProfileState(), EditorUiMetrics.Default, shaderLibrary, rendererResources);
+                null,
+                InteractionServices);
+            mainViewport = new EditorViewport(core, sceneCameraComponent, font, font, CreateToolbarIcons(), new EditorSceneCanvasProfileState(), EditorUiMetrics.Default, shaderLibrary, rendererResources);
             mainViewport.Size = new int2(640, 360);
-            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(font);
-            PropertiesPanel propertiesPanel = new PropertiesPanel(font, core.GetContentManager());
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(font, TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(core, InteractionServices, font);
+            PropertiesPanel propertiesPanel = new PropertiesPanel(core, InteractionServices, font, core.GetContentManager());
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(core, InteractionServices, font, TempProjectRootPath, GeneratedAssetProviders);
             assetBrowserPanel.SetRendererResources(rendererResources);
             firstSecondaryDock = propertiesPanel;
             secondSecondaryDock = assetBrowserPanel;
@@ -347,7 +355,7 @@ namespace helengine.editor.tests {
                 new EditorGameScriptAssemblyHost(TempProjectRootPath));
             SetPrivateField(session, "core", core);
             SetPrivateField(session, "interactionServices", InteractionServices);
-            SetPrivateField(session, "titleBar", new EditorTitleBar(font, 1280, 720, "Keyboard Focus"));
+            SetPrivateField(session, "titleBar", new EditorTitleBar(core, InteractionServices, font, 1280, 720, "Keyboard Focus"));
             SetPrivateField(session, "dockingManager", dockingManager);
             SetPrivateField(session, "mainViewport", mainViewport);
             SetPrivateField(session, "uiCameraComponent", uiCameraComponent);
@@ -356,19 +364,19 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "gizmoCameraComponent", gizmoCameraComponent);
             SetPrivateField(session, "assetBrowserPanel", assetBrowserPanel);
             SetPrivateField(session, "propertiesPanel", propertiesPanel);
-            SetPrivateField(session, "loggerPanel", new LoggerPanel(font));
+            SetPrivateField(session, "loggerPanel", new LoggerPanel(core, InteractionServices, font));
             SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
-            SetPrivateField(session, "assetPickerModal", new AssetPickerModal(font, TempProjectRootPath, new GeneratedAssetProviderRegistry()));
-            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(font, TempProjectRootPath, new GeneratedAssetProviderRegistry()));
-            SetPrivateField(session, "openFileDialog", new OpenFileDialog(font, TempProjectRootPath, new GeneratedAssetProviderRegistry()));
-            SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(font));
-            SetPrivateField(session, "platformsDialog", new PlatformsDialog(font));
-            SetPrivateField(session, "profilesDialog", new ProfilesDialog(font));
-            SetPrivateField(session, "buildDialog", new BuildDialog(font));
-            SetPrivateField(session, "buildDialogCopySettingsDialog", new BuildDialogCopySettingsDialog(font));
-            SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(font));
-            SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(font, metrics));
-            SetPrivateField(session, "preferencesDialog", new EditorPreferencesDialog(font, metrics));
+            SetPrivateField(session, "assetPickerModal", new AssetPickerModal(core, InteractionServices, font, TempProjectRootPath, GeneratedAssetProviders));
+            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(core, InteractionServices, font, TempProjectRootPath, GeneratedAssetProviders));
+            SetPrivateField(session, "openFileDialog", new OpenFileDialog(core, InteractionServices, font, TempProjectRootPath, GeneratedAssetProviders));
+            SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(core, InteractionServices, font));
+            SetPrivateField(session, "platformsDialog", new PlatformsDialog(core, InteractionServices, font));
+            SetPrivateField(session, "profilesDialog", new ProfilesDialog(core, InteractionServices, font));
+            SetPrivateField(session, "buildDialog", new BuildDialog(core, InteractionServices, font));
+            SetPrivateField(session, "buildDialogCopySettingsDialog", new BuildDialogCopySettingsDialog(core, InteractionServices, font));
+            SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(core, InteractionServices, font));
+            SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(core, InteractionServices, font, metrics));
+            SetPrivateField(session, "preferencesDialog", new EditorPreferencesDialog(core, InteractionServices, font, metrics));
             SetPrivateField(session, "gameSolutionService", gameSolutionService);
             SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
             SetPrivateField(session, "shaderModuleManager", CreateShaderModuleManager());
@@ -628,4 +636,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

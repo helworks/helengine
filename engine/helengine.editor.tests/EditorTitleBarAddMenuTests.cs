@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_PlacesAddButtonImmediatelyToTheRightOfFile() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             EditorEntity fileButton = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
             EditorEntity addButton = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
@@ -54,7 +54,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ToggleAddMenu_ShowsExpectedItemsAndHidesFileMenu() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleFileMenu");
             InvokePrivate(titleBar, "ToggleAddMenu");
@@ -80,7 +80,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ToggleAddMenu_RendersSubmenuIndicatorOnLightRow() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleAddMenu");
 
@@ -99,7 +99,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ToggleAddMenu_WhenLightHovered_ShowsExpectedLightSubmenu() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleAddMenu");
 
@@ -126,7 +126,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ToggleFileMenu_ShowsOpenMapBetweenNewAndSave() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleFileMenu");
 
@@ -148,7 +148,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ToggleFileMenu_ShowsPreferencesAfterSaveMapAs() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleFileMenu");
 
@@ -170,7 +170,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void MenuStrip_WhenAddButtonHoveredWhileFileMenuOpen_SwitchesToAddMenu() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleFileMenu");
             EditorEntity addButton = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
@@ -190,7 +190,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void MenuStrip_WhenFileButtonHoveredWhileAddMenuOpen_SwitchesToFileMenu() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
 
             InvokePrivate(titleBar, "ToggleAddMenu");
             EditorEntity fileButton = GetPrivateField<EditorEntity>(titleBar, "FileMenuButtonEntity");
@@ -210,7 +210,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void MenuStrip_WhenNoMenuIsOpen_DoesNotOpenMenuOnHover() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             EditorEntity addButton = GetPrivateField<EditorEntity>(titleBar, "AddMenuButtonEntity");
             InteractableComponent addInteractable = FindComponent<InteractableComponent>(addButton);
 
@@ -235,9 +235,9 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
 
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             titleBar.SetInput(core.Input);
-            DockableEntity dockable = new DockableEntity(CreateFont());
+            DockableEntity dockable = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dockable.Position = new float3(0f, titleBar.Height, 0f);
             dockable.Size = new int2(640, 360);
 
@@ -271,9 +271,9 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
 
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             titleBar.SetInput(core.Input);
-            DockableEntity dockable = new DockableEntity(CreateFont());
+            DockableEntity dockable = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dockable.Position = new float3(0f, titleBar.Height, 0f);
             dockable.Size = new int2(640, 360);
             InvokePrivate(titleBar, "ToggleFileMenu");
@@ -298,7 +298,7 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
             CreateUiCamera(1280, 720, EditorLayerMasks.EditorUi);
 
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "Hel");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "Hel");
             InvokePrivate(titleBar, "ToggleFileMenu");
 
             ContextMenu fileMenu = GetPrivateField<ContextMenu>(titleBar, "FileMenu");
@@ -385,7 +385,7 @@ namespace helengine.editor.tests {
         /// <param name="height">Viewport height.</param>
         /// <param name="layerMask">Layer mask rendered by the camera.</param>
         void CreateUiCamera(int width, int height, ushort layerMask) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask
             };

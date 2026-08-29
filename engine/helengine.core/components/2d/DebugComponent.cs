@@ -468,7 +468,7 @@ namespace helengine {
                 Parent.InitChildren();
             }
 
-            OverlayHost = new Entity();
+            OverlayHost = new Entity(OwnerCore ?? throw new InvalidOperationException("Debug overlay requires an owning core."));
             OverlayHost.LayerMask = Parent.LayerMask;
             OverlayHost.InitChildren();
             OverlayHost.InitComponents();
@@ -503,7 +503,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Initialized row host entity.</returns>
         Entity CreateRowHost() {
-            Entity rowHost = new Entity();
+            Entity rowHost = new Entity(OwnerCore ?? throw new InvalidOperationException("Debug overlay requires an owning core."));
             rowHost.LayerMask = Parent.LayerMask;
             rowHost.InitChildren();
             rowHost.InitComponents();

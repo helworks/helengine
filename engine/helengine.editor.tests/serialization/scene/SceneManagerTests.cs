@@ -585,7 +585,7 @@ namespace helengine.editor.tests.serialization.scene {
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
             SceneAsset startupSceneAsset = core.ContentManager.Load<SceneAsset>("cooked/scenes/bootstrap.hasset", RuntimeContentProcessorIds.SceneAsset);
 
-            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
+            RuntimeSceneLoadService sceneLoadService = new RuntimeSceneLoadService(core, core.SceneAssetReferenceResolver, core.SceneRuntimeComponentRegistry);
             IReadOnlyList<Entity> startupRoots = sceneLoadService.Load(startupSceneAsset);
             Entity previousRoot = Assert.Single(startupRoots);
             CameraComponent previousCamera = FindRequiredComponent<CameraComponent>(previousRoot);

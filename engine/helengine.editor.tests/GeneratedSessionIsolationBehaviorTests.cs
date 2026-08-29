@@ -48,7 +48,7 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             Assert.NotSame(registryA, registryB);
             Assert.NotSame(modelCacheA, modelCacheB);
 
-            EditorEntity selectedEntityB = new EditorEntity {
+            EditorEntity selectedEntityB = new EditorEntity(sessionB.Core, sessionB.InteractionServices) {
                 Name = "Session B entity"
             };
             CameraComponent cameraB = new CameraComponent();
@@ -129,6 +129,97 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
         } finally {
             sessionA?.Dispose();
             sessionB?.Dispose();
+            DeleteProjectRoot(projectRootA);
+            DeleteProjectRoot(projectRootB);
+        }
+    }
+
+    [Fact]
+    public void NestedCliCommand_ReusesOuterAuthoringGraphAndRejectsDifferentCanonicalRoot() {
+        string projectRootA = CreateProjectRoot();
+        string projectRootB = CreateProjectRoot();
+        Core coreA = CreateCore(projectRootA);
+        Core coreB = CreateCore(projectRootB);
+        using TestGeneratedAssetGraph graphA = new TestGeneratedAssetGraph(coreA);
+        graphA.Registry.Register(graphA.CreateProvider());
+        using EditorProjectAuthoringSession authoringA = CreateAuthoringSession(projectRootA, graphA);
+        ShaderBackendRegistry shaderBackends = CreateBackends();
+        EditorCliCommandRunner commandRunner = new EditorCliCommandRunner(
+            CreateEditorFont(),
+            new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>()));
+
+        try {
+            EditorProjectBootstrapContext bootstrapA = CreateTestBootstrap(projectRootA);
+            EditorProjectBootstrapContext bootstrapB = CreateTestBootstrap(projectRootB);
+
+            // Core B is ambient by construction, while the nested command receives
+            // A's authoring graph explicitly. A command id that is absent from the
+            // empty project still traverses the real graph runner and returns its
+            // structured command-resolution failure after graph setup.
+            EditorBuildExecutionResult directoryResult = commandRunner.RunInSessionGraph(
+                bootstrapA,
+                new EditorCliCommandOptions(projectRootA, "missing.command"),
+                authoringA,
+                shaderBackends);
+            Assert.False(directoryResult.Succeeded);
+            Assert.Contains("missing.command", directoryResult.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Same(coreB, Core.Instance);
+
+            EditorBuildExecutionResult canonicalFileResult = commandRunner.RunInSessionGraph(
+                bootstrapA,
+                new EditorCliCommandOptions(Path.Combine(projectRootA, "project.heproj"), "missing.command"),
+                authoringA,
+                shaderBackends);
+            Assert.False(canonicalFileResult.Succeeded);
+            Assert.Contains("missing.command", canonicalFileResult.Message, StringComparison.OrdinalIgnoreCase);
+
+            InvalidOperationException differentRootException = Assert.Throws<InvalidOperationException>(() => commandRunner.RunInSessionGraph(
+                bootstrapA,
+                new EditorCliCommandOptions(Path.Combine(projectRootB, "project.heproj"), "missing.command"),
+                authoringA,
+                shaderBackends));
+            Assert.Contains("outer invocation project root", differentRootException.Message, StringComparison.OrdinalIgnoreCase);
+
+            bootstrapA.BuildConfigService.Save(new EditorBuildConfigDocument {
+                Platforms = new List<EditorBuildPlatformConfigDocument> {
+                    new EditorBuildPlatformConfigDocument {
+                        PlatformId = "windows",
+                        SelectedBuildProfileId = "release",
+                        EditorPrebuildCommandIdsByBuildProfileId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase) {
+                            ["release"] = new List<string> { "missing.command" }
+                        }
+                    }
+                }
+            });
+            EditorBuildExecutionResult prebuildResult = new EditorCliBuildRunner(
+                Array.Empty<IAssetImporterRegistration>(),
+                CreateEditorFont())
+                .ExecuteEditorPrebuildCommands(
+                    bootstrapA,
+                    new EditorCliBuildOptions(projectRootA, "windows", "release", projectRootA, false),
+                    authoringA,
+                    shaderBackends);
+            Assert.False(prebuildResult.Succeeded);
+            Assert.Contains("missing.command", prebuildResult.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Same(coreB, Core.Instance);
+
+            AssetBrowserEntry cubeEntry = AssetBrowserEntry.CreateGeneratedAsset(
+                "Cube",
+                EngineGeneratedAssetProvider.CubeRelativePath,
+                AssetEntryKind.Model,
+                EngineGeneratedAssetProvider.ProviderIdValue,
+                EngineGeneratedModelCache.CubeAssetId);
+            RuntimeModel modelAfterNestedRun = graphA.Registry.ResolveRuntimeModel(cubeEntry);
+            Assert.Same(modelAfterNestedRun, graphA.Registry.ResolveRuntimeModel(cubeEntry));
+
+            coreB.Dispose();
+            coreB = null;
+            Assert.Same(modelAfterNestedRun, graphA.Registry.ResolveRuntimeModel(cubeEntry));
+        } finally {
+            authoringA.Dispose();
+            graphA.Dispose();
+            coreA.Dispose();
+            coreB?.Dispose();
             DeleteProjectRoot(projectRootA);
             DeleteProjectRoot(projectRootB);
         }
@@ -336,6 +427,27 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             Path.Combine(projectRootPath, "project.heproj"),
             "{\"projectFormatVersion\":1,\"name\":\"Generated isolation\",\"requiredEngineVersion\":\"0.4.0\",\"supportedPlatforms\":[\"windows\"],\"created\":\"2026-04-01T00:00:00Z\",\"lastOpened\":\"2026-04-20T00:00:00Z\",\"version\":\"1.0.0\"}");
         return projectRootPath;
+    }
+
+    static EditorProjectBootstrapContext CreateTestBootstrap(string projectRootPath) {
+        ProjectFileDocument projectDocument = new ProjectFileDocument {
+            Name = "Generated isolation",
+            Version = "1.0.0",
+            RequiredEngineVersion = "0.4.0",
+            SupportedPlatforms = new List<string>()
+        };
+        return new EditorProjectBootstrapContext(
+            Path.Combine(projectRootPath, "project.heproj"),
+            projectRootPath,
+            "project.heproj",
+            projectDocument,
+            projectDocument.SupportedPlatforms,
+            Array.Empty<AvailablePlatformDescriptor>(),
+            new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions()),
+            new EditorPlatformCatalogService(Array.Empty<AvailablePlatformDescriptor>()),
+            new EditorProjectSceneCatalogService(projectRootPath),
+            new EditorBuildConfigService(projectRootPath),
+            new EditorProfileSettingsService(projectRootPath));
     }
 
     static void DeleteProjectRoot(string projectRootPath) {

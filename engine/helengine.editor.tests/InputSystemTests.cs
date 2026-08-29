@@ -48,7 +48,7 @@ namespace helengine.editor.tests {
             TestInputBackend input = InitializeCore();
             CreateUiCamera(320, 240);
 
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
                 Position = new float3(24f, 24f, 0f)
@@ -443,7 +443,7 @@ namespace helengine.editor.tests {
         /// <param name="drawOrder">Draw order assigned to the camera.</param>
         /// <returns>Configured camera component.</returns>
         CameraComponent CreateUiCamera(float4 viewport, ushort layerMask, byte drawOrder) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask
             };
@@ -477,7 +477,7 @@ namespace helengine.editor.tests {
         /// <param name="layerMask">Layer mask assigned to the entity.</param>
         /// <returns>Interactable component used for pointer routing.</returns>
         InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder, ushort layerMask) {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask,
                 Position = position

@@ -451,15 +451,15 @@ public class BuildDialog : EditorDialogBase {
         /// Initializes one build dialog with a shared modal shell and build-planning controls.
         /// </summary>
         /// <param name="font">Font used for dialog labels and controls.</param>
-        public BuildDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes one build dialog with one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for dialog labels and controls.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public BuildDialog(FontAsset font, EditorUiMetrics metrics) : base("BuildDialog", "Build", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public BuildDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public BuildDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics) : base(ownerCore, interactionServices, "BuildDialog", "Build", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             SetDialogMinimumSize(PanelWidth, PanelHeight);
             MapLabelHosts = new List<EditorEntity>(16);
             MapLabelTexts = new List<TextComponent>(16);
@@ -480,7 +480,7 @@ public class BuildDialog : EditorDialogBase {
             SupportedEnvironmentIds = new List<string>(4) { "debug", "release" };
             ActiveEnvironmentIds = SupportedEnvironmentIds;
 
-            BuildColumnRoot = new EditorEntity {
+            BuildColumnRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(GetPanelPaddingPixels(), GetDialogContentTop(), 0.1f),
                 InternalEntity = true
@@ -488,6 +488,8 @@ public class BuildDialog : EditorDialogBase {
             DialogPanelRoot.AddChild(BuildColumnRoot);
 
             PlatformTabStrip = new PlatformTabStripView(
+                OwnerCore,
+                InteractionServices,
                 DialogFont,
                 LayerMask,
                 GetPlatformTabWidthPixels(),
@@ -497,7 +499,7 @@ public class BuildDialog : EditorDialogBase {
             PlatformTabStrip.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BuildColumnRoot.AddChild(PlatformTabStrip.Root);
 
-            EnvironmentComboBoxHost = new EditorEntity {
+            EnvironmentComboBoxHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -512,7 +514,7 @@ public class BuildDialog : EditorDialogBase {
             EnvironmentComboBox.SelectionChanged += HandleEnvironmentSelectionChanged;
             EnvironmentComboBoxHost.AddComponent(EnvironmentComboBox);
 
-            SceneListRoot = new EditorEntity {
+            SceneListRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -531,7 +533,7 @@ public class BuildDialog : EditorDialogBase {
             };
             SceneListRoot.AddComponent(SceneListBackground);
 
-            SceneListContentCameraEntity = new EditorEntity {
+            SceneListContentCameraEntity = new EditorEntity(OwnerCore, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.BuildDialogSceneListContent
             };
@@ -542,7 +544,7 @@ public class BuildDialog : EditorDialogBase {
             };
             SceneListContentCameraEntity.AddComponent(SceneListContentCameraComponent);
 
-            SceneListItemsRoot = new EditorEntity {
+            SceneListItemsRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = EditorLayerMasks.BuildDialogSceneListContent,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -553,14 +555,14 @@ public class BuildDialog : EditorDialogBase {
             SceneListScrollComponent.ScrollOffsetChanged += HandleSceneListScrollOffsetChanged;
             SceneListItemsRoot.AddComponent(SceneListScrollComponent);
 
-            QueueColumnRoot = new EditorEntity {
+            QueueColumnRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(GetQueueColumnLeft(), GetDialogContentTop(), 0.1f),
                 InternalEntity = true
             };
             DialogPanelRoot.AddChild(QueueColumnRoot);
 
-            QueueSectionRoot = new EditorEntity {
+            QueueSectionRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -587,7 +589,7 @@ public class BuildDialog : EditorDialogBase {
             };
             QueueSectionRoot.AddComponent(QueueHeaderBackground);
 
-            QueueHeaderTextHost = new EditorEntity {
+            QueueHeaderTextHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(GetQueueListPaddingPixels(), DialogMetrics.ScalePixels(6), 0.1f),
                 InternalEntity = true
@@ -602,7 +604,7 @@ public class BuildDialog : EditorDialogBase {
             };
             QueueHeaderTextHost.AddComponent(QueueHeaderText);
 
-            QueueItemsRoot = new EditorEntity {
+            QueueItemsRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = new float3(0f, GetQueueHeaderHeightPixels() + GetQueueListPaddingPixels(), 0.1f),
                 InternalEntity = true
@@ -613,14 +615,14 @@ public class BuildDialog : EditorDialogBase {
             QueueScrollComponent.ScrollOffsetChanged += HandleQueueScrollOffsetChanged;
             QueueItemsRoot.AddComponent(QueueScrollComponent);
 
-            OutputLabelHost = new EditorEntity {
+            OutputLabelHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
             };
             BuildColumnRoot.AddChild(OutputLabelHost);
 
-            CopySettingsButtonHost = new EditorEntity {
+            CopySettingsButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -639,7 +641,7 @@ public class BuildDialog : EditorDialogBase {
             };
             OutputLabelHost.AddComponent(OutputLabelText);
 
-            DebugBuildLabelHost = new EditorEntity {
+            DebugBuildLabelHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -654,7 +656,7 @@ public class BuildDialog : EditorDialogBase {
             };
             DebugBuildLabelHost.AddComponent(DebugBuildLabelText);
 
-            OutputFieldHost = new EditorEntity {
+            OutputFieldHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -666,7 +668,7 @@ public class BuildDialog : EditorDialogBase {
             OutputDirectoryField.TextChanged += HandleOutputDirectoryFieldTextChanged;
             OutputFieldHost.AddComponent(OutputDirectoryField);
 
-            DebugBuildCheckBoxHost = new EditorEntity {
+            DebugBuildCheckBoxHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -677,7 +679,7 @@ public class BuildDialog : EditorDialogBase {
             DebugBuildCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             DebugBuildCheckBoxHost.AddComponent(DebugBuildCheckBox);
 
-            BrowseOutputFolderButtonHost = new EditorEntity {
+            BrowseOutputFolderButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -688,7 +690,7 @@ public class BuildDialog : EditorDialogBase {
             BrowseOutputFolderButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BrowseOutputFolderButtonHost.AddComponent(BrowseOutputFolderButton);
 
-            AddToBuildButtonHost = new EditorEntity {
+            AddToBuildButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -699,7 +701,7 @@ public class BuildDialog : EditorDialogBase {
             AddToBuildButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             AddToBuildButtonHost.AddComponent(AddToBuildButton);
 
-            BuildQueueButtonHost = new EditorEntity {
+            BuildQueueButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -710,7 +712,7 @@ public class BuildDialog : EditorDialogBase {
             BuildQueueButton.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             BuildQueueButtonHost.AddComponent(BuildQueueButton);
 
-            BuildLogsRoot = new EditorEntity {
+            BuildLogsRoot = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -727,7 +729,7 @@ public class BuildDialog : EditorDialogBase {
             };
             BuildLogsRoot.AddComponent(BuildLogsBackground);
 
-            BuildLogsTitleHost = new EditorEntity {
+            BuildLogsTitleHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -742,7 +744,7 @@ public class BuildDialog : EditorDialogBase {
             };
             BuildLogsTitleHost.AddComponent(BuildLogsTitleText);
 
-            BuildLogsProgressTrackHost = new EditorEntity {
+            BuildLogsProgressTrackHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -759,7 +761,7 @@ public class BuildDialog : EditorDialogBase {
             };
             BuildLogsProgressTrackHost.AddComponent(BuildLogsProgressTrack);
 
-            BuildLogsProgressFillHost = new EditorEntity {
+            BuildLogsProgressFillHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -776,7 +778,7 @@ public class BuildDialog : EditorDialogBase {
             };
             BuildLogsProgressFillHost.AddComponent(BuildLogsProgressFill);
 
-            BuildLogsTextHost = new EditorEntity {
+            BuildLogsTextHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -1631,7 +1633,7 @@ public class BuildDialog : EditorDialogBase {
         /// </summary>
         /// <returns>New queue row bundle.</returns>
         BuildDialogQueueRow CreateQueueRow() {
-            BuildDialogQueueRow row = new BuildDialogQueueRow(DialogFont, DialogMetrics, LayerMask, DialogPanelOrder, DialogTextOrder);
+            BuildDialogQueueRow row = new BuildDialogQueueRow(OwnerCore, InteractionServices, DialogFont, DialogMetrics, LayerMask, DialogPanelOrder, DialogTextOrder);
             row.RemoveRequested += HandleQueueRowRemoveRequested;
             QueueItemsRoot.AddChild(row.Root);
             return row;
@@ -1642,7 +1644,7 @@ public class BuildDialog : EditorDialogBase {
         /// </summary>
         /// <returns>New scene row bundle.</returns>
         BuildDialogSceneRow CreateSceneRow() {
-            BuildDialogSceneRow row = new BuildDialogSceneRow(DialogFont, DialogMetrics, EditorLayerMasks.BuildDialogSceneListContent, DialogPanelOrder, DialogTextOrder);
+            BuildDialogSceneRow row = new BuildDialogSceneRow(OwnerCore, InteractionServices, DialogFont, DialogMetrics, EditorLayerMasks.BuildDialogSceneListContent, DialogPanelOrder, DialogTextOrder);
             row.OrderField.TextChanged += currentOrderField => HandleSceneOrderFieldChanged(row.SceneId, currentOrderField);
             row.OrderField.Submitted += currentOrderField => HandleSceneOrderFieldSubmitted(row.SceneId, currentOrderField);
             row.CheckBox.CheckedChanged += (checkBox, isChecked) => ApplySceneSelectionChanged(row.SceneId, checkBox, isChecked);

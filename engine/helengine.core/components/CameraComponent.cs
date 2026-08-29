@@ -198,9 +198,28 @@ namespace helengine {
 
             CoreInitializationOptions settings = OwnerCore.InitializationOptions;
             settings.Normalize();
-
-            renderList2D = new RenderList2D(settings.RenderList2DInitialCapacity);
-            renderList3D = new RenderList3D(settings.RenderList3DInitialCapacity);
+            int renderList2DInitialCapacity = settings.RenderList2DInitialCapacity;
+            int renderList3DInitialCapacity = settings.RenderList3DInitialCapacity;
+            if (renderList2D == null) {
+                renderList2D = new RenderList2D(renderList2DInitialCapacity);
+            } else if (renderList2D.Capacity < renderList2DInitialCapacity) {
+                RenderList2D previous = renderList2D;
+                renderList2D = new RenderList2D(renderList2DInitialCapacity);
+                for (int index = 0; index < previous.Count; index++) {
+                    renderList2D.Add(previous[index]);
+                }
+                previous.Dispose();
+            }
+            if (renderList3D == null) {
+                renderList3D = new RenderList3D(renderList3DInitialCapacity);
+            } else if (renderList3D.Capacity < renderList3DInitialCapacity) {
+                RenderList3D previous = renderList3D;
+                renderList3D = new RenderList3D(renderList3DInitialCapacity);
+                for (int index = 0; index < previous.Count; index++) {
+                    renderList3D.Add(previous[index]);
+                }
+                previous.Dispose();
+            }
         }
 
         /// <summary>
@@ -209,7 +228,7 @@ namespace helengine {
         /// <param name="entity">Owning entity.</param>
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
-
+            InitializeLists();
             RegisterWithObjectManagerIfNeeded();
         }
 

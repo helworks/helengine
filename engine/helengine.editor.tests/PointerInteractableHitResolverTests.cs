@@ -71,7 +71,7 @@ namespace helengine.editor.tests {
 
             InteractableComponent toolbarInteractable = CreateInteractableEntity(new float3(0f, 0f, 0f), new int2(120, 24), 2);
 
-            EditorEntity clipHost = new EditorEntity {
+            EditorEntity clipHost = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
                 Position = new float3(0f, 24f, 0f)
@@ -82,7 +82,7 @@ namespace helengine.editor.tests {
             };
             clipHost.AddComponent(scrollComponent);
 
-            EditorEntity contentRoot = new EditorEntity {
+            EditorEntity contentRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
                 LocalPosition = new float3(0f, -24f, 0f)
@@ -90,7 +90,7 @@ namespace helengine.editor.tests {
             clipHost.AddChild(contentRoot);
             scrollComponent.ContentRoot = contentRoot;
 
-            EditorEntity rowEntity = new EditorEntity {
+            EditorEntity rowEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
                 LocalPosition = float3.Zero
@@ -127,7 +127,7 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = InitializeCoreWithWindow(853, 480);
             CameraComponent camera = CreateCamera(new float4(0f, 0f, 1f, 1f), EditorLayerMasks.EditorUi);
 
-            EditorEntity root = new EditorEntity {
+            EditorEntity root = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
@@ -140,7 +140,7 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             });
 
-            EditorEntity buttonEntity = new EditorEntity {
+            EditorEntity buttonEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
                 LocalPosition = new float3(160f, 240f, 0f)
@@ -241,7 +241,7 @@ namespace helengine.editor.tests {
         /// <param name="layerMask">Layer mask rendered by the camera.</param>
         /// <returns>Configured camera component.</returns>
         CameraComponent CreateCamera(float4 viewport, ushort layerMask) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = layerMask
             };
@@ -263,7 +263,7 @@ namespace helengine.editor.tests {
         /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
         /// <returns>Interactable component registered for hit resolution.</returns>
         InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
                 Position = position
@@ -296,7 +296,7 @@ namespace helengine.editor.tests {
                 throw new ArgumentNullException(nameof(camera));
             }
 
-            EditorEntity viewportRoot = new EditorEntity {
+            EditorEntity viewportRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
@@ -309,7 +309,7 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 192
             });
 
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
                 LocalPosition = localPosition

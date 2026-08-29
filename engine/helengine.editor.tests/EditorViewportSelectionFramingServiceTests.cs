@@ -94,7 +94,7 @@ namespace helengine.editor.tests {
         public void ResolveSelectionExtent_WhenMeshEntityIsSelected_UsesLargestScaledModelDimension() {
             TestRuntimeModel runtimeModel = new TestRuntimeModel();
             runtimeModel.SetBounds(new float3(-1f, -2f, -3f), new float3(3f, 4f, 5f));
-            Entity meshEntity = new Entity();
+            Entity meshEntity = new Entity(Core.Instance);
             meshEntity.InitComponents();
             meshEntity.InitChildren();
             meshEntity.LocalScale = new float3(2f, 3f, 4f);
@@ -113,7 +113,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveSelectionExtent_WhenSpriteEntityIsSelected_UsesLargestSpriteDimension() {
-            Entity spriteEntity = new Entity();
+            Entity spriteEntity = new Entity(Core.Instance);
             spriteEntity.InitComponents();
             spriteEntity.InitChildren();
             spriteEntity.AddComponent(new SpriteComponent {
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveSelectionExtent_WhenEntityHasNoSupportedBounds_ReturnsZero() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
             EditorViewportSelectionFramingService service = new EditorViewportSelectionFramingService();
@@ -159,7 +159,7 @@ namespace helengine.editor.tests {
         /// <param name="cameraEntity">Receives the created camera host entity.</param>
         /// <returns>Configured viewport camera controller.</returns>
         EditorViewportCameraController CreateCameraController(CameraComponent camera, out EditorEntity cameraEntity) {
-            cameraEntity = new EditorEntity();
+            cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             cameraEntity.AddComponent(camera);
 
             EditorViewportCameraController controller = new EditorViewportCameraController(camera, Core.Instance.Input);
@@ -173,7 +173,7 @@ namespace helengine.editor.tests {
         /// <param name="viewportSize">Authored viewport size in pixels.</param>
         /// <returns>Configured authored viewport entity.</returns>
         Entity CreateViewportEntity(int2 viewportSize) {
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -191,7 +191,7 @@ namespace helengine.editor.tests {
             TestRuntimeModel runtimeModel = new TestRuntimeModel();
             runtimeModel.SetBounds(new float3(20f, 40f, 60f), new float3(22f, 44f, 66f));
 
-            Entity meshEntity = new Entity();
+            Entity meshEntity = new Entity(Core.Instance);
             meshEntity.InitComponents();
             meshEntity.InitChildren();
             meshEntity.AddComponent(new MeshComponent {

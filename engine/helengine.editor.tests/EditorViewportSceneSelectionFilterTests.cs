@@ -49,11 +49,11 @@ namespace helengine.editor.tests {
         public void ResolveSelectableEntity_WhenEntityIsInternalChildOfSelectableEntity_ReturnsSelectableParent() {
             InitializeCore();
 
-            EditorEntity parentEntity = new EditorEntity {
+            EditorEntity parentEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = false,
                 LayerMask = EditorLayerMasks.SceneObjects
             };
-            EditorEntity childEntity = new EditorEntity {
+            EditorEntity childEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneCameraVisuals
             };
@@ -72,7 +72,7 @@ namespace helengine.editor.tests {
         MeshComponent CreateMeshComponent(bool internalEntity) {
             InitializeCore();
 
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = internalEntity,
                 LayerMask = EditorLayerMasks.SceneObjects
             };
@@ -91,11 +91,11 @@ namespace helengine.editor.tests {
         MeshComponent CreateMeshComponentWithInternalChild() {
             InitializeCore();
 
-            EditorEntity parentEntity = new EditorEntity {
+            EditorEntity parentEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = false,
                 LayerMask = EditorLayerMasks.SceneObjects
             };
-            EditorEntity childEntity = new EditorEntity {
+            EditorEntity childEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneCameraVisuals
             };

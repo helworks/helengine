@@ -3,20 +3,22 @@ namespace helengine.bepu.tests {
     /// Verifies unsupported physics features fail explicitly during migration.
     /// </summary>
     public sealed class BepuPhysicsFeatureGuard3DTests : IDisposable {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal core services required for entity-backed guard tests.
         /// </summary>
         public BepuPhysicsFeatureGuard3DTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
         /// Ends one guard test lifecycle.
         /// </summary>
         public void Dispose() {
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -24,7 +26,7 @@ namespace helengine.bepu.tests {
         /// </summary>
         [Fact]
         public void ValidateSupportedCollider_WithCapsuleCollider_ThrowsNotSupportedException() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(CoreValue);
             entity.InitComponents();
             entity.AddComponent(new CapsuleCollider3DComponent());
 
@@ -36,7 +38,7 @@ namespace helengine.bepu.tests {
         /// </summary>
         [Fact]
         public void ValidateSupportedCollider_WithStaticMeshColliderAndDynamicBody_ThrowsNotSupportedException() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(CoreValue);
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Dynamic,
@@ -60,7 +62,7 @@ namespace helengine.bepu.tests {
         /// </summary>
         [Fact]
         public void ValidateSupportedCollider_WithStaticMeshColliderAndMissingCookedRuntimeData_ThrowsNotSupportedException() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(CoreValue);
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Static

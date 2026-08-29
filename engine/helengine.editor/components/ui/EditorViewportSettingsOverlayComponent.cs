@@ -590,7 +590,7 @@ namespace helengine.editor {
         /// Creates the shared overlay root and background chrome.
         /// </summary>
         void CreateOverlayRoot() {
-            OverlayRoot = new EditorEntity {
+            OverlayRoot = new EditorEntity(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent)) {
                 InternalEntity = true,
                 LayerMask = OverlayLayerMask,
                 Position = new float3(0f, 0f, 0.45f),
@@ -650,7 +650,7 @@ namespace helengine.editor {
             };
             labelRoot.AddComponent(PixelsPerWorldUnitLabelText);
 
-            PixelsPerWorldUnitSliderInternal = new EditorSlider(1.0, MaximumPixelsPerWorldUnit, CanvasPreviewSettings.PixelsPerWorldUnit, EditorSliderScaleMode.Linear, SliderWidth, SliderHeight) {
+            PixelsPerWorldUnitSliderInternal = new EditorSlider(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent), 1.0, MaximumPixelsPerWorldUnit, CanvasPreviewSettings.PixelsPerWorldUnit, EditorSliderScaleMode.Linear, SliderWidth, SliderHeight) {
                 InternalEntity = true
             };
             PixelsPerWorldUnitSliderInternal.ApplyLayerMask(OverlayLayerMask);
@@ -684,7 +684,7 @@ namespace helengine.editor {
             };
             labelRoot.AddComponent(NearPlaneLabelText);
 
-            NearPlaneSliderInternal = new EditorSlider(0.01, 10.0, Camera.NearPlaneDistance, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
+            NearPlaneSliderInternal = new EditorSlider(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent), 0.01, 10.0, Camera.NearPlaneDistance, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
                 InternalEntity = true
             };
             NearPlaneSliderInternal.ApplyLayerMask(OverlayLayerMask);
@@ -718,7 +718,7 @@ namespace helengine.editor {
             };
             labelRoot.AddComponent(FarPlaneLabelText);
 
-            FarPlaneSliderInternal = new EditorSlider(1.0, 5000.0, Camera.FarPlaneDistance, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
+            FarPlaneSliderInternal = new EditorSlider(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent), 1.0, 5000.0, Camera.FarPlaneDistance, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
                 InternalEntity = true
             };
             FarPlaneSliderInternal.ApplyLayerMask(OverlayLayerMask);
@@ -777,7 +777,7 @@ namespace helengine.editor {
             };
             labelRoot.AddComponent(ManualCameraSpeedLabelText);
 
-            ManualCameraSpeedSliderInternal = new EditorSlider(MinimumManualCameraSpeed, MaximumManualCameraSpeed, OwnerViewport.ManualCameraSpeedOverride, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
+            ManualCameraSpeedSliderInternal = new EditorSlider(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent), MinimumManualCameraSpeed, MaximumManualCameraSpeed, OwnerViewport.ManualCameraSpeedOverride, EditorSliderScaleMode.Logarithmic, SliderWidth, SliderHeight) {
                 InternalEntity = true
             };
             ManualCameraSpeedSliderInternal.ApplyLayerMask(OverlayLayerMask);
@@ -1635,7 +1635,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Internal child entity ready to host components.</returns>
         EditorEntity CreateChildRoot() {
-            return new EditorEntity {
+            return new EditorEntity(Parent.OwnerCore, EditorSessionInteractionServices.From(Parent)) {
                 InternalEntity = true,
                 LayerMask = OverlayLayerMask,
                 Position = float3.Zero

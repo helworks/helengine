@@ -95,17 +95,13 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
-        public AnimationClipAssetView(FontAsset font, ushort layerMask)
-            : this(font, layerMask, null) {
-        }
-
         /// <summary>
         /// Initializes one animation clip view with an authoritative project root.
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
         /// <param name="projectRootPath">Canonical project root passed to clip panels.</param>
-        public AnimationClipAssetView(FontAsset font, ushort layerMask, string projectRootPath) {
+        public AnimationClipAssetView(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask, string projectRootPath) {
             Font = font ?? throw new ArgumentNullException(nameof(font));
             ProjectRootPath = string.IsNullOrWhiteSpace(projectRootPath)
                 ? null
@@ -114,12 +110,12 @@ namespace helengine.editor {
             SupportedPlatformIds = new List<string>(4);
             PlatformPanels = new Dictionary<string, AnimationClipAssetPlatformPanel>(StringComparer.OrdinalIgnoreCase);
 
-            RootEntity = new EditorEntity();
+            RootEntity = new EditorEntity(ownerCore, interactionServices);
             RootEntity.LayerMask = layerMask;
             RootEntity.InternalEntity = true;
             RootEntity.Enabled = false;
 
-            PlatformTabStrip = new PlatformTabStripView(font, layerMask, TabWidth, TabHeight, 0, ArrowButtonWidth);
+            PlatformTabStrip = new PlatformTabStripView(ownerCore, interactionServices, font, layerMask, TabWidth, TabHeight, 0, ArrowButtonWidth);
             PlatformTabStrip.SetRenderOrders(RenderOrder2D.PanelSurface, RenderOrder2D.PanelForeground);
             PlatformTabStrip.Root.Enabled = false;
             RootEntity.AddChild(PlatformTabStrip.Root);
@@ -273,7 +269,7 @@ namespace helengine.editor {
             for (int index = 0; index < SupportedPlatformIds.Count; index++) {
                 string platformId = SupportedPlatformIds[index];
                 if (!PlatformPanels.TryGetValue(platformId, out AnimationClipAssetPlatformPanel panel)) {
-                    panel = new AnimationClipAssetPlatformPanel(Font, LayerMask, ProjectRootPath);
+                    panel = new AnimationClipAssetPlatformPanel(RootEntity.OwnerCore, RootEntity.InteractionServices, Font, LayerMask, ProjectRootPath);
                     PlatformPanels.Add(platformId, panel);
                     RootEntity.AddChild(panel.Root);
                 }

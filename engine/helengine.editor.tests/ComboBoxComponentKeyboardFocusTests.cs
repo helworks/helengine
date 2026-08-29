@@ -14,7 +14,7 @@ namespace helengine.editor.tests {
         public void ComboBoxComponent_WhenFocused_EnterAndSpaceToggleTheMainDropdown() {
             InitializeCore();
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 240, 40);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             ComboBoxComponent comboBox = new ComboBoxComponent(new int2(180, 28), CreateFont(), new[] { "One", "Two" }, 0);
             comboBox.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(comboBox);
@@ -36,7 +36,7 @@ namespace helengine.editor.tests {
         public void ComboBoxComponent_ComponentRemoved_ClearsItsKeyboardFocusState() {
             InitializeCore();
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 240, 40);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             ComboBoxComponent comboBox = new ComboBoxComponent(new int2(180, 28), CreateFont(), new[] { "One", "Two" }, 0);
             comboBox.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(comboBox);

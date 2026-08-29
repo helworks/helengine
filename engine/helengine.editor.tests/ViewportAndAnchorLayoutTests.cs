@@ -37,14 +37,14 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
                 BindingMode = ViewportComponent.ScreenBindingMode
             });
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(530f, 390f, 0f)
             };
             contentEntity.InitComponents();
@@ -70,7 +70,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void LayoutComponent_WhenViewportBindsToAncestorCamera_RepositionsWhenTheCameraViewportChanges() {
-            Entity cameraEntity = new Entity();
+            Entity cameraEntity = new Entity(Core.Instance);
             cameraEntity.InitComponents();
             cameraEntity.InitChildren();
             CameraComponent camera = new CameraComponent {
@@ -78,7 +78,7 @@ namespace helengine.editor.tests {
             };
             cameraEntity.AddComponent(camera);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -86,7 +86,7 @@ namespace helengine.editor.tests {
             });
             cameraEntity.AddChild(viewportEntity);
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(200f, 110f, 0f)
             };
             contentEntity.InitComponents();
@@ -112,7 +112,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ViewportComponent_WhenViewportBindsToAncestorCamera_ExposesResolvedViewportSize() {
-            Entity cameraEntity = new Entity();
+            Entity cameraEntity = new Entity(Core.Instance);
             cameraEntity.InitComponents();
             cameraEntity.InitChildren();
             CameraComponent camera = new CameraComponent {
@@ -120,7 +120,7 @@ namespace helengine.editor.tests {
             };
             cameraEntity.AddComponent(camera);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             ViewportComponent viewport = new ViewportComponent {
@@ -142,7 +142,7 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 400, 240);
 
-            Entity cameraEntity = new Entity();
+            Entity cameraEntity = new Entity(Core.Instance);
             cameraEntity.InitComponents();
             cameraEntity.InitChildren();
             CameraComponent camera = new CameraComponent {
@@ -154,7 +154,7 @@ namespace helengine.editor.tests {
             };
             cameraEntity.AddComponent(camera);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             ViewportComponent viewport = new ViewportComponent {
@@ -173,7 +173,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ViewportComponent_WhenBoundCameraViewportChanges_RaisesAnchorBoundsChangedOnce() {
-            Entity cameraEntity = new Entity();
+            Entity cameraEntity = new Entity(Core.Instance);
             cameraEntity.InitComponents();
             cameraEntity.InitChildren();
             CameraComponent camera = new CameraComponent {
@@ -181,7 +181,7 @@ namespace helengine.editor.tests {
             };
             cameraEntity.AddComponent(camera);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             ViewportComponent viewport = new ViewportComponent {
@@ -206,7 +206,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void LayoutComponent_WhenTextComponentProvidesSize_UsesTheTextBoundsForPlacement() {
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -214,7 +214,7 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(640, 480)
             });
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(540f, 395f, 0f)
             };
             contentEntity.InitComponents();
@@ -240,7 +240,7 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -251,7 +251,7 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             });
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(88f, 190f, 0f)
             };
             contentEntity.InitComponents();
@@ -276,7 +276,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void LayoutComponent_WhenViewportBindsToExplicitCamera_UsesTheTargetCameraViewport() {
-            Entity leftCameraEntity = new Entity();
+            Entity leftCameraEntity = new Entity(Core.Instance);
             leftCameraEntity.InitComponents();
             leftCameraEntity.InitChildren();
             CameraComponent leftCamera = new CameraComponent {
@@ -284,7 +284,7 @@ namespace helengine.editor.tests {
             };
             leftCameraEntity.AddComponent(leftCamera);
 
-            Entity rightCameraEntity = new Entity();
+            Entity rightCameraEntity = new Entity(Core.Instance);
             rightCameraEntity.InitComponents();
             rightCameraEntity.InitChildren();
             CameraComponent rightCamera = new CameraComponent {
@@ -292,7 +292,7 @@ namespace helengine.editor.tests {
             };
             rightCameraEntity.AddComponent(rightCamera);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -300,7 +300,7 @@ namespace helengine.editor.tests {
                 BoundCameraComponent = rightCamera
             });
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(520f, 290f, 0f)
             };
             contentEntity.InitComponents();
@@ -325,7 +325,7 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 256, 192);
 
-            Entity cameraEntity = new Entity();
+            Entity cameraEntity = new Entity(Core.Instance);
             cameraEntity.InitComponents();
             cameraEntity.InitChildren();
             CameraComponent camera = new CameraComponent {
@@ -333,7 +333,7 @@ namespace helengine.editor.tests {
             };
             cameraEntity.AddComponent(camera);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -341,7 +341,7 @@ namespace helengine.editor.tests {
             });
             cameraEntity.AddChild(viewportEntity);
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(156f, 142f, 0f)
             };
             contentEntity.InitComponents();
@@ -363,7 +363,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void LayoutComponent_WhenViewportSpaceUsesOpposingHorizontalAnchors_StretchesWidthAutomatically() {
-            Entity cameraEntity = new Entity();
+            Entity cameraEntity = new Entity(Core.Instance);
             cameraEntity.InitComponents();
             cameraEntity.InitChildren();
             CameraComponent camera = new CameraComponent {
@@ -371,7 +371,7 @@ namespace helengine.editor.tests {
             };
             cameraEntity.AddComponent(camera);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -379,7 +379,7 @@ namespace helengine.editor.tests {
             });
             cameraEntity.AddChild(viewportEntity);
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(20f, 30f, 0f)
             };
             contentEntity.InitComponents();
@@ -406,7 +406,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void LayoutComponent_WhenUsingParentLayoutSpace_UsesTheImmediateParentRect() {
-            Entity panelEntity = new Entity();
+            Entity panelEntity = new Entity(Core.Instance);
             panelEntity.InitComponents();
             panelEntity.InitChildren();
             RoundedRectComponent panelShape = new RoundedRectComponent {
@@ -415,7 +415,7 @@ namespace helengine.editor.tests {
             panelEntity.AddComponent(panelShape);
             panelEntity.AddComponent(new LayoutComponent());
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(210f, 5f, 0f)
             };
             contentEntity.InitComponents();
@@ -444,7 +444,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RenderQueues_WhenViewportBindsToDifferentAncestorCameras_OnlyReceiveTheirOwnSubtrees() {
-            Entity topCameraEntity = new Entity();
+            Entity topCameraEntity = new Entity(Core.Instance);
             topCameraEntity.InitComponents();
             topCameraEntity.InitChildren();
             CameraComponent topCamera = new CameraComponent {
@@ -452,7 +452,7 @@ namespace helengine.editor.tests {
             };
             topCameraEntity.AddComponent(topCamera);
 
-            Entity bottomCameraEntity = new Entity();
+            Entity bottomCameraEntity = new Entity(Core.Instance);
             bottomCameraEntity.InitComponents();
             bottomCameraEntity.InitChildren();
             CameraComponent bottomCamera = new CameraComponent {
@@ -460,7 +460,7 @@ namespace helengine.editor.tests {
             };
             bottomCameraEntity.AddComponent(bottomCamera);
 
-            Entity topViewportEntity = new Entity();
+            Entity topViewportEntity = new Entity(Core.Instance);
             topViewportEntity.InitComponents();
             topViewportEntity.InitChildren();
             topViewportEntity.AddComponent(new ViewportComponent {
@@ -468,7 +468,7 @@ namespace helengine.editor.tests {
             });
             topCameraEntity.AddChild(topViewportEntity);
 
-            Entity bottomViewportEntity = new Entity();
+            Entity bottomViewportEntity = new Entity(Core.Instance);
             bottomViewportEntity.InitComponents();
             bottomViewportEntity.InitChildren();
             bottomViewportEntity.AddComponent(new ViewportComponent {
@@ -476,7 +476,7 @@ namespace helengine.editor.tests {
             });
             bottomCameraEntity.AddChild(bottomViewportEntity);
 
-            Entity topDrawableEntity = new Entity();
+            Entity topDrawableEntity = new Entity(Core.Instance);
             topDrawableEntity.InitComponents();
             topDrawableEntity.InitChildren();
             topDrawableEntity.AddComponent(new RoundedRectComponent {
@@ -484,7 +484,7 @@ namespace helengine.editor.tests {
             });
             topViewportEntity.AddChild(topDrawableEntity);
 
-            Entity bottomDrawableEntity = new Entity();
+            Entity bottomDrawableEntity = new Entity(Core.Instance);
             bottomDrawableEntity.InitComponents();
             bottomDrawableEntity.InitChildren();
             bottomDrawableEntity.AddComponent(new RoundedRectComponent {
@@ -504,7 +504,7 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 1280, 720);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             ViewportComponent viewport = new ViewportComponent {
@@ -532,7 +532,7 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             ViewportComponent viewport = new ViewportComponent {
@@ -543,7 +543,7 @@ namespace helengine.editor.tests {
             };
             viewportEntity.AddComponent(viewport);
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(516f, 28f, 0f)
             };
             contentEntity.InitComponents();
@@ -577,7 +577,7 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager = (TestRenderManager3D)Core.Instance.RenderManager3D;
             renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             ViewportComponent viewport = new ViewportComponent {
@@ -589,12 +589,12 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             });
 
-            Entity generatedRootEntity = new Entity();
+            Entity generatedRootEntity = new Entity(Core.Instance);
             generatedRootEntity.InitComponents();
             generatedRootEntity.InitChildren();
             viewportEntity.AddChild(generatedRootEntity);
 
-            Entity contentEntity = new Entity {
+            Entity contentEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(516f, 28f, 0f)
             };
             contentEntity.InitComponents();
@@ -625,7 +625,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SceneViewPreview_WhenSourceEntityHasNoViewportOwner_UsesRealWorldTransform() {
-            Entity sourceEntity = new Entity {
+            Entity sourceEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(12f, 34f, 56f)
             };
             sourceEntity.InitComponents();
@@ -635,7 +635,7 @@ namespace helengine.editor.tests {
                 Texture = Core.Instance.RenderManager2D.PixelTexture
             });
 
-            EditorEntity syncHostEntity = new EditorEntity();
+            EditorEntity syncHostEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
@@ -652,14 +652,14 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SceneViewPreview_WhenSourceEntityIsInsideViewportSubtree_StillUsesWorldSpacePreview() {
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
                 BindingMode = ViewportComponent.ScreenBindingMode
             });
 
-            Entity sourceEntity = new Entity();
+            Entity sourceEntity = new Entity(Core.Instance);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
@@ -668,7 +668,7 @@ namespace helengine.editor.tests {
             });
             viewportEntity.AddChild(sourceEntity);
 
-            EditorEntity syncHostEntity = new EditorEntity();
+            EditorEntity syncHostEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 

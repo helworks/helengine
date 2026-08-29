@@ -14,7 +14,7 @@ namespace helengine.editor.tests {
         public void TextBoxComponent_SetTargetFocused_UsesExistingTextFocusSemanticsWithoutSpaceActivation() {
             InitializeCore();
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 240, 40);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             int submitCount = 0;
             textBox.FocusGroup = focusGroup.FocusGroup;
@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         public void TextBoxComponent_ComponentRemoved_ClearsStaticTextFocusAndItsKeyboardState() {
             InitializeCore();
             TestFocusGroup focusGroup = new TestFocusGroup(null, 0, 0, 0, 240, 40);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             textBox.FocusGroup = focusGroup.FocusGroup;
             entity.AddComponent(textBox);
@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextBoxComponent_ComponentAdded_CentersItsTextHostVertically() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
 
@@ -76,7 +76,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextBoxComponent_ComponentAdded_RequestsTextHoverCursor() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
 
@@ -91,7 +91,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextBoxComponent_UpdateTextDisplay_WhenCursorIsNegative_ClampsTheCaretIndex() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
             textBox.Text = "abc";
@@ -114,7 +114,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextBoxComponent_WhenFocused_ProcessesTypingAndBackspaceEdits() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
 
@@ -139,7 +139,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextBoxComponent_OnCursorEvent_WhenClickedInsideText_MovesCaretToTheClickedPosition() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
             textBox.Text = "Name";
@@ -158,7 +158,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextBoxComponent_OnCursorEvent_WhenDragged_SelectsTextRange() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
             textBox.Text = "Name";
@@ -179,7 +179,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextBoxComponent_WhenSelectionExists_TypingReplacesSelectedText() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
             textBox.Text = "Name";
@@ -200,7 +200,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void TextBoxComponent_WhenSelectAllShortcutIsPressed_SelectsAllText() {
             InitializeCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
             textBox.Text = "Name";
@@ -223,7 +223,7 @@ namespace helengine.editor.tests {
             InitializeCore();
             TestTextClipboardService clipboardService = new TestTextClipboardService();
             Core.Instance.SetTextClipboardService(clipboardService);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
             textBox.Text = "Name";
@@ -253,7 +253,7 @@ namespace helengine.editor.tests {
         public void TextBoxComponent_WhenShortcutRegistryOverridesSelectAllKey_UsesTheRegisteredShortcut() {
             InitializeCore();
             Core.Instance.TextBoxShortcutRegistry.SelectAllShortcut = new TextBoxShortcutBinding(Keys.F2, false, false, false);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
             textBox.Text = "Name";

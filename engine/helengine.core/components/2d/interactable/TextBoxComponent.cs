@@ -48,7 +48,7 @@ namespace helengine {
         float shakeElapsedSeconds;
         float currentShakeOffsetX;
         float3 shakeBaseLocalPosition;
-        
+
         // Child components
         RoundedRectComponent backgroundSprite;
         /// <summary>
@@ -97,7 +97,7 @@ namespace helengine {
         /// Gets whether this text box can currently receive keyboard focus.
         /// </summary>
         public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && interactableComponent != null;
-        
+
         /// <summary>
         /// Gets or sets the text content.
         /// </summary>
@@ -118,7 +118,7 @@ namespace helengine {
         /// </summary>
         public string Placeholder {
             get { return placeholder; }
-            set { 
+            set {
                 placeholder = value ?? "";
                 UpdateTextDisplay();
             }
@@ -129,7 +129,7 @@ namespace helengine {
         /// </summary>
         public FontAsset Font {
             get { return font; }
-            set { 
+            set {
                 font = value;
                 if (textComponent != null) {
                     textComponent.Font = font;
@@ -144,7 +144,7 @@ namespace helengine {
         /// </summary>
         public int2 Size {
             get { return size; }
-            set { 
+            set {
                 size = value;
                 if (backgroundSprite != null) backgroundSprite.Size = size;
                 if (interactableComponent != null) {
@@ -264,7 +264,7 @@ namespace helengine {
             entity.AddComponent(backgroundSprite);
 
             // Create selection highlight so dragged text can be shown behind the caret and text.
-            selectionEntity = new Entity();
+            selectionEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Text-box visuals require an owning core."));
             selectionEntity.LayerMask = entity.LayerMask;
             selectionEntity.Enabled = true;
             selectionEntity.InitComponents();
@@ -287,7 +287,7 @@ namespace helengine {
             selectionEntity.AddComponent(selectionSprite);
 
             // Create text component
-            textEntity = new Entity();
+            textEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Text-box visuals require an owning core."));
             textEntity.LayerMask = entity.LayerMask;
             textEntity.Enabled = true;
             textEntity.InitComponents();
@@ -377,7 +377,7 @@ namespace helengine {
             bool isShiftPressed = inputManager.IsKeyDown(Keys.LeftShift) || inputManager.IsKeyDown(Keys.RightShift);
             bool isControlPressed = inputManager.IsKeyDown(Keys.LeftControl) || inputManager.IsKeyDown(Keys.RightControl);
             bool isAltPressed = inputManager.IsKeyDown(Keys.LeftAlt) || inputManager.IsKeyDown(Keys.RightAlt);
-            
+
             // Process newly pressed keys
             for (int i = 0; i < 255; i++) {
                 Keys key = (Keys)i;
@@ -445,34 +445,34 @@ namespace helengine {
                     EditState.Backspace();
                     textChanged = previousBackspaceText != EditState.Text;
                     break;
-                    
+
                 case Keys.Delete:
                     string previousDeleteText = EditState.Text;
                     EditState.Delete();
                     textChanged = previousDeleteText != EditState.Text;
                     break;
-                    
+
                 case Keys.Left:
                     int previousLeftCursor = EditState.CursorPosition;
                     bool previousLeftSelection = EditState.HasSelection;
                     EditState.MoveCursorLeft();
                     layoutChanged = previousLeftCursor != EditState.CursorPosition || previousLeftSelection != EditState.HasSelection;
                     break;
-                    
+
                 case Keys.Right:
                     int previousRightCursor = EditState.CursorPosition;
                     bool previousRightSelection = EditState.HasSelection;
                     EditState.MoveCursorRight();
                     layoutChanged = previousRightCursor != EditState.CursorPosition || previousRightSelection != EditState.HasSelection;
                     break;
-                    
+
                 case Keys.Home:
                     int previousHomeCursor = EditState.CursorPosition;
                     bool previousHomeSelection = EditState.HasSelection;
                     EditState.SetCursorToStart();
                     layoutChanged = previousHomeCursor != EditState.CursorPosition || previousHomeSelection != EditState.HasSelection;
                     break;
-                    
+
                 case Keys.End:
                     int previousEndCursor = EditState.CursorPosition;
                     bool previousEndSelection = EditState.HasSelection;
@@ -482,7 +482,7 @@ namespace helengine {
                 case Keys.Enter:
                     IsFocused = false;
                     break;
-                    
+
                 default:
                     char character = KeyToChar(key, isShiftPressed);
                     if (character != '\0') {
@@ -581,7 +581,7 @@ namespace helengine {
                 char baseChar = (char)('a' + (key - Keys.A));
                 return isShiftPressed ? char.ToUpper(baseChar) : baseChar;
             }
-            
+
             // Handle numbers and symbols
             switch (key) {
                 case Keys.D0: return isShiftPressed ? ')' : '0';
@@ -619,15 +619,15 @@ namespace helengine {
             // Display text or placeholder; hide placeholder when focused
             bool showPlaceholder = string.IsNullOrEmpty(EditState.Text) && !isFocused;
             string displayText = showPlaceholder ? placeholder : EditState.Text;
-            
+
             // Add cursor if focused and visible
             if (isFocused && cursorVisible) {
                 int cursorIndex = Math.Max(0, Math.Min(EditState.CursorPosition, displayText.Length));
                 displayText = displayText.Insert(cursorIndex, "|");
             }
-            
+
             textComponent.Text = displayText;
-            
+
             // Set color based on whether it's placeholder or real text
             if (showPlaceholder) {
                 textComponent.Color = new byte4(150, 150, 150, 255); // Gray for placeholder

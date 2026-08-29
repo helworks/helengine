@@ -70,7 +70,7 @@ namespace helengine.editor.windows.tests.rendering {
                     importedFontAsset.AtlasHeight) {
                     SourceTextureAsset = importedFontAsset.SourceTextureAsset
                 };
-                Entity sourceEntity = new Entity();
+                Entity sourceEntity = new Entity(core);
                 sourceEntity.InitComponents();
                 sourceEntity.InitChildren();
 

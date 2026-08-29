@@ -9,8 +9,8 @@ public sealed class WindowsStandardMaterialFallbackSourceTests {
     /// </summary>
     [Fact]
     public void Win32_render_bridge_source_binds_native_white_fallback_for_standard_materials_without_diffuse_textures() {
-        string headerPath = @"C:\dev\helworks\helengine-windows\src\platform\windows\win32\win32_render_bridge.hpp";
-        string sourcePath = @"C:\dev\helworks\helengine-windows\src\platform\windows\win32\win32_render_bridge.cpp";
+        string headerPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-windows", "src", "platform", "windows", "win32", "win32_render_bridge.hpp");
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-windows", "src", "platform", "windows", "win32", "win32_render_bridge.cpp");
         string header = File.ReadAllText(headerPath);
         string source = File.ReadAllText(sourcePath);
 

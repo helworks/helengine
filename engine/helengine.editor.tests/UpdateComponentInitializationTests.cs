@@ -44,7 +44,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Entity prepared for incremental scene materialization.</returns>
         Entity CreateUninitializedEntity() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
             return entity;

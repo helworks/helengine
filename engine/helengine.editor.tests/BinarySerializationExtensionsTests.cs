@@ -63,7 +63,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SceneEntityReferenceSerializer_WhenEntityIsRegistered_RoundTripsTheReferenceId() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Name = "Target",
                 LayerMask = EditorLayerMasks.SceneObjects
             };

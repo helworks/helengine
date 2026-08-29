@@ -39,7 +39,7 @@ namespace helengine.editor.tests.components.ui {
         /// </summary>
         [Fact]
         public void ApplyProjectMenus_WhenDemoMenuIsProvided_PlacesDemoButtonImmediatelyToTheRightOfBuild() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine");
 
             titleBar.ApplyProjectMenus(CreateDemoMenuItems());
 
@@ -55,7 +55,7 @@ namespace helengine.editor.tests.components.ui {
         /// </summary>
         [Fact]
         public void ApplyProjectMenus_WhenDemoMenuIsProvided_RaisesActivationForItsMenuItem() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine");
             string activatedMenuItemId = string.Empty;
             titleBar.ProjectMenuItemRequested += menuItemId => activatedMenuItemId = menuItemId;
 
@@ -70,7 +70,7 @@ namespace helengine.editor.tests.components.ui {
         /// </summary>
         [Fact]
         public void ApplyProjectMenus_WhenAppliedTwice_ReplacesPriorStateWithoutDuplicatingTopLevelMenus() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine");
 
             titleBar.ApplyProjectMenus(CreateDemoMenuItems());
             int firstChildCount = titleBar.Entity.Children.Count;
@@ -86,7 +86,7 @@ namespace helengine.editor.tests.components.ui {
         /// </summary>
         [Fact]
         public void ApplyProjectMenus_AfterSetInput_BindsCurrentInputToDynamicMenu() {
-            EditorTitleBar titleBar = new EditorTitleBar(CreateFont(), 1280, 720, "helengine");
+            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine");
             InputSystem input = Core.Instance.Input;
             titleBar.SetInput(input);
 

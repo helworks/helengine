@@ -1115,7 +1115,7 @@ namespace helengine.editor.tests {
             };
             string scenePath = Path.Combine(TempRootPath, "BrowserTest.helen");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
 
             using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, asset);
@@ -1139,7 +1139,7 @@ namespace helengine.editor.tests {
             };
             string texturePath = Path.Combine(TempRootPath, "WrongType.hasset");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
 
             using (FileStream stream = new FileStream(texturePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, asset);
@@ -1158,7 +1158,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RuntimeContentManagerConfiguration_RegistersSceneAssetWithBinaryContentProcessor() {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             var registrationsField = typeof(ContentManager).GetField("ProcessorRegistrationsById", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 ?? throw new InvalidOperationException("Expected ProcessorRegistrationsById field was not found.");
             var registrations = Assert.IsType<Dictionary<string, ContentProcessorRegistration>>(registrationsField.GetValue(contentManager));

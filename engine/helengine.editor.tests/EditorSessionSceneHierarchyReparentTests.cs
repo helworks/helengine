@@ -20,6 +20,7 @@ namespace helengine.editor.tests {
         /// Temporary project root used by session reparent tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly EditorCore CoreValue;
         /// <summary>
         /// Configurable input system used to drive pointer-routing assertions.
         /// </summary>
@@ -34,15 +35,17 @@ namespace helengine.editor.tests {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-scene-reparent-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempProjectRootPath);
 
-            EditorCore core = new EditorCore(new Project {
+            CoreValue = new EditorCore(new Project {
                 Name = "Editor Session Scene Reparent",
                 Path = TempProjectRootPath
             });
             Input = new TestInputBackend();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
-            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+            CoreValue.SessionInteractionServices = InteractionServices;
+            CoreValue.SessionInteractionGraph = InteractionServices;
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             InteractionServices.Selection.ClearSelection();
         }
 
@@ -52,6 +55,7 @@ namespace helengine.editor.tests {
         public void Dispose() {
             InteractionServices.Selection.ClearSelection();
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -89,7 +93,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ReparentEntityDialog_WhenRowsAreClicked_IgnoresInvalidTargetsAndSelectsValidParents() {
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CoreValue, InteractionServices, CreateFont());
             EditorEntity rootA = CreateSceneEntity("Root A");
             EditorEntity rootB = CreateSceneEntity("Root B");
             EditorEntity child = CreateSceneEntity("Child");
@@ -122,7 +126,7 @@ namespace helengine.editor.tests {
         public void ReparentEntityDialog_WhenVisible_RoutesPointerClicksToSelectableRows() {
             CreateUiCamera(640, 480);
 
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CoreValue, InteractionServices, CreateFont());
             EditorEntity rootA = CreateSceneEntity("Root A");
             EditorEntity rootB = CreateSceneEntity("Root B");
             EditorEntity child = CreateSceneEntity("Child");
@@ -145,7 +149,7 @@ namespace helengine.editor.tests {
         public void ReparentEntityDialog_WhenShownUnderStationaryPointer_ClicksSelectableRows() {
             CreateUiCamera(640, 480);
 
-            ReparentEntityDialog dialog = new ReparentEntityDialog(CreateFont());
+            ReparentEntityDialog dialog = new ReparentEntityDialog(CoreValue, InteractionServices, CreateFont());
             EditorEntity rootA = CreateSceneEntity("Root A");
             EditorEntity rootB = CreateSceneEntity("Root B");
             EditorEntity child = CreateSceneEntity("Child");
@@ -244,8 +248,8 @@ namespace helengine.editor.tests {
         /// <returns>Editor session instance configured for reparent tests.</returns>
         EditorSession CreateSessionForReparent() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
-            ReparentEntityDialog reparentEntityDialog = new ReparentEntityDialog(CreateFont());
+            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CoreValue, InteractionServices, CreateFont());
+            ReparentEntityDialog reparentEntityDialog = new ReparentEntityDialog(CoreValue, InteractionServices, CreateFont());
             EditorEntityReparentService reparentService = new EditorEntityReparentService();
             SceneSaveService saveService = new SceneSaveService(
                 TempProjectRootPath,
@@ -262,7 +266,7 @@ namespace helengine.editor.tests {
                 new ComponentHistoryAdapterRegistry(),
                 () => InteractionServices.SceneMutation.MarkSceneMutated());
 
-            SetPrivateField(session, "core", Assert.IsType<EditorCore>(Core.Instance));
+            SetPrivateField(session, "core", CoreValue);
             SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
             SetPrivateField(session, "reparentEntityDialog", reparentEntityDialog);
             SetPrivateField(session, "ReparentService", reparentService);
@@ -280,7 +284,7 @@ namespace helengine.editor.tests {
         /// <param name="name">Display name assigned to the entity.</param>
         /// <returns>Configured scene entity.</returns>
         EditorEntity CreateSceneEntity(string name) {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = name,
                 IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -403,7 +407,7 @@ namespace helengine.editor.tests {
         /// <param name="mouseState">Mouse state to expose during the frame.</param>
         void AdvanceInput(MouseState mouseState) {
             Input.SetMouseState(mouseState);
-            Core.Instance.Update();
+            CoreValue.Update();
         }
 
         /// <summary>
@@ -412,7 +416,7 @@ namespace helengine.editor.tests {
         /// <param name="width">Viewport width.</param>
         /// <param name="height">Viewport height.</param>
         void CreateUiCamera(int width, int height) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorModalUi
             };
@@ -490,5 +494,4 @@ namespace helengine.editor.tests {
         }
     }
 }
-
 

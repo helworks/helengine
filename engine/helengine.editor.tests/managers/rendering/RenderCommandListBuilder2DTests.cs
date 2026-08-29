@@ -350,7 +350,7 @@ namespace helengine.editor.tests.managers.rendering {
         /// <param name="enabled">True to keep the entity enabled; otherwise false.</param>
         /// <returns>Initialized entity ready to accept components.</returns>
         static Entity CreateEntity(float3 position, bool enabled) {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.Position = position;
             entity.Enabled = enabled;
             entity.InitComponents();

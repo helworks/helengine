@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenSourcePlatformsProvided_UsesFirstSelectionAndConfirmsIt() {
-            BuildDialogCopySettingsDialog dialog = new BuildDialogCopySettingsDialog(CreateFont());
+            BuildDialogCopySettingsDialog dialog = new BuildDialogCopySettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool confirmed = false;
             string confirmedSourcePlatformId = string.Empty;
             dialog.ConfirmRequested += sourcePlatformId => {
@@ -70,7 +70,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Show_WithScaledMetrics_UsesScaledContentAndFooterButtons() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            BuildDialogCopySettingsDialog dialog = new BuildDialogCopySettingsDialog(CreateFont(), metrics);
+            BuildDialogCopySettingsDialog dialog = new BuildDialogCopySettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics);
 
             dialog.Show([
                 "windows",
@@ -95,7 +95,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsContentImmediately() {
-            BuildDialogCopySettingsDialog dialog = new BuildDialogCopySettingsDialog(CreateFont());
+            BuildDialogCopySettingsDialog dialog = new BuildDialogCopySettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show([
                 "windows",

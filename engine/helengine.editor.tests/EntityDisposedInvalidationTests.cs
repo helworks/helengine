@@ -98,7 +98,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Initialized entity with component and child collections.</returns>
         static Entity CreateInitializedEntity() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitChildren();
             entity.InitComponents();
             entity.InitializeHierarchy();

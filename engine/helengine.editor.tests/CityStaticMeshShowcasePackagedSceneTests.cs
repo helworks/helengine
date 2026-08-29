@@ -74,7 +74,7 @@ public sealed class CityStaticMeshShowcasePackagedSceneTests {
             throw new ArgumentNullException(nameof(staticMeshCollider));
         }
 
-        Entity entity = new Entity {
+        Entity entity = new Entity(Core.Instance) {
             LocalPosition = entityAsset.LocalPosition,
             LocalScale = entityAsset.LocalScale,
             LocalOrientation = entityAsset.LocalOrientation

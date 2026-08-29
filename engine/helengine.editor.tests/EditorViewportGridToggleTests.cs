@@ -77,12 +77,12 @@ namespace helengine.editor.tests {
         /// <param name="initialLayerMask">Initial camera layer mask assigned to the viewport.</param>
         /// <returns>Viewport prepared for isolated grid-toggle testing.</returns>
         EditorViewport CreateViewportForGridTesting(ushort initialLayerMask) {
-            EditorEntity cameraEntity = new EditorEntity();
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             CameraComponent camera = new CameraComponent();
             camera.LayerMask = initialLayerMask;
             cameraEntity.AddComponent(camera);
 
-            EditorViewport viewport = new EditorViewport(
+            EditorViewport viewport = new EditorViewport(Core.Instance,
                 camera,
                 CreateFont(),
                 CreateFont(),

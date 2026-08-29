@@ -57,7 +57,7 @@ namespace helengine.editor.tests {
             EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices);
             int undoCount = 0;
             component.UndoShortcutRequested = () => undoCount++;
-            EditorEntity ownerEntity = new EditorEntity {
+            EditorEntity ownerEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 Enabled = true
             };

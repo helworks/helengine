@@ -37,7 +37,7 @@ namespace helengine.editor.tests.managers.rendering {
         /// </summary>
         [Fact]
         public void GetClipRect_WhenParentAndSizeAreConfigured_ReturnsScreenSpaceBounds() {
-            EditorEntity entity = new EditorEntity {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 Position = new float3(48f, 96f, 0f)
             };
             ClipRectComponent clip = new ClipRectComponent {

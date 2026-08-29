@@ -12,7 +12,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RuntimeSuppressed_WhenToggled_UnregistersAndReregistersLightsWithoutChangingEnabled() {
             Core core = CreateCore();
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             DirectionalLightComponent light = new DirectionalLightComponent();
             entity.AddComponent(light);
             Assert.Contains(light, core.ObjectManager.DirectionalLights);
@@ -35,8 +35,8 @@ namespace helengine.editor.tests {
         [Fact]
         public void RuntimeSuppressed_OnParent_PropagatesToChildComponents() {
             Core core = CreateCore();
-            EditorEntity parentEntity = new EditorEntity();
-            EditorEntity childEntity = new EditorEntity();
+            EditorEntity parentEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity childEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             parentEntity.AddChild(childEntity);
             DirectionalLightComponent childLight = new DirectionalLightComponent();
             childEntity.AddComponent(childLight);

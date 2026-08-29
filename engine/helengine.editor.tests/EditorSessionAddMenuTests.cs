@@ -197,7 +197,7 @@ namespace helengine.editor.tests {
         EditorSession CreateSessionForAddCommands() {
             EnsureEditorCoreHost();
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
+            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             sceneHierarchyPanel.SetObjectManager(Core.Instance.ObjectManager);
             sceneHierarchyPanel.SetInput(Core.Instance.Input);
             EditorSceneCreationService sceneCreationService = GeneratedAssetGraph.CreateSceneCreationService();

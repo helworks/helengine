@@ -92,7 +92,7 @@ namespace helengine.editor.tests {
         public void RequestModelPick_WhenFileSystemModelIsSelected_DoesNotLeavePickerUpButtonVisible() {
             string sourcePath = WriteSourceModel("Sponza.obj");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
@@ -100,7 +100,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = BindPanel(new PropertiesPanel(
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
                 CreateFont(),
                 contentManager,
                 new EditorFileSystemModelResolver(assetImportManager)));
@@ -140,7 +140,7 @@ namespace helengine.editor.tests {
             CreateModalCamera(1280, 720);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
@@ -148,7 +148,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = BindPanel(new PropertiesPanel(
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
                 CreateFont(),
                 contentManager,
                 new EditorFileSystemModelResolver(assetImportManager)));
@@ -206,7 +206,7 @@ namespace helengine.editor.tests {
             CreateModalCamera(1280, 720);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
@@ -214,7 +214,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = BindPanel(new PropertiesPanel(
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
                 CreateFont(),
                 contentManager,
                 new EditorFileSystemModelResolver(assetImportManager)));
@@ -251,9 +251,9 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(TempProjectRootPath, contentManager);
-            PropertiesPanel propertiesPanel = BindPanel(new PropertiesPanel(CreateFont(), contentManager));
-            PreviewPanel previewPanel = new PreviewPanel(CreateFont());
-            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CreateFont());
+            PropertiesPanel propertiesPanel = BindPanel(new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), contentManager));
+            PreviewPanel previewPanel = new PreviewPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             IReadOnlyList<string> supportedPlatforms = new List<string> { "windows" };
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, supportedPlatforms);
 
@@ -272,15 +272,13 @@ namespace helengine.editor.tests {
         }
 
         PropertiesPanel BindPanel(PropertiesPanel panel) {
-            panel.SetInteractionServices(InteractionServices);
             panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
             panel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
             return panel;
         }
 
         AssetPickerModal CreateAssetPickerModal() {
-            AssetPickerModal modal = new AssetPickerModal(CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry);
-            modal.RebindToSession(CoreValue, InteractionServices);
+            AssetPickerModal modal = new AssetPickerModal(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry);
             return modal;
         }
 

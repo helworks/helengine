@@ -56,7 +56,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void IsInheritedEntity_RecognizesTheInheritedMarker() {
             EditorEntity inheritedEntity = CreateInheritedEntity();
-            EditorEntity plainEntity = new EditorEntity { IsSceneOwned = true };
+            EditorEntity plainEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
 
             Assert.True(BlueprintSceneSaveFilterService.IsInheritedEntity(inheritedEntity));
             Assert.False(BlueprintSceneSaveFilterService.IsInheritedEntity(plainEntity));
@@ -68,7 +68,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Inherited blueprint entity.</returns>
         static EditorEntity CreateInheritedEntity() {
-            EditorEntity entity = new EditorEntity { IsSceneOwned = true };
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
             entity.AddComponent(new BlueprintInheritedEntityComponent {
                 BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem("blueprints/games/split_play/GoldenCoin.hblueprint"),
                 SourceEntityId = 7u

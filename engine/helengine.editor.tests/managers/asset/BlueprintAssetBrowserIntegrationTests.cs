@@ -46,7 +46,7 @@ namespace helengine.editor.tests.managers.asset {
             }
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
 
             BlueprintAsset loadedAsset = contentManager.Load<BlueprintAsset>(blueprintPath);
 

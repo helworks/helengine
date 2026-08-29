@@ -23,7 +23,7 @@ namespace helengine.editor {
             RuntimeModel model = CreateLineRuntimeModel(render3D, CreateUnitBoxModelAsset());
             RuntimeMaterial material = EditorVisualMaterialFactory.CreateOverlayStandardMaterial(generatedMaterialCache);
             Core ownerCore = render3D.OwnerCore ?? throw new InvalidOperationException("Selection wireframe renderer must be bound to an owning core.");
-            EditorEntity entity = new EditorEntity(ownerCore) {
+            EditorEntity entity = new EditorEntity(ownerCore, EditorEntity.RequireInteractionServices(ownerCore)) {
                 Name = name,
                 Hidden = true,
                 InternalEntity = true,

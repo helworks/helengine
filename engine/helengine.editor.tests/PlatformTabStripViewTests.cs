@@ -21,7 +21,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetPlatforms_WhenPlatformsAreProvided_CreatesOneTabPerPlatform() {
-            PlatformTabStripView view = new PlatformTabStripView(CreateFont(), 1, 88, 24, 6, 24);
+            PlatformTabStripView view = new PlatformTabStripView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, 88, 24, 6, 24);
 
             view.SetPlatforms(["windows", "ps2", "linux"], "windows", _ => { });
 
@@ -34,7 +34,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenTabsOverflow_EnablesOverflowState() {
-            PlatformTabStripView view = new PlatformTabStripView(CreateFont(), 1, 88, 24, 6, 24);
+            PlatformTabStripView view = new PlatformTabStripView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, 88, 24, 6, 24);
 
             view.SetPlatforms(["windows", "ps2", "linux", "gamecube", "wii"], "windows", _ => { });
             view.UpdateLayout(0, 0, 220);
@@ -49,7 +49,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetSelectedPlatform_WhenSelectedTabIsClipped_RevealsTheTab() {
-            PlatformTabStripView view = new PlatformTabStripView(CreateFont(), 1, 88, 24, 6, 24);
+            PlatformTabStripView view = new PlatformTabStripView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, 88, 24, 6, 24);
 
             view.SetPlatforms(["windows", "ps2", "linux", "gamecube", "wii"], "windows", _ => { });
             view.UpdateLayout(0, 0, 220);
@@ -65,7 +65,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void KeyboardFocus_WhenRightArrowIsActivated_MovesSelectionToTheNextPlatform() {
-            PlatformTabStripView view = new PlatformTabStripView(CreateFont(), 1, 88, 24, 6, 24);
+            PlatformTabStripView view = new PlatformTabStripView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, 88, 24, 6, 24);
             string selectedPlatformId = string.Empty;
 
             view.SetPlatforms(["windows", "ps2", "linux", "gamecube", "wii"], "windows", platformId => selectedPlatformId = platformId);
@@ -85,7 +85,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void EnvironmentAddButton_WhenVisible_RaisesSelectedPlatformRequest() {
-            PlatformTabStripView view = new PlatformTabStripView(CreateFont(), 1, 88, 24, 6, 24);
+            PlatformTabStripView view = new PlatformTabStripView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, 88, 24, 6, 24);
             string requestedPlatformId = null;
             view.EnvironmentOverrideRequested += platformId => requestedPlatformId = platformId;
             view.SetPlatforms(["windows", "ps2"], "windows", _ => { });

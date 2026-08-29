@@ -32,7 +32,7 @@ namespace helengine.editor.tests {
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
             renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
 
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -43,7 +43,7 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             });
 
-            Entity sourceEntity = new Entity {
+            Entity sourceEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(100f, 200f, 35f)
             };
             sourceEntity.InitComponents();
@@ -67,7 +67,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolvePresentedWorldAnchorPosition_WhenViewportOwnedSpriteIsSelected_ReturnsPresentedBoundsCenter() {
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -75,7 +75,7 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(1280, 720)
             });
 
-            Entity sourceEntity = new Entity {
+            Entity sourceEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(100f, 200f, 35f)
             };
             sourceEntity.InitComponents();
@@ -96,7 +96,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveStoredWorldPositionFromPresentedAnchor_WhenViewportOwnedSpriteUsesPresentedCenter_RestoresStoredWorldPosition() {
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -104,7 +104,7 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(1280, 720)
             });
 
-            Entity sourceEntity = new Entity {
+            Entity sourceEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(100f, 200f, 35f)
             };
             sourceEntity.InitComponents();

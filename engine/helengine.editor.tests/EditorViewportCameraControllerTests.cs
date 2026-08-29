@@ -9,11 +9,23 @@ namespace helengine.editor.tests {
     /// </summary>
     public class EditorViewportCameraControllerTests : IDisposable {
         readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+        readonly TestInputBackend InputValue;
+
+        public EditorViewportCameraControllerTests() {
+            CoreValue = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
+            InputValue = new TestInputBackend();
+            CoreValue.Initialize(null, new TestRenderManager2D(), InputValue, new PlatformInfo("test", "test-version"));
+            CoreValue.SessionInteractionGraph = InteractionServices;
+        }
         /// <summary>
         /// Clears static viewport input blockers after each camera-controller test.
         /// </summary>
         public void Dispose() {
             InteractionServices.Selection.ClearSelection();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -54,9 +66,11 @@ namespace helengine.editor.tests {
                 new CoreInitializationOptions {
                     ContentStreamSource = new FakeContentStreamSource()
                 });
+            editorCore.SessionInteractionServices = InteractionServices;
+            editorCore.SessionInteractionGraph = InteractionServices;
             editorCore.InputSystem.SetMouseClientBounds(new int2(500, 400));
-            EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
-            CreateController(cameraEntity, camera);
+            EditorEntity cameraEntity = CreateCameraEntity(editorCore, out CameraComponent camera);
+            CreateController(cameraEntity, camera, editorCore);
             cameraEntity.InitializeHierarchy();
 
             try {
@@ -221,7 +235,7 @@ namespace helengine.editor.tests {
             EditorViewportSelectionFramingService selectionBounds = new EditorViewportSelectionFramingService();
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
-            Entity unsupportedEntity = new Entity();
+            Entity unsupportedEntity = new Entity(CoreValue);
             unsupportedEntity.InitComponents();
             unsupportedEntity.InitChildren();
             InteractionServices.Selection.SetSelectedEntity(unsupportedEntity);
@@ -242,7 +256,7 @@ namespace helengine.editor.tests {
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
-            EditorEntity selectedEntity = new EditorEntity();
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             CompleteInputFrame(input, CreateMouseState(150, 150, 0));
@@ -285,7 +299,7 @@ namespace helengine.editor.tests {
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
-            EditorEntity selectedEntity = new EditorEntity();
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             CompleteInputFrame(input, CreateMouseState(150, 150, 0));
@@ -349,11 +363,11 @@ namespace helengine.editor.tests {
             CompleteInputFrame(input, CreateMouseState(150, 150, 0, ButtonState.Released, ButtonState.Released));
             AdvanceInput(input, CreateMouseState(150, 150, 0, ButtonState.Pressed, ButtonState.Released));
             CompleteControllerFrame(input, controller);
-            Assert.True(Core.Instance.InputSystem.IsPointerWrapEnabled);
+            Assert.True(CoreValue.InputSystem.IsPointerWrapEnabled);
 
             AdvanceInput(input, CreateMouseState(150, 150, 0, ButtonState.Released, ButtonState.Released));
             CompleteControllerFrame(input, controller);
-            Assert.False(Core.Instance.InputSystem.IsPointerWrapEnabled);
+            Assert.False(CoreValue.InputSystem.IsPointerWrapEnabled);
         }
 
         /// <summary>
@@ -365,7 +379,7 @@ namespace helengine.editor.tests {
             EditorEntity cameraEntity = CreateCameraEntity(out CameraComponent camera);
             cameraEntity.Position = new float3(0f, 0f, 10f);
             EditorViewportCameraController controller = CreateController(cameraEntity, camera);
-            EditorEntity selectedEntity = new EditorEntity();
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             CompleteInputFrame(input, CreateMouseState(150, 150, 0));
@@ -386,13 +400,8 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
         TestInputBackend InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new FakeContentStreamSource()
-            });
-            TestInputBackend input = new TestInputBackend();
-            core.InputSystem.SetMouseClientBounds(new int2(500, 400));
-            core.Initialize(null, new TestRenderManager2D(), input, new PlatformInfo("test", "test-version"));
-            return input;
+            CoreValue.InputSystem.SetMouseClientBounds(new int2(500, 400));
+            return InputValue;
         }
 
         /// <summary>
@@ -400,8 +409,8 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="camera">Receives the camera component attached to the entity.</param>
         /// <returns>Camera entity used by the controller under test.</returns>
-        EditorEntity CreateCameraEntity(out CameraComponent camera) {
-            EditorEntity cameraEntity = new EditorEntity();
+        EditorEntity CreateCameraEntity(Core ownerCore, out CameraComponent camera) {
+            EditorEntity cameraEntity = new EditorEntity(ownerCore, InteractionServices);
             camera = new CameraComponent {
                 Viewport = new float4(100f, 100f, 300f, 200f)
             };
@@ -415,8 +424,12 @@ namespace helengine.editor.tests {
         /// <param name="cameraEntity">Entity that should own the controller.</param>
         /// <param name="camera">Camera component managed by the controller.</param>
         /// <returns>Controller attached to the camera entity.</returns>
-        EditorViewportCameraController CreateController(EditorEntity cameraEntity, CameraComponent camera) {
-            EditorViewportCameraController controller = new EditorViewportCameraController(camera, Core.Instance.Input);
+        EditorEntity CreateCameraEntity(out CameraComponent camera) {
+            return CreateCameraEntity(CoreValue, out camera);
+        }
+
+        EditorViewportCameraController CreateController(EditorEntity cameraEntity, CameraComponent camera, Core ownerCore = null) {
+            EditorViewportCameraController controller = new EditorViewportCameraController(camera, (ownerCore ?? CoreValue).Input);
             cameraEntity.AddComponent(controller);
             return controller;
         }
@@ -427,7 +440,7 @@ namespace helengine.editor.tests {
         /// <param name="viewportSize">Fixed viewport size exposed by the authored viewport component.</param>
         /// <returns>Configured viewport entity.</returns>
         Entity CreateFixedViewportEntity(int2 viewportSize) {
-            Entity viewportEntity = new Entity();
+            Entity viewportEntity = new Entity(CoreValue);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -443,7 +456,7 @@ namespace helengine.editor.tests {
         /// <param name="size">Authored sprite size.</param>
         /// <returns>Configured sprite entity.</returns>
         Entity CreateSpriteEntity(int2 size) {
-            Entity spriteEntity = new Entity();
+            Entity spriteEntity = new Entity(CoreValue);
             spriteEntity.InitComponents();
             spriteEntity.InitChildren();
             spriteEntity.AddComponent(new SpriteComponent {
@@ -463,7 +476,7 @@ namespace helengine.editor.tests {
             TestRuntimeModel runtimeModel = new TestRuntimeModel();
             runtimeModel.SetBounds(boundsMin, boundsMax);
 
-            Entity meshEntity = new Entity();
+            Entity meshEntity = new Entity(CoreValue);
             meshEntity.InitComponents();
             meshEntity.InitChildren();
             meshEntity.LocalScale = scale;
@@ -581,4 +594,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

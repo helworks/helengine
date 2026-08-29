@@ -80,7 +80,7 @@ namespace helengine.editor.tests.managers.dock {
         /// <param name="title">Title shown by the dock.</param>
         /// <returns>Configured dockable entity.</returns>
         DockableEntity CreateDock(string title) {
-            DockableEntity dock = new DockableEntity(CreateFont());
+            DockableEntity dock = new DockableEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dock.Title = title;
             return dock;
         }

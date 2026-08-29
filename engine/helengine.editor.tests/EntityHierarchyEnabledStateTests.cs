@@ -200,7 +200,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Entity ready for parenting and component attachment.</returns>
         Entity CreateEntity() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(Core.Instance);
             entity.InitComponents();
             entity.InitChildren();
             return entity;

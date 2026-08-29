@@ -47,7 +47,7 @@ namespace helengine.editor.tests.managers.gizmo {
         [Fact]
         public void TryResolvePreviewOrientation_WithoutHandleComponent_ReturnsFalse() {
             InitializeCore();
-            bool resolved = TransformRotationSnapPreviewResolver.TryResolvePreviewOrientation(new EditorEntity(), out float4 previewOrientation);
+            bool resolved = TransformRotationSnapPreviewResolver.TryResolvePreviewOrientation(new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()), out float4 previewOrientation);
 
             Assert.False(resolved);
             Assert.Equal(float4.Identity, previewOrientation);
@@ -67,7 +67,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="orientation">Ring orientation relative to the gizmo root.</param>
         /// <returns>Configured ring entity.</returns>
         EditorEntity CreateRingEntity(float4 orientation) {
-            EditorEntity ringEntity = new EditorEntity();
+            EditorEntity ringEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             ringEntity.Orientation = orientation;
             ringEntity.AddComponent(new TransformGizmoHandleComponent(new float3(0f, 1f, 0f)));
             return ringEntity;

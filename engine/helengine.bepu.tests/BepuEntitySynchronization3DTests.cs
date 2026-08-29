@@ -3,20 +3,22 @@ namespace helengine.bepu.tests {
     /// Verifies entity transforms and runtime body state remain synchronized.
     /// </summary>
     public sealed class BepuEntitySynchronization3DTests : IDisposable {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal core services required for entity-backed synchronization tests.
         /// </summary>
         public BepuEntitySynchronization3DTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
         /// Ends one synchronization test lifecycle.
         /// </summary>
         public void Dispose() {
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -24,7 +26,7 @@ namespace helengine.bepu.tests {
         /// </summary>
         [Fact]
         public void Step_WithDynamicBody_UpdatesEntityPositionFromRuntimeState() {
-            Entity entity = new Entity();
+            Entity entity = new Entity(CoreValue);
             entity.LocalPosition = new float3(0f, 3f, 0f);
             entity.InitComponents();
             entity.AddComponent(new RigidBody3DComponent {

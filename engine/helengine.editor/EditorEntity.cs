@@ -3,37 +3,64 @@ namespace helengine {
     /// Represents a base entity type used within the editor with naming and visibility helpers.
     /// </summary>
     public class EditorEntity : Entity {
+        /// <summary>Resolves the interaction graph explicitly owned by an editor core.</summary>
+        internal static global::helengine.editor.EditorSessionInteractionServices RequireInteractionServices(Core ownerCore) {
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
+
+            if (ownerCore is global::helengine.EditorCore editorCore && editorCore.SessionInteractionServices != null) {
+                return editorCore.SessionInteractionServices;
+            }
+
+            if (ownerCore.SessionInteractionGraph is global::helengine.editor.EditorSessionInteractionServices graph) {
+                return graph;
+            }
+
+            if (ownerCore is not global::helengine.EditorCore) {
+                throw new InvalidOperationException("An owning core with an attached session interaction graph is required.");
+            }
+
+            {
+                throw new InvalidOperationException("An editor core with an attached session interaction graph is required.");
+            }
+        }
+
         /// <summary>
         /// Initializes a new editor entity with default components and children.
         /// </summary>
         /// <summary>
         /// Mutable interaction graph owned by the editor session that created this entity.
         /// </summary>
-        public global::helengine.editor.EditorSessionInteractionServices InteractionServices { get; internal set; }
+        public global::helengine.editor.EditorSessionInteractionServices InteractionServices { get; }
 
-        public EditorEntity() : base() {
-            InteractionServices = (OwnerCore as EditorCore)?.SessionInteractionServices
-                ?? new global::helengine.editor.EditorSessionInteractionServices();
-            InitializeEditorEntity();
-        }
+        static Core ValidateOwnerGraph(Core ownerCore, global::helengine.editor.EditorSessionInteractionServices interactionServices) {
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
+            if (interactionServices == null) {
+                throw new ArgumentNullException(nameof(interactionServices));
+            }
 
-        /// <summary>
-        /// Initializes an editor entity against an explicit owning core. The
-        /// session interaction graph is resolved from that core when available.
-        /// </summary>
-        /// <param name="ownerCore">Core whose object manager owns the entity.</param>
-        public EditorEntity(Core ownerCore) : base(ownerCore) {
-            InteractionServices = (ownerCore as EditorCore)?.SessionInteractionServices
-                ?? new global::helengine.editor.EditorSessionInteractionServices();
-            InitializeEditorEntity();
+            if (ownerCore is global::helengine.EditorCore editorCore
+                && editorCore.SessionInteractionServices != null
+                && !ReferenceEquals(editorCore.SessionInteractionServices, interactionServices)) {
+                throw new InvalidOperationException("The editor entity interaction graph must be the graph attached to its owning editor core.");
+            }
+            if (ownerCore.SessionInteractionGraph is global::helengine.editor.EditorSessionInteractionServices attachedGraph
+                && !ReferenceEquals(attachedGraph, interactionServices)) {
+                throw new InvalidOperationException("The editor entity interaction graph must be the graph attached to its owning core.");
+            }
+
+            return ownerCore;
         }
 
         /// <summary>
         /// Initializes an editor entity against an explicit core and session interaction graph.
         /// </summary>
         public EditorEntity(Core ownerCore, global::helengine.editor.EditorSessionInteractionServices interactionServices)
-            : base(ownerCore) {
-            InteractionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
+            : base(ValidateOwnerGraph(ownerCore, interactionServices)) {
+            InteractionServices = interactionServices;
             InitializeEditorEntity();
         }
 
@@ -43,30 +70,6 @@ namespace helengine {
             InitComponents();
             InitChildren();
             AddComponent(new EntitySaveComponent());
-        }
-
-        /// <inheritdoc />
-        protected override void OwnerCoreChanged(Core ownerCore) {
-            if (ownerCore is EditorCore editorCore && editorCore.SessionInteractionServices != null) {
-                InteractionServices = editorCore.SessionInteractionServices;
-            }
-        }
-
-        /// <summary>
-        /// Rebinds an unattached editor subtree to one explicit interaction graph.
-        /// This is used by composition fixtures that construct a hierarchy before
-        /// assigning it to an owning session core.
-        /// </summary>
-        internal void RebindInteractionServices(global::helengine.editor.EditorSessionInteractionServices interactionServices) {
-            InteractionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
-            if (Children == null) {
-                return;
-            }
-            for (int index = 0; index < Children.Count; index++) {
-                if (Children[index] is EditorEntity child) {
-                    child.RebindInteractionServices(interactionServices);
-                }
-            }
         }
 
         /// <summary>

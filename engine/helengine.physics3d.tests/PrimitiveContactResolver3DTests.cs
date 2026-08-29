@@ -4,20 +4,22 @@ namespace helengine.physics3d.tests {
     /// </summary>
     [Collection(Physics3DTestCollection.Name)]
     public sealed class PrimitiveContactResolver3DTests : IDisposable {
+        readonly Core CoreValue;
         /// <summary>
         /// Initializes the minimal core services required for entity-backed primitive contact tests.
         /// </summary>
         public PrimitiveContactResolver3DTests() {
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
         /// Leaves the active core singleton attached after each test.
         /// </summary>
         public void Dispose() {
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -116,7 +118,7 @@ namespace helengine.physics3d.tests {
         /// <param name="position">Initial body position.</param>
         /// <param name="size">Full box size.</param>
         /// <returns>Initialized box-backed body state.</returns>
-        static BodyState3D CreateBoxBodyState(float3 position, float3 size) {
+        BodyState3D CreateBoxBodyState(float3 position, float3 size) {
             Entity entity = CreateEntity(position);
             RigidBody3DComponent rigidBody = new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Dynamic,
@@ -137,7 +139,7 @@ namespace helengine.physics3d.tests {
         /// <param name="position">Initial body position.</param>
         /// <param name="radius">Sphere radius.</param>
         /// <returns>Initialized sphere-backed body state.</returns>
-        static BodyState3D CreateSphereBodyState(float3 position, float radius) {
+        BodyState3D CreateSphereBodyState(float3 position, float radius) {
             Entity entity = CreateEntity(position);
             RigidBody3DComponent rigidBody = new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Dynamic,
@@ -159,7 +161,7 @@ namespace helengine.physics3d.tests {
         /// <param name="radius">Capsule radius.</param>
         /// <param name="height">Capsule full height.</param>
         /// <returns>Initialized capsule-backed body state.</returns>
-        static BodyState3D CreateCapsuleBodyState(float3 position, float radius, float height) {
+        BodyState3D CreateCapsuleBodyState(float3 position, float radius, float height) {
             Entity entity = CreateEntity(position);
             RigidBody3DComponent rigidBody = new RigidBody3DComponent {
                 BodyKind = BodyKind3D.Dynamic,
@@ -180,8 +182,8 @@ namespace helengine.physics3d.tests {
         /// </summary>
         /// <param name="localPosition">Initial local position.</param>
         /// <returns>Initialized entity.</returns>
-        static Entity CreateEntity(float3 localPosition) {
-            Entity entity = new Entity {
+        Entity CreateEntity(float3 localPosition) {
+            Entity entity = new Entity(CoreValue) {
                 LocalPosition = localPosition,
                 LocalScale = float3.One,
                 LocalOrientation = float4.Identity

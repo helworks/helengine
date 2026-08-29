@@ -32,7 +32,7 @@ namespace helengine.editor.tests {
                 generatedAssetGraph = new TestGeneratedAssetGraph(core);
                 InteractionServices.GizmoHover.ClearHoveredHandle();
 
-                EditorEntity sceneCameraEntity = new EditorEntity();
+                EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
                 CameraComponent sceneCamera = new CameraComponent {
                     Viewport = new float4(0f, 0f, 100f, 100f)
                 };
@@ -43,12 +43,12 @@ namespace helengine.editor.tests {
                 };
                 sceneCameraEntity.AddComponent(gizmoCamera);
 
-                EditorEntity pickerCameraEntity = new EditorEntity();
+                EditorEntity pickerCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
                 CameraComponent pickerCamera = new CameraComponent();
                 pickerCameraEntity.AddComponent(pickerCamera);
-                EditorEntity translationGizmoRoot = new EditorEntity();
-                EditorEntity rotationGizmoRoot = new EditorEntity();
-                EditorEntity scaleGizmoRoot = new EditorEntity();
+                EditorEntity translationGizmoRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+                EditorEntity rotationGizmoRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+                EditorEntity scaleGizmoRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
                 EditorViewportGizmoDrawableCollector gizmoDrawableCollector = new EditorViewportGizmoDrawableCollector(
                     ResolveNoAdditionalOwnedEntities,
                     translationGizmoRoot,
@@ -65,7 +65,7 @@ namespace helengine.editor.tests {
                     generatedAssetGraph.RendererResources);
                 sceneCameraEntity.AddComponent(picker);
 
-                EditorEntity hoveredHandle = new EditorEntity();
+                EditorEntity hoveredHandle = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
                 InteractionServices.GizmoHover.SetHoveredHandle(hoveredHandle);
                 inputBackend.SetMouseState(new MouseState(
                     180,
@@ -104,7 +104,7 @@ namespace helengine.editor.tests {
                 generatedAssetGraph = new TestGeneratedAssetGraph(core);
                 InteractionServices.GizmoHover.ClearHoveredHandle();
 
-                EditorEntity sceneCameraEntity = new EditorEntity();
+                EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
                 CameraComponent sceneCamera = new CameraComponent {
                     Viewport = new float4(0f, 0f, 100f, 100f)
                 };
@@ -117,12 +117,12 @@ namespace helengine.editor.tests {
                 };
                 sceneCameraEntity.AddComponent(gizmoCamera);
 
-                EditorEntity pickerCameraEntity = new EditorEntity();
+                EditorEntity pickerCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
                 CameraComponent pickerCamera = new CameraComponent();
                 pickerCameraEntity.AddComponent(pickerCamera);
-                EditorEntity translationGizmoRoot = new EditorEntity();
-                EditorEntity rotationGizmoRoot = new EditorEntity();
-                EditorEntity scaleGizmoRoot = new EditorEntity();
+                EditorEntity translationGizmoRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+                EditorEntity rotationGizmoRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+                EditorEntity scaleGizmoRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
                 EditorViewportGizmoDrawableCollector gizmoDrawableCollector = new EditorViewportGizmoDrawableCollector(
                     ResolveNoAdditionalOwnedEntities,
                     translationGizmoRoot,

@@ -351,10 +351,6 @@ namespace helengine.editor {
         /// <param name="windowHeight">Initial host window height.</param>
         /// <param name="titleText">Initial window title text.</param>
         /// <param name="iconTexture">Optional editor logo texture rendered in the left title-bar slot.</param>
-        public EditorTitleBar(FontAsset font, int windowWidth, int windowHeight, string titleText, RuntimeTexture iconTexture = null)
-            : this(font, EditorUiMetrics.Default, windowWidth, windowHeight, titleText, iconTexture) {
-        }
-
         /// <summary>
         /// Initializes the title bar UI with its File menu and window controls using one shared metrics source.
         /// </summary>
@@ -364,7 +360,10 @@ namespace helengine.editor {
         /// <param name="windowHeight">Initial host window height.</param>
         /// <param name="titleText">Initial window title text.</param>
         /// <param name="iconTexture">Optional editor logo texture rendered in the left title-bar slot.</param>
-        public EditorTitleBar(FontAsset font, EditorUiMetrics metrics, int windowWidth, int windowHeight, string titleText, RuntimeTexture iconTexture = null) {
+        public EditorTitleBar(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, int windowWidth, int windowHeight, string titleText, RuntimeTexture iconTexture = null)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default, windowWidth, windowHeight, titleText, iconTexture) { }
+
+        public EditorTitleBar(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics, int windowWidth, int windowHeight, string titleText, RuntimeTexture iconTexture = null) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -382,7 +381,7 @@ namespace helengine.editor {
             InputSurfaceOrder = RenderOrder2D.OverlayInput;
             HostSize = new int2(Math.Max(1, windowWidth), Math.Max(Height, windowHeight));
 
-            RootEntity = new EditorEntity {
+            RootEntity = new EditorEntity(ownerCore, interactionServices) {
                 InternalEntity = true,
                 LayerMask = TitleBarLayerMask,
                 Position = float3.Zero
@@ -396,7 +395,7 @@ namespace helengine.editor {
             };
             RootEntity.AddComponent(Background);
 
-            HoverShieldEntity = new EditorEntity {
+            HoverShieldEntity = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = TitleBarLayerMask,
                 Position = float3.Zero
             };
@@ -410,7 +409,7 @@ namespace helengine.editor {
             };
             HoverShieldEntity.AddComponent(HoverShieldInteractable);
 
-            DragRegionEntity = new EditorEntity {
+            DragRegionEntity = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = TitleBarLayerMask,
                 Position = float3.Zero
             };
@@ -435,7 +434,7 @@ namespace helengine.editor {
             UiMenuButtonEntity = CreateTitleBarButton("UI", ToggleUiMenu, HandleUiMenuButtonHovered, false, true, out int uiMenuButtonWidth);
             UiMenuButtonWidth = uiMenuButtonWidth;
 
-            TitleEntity = new EditorEntity {
+            TitleEntity = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = TitleBarLayerMask,
                 Position = new float3(0f, GetTitleVerticalOffset(), 0f)
             };
@@ -452,7 +451,7 @@ namespace helengine.editor {
             TitleEntity.AddComponent(TitleTextComponent);
 
             if (iconTexture != null) {
-                IconEntity = new EditorEntity {
+                IconEntity = new EditorEntity(ownerCore, interactionServices) {
                     LayerMask = TitleBarLayerMask,
                     Position = new float3(Metrics.HostTitleBarIconPadding, GetContentTopOffset() + Metrics.HostTitleBarIconPadding, 0f)
                 };
@@ -468,33 +467,33 @@ namespace helengine.editor {
 
             byte menuBackgroundOrder = RenderOrder2D.OverlayBackground;
             byte menuTextOrder = RenderOrder2D.OverlayForeground;
-            FileMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            FileMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(FileMenu.Entity);
             FileMenuItems = BuildFileMenuItems();
-            AddMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            AddMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(AddMenu.Entity);
             AddMenuItems = BuildAddMenuItems();
-            LightMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            LightMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(LightMenu.Entity);
             LightMenuItems = BuildLightMenuItems();
-            BuildMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            BuildMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(BuildMenu.Entity);
             BuildMenuItems = BuildBuildMenuItems();
-            ToolsMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            ToolsMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(ToolsMenu.Entity);
             ToolsMenuItems = BuildToolsMenuItems();
-            UiMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            UiMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(UiMenu.Entity);
             UiMenuItems = BuildUiMenuItems();
-            UiShowMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            UiShowMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(UiShowMenu.Entity);
             UiShowMenuActionsByLabel = BuildUiShowMenuActionsByLabel();
             UiShowMenuItems = Array.Empty<ContextMenuItem>();
             ApplyUiShowMenuItems(new List<string>(UiShowMenuActionsByLabel.Keys));
-            UiSaveMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            UiSaveMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(UiSaveMenu.Entity);
             UiSaveMenuItems = BuildUiSaveMenuItems();
-            UiLoadMenu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+            UiLoadMenu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
             RootEntity.AddChild(UiLoadMenu.Entity);
             UiLoadMenuItems = BuildUiLoadMenuItems();
             ProjectMenuStates = [];
@@ -508,7 +507,7 @@ namespace helengine.editor {
             CloseButtonEntity = CreateTitleBarButton("X", HandleCloseRequested, null, true, false, out int closeButtonWidth);
             CloseButtonWidth = closeButtonWidth;
 
-            NativeResizeBorderEntity = new EditorEntity {
+            NativeResizeBorderEntity = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = TitleBarLayerMask,
                 Position = float3.Zero
             };
@@ -1019,7 +1018,7 @@ namespace helengine.editor {
                     false,
                     true,
                     out int buttonWidth);
-                ContextMenu menu = new ContextMenu(Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
+                ContextMenu menu = new ContextMenu(RootEntity.OwnerCore, Font, TitleBarLayerMask, menuBackgroundOrder, menuTextOrder, EditorSessionInteractionServices.From(RootEntity));
                 if (InputValue != null) {
                     menu.SetInput(InputValue);
                 }
@@ -1129,7 +1128,7 @@ namespace helengine.editor {
             }
 
             width = ComputeButtonWidth(label);
-            EditorEntity buttonEntity = new EditorEntity {
+            EditorEntity buttonEntity = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices) {
                 LayerMask = TitleBarLayerMask,
                 Position = new float3(0f, GetContentTopOffset(), 0f)
             };
@@ -1332,7 +1331,7 @@ namespace helengine.editor {
         /// <param name="buttonEntity">Button entity that owns the separator.</param>
         /// <param name="x">Local x offset for the separator.</param>
         void AddTitleBarButtonVerticalBorderLine(EditorEntity buttonEntity, float x) {
-            EditorEntity borderEntity = new EditorEntity {
+            EditorEntity borderEntity = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices) {
                 LayerMask = TitleBarLayerMask,
                 Position = new float3(x, 0f, 0f)
             };

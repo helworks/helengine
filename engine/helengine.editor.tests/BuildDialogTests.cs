@@ -46,7 +46,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPlatformsAndBuildConfigProvided_CreatesTabsAndChecksSavedScenesForActivePlatform() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 ["windows", "linux"],
@@ -99,7 +99,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Show_WithScaledMetrics_UsesScaledSceneListAndFooterButtons() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            BuildDialog dialog = new BuildDialog(CreateFont(), metrics);
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics);
 
             dialog.Show(
                 ["windows"],
@@ -135,7 +135,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenPs2TabIsInactive_UsesTabComponentDefaults() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 ["windows", "ps2"],
@@ -179,7 +179,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenCurrentPlatformHasSelection_RaisesAddRequestedForActivePlatform() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
             dialog.Show(
@@ -234,7 +234,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenVisibleRowsAreReordered_PreservesDisplayedSceneSelection() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
             dialog.Show(
@@ -288,7 +288,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenSelectedSceneIsOutsideVisibleViewport_PreservesHiddenSelection() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             IReadOnlyList<string> sceneIds = CreateSceneIds(18);
             dialog.AddRequested += request => raisedRequest = request;
@@ -328,7 +328,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandlePlatformTabClicked_WhenPlatformsStoreDifferentDebugBuildValues_RestoresTheActiveValue() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows", "linux"],
                 [
@@ -371,7 +371,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenDebugBuildIsEnabled_SnapshotsTheDebugBuildFlag() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
             dialog.Show(
@@ -401,7 +401,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void HandleAddToBuildClicked_WhenEnvironmentIsSelected_SnapshotsTheEnvironmentId() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
             dialog.Show(
@@ -432,7 +432,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenPlatformContainsLegacyRuntimeModules_RaisesRequestNormally() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
             dialog.Show(
@@ -464,7 +464,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleSceneOrderFieldSubmitted_WhenPressedEnter_ReflowsSceneRowsByOrderNumber() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -519,7 +519,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenOutputFolderIsBlank_DoesNotRaiseAddRequested() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
             dialog.Show(
@@ -553,7 +553,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenOutputFolderValidationChanges_UpdatesOutputFieldBorderImmediately() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -611,7 +611,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenOutputFolderAndScenesAreBothInvalid_ShowsBothValidationFeedbackStates() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -663,7 +663,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleAddToBuildClicked_WhenNoScenesSelected_ShakesAndMarksSceneListInvalidUntilSelectionReturns() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             BuildDialogAddRequest raisedRequest = null;
             dialog.AddRequested += request => raisedRequest = request;
             dialog.Show(
@@ -725,7 +725,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandlePlatformTabClicked_WhenActivePlatformWasEdited_SyncsEditsBeforeSwitchingTabs() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorBuildConfigDocument buildConfig = new EditorBuildConfigDocument {
                 Platforms = [
                     new EditorBuildPlatformConfigDocument {
@@ -785,7 +785,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleBuildQueueRequested_WhenActivePlatformWasEdited_SyncsEditsBeforeRaisingEvent() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.BuildQueueRequested += () => raised = true;
             EditorBuildConfigDocument buildConfig = new EditorBuildConfigDocument {
@@ -831,7 +831,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void CopyMapListFrom_WhenSourcePlatformSelected_CopiesSceneSelectionIntoActivePlatform() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             EditorBuildConfigDocument buildConfig = new EditorBuildConfigDocument {
                 Platforms = [
                     new EditorBuildPlatformConfigDocument {
@@ -884,7 +884,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleCopySettingsButtonClicked_WhenInvoked_RaisesCopySettingsRequested() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.CopySettingsRequested += () => raised = true;
             dialog.Show(
@@ -920,7 +920,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_RendersOneQueueRowPerItem() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 ["windows"],
@@ -982,7 +982,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_RendersBuildLogsBelowExistingControls() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 ["windows"],
@@ -1050,7 +1050,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_EnablesWrappingForBuildLogsText() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 ["windows"],
@@ -1093,7 +1093,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_EnablesSelectionOnlyForBuildLogsText() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 ["windows"],
@@ -1136,7 +1136,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_CreatesBorderedQueueSectionWithHeader() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -1172,7 +1172,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_RendersFullWidthRowPerQueueItem() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -1238,7 +1238,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_ClipsCapabilitySummaryOnThirdLine() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -1287,7 +1287,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_ReservesTextWidthForRemoveButton() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
 
             dialog.Show(
                 ["windows"],
@@ -1336,7 +1336,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsProvided_CreatesRemoveButtonPerQueueItem() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             string removedQueueItemId = string.Empty;
             dialog.RemoveQueueItemRequested += queueItemId => removedQueueItemId = queueItemId;
             dialog.Show(
@@ -1386,7 +1386,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenQueueItemsExceedViewport_VirtualizesRowsAndRespondsToScrollOffset() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             List<EditorBuildQueueItemDocument> queueItems = [];
 
             for (int index = 0; index < 9; index++) {
@@ -1459,7 +1459,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenSceneRowsExceedViewport_VirtualizesRowsAndRespondsToScrollOffset() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             IReadOnlyList<string> sceneIds = CreateSceneIds(18);
 
             dialog.Show(
@@ -1515,7 +1515,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateSceneListRowsLayout_WhenViewportClipsNextRow_RendersPartiallyVisibleTrailingRow() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             IReadOnlyList<string> sceneIds = CreateSceneIds(18);
 
             dialog.Show(
@@ -1562,7 +1562,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RebuildQueueRows_WhenViewportClipsNextRow_RoundsVisibleRowsUp() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             List<EditorBuildQueueItemDocument> queueItems = [];
 
             for (int index = 0; index < 9; index++) {
@@ -1608,7 +1608,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenBuildLogLinesExceedViewport_VirtualizesLogsAndRespondsToScrollOffset() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             List<EditorBuildQueueItemDocument> queueItems = [];
 
             for (int index = 0; index < 8; index++) {
@@ -1685,7 +1685,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RebuildBuildLogs_WhenViewportClipsNextLine_RoundsVisibleLinesUp() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             List<EditorBuildQueueItemDocument> queueItems = [];
 
             for (int index = 0; index < 8; index++) {
@@ -1732,7 +1732,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_UsesLighterCloseButtonTextColor() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
             byte4 buttonTextColor = GetPrivateField<byte4>(closeButton, "ButtonTextColor");
 
@@ -1744,7 +1744,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_CreatesCloseButtonLeftSeparator() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             SpriteComponent closeButtonSeparator = GetPrivateField<SpriteComponent>(dialog, "CloseButtonSeparator");
 
             Assert.Equal(Core.Instance.RenderManager2D.PixelTexture, closeButtonSeparator.Texture);
@@ -1756,7 +1756,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_UsesModalForegroundColorForBuildDialogText() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -1801,7 +1801,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenDialogIsVisible_BlocksPointerOutsidePanelAcrossHost() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -1834,7 +1834,7 @@ namespace helengine.editor.tests {
         public void Update_WhenPointerClicksTitleBarCloseButtonBeforeMoving_HidesDialog() {
             CreateModalCamera(1280, 960);
 
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -1874,7 +1874,7 @@ namespace helengine.editor.tests {
         public void Update_WhenPointerClicksQueueItemRemoveButtonBeforeMoving_RaisesRemoveRequest() {
             CreateModalCamera(1280, 960);
 
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             string removedQueueItemId = string.Empty;
             dialog.RemoveQueueItemRequested += queueItemId => removedQueueItemId = queueItemId;
             dialog.Show(
@@ -1940,7 +1940,7 @@ namespace helengine.editor.tests {
         public void Update_WhenPointerClicksSceneCheckboxBeforeMoving_TogglesSelection() {
             CreateModalCamera(1280, 960);
 
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -2008,7 +2008,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_CreatesBorderedSceneListContainer() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -2045,7 +2045,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_CreatesClippedSceneListContentViewportInsideTheBorder() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 CreateSceneIds(24),
@@ -2088,7 +2088,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ApplyVisibleDialogState_WhenDialogMoves_RepositionsTheClippedSceneListViewport() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 CreateSceneIds(12),
@@ -2128,7 +2128,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenManyScenesAreAvailable_KeepsCopySettingsButtonInsideDialogBounds() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows", "linux"],
                 CreateSceneIds(18),
@@ -2169,7 +2169,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_CreatesOutputFolderBrowseRowAndMatchesFooterButtonHeights() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -2213,7 +2213,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_RendersOutputFolderTextBoxInModalForeground() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             dialog.Show(
                 ["windows"],
                 [
@@ -2244,7 +2244,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleBrowseOutputFolderClicked_WhenInvoked_RaisesBrowseOutputFolderRequested() {
-            BuildDialog dialog = new BuildDialog(CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
             bool raised = false;
             dialog.BrowseOutputFolderRequested += () => raised = true;
             dialog.Show(
@@ -2314,7 +2314,7 @@ namespace helengine.editor.tests {
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
         void CreateModalCamera(int width, int height) {
-            EditorEntity cameraEntity = new EditorEntity {
+            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorModalUi
             };

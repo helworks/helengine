@@ -404,7 +404,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for text rendering.</param>
         /// <param name="layerMask">Layer mask applied to the view entities.</param>
-        public AssetImportSettingsView(FontAsset font, ushort layerMask) {
+        public AssetImportSettingsView(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, ushort layerMask) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -419,11 +419,11 @@ namespace helengine.editor {
             TextureIndexingMethodValues = new List<string>(Enum.GetNames<TextureAssetIndexingMethod>());
             TextOrder = RenderOrder2D.PanelForeground;
 
-            RootEntity = new EditorEntity();
+            RootEntity = new EditorEntity(ownerCore, interactionServices);
             RootEntity.LayerMask = layerMask;
             RootEntity.InternalEntity = true;
 
-            ImporterLabelHost = new EditorEntity();
+            ImporterLabelHost = new EditorEntity(ownerCore, interactionServices);
             ImporterLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(ImporterLabelHost);
 
@@ -434,7 +434,7 @@ namespace helengine.editor {
             ImporterLabelText.RenderOrder2D = TextOrder;
             ImporterLabelHost.AddComponent(ImporterLabelText);
 
-            ComboHost = new EditorEntity();
+            ComboHost = new EditorEntity(ownerCore, interactionServices);
             ComboHost.LayerMask = layerMask;
             RootEntity.AddChild(ComboHost);
 
@@ -442,7 +442,7 @@ namespace helengine.editor {
             ComboBox.SelectionChanged += HandleComboSelectionChanged;
             ComboHost.AddComponent(ComboBox);
 
-            ProcessorLabelHost = new EditorEntity();
+            ProcessorLabelHost = new EditorEntity(ownerCore, interactionServices);
             ProcessorLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(ProcessorLabelHost);
 
@@ -453,7 +453,7 @@ namespace helengine.editor {
             ProcessorLabelText.RenderOrder2D = TextOrder;
             ProcessorLabelHost.AddComponent(ProcessorLabelText);
 
-            ProcessorPanelRoot = new EditorEntity();
+            ProcessorPanelRoot = new EditorEntity(ownerCore, interactionServices);
             ProcessorPanelRoot.LayerMask = layerMask;
             ProcessorPanelRoot.InternalEntity = true;
             RootEntity.AddChild(ProcessorPanelRoot);
@@ -469,15 +469,15 @@ namespace helengine.editor {
             };
             ProcessorPanelRoot.AddComponent(ProcessorPanelBackground);
 
-            PlatformTabStrip = new PlatformTabStripView(font, layerMask, PlatformTabWidth, ControlHeight, PlatformTabSpacing, ControlHeight);
+            PlatformTabStrip = new PlatformTabStripView(ownerCore, interactionServices, font, layerMask, PlatformTabWidth, ControlHeight, PlatformTabSpacing, ControlHeight);
             PlatformTabStrip.SetEnvironmentAddButtonVisible(true);
             PlatformTabStrip.EnvironmentOverrideRequested += HandleEnvironmentOverrideRequested;
             RootEntity.AddChild(PlatformTabStrip.Root);
-            EnvironmentTabStrip = new PlatformTabStripView(font, layerMask, PlatformTabWidth, ControlHeight, PlatformTabSpacing, ControlHeight);
+            EnvironmentTabStrip = new PlatformTabStripView(ownerCore, interactionServices, font, layerMask, PlatformTabWidth, ControlHeight, PlatformTabSpacing, ControlHeight);
             EnvironmentTabStrip.Root.Enabled = false;
             RootEntity.AddChild(EnvironmentTabStrip.Root);
 
-            FlipWindingLabelHost = new EditorEntity();
+            FlipWindingLabelHost = new EditorEntity(ownerCore, interactionServices);
             FlipWindingLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(FlipWindingLabelHost);
 
@@ -488,7 +488,7 @@ namespace helengine.editor {
             FlipWindingLabelText.RenderOrder2D = TextOrder;
             FlipWindingLabelHost.AddComponent(FlipWindingLabelText);
 
-            FlipWindingCheckBoxHost = new EditorEntity();
+            FlipWindingCheckBoxHost = new EditorEntity(ownerCore, interactionServices);
             FlipWindingCheckBoxHost.LayerMask = layerMask;
             RootEntity.AddChild(FlipWindingCheckBoxHost);
 
@@ -496,7 +496,7 @@ namespace helengine.editor {
             FlipWindingCheckBox.CheckedChanged += (component, isChecked) => HandleFlipWindingCheckedChanged(isChecked);
             FlipWindingCheckBoxHost.AddComponent(FlipWindingCheckBox);
 
-            TessellateLabelHost = new EditorEntity();
+            TessellateLabelHost = new EditorEntity(ownerCore, interactionServices);
             TessellateLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(TessellateLabelHost);
 
@@ -507,7 +507,7 @@ namespace helengine.editor {
             TessellateLabelText.RenderOrder2D = TextOrder;
             TessellateLabelHost.AddComponent(TessellateLabelText);
 
-            TessellateCheckBoxHost = new EditorEntity();
+            TessellateCheckBoxHost = new EditorEntity(ownerCore, interactionServices);
             TessellateCheckBoxHost.LayerMask = layerMask;
             RootEntity.AddChild(TessellateCheckBoxHost);
 
@@ -515,7 +515,7 @@ namespace helengine.editor {
             TessellateCheckBox.CheckedChanged += (component, isChecked) => HandleTessellateCheckedChanged(isChecked);
             TessellateCheckBoxHost.AddComponent(TessellateCheckBox);
 
-            TessellationMaxEdgeLengthLabelHost = new EditorEntity();
+            TessellationMaxEdgeLengthLabelHost = new EditorEntity(ownerCore, interactionServices);
             TessellationMaxEdgeLengthLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(TessellationMaxEdgeLengthLabelHost);
 
@@ -526,7 +526,7 @@ namespace helengine.editor {
             TessellationMaxEdgeLengthLabelText.RenderOrder2D = TextOrder;
             TessellationMaxEdgeLengthLabelHost.AddComponent(TessellationMaxEdgeLengthLabelText);
 
-            TessellationMaxEdgeLengthTextBoxHost = new EditorEntity();
+            TessellationMaxEdgeLengthTextBoxHost = new EditorEntity(ownerCore, interactionServices);
             TessellationMaxEdgeLengthTextBoxHost.LayerMask = layerMask;
             RootEntity.AddChild(TessellationMaxEdgeLengthTextBoxHost);
 
@@ -534,7 +534,7 @@ namespace helengine.editor {
             TessellationMaxEdgeLengthTextBox.TextChanged += HandleTessellationMaxEdgeLengthTextChanged;
             TessellationMaxEdgeLengthTextBoxHost.AddComponent(TessellationMaxEdgeLengthTextBox);
 
-            TextureMaxResolutionLabelHost = new EditorEntity();
+            TextureMaxResolutionLabelHost = new EditorEntity(ownerCore, interactionServices);
             TextureMaxResolutionLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureMaxResolutionLabelHost);
 
@@ -545,7 +545,7 @@ namespace helengine.editor {
             TextureMaxResolutionLabelText.RenderOrder2D = TextOrder;
             TextureMaxResolutionLabelHost.AddComponent(TextureMaxResolutionLabelText);
 
-            TextureMaxResolutionTextBoxHost = new EditorEntity();
+            TextureMaxResolutionTextBoxHost = new EditorEntity(ownerCore, interactionServices);
             TextureMaxResolutionTextBoxHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureMaxResolutionTextBoxHost);
 
@@ -553,7 +553,7 @@ namespace helengine.editor {
             TextureMaxResolutionTextBox.TextChanged += HandleTextureMaxResolutionTextChanged;
             TextureMaxResolutionTextBoxHost.AddComponent(TextureMaxResolutionTextBox);
 
-            TextureColorFormatLabelHost = new EditorEntity();
+            TextureColorFormatLabelHost = new EditorEntity(ownerCore, interactionServices);
             TextureColorFormatLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureColorFormatLabelHost);
 
@@ -564,7 +564,7 @@ namespace helengine.editor {
             TextureColorFormatLabelText.RenderOrder2D = TextOrder;
             TextureColorFormatLabelHost.AddComponent(TextureColorFormatLabelText);
 
-            TextureColorFormatComboBoxHost = new EditorEntity();
+            TextureColorFormatComboBoxHost = new EditorEntity(ownerCore, interactionServices);
             TextureColorFormatComboBoxHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureColorFormatComboBoxHost);
 
@@ -572,7 +572,7 @@ namespace helengine.editor {
             TextureColorFormatComboBox.SelectionChanged += HandleTextureColorFormatChanged;
             TextureColorFormatComboBoxHost.AddComponent(TextureColorFormatComboBox);
 
-            TextureAlphaPrecisionLabelHost = new EditorEntity();
+            TextureAlphaPrecisionLabelHost = new EditorEntity(ownerCore, interactionServices);
             TextureAlphaPrecisionLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureAlphaPrecisionLabelHost);
 
@@ -583,7 +583,7 @@ namespace helengine.editor {
             TextureAlphaPrecisionLabelText.RenderOrder2D = TextOrder;
             TextureAlphaPrecisionLabelHost.AddComponent(TextureAlphaPrecisionLabelText);
 
-            TextureAlphaPrecisionComboBoxHost = new EditorEntity();
+            TextureAlphaPrecisionComboBoxHost = new EditorEntity(ownerCore, interactionServices);
             TextureAlphaPrecisionComboBoxHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureAlphaPrecisionComboBoxHost);
 
@@ -591,7 +591,7 @@ namespace helengine.editor {
             TextureAlphaPrecisionComboBox.SelectionChanged += HandleTextureAlphaPrecisionChanged;
             TextureAlphaPrecisionComboBoxHost.AddComponent(TextureAlphaPrecisionComboBox);
 
-            TextureIndexingMethodLabelHost = new EditorEntity();
+            TextureIndexingMethodLabelHost = new EditorEntity(ownerCore, interactionServices);
             TextureIndexingMethodLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureIndexingMethodLabelHost);
 
@@ -602,7 +602,7 @@ namespace helengine.editor {
             TextureIndexingMethodLabelText.RenderOrder2D = TextOrder;
             TextureIndexingMethodLabelHost.AddComponent(TextureIndexingMethodLabelText);
 
-            TextureIndexingMethodComboBoxHost = new EditorEntity();
+            TextureIndexingMethodComboBoxHost = new EditorEntity(ownerCore, interactionServices);
             TextureIndexingMethodComboBoxHost.LayerMask = layerMask;
             RootEntity.AddChild(TextureIndexingMethodComboBoxHost);
 
@@ -610,7 +610,7 @@ namespace helengine.editor {
             TextureIndexingMethodComboBox.SelectionChanged += HandleTextureIndexingMethodChanged;
             TextureIndexingMethodComboBoxHost.AddComponent(TextureIndexingMethodComboBox);
 
-            FontPixelSizeLabelHost = new EditorEntity();
+            FontPixelSizeLabelHost = new EditorEntity(ownerCore, interactionServices);
             FontPixelSizeLabelHost.LayerMask = layerMask;
             RootEntity.AddChild(FontPixelSizeLabelHost);
 
@@ -621,7 +621,7 @@ namespace helengine.editor {
             FontPixelSizeLabelText.RenderOrder2D = TextOrder;
             FontPixelSizeLabelHost.AddComponent(FontPixelSizeLabelText);
 
-            FontPixelSizeTextBoxHost = new EditorEntity();
+            FontPixelSizeTextBoxHost = new EditorEntity(ownerCore, interactionServices);
             FontPixelSizeTextBoxHost.LayerMask = layerMask;
             RootEntity.AddChild(FontPixelSizeTextBoxHost);
 
@@ -629,7 +629,7 @@ namespace helengine.editor {
             FontPixelSizeTextBox.TextChanged += HandleFontPixelSizeTextChanged;
             FontPixelSizeTextBoxHost.AddComponent(FontPixelSizeTextBox);
 
-            VramPreviewHost = new EditorEntity();
+            VramPreviewHost = new EditorEntity(ownerCore, interactionServices);
             VramPreviewHost.LayerMask = layerMask;
             VramPreviewHost.Enabled = false;
             RootEntity.AddChild(VramPreviewHost);
@@ -641,14 +641,14 @@ namespace helengine.editor {
             VramPreviewText.RenderOrder2D = TextOrder;
             VramPreviewHost.AddComponent(VramPreviewText);
 
-            ApplyHost = new EditorEntity();
+            ApplyHost = new EditorEntity(ownerCore, interactionServices);
             ApplyHost.LayerMask = layerMask;
             RootEntity.AddChild(ApplyHost);
 
             ApplyButton = new ButtonComponent("Apply", new int2(ApplyButtonWidth, ControlHeight), font, HandleApplyClicked);
             ApplyHost.AddComponent(ApplyButton);
 
-            StatusHost = new EditorEntity();
+            StatusHost = new EditorEntity(ownerCore, interactionServices);
             StatusHost.LayerMask = layerMask;
             RootEntity.AddChild(StatusHost);
 

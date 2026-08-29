@@ -279,15 +279,15 @@ namespace helengine.editor {
         /// Initializes one profiles dialog.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
-        public ProfilesDialog(FontAsset font) : this(font, EditorUiMetrics.Default) {
-        }
-
         /// <summary>
         /// Initializes one profiles dialog using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for labels and buttons.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the dialog.</param>
-        public ProfilesDialog(FontAsset font, EditorUiMetrics metrics) : base("ProfilesDialog", "Profiles", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
+        public ProfilesDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default) { }
+
+        public ProfilesDialog(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics) : base(ownerCore, interactionServices, "ProfilesDialog", "Profiles", font, metrics, PanelWidth, PanelHeight, HeaderHeight) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -386,7 +386,7 @@ namespace helengine.editor {
             };
             StatusHost.AddComponent(StatusText);
 
-            CancelButtonHost = new EditorEntity {
+            CancelButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -396,7 +396,7 @@ namespace helengine.editor {
             CancelButtonHost.AddComponent(CancelButton);
             CancelButton.SetRenderOrders(DialogTextOrder, DialogTextOrder);
 
-            SaveButtonHost = new EditorEntity {
+            SaveButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true
@@ -830,7 +830,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>New dialog host entity.</returns>
         EditorEntity CreateTextHost() {
-            return new EditorEntity {
+            return new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
                 Position = float3.Zero,
                 InternalEntity = true

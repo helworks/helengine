@@ -184,8 +184,8 @@ namespace helengine.editor.tests.serialization.scene {
         public void ResolveAnimationClip_WhenAnotherSessionRewritesWithRestoredTimestamp_SeesNewHash() {
             ContentManager firstContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             ContentManager secondContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
-            EditorContentManagerConfiguration.ConfigureEditorContentManager(firstContentManager);
-            EditorContentManagerConfiguration.ConfigureEditorContentManager(secondContentManager);
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(firstContentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(secondContentManager, Core.Instance.RenderManager2D);
             using EditorProjectAuthoringSession firstSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), firstContentManager, GeneratedAssetGraph.Registry, GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             using EditorProjectAuthoringSession secondSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), secondContentManager, GeneratedAssetGraph.Registry, GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorAssetWriteResult firstWrite = firstSession.WriteAsset("animations/Shared.hanim", CreateAnimationClip(1f));
@@ -211,8 +211,8 @@ namespace helengine.editor.tests.serialization.scene {
         public void ResolveAnimationClip_WhenWriterStartsDuringPayloadOpen_LoadsThePublishedBytes() {
             ContentManager firstContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             ContentManager secondContentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
-            EditorContentManagerConfiguration.ConfigureEditorContentManager(firstContentManager);
-            EditorContentManagerConfiguration.ConfigureEditorContentManager(secondContentManager);
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(firstContentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(secondContentManager, Core.Instance.RenderManager2D);
             using EditorProjectAuthoringSession firstSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), firstContentManager, GeneratedAssetGraph.Registry, GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             using EditorProjectAuthoringSession secondSession = new EditorProjectAuthoringSession(TempProjectRootPath, Array.Empty<IAssetImporterRegistration>(), secondContentManager, GeneratedAssetGraph.Registry, GeneratedAssetGraph.ModelCache, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorAssetWriteResult firstWrite = firstSession.WriteAsset("animations/Atomic.hanim", CreateAnimationClip(1f));
@@ -294,7 +294,7 @@ namespace helengine.editor.tests.serialization.scene {
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             string materialFullPath = WriteMaterialSettingsDocument(materialRelativePath, CreateCustomShaderMaterialSettings("ForwardStandardShader"));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
@@ -328,7 +328,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             WriteMaterialSettingsDocument(materialRelativePath, CreateCustomShaderMaterialSettings("ForwardStandardShader", importedTextureAsset.Id));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
                 SupportedPlatforms = ["windows"]
             });
@@ -383,7 +383,7 @@ namespace helengine.editor.tests.serialization.scene {
                     emissiveTextureAsset.Id,
                     roughnessTextureAsset.Id));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
                 SupportedPlatforms = ["windows"]
             });
@@ -429,7 +429,7 @@ namespace helengine.editor.tests.serialization.scene {
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             WriteMaterialSettingsDocument(materialRelativePath, CreateStandardMaterialSettings("#336699"));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
@@ -455,7 +455,7 @@ namespace helengine.editor.tests.serialization.scene {
             string materialRelativePath = "Materials/rendering/colored_cube_grid/Cube00.hasset";
             WriteMaterialSettingsDocument(materialRelativePath, CreateStandardMaterialSettings("#336699"));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
@@ -484,7 +484,7 @@ namespace helengine.editor.tests.serialization.scene {
             });
             new EditorProjectLocalSettingsService(TempProjectRootPath, ["windows", "ps2"]).SaveActivePlatform("ps2");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
@@ -515,7 +515,7 @@ namespace helengine.editor.tests.serialization.scene {
             });
             new EditorProjectLocalSettingsService(TempProjectRootPath, ["ps2"]).SaveActivePlatform("ps2");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
             using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager();
             EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(TempProjectRootPath, shaderModuleManager, ShaderCompileTarget.DirectX11, contentManager, GeneratedAssetGraph.ShaderLibrary);
             EditorSceneAssetReferenceResolver resolver = new EditorSceneAssetReferenceResolver(contentManager, TempProjectRootPath, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);

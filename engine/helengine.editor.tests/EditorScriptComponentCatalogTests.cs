@@ -16,7 +16,7 @@ namespace helengine.editor.tests {
             EditorComponentAddDescriptor descriptor = EditorScriptComponentCatalog.BuildDescriptor(typeof(TestScriptComponent));
             Assert.NotNull(descriptor);
             Assert.Equal("Test Script Component", descriptor.DisplayName);
-            EditorEntity entity = new EditorEntity();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
 
             descriptor.AddAction(entity);
 

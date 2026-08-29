@@ -134,7 +134,7 @@ public sealed class CityCubeTestSceneSourceTests {
     /// </summary>
     [Fact]
     public void Nintendo3ds_render_manager_source_supports_textured_3d_material_branch() {
-        string sourcePath = @"C:\dev\helworks\helengine-3ds\src\platform\3ds\Nintendo3DsRenderManager3D.cpp";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-3ds", "src", "platform", "3ds", "Nintendo3DsRenderManager3D.cpp");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("TextureRelativePath", source, StringComparison.Ordinal);
@@ -148,8 +148,8 @@ public sealed class CityCubeTestSceneSourceTests {
     /// </summary>
     [Fact]
     public void Nintendo3ds_renderer_source_disables_runtime_trace_writes_by_default() {
-        string makefilePath = @"C:\dev\helworks\helengine-3ds\Makefile";
-        string rendererSourcePath = @"C:\dev\helworks\helengine-3ds\src\platform\3ds\Nintendo3DsRenderManager3D.cpp";
+        string makefilePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-3ds", "Makefile");
+        string rendererSourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-3ds", "src", "platform", "3ds", "Nintendo3DsRenderManager3D.cpp");
         string makefile = File.ReadAllText(makefilePath);
         string rendererSource = File.ReadAllText(rendererSourcePath);
 
@@ -163,7 +163,7 @@ public sealed class CityCubeTestSceneSourceTests {
     /// </summary>
     [Fact]
     public void Nintendo3ds_boot_host_source_uses_measured_elapsed_time_for_core_updates() {
-        string sourcePath = @"C:\dev\helworks\helengine-3ds\src\platform\3ds\Nintendo3DsBootHost.cpp";
+        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-3ds", "src", "platform", "3ds", "Nintendo3DsBootHost.cpp");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("double elapsedSeconds = ResolveElapsedSecondsForCurrentFrame();", source, StringComparison.Ordinal);

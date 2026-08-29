@@ -129,12 +129,15 @@ namespace helengine.editor {
         /// <param name="layerMask">Layer mask for menu entities.</param>
         /// <param name="backgroundOrder">Render order for menu backgrounds.</param>
         /// <param name="textOrder">Render order for menu text.</param>
-        public ContextMenu(FontAsset font, ushort layerMask, byte backgroundOrder, byte textOrder, EditorSessionInteractionServices interactionServices) {
+        public ContextMenu(Core ownerCore, FontAsset font, ushort layerMask, byte backgroundOrder, byte textOrder, EditorSessionInteractionServices interactionServices) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
 
             Font = font;
+            if (ownerCore == null) {
+                throw new ArgumentNullException(nameof(ownerCore));
+            }
             InitialInteractionServices = interactionServices ?? throw new ArgumentNullException(nameof(interactionServices));
             TextOrder = textOrder;
             Rows = new List<ContextMenuRow>(8);
@@ -144,13 +147,12 @@ namespace helengine.editor {
             MenuPosition = new int2(0, 0);
             HostSize = new int2(1, 1);
 
-            Root = new EditorEntity {
+            Root = new EditorEntity(ownerCore, InitialInteractionServices) {
                 InternalEntity = true,
                 LayerMask = layerMask,
                 Position = float3.Zero,
                 Enabled = false
             };
-            Root.RebindInteractionServices(InitialInteractionServices);
 
             Background = new RoundedRectComponent {
                 FillColor = ThemeManager.Colors.SurfacePrimary,
@@ -163,7 +165,7 @@ namespace helengine.editor {
             Root.AddComponent(Background);
 
             byte blockerOrder = backgroundOrder > 0 ? (byte)(backgroundOrder - 1) : backgroundOrder;
-            BackgroundBlockerEntity = new EditorEntity {
+            BackgroundBlockerEntity = new EditorEntity(Root.OwnerCore, InitialInteractionServices) {
                 InternalEntity = true,
                 LayerMask = layerMask,
                 Position = new float3(0f, 0f, 0.05f)
@@ -358,7 +360,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>New context menu row.</returns>
         ContextMenuRow CreateRow() {
-            var rowEntity = new EditorEntity {
+            var rowEntity = new EditorEntity(Root.OwnerCore, InitialInteractionServices) {
                 LayerMask = Root.LayerMask,
                 Position = float3.Zero
             };
@@ -371,7 +373,7 @@ namespace helengine.editor {
             };
             rowEntity.AddComponent(background);
 
-            var labelHost = new EditorEntity {
+            var labelHost = new EditorEntity(Root.OwnerCore, InitialInteractionServices) {
                 LayerMask = Root.LayerMask,
                 Position = float3.Zero
             };
@@ -386,7 +388,7 @@ namespace helengine.editor {
             };
             labelHost.AddComponent(label);
 
-            var indicatorHost = new EditorEntity {
+            var indicatorHost = new EditorEntity(Root.OwnerCore, InitialInteractionServices) {
                 LayerMask = Root.LayerMask,
                 Position = float3.Zero
             };

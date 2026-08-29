@@ -272,12 +272,12 @@ namespace helengine.editor.tests.rendering {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
             CameraComponent sceneCamera = new CameraComponent { LayerMask = 0b0100000000000000 };
             CameraComponent previewCamera = new CameraComponent { LayerMask = 0b0000000000100000 };
-            Entity sceneLightEntity = new Entity { LayerMask = 0b0100000000000000 };
+            Entity sceneLightEntity = new Entity(Core.Instance) { LayerMask = 0b0100000000000000 };
             sceneLightEntity.InitComponents();
             sceneLightEntity.InitChildren();
             DirectionalLightComponent sceneLight = new DirectionalLightComponent();
             sceneLightEntity.AddComponent(sceneLight);
-            Entity previewLightEntity = new Entity { LayerMask = 0b0000000000100000 };
+            Entity previewLightEntity = new Entity(Core.Instance) { LayerMask = 0b0000000000100000 };
             previewLightEntity.InitComponents();
             previewLightEntity.InitChildren();
             DirectionalLightComponent previewLight = new DirectionalLightComponent();

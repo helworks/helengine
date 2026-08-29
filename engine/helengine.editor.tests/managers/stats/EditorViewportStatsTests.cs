@@ -56,10 +56,10 @@ namespace helengine.editor.tests.managers.stats {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
 
-            EditorEntity sceneEntity = new EditorEntity { IsSceneOwned = true };
-            EditorEntity internalEntity = new EditorEntity { IsSceneOwned = true, InternalEntity = true };
-            EditorEntity editorUiEntity = new EditorEntity();
-            Entity plainEntity = new Entity();
+            EditorEntity sceneEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
+            EditorEntity internalEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true, InternalEntity = true };
+            EditorEntity editorUiEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            Entity plainEntity = new Entity(Core.Instance);
 
             Assert.True(EditorViewportStatsSceneClassifier.IsSceneEntity(sceneEntity));
             Assert.False(EditorViewportStatsSceneClassifier.IsSceneEntity(internalEntity));

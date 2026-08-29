@@ -90,17 +90,17 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font used for tab labels.</param>
         /// <param name="onTabSelected">Callback invoked when a tab is selected.</param>
-        public DockTabStrip(FontAsset font, Action<int> onTabSelected)
-            : this(font, EditorUiMetrics.Default, onTabSelected) {
-        }
-
         /// <summary>
         /// Initializes a new tab strip for docked windows using one shared metrics source.
         /// </summary>
         /// <param name="font">Font used for tab labels.</param>
         /// <param name="metrics">Scaled editor UI metrics used to size the tab strip.</param>
         /// <param name="onTabSelected">Callback invoked when a tab is selected.</param>
-        public DockTabStrip(FontAsset font, EditorUiMetrics metrics, Action<int> onTabSelected) {
+        public DockTabStrip(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, Action<int> onTabSelected = null)
+            : this(ownerCore, interactionServices, font, EditorUiMetrics.Default, onTabSelected) { }
+
+        public DockTabStrip(Core ownerCore, EditorSessionInteractionServices interactionServices, FontAsset font, EditorUiMetrics metrics, Action<int> onTabSelected = null)
+            : base(ownerCore, interactionServices) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }

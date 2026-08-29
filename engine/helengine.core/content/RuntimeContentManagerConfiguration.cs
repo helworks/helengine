@@ -17,11 +17,11 @@ namespace helengine {
         /// Ensures the shared runtime asset processors are registered on the supplied content manager.
         /// </summary>
         /// <param name="contentManager">Content manager to configure.</param>
-        public static void ConfigureSharedAssetContentManager(ContentManager contentManager) {
+        /// <param name="renderManager2D">Renderer that owns fonts and their generated atlas textures.</param>
+        public static void ConfigureSharedAssetContentManager(ContentManager contentManager, RenderManager2D renderManager2D) {
             if (contentManager == null) {
                 throw new ArgumentNullException(nameof(contentManager));
             }
-
             RegisterProcessorIfMissing(
                 contentManager,
                 RuntimeContentProcessorIds.MaterialAsset,
@@ -56,11 +56,16 @@ namespace helengine {
                 contentManager,
                 RuntimeContentProcessorIds.AudioAsset,
                 new AssetContentProcessor<AudioAsset>());
-            RegisterProcessorIfMissing(
-                contentManager,
-                RuntimeContentProcessorIds.FontAsset,
-                new BinaryContentProcessor<FontAsset>(FontAssetBinarySerializer.Deserialize),
-                new[] { FontAssetExtension });
+            // Headless runtime cores do not own a 2D renderer. They can still
+            // load every non-font runtime asset; a font processor is registered
+            // only by a composition root that explicitly supplies its renderer.
+            if (renderManager2D != null) {
+                RegisterProcessorIfMissing(
+                    contentManager,
+                    RuntimeContentProcessorIds.FontAsset,
+                    new BinaryContentProcessor<FontAsset>(stream => FontAssetBinarySerializer.Deserialize(stream, renderManager2D)),
+                    new[] { FontAssetExtension });
+            }
         }
 
         /// <summary>

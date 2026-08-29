@@ -63,7 +63,7 @@ namespace helengine.editor.tests.managers.project {
         [Fact]
         public void ReadEditorGameScriptAssemblyHostSource_ConstructorDoesNotDeleteSharedSnapshotRoot() {
             string sourcePath = Path.Combine(
-                "C:\\dev\\helworks\\helengine",
+                TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
                 "engine",
                 "helengine.editor",
                 "managers",
@@ -196,7 +196,7 @@ namespace helengine.editor.tests.managers.project {
         [Fact]
         public void ReadEditorCollectibleScriptAssemblyLoadContextSource_ProbesSiblingSnapshotDllWhenResolverReturnsNull() {
             string sourcePath = Path.Combine(
-                "C:\\dev\\helworks\\helengine",
+                TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
                 "engine",
                 "helengine.editor",
                 "managers",

@@ -526,8 +526,8 @@ namespace helengine.editor.tests {
         /// <returns>Initialized preview panel bound to the fixture graph.</returns>
         PreviewPanel CreatePanel(FontAsset font = null, EditorUiMetrics metrics = null) {
             PreviewPanel panel = metrics == null
-                ? new PreviewPanel(font ?? CreateFont())
-                : new PreviewPanel(font ?? CreateFont(), metrics);
+                ? new PreviewPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font ?? CreateFont())
+                : new PreviewPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), font ?? CreateFont(), metrics);
             panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
             panel.InitializeHierarchy();
             return panel;

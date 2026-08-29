@@ -66,7 +66,7 @@ namespace helengine.editor.tests.inspection {
         [Fact]
         public void BoxColliderEditor_UpdateSelectionVisual_AppliesSizeTimesEntityScale() {
             BoxCollider3DSceneSelectionEditor editor = new BoxCollider3DSceneSelectionEditor();
-            Entity selectedEntity = new Entity {
+            Entity selectedEntity = new Entity(Core.Instance) {
                 LocalPosition = new float3(1f, 2f, 3f),
                 LocalScale = new float3(7f, 1f, 9f),
                 LocalOrientation = float4.Identity
@@ -74,7 +74,7 @@ namespace helengine.editor.tests.inspection {
             BoxCollider3DComponent boxCollider = new BoxCollider3DComponent {
                 Size = new float3(1f, 0.5f, 2f)
             };
-            EditorEntity visualEntity = new EditorEntity {
+            EditorEntity visualEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
                 InternalEntity = true
             };
 
