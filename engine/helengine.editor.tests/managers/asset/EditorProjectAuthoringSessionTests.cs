@@ -394,6 +394,18 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
             RepairReport = new EditorAssetRepairReport();
         }
 
+        public string ProjectRootPath => throw new NotSupportedException();
+
+        public Core OwningCore => throw new NotSupportedException();
+
+        public GeneratedAssetProviderRegistry GeneratedAssetProviders => throw new NotSupportedException();
+
+        public EngineGeneratedModelCache GeneratedModelCache => throw new NotSupportedException();
+
+        public EngineGeneratedMaterialCache GeneratedMaterialCache => throw new NotSupportedException();
+
+        public EditorSessionRendererResources RendererResources => throw new NotSupportedException();
+
         /// <summary>
         /// Gets the empty repair report surfaced by the fake.
         /// </summary>

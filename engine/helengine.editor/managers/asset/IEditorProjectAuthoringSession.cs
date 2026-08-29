@@ -3,6 +3,24 @@ namespace helengine.editor {
     /// Provides one disposable, project-scoped boundary for editor asset authoring operations.
     /// </summary>
     public interface IEditorProjectAuthoringSession : IDisposable {
+        /// <summary>Gets the canonical project root owned by this authoring session.</summary>
+        string ProjectRootPath { get; }
+
+        /// <summary>Gets the core that owns this session's generated and renderer graph.</summary>
+        Core OwningCore { get; }
+
+        /// <summary>Gets the generated-provider registry owned by this session graph.</summary>
+        GeneratedAssetProviderRegistry GeneratedAssetProviders { get; }
+
+        /// <summary>Gets the generated-model cache owned by this session graph.</summary>
+        EngineGeneratedModelCache GeneratedModelCache { get; }
+
+        /// <summary>Gets the generated-material cache owned by this session graph.</summary>
+        EngineGeneratedMaterialCache GeneratedMaterialCache { get; }
+
+        /// <summary>Gets the renderer-resource graph owned by this session graph.</summary>
+        EditorSessionRendererResources RendererResources { get; }
+
         /// <summary>
         /// Creates a canonical reference for an assets-relative authored file.
         /// </summary>

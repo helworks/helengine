@@ -11,6 +11,8 @@ namespace helengine.editor.tests.managers.scene {
         /// Temporary content root used by the lightweight core harness.
         /// </summary>
         readonly string TempRootPath;
+        readonly EditorCore CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes the core services required to construct authored editor entities.
@@ -19,19 +21,22 @@ namespace helengine.editor.tests.managers.scene {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-entity-factory-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            EditorCore core = new EditorCore(new Project {
+            CoreValue = new EditorCore(new Project {
                 Name = "Editor Entity Factory",
                 Path = TempRootPath
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Deletes the temporary content root after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph?.Dispose();
+            CoreValue?.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -42,9 +47,9 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void Initialize_PopulatesEntityFactoryWithEditorFactory() {
-            Assert.NotNull(Core.Instance);
-            Assert.NotNull(Core.Instance.EntityFactory);
-            Assert.IsType<EditorEntityFactory>(Core.Instance.EntityFactory);
+            Assert.NotNull(CoreValue);
+            Assert.NotNull(CoreValue.EntityFactory);
+            Assert.IsType<EditorEntityFactory>(CoreValue.EntityFactory);
         }
 
         /// <summary>
@@ -52,7 +57,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void Create_ReturnsEditorEntityWithHiddenAuthoringComponents() {
-            IEntityFactory factory = Core.Instance.EntityFactory;
+            IEntityFactory factory = CoreValue.EntityFactory;
 
             Entity entity = factory.Create("Authored");
 
@@ -70,7 +75,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void Create_WhenEditorFactoryCreatesTwoAuthoredEntities_AssignsDistinctNumericSceneIds() {
-            IEntityFactory factory = Core.Instance.EntityFactory;
+            IEntityFactory factory = CoreValue.EntityFactory;
 
             Entity first = factory.Create("First");
             Entity second = factory.Create("Second");
@@ -85,7 +90,7 @@ namespace helengine.editor.tests.managers.scene {
         /// </summary>
         [Fact]
         public void CreateChild_ParentsChildBeforeReturning() {
-            EditorCore editorCore = Assert.IsType<EditorCore>(Core.Instance);
+            EditorCore editorCore = CoreValue;
             IEntityFactory factory = new EditorEntityFactory(editorCore, editorCore.SceneEntityIdAllocator);
             EditorEntity parent = Assert.IsType<EditorEntity>(factory.Create("Parent"));
 
@@ -117,4 +122,3 @@ namespace helengine.editor.tests.managers.scene {
         }
     }
 }
-

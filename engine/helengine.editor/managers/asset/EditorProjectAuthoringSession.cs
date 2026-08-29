@@ -6,7 +6,7 @@ namespace helengine.editor {
         /// <summary>
         /// Canonical project root owned by this session.
         /// </summary>
-        readonly string ProjectRootPath;
+        readonly string ProjectRootPathValue;
 
         /// <summary>
         /// Canonical assets root owned by this session.
@@ -206,9 +206,9 @@ namespace helengine.editor {
             ReferenceResolver = dependencies.ReferenceResolver;
             Lifetime = dependencies.Lifetime;
             RepairReportValue = dependencies.RepairReport;
-            ProjectRootPath = Path.GetFullPath(AssetImportManagerValue.ProjectRootPath);
+            ProjectRootPathValue = Path.GetFullPath(AssetImportManagerValue.ProjectRootPath);
             AssetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath);
-            string expectedAssetsRootPath = Path.Combine(ProjectRootPath, "assets");
+            string expectedAssetsRootPath = Path.Combine(ProjectRootPathValue, "assets");
             StringComparison pathComparison = OperatingSystem.IsWindows()
                 ? StringComparison.OrdinalIgnoreCase
                 : StringComparison.Ordinal;
@@ -256,6 +256,18 @@ namespace helengine.editor {
 
         /// <summary>Gets the exact renderer-resource graph borrowed by this session.</summary>
         internal EditorSessionRendererResources RendererResourcesGraphValue => RendererResourcesValue;
+
+        string IEditorProjectAuthoringSession.ProjectRootPath => ProjectRootPathValue;
+
+        Core IEditorProjectAuthoringSession.OwningCore => OwningCoreValue;
+
+        GeneratedAssetProviderRegistry IEditorProjectAuthoringSession.GeneratedAssetProviders => GeneratedAssetProviders;
+
+        EngineGeneratedModelCache IEditorProjectAuthoringSession.GeneratedModelCache => GeneratedModelCache;
+
+        EngineGeneratedMaterialCache IEditorProjectAuthoringSession.GeneratedMaterialCache => GeneratedMaterialCache;
+
+        EditorSessionRendererResources IEditorProjectAuthoringSession.RendererResources => RendererResourcesValue;
 
         /// <summary>
         /// Gets the immutable repair report accumulated by this session.
@@ -332,7 +344,7 @@ namespace helengine.editor {
 
                 EditorAuthoringTransaction transaction = null;
                 transaction = new EditorAuthoringTransaction(
-                    ProjectRootPath,
+                    ProjectRootPathValue,
                     NativeAssetWriteService,
                     () => ReleaseTransaction(transaction),
                     hooks);

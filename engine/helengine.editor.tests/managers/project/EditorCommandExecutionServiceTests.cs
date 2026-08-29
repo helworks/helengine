@@ -178,6 +178,18 @@ public sealed class EditorCommandExecutionServiceTests {
             RepairReport = new EditorAssetRepairReport();
         }
 
+        public string ProjectRootPath => throw new NotSupportedException();
+
+        public Core OwningCore => throw new NotSupportedException();
+
+        public GeneratedAssetProviderRegistry GeneratedAssetProviders => throw new NotSupportedException();
+
+        public EngineGeneratedModelCache GeneratedModelCache => throw new NotSupportedException();
+
+        public EngineGeneratedMaterialCache GeneratedMaterialCache => throw new NotSupportedException();
+
+        public EditorSessionRendererResources RendererResources => throw new NotSupportedException();
+
         /// <summary>
         /// Gets the empty repair report used by the test double.
         /// </summary>

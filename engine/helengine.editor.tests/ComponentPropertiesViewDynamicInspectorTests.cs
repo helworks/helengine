@@ -7,7 +7,9 @@ namespace helengine.editor.tests {
     /// Verifies metadata-driven reflected inspector behavior.
     /// </summary>
     public class ComponentPropertiesViewDynamicInspectorTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices;
         /// <summary>
         /// Temporary content root used by the test content manager.
         /// </summary>
@@ -20,10 +22,12 @@ namespace helengine.editor.tests {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-dynamic-inspector-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+            InteractionServices = GeneratedAssetGraph.InteractionServices;
         }
 
         /// <summary>
@@ -33,6 +37,8 @@ namespace helengine.editor.tests {
             if (SceneMapComponent.Instance != null) {
                 SceneMapComponent.Instance.Dispose();
             }
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -44,10 +50,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowComponents_WhenInspectingCamera_HidesRuntimeAndUnsupportedProperties() {
             CameraComponent camera = new CameraComponent();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -70,10 +76,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowComponents_WhenInspectingCamera_UsesMetadataOrderForRows() {
             CameraComponent camera = new CameraComponent();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -92,10 +98,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowComponents_WhenInspectingCamera_DoesNotCreateReadOnlyFallbackRowsForUnsupportedProperties() {
             CameraComponent camera = new CameraComponent();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -108,10 +114,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowComponents_WhenInspectingCamera_IncludesClearSettingsNestedSection() {
             CameraComponent camera = new CameraComponent();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -124,10 +130,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowComponents_WhenClearSettingsSectionIsExpanded_RendersExpectedNestedControls() {
             CameraComponent camera = new CameraComponent();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -149,10 +155,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowComponents_WhenClearSettingsSectionIsCollapsed_HidesNestedControls() {
             CameraComponent camera = new CameraComponent();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(camera);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -175,10 +181,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void ShowComponents_WhenInspectingSceneMapComponent_RendersSceneMapCustomSection() {
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(sceneMapComponent);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
 
             List<ComponentPropertyRow> rows = GetActiveRows(view);
@@ -192,10 +198,10 @@ namespace helengine.editor.tests {
         public void ShowComponents_WhenSceneMapSectionIsExpanded_RendersExistingMappingRows() {
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
             sceneMapComponent.Mappings.Add("MainMenu", "MainMenuScene");
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(sceneMapComponent);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -216,12 +222,12 @@ namespace helengine.editor.tests {
         public void EditSceneMapEntry_WhenValueChanges_UpdatesComponentAndMarksSceneMutated() {
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
             sceneMapComponent.Mappings.Add("MainMenu", "MainMenuScene");
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(sceneMapComponent);
             bool wasSceneMutated = false;
             Action handleSceneMutated = () => wasSceneMutated = true;
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -248,10 +254,10 @@ namespace helengine.editor.tests {
         [Fact]
         public void AddSceneMapEntry_WhenConfirmed_AddsDictionaryEntry() {
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(sceneMapComponent);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -278,10 +284,10 @@ namespace helengine.editor.tests {
         public void RemoveSceneMapEntry_WhenPressed_RemovesDictionaryEntry() {
             SceneMapComponent sceneMapComponent = new SceneMapComponent();
             sceneMapComponent.Mappings.Add("MainMenu", "MainMenuScene");
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(sceneMapComponent);
 
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateView();
             view.ShowComponents(entity);
             view.UpdateLayout(0, 0, 420);
 
@@ -345,6 +351,17 @@ namespace helengine.editor.tests {
             removeMethod.Invoke(view, new object[] { row });
         }
 
+        ComponentPropertiesView CreateView() {
+            ComponentPropertiesView view = new ComponentPropertiesView(
+                CoreValue,
+                InteractionServices,
+                CreateFont(),
+                new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            view.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
+            return view;
+        }
+
         /// <summary>
         /// Creates a small font asset that can satisfy layout requirements for property rows.
         /// </summary>
@@ -392,4 +409,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

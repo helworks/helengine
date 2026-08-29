@@ -8,7 +8,9 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies scale-gizmo entity creation and box-tip layout.
     /// </summary>
     public class TransformScaleGizmoFactoryTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices;
         /// <summary>
         /// Tolerance used for axis-tip position comparisons after quaternion-based layout.
         /// </summary>
@@ -17,6 +19,13 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Camera created for the current test so static tool state can be cleaned up.
         /// </summary>
         CameraComponent CameraUnderTest;
+
+        public TransformScaleGizmoFactoryTests() {
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+            InteractionServices = GeneratedAssetGraph.InteractionServices;
+        }
 
         /// <summary>
         /// Clears static editor state that is shared across tests.
@@ -29,6 +38,9 @@ namespace helengine.editor.tests.managers.gizmo {
                 InteractionServices.ViewportTool.ClearToolMode(CameraUnderTest);
                 InteractionServices.GizmoDrag.EndDrag(CameraUnderTest);
             }
+
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -37,7 +49,7 @@ namespace helengine.editor.tests.managers.gizmo {
         [Fact]
         public void Create_CreatesAxisAndPlaneHandlesUsingBoxTips() {
             InitializeCore();
-            TestRenderManager3D render3D = new TestRenderManager3D();
+            TestRenderManager3D render3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             CameraComponent sceneCamera = CreateSceneCamera();
             RuntimeMaterial normalMaterial = new TestRuntimeMaterial();
             RuntimeMaterial highlightMaterial = new TestRuntimeMaterial();
@@ -62,8 +74,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Initializes a fresh core with an object manager for entity-based tests.
         /// </summary>
         void InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+            Assert.Same(CoreValue, GeneratedAssetGraph.OwnerCore);
         }
 
         /// <summary>
@@ -71,7 +82,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Configured scene camera component.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
             cameraEntity.InternalEntity = true;
             cameraEntity.Position = new float3(0f, 2f, -8f);
 

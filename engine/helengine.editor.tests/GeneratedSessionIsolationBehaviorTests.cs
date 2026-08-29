@@ -451,6 +451,44 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
     }
 
     [Fact]
+    public void EditorCommandContext_ValidatesCanonicalRootThroughAuthoringInterface() {
+        string projectRootA = CreateProjectRoot();
+        string projectRootB = CreateProjectRoot();
+        Core coreA = CreateCore(projectRootA);
+        TestGeneratedAssetGraph graphA = new TestGeneratedAssetGraph(coreA);
+        EditorProjectAuthoringSession concreteAuthoring = CreateAuthoringSession(projectRootA, graphA);
+
+        try {
+            IEditorProjectAuthoringSession sameRootInterface = new AuthoringSessionProjection(concreteAuthoring, projectRootA);
+            EditorCommandContext context = new EditorCommandContext(
+                projectRootA,
+                new ScriptTypeResolver(),
+                sameRootInterface,
+                coreA,
+                graphA.InteractionServices,
+                graphA.Registry,
+                graphA.RendererResources);
+            Assert.Same(sameRootInterface, context.Authoring);
+
+            IEditorProjectAuthoringSession mismatchedRootInterface = new AuthoringSessionProjection(concreteAuthoring, projectRootB);
+            Assert.Throws<InvalidOperationException>(() => new EditorCommandContext(
+                projectRootA,
+                new ScriptTypeResolver(),
+                mismatchedRootInterface,
+                coreA,
+                graphA.InteractionServices,
+                graphA.Registry,
+                graphA.RendererResources));
+        } finally {
+            concreteAuthoring.Dispose();
+            graphA.Dispose();
+            coreA.Dispose();
+            DeleteProjectRoot(projectRootA);
+            DeleteProjectRoot(projectRootB);
+        }
+    }
+
+    [Fact]
     public void LiveAuthoringSessions_KeepResolverGraphsIndependentAfterSessionADisposes() {
         string projectRootA = CreateProjectRoot();
         string projectRootB = CreateProjectRoot();
@@ -683,6 +721,32 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
     static void DeleteProjectRoot(string projectRootPath) {
         if (Directory.Exists(projectRootPath)) {
             Directory.Delete(projectRootPath, true);
+        }
+    }
+
+    sealed class AuthoringSessionProjection : IEditorProjectAuthoringSession {
+        readonly IEditorProjectAuthoringSession Inner;
+
+        public AuthoringSessionProjection(IEditorProjectAuthoringSession inner, string projectRootPath) {
+            Inner = inner ?? throw new ArgumentNullException(nameof(inner));
+            ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
+        }
+
+        public string ProjectRootPath { get; }
+        public Core OwningCore => Inner.OwningCore;
+        public GeneratedAssetProviderRegistry GeneratedAssetProviders => Inner.GeneratedAssetProviders;
+        public EngineGeneratedModelCache GeneratedModelCache => Inner.GeneratedModelCache;
+        public EngineGeneratedMaterialCache GeneratedMaterialCache => Inner.GeneratedMaterialCache;
+        public EditorSessionRendererResources RendererResources => Inner.RendererResources;
+        public EditorAssetRepairReport RepairReport => Inner.RepairReport;
+
+        public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) => Inner.CreateReference(relativePath, expectedKind);
+        public AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) => Inner.ResolveReference(reference, expectedKind);
+        public RuntimeModel LoadImportedRuntimeModel(string relativePath) => Inner.LoadImportedRuntimeModel(relativePath);
+        public EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) => Inner.WriteAsset(relativePath, asset);
+        public EditorAuthoringTransaction BeginTransaction() => Inner.BeginTransaction();
+        public void RefreshExternalChanges() => Inner.RefreshExternalChanges();
+        public void Dispose() {
         }
     }
 }

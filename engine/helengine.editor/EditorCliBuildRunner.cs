@@ -336,7 +336,7 @@ namespace helengine.editor {
             if (generatedAssetProviders == null) {
                 throw new ArgumentNullException(nameof(generatedAssetProviders));
             }
-            EditorCommandGraphValidator.Validate(authoringSession, core, interactionServices, generatedAssetProviders, rendererResources);
+            EditorCommandGraphValidator.Validate(bootstrap.ProjectRootPath, authoringSession, core, interactionServices, generatedAssetProviders, rendererResources);
             if (commandCatalogProvider == null) {
                 throw new ArgumentNullException(nameof(commandCatalogProvider));
             }

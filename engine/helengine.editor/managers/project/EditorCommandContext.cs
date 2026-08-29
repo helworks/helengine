@@ -40,7 +40,7 @@ namespace helengine.editor {
             ScriptTypeResolver = scriptTypeResolver;
             AssetAuthoringValue = authoring as IEditorProjectAssetAuthoringService;
             Authoring = authoring;
-            EditorCommandGraphValidator.Validate(authoring, Core, InteractionServices, GeneratedAssetProviders, RendererResources);
+            EditorCommandGraphValidator.Validate(ProjectRootPath, authoring, Core, InteractionServices, GeneratedAssetProviders, RendererResources);
         }
 
         /// <summary>
