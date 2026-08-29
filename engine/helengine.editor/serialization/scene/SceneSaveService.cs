@@ -112,8 +112,36 @@ namespace helengine.editor {
             SceneSettingsAsset sceneSettings,
             Entity[] roots,
             string authoringAssetId) {
+            using EditorAuthoringTransaction transaction = AuthoringSession.BeginTransaction();
+            Save(fullPath, sceneSettings, roots, authoringAssetId, transaction);
+            transaction.Commit();
+        }
+
+        /// <summary>
+        /// Stages the supplied live scene roots in a caller-owned transaction.
+        /// </summary>
+        /// <param name="fullPath">Absolute path where the scene file should be written.</param>
+        /// <param name="sceneSettings">Scene-level settings that should be persisted.</param>
+        /// <param name="roots">Live editor roots to serialize.</param>
+        /// <param name="authoringAssetId">Explicit stable lowercase 32-character identity.</param>
+        /// <param name="transaction">Active transaction owned by the same authoring session.</param>
+        public void Save(
+            string fullPath,
+            SceneSettingsAsset sceneSettings,
+            Entity[] roots,
+            string authoringAssetId,
+            EditorAuthoringTransaction transaction) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Scene path must be provided.", nameof(fullPath));
+            }
+            if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+            if (!AuthoringSession.OwnsTransaction(transaction)) {
+                throw new InvalidOperationException("The scene transaction belongs to a different project session.");
+            }
+            if (!string.Equals(transaction.ProjectRootPathValue, ProjectRootPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) {
+                throw new InvalidOperationException("The scene transaction belongs to a different project session.");
             }
             if (sceneSettings == null) {
                 throw new ArgumentNullException(nameof(sceneSettings));
@@ -137,9 +165,7 @@ namespace helengine.editor {
                 asset.FormerAuthoringAssetIds = Array.Empty<string>();
             }
 
-            using EditorAuthoringTransaction transaction = AuthoringSession.BeginTransaction();
             transaction.WriteAsset(BuildSceneId(normalizedPath), asset);
-            transaction.Commit();
         }
 
         /// <summary>

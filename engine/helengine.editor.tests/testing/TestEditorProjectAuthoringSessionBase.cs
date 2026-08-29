@@ -19,8 +19,12 @@ public abstract class TestEditorProjectAuthoringSessionBase : IEditorProjectAuth
     public virtual AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) => throw Unsupported();
     public virtual RuntimeModel LoadImportedRuntimeModel(string relativePath) => throw Unsupported();
     public virtual ShaderAsset LoadBuiltInShaderAsset(string shaderFileName) => throw Unsupported();
+    public virtual ShaderAsset LoadBuiltInShaderAssetById(string shaderAssetId) => throw Unsupported();
     public virtual EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) => throw Unsupported();
+    public virtual EditorAssetWriteResult WriteGeneratedMaterial(string relativePath, GeneratedMaterialAssetDefinition definition, EditorAuthoringTransaction transaction) => throw Unsupported();
+    public virtual void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId, EditorAuthoringTransaction transaction) => throw Unsupported();
     public virtual EditorAuthoringTransaction BeginTransaction() => throw Unsupported();
+    public virtual bool OwnsTransaction(EditorAuthoringTransaction transaction) => throw Unsupported();
     public virtual void RefreshExternalChanges() { }
     public virtual void Dispose() { }
 

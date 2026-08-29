@@ -32,6 +32,14 @@ namespace helengine.editor {
         public bool Changed { get; set; }
 
         public EditorAuthoringTransactionEntryProgress Progress { get; set; }
+
+        /// <summary>
+        /// Gets whether this entry contains a material-settings payload rather
+        /// than an ordinary AssetSerializer payload.
+        /// </summary>
+        public bool IsMaterialSettingsPayload { get; set; }
+
+        public bool UpdatesIdentityIndex { get; set; }
     }
 
     /// <summary>

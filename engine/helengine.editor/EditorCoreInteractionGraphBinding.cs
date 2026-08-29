@@ -5,7 +5,7 @@ namespace helengine.editor {
     /// disposed before the graph itself so no disposed graph remains reachable
     /// from its core.
     /// </summary>
-    internal sealed class EditorCoreInteractionGraphBinding : IDisposable {
+    public sealed class EditorCoreInteractionGraphBinding : IDisposable {
         readonly EditorCore CoreValue;
         readonly EditorSessionInteractionServices InteractionServicesValue;
         bool IsDisposed;

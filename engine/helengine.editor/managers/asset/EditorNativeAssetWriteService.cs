@@ -38,6 +38,11 @@ namespace helengine.editor {
         readonly AssetIdentityMetadataService MetadataService;
 
         /// <summary>
+        /// Session-owned material document builder used before transaction staging.
+        /// </summary>
+        readonly MaterialAssetSettingsService MaterialAssetSettingsServiceValue;
+
+        /// <summary>
         /// Last project publication generation observed by this writer.
         /// </summary>
         readonly IEditorProjectWriteChangeLog ChangeLog;
@@ -74,6 +79,7 @@ namespace helengine.editor {
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
             ChangeLog = new FileEditorProjectWriteChangeLog(ProjectRootPath);
             MetadataService = new AssetIdentityMetadataService(ProjectRootPath);
+            MaterialAssetSettingsServiceValue = new MaterialAssetSettingsService(ProjectRootPath);
             InitializeObservedState();
         }
 
@@ -95,7 +101,120 @@ namespace helengine.editor {
             HashCache = hashCache ?? throw new ArgumentNullException(nameof(hashCache));
             ChangeLog = changeLog ?? throw new ArgumentNullException(nameof(changeLog));
             MetadataService = new AssetIdentityMetadataService(ProjectRootPath);
+            MaterialAssetSettingsServiceValue = new MaterialAssetSettingsService(ProjectRootPath);
             InitializeObservedState();
+        }
+
+        /// <summary>
+        /// Prepares the common material document and all platform override
+        /// documents without publishing any of them.
+        /// </summary>
+        internal EditorPreparedMaterialWrite PrepareMaterial(
+            string relativePath,
+            GeneratedMaterialAssetDefinition definition) {
+            EnsureNotDisposed();
+            if (definition == null) {
+                throw new ArgumentNullException(nameof(definition));
+            } else if (definition.MaterialAsset == null) {
+                throw new InvalidOperationException("Generated material definitions must include a material asset.");
+            }
+
+            ResolveDestination(relativePath, out string normalizedRelativePath);
+            string fullPath = Path.Combine(AssetsRootPath, normalizedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            ValidateNoReparseTraversal(fullPath);
+            using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            ReconcileIfGenerationChanged();
+
+            string authoringAssetId;
+            IReadOnlyList<string> formerAssetIds;
+            if (File.Exists(fullPath)) {
+                ValidateMaterialSettingsPayload(EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath), fullPath, true);
+                AssetIdentityMetadataDocument identity = MetadataService.Load(fullPath);
+                authoringAssetId = identity.AssetId;
+                formerAssetIds = identity.FormerAssetIds.ToArray();
+                definition.MaterialAsset.AuthoringAssetId = authoringAssetId;
+                definition.MaterialAsset.FormerAuthoringAssetIds = formerAssetIds.ToArray();
+            } else {
+                authoringAssetId = definition.MaterialAsset.AuthoringAssetId;
+                if (!IsValidAssetId(authoringAssetId) || IdentityIndex.IsCurrentAssetIdOwned(authoringAssetId)) {
+                    do {
+                        authoringAssetId = Guid.NewGuid().ToString("N");
+                    } while (IdentityIndex.IsCurrentAssetIdOwned(authoringAssetId));
+                }
+                definition.MaterialAsset.AuthoringAssetId = authoringAssetId;
+                definition.MaterialAsset.FormerAuthoringAssetIds = Array.Empty<string>();
+                formerAssetIds = Array.Empty<string>();
+            }
+
+            EditorGeneratedMaterialSettingsPayload payload = MaterialAssetSettingsServiceValue.BuildGeneratedPayload(
+                definition,
+                authoringAssetId,
+                formerAssetIds);
+            EditorPreparedAssetWrite common = PrepareRawPayload(
+                normalizedRelativePath,
+                payload.CommonBytes,
+                authoringAssetId,
+                "MaterialAssetCommonSettingsDocument",
+                true);
+            List<EditorPreparedAssetWrite> overrides = new List<EditorPreparedAssetWrite>();
+            foreach (KeyValuePair<string, byte[]> entry in payload.OverrideBytesBySuffix) {
+                overrides.Add(PrepareRawPayload(
+                    normalizedRelativePath + entry.Key,
+                    entry.Value,
+                    string.Empty,
+                    "MaterialAssetPlatformOverrideDocument",
+                    false));
+            }
+
+            return new EditorPreparedMaterialWrite {
+                Common = common,
+                Overrides = overrides
+            };
+        }
+
+        /// <summary>
+        /// Prepares one serialized editor material-settings payload without
+        /// touching the destination tree.
+        /// </summary>
+        internal EditorPreparedAssetWrite PrepareRawPayload(
+            string relativePath,
+            byte[] serializedBytes,
+            string assetId,
+            string assetKind,
+            bool updatesIdentityIndex) {
+            EnsureNotDisposed();
+            if (serializedBytes == null || serializedBytes.Length == 0) {
+                throw new ArgumentException("Serialized payload must not be empty.", nameof(serializedBytes));
+            }
+            ResolveDestination(relativePath, out string normalizedRelativePath);
+            string fullPath = Path.Combine(AssetsRootPath, normalizedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            ValidateNoReparseTraversal(fullPath);
+            bool priorExists = File.Exists(fullPath);
+            byte[] priorBytes = priorExists
+                ? EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath)
+                : null;
+            if (updatesIdentityIndex && priorExists) {
+                AssetIdentityMetadataDocument priorIdentity = MetadataService.Load(fullPath);
+                assetId = priorIdentity.AssetId;
+            }
+            string serializedHash = HashCache.ComputeSerializedHash(serializedBytes);
+            string priorSerializedHash = priorExists ? HashCache.ComputeSerializedHash(priorBytes) : null;
+            return new EditorPreparedAssetWrite {
+                RelativePath = normalizedRelativePath,
+                FullPath = fullPath,
+                SerializedBytes = serializedBytes,
+                ContentHash = serializedHash,
+                SerializedHash = serializedHash,
+                AssetId = assetId ?? string.Empty,
+                AssetKind = assetKind,
+                PriorExists = priorExists,
+                PriorContentHash = priorSerializedHash,
+                PriorSerializedHash = priorSerializedHash,
+                PreservedExistingIdentity = updatesIdentityIndex && priorExists,
+                IsUnchanged = priorExists && priorBytes.AsSpan().SequenceEqual(serializedBytes),
+                IsMaterialSettingsPayload = true,
+                UpdatesIdentityIndex = updatesIdentityIndex
+            };
         }
 
         /// <summary>
@@ -237,7 +356,12 @@ namespace helengine.editor {
             byte[] priorBytes = priorExists ? EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, fullPath) : null;
             bool unchanged = priorExists && priorBytes.AsSpan().SequenceEqual(serializedBytes);
             string priorContentHash = priorExists ? HashCache.ComputeContentHashFresh(fullPath) : null;
-            string stagedContentHash = HashCache.ComputeCanonicalAssetHash(asset);
+            // Compute the recovery hash from the exact serialized bytes that
+            // will be journaled.  Re-serializing the live object and then
+            // deserializing it during commit can normalize optional blueprint
+            // fields, so hashing the object graph here would make a valid
+            // staged payload fail its own integrity check.
+            string stagedContentHash = ComputeCanonicalNativeHash(serializedBytes, fullPath);
             return new EditorPreparedAssetWrite {
                 RelativePath = normalizedRelativePath,
                 FullPath = fullPath,
@@ -250,7 +374,8 @@ namespace helengine.editor {
                 PriorContentHash = priorContentHash,
                 PriorSerializedHash = priorExists ? HashCache.ComputeSerializedHash(priorBytes) : null,
                 PreservedExistingIdentity = preservedExistingIdentity,
-                IsUnchanged = unchanged
+                IsUnchanged = unchanged,
+                UpdatesIdentityIndex = true
             };
         }
 
@@ -264,8 +389,12 @@ namespace helengine.editor {
             }
 
             HashCache.InvalidateContentHash(prepared.FullPath);
-            IdentityIndex.RegisterOrUpdateUnderLock(prepared.FullPath);
-            HashCache.GetContentHash(prepared.FullPath);
+            if (prepared.UpdatesIdentityIndex) {
+                IdentityIndex.RegisterOrUpdateUnderLock(prepared.FullPath);
+            }
+            if (prepared.UpdatesIdentityIndex) {
+                HashCache.GetContentHash(prepared.FullPath);
+            }
         }
 
         /// <summary>
@@ -290,6 +419,9 @@ namespace helengine.editor {
             HashSet<string> claims = new HashSet<string>(StringComparer.Ordinal);
             for (int index = 0; index < preparedWrites.Count; index++) {
                 EditorPreparedAssetWrite prepared = preparedWrites[index] ?? throw new InvalidDataException("A transaction prepared output is missing.");
+                if (!prepared.UpdatesIdentityIndex) {
+                    continue;
+                }
                 if (string.IsNullOrWhiteSpace(prepared.AssetId) || !claims.Add(prepared.AssetId) ||
                     IdentityIndex.IsAssetIdentityClaimedByOtherPathUnderLock(prepared.AssetId, prepared.RelativePath)) {
                     throw new InvalidOperationException($"Native asset identity '{prepared.AssetId}' is claimed by another current transaction destination.");
@@ -390,6 +522,58 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Validates one staged material-settings payload against its durable
+        /// transaction claims. Platform override documents intentionally have
+        /// no identity claim of their own.
+        /// </summary>
+        internal void ValidatePreparedMaterialPayload(
+            byte[] serializedBytes,
+            string expectedSerializedHash,
+            string expectedAssetId,
+            string expectedAssetKind) {
+            ValidateMaterialSettingsPayload(serializedBytes, null, string.Equals(expectedAssetKind, "MaterialAssetCommonSettingsDocument", StringComparison.Ordinal));
+            string actualSerializedHash = string.Concat("sha256:", Convert.ToHexString(SHA256.HashData(serializedBytes)).ToLowerInvariant());
+            if (!string.Equals(actualSerializedHash, expectedSerializedHash, StringComparison.Ordinal)) {
+                throw new InvalidDataException("The staged material-settings payload does not match its journal.");
+            }
+
+            if (string.Equals(expectedAssetKind, "MaterialAssetCommonSettingsDocument", StringComparison.Ordinal)) {
+                using MemoryStream stream = new MemoryStream(serializedBytes, writable: false);
+                MaterialAssetCommonSettingsDocument document = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
+                if (!string.Equals(document.AuthoringAssetId, expectedAssetId, StringComparison.Ordinal)) {
+                    throw new InvalidDataException("The staged material-settings identity does not match its journal.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Validates the current material-settings binary container and, for a
+        /// common document, its embedded identity.
+        /// </summary>
+        internal static void ValidateMaterialSettingsPayload(byte[] serializedBytes, string destinationPath, bool commonDocument) {
+            if (serializedBytes == null || serializedBytes.Length == 0) {
+                throw new InvalidDataException("The material-settings payload is empty.");
+            }
+
+            using MemoryStream stream = new MemoryStream(serializedBytes, writable: false);
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            ushort expectedValueKind = commonDocument
+                ? (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument
+                : (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetPlatformOverrideDocument;
+            if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId ||
+                header.RecordKind != (ushort)EditorBinaryRecordKind.AssetImportSettings ||
+                header.ValueKind != expectedValueKind) {
+                throw new InvalidDataException($"Material settings payload '{destinationPath}' is not a current material-settings document.");
+            }
+            stream.Position = 0;
+            if (commonDocument) {
+                MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream);
+            } else {
+                MaterialAssetPlatformOverrideDocumentBinarySerializer.Deserialize(stream);
+            }
+        }
+
+        /// <summary>
         /// Validates one current native payload without requiring a session-owned cache.
         /// </summary>
         internal static void ValidateCurrentNativePayload(byte[] serializedBytes, string destinationPath) {
@@ -441,7 +625,7 @@ namespace helengine.editor {
             if (!string.Equals(ComputeCanonicalNativeHash(serializedBytes, destinationPath), expectedContentHash, StringComparison.Ordinal) ||
                 !string.Equals(asset.AuthoringAssetId, expectedAssetId, StringComparison.Ordinal) ||
                 !string.Equals(GetExpectedValueKind(asset).ToString(), expectedAssetKind, StringComparison.Ordinal)) {
-                throw new InvalidDataException("The native payload identity or canonical hash does not match its journal.");
+                throw new InvalidDataException($"The native payload identity or canonical hash does not match its journal for '{destinationPath}' (expected id '{expectedAssetId}', kind '{expectedAssetKind}', hash '{expectedContentHash}'; actual id '{asset.AuthoringAssetId}', kind '{GetExpectedValueKind(asset)}', hash '{ComputeCanonicalNativeHash(serializedBytes, destinationPath)}').");
             }
         }
 
@@ -451,9 +635,9 @@ namespace helengine.editor {
         internal void RestorePublishedAssetUnderLock(EditorPreparedAssetWrite prepared) {
             EnsureNotDisposed();
             HashCache.InvalidateContentHash(prepared.FullPath);
-            if (prepared.PriorExists) {
+            if (prepared.PriorExists && prepared.UpdatesIdentityIndex) {
                 IdentityIndex.RegisterOrUpdateUnderLock(prepared.FullPath);
-            } else {
+            } else if (!prepared.PriorExists && prepared.UpdatesIdentityIndex) {
                 IdentityIndex.RemoveUnderLock(prepared.FullPath);
             }
         }

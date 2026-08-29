@@ -1130,8 +1130,47 @@ namespace helengine.editor {
                 platformDefinition.SetFieldValue(BaseColorFieldId, ConvertColorToHtml(surfaceColor));
             }
 
-            GeneratedMaterialAssetWriteService writeService = new GeneratedMaterialAssetWriteService();
-            writeService.WriteMaterial(projectRootPath, relativePath, definition);
+            string canonicalProjectRoot = Path.GetFullPath(projectRootPath);
+            string fullPath = Path.GetFullPath(Path.Combine(canonicalProjectRoot, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            if (File.Exists(fullPath) && string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {
+                try {
+                    AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataService(canonicalProjectRoot).Load(fullPath);
+                    definition.MaterialAsset.AuthoringAssetId = metadata.AssetId;
+                    definition.MaterialAsset.FormerAuthoringAssetIds = metadata.FormerAssetIds.ToArray();
+                } catch (InvalidOperationException) {
+                    // The current writer replaces invalid legacy output; no alternate layout is interpreted.
+                }
+            }
+            if (string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {
+                definition.MaterialAsset.AuthoringAssetId = Guid.NewGuid().ToString("N");
+            }
+            definition.MaterialAsset.FormerAuthoringAssetIds ??= Array.Empty<string>();
+            MaterialAssetImportSettings importSettings = BuildMaterialImportSettings(definition);
+            new MaterialAssetSettingsService(canonicalProjectRoot).Save(
+                fullPath,
+                importSettings,
+                definition.MaterialAsset.AuthoringAssetId,
+                definition.MaterialAsset.FormerAuthoringAssetIds);
+        }
+
+        static MaterialAssetImportSettings BuildMaterialImportSettings(GeneratedMaterialAssetDefinition definition) {
+            MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+            settings.Importer.ImporterId = "helengine.material";
+            settings.Importer.SourceChecksum = definition.SourceChecksum ?? string.Empty;
+            settings.Importer.AssetId = definition.MaterialAsset.Id;
+            foreach (KeyValuePair<string, GeneratedMaterialPlatformDefinition> platformEntry in definition.Platforms) {
+                if (platformEntry.Value == null || string.IsNullOrWhiteSpace(platformEntry.Value.SchemaId)) {
+                    throw new InvalidOperationException($"Generated material platform '{platformEntry.Key}' must specify a schema id.");
+                }
+                MaterialAssetProcessorSettings platform = new MaterialAssetProcessorSettings {
+                    SchemaId = platformEntry.Value.SchemaId
+                };
+                foreach (KeyValuePair<string, string> fieldEntry in platformEntry.Value.FieldValues) {
+                    platform.FieldValues[fieldEntry.Key] = fieldEntry.Value ?? string.Empty;
+                }
+                settings.Processor.Platforms[platformEntry.Key] = platform;
+            }
+            return settings;
         }
 
         /// <summary>

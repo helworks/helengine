@@ -47,6 +47,9 @@ namespace helengine.editor {
         /// <summary>Loads one built-in shader through the session-owned shader library and renderer.</summary>
         ShaderAsset LoadBuiltInShaderAsset(string shaderFileName);
 
+        /// <summary>Loads one built-in shader by its stable asset id through this session's shader graph.</summary>
+        ShaderAsset LoadBuiltInShaderAssetById(string shaderAssetId);
+
         /// <summary>
         /// Writes one current native asset through this session's authoring boundary.
         /// </summary>
@@ -56,10 +59,33 @@ namespace helengine.editor {
         EditorAssetWriteResult WriteAsset(string relativePath, Asset asset);
 
         /// <summary>
+        /// Stages one generated material in a caller-owned transaction.
+        /// </summary>
+        EditorAssetWriteResult WriteGeneratedMaterial(
+            string relativePath,
+            GeneratedMaterialAssetDefinition definition,
+            EditorAuthoringTransaction transaction);
+
+        /// <summary>Stages one explicitly identified native Blueprint in a caller-owned transaction.</summary>
+        void WriteNativeBlueprint(
+            string relativePath,
+            ComponentPersistenceRegistry persistenceRegistry,
+            string authoringAssetId,
+            EditorAuthoringTransaction transaction);
+
+        /// <summary>
         /// Begins one project-scoped authoring transaction.
         /// </summary>
         /// <returns>New authoring transaction owned by this session.</returns>
         EditorAuthoringTransaction BeginTransaction();
+
+        /// <summary>
+        /// Determines whether a caller-owned transaction was created by this
+        /// exact session graph.
+        /// </summary>
+        /// <param name="transaction">Transaction to validate.</param>
+        /// <returns>True only for a transaction created by this session.</returns>
+        bool OwnsTransaction(EditorAuthoringTransaction transaction);
 
         /// <summary>
         /// Refreshes externally changed authored files before subsequent authoring operations.

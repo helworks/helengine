@@ -26,5 +26,18 @@ namespace helengine.editor {
         public bool PreservedExistingIdentity { get; init; }
 
         public bool IsUnchanged { get; init; }
+
+        /// <summary>
+        /// Gets whether this prepared payload uses the editor material-settings
+        /// container rather than the ordinary AssetSerializer container.
+        /// </summary>
+        public bool IsMaterialSettingsPayload { get; init; }
+
+        /// <summary>
+        /// Gets whether publication should update the session identity index
+        /// for this material-settings path. Platform override documents do not
+        /// own an identity entry.
+        /// </summary>
+        public bool UpdatesIdentityIndex { get; init; }
     }
 }

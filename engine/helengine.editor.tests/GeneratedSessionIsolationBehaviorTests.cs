@@ -784,6 +784,7 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
         public override RuntimeModel LoadImportedRuntimeModel(string relativePath) => Inner.LoadImportedRuntimeModel(relativePath);
         public override EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) => Inner.WriteAsset(relativePath, asset);
         public override EditorAuthoringTransaction BeginTransaction() => Inner.BeginTransaction();
+        public override bool OwnsTransaction(EditorAuthoringTransaction transaction) => Inner.OwnsTransaction(transaction);
         public override void RefreshExternalChanges() => Inner.RefreshExternalChanges();
         public void Dispose() {
         }

@@ -104,6 +104,12 @@ namespace helengine.editor {
         EditorAuthoringTransaction ActiveTransaction;
 
         /// <summary>
+        /// Opaque identity used to ensure a same-root session cannot borrow
+        /// another session's transaction.
+        /// </summary>
+        readonly object TransactionOwnerToken = new object();
+
+        /// <summary>
         /// Tracks whether the session has released its owned state.
         /// </summary>
         bool IsDisposed;
@@ -299,6 +305,13 @@ namespace helengine.editor {
         /// <returns>Canonical asset reference.</returns>
         public SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) {
             EnsureNotDisposed();
+            EditorAuthoringTransaction activeTransaction;
+            lock (TransactionGate) {
+                activeTransaction = ActiveTransaction;
+            }
+            if (activeTransaction != null && activeTransaction.TryCreateReference(relativePath, expectedKind, out SceneAssetReference stagedReference)) {
+                return stagedReference;
+            }
             return ReferenceResolver.CreateFileReference(ResolveAssetsPath(relativePath), expectedKind);
         }
 
@@ -329,6 +342,12 @@ namespace helengine.editor {
             return GeneratedMaterialCache.LoadBuiltInShaderAsset(shaderFileName);
         }
 
+        /// <summary>Loads one built-in shader by stable asset id through this session's shader graph.</summary>
+        public ShaderAsset LoadBuiltInShaderAssetById(string shaderAssetId) {
+            EnsureNotDisposed();
+            return GeneratedMaterialCache.LoadBuiltInShaderAssetById(shaderAssetId);
+        }
+
         /// <summary>
         /// Writes one native asset through the current asset writer and reports its destination.
         /// </summary>
@@ -341,12 +360,44 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Stages one generated material through the session-owned transaction.
+        /// </summary>
+        public EditorAssetWriteResult WriteGeneratedMaterial(
+            string relativePath,
+            GeneratedMaterialAssetDefinition definition,
+            EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+            EnsureTransactionBelongsToSession(transaction);
+            if (!string.Equals(
+                Path.GetFullPath(transaction.ProjectRootPathValue),
+                ProjectRootPathValue,
+                ProjectRootPathComparison)) {
+                throw new InvalidOperationException("The authoring transaction belongs to a different project session.");
+            }
+
+            return transaction.WriteMaterial(relativePath, definition);
+        }
+
+        /// <summary>
         /// Begins one project-scoped transaction associated with this session.
         /// </summary>
         /// <returns>Project-scoped authoring transaction.</returns>
         public EditorAuthoringTransaction BeginTransaction() {
             EnsureNotDisposed();
             return BeginTransaction(null);
+        }
+
+        /// <summary>
+        /// Determines whether a transaction belongs to this exact session
+        /// rather than another session targeting the same root.
+        /// </summary>
+        public bool OwnsTransaction(EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            return transaction != null
+                && ReferenceEquals(transaction.OwnerSessionTokenValue, TransactionOwnerToken);
         }
 
         /// <summary>
@@ -370,9 +421,23 @@ namespace helengine.editor {
                     ProjectRootPathValue,
                     NativeAssetWriteService,
                     () => ReleaseTransaction(transaction),
+                    TransactionOwnerToken,
                     hooks);
                 ActiveTransaction = transaction;
                 return transaction;
+            }
+        }
+
+        /// <summary>
+        /// Verifies that a caller-owned transaction was created by this exact
+        /// authoring session, not merely by another session for the same root.
+        /// </summary>
+        void EnsureTransactionBelongsToSession(EditorAuthoringTransaction transaction) {
+            if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+            if (!ReferenceEquals(transaction.OwnerSessionTokenValue, TransactionOwnerToken)) {
+                throw new InvalidOperationException("The authoring transaction belongs to a different project session.");
             }
         }
 
@@ -581,6 +646,28 @@ namespace helengine.editor {
         public void WriteNativeBlueprint(string relativePath, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId) {
             EnsureNotDisposed();
             AssetAuthoringService.WriteNativeBlueprint(relativePath, persistenceRegistry, authoringAssetId);
+            RegisterAuthoredWrite(relativePath);
+        }
+
+        /// <summary>Stages one explicitly identified native Blueprint in a caller-owned transaction.</summary>
+        public void WriteNativeBlueprint(
+            string relativePath,
+            ComponentPersistenceRegistry persistenceRegistry,
+            string authoringAssetId,
+            EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+            if (!string.Equals(transaction.ProjectRootPathValue, ProjectRootPathValue, ProjectRootPathComparison)) {
+                throw new InvalidOperationException("The Blueprint transaction belongs to a different project session.");
+            }
+
+            using BlueprintSaveService saveService = new BlueprintSaveService(this, persistenceRegistry);
+            saveService.Save(
+                Path.Combine(ProjectRootPathValue, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar)),
+                authoringAssetId,
+                transaction);
             RegisterAuthoredWrite(relativePath);
         }
 

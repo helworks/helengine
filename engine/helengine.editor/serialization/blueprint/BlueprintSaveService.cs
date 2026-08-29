@@ -64,8 +64,29 @@ namespace helengine.editor {
         /// <param name="fullPath">Absolute path where the Blueprint file should be written.</param>
         /// <param name="authoringAssetId">Stable lowercase 32-character identity, or null for ordinary editor saves.</param>
         public void Save(string fullPath, string authoringAssetId) {
+            using EditorAuthoringTransaction transaction = AuthoringSession.BeginTransaction();
+            Save(fullPath, authoringAssetId, transaction);
+            transaction.Commit();
+        }
+
+        /// <summary>
+        /// Stages the current blueprint authoring state in a caller-owned transaction.
+        /// </summary>
+        /// <param name="fullPath">Absolute path where the Blueprint file should be written.</param>
+        /// <param name="authoringAssetId">Stable lowercase 32-character identity, or null for ordinary saves.</param>
+        /// <param name="transaction">Active transaction owned by the same authoring session.</param>
+        public void Save(string fullPath, string authoringAssetId, EditorAuthoringTransaction transaction) {
             if (string.IsNullOrWhiteSpace(fullPath)) {
                 throw new ArgumentException("Blueprint path must be provided.", nameof(fullPath));
+            }
+            if (transaction == null) {
+                throw new ArgumentNullException(nameof(transaction));
+            }
+            if (!AuthoringSession.OwnsTransaction(transaction)) {
+                throw new InvalidOperationException("The blueprint transaction belongs to a different project session.");
+            }
+            if (!string.Equals(transaction.ProjectRootPathValue, ProjectRootPath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) {
+                throw new InvalidOperationException("The blueprint transaction belongs to a different project session.");
             }
             if (!string.IsNullOrWhiteSpace(authoringAssetId)
                 && (authoringAssetId.Length != 32 || authoringAssetId.Any(character => character is < '0' or > '9' and < 'a' or > 'f'))) {
@@ -96,9 +117,7 @@ namespace helengine.editor {
                 blueprintAsset.FormerAuthoringAssetIds = Array.Empty<string>();
             }
 
-            using EditorAuthoringTransaction transaction = AuthoringSession.BeginTransaction();
             transaction.WriteAsset(BuildBlueprintId(normalizedPath), blueprintAsset);
-            transaction.Commit();
         }
 
         /// <summary>

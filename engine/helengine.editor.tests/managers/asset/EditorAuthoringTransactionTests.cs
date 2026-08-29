@@ -67,6 +67,77 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     [Fact]
+    public void WriteMaterial_StagesAllDocumentsAndPreservesExistingIdentity() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        GeneratedMaterialAssetDefinition firstDefinition = CreateGeneratedMaterial("Materials/TestMaterial");
+        using (EditorAuthoringTransaction firstTransaction = session.BeginTransaction()) {
+            EditorAssetWriteResult firstResult = firstTransaction.WriteMaterial("materials/TestMaterial.hasset", firstDefinition);
+
+            string materialPath = Path.Combine(ProjectRootPath, "assets", "materials", "TestMaterial.hasset");
+            Assert.Equal(EditorAssetWriteDisposition.Created, firstResult.Disposition);
+            Assert.False(File.Exists(materialPath));
+            firstTransaction.Commit();
+            Assert.True(File.Exists(materialPath));
+        }
+
+        string committedPath = Path.Combine(ProjectRootPath, "assets", "materials", "TestMaterial.hasset");
+        string firstIdentity;
+        using (FileStream stream = File.OpenRead(committedPath)) {
+            firstIdentity = MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(stream).AuthoringAssetId;
+        }
+
+        GeneratedMaterialAssetDefinition secondDefinition = CreateGeneratedMaterial("Materials/TestMaterial");
+        secondDefinition.MaterialAsset.AuthoringAssetId = "abcdefabcdefabcdefabcdefabcdefab";
+        using EditorAuthoringTransaction secondTransaction = session.BeginTransaction();
+        EditorAssetWriteResult secondResult = secondTransaction.WriteMaterial("materials/TestMaterial.hasset", secondDefinition);
+
+        Assert.Equal(firstIdentity, secondResult.AssetId);
+        secondTransaction.Commit();
+        using FileStream updatedStream = File.OpenRead(committedPath);
+        Assert.Equal(firstIdentity, MaterialAssetCommonSettingsDocumentBinarySerializer.Deserialize(updatedStream).AuthoringAssetId);
+    }
+
+    [Fact]
+    public void WriteMaterial_WhenPublicationFails_RollsBackCommonAndOverridesTogether() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            AfterReplacement = (_, _) => throw new IOException("injected material publication failure")
+        };
+        using EditorAuthoringTransaction transaction = session.BeginTransaction(hooks);
+        transaction.WriteMaterial("materials/TestMaterial.hasset", CreateGeneratedMaterial("Materials/TestMaterial"));
+
+        Assert.Throws<IOException>(() => transaction.Commit());
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "materials", "TestMaterial.hasset")));
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "materials", "TestMaterial.hasset.windows.hasset")));
+    }
+
+    [Fact]
+    public void SessionRejectsSameRootTransactionBorrowedFromAnotherSession() {
+        using EditorProjectAuthoringSession firstSession = CreateSession(ProjectRootPath);
+        using EditorProjectAuthoringSession secondSession = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction secondTransaction = secondSession.BeginTransaction();
+
+        Assert.False(firstSession.OwnsTransaction(secondTransaction));
+        Assert.Throws<InvalidOperationException>(() => firstSession.WriteGeneratedMaterial(
+            "materials/TestMaterial.hasset",
+            CreateGeneratedMaterial("Materials/TestMaterial"),
+            secondTransaction));
+    }
+
+    [Fact]
+    public void SessionReference_UsesTheExactStagedIdentityBeforeCommit() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        EditorAssetWriteResult staged = transaction.WriteAsset("models/ship.hasset", CreateModel("Ship"));
+
+        SceneAssetReference reference = session.CreateReference("models/ship.hasset", AssetEntryKind.Model);
+
+        Assert.Equal(staged.AssetId, reference.AssetId);
+        Assert.Equal(staged.ContentHash, reference.ContentHash);
+        Assert.False(File.Exists(staged.FullPath));
+    }
+
+    [Fact]
     public void Commit_WhenStagedIdentityBytesAreCorrupted_FailsClosedWithoutPublishing() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         using EditorAuthoringTransaction transaction = session.BeginTransaction();
@@ -761,5 +832,24 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
             Indices32 = Array.Empty<uint>(),
             Submeshes = Array.Empty<ModelSubmeshAsset>()
         };
+    }
+
+    static GeneratedMaterialAssetDefinition CreateGeneratedMaterial(string id) {
+        GeneratedMaterialAssetDefinition definition = new GeneratedMaterialAssetDefinition {
+            MaterialAsset = new ShaderMaterialAsset {
+                Id = id,
+                RenderState = new MaterialRenderState(),
+                CastsShadows = true,
+                ReceivesShadows = true
+            }
+        };
+        GeneratedMaterialPlatformDefinition windows = definition.GetOrCreatePlatform("windows");
+        windows.SchemaId = "standard-shader";
+        windows.SetFieldValue("use-custom-shader", "false");
+        windows.SetFieldValue("shader-asset-id", "ForwardStandardShader");
+        windows.SetFieldValue("casts-shadow", "true");
+        windows.SetFieldValue("receives-shadow", "true");
+        windows.SetFieldValue("base-color", "#FFFFFFFF");
+        return definition;
     }
 }

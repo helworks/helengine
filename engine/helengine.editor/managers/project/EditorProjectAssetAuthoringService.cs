@@ -334,7 +334,13 @@ namespace helengine.editor {
         /// </summary>
         public void WriteNativeMaterial(string relativePath, GeneratedMaterialAssetDefinition definition) {
             ValidateRelativeAssetPath(relativePath);
-            new GeneratedMaterialAssetWriteService().WriteMaterial(AssetImportManagerValue.ProjectRootPath, relativePath, definition);
+            if (definition == null) {
+                throw new ArgumentNullException(nameof(definition));
+            }
+
+            using EditorAuthoringTransaction transaction = AuthoringSession.BeginTransaction();
+            AuthoringSession.WriteGeneratedMaterial(relativePath, definition, transaction);
+            transaction.Commit();
         }
 
         /// <summary>
@@ -349,7 +355,9 @@ namespace helengine.editor {
 
             definition.MaterialAsset.AuthoringAssetId = authoringAssetId;
             definition.MaterialAsset.FormerAuthoringAssetIds ??= Array.Empty<string>();
-            new GeneratedMaterialAssetWriteService().WriteMaterial(AssetImportManagerValue.ProjectRootPath, relativePath, definition);
+            using EditorAuthoringTransaction transaction = AuthoringSession.BeginTransaction();
+            AuthoringSession.WriteGeneratedMaterial(relativePath, definition, transaction);
+            transaction.Commit();
         }
 
         /// <summary>

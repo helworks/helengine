@@ -25,6 +25,47 @@ namespace helengine.editor {
         string ResolveProjectRootPath(string authoredPath) => ProjectRootPath;
 
         /// <summary>
+        /// Builds the current material-settings documents without touching the
+        /// project tree. The caller owns publication through its transaction.
+        /// </summary>
+        internal EditorGeneratedMaterialSettingsPayload BuildGeneratedPayload(
+            GeneratedMaterialAssetDefinition definition,
+            string authoringAssetId,
+            IReadOnlyList<string> formerAuthoringAssetIds) {
+            if (definition == null) {
+                throw new ArgumentNullException(nameof(definition));
+            } else if (string.IsNullOrWhiteSpace(authoringAssetId)) {
+                throw new ArgumentException("Material authoring asset id must be provided.", nameof(authoringAssetId));
+            }
+
+            MaterialAssetImportSettings settings = EditorGeneratedMaterialSettingsBuilder.Build(definition);
+            MaterialAssetCommonSettingsDocument commonDocument = BuildCommonDocument(settings);
+            commonDocument.AuthoringAssetId = authoringAssetId;
+            commonDocument.FormerAuthoringAssetIds = formerAuthoringAssetIds == null
+                ? new List<string>()
+                : new List<string>(formerAuthoringAssetIds);
+
+            using MemoryStream commonBytes = new MemoryStream();
+            MaterialAssetCommonSettingsDocumentBinarySerializer.Serialize(commonBytes, commonDocument);
+
+            Dictionary<string, byte[]> overrideBytesBySuffix = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, MaterialAssetPlatformOverrideDocument> overrideDocuments = BuildOverrideDocuments(settings, commonDocument);
+            foreach (KeyValuePair<string, MaterialAssetPlatformOverrideDocument> entry in overrideDocuments) {
+                string suffix = string.IsNullOrWhiteSpace(entry.Value.EnvironmentId)
+                    ? "." + entry.Value.PlatformId + AssetImportManager.SettingsExtension
+                    : "." + entry.Value.PlatformId + "." + entry.Value.EnvironmentId + AssetImportManager.SettingsExtension;
+                using MemoryStream overrideBytes = new MemoryStream();
+                MaterialAssetPlatformOverrideDocumentBinarySerializer.Serialize(overrideBytes, entry.Value);
+                overrideBytesBySuffix[suffix] = overrideBytes.ToArray();
+            }
+
+            return new EditorGeneratedMaterialSettingsPayload {
+                CommonBytes = commonBytes.ToArray(),
+                OverrideBytesBySuffix = overrideBytesBySuffix
+            };
+        }
+
+        /// <summary>
         /// Importer identifier stored on material-settings sidecars.
         /// </summary>
         const string MaterialImporterId = "helengine.material";
