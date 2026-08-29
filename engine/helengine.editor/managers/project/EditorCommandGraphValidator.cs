@@ -21,9 +21,9 @@ namespace helengine.editor {
             if (authoring == null) {
                 throw new ArgumentNullException(nameof(authoring));
             }
-            string expectedRoot = Path.GetFullPath(expectedProjectRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string authoringRoot = Path.GetFullPath(authoring.ProjectRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (!string.Equals(authoringRoot, expectedRoot, StringComparison.OrdinalIgnoreCase)) {
+            string expectedRoot = EditorProjectAuthoringSession.CanonicalizeProjectRootPath(expectedProjectRootPath);
+            string authoringRoot = EditorProjectAuthoringSession.CanonicalizeProjectRootPath(authoring.ProjectRootPath);
+            if (!string.Equals(authoringRoot, expectedRoot, EditorProjectAuthoringSession.ProjectRootPathComparison)) {
                 throw new InvalidOperationException("Command authoring and invocation project root must be identical.");
             }
             if (!ReferenceEquals(authoring.OwningCore, core)) {

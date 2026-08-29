@@ -7,11 +7,24 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies scale gizmo drags operate on stored local scale values instead of composed world scale.
     /// </summary>
     public sealed class TransformScaleGizmoDragComponentTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices;
+        readonly TestInputBackend InputBackendValue;
         /// <summary>
         /// Camera created for the current test so shared gizmo state can be cleaned up.
         /// </summary>
         CameraComponent SceneCameraValue;
+
+        public TransformScaleGizmoDragComponentTests() {
+            CoreValue = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            InputBackendValue = new TestInputBackend();
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), InputBackendValue, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+            InteractionServices = GeneratedAssetGraph.InteractionServices;
+        }
 
         /// <summary>
         /// Clears shared editor state and disposes the active core after each drag test.
@@ -24,7 +37,8 @@ namespace helengine.editor.tests.managers.gizmo {
                 InteractionServices.GizmoDrag.EndDrag(SceneCameraValue);
             }
 
-            Core.Instance?.Dispose();
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -36,10 +50,10 @@ namespace helengine.editor.tests.managers.gizmo {
             CameraComponent sceneCamera = CreateSceneCamera();
             InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
 
-            EditorEntity parentEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity parentEntity = new EditorEntity(CoreValue, InteractionServices) {
                 Scale = new float3(2f, 2f, 2f)
             };
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices) {
                 Position = float3.Zero,
                 LocalScale = new float3(1f, 1f, 1f),
                 Orientation = float4.Identity
@@ -48,7 +62,7 @@ namespace helengine.editor.tests.managers.gizmo {
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             EditorEntity handleEntity = CreateAxisHandleEntity();
-            EditorEntity owner = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity owner = new EditorEntity(CoreValue, InteractionServices);
             TransformScaleGizmoDragComponent component = new TransformScaleGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
 
@@ -65,13 +79,8 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Input backend used by the current test.</returns>
         TestInputBackend InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
-            });
-            TestInputBackend input = new TestInputBackend();
-            core.InputSystem.SetMouseClientBounds(new int2(500, 400));
-            core.Initialize(null, null, input, new PlatformInfo("test", "test-version"));
-            return input;
+            CoreValue.InputSystem.SetMouseClientBounds(new int2(500, 400));
+            return InputBackendValue;
         }
 
         /// <summary>
@@ -79,7 +88,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Configured scene camera component used by the drag controller.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 Position = new float3(0f, 0f, 100f),
                 Orientation = float4.Identity
@@ -98,7 +107,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Hovered handle entity.</returns>
         EditorEntity CreateAxisHandleEntity() {
-            EditorEntity handleEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity handleEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 Orientation = float4.Identity
             };

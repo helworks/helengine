@@ -9,11 +9,22 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies transform-gizmo drag components request client-edge pointer wrapping only while a drag remains active.
     /// </summary>
     public class TransformGizmoPointerWrapTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices;
+        readonly TestInputBackend InputBackendValue;
         /// <summary>
         /// Camera created for the current test so shared tool and drag state can be cleaned up.
         /// </summary>
         CameraComponent CameraUnderTest;
+
+        public TransformGizmoPointerWrapTests() {
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            InputBackendValue = new TestInputBackend();
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), InputBackendValue, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+            InteractionServices = GeneratedAssetGraph.InteractionServices;
+        }
 
         /// <summary>
         /// Clears shared editor state after each gizmo pointer-wrap test.
@@ -25,6 +36,8 @@ namespace helengine.editor.tests.managers.gizmo {
                 InteractionServices.ViewportTool.ClearToolMode(CameraUnderTest);
                 InteractionServices.GizmoDrag.EndDrag(CameraUnderTest);
             }
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -37,16 +50,16 @@ namespace helengine.editor.tests.managers.gizmo {
             InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Translate);
             EditorEntity selectedEntity = CreateSelectedEntity();
             EditorEntity handleEntity = CreateAxisHandleEntity();
-            EditorEntity owner = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity owner = new EditorEntity(CoreValue, InteractionServices);
             TransformTranslationGizmoDragComponent component = new TransformTranslationGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
             InitializeActiveTranslationDrag(component, selectedEntity, handleEntity);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Pressed));
-            Assert.True(Core.Instance.InputSystem.IsPointerWrapEnabled);
+            Assert.True(CoreValue.InputSystem.IsPointerWrapEnabled);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Released));
-            Assert.False(Core.Instance.InputSystem.IsPointerWrapEnabled);
+            Assert.False(CoreValue.InputSystem.IsPointerWrapEnabled);
         }
 
         /// <summary>
@@ -59,16 +72,16 @@ namespace helengine.editor.tests.managers.gizmo {
             InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Rotate);
             EditorEntity selectedEntity = CreateSelectedEntity();
             EditorEntity handleEntity = CreateAxisHandleEntity();
-            EditorEntity owner = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity owner = new EditorEntity(CoreValue, InteractionServices);
             TransformRotationGizmoDragComponent component = new TransformRotationGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
             InitializeActiveRotationDrag(component, selectedEntity, handleEntity);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Pressed));
-            Assert.True(Core.Instance.InputSystem.IsPointerWrapEnabled);
+            Assert.True(CoreValue.InputSystem.IsPointerWrapEnabled);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Released));
-            Assert.False(Core.Instance.InputSystem.IsPointerWrapEnabled);
+            Assert.False(CoreValue.InputSystem.IsPointerWrapEnabled);
         }
 
         /// <summary>
@@ -81,16 +94,16 @@ namespace helengine.editor.tests.managers.gizmo {
             InteractionServices.ViewportTool.SetToolMode(sceneCamera, EditorViewportToolMode.Scale);
             EditorEntity selectedEntity = CreateSelectedEntity();
             EditorEntity handleEntity = CreateAxisHandleEntity();
-            EditorEntity owner = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity owner = new EditorEntity(CoreValue, InteractionServices);
             TransformScaleGizmoDragComponent component = new TransformScaleGizmoDragComponent(sceneCamera);
             owner.AddComponent(component);
             InitializeActiveScaleDrag(component, selectedEntity, handleEntity);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Pressed));
-            Assert.True(Core.Instance.InputSystem.IsPointerWrapEnabled);
+            Assert.True(CoreValue.InputSystem.IsPointerWrapEnabled);
 
             CompleteDragFrame(input, component, CreateMouseState(250, 200, ButtonState.Released));
-            Assert.False(Core.Instance.InputSystem.IsPointerWrapEnabled);
+            Assert.False(CoreValue.InputSystem.IsPointerWrapEnabled);
         }
 
         /// <summary>
@@ -98,11 +111,8 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
         TestInputBackend InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            TestInputBackend input = new TestInputBackend();
-            core.InputSystem.SetMouseClientBounds(new int2(500, 400));
-            core.Initialize(null, null, input, new PlatformInfo("test", "test-version"));
-            return input;
+            CoreValue.InputSystem.SetMouseClientBounds(new int2(500, 400));
+            return InputBackendValue;
         }
 
         /// <summary>
@@ -110,7 +120,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Configured camera component used by the drag controller.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true
             };
 
@@ -128,7 +138,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Selected entity registered with the editor selection service.</returns>
         EditorEntity CreateSelectedEntity() {
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices) {
                 Position = new float3(0f, 0f, 0f),
                 Scale = new float3(1f, 1f, 1f),
                 Orientation = float4.Identity
@@ -143,7 +153,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Handle entity used by the active drag state.</returns>
         EditorEntity CreateAxisHandleEntity() {
-            EditorEntity handleEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity handleEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 Orientation = float4.Identity
             };
@@ -254,4 +264,3 @@ namespace helengine.editor.tests.managers.gizmo {
         }
     }
 }
-

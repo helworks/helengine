@@ -4,6 +4,25 @@ namespace helengine.editor {
     /// </summary>
     public sealed class EditorProjectAuthoringSession : IEditorProjectAuthoringSession, IEditorProjectAssetAuthoringService {
         /// <summary>
+        /// Selects the platform-correct comparison for canonical project roots.
+        /// Windows paths are case-insensitive; all other platforms preserve case.
+        /// </summary>
+        internal static StringComparison ProjectRootPathComparison => OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        /// <summary>
+        /// Canonicalizes a project root for ownership comparisons.
+        /// </summary>
+        internal static string CanonicalizeProjectRootPath(string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
+            return Path.GetFullPath(projectRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        /// <summary>
         /// Canonical project root owned by this session.
         /// </summary>
         readonly string ProjectRootPathValue;
@@ -209,9 +228,7 @@ namespace helengine.editor {
             ProjectRootPathValue = Path.GetFullPath(AssetImportManagerValue.ProjectRootPath);
             AssetsRootPath = Path.GetFullPath(AssetImportManagerValue.AssetsRootPath);
             string expectedAssetsRootPath = Path.Combine(ProjectRootPathValue, "assets");
-            StringComparison pathComparison = OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
+            StringComparison pathComparison = ProjectRootPathComparison;
             if (!string.Equals(AssetsRootPath, expectedAssetsRootPath, pathComparison)) {
                 throw new InvalidOperationException("The host asset import manager assets root does not belong to its canonical project root.");
             }
@@ -690,9 +707,7 @@ namespace helengine.editor {
             string projectRootPath = Path.GetFullPath(assetImportManager.ProjectRootPath);
             string assetsRootPath = Path.GetFullPath(assetImportManager.AssetsRootPath);
             string expectedAssetsRootPath = Path.Combine(projectRootPath, "assets");
-            StringComparison comparison = OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
+            StringComparison comparison = ProjectRootPathComparison;
             if (!string.Equals(assetsRootPath, expectedAssetsRootPath, comparison)) {
                 throw new InvalidOperationException("The host asset import manager assets root does not belong to its canonical project root.");
             }
@@ -971,9 +986,7 @@ namespace helengine.editor {
 
             string fullPath = Path.GetFullPath(Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
             string assetsPrefix = AssetsRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            StringComparison comparison = OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
+            StringComparison comparison = ProjectRootPathComparison;
             if (!fullPath.StartsWith(assetsPrefix, comparison)) {
                 throw new InvalidOperationException("Asset path must remain beneath the project assets root.");
             }
@@ -985,9 +998,7 @@ namespace helengine.editor {
         /// <summary>Rejects links or junctions between the assets root and a public authoring path.</summary>
         void ValidateNoReparseTraversal(string fullPath) {
             string rootPath = Path.GetFullPath(AssetsRootPath);
-            StringComparison comparison = OperatingSystem.IsWindows()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
+            StringComparison comparison = ProjectRootPathComparison;
             string currentPath = fullPath;
             while (true) {
                 try {

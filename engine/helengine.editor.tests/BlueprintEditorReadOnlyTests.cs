@@ -7,23 +7,29 @@ namespace helengine.editor.tests {
     /// Verifies hierarchy and inspector behavior for blueprint-inherited scene content.
     /// </summary>
     public class BlueprintEditorReadOnlyTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices;
         readonly string TempRootPath;
 
         public BlueprintEditorReadOnlyTests() {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-blueprint-editor-readonly-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(TempRootPath);
-            InteractionServices.Selection.ClearSelection();
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+            InteractionServices = GeneratedAssetGraph.InteractionServices;
+            InteractionServices.Selection.ClearSelection();
 
             CreateUiCamera(640, 480, EditorLayerMasks.SceneHierarchyContent);
         }
 
         public void Dispose() {
             InteractionServices.Selection.ClearSelection();
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -31,7 +37,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void RefreshHierarchy_WhenEntityIsInheritedBlueprint_AppendsBlueprintSuffixAndUsesSecondaryTextColor() {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Blueprint Child"
             };
             entity.AddComponent(new BlueprintInheritedEntityComponent {
@@ -39,7 +45,7 @@ namespace helengine.editor.tests {
                 SourceEntityId = 7u
             });
 
-            SceneHierarchyPanel panel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            SceneHierarchyPanel panel = CreateHierarchyPanel();
             panel.RefreshHierarchy();
 
             SceneHierarchyRow row = FindVisibleRow(panel, entity);
@@ -50,7 +56,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void ShowComponents_WhenReadOnlyRequested_UsesReadOnlyRowsAndDisablesSectionRemoveButtons() {
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            ComponentPropertiesView view = CreateComponentPropertiesView();
             EditorEntity entity = CreateInheritedEntity();
 
             view.ShowComponents(entity, ComponentPlatformEditingService.CommonPlatformId, true);
@@ -65,7 +71,7 @@ namespace helengine.editor.tests {
 
         [Fact]
         public void ShowEntityProperties_WhenEntityIsInheritedBlueprint_HidesTransformEditingAndUsesReadOnlyComponentRows() {
-            PropertiesPanel panel = new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            PropertiesPanel panel = CreatePropertiesPanel();
             EditorEntity entity = CreateInheritedEntity();
 
             panel.ShowEntityProperties(entity, new[] { "windows" });
@@ -87,7 +93,7 @@ namespace helengine.editor.tests {
         }
 
         EditorEntity CreateInheritedEntity() {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Blueprint Child"
             };
             entity.AddComponent(new DirectionalLightComponent {
@@ -140,7 +146,7 @@ namespace helengine.editor.tests {
         }
 
         void CreateUiCamera(int width, int height, ushort layerMask) {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = layerMask
             };
@@ -151,6 +157,29 @@ namespace helengine.editor.tests {
                 Viewport = new float4(0f, 0f, width, height)
             };
             cameraEntity.AddComponent(camera);
+        }
+
+        SceneHierarchyPanel CreateHierarchyPanel() {
+            SceneHierarchyPanel panel = new SceneHierarchyPanel(CoreValue, InteractionServices, CreateFont());
+            panel.SetObjectManager(CoreValue.ObjectManager);
+            panel.SetInput(CoreValue.Input);
+            panel.RefreshHierarchy();
+            return panel;
+        }
+
+        ComponentPropertiesView CreateComponentPropertiesView() {
+            ComponentPropertiesView view = new ComponentPropertiesView(CoreValue, InteractionServices, CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            view.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
+            return view;
+        }
+
+        PropertiesPanel CreatePropertiesPanel() {
+            PropertiesPanel panel = new PropertiesPanel(CoreValue, InteractionServices, CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath)));
+            panel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
+            panel.SetRendererResources(GeneratedAssetGraph.RendererResources);
+            panel.SetInput(CoreValue.Input);
+            return panel;
         }
     }
 }

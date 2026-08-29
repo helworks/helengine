@@ -489,6 +489,45 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
     }
 
     [Fact]
+    public void EditorCommandContext_UsesPlatformSpecificProjectRootCaseComparison() {
+        string projectRoot = CreateProjectRoot();
+        Core core = CreateCore(projectRoot);
+        TestGeneratedAssetGraph graph = new TestGeneratedAssetGraph(core);
+        EditorProjectAuthoringSession concreteAuthoring = CreateAuthoringSession(projectRoot, graph);
+
+        try {
+            IEditorProjectAuthoringSession authoring = new AuthoringSessionProjection(concreteAuthoring, projectRoot);
+            string caseVariantRoot = projectRoot.ToUpperInvariant();
+
+            if (OperatingSystem.IsWindows()) {
+                EditorCommandContext context = new EditorCommandContext(
+                    caseVariantRoot,
+                    new ScriptTypeResolver(),
+                    authoring,
+                    core,
+                    graph.InteractionServices,
+                    graph.Registry,
+                    graph.RendererResources);
+                Assert.Same(authoring, context.Authoring);
+            } else {
+                Assert.Throws<InvalidOperationException>(() => new EditorCommandContext(
+                    caseVariantRoot,
+                    new ScriptTypeResolver(),
+                    authoring,
+                    core,
+                    graph.InteractionServices,
+                    graph.Registry,
+                    graph.RendererResources));
+            }
+        } finally {
+            concreteAuthoring.Dispose();
+            graph.Dispose();
+            core.Dispose();
+            DeleteProjectRoot(projectRoot);
+        }
+    }
+
+    [Fact]
     public void LiveAuthoringSessions_KeepResolverGraphsIndependentAfterSessionADisposes() {
         string projectRootA = CreateProjectRoot();
         string projectRootB = CreateProjectRoot();

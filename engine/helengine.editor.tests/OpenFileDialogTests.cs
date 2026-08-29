@@ -9,7 +9,9 @@ namespace helengine.editor.tests {
     /// Verifies the editor open-file dialog used for scene loading.
     /// </summary>
     public class OpenFileDialogTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices;
         /// <summary>
         /// Temporary project root used by the open dialog.
         /// </summary>
@@ -25,17 +27,24 @@ namespace helengine.editor.tests {
         public OpenFileDialogTests() {
             ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-open-file-dialog-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Scenes"));
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
             });
             Input = new TestInputBackend();
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), Input, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+            InteractionServices = GeneratedAssetGraph.InteractionServices;
+            InteractionServices.Selection.ClearSelection();
+            CreateUiCamera(1280, 720);
         }
 
         /// <summary>
         /// Deletes temporary test state after each test.
         /// </summary>
         public void Dispose() {
+            InteractionServices.Selection.ClearSelection();
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }
@@ -49,7 +58,7 @@ namespace helengine.editor.tests {
             string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
             string expectedPath = Path.Combine(scenesDirectoryPath, "Level01.helen");
             File.WriteAllText(expectedPath, "scene");
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
             string raisedPath = string.Empty;
             dialog.OpenRequested += path => raisedPath = path;
             dialog.Show("Scenes");
@@ -69,7 +78,7 @@ namespace helengine.editor.tests {
             string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
             string expectedPath = Path.Combine(scenesDirectoryPath, "Level01.helen");
             File.WriteAllText(expectedPath, "scene");
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
             string raisedPath = string.Empty;
             dialog.OpenRequested += path => raisedPath = path;
             dialog.Show("Scenes");
@@ -88,9 +97,9 @@ namespace helengine.editor.tests {
         [Fact]
         public void RefreshEntries_WhenOpenDialogIsVisible_FiltersToHelenFiles() {
             string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
-            File.WriteAllText(Path.Combine(scenesDirectoryPath, "Level01.helen"), "scene");
+            WriteNativeScene(Path.Combine(scenesDirectoryPath, "Level01.helen"));
             File.WriteAllText(Path.Combine(scenesDirectoryPath, "Preview.png"), "image");
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -107,9 +116,9 @@ namespace helengine.editor.tests {
         [Fact]
         public void ActivateRow_WhenSceneFileIsClicked_KeepsTheMatchingRowHighlighted() {
             string scenesDirectoryPath = Path.Combine(ProjectRootPath, "assets", "Scenes");
-            File.WriteAllText(Path.Combine(scenesDirectoryPath, "Level01.helen"), "scene");
-            File.WriteAllText(Path.Combine(scenesDirectoryPath, "Level02.helen"), "scene");
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            WriteNativeScene(Path.Combine(scenesDirectoryPath, "Level01.helen"));
+            WriteNativeScene(Path.Combine(scenesDirectoryPath, "Level02.helen"));
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -128,7 +137,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_InheritsSharedModalShellAndTitleBar() {
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
 
             TextComponent titleText = GetPrivateField<TextComponent>(dialog, "TitleText");
             ButtonComponent closeButton = GetPrivateField<ButtonComponent>(dialog, "CloseButton");
@@ -145,7 +154,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_WhenOpened_PositionsBrowserStatusAndFooterImmediately() {
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
 
             dialog.Show("Scenes");
 
@@ -168,7 +177,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenCalled_ResizesThePanelBackgroundToTheDialogBounds() {
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -184,7 +193,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenShown_UsesTheExpectedStartingPanelSize() {
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -200,7 +209,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void UpdateLayout_WithScaledMetrics_UsesScaledPanelAndFooterButtons() {
             EditorUiMetrics metrics = new EditorUiMetrics(1.5d);
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), metrics, ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), metrics, ProjectRootPath, GeneratedAssetGraph.Registry);
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -219,7 +228,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Show_AfterHide_RegistersOpenButtonLabelAfterItsBackground() {
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -231,8 +240,8 @@ namespace helengine.editor.tests {
             TextComponent openText = GetPrivateField<TextComponent>(openButton, "textComponent");
             RoundedRectComponent openBackground = GetPrivateField<RoundedRectComponent>(openButton, "roundedRect");
 
-            int textIndex = Core.Instance.ObjectManager.Drawables2D.IndexOf(openText);
-            int backgroundIndex = Core.Instance.ObjectManager.Drawables2D.IndexOf(openBackground);
+            int textIndex = CoreValue.ObjectManager.Drawables2D.IndexOf(openText);
+            int backgroundIndex = CoreValue.ObjectManager.Drawables2D.IndexOf(openBackground);
 
             Assert.True(backgroundIndex >= 0);
             Assert.True(textIndex > backgroundIndex);
@@ -243,7 +252,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleBottomRightResizeGrip_WhenDragged_PreservesTheResizedPanelSizeAcrossLayoutUpdates() {
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -272,7 +281,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleBottomRightResizeGrip_WhenDraggedToTheBottomEdge_ClampsTheDialogHeightAtTheHostBoundary() {
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
 
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
@@ -313,7 +322,7 @@ namespace helengine.editor.tests {
                 }
             };
 
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -326,7 +335,7 @@ namespace helengine.editor.tests {
             Input.EarlyUpdate();
             Input.Update();
 
-            Assert.NotSame(behindInteractable, Core.Instance.PointerInteractionSystem.Hovering);
+            Assert.NotSame(behindInteractable, CoreValue.PointerInteractionSystem.Hovering);
             Assert.Equal(0, behindHoverCount);
         }
 
@@ -348,7 +357,7 @@ namespace helengine.editor.tests {
                 }
             };
 
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -358,7 +367,7 @@ namespace helengine.editor.tests {
             Input.EarlyUpdate();
             Input.Update();
 
-            Assert.NotSame(behindInteractable, Core.Instance.PointerInteractionSystem.Hovering);
+            Assert.NotSame(behindInteractable, CoreValue.PointerInteractionSystem.Hovering);
             Assert.Equal(0, behindHoverCount);
         }
 
@@ -369,7 +378,7 @@ namespace helengine.editor.tests {
         public void Update_WhenPointerMovesAcrossTitleBarButtonGap_DoesNotRegisterAnInputBlocker() {
             CreateUiCamera(1280, 720);
 
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -383,7 +392,7 @@ namespace helengine.editor.tests {
         public void Update_WhenPointerClicksTitleBarCloseButton_HidesDialog() {
             CreateModalCamera(1280, 720);
 
-            OpenFileDialog dialog = new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), ProjectRootPath, new GeneratedAssetProviderRegistry());
+            OpenFileDialog dialog = new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), ProjectRootPath, GeneratedAssetGraph.Registry);
             dialog.Show("Scenes");
             dialog.UpdateLayout(1280, 720);
 
@@ -448,6 +457,20 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Writes a minimal valid native scene so the asset identity reader can
+        /// classify it without relying on legacy text fixtures.
+        /// </summary>
+        void WriteNativeScene(string path) {
+            using FileStream stream = File.Create(path);
+            AssetSerializer.Serialize(stream, new SceneAsset {
+                Id = Path.GetFileName(path),
+                AuthoringAssetId = Guid.NewGuid().ToString("N"),
+                RootEntities = Array.Empty<SceneEntityAsset>(),
+                AssetReferences = Array.Empty<SceneAssetReference>()
+            });
+        }
+
+        /// <summary>
         /// Finds one visible asset-browser row by its project-relative path.
         /// </summary>
         /// <param name="browserView">Browser view that owns the rows.</param>
@@ -487,7 +510,7 @@ namespace helengine.editor.tests {
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
         void CreateUiCamera(int width, int height) {
-            EditorEntity sharedCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity sharedCameraEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
@@ -508,7 +531,7 @@ namespace helengine.editor.tests {
         /// <param name="width">Viewport width in pixels.</param>
         /// <param name="height">Viewport height in pixels.</param>
         void CreateModalCamera(int width, int height) {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorModalUi
             };
@@ -529,14 +552,14 @@ namespace helengine.editor.tests {
         /// <param name="renderOrder">Render order assigned to the visible surface.</param>
         /// <returns>Interactable component attached to the new entity.</returns>
         InteractableComponent CreateInteractableEntity(float3 position, int2 size, byte renderOrder) {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi,
                 Position = position
             };
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = Core.Instance.RenderManager2D.PixelTexture,
+                Texture = CoreValue.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };
@@ -603,5 +626,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-
-

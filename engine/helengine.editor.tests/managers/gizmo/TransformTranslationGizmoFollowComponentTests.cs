@@ -8,8 +8,10 @@ namespace helengine.editor.tests.managers.gizmo {
     /// Verifies translation-gizmo follow behavior for the reusable snap-preview grid.
     /// </summary>
     public class TransformTranslationGizmoFollowComponentTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
-        Core CoreUnderTest;
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
+        readonly helengine.editor.EditorSessionInteractionServices InteractionServices;
+        readonly TestInputBackend InputBackendValue;
         /// <summary>
         /// Tolerance used for floating-point comparisons.
         /// </summary>
@@ -18,6 +20,14 @@ namespace helengine.editor.tests.managers.gizmo {
         /// Camera created for the current test so shared tool state can be cleaned up.
         /// </summary>
         CameraComponent CameraUnderTest;
+
+        public TransformTranslationGizmoFollowComponentTests() {
+            CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            InputBackendValue = new TestInputBackend();
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), InputBackendValue, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
+            InteractionServices = GeneratedAssetGraph.InteractionServices;
+        }
 
         /// <summary>
         /// Clears shared editor state after each test.
@@ -30,6 +40,8 @@ namespace helengine.editor.tests.managers.gizmo {
                 InteractionServices.ViewportTool.ClearToolMode(CameraUnderTest);
                 InteractionServices.GizmoDrag.EndDrag(CameraUnderTest);
             }
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -47,7 +59,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             InteractionServices.GizmoHover.SetHoveredHandle(gizmoRoot.Children[0]);
 
@@ -78,7 +90,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             InteractionServices.GizmoHover.SetHoveredHandle(gizmoRoot.Children[0]);
 
@@ -128,7 +140,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
-            InteractionServices.Selection.SetSelectedEntity(new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()));
+            InteractionServices.Selection.SetSelectedEntity(new EditorEntity(CoreValue, InteractionServices));
 
             UpdateFollowComponent(gizmoRoot);
 
@@ -178,7 +190,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 previewEntity);
             gizmoRoot.AddComponent(followComponent);
 
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             selectedEntity.Position = new float3(0f, 0f, 0f);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             UpdateFollowComponent(gizmoRoot);
@@ -230,7 +242,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 planeHighlightMaterial,
                 previewEntity));
 
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             EditorEntity planeHandle = (EditorEntity)gizmoRoot.Children[1];
             InteractionServices.GizmoHover.SetHoveredHandle(planeHandle);
@@ -261,7 +273,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
             input.SetKeyboardState(new KeyboardState(Keys.LeftControl));
             input.EarlyUpdate();
@@ -298,7 +310,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
@@ -329,7 +341,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
@@ -360,7 +372,7 @@ namespace helengine.editor.tests.managers.gizmo {
             EditorEntity gizmoRoot = CreateGizmoRoot(normalMaterial, normalMaterial, previewEntity);
             gizmoRoot.AddComponent(new TransformTranslationGizmoFollowComponent(sceneCamera, gizmoRoot, normalMaterial, highlightMaterial, previewEntity));
 
-            EditorEntity selectedEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity selectedEntity = new EditorEntity(CoreValue, InteractionServices);
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
 
             UpdateFollowComponent(gizmoRoot);
@@ -384,13 +396,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Input manager used by the current test.</returns>
         TestInputBackend InitializeCore() {
-            Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            CoreUnderTest = core;
-            var input = new TestInputBackend();
-            core.Initialize(null, null, input, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
-                ContentStreamSource = new FakeContentStreamSource()
-            });
-            return input;
+            return InputBackendValue;
         }
 
         /// <summary>
@@ -399,7 +405,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="cameraPosition">World-space camera position.</param>
         /// <returns>Configured scene camera component.</returns>
         CameraComponent CreateSceneCamera(float3 cameraPosition) {
-            var cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 Position = cameraPosition
             };
@@ -408,7 +414,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 Viewport = new float4(0f, 0f, 1280f, 720f)
             };
             cameraEntity.AddComponent(sceneCamera);
-            Core.Instance.ObjectManager.Cameras.Clear();
+            CoreValue.ObjectManager.Cameras.Clear();
             CameraUnderTest = sceneCamera;
             return sceneCamera;
         }
@@ -421,7 +427,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="previewEntity">Reusable preview entity owned by the gizmo root.</param>
         /// <returns>Configured translation gizmo root.</returns>
         EditorEntity CreateGizmoRoot(RuntimeMaterial axisMaterial, RuntimeMaterial planeMaterial, EditorEntity previewEntity) {
-            var gizmoRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var gizmoRoot = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,
                 Name = "Transform Translation Gizmo"
@@ -441,7 +447,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="material">Material assigned to the axis meshes.</param>
         /// <returns>Configured axis entity.</returns>
         EditorEntity CreateAxisEntity(string name, float4 orientation, RuntimeMaterial material) {
-            var axisEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var axisEntity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = name,
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,
@@ -451,7 +457,7 @@ namespace helengine.editor.tests.managers.gizmo {
             };
             axisEntity.AddComponent(new TransformGizmoHandleComponent(new float3(0f, 1f, 0f)));
 
-            var shaftEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var shaftEntity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = string.Concat(name, " Shaft"),
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,
@@ -464,7 +470,7 @@ namespace helengine.editor.tests.managers.gizmo {
             shaftEntity.AddComponent(shaftMesh);
             axisEntity.AddChild(shaftEntity);
 
-            var tipEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var tipEntity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = string.Concat(name, " Tip"),
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,
@@ -488,7 +494,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="material">Material assigned to the plane handle mesh.</param>
         /// <returns>Configured plane handle entity.</returns>
         EditorEntity CreatePlaneEntity(string name, RuntimeMaterial material) {
-            var planeEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var planeEntity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = name,
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,
@@ -512,7 +518,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="material">Material assigned to the preview mesh.</param>
         /// <returns>Configured preview entity.</returns>
         EditorEntity CreatePreviewEntity(RuntimeMaterial material) {
-            var previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            var previewEntity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Transform Gizmo Snap Preview",
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.SceneGizmo,
@@ -690,7 +696,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// <param name="size">Authored sprite size.</param>
         /// <returns>Viewport-owned authored sprite entity.</returns>
         Entity CreateViewportOwnedSpriteEntity(float3 localPosition, int2 size) {
-            Entity viewportEntity = new Entity(Core.Instance);
+            Entity viewportEntity = new Entity(CoreValue);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -698,7 +704,7 @@ namespace helengine.editor.tests.managers.gizmo {
                 FixedSize = new int2(1280, 720)
             });
 
-            Entity selectedEntity = new Entity(Core.Instance) {
+            Entity selectedEntity = new Entity(CoreValue) {
                 LocalPosition = localPosition
             };
             selectedEntity.InitComponents();
@@ -711,4 +717,3 @@ namespace helengine.editor.tests.managers.gizmo {
         }
     }
 }
-

@@ -117,7 +117,10 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Nested editor commands must use the outer invocation renderer and interaction graph.");
             }
             string optionsProjectRootPath = ResolveCanonicalProjectRootPath(options.ProjectPath);
-            if (!string.Equals(optionsProjectRootPath, bootstrap.ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
+            if (!string.Equals(
+                EditorProjectAuthoringSession.CanonicalizeProjectRootPath(optionsProjectRootPath),
+                EditorProjectAuthoringSession.CanonicalizeProjectRootPath(bootstrap.ProjectRootPath),
+                EditorProjectAuthoringSession.ProjectRootPathComparison)) {
                 throw new InvalidOperationException("Nested editor commands must use the outer invocation project root.");
             }
 
@@ -244,7 +247,10 @@ namespace helengine.editor {
             }
 
             string optionsProjectRootPath = ResolveCanonicalProjectRootPath(options.ProjectPath);
-            if (!string.Equals(optionsProjectRootPath, bootstrap.ProjectRootPath, StringComparison.OrdinalIgnoreCase)) {
+            if (!string.Equals(
+                EditorProjectAuthoringSession.CanonicalizeProjectRootPath(optionsProjectRootPath),
+                EditorProjectAuthoringSession.CanonicalizeProjectRootPath(bootstrap.ProjectRootPath),
+                EditorProjectAuthoringSession.ProjectRootPathComparison)) {
                 throw new InvalidOperationException("Nested editor commands must use the outer invocation project root.");
             }
 
