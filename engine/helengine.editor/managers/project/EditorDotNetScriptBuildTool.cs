@@ -28,24 +28,49 @@ namespace helengine.editor {
         const string MsBuildOutputRootDirectoryName = "helengine-msbuild-output-roots";
 
         /// <summary>
-        /// Marker file used to prove that a staging or backup directory belongs to this publisher.
+        /// Sibling directory containing the operation manifest for one publication token.
         /// </summary>
-        const string PublicationMarkerFileName = ".helengine-publication-marker";
+        const string PublicationOperationDirectorySuffix = ".operation-";
 
         /// <summary>
-        /// Marker format identifier. The current format is intentionally strict and has no compatibility readers.
+        /// Marker file inside one operation directory.
         /// </summary>
-        const string PublicationMarkerFormat = "helengine-publication";
+        const string PublicationOperationMarkerFileName = ".helengine-publication-operation";
 
         /// <summary>
-        /// Marker kind for a complete build tree that is waiting to be published.
+        /// Current publication marker format. There is no compatibility reader for older formats.
         /// </summary>
-        const string PublicationStagingKind = "staging";
+        const string PublicationOperationFormat = "helengine-publication";
 
         /// <summary>
-        /// Marker kind for the previous destination retained during an atomic replacement.
+        /// Operation phase before a complete staging tree exists.
         /// </summary>
-        const string PublicationBackupKind = "backup";
+        const string PublicationPreparedPhase = "prepared";
+
+        /// <summary>
+        /// Operation phase after a complete staging tree exists.
+        /// </summary>
+        const string PublicationStagedPhase = "staged";
+
+        /// <summary>
+        /// Operation phase immediately before moving the live destination to its backup sibling.
+        /// </summary>
+        const string PublicationBackupMovingPhase = "backup-moving";
+
+        /// <summary>
+        /// Operation phase after the live destination has moved to the backup sibling.
+        /// </summary>
+        const string PublicationBackupMovedPhase = "backup-moved";
+
+        /// <summary>
+        /// Operation phase after the complete staged tree has become the destination.
+        /// </summary>
+        const string PublicationDestinationMovedPhase = "destination-moved";
+
+        /// <summary>
+        /// Optional deterministic move-failure seam used by publication recovery tests.
+        /// </summary>
+        internal static Action<string, string> PublicationMoveHookForTests { get; set; }
 
         /// <summary>
         /// Builds one solution file and returns the captured process outcome.
@@ -236,39 +261,56 @@ namespace helengine.editor {
 
             RecoverPublicationLeftovers(destinationParentPath, destinationName, destinationRootPath);
             string stagingToken = Guid.NewGuid().ToString("N");
-            string backupToken = Guid.NewGuid().ToString("N");
             string stagingRootPath = Path.Combine(destinationParentPath, destinationName + ".staging-" + stagingToken);
-            string backupRootPath = Path.Combine(destinationParentPath, destinationName + ".backup-" + backupToken);
+            string backupRootPath = Path.Combine(destinationParentPath, destinationName + ".backup-" + stagingToken);
+            string operationRootPath = Path.Combine(destinationParentPath, destinationName + PublicationOperationDirectorySuffix + stagingToken);
             bool destinationMoved = false;
+            bool retainOwnedArtifactsForRecovery = false;
             try {
+                Directory.CreateDirectory(operationRootPath);
+                WritePublicationOperationMarker(operationRootPath, destinationRootPath, stagingToken, PublicationPreparedPhase);
                 CopyDirectory(msbuildOutputRootPath, stagingRootPath);
-                WritePublicationMarker(stagingRootPath, destinationRootPath, PublicationStagingKind, stagingToken);
+                WritePublicationOperationMarker(operationRootPath, destinationRootPath, stagingToken, PublicationStagedPhase);
                 if (Directory.Exists(destinationRootPath)) {
-                    WritePublicationMarker(destinationRootPath, destinationRootPath, PublicationBackupKind, backupToken);
+                    WritePublicationOperationMarker(operationRootPath, destinationRootPath, stagingToken, PublicationBackupMovingPhase);
+                    InvokePublicationMoveHook(destinationRootPath, backupRootPath);
                     Directory.Move(destinationRootPath, backupRootPath);
                     destinationMoved = true;
+                    WritePublicationOperationMarker(operationRootPath, destinationRootPath, stagingToken, PublicationBackupMovedPhase);
                 }
 
+                InvokePublicationMoveHook(stagingRootPath, destinationRootPath);
                 Directory.Move(stagingRootPath, destinationRootPath);
-                RemovePublicationMarker(destinationRootPath, destinationRootPath, PublicationStagingKind, stagingToken);
+                WritePublicationOperationMarker(operationRootPath, destinationRootPath, stagingToken, PublicationDestinationMovedPhase);
                 if (destinationMoved && Directory.Exists(backupRootPath)) {
                     Directory.Delete(backupRootPath, true);
                 }
+                Directory.Delete(operationRootPath, true);
             } catch {
                 if (!Directory.Exists(destinationRootPath) && destinationMoved && Directory.Exists(backupRootPath)) {
-                    Directory.Move(backupRootPath, destinationRootPath);
-                    RemovePublicationMarker(destinationRootPath, destinationRootPath, PublicationBackupKind, backupToken);
+                    try {
+                        InvokePublicationMoveHook(backupRootPath, destinationRootPath);
+                        Directory.Move(backupRootPath, destinationRootPath);
+                    } catch {
+                        // Keep the operation manifest and exact owned siblings for the next recovery pass.
+                        retainOwnedArtifactsForRecovery = true;
+                    }
+                } else if (!Directory.Exists(destinationRootPath) && destinationMoved) {
+                    // The previous destination was moved, but its owned backup is no longer available.
+                    // Preserve the operation record rather than guessing at foreign siblings.
+                    retainOwnedArtifactsForRecovery = true;
+                }
+
+                if (!retainOwnedArtifactsForRecovery) {
+                    DeleteDirectoryIfPresent(stagingRootPath);
+                    DeleteDirectoryIfPresent(backupRootPath);
+                    DeleteDirectoryIfPresent(operationRootPath);
                 }
 
                 throw;
             } finally {
-                if (Directory.Exists(stagingRootPath)) {
-                    Directory.Delete(stagingRootPath, true);
-                }
-                if (Directory.Exists(backupRootPath)
-                    && Directory.Exists(destinationRootPath)
-                    && IsOwnedPublicationArtifact(backupRootPath, destinationRootPath, PublicationBackupKind, backupToken)) {
-                    Directory.Delete(backupRootPath, true);
+                if (!retainOwnedArtifactsForRecovery) {
+                    DeleteDirectoryIfPresent(stagingRootPath);
                 }
             }
         }
@@ -277,69 +319,69 @@ namespace helengine.editor {
         /// Recovers crash leftovers deterministically while the destination lease is held.
         /// </summary>
         static void RecoverPublicationLeftovers(string parentPath, string destinationName, string destinationRootPath) {
-            RemoveOwnedDestinationMarker(destinationRootPath);
-            string stagingPrefix = destinationName + ".staging-";
-            string backupPrefix = destinationName + ".backup-";
+            string operationPrefix = destinationName + PublicationOperationDirectorySuffix;
             StringComparison pathComparison = OperatingSystem.IsWindows()
                 ? StringComparison.OrdinalIgnoreCase
                 : StringComparison.Ordinal;
-            string[] stagingPaths = Directory.EnumerateDirectories(parentPath, "*", SearchOption.TopDirectoryOnly)
-                .Where(path => Path.GetFileName(path).StartsWith(stagingPrefix, pathComparison))
+            string[] operationPaths = Directory.EnumerateDirectories(parentPath, "*", SearchOption.TopDirectoryOnly)
+                .Where(path => Path.GetFileName(path).StartsWith(operationPrefix, pathComparison))
                 .ToArray();
-            Array.Sort(stagingPaths, StringComparer.Ordinal);
-            string[] backupPaths = Directory.EnumerateDirectories(parentPath, "*", SearchOption.TopDirectoryOnly)
-                .Where(path => Path.GetFileName(path).StartsWith(backupPrefix, pathComparison))
-                .ToArray();
-            Array.Sort(backupPaths, StringComparer.Ordinal);
+            Array.Sort(operationPaths, StringComparer.Ordinal);
 
-            if (!Directory.Exists(destinationRootPath) && backupPaths.Length > 0) {
-                for (int index = 0; index < backupPaths.Length; index++) {
-                    if (!IsOwnedPublicationArtifact(backupPaths[index], destinationRootPath, PublicationBackupKind)) {
-                        continue;
-                    }
-
-                    Directory.Move(backupPaths[index], destinationRootPath);
-                    RemoveOwnedDestinationMarker(destinationRootPath);
-                    backupPaths[index] = string.Empty;
-                    break;
-                }
-            }
-
-            for (int index = 0; index < stagingPaths.Length; index++) {
-                if (Directory.Exists(stagingPaths[index])
-                    && IsOwnedPublicationArtifact(stagingPaths[index], destinationRootPath, PublicationStagingKind)) {
-                    Directory.Delete(stagingPaths[index], true);
-                }
-            }
-            for (int index = 0; index < backupPaths.Length; index++) {
-                if (!string.IsNullOrEmpty(backupPaths[index])
-                    && Directory.Exists(backupPaths[index])
-                    && IsOwnedPublicationArtifact(backupPaths[index], destinationRootPath, PublicationBackupKind)) {
-                    Directory.Delete(backupPaths[index], true);
+            for (int index = 0; index < operationPaths.Length; index++) {
+                if (IsOwnedPublicationOperation(operationPaths[index], destinationRootPath, out string token, out string phase)) {
+                    RecoverPublicationOperation(operationPaths[index], destinationRootPath, token, phase);
                 }
             }
         }
 
         /// <summary>
-        /// Writes one atomically published ownership marker into a candidate artifact directory.
+        /// Recovers one positively identified publication operation and its exact token-bound siblings.
         /// </summary>
-        static void WritePublicationMarker(string artifactRootPath, string destinationRootPath, string kind, string token) {
+        static void RecoverPublicationOperation(string operationRootPath, string destinationRootPath, string token, string phase) {
+            string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
+            string destinationName = Path.GetFileName(destinationRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrWhiteSpace(destinationParentPath) || string.IsNullOrWhiteSpace(destinationName)) {
+                return;
+            }
+
+            string stagingRootPath = Path.Combine(destinationParentPath, destinationName + ".staging-" + token);
+            string backupRootPath = Path.Combine(destinationParentPath, destinationName + ".backup-" + token);
+            if (!Directory.Exists(destinationRootPath)) {
+                if (Directory.Exists(stagingRootPath) && phase != PublicationPreparedPhase) {
+                    Directory.Move(stagingRootPath, destinationRootPath);
+                } else if (Directory.Exists(backupRootPath)) {
+                    Directory.Move(backupRootPath, destinationRootPath);
+                }
+            }
+
+            if (Directory.Exists(destinationRootPath)) {
+                DeleteDirectoryIfPresent(stagingRootPath);
+                DeleteDirectoryIfPresent(backupRootPath);
+                DeleteDirectoryIfPresent(operationRootPath);
+            }
+        }
+
+        /// <summary>
+        /// Writes one atomically published operation marker with the exact destination and phase.
+        /// </summary>
+        static void WritePublicationOperationMarker(string operationRootPath, string destinationRootPath, string token, string phase) {
             if (!IsIssuedPublicationToken(token)) {
                 throw new ArgumentException("Publication token must be a lowercase GUID without separators.", nameof(token));
             }
-            if (kind != PublicationStagingKind && kind != PublicationBackupKind) {
-                throw new ArgumentException("Unknown publication artifact kind.", nameof(kind));
+            if (!IsPublicationPhase(phase)) {
+                throw new ArgumentException("Unknown publication operation phase.", nameof(phase));
             }
 
-            string markerPath = Path.Combine(artifactRootPath, PublicationMarkerFileName);
+            string markerPath = Path.Combine(operationRootPath, PublicationOperationMarkerFileName);
             string temporaryMarkerPath = markerPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            string markerContents = PublicationMarkerFormat + "\n"
+            string markerContents = PublicationOperationFormat + "\n"
                 + NormalizeDestinationIdentity(destinationRootPath) + "\n"
-                + kind + "\n"
-                + token + "\n";
+                + token + "\n"
+                + phase + "\n";
             try {
                 File.WriteAllText(temporaryMarkerPath, markerContents, Encoding.UTF8);
-                File.Move(temporaryMarkerPath, markerPath, false);
+                File.Move(temporaryMarkerPath, markerPath, true);
             } finally {
                 if (File.Exists(temporaryMarkerPath)) {
                     File.Delete(temporaryMarkerPath);
@@ -348,43 +390,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Removes one marker only when it still proves the expected current artifact ownership.
+        /// Determines whether one sibling operation directory is positively owned by this publisher.
         /// </summary>
-        static void RemovePublicationMarker(string artifactRootPath, string destinationRootPath, string kind, string token) {
-            string markerPath = Path.Combine(artifactRootPath, PublicationMarkerFileName);
-            if (File.Exists(markerPath) && IsOwnedPublicationArtifact(artifactRootPath, destinationRootPath, kind, token)) {
-                File.Delete(markerPath);
+        static bool IsOwnedPublicationOperation(string operationRootPath, string destinationRootPath, out string token, out string phase) {
+            token = string.Empty;
+            phase = string.Empty;
+            string destinationName = Path.GetFileName(destinationRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            string operationName = Path.GetFileName(operationRootPath);
+            string operationPrefix = destinationName + PublicationOperationDirectorySuffix;
+            if (string.IsNullOrWhiteSpace(destinationName)
+                || operationName == null
+                || !operationName.StartsWith(operationPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) {
+                return false;
             }
-        }
-
-        /// <summary>
-        /// Removes an owned marker left in the final destination after an interrupted rename.
-        /// </summary>
-        static void RemoveOwnedDestinationMarker(string destinationRootPath) {
-            string markerPath = Path.Combine(destinationRootPath, PublicationMarkerFileName);
-            if (!File.Exists(markerPath)) {
-                return;
-            }
-
-            if (IsOwnedPublicationArtifact(destinationRootPath, destinationRootPath, PublicationStagingKind)
-                || IsOwnedPublicationArtifact(destinationRootPath, destinationRootPath, PublicationBackupKind)) {
-                File.Delete(markerPath);
-            }
-        }
-
-        /// <summary>
-        /// Validates the complete ownership marker, including destination, phase, and issued token.
-        /// </summary>
-        static bool IsOwnedPublicationArtifact(
-            string artifactRootPath,
-            string destinationRootPath,
-            string expectedKind,
-            string expectedToken = null) {
-            string markerPath = Path.Combine(artifactRootPath, PublicationMarkerFileName);
-            if (!File.Exists(markerPath)) {
+            token = operationName[operationPrefix.Length..];
+            if (!IsIssuedPublicationToken(token)) {
                 return false;
             }
 
+            string markerPath = Path.Combine(operationRootPath, PublicationOperationMarkerFileName);
+            if (!File.Exists(markerPath)) {
+                return false;
+            }
             string[] markerLines;
             try {
                 markerLines = File.ReadAllLines(markerPath, Encoding.UTF8);
@@ -395,31 +422,27 @@ namespace helengine.editor {
             }
 
             if (markerLines.Length != 4
-                || markerLines[0] != PublicationMarkerFormat
+                || markerLines[0] != PublicationOperationFormat
                 || markerLines[1] != NormalizeDestinationIdentity(destinationRootPath)
-                || markerLines[2] != expectedKind
-                || !IsIssuedPublicationToken(markerLines[3])) {
+                || markerLines[2] != token
+                || !IsIssuedPublicationToken(markerLines[2])
+                || !IsPublicationPhase(markerLines[3])) {
                 return false;
             }
 
-            bool isDestinationArtifact = NormalizeDestinationIdentity(artifactRootPath)
-                == NormalizeDestinationIdentity(destinationRootPath);
-            if (!isDestinationArtifact) {
-                string expectedDirectoryPrefix = expectedKind == PublicationStagingKind
-                    ? ".staging-"
-                    : ".backup-";
-                string artifactName = Path.GetFileName(artifactRootPath);
-                string destinationName = Path.GetFileName(destinationRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-                StringComparison nameComparison = OperatingSystem.IsWindows()
-                    ? StringComparison.OrdinalIgnoreCase
-                    : StringComparison.Ordinal;
-                if (artifactName == null
-                    || !artifactName.Equals(destinationName + expectedDirectoryPrefix + markerLines[3], nameComparison)) {
-                    return false;
-                }
-            }
+            phase = markerLines[3];
+            return true;
+        }
 
-            return expectedToken == null || markerLines[3] == expectedToken;
+        /// <summary>
+        /// Determines whether one marker phase is a current publication phase.
+        /// </summary>
+        static bool IsPublicationPhase(string phase) {
+            return phase == PublicationPreparedPhase
+                || phase == PublicationStagedPhase
+                || phase == PublicationBackupMovingPhase
+                || phase == PublicationBackupMovedPhase
+                || phase == PublicationDestinationMovedPhase;
         }
 
         /// <summary>
@@ -430,6 +453,22 @@ namespace helengine.editor {
                 && value.Length == 32
                 && Guid.TryParseExact(value, "N", out Guid parsedToken)
                 && parsedToken.ToString("N") == value;
+        }
+
+        /// <summary>
+        /// Invokes the deterministic move-failure seam when a publication test has installed one.
+        /// </summary>
+        static void InvokePublicationMoveHook(string sourcePath, string destinationPath) {
+            PublicationMoveHookForTests?.Invoke(sourcePath, destinationPath);
+        }
+
+        /// <summary>
+        /// Removes one directory tree when it exists.
+        /// </summary>
+        static void DeleteDirectoryIfPresent(string directoryPath) {
+            if (Directory.Exists(directoryPath)) {
+                Directory.Delete(directoryPath, true);
+            }
         }
 
         /// <summary>

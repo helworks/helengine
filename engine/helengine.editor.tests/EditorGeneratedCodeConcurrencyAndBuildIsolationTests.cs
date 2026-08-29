@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Xml.Linq;
 using Xunit;
 
@@ -177,6 +178,7 @@ namespace helengine.editor.tests {
                 string destinationName = Path.GetFileName(destinationRootPath);
                 Assert.Empty(Directory.GetDirectories(destinationParentPath, destinationName + ".staging-*", SearchOption.TopDirectoryOnly));
                 Assert.Empty(Directory.GetDirectories(destinationParentPath, destinationName + ".backup-*", SearchOption.TopDirectoryOnly));
+                Assert.Empty(Directory.GetDirectories(destinationParentPath, destinationName + ".operation-*", SearchOption.TopDirectoryOnly));
             } finally {
                 DeleteDirectoryIfPresent(secondProjectRootPath);
                 DeleteDirectoryIfPresent(firstExecutionRootPath);
@@ -231,18 +233,18 @@ namespace helengine.editor.tests {
             string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
             string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
             string destinationName = Path.GetFileName(destinationRootPath);
-            string stagingToken = Guid.NewGuid().ToString("N");
-            string backupToken = Guid.NewGuid().ToString("N");
-            string stagingRootPath = Path.Combine(destinationParentPath, destinationName + ".staging-" + stagingToken);
-            string backupRootPath = Path.Combine(destinationParentPath, destinationName + ".backup-" + backupToken);
+            string publicationToken = Guid.NewGuid().ToString("N");
+            string operationRootPath = Path.Combine(destinationParentPath, destinationName + ".operation-" + publicationToken);
+            string stagingRootPath = Path.Combine(destinationParentPath, destinationName + ".staging-" + publicationToken);
+            string backupRootPath = Path.Combine(destinationParentPath, destinationName + ".backup-" + publicationToken);
 
             try {
+                Directory.CreateDirectory(operationRootPath);
                 Directory.CreateDirectory(stagingRootPath);
                 Directory.CreateDirectory(backupRootPath);
                 File.WriteAllText(Path.Combine(stagingRootPath, "staged-before-crash.txt"), "staged-before-crash");
                 File.WriteAllText(Path.Combine(backupRootPath, "backup-before-crash.txt"), "backup-before-crash");
-                WritePublicationMarkerForTest(stagingRootPath, destinationRootPath, "staging", stagingToken);
-                WritePublicationMarkerForTest(backupRootPath, destinationRootPath, "backup", backupToken);
+                WritePublicationOperationMarkerForTest(operationRootPath, destinationRootPath, publicationToken, "backup-moved");
 
                 EditorGameSolutionService service = CreateService(workspaceRootPath, executionRootPath);
                 string solutionPath = service.GenerateSolutionFiles();
@@ -251,12 +253,72 @@ namespace helengine.editor.tests {
                 Assert.True(result.Succeeded, result.Message);
                 Assert.False(Directory.Exists(stagingRootPath));
                 Assert.False(Directory.Exists(backupRootPath));
+                Assert.False(Directory.Exists(operationRootPath));
                 Assert.True(Directory.Exists(destinationRootPath));
-                Assert.False(File.Exists(Path.Combine(destinationRootPath, ".helengine-publication-marker")));
             } finally {
                 DeleteDirectoryIfPresent(destinationRootPath);
                 DeleteDirectoryIfPresent(stagingRootPath);
                 DeleteDirectoryIfPresent(backupRootPath);
+                DeleteDirectoryIfPresent(operationRootPath);
+                DeleteDirectoryIfPresent(executionRootPath);
+            }
+        }
+
+        /// <summary>
+        /// Ensures a failure of the publication rename leaves the live destination exactly unchanged.
+        /// </summary>
+        [Fact]
+        public void BuildGeneratedSolution_WhenPublicationMoveFails_LeavesDestinationTreeUnchangedAndCleansOwnedArtifacts() {
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "move-failure-publication");
+            string executionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "move-failure-publication");
+            string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
+            string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
+            string destinationName = Path.GetFileName(destinationRootPath);
+            string destinationIdentity = Path.GetFullPath(destinationRootPath);
+
+            try {
+                Directory.CreateDirectory(Path.Combine(destinationRootPath, "nested"));
+                File.WriteAllText(Path.Combine(destinationRootPath, "existing-output.bin"), "existing-output");
+                File.WriteAllText(Path.Combine(destinationRootPath, "nested", "existing-settings.json"), "{\"stable\":true}");
+                Dictionary<string, string> beforeSnapshot = SnapshotDirectory(destinationRootPath);
+                bool moveFailureInjected = false;
+                Action<string, string> previousHook = EditorDotNetScriptBuildTool.PublicationMoveHookForTests;
+                try {
+                    EditorDotNetScriptBuildTool.PublicationMoveHookForTests = (sourcePath, targetPath) => {
+                        if (!moveFailureInjected
+                            && Path.GetFileName(sourcePath).StartsWith(destinationName + ".staging-", StringComparison.Ordinal)
+                            && string.Equals(Path.GetFullPath(targetPath), destinationIdentity, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) {
+                            moveFailureInjected = true;
+                            throw new IOException("Injected publication move failure.");
+                        }
+                    };
+
+                    EditorGameSolutionService service = CreateService(workspaceRootPath, executionRootPath);
+                    string solutionPath = service.GenerateSolutionFiles();
+
+                    Assert.Throws<IOException>(() => new EditorDotNetScriptBuildTool().Build(solutionPath, destinationRootPath));
+                } finally {
+                    EditorDotNetScriptBuildTool.PublicationMoveHookForTests = previousHook;
+                }
+
+                Assert.True(moveFailureInjected);
+                Assert.Equal(beforeSnapshot.Keys.OrderBy(path => path), SnapshotDirectory(destinationRootPath).Keys.OrderBy(path => path));
+                Dictionary<string, string> afterSnapshot = SnapshotDirectory(destinationRootPath);
+                foreach (KeyValuePair<string, string> entry in beforeSnapshot) {
+                    Assert.Equal(entry.Value, afterSnapshot[entry.Key]);
+                }
+
+                string[] siblingNames = Directory.Exists(destinationParentPath)
+                    ? Directory.EnumerateDirectories(destinationParentPath, "*", SearchOption.TopDirectoryOnly)
+                        .Select(Path.GetFileName)
+                        .Where(name => name.StartsWith(destinationName + ".operation-", StringComparison.Ordinal)
+                            || name.StartsWith(destinationName + ".staging-", StringComparison.Ordinal)
+                            || name.StartsWith(destinationName + ".backup-", StringComparison.Ordinal))
+                        .ToArray()
+                    : Array.Empty<string>();
+                Assert.Empty(siblingNames);
+            } finally {
+                DeleteDirectoryIfPresent(destinationRootPath);
                 DeleteDirectoryIfPresent(executionRootPath);
             }
         }
@@ -328,9 +390,9 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Seeds a marker in the exact format consumed by the production publisher for an interrupted-artifact probe.
+        /// Seeds an operation marker in the exact format consumed by the production publisher for an interrupted-artifact probe.
         /// </summary>
-        static void WritePublicationMarkerForTest(string artifactRootPath, string destinationRootPath, string kind, string token) {
+        static void WritePublicationOperationMarkerForTest(string operationRootPath, string destinationRootPath, string token, string phase) {
             string fullDestinationPath = Path.GetFullPath(destinationRootPath);
             string destinationRoot = Path.GetPathRoot(fullDestinationPath) ?? string.Empty;
             string normalizedDestination = fullDestinationPath.Length > destinationRoot.Length
@@ -341,8 +403,19 @@ namespace helengine.editor.tests {
             }
 
             File.WriteAllText(
-                Path.Combine(artifactRootPath, ".helengine-publication-marker"),
-                "helengine-publication\n" + normalizedDestination + "\n" + kind + "\n" + token + "\n");
+                Path.Combine(operationRootPath, ".helengine-publication-operation"),
+                "helengine-publication\n" + normalizedDestination + "\n" + token + "\n" + phase + "\n");
+        }
+
+        /// <summary>
+        /// Captures the exact relative file set and content hashes in one directory tree.
+        /// </summary>
+        static Dictionary<string, string> SnapshotDirectory(string directoryPath) {
+            return Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories)
+                .ToDictionary(
+                    path => Path.GetRelativePath(directoryPath, path),
+                    path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))),
+                    StringComparer.Ordinal);
         }
 
         /// <summary>
