@@ -376,6 +376,24 @@ namespace helengine.editor {
 
             EditorAuthoringTransactionEntry existingEntry = Document.Entries.FirstOrDefault(entry =>
                 string.Equals(entry.DestinationRelativePath, prepared.RelativePath, PathComparison));
+            // An unchanged output is already durable at its destination. Keep
+            // its prepared representation available for same-transaction
+            // references, but do not create an unnecessary atomic payload and
+            // mutation journal. Large idempotent generation passes otherwise
+            // spend their entire lifetime rewriting disposable staging files,
+            // and an interrupted pass can strand one of those journals before
+            // the transaction reaches Commit().
+            if (prepared.IsUnchanged && existingEntry == null) {
+                PreparedByPath[prepared.RelativePath] = prepared;
+                return new EditorAssetWriteResult(
+                    prepared.RelativePath,
+                    prepared.FullPath,
+                    prepared.AssetId,
+                    prepared.ContentHash,
+                    EditorAssetWriteDisposition.Unchanged,
+                    prepared.PreservedExistingIdentity);
+            }
+
             string stagedRelativePath = existingEntry?.StagedRelativePath ??
                 Path.Combine("staged", Document.Entries.Count.ToString("D8") + ".payload").Replace(Path.DirectorySeparatorChar, '/');
             string stagedPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(

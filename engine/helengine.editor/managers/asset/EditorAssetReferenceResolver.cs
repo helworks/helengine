@@ -247,6 +247,10 @@ namespace helengine.editor {
                 if (IdentityIndex.TryAdoptSavedAssetIdUnderLock(winner.FullPath, reference.AssetId, adoptionRepair)) {
                     savedIdWasAdopted = true;
                     metadataChanged = true;
+                    IdentityIndex.MarkMetadataPresentUnderLock(winner.FullPath);
+                    if (ResolutionScopeActive) {
+                        ResolutionScopeMissingMetadataPaths.Remove(winner.FullPath);
+                    }
                     winner = IdentityIndex.FindByPath(winner.RelativePath);
                 }
             }

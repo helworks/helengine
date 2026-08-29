@@ -194,6 +194,43 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     [Fact]
+    public void WriteGeneratedFile_WhenUnchanged_DoesNotStagePayloadOrLeaveTransactionArtifacts() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        string relativePath = "assets/generated/repeated.bin";
+        byte[] sourceBytes = new byte[] { 0x31, 0x41, 0x59, 0x26 };
+        string priorHash;
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            first.WriteGeneratedFile(relativePath, sourceBytes, null, EditorGeneratedFileKind.Source);
+            first.Commit();
+        }
+
+        using (EditorAuthoringTransaction second = session.BeginTransaction()) {
+            priorHash = second.GetCurrentFileHash(relativePath);
+            EditorAssetWriteResult result = second.WriteGeneratedFile(
+                relativePath,
+                sourceBytes,
+                priorHash,
+                EditorGeneratedFileKind.Source);
+
+            Assert.Equal(EditorAssetWriteDisposition.Unchanged, result.Disposition);
+            string transactionDirectory = Path.Combine(
+                ProjectRootPath,
+                "cache",
+                "editor",
+                "authoring-transactions",
+                second.TransactionId);
+            Assert.Empty(Directory.EnumerateFiles(transactionDirectory, "*.payload", SearchOption.AllDirectories));
+            second.Commit();
+            Assert.False(Directory.Exists(transactionDirectory));
+        }
+
+        Assert.Empty(Directory.EnumerateDirectories(
+            Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations"),
+            "*",
+            SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
     public void StartupRecovery_CommittingGeneratedFileRestoresProjectRootDestinationWithoutAssetGeneration() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         string relativePath = "cache/editor/recovery.bin";

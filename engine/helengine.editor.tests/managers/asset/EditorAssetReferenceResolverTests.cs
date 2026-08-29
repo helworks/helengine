@@ -268,6 +268,105 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures unique-hash identity adoption removes the recovered source from
+    /// the active missing-metadata snapshot before another saved ID is resolved.
+    /// </summary>
+    [Fact]
+    public void Resolve_WithinActiveScope_CompetingSavedIdsForUniqueHashAdoptOnlyOnce() {
+        byte[] sourceBytes = new byte[] { 4, 5, 6, 7 };
+        string targetPath = CreateAsset("Models/ScopedHashCompeting.fbx", sourceBytes);
+        string contentHash = "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sourceBytes)).ToLowerInvariant();
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
+        const string firstId = "00112233445566778899aabbccddeeff";
+        const string secondId = "ffeeddccbbaa99887766554433221100";
+        SceneAssetReference first = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            firstId,
+            "Models/ScopedHashMissingFirst.fbx",
+            contentHash);
+        SceneAssetReference second = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            secondId,
+            "Models/ScopedHashMissingSecond.fbx",
+            contentHash);
+
+        resolver.BeginResolutionScope();
+        try {
+            AssetReferenceResolution firstResult = resolver.Resolve(first, AssetEntryKind.Model);
+            AssetReferenceResolution secondResult = resolver.Resolve(second, AssetEntryKind.Model);
+
+            Assert.Equal(firstId, firstResult.CanonicalReference.AssetId);
+            Assert.Equal(firstId, secondResult.CanonicalReference.AssetId);
+        } finally {
+            resolver.EndResolutionScope();
+        }
+
+        Assert.Equal(firstId, new AssetIdentityMetadataService(TempRootPath).Load(targetPath).AssetId);
+        string expectedEvidence = "current-id=False; saved-path=False; saved-hash=True; recorded-owner=False; path='Models/ScopedHashCompeting.fbx'";
+        Assert.Collection(
+            report.Records,
+            missing => {
+                Assert.Equal(EditorAssetRepairKind.MissingExternalMetadataCreation, missing.Kind);
+                Assert.Equal("Models/ScopedHashCompeting.fbx", missing.RelativePath);
+                Assert.Equal(string.Empty, missing.PreviousAssetId);
+                Assert.NotEqual(string.Empty, missing.CurrentAssetId);
+                Assert.Null(missing.ResolutionTier);
+                Assert.Equal("external identity document was missing", missing.Evidence);
+                Assert.Equal(targetPath + ".hmeta", missing.OwningDocument);
+                Assert.Equal("Created missing external asset identity metadata.", missing.Diagnostic);
+            },
+            adoption => {
+                Assert.Equal(EditorAssetRepairKind.SavedIdAdoption, adoption.Kind);
+                Assert.Equal("Models/ScopedHashCompeting.fbx", adoption.RelativePath);
+                Assert.Equal(report.Records[0].CurrentAssetId, adoption.PreviousAssetId);
+                Assert.Equal(firstId, adoption.CurrentAssetId);
+                Assert.Equal(AssetReferenceResolutionTier.ContentHash, adoption.ResolutionTier);
+                Assert.Equal("saved identity adopted by unique content hash", adoption.Evidence);
+                Assert.Equal(string.Empty, adoption.OwningDocument);
+                Assert.Equal("Adopted the saved identity for the uniquely matching authored source.", adoption.Diagnostic);
+            },
+            hash => {
+                Assert.Equal(EditorAssetRepairKind.HashHealing, hash.Kind);
+                Assert.Equal("Models/ScopedHashCompeting.fbx", hash.RelativePath);
+                Assert.Equal(firstId, hash.PreviousAssetId);
+                Assert.Equal(firstId, hash.CurrentAssetId);
+                Assert.Equal(AssetReferenceResolutionTier.ContentHash, hash.ResolutionTier);
+                Assert.Equal(expectedEvidence, hash.Evidence);
+                Assert.Equal(string.Empty, hash.OwningDocument);
+                Assert.Equal("Healed the saved content hash to the selected authored source.", hash.Diagnostic);
+            },
+            canonical => {
+                Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, canonical.Kind);
+                Assert.Equal("Models/ScopedHashCompeting.fbx", canonical.RelativePath);
+                Assert.Equal(firstId, canonical.PreviousAssetId);
+                Assert.Equal(firstId, canonical.CurrentAssetId);
+                Assert.Equal(AssetReferenceResolutionTier.ContentHash, canonical.ResolutionTier);
+                Assert.Equal(expectedEvidence, canonical.Evidence);
+                Assert.Equal(string.Empty, canonical.OwningDocument);
+                Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", canonical.Diagnostic);
+            },
+            path => {
+                Assert.Equal(EditorAssetRepairKind.PathHealing, path.Kind);
+                Assert.Equal("Models/ScopedHashCompeting.fbx", path.RelativePath);
+                Assert.Equal(secondId, path.PreviousAssetId);
+                Assert.Equal(firstId, path.CurrentAssetId);
+                Assert.Equal(AssetReferenceResolutionTier.ContentHash, path.ResolutionTier);
+                Assert.Equal(expectedEvidence, path.Evidence);
+                Assert.Equal(string.Empty, path.OwningDocument);
+                Assert.Equal("Healed the saved asset path to the selected authored source.", path.Diagnostic);
+            },
+            canonical => {
+                Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, canonical.Kind);
+                Assert.Equal("Models/ScopedHashCompeting.fbx", canonical.RelativePath);
+                Assert.Equal(secondId, canonical.PreviousAssetId);
+                Assert.Equal(firstId, canonical.CurrentAssetId);
+                Assert.Equal(AssetReferenceResolutionTier.ContentHash, canonical.ResolutionTier);
+                Assert.Equal(expectedEvidence, canonical.Evidence);
+                Assert.Equal(string.Empty, canonical.OwningDocument);
+                Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", canonical.Diagnostic);
+            });
+    }
+
+    /// <summary>
     /// Ensures reference repairs identify the active binary document when one is available.
     /// </summary>
     [Fact]
