@@ -13,8 +13,10 @@ namespace helengine.editor.tests;
 /// so no checkout content or ambient project path participates in the proof.
 /// </summary>
 public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
+    static readonly object CommandObservationGate = new object();
     readonly string ProjectRootPath;
-    readonly string CommandOutputRootPath;
+    readonly string GeneratedOutputRootPath;
+    readonly string GeneratedWorkspaceRootPath;
     readonly string ProjectFilePath;
     readonly Core CoreValue;
     readonly TestGeneratedAssetGraph GeneratedAssetGraph;
@@ -26,15 +28,16 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         ProjectRootPath = Path.Combine(
             Path.GetTempPath(),
             "helengine-demodisc-authoring-" + Guid.NewGuid().ToString("N"));
-        CommandOutputRootPath = Path.Combine(
+        GeneratedOutputRootPath = Path.Combine(
             Path.GetTempPath(),
-            "helengine-demodisc-authoring-command-" + Guid.NewGuid().ToString("N"));
+            "helengine-demodisc-authoring-output-" + Guid.NewGuid().ToString("N"));
+        GeneratedWorkspaceRootPath = Path.Combine(
+            Path.GetTempPath(),
+            "helengine-demodisc-authoring-workspace-" + Guid.NewGuid().ToString("N"));
         ProjectFilePath = Path.Combine(ProjectRootPath, "project.heproj");
-        Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets"));
-        Directory.CreateDirectory(CommandOutputRootPath);
-        File.WriteAllText(
-            ProjectFilePath,
-            "{\"projectFormatVersion\":1,\"name\":\"Deterministic fixture\",\"requiredEngineVersion\":\"0.4.0\",\"supportedPlatforms\":[\"windows\"],\"created\":\"2026-04-01T00:00:00Z\",\"lastOpened\":\"2026-04-20T00:00:00Z\",\"version\":\"1.0.0\"}");
+        CopyFixtureProject();
+        Directory.CreateDirectory(GeneratedOutputRootPath);
+        Directory.CreateDirectory(GeneratedWorkspaceRootPath);
         CoreValue = new Core(new CoreInitializationOptions {
             ContentStreamSource = new HostFileSystemContentStreamSource(ProjectRootPath)
         });
@@ -55,8 +58,30 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         if (Directory.Exists(ProjectRootPath)) {
             Directory.Delete(ProjectRootPath, true);
         }
-        if (Directory.Exists(CommandOutputRootPath)) {
-            Directory.Delete(CommandOutputRootPath, true);
+        if (Directory.Exists(GeneratedOutputRootPath)) {
+            Directory.Delete(GeneratedOutputRootPath, true);
+        }
+        if (Directory.Exists(GeneratedWorkspaceRootPath)) {
+            Directory.Delete(GeneratedWorkspaceRootPath, true);
+        }
+    }
+
+    void CopyFixtureProject() {
+        string fixtureRootPath = Path.Combine(AppContext.BaseDirectory, "fixtures", "demodisc-authoring");
+        if (!Directory.Exists(fixtureRootPath)) {
+            throw new DirectoryNotFoundException($"Copied fixture source was not found: {fixtureRootPath}");
+        }
+
+        CopyDirectory(fixtureRootPath, ProjectRootPath);
+    }
+
+    static void CopyDirectory(string sourceRootPath, string destinationRootPath) {
+        Directory.CreateDirectory(destinationRootPath);
+        foreach (string sourceFilePath in Directory.EnumerateFiles(sourceRootPath, "*", SearchOption.AllDirectories)) {
+            string relativePath = Path.GetRelativePath(sourceRootPath, sourceFilePath);
+            string destinationFilePath = Path.Combine(destinationRootPath, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFilePath));
+            File.Copy(sourceFilePath, destinationFilePath, true);
         }
     }
 
@@ -76,8 +101,34 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         Assert.Equal(first.GenerationAfter, second.GenerationAfter);
         Assert.NotEmpty(first.Changes);
         Assert.Empty(second.Changes);
-        Assert.All(first.VerificationResults, result => Assert.Equal(EditorAssetWriteDisposition.Unchanged, result.Disposition));
-        Assert.All(second.VerificationResults, result => Assert.Equal(EditorAssetWriteDisposition.Unchanged, result.Disposition));
+        Assert.Equal(
+            new[] { "models/generated.hasset", "models/generated-copy.hasset", "materials/generated.hasset" },
+            first.CommandWrites.Select(write => write.RelativePath));
+        Assert.Equal(
+            new[] { "models/generated.hasset", "models/generated-copy.hasset", "materials/generated.hasset" },
+            second.CommandWrites.Select(write => write.RelativePath));
+        Assert.All(first.CommandWrites, write => Assert.Equal(EditorAssetWriteDisposition.Created, write.Disposition));
+        Assert.All(second.CommandWrites, write => Assert.Equal(EditorAssetWriteDisposition.Unchanged, write.Disposition));
+        Assert.Equal(first.CommandWrites.Select(write => write.AssetId), second.CommandWrites.Select(write => write.AssetId));
+        Assert.Equal(first.CommandWrites.Select(write => write.ContentHash), second.CommandWrites.Select(write => write.ContentHash));
+        Assert.Equal(
+            new[] {
+                "assets/codebase/fixture.editor/DeterministicDemodiscAuthoringCommand.cs",
+                "assets/codebase/fixture.editor/DeterministicDemodiscAuthoringCommand.cs.hmeta",
+                "assets/codebase/fixture.editor/code.module.json",
+                "assets/codebase/fixture.editor/code.module.json.hmeta",
+                "assets/materials/generated.hasset",
+                "assets/materials/generated.hasset.ps2.hasset",
+                "assets/materials/generated.hasset.windows.hasset",
+                "assets/models/generated-copy.hasset",
+                "assets/models/generated.hasset",
+                "cache/editor/asset-identity-index.json",
+                "cache/editor/asset-identity-index.json.lock",
+                "cache/editor/authoring-write.generation",
+                "cache/editor/authoring-write.lock",
+                "project.heproj"
+            },
+            first.Snapshot.Keys.OrderBy(path => path, StringComparer.Ordinal));
         Assert.NotEmpty(first.Snapshot);
         Assert.Contains(first.Snapshot.Keys, path => path.Equals("assets/models/generated.hasset", StringComparison.Ordinal));
         Assert.Contains(first.Snapshot.Keys, path => path.Equals("assets/materials/generated.hasset", StringComparison.Ordinal));
@@ -203,12 +254,13 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         HealingPass second = RunHealingPass(first.Resolution.CanonicalReference);
 
         Assert.Equal("models/hash-after.obj", first.Resolution.CanonicalReference.RelativePath);
-        Assert.NotEqual(savedReference.AssetId, first.Resolution.CanonicalReference.AssetId);
+        Assert.Equal(savedReference.AssetId, first.Resolution.CanonicalReference.AssetId);
         Assert.Equal(savedReference.ContentHash, first.Resolution.CanonicalReference.ContentHash);
         Assert.Equal(
             new[] {
                 EditorAssetRepairKind.MissingExternalMetadataCreation,
-                EditorAssetRepairKind.PathHealing,
+                EditorAssetRepairKind.SavedIdAdoption,
+                EditorAssetRepairKind.HashHealing,
                 EditorAssetRepairKind.CanonicalReferenceRefresh
             },
             first.RepairRecords.Select(repair => repair.Kind));
@@ -220,19 +272,29 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         Assert.Equal("external identity document was missing", metadataCreation.Evidence);
         Assert.Equal(movedPath + ".hmeta", metadataCreation.OwningDocument);
         Assert.Equal("Created missing external asset identity metadata.", metadataCreation.Diagnostic);
-        for (int index = 1; index < first.RepairRecords.Count; index++) {
+        EditorAssetRepairRecord adoption = first.RepairRecords[1];
+        Assert.Equal("models/hash-after.obj", adoption.RelativePath);
+        Assert.Equal(metadataCreation.CurrentAssetId, adoption.PreviousAssetId);
+        Assert.Equal(savedReference.AssetId, adoption.CurrentAssetId);
+        Assert.Equal(AssetReferenceResolutionTier.ContentHash, adoption.ResolutionTier);
+        Assert.Equal("saved identity adopted by unique content hash", adoption.Evidence);
+        Assert.Equal(string.Empty, adoption.OwningDocument);
+        Assert.Equal("Adopted the saved identity for the uniquely matching authored source.", adoption.Diagnostic);
+        for (int index = 2; index < first.RepairRecords.Count; index++) {
             EditorAssetRepairRecord repair = first.RepairRecords[index];
             Assert.Equal("models/hash-after.obj", repair.RelativePath);
             Assert.Equal(savedReference.AssetId, repair.PreviousAssetId);
-            Assert.Equal(metadataCreation.CurrentAssetId, repair.CurrentAssetId);
+            Assert.Equal(savedReference.AssetId, repair.CurrentAssetId);
             Assert.Equal(AssetReferenceResolutionTier.ContentHash, repair.ResolutionTier);
             Assert.Equal(
                 "current-id=False; saved-path=False; saved-hash=True; recorded-owner=False; path='models/hash-after.obj'",
                 repair.Evidence);
             Assert.Equal(string.Empty, repair.OwningDocument);
         }
-        Assert.Equal("Healed the saved asset path to the selected authored source.", first.RepairRecords[1].Diagnostic);
-        Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", first.RepairRecords[2].Diagnostic);
+        Assert.Equal(EditorAssetRepairKind.HashHealing, first.RepairRecords[2].Kind);
+        Assert.Equal("Healed the saved content hash to the selected authored source.", first.RepairRecords[2].Diagnostic);
+        Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, first.RepairRecords[3].Kind);
+        Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", first.RepairRecords[3].Diagnostic);
         Assert.False(second.Resolution.ReferenceChanged);
         Assert.Empty(second.RepairRecords);
         AssertSnapshotsEqual(first.Snapshot, second.Snapshot);
@@ -260,14 +322,17 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         Assert.Equal("models/a-owner.hasset", first.OwnerReference.RelativePath);
         Assert.Equal(seeded.AssetId, first.OwnerReference.AssetId);
         Assert.NotEqual(first.OwnerReference.AssetId, first.CopyReference.AssetId);
-        AssertRepair(first.RepairRecords, EditorAssetRepairKind.DuplicateIdReassignment, "models/z-copy.hasset", null);
-        EditorAssetRepairRecord reassignment = Assert.Single(first.RepairRecords, repair =>
-            repair.Kind == EditorAssetRepairKind.DuplicateIdReassignment
-            && repair.RelativePath == "models/z-copy.hasset");
+        Assert.Equal(
+            new[] { EditorAssetRepairKind.DuplicateIdReassignment },
+            first.RepairRecords.Select(repair => repair.Kind));
+        EditorAssetRepairRecord reassignment = Assert.Single(first.RepairRecords);
+        Assert.Equal("models/z-copy.hasset", reassignment.RelativePath);
         Assert.Equal(seeded.AssetId, reassignment.PreviousAssetId);
         Assert.Equal(first.CopyReference.AssetId, reassignment.CurrentAssetId);
-        Assert.Contains("owner", reassignment.Evidence, StringComparison.OrdinalIgnoreCase);
-        Assert.All(first.RepairRecords, AssertCompleteRepairRecord);
+        Assert.Null(reassignment.ResolutionTier);
+        Assert.Equal("selected ordinal owner path='models/a-owner.hasset'", reassignment.Evidence);
+        Assert.Equal(Path.Combine(ProjectRootPath, "assets", "models", "z-copy.hasset"), reassignment.OwningDocument);
+        Assert.Equal("Reassigned copied identity to the non-owning asset.", reassignment.Diagnostic);
         Assert.Empty(second.RepairRecords);
         AssertReferenceEqual(first.OwnerReference, second.OwnerReference);
         AssertReferenceEqual(first.CopyReference, second.CopyReference);
@@ -453,28 +518,42 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
     GenerationPass RunGenerationPass() {
         long generationBefore = EditorProjectWriteGeneration.Read(ProjectRootPath);
         EditorBuildExecutionResult execution;
+        IReadOnlyList<FixtureCommandWrite> commandWrites;
         IReadOnlyList<EditorAssetRepairRecord> repairRecords;
         using (IEditorProjectAuthoringSession authoring = GeneratedAssetGraph.CreateAuthoringSession(ProjectRootPath))
-        using (EditorGameScriptAssemblyHost commandHost = CreateDiscoveredCommandHost()) {
-            EditorProjectCommandDescriptor command = Assert.Single(
-                commandHost.GetAvailableEditorCommands(),
-                descriptor => string.Equals(
-                    descriptor.CommandId,
-                    DeterministicDemodiscAuthoringCommand.CommandIdValue,
-                    StringComparison.Ordinal));
-            execution = new EditorCliCommandRunner(
-                CreateEditorFont(),
-                new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>())).RunInSessionGraph(
-                    CreateFixtureBootstrap(),
-                    new EditorCliCommandOptions(ProjectFilePath, command.CommandId),
-                    authoring,
-                    CreateBackends(),
-                    CoreValue,
-                    GeneratedAssetGraph.InteractionServices,
-                    GeneratedAssetGraph.RendererResources,
-                    GeneratedAssetGraph.Registry,
-                    new DiscoveredCommandCatalog(commandHost),
-                    commandHost.ScriptTypeResolver);
+        using (EditorGameScriptHotReloadService commandHost = CreateDiscoveredCommandHost()) {
+            StringWriter commandOutput = new StringWriter();
+            TextWriter previousConsole = Console.Out;
+            lock (CommandObservationGate) {
+                Console.SetOut(commandOutput);
+                try {
+                    execution = commandHost.BuildAndReload();
+                    if (execution.Succeeded) {
+                        EditorProjectCommandDescriptor command = Assert.Single(
+                            commandHost.GetAvailableEditorCommands(),
+                            descriptor => string.Equals(
+                                descriptor.CommandId,
+                                "fixture.generate-deterministic-assets",
+                                StringComparison.Ordinal));
+                        execution = new EditorCliCommandRunner(
+                            CreateEditorFont(),
+                            new EditorProjectAssetAuthoringServiceFactory(Array.Empty<IAssetImporterRegistration>())).RunInSessionGraph(
+                                CreateFixtureBootstrap(),
+                                new EditorCliCommandOptions(ProjectFilePath, command.CommandId),
+                                authoring,
+                                CreateBackends(),
+                                CoreValue,
+                                GeneratedAssetGraph.InteractionServices,
+                                GeneratedAssetGraph.RendererResources,
+                                GeneratedAssetGraph.Registry,
+                                commandHost,
+                                commandHost.ScriptTypeResolver);
+                    }
+                } finally {
+                    Console.SetOut(previousConsole);
+                }
+            }
+            commandWrites = ParseFixtureCommandWrites(commandOutput.ToString());
             repairRecords = authoring.RepairReport.Snapshot;
         }
 
@@ -482,14 +561,10 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         IReadOnlyList<EditorProjectWriteChange> changes = EditorProjectWriteGeneration
             .ReadAfter(ProjectRootPath, generationBefore);
 
-        List<EditorAssetWriteResult> verificationResults = new List<EditorAssetWriteResult>();
         SceneAssetReference modelReference;
         SceneAssetReference materialReference;
         AssetReferenceResolution modelResolution;
         using (IEditorProjectAuthoringSession session = GeneratedAssetGraph.CreateAuthoringSession(ProjectRootPath)) {
-            verificationResults.Add(session.WriteAsset("models/generated.hasset", CreateModel("Generated", 1f)));
-            verificationResults.Add(session.WriteAsset("models/generated-copy.hasset", CreateModel("GeneratedCopy", 2f)));
-            session.WriteNativeMaterial("materials/generated.hasset", CreateMaterial("GeneratedMaterial"));
             modelReference = session.CreateReference("models/generated.hasset", AssetEntryKind.Model);
             materialReference = session.CreateReference("materials/generated.hasset", AssetEntryKind.Material);
             modelResolution = session.ResolveReference(modelReference, AssetEntryKind.Model);
@@ -501,7 +576,7 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
             generationBefore,
             generationAfter,
             changes,
-            verificationResults,
+            commandWrites,
             modelReference,
             materialReference,
             modelResolution,
@@ -540,26 +615,18 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         return new DuplicatePass(CaptureProjectSnapshot(ProjectRootPath), ownerReference, copyReference, repairRecords);
     }
 
-    EditorGameScriptAssemblyHost CreateDiscoveredCommandHost() {
-        string outputDirectoryPath = Path.Combine(CommandOutputRootPath, "fixture.editor", "Debug", "net9.0");
-        Directory.CreateDirectory(outputDirectoryPath);
-        string assemblyPath = Path.Combine(outputDirectoryPath, "fixture.editor.dll");
-        File.Copy(typeof(DeterministicDemodiscAuthoringCommand).Assembly.Location, assemblyPath, true);
-
-        EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
-        try {
-            host.Reload(new[] {
-                new EditorScriptAssemblyDescriptor(
-                    "fixture.editor",
-                    outputDirectoryPath,
-                    assemblyPath,
-                    EditorCodeModuleKind.Editor)
-            });
-            return host;
-        } catch {
-            host.Dispose();
-            throw;
-        }
+    EditorGameScriptHotReloadService CreateDiscoveredCommandHost() {
+        EditorGameSolutionService solutionService = new EditorGameSolutionService(
+            ProjectRootPath,
+            "Deterministic fixture",
+            new TestEditorIdeLauncher(),
+            GeneratedOutputRootPath,
+            GeneratedWorkspaceRootPath,
+            EditorScriptCompilationMode.EditorFull);
+        return new EditorGameScriptHotReloadService(
+            solutionService,
+            new EditorDotNetScriptBuildTool(),
+            new EditorGameScriptAssemblyHost(ProjectRootPath));
     }
 
     EditorProjectBootstrapContext CreateFixtureBootstrap() {
@@ -634,25 +701,22 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         };
     }
 
-    static GeneratedMaterialAssetDefinition CreateMaterial(string id) {
-        GeneratedMaterialAssetDefinition definition = new GeneratedMaterialAssetDefinition {
-            MaterialAsset = new MaterialAsset {
-                Id = id,
-                RenderState = new MaterialRenderState(),
-                CastsShadows = true,
-                ReceivesShadows = true
+    static IReadOnlyList<FixtureCommandWrite> ParseFixtureCommandWrites(string output) {
+        List<FixtureCommandWrite> writes = new List<FixtureCommandWrite>();
+        foreach (string line in (output ?? string.Empty).Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)) {
+            const string prefix = "FIXTURE_WRITE|";
+            if (!line.StartsWith(prefix, StringComparison.Ordinal)) {
+                continue;
             }
-        };
-        GeneratedMaterialPlatformDefinition windows = definition.GetOrCreatePlatform("windows");
-        windows.SchemaId = "standard-shader";
-        windows.SetFieldValue("use-custom-shader", "false");
-        windows.SetFieldValue("casts-shadow", "true");
-        windows.SetFieldValue("receives-shadow", "true");
-        windows.SetFieldValue("base-color", "#FFFFFFFF");
-        GeneratedMaterialPlatformDefinition ps2 = definition.GetOrCreatePlatform("ps2");
-        ps2.SchemaId = "ps2-simple-lit";
-        ps2.SetFieldValue("double-sided", "true");
-        return definition;
+
+            string[] fields = line.Substring(prefix.Length).Split('|');
+            Assert.Equal(4, fields.Length);
+            Assert.True(Enum.TryParse(fields[3], out EditorAssetWriteDisposition disposition));
+            writes.Add(new FixtureCommandWrite(fields[0], fields[1], fields[2], disposition));
+        }
+
+        Assert.Equal(3, writes.Count);
+        return writes;
     }
 
     static IReadOnlyDictionary<string, AuthoredFileSnapshot> CaptureProjectSnapshot(string projectRootPath) {
@@ -710,40 +774,7 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         Assert.DoesNotContain(snapshot.Keys, path => path.EndsWith("authoring-transactions.pending", StringComparison.Ordinal));
     }
 
-    static void AssertRepair(
-        IReadOnlyList<EditorAssetRepairRecord> records,
-        EditorAssetRepairKind kind,
-        string relativePath,
-        AssetReferenceResolutionTier? tier) {
-        EditorAssetRepairRecord repair = Assert.Single(records, item =>
-            item.Kind == kind && item.RelativePath == relativePath);
-        if (tier.HasValue) {
-            Assert.Equal(tier, repair.ResolutionTier);
-        }
-        Assert.NotEqual(string.Empty, repair.Diagnostic);
-    }
-
-    static void AssertCompleteRepairRecord(EditorAssetRepairRecord repair) {
-        Assert.NotEqual(string.Empty, repair.RelativePath);
-        Assert.NotEqual(string.Empty, repair.Diagnostic);
-        if (repair.ResolutionTier.HasValue) {
-            Assert.NotEqual(string.Empty, repair.Evidence);
-        }
-    }
-
     sealed record AuthoredFileSnapshot(byte[] Bytes, byte[] Hash, DateTime LastWriteTimeUtc);
-
-    sealed class DiscoveredCommandCatalog : IEditorProjectCommandCatalogProvider {
-        readonly EditorGameScriptAssemblyHost Host;
-
-        public DiscoveredCommandCatalog(EditorGameScriptAssemblyHost host) {
-            Host = host ?? throw new ArgumentNullException(nameof(host));
-        }
-
-        public IReadOnlyList<EditorProjectCommandDescriptor> GetAvailableEditorCommands() {
-            return Host.GetAvailableEditorCommands();
-        }
-    }
 
     sealed record GenerationPass(
         IReadOnlyDictionary<string, AuthoredFileSnapshot> Snapshot,
@@ -751,11 +782,17 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         long GenerationBefore,
         long GenerationAfter,
         IReadOnlyList<EditorProjectWriteChange> Changes,
-        IReadOnlyList<EditorAssetWriteResult> VerificationResults,
+        IReadOnlyList<FixtureCommandWrite> CommandWrites,
         SceneAssetReference ModelReference,
         SceneAssetReference MaterialReference,
         AssetReferenceResolution ModelResolution,
         IReadOnlyList<EditorAssetRepairRecord> RepairRecords);
+
+    sealed record FixtureCommandWrite(
+        string RelativePath,
+        string AssetId,
+        string ContentHash,
+        EditorAssetWriteDisposition Disposition);
 
     sealed record HealingPass(
         IReadOnlyDictionary<string, AuthoredFileSnapshot> Snapshot,
@@ -777,77 +814,4 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
     sealed record AliasCompetitionPass(
         AssetReferenceResolution Resolution,
         IReadOnlyList<EditorAssetRepairRecord> RepairRecords);
-}
-
-/// <summary>
-/// Compiled fixture command loaded by the editor script assembly host during
-/// the deterministic authoring integration test.
-/// </summary>
-internal sealed class DeterministicDemodiscAuthoringCommand : IEditorCommand {
-    /// <summary>Stable command identifier discovered from the fixture assembly.</summary>
-    public const string CommandIdValue = "fixture.generate-deterministic-assets";
-
-    /// <summary>Gets the stable fixture command identifier.</summary>
-    public string CommandId => CommandIdValue;
-
-    /// <summary>Gets the command label surfaced by the editor catalog.</summary>
-    public string DisplayName => "Generate deterministic fixture assets";
-
-    /// <summary>
-    /// Authors the minimal demodisc-shaped output through one host-owned
-    /// transaction and the public command context only.
-    /// </summary>
-    /// <param name="context">Editor command context supplied by the host.</param>
-    public void Execute(IEditorCommandContext context) {
-        using EditorAuthoringTransaction transaction = context.Authoring.BeginTransaction();
-        transaction.WriteAsset("models/generated.hasset", CreateModel("Generated", 1f));
-        transaction.WriteAsset("models/generated-copy.hasset", CreateModel("GeneratedCopy", 2f));
-        transaction.WriteMaterial("materials/generated.hasset", CreateMaterial("GeneratedMaterial"));
-        transaction.Commit();
-    }
-
-    static ModelAsset CreateModel(string id, float positionOffset) {
-        return new ModelAsset {
-            Id = id,
-            Positions = new[] {
-                new float3(positionOffset, 0f, 0f),
-                new float3(0f, 1f, 0f),
-                new float3(0f, 0f, 1f)
-            },
-            Normals = new[] {
-                new float3(0f, 0f, 1f),
-                new float3(0f, 0f, 1f),
-                new float3(0f, 0f, 1f)
-            },
-            TexCoords = new[] {
-                new float2(0f, 0f),
-                new float2(1f, 0f),
-                new float2(0f, 1f)
-            },
-            Indices16 = new ushort[] { 0, 1, 2 },
-            Indices32 = Array.Empty<uint>(),
-            Submeshes = Array.Empty<ModelSubmeshAsset>()
-        };
-    }
-
-    static GeneratedMaterialAssetDefinition CreateMaterial(string id) {
-        GeneratedMaterialAssetDefinition definition = new GeneratedMaterialAssetDefinition {
-            MaterialAsset = new MaterialAsset {
-                Id = id,
-                RenderState = new MaterialRenderState(),
-                CastsShadows = true,
-                ReceivesShadows = true
-            }
-        };
-        GeneratedMaterialPlatformDefinition windows = definition.GetOrCreatePlatform("windows");
-        windows.SchemaId = "standard-shader";
-        windows.SetFieldValue("use-custom-shader", "false");
-        windows.SetFieldValue("casts-shadow", "true");
-        windows.SetFieldValue("receives-shadow", "true");
-        windows.SetFieldValue("base-color", "#FFFFFFFF");
-        GeneratedMaterialPlatformDefinition ps2 = definition.GetOrCreatePlatform("ps2");
-        ps2.SchemaId = "ps2-simple-lit";
-        ps2.SetFieldValue("double-sided", "true");
-        return definition;
-    }
 }

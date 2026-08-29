@@ -194,7 +194,7 @@ namespace helengine.editor {
                 : 0u;
             List<SceneAssetReference> assetReferences = new List<SceneAssetReference>();
             HashSet<string> assetReferenceKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            SceneEntityAsset entityAsset = SerializeEntity(entity, assetReferences, assetReferenceKeys);
+            SceneEntityAsset entityAsset = SerializeEntity(entity, assetReferences, assetReferenceKeys, null);
             return new SerializedEditorEntityState {
                 EntityId = entityId,
                 ParentEntityId = parentEntityId,
@@ -244,7 +244,7 @@ namespace helengine.editor {
                     continue;
                 }
 
-                rootEntities.Add(SerializeEntity(editorEntity, assetReferences, assetReferenceKeys));
+                rootEntities.Add(SerializeEntity(editorEntity, assetReferences, assetReferenceKeys, sceneId));
             }
 
             return new SceneAsset {
@@ -284,7 +284,8 @@ namespace helengine.editor {
         SceneEntityAsset SerializeEntity(
             EditorEntity entity,
             List<SceneAssetReference> assetReferences,
-            HashSet<string> assetReferenceKeys) {
+            HashSet<string> assetReferenceKeys,
+            string deterministicSceneId) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             }
@@ -313,7 +314,15 @@ namespace helengine.editor {
                     EntityComponentSaveState saveState = null;
                     if (saveComponent != null) {
                         saveState = saveComponent.GetOrCreateComponentState(component);
-                        saveState.ComponentKey = ComponentEditingService.EnsureComponentKey(component, saveComponent);
+                        if (string.IsNullOrWhiteSpace(saveState.ComponentKey)) {
+                            saveState.ComponentKey = string.IsNullOrWhiteSpace(deterministicSceneId)
+                                ? ComponentEditingService.EnsureComponentKey(component, saveComponent)
+                                : BuildDeterministicComponentKey(
+                                    deterministicSceneId,
+                                    entityId,
+                                    persistedComponentIndex,
+                                    component.GetType());
+                        }
                         AssetReferenceInferenceService.PopulateAssetReferences(component, saveState);
                         AssetReferenceCanonicalizationService.Canonicalize(component, saveState);
                     }
@@ -349,7 +358,7 @@ namespace helengine.editor {
                         continue;
                     }
 
-                    childEntities.Add(SerializeEntity(childEntity, assetReferences, assetReferenceKeys));
+                    childEntities.Add(SerializeEntity(childEntity, assetReferences, assetReferenceKeys, deterministicSceneId));
                 }
             }
 
@@ -675,6 +684,41 @@ namespace helengine.editor {
             }
 
             return Path.GetRelativePath(AssetsRootPath, normalizedPath).Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Derives one stable component key for a newly materialized generated
+        /// component in one authored scene. Existing keys remain authoritative
+        /// so user-authored component identity survives reordering and reload.
+        /// </summary>
+        /// <param name="sceneId">Project-relative scene id owning the component.</param>
+        /// <param name="entityId">Stable serialized entity id owning the component.</param>
+        /// <param name="componentIndex">Entity-local persisted component index.</param>
+        /// <param name="componentType">Runtime component type being persisted.</param>
+        /// <returns>Lowercase 32-character deterministic component key.</returns>
+        static string BuildDeterministicComponentKey(
+            string sceneId,
+            uint entityId,
+            int componentIndex,
+            Type componentType) {
+            if (string.IsNullOrWhiteSpace(sceneId)) {
+                throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
+            } else if (componentType == null) {
+                throw new ArgumentNullException(nameof(componentType));
+            }
+
+            string seed = string.Concat(
+                sceneId,
+                "\u001f",
+                entityId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "\u001f",
+                componentIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "\u001f",
+                componentType.FullName ?? componentType.Name);
+            return Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed)))
+                .Substring(0, 32)
+                .ToLowerInvariant();
         }
 
         /// <summary>

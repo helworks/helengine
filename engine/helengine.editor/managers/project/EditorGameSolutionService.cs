@@ -404,12 +404,26 @@ namespace helengine.editor {
                     Directory.CreateDirectory(projectDirectoryPath);
                 }
 
-                File.WriteAllText(moduleProject.GeneratedGlobalUsingsFilePath, BuildGlobalUsingsFileContents(moduleProject));
-                File.WriteAllText(moduleProject.ProjectFilePath, BuildProjectFileContents(moduleProject));
+                WriteTextIfChanged(moduleProject.GeneratedGlobalUsingsFilePath, BuildGlobalUsingsFileContents(moduleProject));
+                WriteTextIfChanged(moduleProject.ProjectFilePath, BuildProjectFileContents(moduleProject));
             }
 
-            File.WriteAllText(SolutionFilePath, BuildSolutionFileContents(GeneratedCodeSolutionValue));
+            WriteTextIfChanged(SolutionFilePath, BuildSolutionFileContents(GeneratedCodeSolutionValue));
             return SolutionFilePath;
+        }
+
+        /// <summary>
+        /// Writes generated text only when its UTF-8 bytes differ, preserving an unchanged file's timestamp.
+        /// </summary>
+        /// <param name="filePath">Generated file path.</param>
+        /// <param name="contents">Expected UTF-8 text contents.</param>
+        static void WriteTextIfChanged(string filePath, string contents) {
+            if (File.Exists(filePath)
+                && File.ReadAllBytes(filePath).SequenceEqual(Encoding.UTF8.GetBytes(contents))) {
+                return;
+            }
+
+            File.WriteAllText(filePath, contents);
         }
 
         /// <summary>
@@ -609,6 +623,9 @@ namespace helengine.editor {
             builder.AppendLine("    </Reference>");
             builder.AppendLine("    <Reference Include=\"helengine.shader\">");
             builder.AppendLine("      <HintPath>" + EscapeXml(typeof(ShaderRuntimeMaterial).Assembly.Location) + "</HintPath>");
+            builder.AppendLine("    </Reference>");
+            builder.AppendLine("    <Reference Include=\"helengine.shader.compilation\">");
+            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(ShaderCompileService).Assembly.Location) + "</HintPath>");
             builder.AppendLine("    </Reference>");
             builder.AppendLine("    <Reference Include=\"helengine.input\">");
             builder.AppendLine("      <HintPath>" + EscapeXml(typeof(InputSystem).Assembly.Location) + "</HintPath>");

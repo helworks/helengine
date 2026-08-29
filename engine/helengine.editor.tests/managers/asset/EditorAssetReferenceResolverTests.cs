@@ -284,6 +284,35 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures hash recovery cannot steal a saved identity already claimed by
+    /// another compatible authored source.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenUniqueHashMatchesMovedSourceButSavedIdIsOwned_DoesNotAdoptSavedId() {
+        string originalPath = CreateAsset("Models/HashMoved.fbx", new byte[] { 7, 1, 8, 2 });
+        using EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath);
+        SceneAssetReference savedReference = setupResolver.CreateFileReference(originalPath, AssetEntryKind.Model);
+        string movedPath = CreateAsset("Models/HashMovedTarget.fbx", new byte[] { 7, 1, 8, 2 });
+        File.Delete(originalPath);
+        File.Delete(originalPath + ".hmeta");
+
+        string ownerPath = CreateAsset("Models/ExistingOwner.fbx", new byte[] { 3, 1, 4, 1 });
+        new AssetIdentityMetadataService(TempRootPath).Save(ownerPath, new AssetIdentityMetadataDocument {
+            AssetId = savedReference.AssetId,
+            FormerAssetIds = new List<string>()
+        });
+
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report);
+        AssetReferenceResolution result = resolver.Resolve(savedReference, AssetEntryKind.Model);
+
+        Assert.Equal(ownerPath, result.FullPath);
+        Assert.Equal(savedReference.AssetId, result.CanonicalReference.AssetId);
+        Assert.NotEqual(savedReference.AssetId, new AssetIdentityMetadataService(TempRootPath).Load(movedPath).AssetId);
+        Assert.DoesNotContain(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
+    }
+
+    /// <summary>
     /// Ensures hash fallback selects the ordinally smallest compatible candidate.
     /// </summary>
     [Fact]
@@ -347,6 +376,80 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         Assert.Equal(AssetReferenceResolutionTier.AssetId, result.Tier);
         Assert.Equal("Models/A.fbx", result.CanonicalReference.RelativePath);
         Assert.True(result.CandidateEvidence.IsCurrentId);
+    }
+
+    /// <summary>
+    /// Ensures duplicate current identities are deterministic even when the
+    /// authored-file catalog deliberately returns the losing path first.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenDuplicateCurrentIdsArriveInReverseCatalogOrder_UsesCanonicalOwner() {
+        string canonicalPath = CreateAsset("Models/A-Canonical.fbx", new byte[] { 1, 2, 3 });
+        string losingPath = CreateAsset("Models/Z-Losing.fbx", new byte[] { 4, 5, 6 });
+        const string copiedAssetId = "00112233445566778899aabbccddeeff";
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
+        metadata.Save(canonicalPath, new AssetIdentityMetadataDocument { AssetId = copiedAssetId });
+        metadata.Save(losingPath, new AssetIdentityMetadataDocument { AssetId = copiedAssetId });
+
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(
+            TempRootPath,
+            null,
+            null,
+            null,
+            new OrderedAssetFileCatalog(reverse: true),
+            report);
+        index.Initialize();
+
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, index);
+        SceneAssetReference reference = resolver.CreateFileReference(canonicalPath, AssetEntryKind.Model);
+        AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
+
+        Assert.Equal("Models/A-Canonical.fbx", result.CanonicalReference.RelativePath);
+        EditorAssetRepairRecord repair = Assert.Single(report.Records);
+        Assert.Equal(EditorAssetRepairKind.DuplicateIdReassignment, repair.Kind);
+        Assert.Equal("Models/Z-Losing.fbx", repair.RelativePath);
+        Assert.Equal(copiedAssetId, repair.PreviousAssetId);
+        Assert.Equal("selected ordinal owner path='Models/A-Canonical.fbx'", repair.Evidence);
+        Assert.Equal(Path.Combine(TempRootPath, "assets", "Models", "Z-Losing.fbx.hmeta"), repair.OwningDocument);
+        Assert.Equal("Reassigned copied identity to the non-owning asset.", repair.Diagnostic);
+    }
+
+    /// <summary>
+    /// Ensures embedded native identities use the same canonical owner rule
+    /// under a deliberately reversed catalog enumeration.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenDuplicateNativeIdsArriveInReverseCatalogOrder_RekeysCopiedAsset() {
+        const string copiedAssetId = "8899aabbccddeeff0011223344556677";
+        string canonicalPath = CreateNativeAnimation("Animations/A-Canonical.hanim", copiedAssetId, 1f);
+        string losingPath = CreateNativeAnimation("Animations/Z-Losing.hanim", copiedAssetId, 2f);
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using EditorAssetIdentityIndex index = new EditorAssetIdentityIndex(
+            TempRootPath,
+            null,
+            null,
+            null,
+            new OrderedAssetFileCatalog(reverse: true),
+            report);
+        index.Initialize();
+
+        using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, index);
+        SceneAssetReference canonicalReference = resolver.CreateFileReference(canonicalPath, AssetEntryKind.File);
+        SceneAssetReference losingReference = resolver.CreateFileReference(losingPath, AssetEntryKind.File);
+
+        Assert.Equal(copiedAssetId, canonicalReference.AssetId);
+        Assert.NotEqual(copiedAssetId, losingReference.AssetId);
+        Assert.Equal(new[] { copiedAssetId }, new AssetIdentityMetadataService(TempRootPath).Load(losingPath).FormerAssetIds);
+        EditorAssetRepairRecord repair = Assert.Single(report.Records);
+        Assert.Equal(EditorAssetRepairKind.DuplicateIdReassignment, repair.Kind);
+        Assert.Equal("Animations/Z-Losing.hanim", repair.RelativePath);
+        Assert.Equal(copiedAssetId, repair.PreviousAssetId);
+        Assert.Equal(losingReference.AssetId, repair.CurrentAssetId);
+        Assert.Null(repair.ResolutionTier);
+        Assert.Equal("selected ordinal owner path='Animations/A-Canonical.hanim'", repair.Evidence);
+        Assert.Equal(losingPath, repair.OwningDocument);
+        Assert.Equal("Reassigned copied identity to the non-owning asset.", repair.Diagnostic);
     }
 
     [Fact]
@@ -873,6 +976,24 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         public IEnumerable<string> EnumerateFiles(string assetsRootPath) {
             EnumerationCount++;
             return Directory.EnumerateFiles(assetsRootPath, "*", SearchOption.AllDirectories);
+        }
+    }
+
+    /// <summary>
+    /// Test catalog with an explicit reverse enumeration order. The index must
+    /// apply its own canonical path tie-break instead of trusting this order.
+    /// </summary>
+    sealed class OrderedAssetFileCatalog : IEditorAssetFileCatalog {
+        readonly bool Reverse;
+
+        public OrderedAssetFileCatalog(bool reverse) {
+            Reverse = reverse;
+        }
+
+        public IEnumerable<string> EnumerateFiles(string assetsRootPath) {
+            IEnumerable<string> files = Directory.EnumerateFiles(assetsRootPath, "*", SearchOption.AllDirectories)
+                .OrderBy(path => path, StringComparer.Ordinal);
+            return Reverse ? files.Reverse() : files;
         }
     }
 }

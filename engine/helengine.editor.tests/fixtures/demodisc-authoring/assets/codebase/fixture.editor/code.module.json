@@ -1,0 +1,6 @@
+{
+  "moduleId": "fixture.editor",
+  "dependencyModuleIds": [],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "editor"
+}

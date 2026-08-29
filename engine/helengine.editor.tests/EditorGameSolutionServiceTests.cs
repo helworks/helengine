@@ -303,6 +303,92 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures generated editor test projects carry the shader-compilation
+        /// dependency required by the public ShaderBackendRegistry surface.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenEditorTestUsesShaderBackendRegistry_ReferencesShaderCompilationAssembly() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools.tests"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "game.tools"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "game.tools.tests"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "RuntimePlayer.cs"), "public sealed class RuntimePlayer { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools", "code.module.json"), """
+{
+  "moduleId": "rendering.tools",
+  "dependencyModuleIds": [],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "editor"
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "game.tools", "code.module.json"), """
+{
+  "moduleId": "game.tools",
+  "dependencyModuleIds": [],
+  "loadScopes": [ "always-loaded" ],
+  "moduleKind": "editor"
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "rendering.tools.tests", "ShaderBackendRegistryTests.cs"), """
+using helengine;
+public sealed class ShaderBackendRegistryTests {
+    public ShaderBackendRegistry CreateRegistry() => new ShaderBackendRegistry();
+}
+""");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "game.tools.tests", "ShaderBackendRegistryTests.cs"), """
+using helengine;
+public sealed class ShaderBackendRegistryTests {
+    public ShaderBackendRegistry CreateRegistry() => new ShaderBackendRegistry();
+}
+""");
+
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            service.GenerateSolutionFiles();
+
+            foreach (string moduleId in new[] { "game.tools.tests", "rendering.tools.tests" }) {
+                string projectFilePath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", moduleId, moduleId + ".csproj");
+                string projectFileContents = File.ReadAllText(projectFilePath);
+                int shaderReference = projectFileContents.IndexOf("<Reference Include=\"helengine.shader\">", StringComparison.Ordinal);
+                int compilationReference = projectFileContents.IndexOf("<Reference Include=\"helengine.shader.compilation\">", StringComparison.Ordinal);
+                Assert.True(shaderReference >= 0);
+                Assert.True(compilationReference > shaderReference);
+                Assert.Contains("<HintPath>" + EscapeXml(typeof(ShaderCompileService).Assembly.Location) + "</HintPath>", projectFileContents, StringComparison.Ordinal);
+            }
+        }
+
+        /// <summary>
+        /// Ensures replaying an unchanged solution does not rewrite generated text or churn its timestamps.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenContentsAreUnchanged_PreservesGeneratedFileBytesAndTimestamps() {
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            service.GenerateSolutionFiles();
+            string generatedRootPath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code");
+            string[] generatedFilePaths = Directory.GetFiles(generatedRootPath, "*", SearchOption.AllDirectories);
+            Assert.NotEmpty(generatedFilePaths);
+
+            DateTime expectedTimestamp = new DateTime(2001, 2, 3, 4, 5, 6, DateTimeKind.Utc);
+            Dictionary<string, (byte[] Bytes, DateTime LastWriteTimeUtc)> before = new Dictionary<string, (byte[] Bytes, DateTime LastWriteTimeUtc)>(StringComparer.OrdinalIgnoreCase);
+            foreach (string generatedFilePath in generatedFilePaths) {
+                File.SetLastWriteTimeUtc(generatedFilePath, expectedTimestamp);
+                before[generatedFilePath] = (File.ReadAllBytes(generatedFilePath), File.GetLastWriteTimeUtc(generatedFilePath));
+            }
+
+            service.GenerateSolutionFiles();
+
+            string[] replayedFilePaths = Directory.GetFiles(generatedRootPath, "*", SearchOption.AllDirectories);
+            Assert.Equal(generatedFilePaths.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase), replayedFilePaths.OrderBy(static path => path, StringComparer.OrdinalIgnoreCase));
+            foreach (string generatedFilePath in replayedFilePaths) {
+                Assert.True(before.TryGetValue(generatedFilePath, out (byte[] Bytes, DateTime LastWriteTimeUtc) snapshot));
+                Assert.Equal(snapshot.Bytes, File.ReadAllBytes(generatedFilePath));
+                Assert.Equal(snapshot.LastWriteTimeUtc, File.GetLastWriteTimeUtc(generatedFilePath));
+            }
+        }
+
+        /// <summary>
         /// Ensures editor-surface generated test projects inherit the editor global using surface.
         /// </summary>
         [Fact]

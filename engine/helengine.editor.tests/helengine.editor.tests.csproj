@@ -28,6 +28,10 @@
 
   <ItemGroup>
     <Compile Remove="managers\physics\**\*.cs" />
+    <Compile Remove="fixtures\**\*.cs" />
+    <None Include="fixtures\**\*.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="fixtures\**\*.heproj" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="CopyHelengineRuntimeAssemblies" AfterTargets="Build">

@@ -80,6 +80,37 @@ namespace helengine.editor.tests.serialization.blueprint {
         }
 
         /// <summary>
+        /// Ensures fresh equivalent generated scene graphs receive the same
+        /// component keys when they are saved to the same authored scene id.
+        /// </summary>
+        [Fact]
+        public void Save_WhenEquivalentFreshSceneGraphsUseTheSameSceneId_UsesDeterministicComponentKeys() {
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Deterministic.helen");
+            Directory.CreateDirectory(Path.GetDirectoryName(scenePath));
+            SceneSettingsAsset settings = new SceneSettingsAsset();
+            using IEditorProjectAuthoringSession authoring = GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath);
+            using SceneSaveService saveService = new SceneSaveService(
+                authoring,
+                new ComponentPersistenceRegistry());
+
+            EditorEntity firstRoot = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
+            firstRoot.IsSceneOwned = true;
+            GetSaveComponent(firstRoot).EntityId = 17u;
+            firstRoot.AddComponent(new CameraComponent());
+            saveService.Save(scenePath, settings, new[] { firstRoot }, "00112233445566778899aabbccddeeff");
+            byte[] firstBytes = File.ReadAllBytes(scenePath);
+
+            EditorEntity secondRoot = CreateUserEntity("Root", float3.Zero, float3.One, float4.Identity);
+            secondRoot.IsSceneOwned = true;
+            GetSaveComponent(secondRoot).EntityId = 17u;
+            secondRoot.AddComponent(new CameraComponent());
+            saveService.Save(scenePath, settings, new[] { secondRoot }, "00112233445566778899aabbccddeeff");
+            byte[] secondBytes = File.ReadAllBytes(scenePath);
+
+            Assert.Equal(firstBytes, secondBytes);
+        }
+
+        /// <summary>
         /// Ensures blueprint save writes one `.hblueprint` file and round-trips stable entity ids, component keys, asset references, and platform overrides.
         /// </summary>
         [Fact]

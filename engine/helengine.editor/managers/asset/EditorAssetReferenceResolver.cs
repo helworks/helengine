@@ -192,6 +192,7 @@ namespace helengine.editor {
             }
 
             EditorAssetResolutionCandidateScore candidateEvidence = null;
+            List<EditorAssetIdentityEntry> hashMatches = null;
             EditorAssetIdentityEntry winner = savedIdWasAdopted
                 ? null
                 : SelectByAssetId(reference.AssetId, expectedKind, savedPath, reference.ContentHash, out candidateEvidence);
@@ -211,7 +212,7 @@ namespace helengine.editor {
             }
             if (winner == null && IsValidContentHash(reference.ContentHash)) {
                 IReadOnlyList<EditorAssetIdentityEntry> candidates = IdentityIndex.EnumerateCompatible(expectedKind);
-                List<EditorAssetIdentityEntry> hashMatches = new List<EditorAssetIdentityEntry>();
+                hashMatches = new List<EditorAssetIdentityEntry>();
                 for (int index = 0; index < candidates.Count; index++) {
                     ValidateNoReparseTraversal(candidates[index].FullPath);
                     if (string.Equals(HashCache.GetContentHash(candidates[index].FullPath), reference.ContentHash, StringComparison.Ordinal)) {
@@ -227,6 +228,28 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unable to resolve {expectedKind} asset reference. Tried AssetId='{reference.AssetId}', Path='{reference.RelativePath}', ContentHash='{reference.ContentHash}'.");
             }
 
+            if (!savedIdWasAdopted &&
+                tier == AssetReferenceResolutionTier.ContentHash &&
+                hashMatches != null &&
+                hashMatches.Count == 1 &&
+                IsValidAssetId(reference.AssetId) &&
+                !PathClassifier.UsesEmbeddedIdentity(winner.FullPath) &&
+                !IdentityIndex.IsAnyAssetIdentityClaimedUnderLock(reference.AssetId)) {
+                EditorAssetRepairRecord adoptionRepair = CreateRepairRecord(
+                    EditorAssetRepairKind.SavedIdAdoption,
+                    winner.RelativePath,
+                    winner.AssetId,
+                    reference.AssetId,
+                    AssetReferenceResolutionTier.ContentHash,
+                    "saved identity adopted by unique content hash",
+                    "Adopted the saved identity for the uniquely matching authored source.");
+                if (IdentityIndex.TryAdoptSavedAssetIdUnderLock(winner.FullPath, reference.AssetId, adoptionRepair)) {
+                    savedIdWasAdopted = true;
+                    metadataChanged = true;
+                    winner = IdentityIndex.FindByPath(winner.RelativePath);
+                }
+            }
+
             ValidateNoReparseTraversal(winner.FullPath);
             string contentHash = HashCache.GetContentHash(winner.FullPath);
             if (IsMetadataMissing(winner.FullPath)) {
@@ -238,10 +261,15 @@ namespace helengine.editor {
                 bool pathChanged = !string.Equals(reference.RelativePath, canonicalReference.RelativePath, StringComparison.Ordinal);
                 bool hashChanged = !string.Equals(reference.ContentHash, canonicalReference.ContentHash, StringComparison.Ordinal);
                 string evidence = candidateEvidence?.ToEvidenceString() ?? string.Empty;
-                if (pathChanged) {
+                // Hash fallback with saved-ID adoption is itself the durable
+                // recovery of the stale external reference. Report that
+                // source of truth once, rather than adding a second path-only
+                // repair for the same canonicalization batch.
+                bool hashRecoveryAdopted = savedIdWasAdopted && tier == AssetReferenceResolutionTier.ContentHash;
+                if (pathChanged && !hashRecoveryAdopted) {
                     AppendRepair(EditorAssetRepairKind.PathHealing, winner.RelativePath, reference.AssetId, winner.AssetId, tier, evidence, "Healed the saved asset path to the selected authored source.");
                 }
-                if (hashChanged) {
+                if (hashChanged || hashRecoveryAdopted) {
                     AppendRepair(EditorAssetRepairKind.HashHealing, winner.RelativePath, reference.AssetId, winner.AssetId, tier, evidence, "Healed the saved content hash to the selected authored source.");
                 }
                 AppendRepair(EditorAssetRepairKind.CanonicalReferenceRefresh, winner.RelativePath, reference.AssetId, winner.AssetId, tier, evidence, "Refreshed the saved asset reference to its canonical identity, path, and hash.");
