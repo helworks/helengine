@@ -315,7 +315,7 @@ namespace helengine.editor.tests.rendering {
 
             Assert.NotNull(method);
 
-            StandardMeshShaderData shaderData = Assert.IsType<StandardMeshShaderData>(method.Invoke(null, new object[] { world, new float3(1f, 2f, 3f), true }));
+            StandardMeshShaderData shaderData = Assert.IsType<StandardMeshShaderData>(method.Invoke(null, new object[] { world, new float3(1f, 2f, 3f), true, false }));
 
             AssertMatrixEqual(expectedUploadedNormalMatrix, shaderData.NormalMatrix);
         }

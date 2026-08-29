@@ -777,7 +777,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures font atlas textures honor platform texture processor settings before the cached font asset is written.
+        /// Ensures font atlas textures honor dedicated platform font-atlas processor settings before the cached font asset is written.
         /// </summary>
         [Fact]
         public void TryLoadFontAsset_WhenPlatformTextureColorFormatIsConfigured_CachesProcessedAtlasFormat() {
@@ -787,7 +787,7 @@ namespace helengine.editor.tests {
 
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
             settings.Processor.Platforms["ds"] = new AssetPlatformProcessorSettings {
-                Texture = new TextureAssetProcessorSettings {
+                FontAtlasTexture = new TextureAssetProcessorSettings {
                     MaxResolution = 0,
                     ColorFormat = TextureAssetColorFormat.Rgba4444
                 },
@@ -815,7 +815,7 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures font imports use the shared default texture format when no explicit per-platform override was authored yet.
+        /// Ensures Nintendo DS font imports use the platform font-atlas default texture format when no explicit override was authored yet.
         /// </summary>
         [Fact]
         public void TryLoadFontAsset_WhenCurrentPlatformUsesSharedDefaultsAndTextureSettingsAreMissing_UsesSharedDefaultTextureFormat() {
@@ -827,12 +827,12 @@ namespace helengine.editor.tests {
 
             Assert.True(loaded);
             Assert.NotNull(asset);
-            Assert.Equal(TextureAssetColorFormat.Rgba32, asset.SourceTextureAsset.ColorFormat);
-            Assert.Equal(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF }, asset.SourceTextureAsset.Colors);
+            Assert.Equal(TextureAssetColorFormat.Indexed4, asset.SourceTextureAsset.ColorFormat);
+            Assert.Equal(new byte[] { 0x00 }, asset.SourceTextureAsset.Colors);
         }
 
         /// <summary>
-        /// Ensures font imports use the shared default texture budget when no explicit override was authored yet.
+        /// Ensures Nintendo DS font imports preserve the source atlas resolution when no font-atlas resolution override was authored yet.
         /// </summary>
         [Fact]
         public void TryLoadFontAsset_WhenCurrentPlatformUsesSharedDefaultsAndTextureSettingsAreMissing_UsesSharedDefaultResolution() {
@@ -848,8 +848,8 @@ namespace helengine.editor.tests {
             Assert.NotNull(asset);
             Assert.Equal((ushort)256, asset.SourceTextureAsset.Width);
             Assert.Equal((ushort)256, asset.SourceTextureAsset.Height);
-            Assert.Equal(TextureAssetColorFormat.Rgba32, asset.SourceTextureAsset.ColorFormat);
-            Assert.Equal(256 * 256 * 4, asset.SourceTextureAsset.Colors.Length);
+            Assert.Equal(TextureAssetColorFormat.Indexed4, asset.SourceTextureAsset.ColorFormat);
+            Assert.Equal((256 * 256 + 1) / 2, asset.SourceTextureAsset.Colors.Length);
         }
 
         /// <summary>
@@ -864,7 +864,7 @@ namespace helengine.editor.tests {
 
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
             settings.Processor.Platforms["gamecube"] = new AssetPlatformProcessorSettings {
-                Texture = new TextureAssetProcessorSettings {
+                FontAtlasTexture = new TextureAssetProcessorSettings {
                     MaxResolution = 128,
                     ColorFormat = TextureAssetColorFormat.Rgba32,
                     AlphaPrecision = TextureAssetAlphaPrecision.A8
@@ -900,7 +900,7 @@ namespace helengine.editor.tests {
 
             AssetImportSettings settings = manager.LoadOrCreateImportSettings(sourcePath);
             settings.Processor.Platforms["ds"] = new AssetPlatformProcessorSettings {
-                Texture = new TextureAssetProcessorSettings {
+                FontAtlasTexture = new TextureAssetProcessorSettings {
                     MaxResolution = 128,
                     ColorFormat = TextureAssetColorFormat.Rgba32,
                     AlphaPrecision = TextureAssetAlphaPrecision.A8

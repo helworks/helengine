@@ -13,8 +13,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenTransparentDrawableExists_BuildsOpaqueTransparentAndPresentPlan() {
-            InitializeCore();
             RecordingPlannedRenderer renderer = RecordingPlannedRenderer.Create();
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
@@ -36,8 +36,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenSingleDrawableContainsMixedSubmeshTransparency_BuildsOpaqueTransparentAndPresentPlan() {
-            InitializeCore();
             RecordingPlannedRenderer renderer = RecordingPlannedRenderer.Create();
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(
@@ -71,8 +71,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenSingleDrawableContainsMixedSubmeshTransparency_ExecutesDistinctSubmeshVisits() {
-            InitializeCore();
             SubmissionRecordingRenderer renderer = SubmissionRecordingRenderer.Create();
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(
@@ -102,8 +102,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenDepthPrepassIsEnabled_BuildsDepthOpaqueAndPresentPlan() {
-            InitializeCore();
             RecordingPlannedRenderer renderer = RecordingPlannedRenderer.Create();
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.DepthPrepassMode = DepthPrepassMode.Always;
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
@@ -125,8 +125,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenVisibleLightsExceedBudget_CarriesSelectedLightsIntoExecutionContext() {
-            InitializeCore();
             RecordingPlannedRenderer renderer = RecordingPlannedRenderer.Create(new RendererBackendCapabilityProfile(true, false, true, true, 2, 1));
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
@@ -163,8 +163,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenShadowedLightsAndShadowCastersExist_CarriesShadowResourcesIntoExecutionContext() {
-            InitializeCore();
             RecordingPlannedRenderer renderer = RecordingPlannedRenderer.Create(new RendererBackendCapabilityProfile(true, false, true, true, 4, 2));
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
@@ -197,8 +197,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenShadowPassIsPlanned_ExecutesShadowOpaqueAndPresentPassesInOrder() {
-            InitializeCore();
             ExecutingPlannedRenderer renderer = ExecutingPlannedRenderer.Create(new RendererBackendCapabilityProfile(true, false, true, true, 4, 2));
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
@@ -225,8 +225,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenPointShadowResourcesExist_RendersPointShadowsBeforePreparingShadowShaderState() {
-            InitializeCore();
             PointShadowExecutingRenderer renderer = PointShadowExecutingRenderer.Create(new RendererBackendCapabilityProfile(true, false, true, true, 4, 2));
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
@@ -254,8 +254,8 @@ namespace helengine.editor.tests.rendering {
         /// </summary>
         [Fact]
         public void RenderCamera_WhenPointShadowResourcesExist_RestoresCameraFrameTargetsBeforePreparingShadowShaderState() {
-            InitializeCore();
             PointShadowExecutingRenderer renderer = PointShadowExecutingRenderer.Create(new RendererBackendCapabilityProfile(true, false, true, true, 4, 2));
+            InitializeCore(renderer);
             CameraComponent camera = new CameraComponent();
             camera.RenderSettings.PostProcessTier = PostProcessTier.Disabled;
             camera.RenderQueue3D.Add(new TestDrawable3D(MaterialBlendMode.Opaque));
@@ -281,13 +281,17 @@ namespace helengine.editor.tests.rendering {
         /// <summary>
         /// Initializes a core instance so camera render queues can be allocated during the test.
         /// </summary>
-        void InitializeCore() {
+        void InitializeCore(RenderManager3D renderManager3D) {
+            if (renderManager3D == null) {
+                throw new ArgumentNullException(nameof(renderManager3D));
+            }
+
             Core core = new Core(new CoreInitializationOptions {
                 RenderList3DInitialCapacity = 4,
                 RenderList2DInitialCapacity = 4,
                 ContentStreamSource = new FakeContentStreamSource()
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            core.Initialize(renderManager3D, new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
         }
 
         /// <summary>
