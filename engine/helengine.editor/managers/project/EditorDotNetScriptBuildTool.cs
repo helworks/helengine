@@ -5,7 +5,7 @@ namespace helengine.editor {
     /// <summary>
     /// Builds the generated scripting solution by invoking the local `dotnet` CLI.
     /// </summary>
-    public sealed class EditorDotNetScriptBuildTool : IEditorScriptBuildTool {
+    public sealed class EditorDotNetScriptBuildTool : IEditorScriptBuildToolWithOutputRoot {
         /// <summary>
         /// Build configuration used for editor-driven script reloads.
         /// </summary>
@@ -22,8 +22,21 @@ namespace helengine.editor {
         /// <param name="solutionPath">Absolute path to the generated solution file.</param>
         /// <returns>Build result describing success or failure.</returns>
         public EditorBuildExecutionResult Build(string solutionPath) {
+            return Build(solutionPath, string.Empty);
+        }
+
+        /// <summary>
+        /// Builds one solution with an optional invocation-specific generated-output root.
+        /// </summary>
+        /// <param name="solutionPath">Absolute path to the generated solution file.</param>
+        /// <param name="executionOutputRootPath">Unique generated-output root for this invocation, or empty to use project metadata defaults.</param>
+        /// <returns>Structured execution result describing the process outcome.</returns>
+        public EditorBuildExecutionResult Build(string solutionPath, string executionOutputRootPath) {
             if (string.IsNullOrWhiteSpace(solutionPath)) {
                 throw new ArgumentException("Solution path must be provided.", nameof(solutionPath));
+            }
+            if (executionOutputRootPath == null) {
+                throw new ArgumentNullException(nameof(executionOutputRootPath));
             }
 
             string workingDirectory = Path.GetDirectoryName(Path.GetFullPath(solutionPath));
@@ -44,6 +57,9 @@ namespace helengine.editor {
             startInfo.ArgumentList.Add("--configuration");
             startInfo.ArgumentList.Add(BuildConfigurationValue);
             startInfo.ArgumentList.Add("--nologo");
+            if (!string.IsNullOrWhiteSpace(executionOutputRootPath)) {
+                startInfo.ArgumentList.Add("-p:HelengineExecutionOutputRoot=" + Path.GetFullPath(executionOutputRootPath));
+            }
 
             using Process process = Process.Start(startInfo);
             if (process == null) {

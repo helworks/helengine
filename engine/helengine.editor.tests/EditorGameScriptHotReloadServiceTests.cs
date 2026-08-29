@@ -53,6 +53,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures an isolated solution build receives its unique compiler-output root without changing authored project metadata.
+        /// </summary>
+        [Fact]
+        public void BuildAndReload_WhenExecutionOutputIsConfigured_ForwardsUniqueOutputRootToBuildTool() {
+            string executionOutputRootPath = Path.Combine(Path.GetTempPath(), "helengine-script-hot-reload-tests", Guid.NewGuid().ToString("N"), "execution");
+            string generatedWorkspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-script-hot-reload-tests", Guid.NewGuid().ToString("N"), "workspace");
+            string generatedProjectOutputRootPath = Path.Combine(generatedWorkspaceRootPath, "output");
+
+            try {
+                EditorGameSolutionService solutionService = new EditorGameSolutionService(
+                    TempProjectRootPath,
+                    "SkyRider",
+                    new TestIdeLauncher(),
+                    executionOutputRootPath,
+                    generatedWorkspaceRootPath,
+                    EditorScriptCompilationMode.EditorFull,
+                    generatedProjectOutputRootPath);
+                TestScriptBuildTool buildTool = new TestScriptBuildTool(EditorBuildExecutionResult.Success("build ok"));
+                TestScriptAssemblyHost assemblyHost = new TestScriptAssemblyHost();
+                EditorGameScriptHotReloadService service = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);
+
+                EditorBuildExecutionResult result = service.BuildAndReload();
+
+                Assert.True(result.Succeeded);
+                Assert.Equal(executionOutputRootPath, buildTool.ExecutionOutputRootPath);
+                Assert.NotEqual(generatedProjectOutputRootPath, buildTool.ExecutionOutputRootPath);
+            } finally {
+                string testRootPath = Path.GetDirectoryName(generatedWorkspaceRootPath) ?? generatedWorkspaceRootPath;
+                if (Directory.Exists(testRootPath)) {
+                    Directory.Delete(testRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures a build failure short-circuits the reload path.
         /// </summary>
         [Fact]
@@ -99,7 +134,7 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Minimal build tool used to verify scripting hot-reload orchestration without invoking `dotnet`.
         /// </summary>
-        sealed class TestScriptBuildTool : IEditorScriptBuildTool {
+        sealed class TestScriptBuildTool : IEditorScriptBuildToolWithOutputRoot {
             /// <summary>
             /// Initializes one fake build tool with a fixed outcome.
             /// </summary>
@@ -119,12 +154,29 @@ namespace helengine.editor.tests {
             public string SolutionPath { get; private set; }
 
             /// <summary>
+            /// Gets the invocation-specific compiler-output root passed by isolated hot-reload orchestration.
+            /// </summary>
+            public string ExecutionOutputRootPath { get; private set; }
+
+            /// <summary>
             /// Builds the supplied solution path and returns the fixed test result.
             /// </summary>
             /// <param name="solutionPath">Absolute path to the generated solution file.</param>
             /// <returns>Fixed build result configured for the test.</returns>
             public EditorBuildExecutionResult Build(string solutionPath) {
                 SolutionPath = solutionPath;
+                return Result;
+            }
+
+            /// <summary>
+            /// Records the invocation-specific compiler-output root and returns the fixed test result.
+            /// </summary>
+            /// <param name="solutionPath">Absolute path to the generated solution file.</param>
+            /// <param name="executionOutputRootPath">Unique compiler-output root for the invocation.</param>
+            /// <returns>Fixed build result configured for the test.</returns>
+            public EditorBuildExecutionResult Build(string solutionPath, string executionOutputRootPath) {
+                SolutionPath = solutionPath;
+                ExecutionOutputRootPath = executionOutputRootPath;
                 return Result;
             }
         }

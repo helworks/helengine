@@ -96,6 +96,16 @@ namespace helengine.editor {
         readonly string GeneratedWorkspaceRootPath;
 
         /// <summary>
+        /// Stable fallback output root embedded in generated project metadata for isolated builds.
+        /// </summary>
+        readonly string GeneratedProjectOutputRootPath;
+
+        /// <summary>
+        /// Whether compiler output is selected by an invocation-specific MSBuild property.
+        /// </summary>
+        readonly bool UsesInvocationOutputOverrideValue;
+
+        /// <summary>
         /// Authored script surfaces included in the generated solution.
         /// </summary>
         readonly EditorScriptCompilationMode CompilationMode;
@@ -155,6 +165,8 @@ namespace helengine.editor {
             GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
             GeneratedOutputRootPath = string.Empty;
             GeneratedWorkspaceRootPath = string.Empty;
+            GeneratedProjectOutputRootPath = string.Empty;
+            UsesInvocationOutputOverrideValue = false;
             CompilationMode = EditorScriptCompilationMode.EditorFull;
         }
 
@@ -200,6 +212,8 @@ namespace helengine.editor {
                 ? string.Empty
                 : Path.GetFullPath(generatedOutputRootPath);
             GeneratedWorkspaceRootPath = string.Empty;
+            GeneratedProjectOutputRootPath = string.Empty;
+            UsesInvocationOutputOverrideValue = false;
             CompilationMode = EditorScriptCompilationMode.EditorFull;
         }
 
@@ -327,6 +341,63 @@ namespace helengine.editor {
             GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
             GeneratedOutputRootPath = Path.GetFullPath(generatedOutputRootPath);
             GeneratedWorkspaceRootPath = Path.GetFullPath(generatedWorkspaceRootPath);
+            GeneratedProjectOutputRootPath = GeneratedOutputRootPath;
+            UsesInvocationOutputOverrideValue = false;
+            SolutionFilePath = Path.Combine(GeneratedWorkspaceRootPath, ProjectIdentifier + SolutionFileExtension);
+            CompilationMode = compilationMode;
+        }
+
+        /// <summary>
+        /// Initializes one solution generator with stable authored project files and isolated compiler outputs.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative game project root path.</param>
+        /// <param name="projectName">Display name of the game project.</param>
+        /// <param name="ideLauncher">Launcher used to open the generated solution.</param>
+        /// <param name="generatedOutputRootPath">Unique compiler-output root reserved for this invocation.</param>
+        /// <param name="generatedWorkspaceRootPath">Stable project-scoped workspace root used for generated solution and project files.</param>
+        /// <param name="compilationMode">Authored script surfaces included in the generated solution.</param>
+        /// <param name="generatedProjectOutputRootPath">Stable fallback output root embedded in generated project metadata.</param>
+        public EditorGameSolutionService(
+            string projectRootPath,
+            string projectName,
+            IEditorIdeLauncher ideLauncher,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
+            EditorScriptCompilationMode compilationMode,
+            string generatedProjectOutputRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(projectName)) {
+                throw new ArgumentException("Project name must be provided.", nameof(projectName));
+            }
+            if (ideLauncher == null) {
+                throw new ArgumentNullException(nameof(ideLauncher));
+            }
+            if (string.IsNullOrWhiteSpace(generatedOutputRootPath)) {
+                throw new ArgumentException("Generated output root path must be provided.", nameof(generatedOutputRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(generatedWorkspaceRootPath)) {
+                throw new ArgumentException("Generated workspace root path must be provided.", nameof(generatedWorkspaceRootPath));
+            }
+            if (string.IsNullOrWhiteSpace(generatedProjectOutputRootPath)) {
+                throw new ArgumentException("Generated project output root path must be provided.", nameof(generatedProjectOutputRootPath));
+            }
+
+            ProjectRootPath = Path.GetFullPath(projectRootPath);
+            ProjectIdentifier = SanitizeIdentifier(projectName);
+            if (string.IsNullOrWhiteSpace(ProjectIdentifier)) {
+                ProjectIdentifier = "Game";
+            }
+
+            IdeLauncher = ideLauncher;
+            SolutionDetector = new EditorVisualStudioLauncher();
+            CodeModuleManifestService = new EditorCodeModuleManifestService(ProjectRootPath);
+            GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
+            GeneratedOutputRootPath = Path.GetFullPath(generatedOutputRootPath);
+            GeneratedWorkspaceRootPath = Path.GetFullPath(generatedWorkspaceRootPath);
+            GeneratedProjectOutputRootPath = Path.GetFullPath(generatedProjectOutputRootPath);
+            UsesInvocationOutputOverrideValue = true;
             SolutionFilePath = Path.Combine(GeneratedWorkspaceRootPath, ProjectIdentifier + SolutionFileExtension);
             CompilationMode = compilationMode;
         }
@@ -359,6 +430,16 @@ namespace helengine.editor {
                 return Path.Combine(primaryModuleProject.OutputDirectoryPath, primaryModuleProject.ModuleId + ".dll");
             }
         }
+
+        /// <summary>
+        /// Gets the invocation-specific compiler-output root, when this service was configured for isolated execution.
+        /// </summary>
+        internal string GeneratedExecutionOutputRootPath => GeneratedOutputRootPath;
+
+        /// <summary>
+        /// Gets whether the generated project metadata expects an invocation-specific compiler-output override.
+        /// </summary>
+        internal bool UsesInvocationOutputOverride => UsesInvocationOutputOverrideValue;
 
         /// <summary>
         /// Gets the ordered generated module projects included in the current solution.
@@ -463,8 +544,16 @@ namespace helengine.editor {
             builder.AppendLine("    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>");
             builder.AppendLine("    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>");
             builder.AppendLine("    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>");
-            builder.AppendLine("    <BaseIntermediateOutputPath>" + EscapeXml(moduleProject.BaseIntermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
-            builder.AppendLine("    <BaseOutputPath>" + EscapeXml(moduleProject.BaseOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");
+            if (UsesInvocationOutputOverrideValue) {
+                builder.AppendLine("    <HelengineExecutionOutputRoot Condition=\"'$(HelengineExecutionOutputRoot)' == ''\">" + EscapeXml(GeneratedProjectOutputRootPath) + "</HelengineExecutionOutputRoot>");
+                string intermediateOutputPath = Path.Combine("$(HelengineExecutionOutputRoot)", "generated_code", "obj", moduleProject.ModuleId);
+                string outputPath = Path.Combine("$(HelengineExecutionOutputRoot)", "generated_code", "bin", moduleProject.ModuleId);
+                builder.AppendLine("    <BaseIntermediateOutputPath>" + EscapeXml(intermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
+                builder.AppendLine("    <BaseOutputPath>" + EscapeXml(outputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");
+            } else {
+                builder.AppendLine("    <BaseIntermediateOutputPath>" + EscapeXml(moduleProject.BaseIntermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
+                builder.AppendLine("    <BaseOutputPath>" + EscapeXml(moduleProject.BaseOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");
+            }
             builder.AppendLine("    <AssemblyName>" + EscapeXml(moduleProject.ModuleId) + "</AssemblyName>");
             builder.AppendLine("    <RootNamespace>" + EscapeXml(moduleProject.ModuleId) + "</RootNamespace>");
             builder.AppendLine("  </PropertyGroup>");

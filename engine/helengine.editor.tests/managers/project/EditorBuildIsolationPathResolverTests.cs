@@ -111,6 +111,25 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures authored generated-code project files have one stable project-scoped workspace while compiler outputs remain invocation-isolated.
+        /// </summary>
+        [Fact]
+        public void ResolveGeneratedCodeProjectWorkspaceRootPath_WhenInvocationsDiffer_ReturnsStableWorkspaceAlongsideDistinctExecutionOutputs() {
+            EditorBuildIsolationPathResolver resolver = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "stable-code-project"));
+
+            string firstWorkspaceRootPath = resolver.ResolveGeneratedCodeProjectWorkspaceRootPath();
+            string repeatedWorkspaceRootPath = resolver.ResolveGeneratedCodeProjectWorkspaceRootPath();
+            string firstOutputRootPath = resolver.ResolveGeneratedCodeOutputRootPath("editor-command", "command-a");
+            string secondOutputRootPath = resolver.ResolveGeneratedCodeOutputRootPath("editor-command", "command-b");
+
+            Assert.Equal(firstWorkspaceRootPath, repeatedWorkspaceRootPath);
+            Assert.EndsWith(Path.Combine("user_settings", "generated_code"), firstWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.NotEqual(firstOutputRootPath, secondOutputRootPath);
+            Assert.DoesNotContain("command-a", firstWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("command-b", firstWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures stable-cache mode ignores invocation ids and uses the wrapper-compatible project identity.
         /// </summary>
         [Fact]

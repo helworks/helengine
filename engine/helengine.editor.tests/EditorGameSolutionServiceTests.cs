@@ -359,6 +359,58 @@ public sealed class ShaderBackendRegistryTests {
         }
 
         /// <summary>
+        /// Ensures repeated isolated invocations preserve authored generated project bytes and timestamps while retaining distinct compiler outputs.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenExecutionOutputsDiffer_PreservesStableProjectMetadata() {
+            string stableWorkspaceRootPath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code");
+            string firstOutputRootPath = Path.Combine(Path.GetTempPath(), "helengine-builds", Guid.NewGuid().ToString("N"), "editor-command", "generated-dotnet");
+            string secondOutputRootPath = Path.Combine(Path.GetTempPath(), "helengine-builds", Guid.NewGuid().ToString("N"), "editor-command", "generated-dotnet");
+            string projectFilePath = Path.Combine(stableWorkspaceRootPath, "projects", "gameplay", "gameplay.csproj");
+
+            try {
+                EditorGameSolutionService firstService = new EditorGameSolutionService(
+                    TempProjectRootPath,
+                    "SkyRider",
+                    new TestIdeLauncher(),
+                    firstOutputRootPath,
+                    stableWorkspaceRootPath,
+                    EditorScriptCompilationMode.EditorFull,
+                    Path.Combine(stableWorkspaceRootPath, "output"));
+                firstService.GenerateSolutionFiles();
+
+                byte[] firstProjectBytes = File.ReadAllBytes(projectFilePath);
+                DateTime stableTimestamp = DateTime.UtcNow.AddMinutes(-5);
+                File.SetLastWriteTimeUtc(projectFilePath, stableTimestamp);
+
+                EditorGameSolutionService secondService = new EditorGameSolutionService(
+                    TempProjectRootPath,
+                    "SkyRider",
+                    new TestIdeLauncher(),
+                    secondOutputRootPath,
+                    stableWorkspaceRootPath,
+                    EditorScriptCompilationMode.EditorFull,
+                    Path.Combine(stableWorkspaceRootPath, "output"));
+                secondService.GenerateSolutionFiles();
+
+                Assert.Equal(firstProjectBytes, File.ReadAllBytes(projectFilePath));
+                Assert.Equal(stableTimestamp, File.GetLastWriteTimeUtc(projectFilePath));
+                Assert.NotEqual(firstService.GeneratedOutputDirectoryPath, secondService.GeneratedOutputDirectoryPath);
+                string projectFileContents = File.ReadAllText(projectFilePath);
+                Assert.Contains("<HelengineExecutionOutputRoot Condition=\"'$(HelengineExecutionOutputRoot)' == ''\">" + EscapeXml(Path.Combine(stableWorkspaceRootPath, "output")) + "</HelengineExecutionOutputRoot>", projectFileContents, StringComparison.Ordinal);
+                Assert.DoesNotContain(firstOutputRootPath, projectFileContents, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain(secondOutputRootPath, projectFileContents, StringComparison.OrdinalIgnoreCase);
+            } finally {
+                if (Directory.Exists(firstOutputRootPath)) {
+                    Directory.Delete(firstOutputRootPath, true);
+                }
+                if (Directory.Exists(secondOutputRootPath)) {
+                    Directory.Delete(secondOutputRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures replaying an unchanged solution does not rewrite generated text or churn its timestamps.
         /// </summary>
         [Fact]

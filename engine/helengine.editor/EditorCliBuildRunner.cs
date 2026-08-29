@@ -205,8 +205,9 @@ namespace helengine.editor {
                 bootstrap.ProjectName,
                 new EditorVisualStudioLauncher(),
                 isolationPathResolver.ResolveGeneratedCodeOutputRootPath(platformId, buildExecutionId),
-                isolationPathResolver.ResolveGeneratedCodeWorkspaceRootPath(platformId, buildExecutionId),
-                ResolveProjectScriptCompilationMode());
+                isolationPathResolver.ResolveGeneratedCodeProjectWorkspaceRootPath(),
+                ResolveProjectScriptCompilationMode(),
+                isolationPathResolver.ResolveGeneratedCodeProjectOutputRootPath());
             EditorDotNetScriptBuildTool buildTool = new EditorDotNetScriptBuildTool();
             assemblyHost = new EditorGameScriptAssemblyHost(bootstrap.ProjectRootPath);
             hotReloadService = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);

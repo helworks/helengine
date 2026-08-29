@@ -41,7 +41,10 @@ namespace helengine.editor {
                 }
 
                 string solutionPath = GameSolutionService.GenerateSolutionFiles();
-                EditorBuildExecutionResult buildResult = BuildTool.Build(solutionPath);
+                EditorBuildExecutionResult buildResult = BuildTool is IEditorScriptBuildToolWithOutputRoot isolatedBuildTool
+                    && GameSolutionService.UsesInvocationOutputOverride
+                    ? isolatedBuildTool.Build(solutionPath, GameSolutionService.GeneratedExecutionOutputRootPath)
+                    : BuildTool.Build(solutionPath);
                 if (!buildResult.Succeeded) {
                     return buildResult;
                 }

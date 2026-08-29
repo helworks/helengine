@@ -151,6 +151,22 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the deterministic authored workspace that contains generated solution and project files.
+        /// </summary>
+        /// <returns>Absolute project-scoped generated-code workspace path.</returns>
+        public string ResolveGeneratedCodeProjectWorkspaceRootPath() {
+            return Path.Combine(ProjectRootPath, "user_settings", "generated_code");
+        }
+
+        /// <summary>
+        /// Resolves the deterministic fallback output root embedded in authored generated project metadata.
+        /// </summary>
+        /// <returns>Absolute project-scoped generated-code fallback output path.</returns>
+        public string ResolveGeneratedCodeProjectOutputRootPath() {
+            return Path.Combine(ResolveGeneratedCodeProjectWorkspaceRootPath(), "output");
+        }
+
+        /// <summary>
         /// Resolves the persistent generated-core root used by deterministic headless builds.
         /// </summary>
         /// <param name="platformId">Stable target platform identifier.</param>
