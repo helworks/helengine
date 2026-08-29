@@ -675,6 +675,9 @@ namespace helengine.editor {
                 string stagedPath = EditorAuthoringTransactionRecoveryService.ResolveContainedPath(TransactionDirectoryPath, entry.StagedRelativePath, "staged");
                 byte[] stagedBytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, stagedPath);
                 ValidatePreparedPayload(entry, prepared, stagedBytes);
+                if (Directory.Exists(prepared.FullPath)) {
+                    throw new IOException($"The authoring transaction destination '{prepared.FullPath}' is an existing directory.");
+                }
                 bool currentExists = File.Exists(prepared.FullPath);
                 if (currentExists != entry.PriorExists) {
                     throw new IOException($"The authoring transaction destination '{prepared.FullPath}' changed after staging.");

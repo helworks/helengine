@@ -39,6 +39,19 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     [Fact]
+    public void WriteAsset_WhenDestinationIsAnExistingDirectory_RejectsWithoutRemovingTheDirectory() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        string destinationPath = Path.Combine(ProjectRootPath, "assets", "models", "directory-collision.hasset");
+        Directory.CreateDirectory(destinationPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+
+        transaction.WriteAsset("models/directory-collision.hasset", CreateModel("Collision"));
+
+        Assert.Throws<IOException>(() => transaction.Commit());
+        Assert.True(Directory.Exists(destinationPath));
+    }
+
+    [Fact]
     public void Commit_PublishesIndexAndReferenceVisibilityOnlyAfterCommit() {
         using EditorProjectAuthoringSession observer = CreateSession(ProjectRootPath);
         using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
