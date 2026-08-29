@@ -309,9 +309,33 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Only filesystem-backed asset references can be resolved by the editor resolver.");
             }
 
+            // Snapshot transaction state before entering the project publication
+            // boundary. Commit takes StateGate before the project lock; taking
+            // those locks in the opposite order here can deadlock a concurrent
+            // staged-reference read and publication.
+            if (!transaction.TryCreateReference(reference.RelativePath, expectedKind, out SceneAssetReference stagedReference)) {
+                return null;
+            }
+
             return ExecuteSynchronizedRead(() => {
-                if (!transaction.TryCreateReference(reference.RelativePath, expectedKind, out SceneAssetReference stagedReference)) {
-                    return null;
+                if (IsValidAssetId(reference.AssetId)) {
+                    IReadOnlyList<EditorAssetIdentityEntry> durableIdentityMatches =
+                        IdentityIndex.FindByAssetId(reference.AssetId, expectedKind);
+                    bool stagedIdentityIsDurableMatch = string.Equals(
+                            reference.AssetId,
+                            stagedReference.AssetId,
+                            StringComparison.Ordinal) ||
+                        durableIdentityMatches.Any(candidate => string.Equals(
+                            candidate.AssetId,
+                            stagedReference.AssetId,
+                            StringComparison.Ordinal));
+                    if (!stagedIdentityIsDurableMatch && durableIdentityMatches.Count > 0) {
+                        // AssetId (including a former alias) outranks a staged
+                        // path. Let the normal resolver select that durable
+                        // identity instead of rebinding a moved asset to an
+                        // unrelated output that happens to reuse its old path.
+                        return null;
+                    }
                 }
 
                 bool idChanged = !string.Equals(reference.AssetId, stagedReference.AssetId, StringComparison.Ordinal);

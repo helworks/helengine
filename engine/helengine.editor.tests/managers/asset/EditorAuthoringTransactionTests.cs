@@ -150,7 +150,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     public void CreateReference_UsesTheCurrentStagedMaterialHashBeforePublication() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         using (EditorAuthoringTransaction first = session.BeginTransaction()) {
-            first.WriteMaterial("materials/rendering/textured_cube_grid/Cube00.hasset", CreateGeneratedMaterial("initial"));
+            first.WriteMaterial("Materials/rendering/textured_cube_grid/Cube00.hasset", CreateGeneratedMaterial("initial"));
             first.Commit();
         }
 
@@ -160,7 +160,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
             CreateGeneratedMaterial("replacement"));
 
         SceneAssetReference reference = session.CreateReference(
-            "materials/rendering/textured_cube_grid/Cube00.hasset",
+            "Materials/rendering/textured_cube_grid/Cube00.hasset",
             AssetEntryKind.Material);
 
         Assert.Equal(staged.ContentHash, reference.ContentHash);
@@ -174,13 +174,13 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         EditorAssetWriteResult original;
         using (EditorAuthoringTransaction first = session.BeginTransaction()) {
             original = first.WriteMaterial(
-                "materials/rendering/textured_cube_grid/Cube00.hasset",
+                "Materials/rendering/textured_cube_grid/Cube00.hasset",
                 CreateGeneratedMaterial("initial"));
             first.Commit();
         }
 
         SceneAssetReference savedReference = session.CreateReference(
-            "materials/rendering/textured_cube_grid/Cube00.hasset",
+            "Materials/rendering/textured_cube_grid/Cube00.hasset",
             AssetEntryKind.Material);
         using EditorAuthoringTransaction second = session.BeginTransaction();
         GeneratedMaterialAssetDefinition replacement = CreateGeneratedMaterial("replacement");
@@ -195,15 +195,41 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         Assert.Equal(staged.ContentHash, resolution.CanonicalReference.ContentHash);
         Assert.Equal("Materials/rendering/textured_cube_grid/Cube00.hasset", resolution.CanonicalReference.RelativePath);
         Assert.Empty(resolution.FullPath);
+        Assert.True(resolution.IsStaged);
         Assert.True(resolution.ReferenceChanged);
         Assert.Equal(
             new[] {
-                EditorAssetRepairKind.PathHealing,
                 EditorAssetRepairKind.HashHealing,
                 EditorAssetRepairKind.CanonicalReferenceRefresh
             },
             session.RepairReport.Snapshot.Select(record => record.Kind));
         second.Commit();
+    }
+
+    [Fact]
+    public void ResolveReference_PrefersAssetIdOverAnUnrelatedStagedAssetAtTheSavedPath() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        EditorAssetWriteResult original;
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            original = first.WriteAsset("models/moved.hasset", CreateModel("Original"));
+            first.Commit();
+        }
+
+        SceneAssetReference savedReference = session.CreateReference("models/moved.hasset", AssetEntryKind.Model);
+        string originalPath = Path.Combine(ProjectRootPath, "assets", "models", "moved.hasset");
+        string relocatedPath = Path.Combine(ProjectRootPath, "assets", "models", "relocated.hasset");
+        File.Move(originalPath, relocatedPath);
+        session.RefreshExternalChanges();
+
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        EditorAssetWriteResult unrelated = transaction.WriteAsset("models/moved.hasset", CreateModel("Unrelated"));
+
+        AssetReferenceResolution resolution = session.ResolveReference(savedReference, AssetEntryKind.Model);
+
+        Assert.Equal(original.AssetId, resolution.CanonicalReference.AssetId);
+        Assert.Equal("models/relocated.hasset", resolution.CanonicalReference.RelativePath);
+        Assert.NotEqual(unrelated.AssetId, resolution.CanonicalReference.AssetId);
+        Assert.False(resolution.IsStaged);
     }
 
     [Fact]
