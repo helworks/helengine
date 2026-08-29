@@ -8,7 +8,8 @@ namespace helengine.editor.tests {
     /// Verifies the viewport selection order across screen-space 2D, world-preview 2D, and generic 3D scene picking.
     /// </summary>
     public sealed class EditorViewportPicker2DSelectionTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by the viewport 2D selection tests.
@@ -16,6 +17,7 @@ namespace helengine.editor.tests {
         public EditorViewportPicker2DSelectionTests() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
@@ -27,7 +29,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            Core.Instance?.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -69,16 +71,16 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveSelection_WhenPreviewProxyIsClicked_SelectsTheUnderlying2DEntity() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(48, 24),
-                Texture = Core.Instance.RenderManager2D.PixelTexture
+                Texture = CoreValue.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
-            EditorEntity previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity previewEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
@@ -93,7 +95,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveSelection_WhenTextPreviewProxyIsClicked_SelectsTheUnderlyingSourceEntity() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             TextComponent textComponent = new TextComponent {
@@ -102,7 +104,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(textComponent);
 
-            EditorEntity previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity previewEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, textComponent));
@@ -117,7 +119,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ResolveSelection_WhenRoundedRectPreviewProxyIsClicked_SelectsTheUnderlyingSourceEntity() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             RoundedRectComponent roundedRectComponent = new RoundedRectComponent {
@@ -126,7 +128,7 @@ namespace helengine.editor.tests {
             };
             sourceEntity.AddComponent(roundedRectComponent);
 
-            EditorEntity previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity previewEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, roundedRectComponent));
@@ -144,7 +146,7 @@ namespace helengine.editor.tests {
             CameraComponent sceneCamera = CreateSceneCamera(new float4(0f, 0f, 320f, 180f));
             InteractableComponent interactable = CreateSceneInteractableEntity(new float3(20f, 30f, 0f), new int2(100, 60), 4);
 
-            Entity overlappingMeshEntity = new Entity(Core.Instance) {
+            Entity overlappingMeshEntity = new Entity(CoreValue) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
             overlappingMeshEntity.InitComponents();
@@ -170,7 +172,7 @@ namespace helengine.editor.tests {
         public void ResolveSelectableEntityAtPointer_WhenViewportOwnedEntityUsesWorldPreview_ReturnsNullForScreenSpace2DPath() {
             CameraComponent sceneCamera = CreateSceneCamera(new float4(0f, 0f, 320f, 180f));
 
-            Entity viewportEntity = new Entity(Core.Instance);
+            Entity viewportEntity = new Entity(CoreValue);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -178,14 +180,14 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(320, 180)
             });
 
-            Entity contentEntity = new Entity(Core.Instance) {
+            Entity contentEntity = new Entity(CoreValue) {
                 Position = new float3(20f, 30f, 0f)
             };
             contentEntity.InitComponents();
             contentEntity.InitChildren();
             viewportEntity.AddChild(contentEntity);
             contentEntity.AddComponent(new SpriteComponent {
-                Texture = Core.Instance.RenderManager2D.PixelTexture,
+                Texture = CoreValue.RenderManager2D.PixelTexture,
                 Size = new int2(100, 60),
                 RenderOrder2D = 4
             });
@@ -209,7 +211,7 @@ namespace helengine.editor.tests {
         public void ResolveSelectableWorldPreviewEntityAtPointer_WhenViewportOwnedPreviewIsUnderPointer_ReturnsTheUnderlyingSourceEntity() {
             CameraComponent sceneCamera = CreateSceneCamera(new float4(0f, 0f, 500f, 400f));
 
-            Entity viewportEntity = new Entity(Core.Instance);
+            Entity viewportEntity = new Entity(CoreValue);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -217,7 +219,7 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(500, 400)
             });
 
-            Entity sourceEntity = new Entity(Core.Instance) {
+            Entity sourceEntity = new Entity(CoreValue) {
                 LocalPosition = new float3(-50f, -30f, 0f)
             };
             sourceEntity.InitComponents();
@@ -226,12 +228,12 @@ namespace helengine.editor.tests {
 
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(100, 60),
-                Texture = Core.Instance.RenderManager2D.PixelTexture,
+                Texture = CoreValue.RenderManager2D.PixelTexture,
                 RenderOrder2D = 4
             };
             sourceEntity.AddComponent(spriteComponent);
 
-            EditorEntity previewEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity previewEntity = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true
             };
             previewEntity.AddComponent(new Editor2DPreviewSourceTagComponent(sourceEntity, spriteComponent));
@@ -253,7 +255,7 @@ namespace helengine.editor.tests {
         /// <param name="viewport">Viewport rectangle used by direct scene selection.</param>
         /// <returns>Configured scene camera component.</returns>
         CameraComponent CreateSceneCamera(float4 viewport) {
-            Entity cameraEntity = new Entity(Core.Instance) {
+            Entity cameraEntity = new Entity(CoreValue) {
                 LayerMask = EditorLayerMasks.SceneObjects
             };
             cameraEntity.InitComponents();
@@ -276,7 +278,7 @@ namespace helengine.editor.tests {
         /// <param name="renderOrder">2D render order assigned to the visible sprite.</param>
         /// <returns>Interactable component registered for hit resolution.</returns>
         InteractableComponent CreateSceneInteractableEntity(float3 position, int2 size, byte renderOrder) {
-            Entity entity = new Entity(Core.Instance) {
+            Entity entity = new Entity(CoreValue) {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 Position = position
             };
@@ -284,7 +286,7 @@ namespace helengine.editor.tests {
             entity.InitChildren();
 
             SpriteComponent sprite = new SpriteComponent {
-                Texture = Core.Instance.RenderManager2D.PixelTexture,
+                Texture = CoreValue.RenderManager2D.PixelTexture,
                 Size = size,
                 RenderOrder2D = renderOrder
             };

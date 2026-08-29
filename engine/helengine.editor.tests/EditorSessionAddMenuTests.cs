@@ -13,11 +13,12 @@ namespace helengine.editor.tests {
     /// Verifies the editor session handles title-bar add commands.
     /// </summary>
     public class EditorSessionAddMenuTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary project root used by add-menu session tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -28,7 +29,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(TempProjectRootPath);
 
             EnsureEditorCoreHost();
-            GeneratedAssetGraph = new TestGeneratedAssetGraph(Core.Instance);
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
@@ -39,6 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -197,9 +199,9 @@ namespace helengine.editor.tests {
         EditorSession CreateSessionForAddCommands() {
             EnsureEditorCoreHost();
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
-            sceneHierarchyPanel.SetObjectManager(Core.Instance.ObjectManager);
-            sceneHierarchyPanel.SetInput(Core.Instance.Input);
+            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CoreValue, InteractionServices, CreateFont());
+            sceneHierarchyPanel.SetObjectManager(CoreValue.ObjectManager);
+            sceneHierarchyPanel.SetInput(CoreValue.Input);
             EditorSceneCreationService sceneCreationService = GeneratedAssetGraph.CreateSceneCreationService();
             SceneSaveService sceneSaveService = new SceneSaveService(
                 TempProjectRootPath,
@@ -234,10 +236,9 @@ namespace helengine.editor.tests {
         /// Ensures the active core host is an initialized editor core for the temporary project root used by these tests.
         /// </summary>
         void EnsureEditorCoreHost() {
-            if (Core.Instance is EditorCore editorCore
+            if (CoreValue is EditorCore editorCore
                 && editorCore.Project != null
                 && string.Equals(editorCore.Project.Path, TempProjectRootPath, StringComparison.Ordinal)) {
-                editorCore.SessionInteractionServices = InteractionServices;
                 return;
             }
 
@@ -248,7 +249,7 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
-            core.SessionInteractionServices = InteractionServices;
+            CoreValue = core;
         }
 
         /// <summary>
@@ -323,4 +324,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

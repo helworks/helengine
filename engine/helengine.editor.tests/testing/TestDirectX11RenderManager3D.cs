@@ -11,6 +11,9 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         readonly List<ModelAsset> BuiltModelAssetsValue = new List<ModelAsset>();
 
+        /// <summary>Counts draw calls routed through this renderer owner.</summary>
+        public int DrawCallCount { get; private set; }
+
         /// <summary>
         /// Creates one uninitialized DirectX11-shaped renderer for tests that only need backend type identity.
         /// </summary>
@@ -78,6 +81,14 @@ namespace helengine.editor.tests.testing {
                 Width = width,
                 Height = height
             };
+        }
+
+        /// <summary>
+        /// Exercises the renderer-owned draw dispatch without requiring a native
+        /// graphics device in the isolation tests.
+        /// </summary>
+        public override void Draw() {
+            DrawCallCount++;
         }
 
         /// <summary>

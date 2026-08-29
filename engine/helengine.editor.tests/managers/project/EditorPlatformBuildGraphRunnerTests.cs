@@ -1873,7 +1873,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
     /// </summary>
     [Fact]
     public void Execute_WhenBuildingCommittedPointShadowSceneForWindows_Succeeds() {
-        string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
         string workspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
         string projectRootPath = Path.Combine(workspaceRootPath, "project");
@@ -1942,7 +1942,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
     /// </summary>
     [Fact]
     public void Bootstrap_WhenRunningFromWorktreeCopy_ResolvesWindowsSelectionModel() {
-        string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
         string workspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-build-graph-runner-tests", Guid.NewGuid().ToString("N"));
         string projectRootPath = Path.Combine(workspaceRootPath, "project");

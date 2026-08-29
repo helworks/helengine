@@ -118,12 +118,10 @@ namespace helengine.editor {
                 || !ReferenceEquals(rendererResources.ObjectManager.OwnerCore, ownerCore)) {
                 throw new InvalidOperationException("Renderer resources must use managers owned by their declared core.");
             }
-            if (ownerCore.SessionInteractionGraph != null
-                && !ReferenceEquals(ownerCore.SessionInteractionGraph, rendererResources.InteractionServices)) {
+            if (!ReferenceEquals(ownerCore.SessionInteractionGraph, rendererResources.InteractionServices)) {
                 throw new InvalidOperationException("Renderer resources must use the interaction graph attached to their owning core.");
             }
             if (ownerCore is EditorCore editorCore
-                && editorCore.SessionInteractionServices != null
                 && !ReferenceEquals(editorCore.SessionInteractionServices, rendererResources.InteractionServices)) {
                 throw new InvalidOperationException("Renderer resources must use the interaction graph attached to their owning editor core.");
             }

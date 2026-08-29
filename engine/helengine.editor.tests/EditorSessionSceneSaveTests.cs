@@ -10,11 +10,12 @@ namespace helengine.editor.tests {
     /// Verifies scene save routing from the editor session.
     /// </summary>
     public class EditorSessionSceneSaveTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary project root used by editor-session scene save tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -31,6 +32,7 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
@@ -39,6 +41,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -187,11 +190,11 @@ namespace helengine.editor.tests {
         public void HandleSceneSaveRequested_WhenSceneContainsFpsComponent_WritesSceneFile() {
             EditorSession session = CreateSessionForSceneSave();
 
-            EditorEntity entity = Assert.IsType<EditorEntity>(Core.Instance.EntityFactory.Create("FPS"));
+            EditorEntity entity = Assert.IsType<EditorEntity>(CoreValue.EntityFactory.Create("FPS"));
             entity.LayerMask = EditorLayerMasks.SceneObjects;
             FPSComponent fps = new FPSComponent();
             entity.AddComponent(fps);
-            Core.Instance.ObjectManager.RegisterEntity(entity);
+            CoreValue.ObjectManager.RegisterEntity(entity);
 
             string expectedPath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Fps.helen");
             Directory.CreateDirectory(Path.GetDirectoryName(expectedPath));
@@ -304,8 +307,8 @@ namespace helengine.editor.tests {
             ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
 
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
-            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
-            SaveFileDialog saveFileDialog = new SaveFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(CoreValue, InteractionServices, CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
+            SaveFileDialog saveFileDialog = new SaveFileDialog(CoreValue, InteractionServices, CreateFont(), TempProjectRootPath, new GeneratedAssetProviderRegistry());
             SceneSavePathResolver pathResolver = new SceneSavePathResolver(TempProjectRootPath);
             SceneSaveService saveService = new SceneSaveService(
                 TempProjectRootPath,
@@ -316,8 +319,8 @@ namespace helengine.editor.tests {
             SceneSettingsAsset currentSceneSettings = new SceneSettingsAsset();
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             sceneCanvasProfileState.ApplySceneSettings(currentSceneSettings);
-            SceneSettingsDialog sceneSettingsDialog = new SceneSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default);
-            EditorTitleBar titleBar = new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine - project.heproj");
+            SceneSettingsDialog sceneSettingsDialog = new SceneSettingsDialog(CoreValue, InteractionServices, CreateFont(), EditorUiMetrics.Default);
+            EditorTitleBar titleBar = new EditorTitleBar(CoreValue, InteractionServices, CreateFont(), 1280, 720, "helengine - project.heproj");
             EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(saveService);
             EditorUndoRedoService undoRedoService = new EditorUndoRedoService(new EditorHistoryContext());
             EditorMutationService historyMutationService = new EditorMutationService(
@@ -416,4 +419,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

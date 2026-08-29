@@ -13,7 +13,7 @@ namespace helengine.editor.tests {
     /// Verifies selecting filesystem model assets does not leak editor UI entities into the scene hierarchy.
     /// </summary>
     public class EditorSessionModelAssetSelectionTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary project root used by the model-selection session tests.
         /// </summary>
@@ -52,7 +52,6 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            InteractionServices.Dispose();
             CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
@@ -92,7 +91,7 @@ namespace helengine.editor.tests {
         public void RequestModelPick_WhenFileSystemModelIsSelected_DoesNotLeavePickerUpButtonVisible() {
             string sourcePath = WriteSourceModel("Sponza.obj");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, CoreValue.RenderManager2D);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
@@ -100,7 +99,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = BindPanel(new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(CoreValue, InteractionServices,
                 CreateFont(),
                 contentManager,
                 new EditorFileSystemModelResolver(assetImportManager)));
@@ -140,7 +139,7 @@ namespace helengine.editor.tests {
             CreateModalCamera(1280, 720);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, CoreValue.RenderManager2D);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
@@ -148,7 +147,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = BindPanel(new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(CoreValue, InteractionServices,
                 CreateFont(),
                 contentManager,
                 new EditorFileSystemModelResolver(assetImportManager)));
@@ -206,7 +205,7 @@ namespace helengine.editor.tests {
             CreateModalCamera(1280, 720);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, CoreValue.RenderManager2D);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
@@ -214,7 +213,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
             entity.AddComponent(meshComponent);
 
-            PropertiesPanel panel = BindPanel(new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
+            PropertiesPanel panel = BindPanel(new PropertiesPanel(CoreValue, InteractionServices,
                 CreateFont(),
                 contentManager,
                 new EditorFileSystemModelResolver(assetImportManager)));
@@ -251,9 +250,9 @@ namespace helengine.editor.tests {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
             AssetImportManager manager = new AssetImportManager(TempProjectRootPath, contentManager);
-            PropertiesPanel propertiesPanel = BindPanel(new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), contentManager));
-            PreviewPanel previewPanel = new PreviewPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
-            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            PropertiesPanel propertiesPanel = BindPanel(new PropertiesPanel(CoreValue, InteractionServices, CreateFont(), contentManager));
+            PreviewPanel previewPanel = new PreviewPanel(CoreValue, InteractionServices, CreateFont());
+            SceneHierarchyPanel sceneHierarchyPanel = new SceneHierarchyPanel(CoreValue, InteractionServices, CreateFont());
             IReadOnlyList<string> supportedPlatforms = new List<string> { "windows" };
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, supportedPlatforms);
 
@@ -278,7 +277,7 @@ namespace helengine.editor.tests {
         }
 
         AssetPickerModal CreateAssetPickerModal() {
-            AssetPickerModal modal = new AssetPickerModal(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry);
+            AssetPickerModal modal = new AssetPickerModal(CoreValue, InteractionServices, CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry);
             return modal;
         }
 
@@ -310,9 +309,9 @@ namespace helengine.editor.tests {
             int2 rowPointer = GetRowPointer(row);
 
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-            Assert.Same(row.Interactable, Core.Instance.PointerInteractionSystem.Hovering);
+            Assert.Same(row.Interactable, CoreValue.PointerInteractionSystem.Hovering);
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
-            Assert.Same(row.Interactable, Core.Instance.PointerInteractionSystem.Highlighted);
+            Assert.Same(row.Interactable, CoreValue.PointerInteractionSystem.Highlighted);
             AdvanceInput(new MouseState(rowPointer.X, rowPointer.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
         }
 
@@ -706,5 +705,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-
-

@@ -62,7 +62,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Package_WhenWindowsBuilderCompatibilityMetadataAndScriptResolverAreSupplied_PackagesCityStyleScriptComponents() {
-            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
             string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(sourceProjectRootPath, "project.heproj"));
             AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");
@@ -2871,7 +2871,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Package_WhenUsingCommittedPointShadowScene_PackagesSuccessfully() {
-            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
             string sourceScenePath = Path.Combine(repositoryRootPath, "test-project", "assets", "Scenes", "rendering", "point-shadow.helen");
             string sceneId = "Scenes/rendering/point-shadow.helen";
             string targetScenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", "rendering", "point-shadow.helen");
@@ -5501,6 +5501,5 @@ namespace helengine.editor.tests {
         }
     }
 }
-
 
 

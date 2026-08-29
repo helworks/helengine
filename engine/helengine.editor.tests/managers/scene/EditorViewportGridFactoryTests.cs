@@ -8,7 +8,9 @@ namespace helengine.editor.tests.managers.scene {
     /// <summary>
     /// Verifies the internal viewport grid created for empty editor scenes.
     /// </summary>
-    public class EditorViewportGridFactoryTests {
+    public class EditorViewportGridFactoryTests : IDisposable {
+        Core CoreValue;
+        TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Ensures the editor layer-mask definitions reserve one dedicated layer for the viewport grid.
         /// </summary>
@@ -27,8 +29,8 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void Create_CreatesInternalSceneGridEntity() {
             InitializeCore();
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
+            EditorBuiltInShaderAssetLibrary shaderLibrary = GeneratedAssetGraph.ShaderLibrary;
 
             EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D, shaderLibrary);
 
@@ -49,8 +51,8 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void Create_BuildsTenByTenPlaneAlignedToWorldXz() {
             InitializeCore();
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
+            EditorBuiltInShaderAssetLibrary shaderLibrary = GeneratedAssetGraph.ShaderLibrary;
 
             EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D, shaderLibrary);
 
@@ -68,8 +70,8 @@ namespace helengine.editor.tests.managers.scene {
         [Fact]
         public void Create_AssignsRenderOrderAfterDefaultSceneGeometry() {
             InitializeCore();
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            using EditorBuiltInShaderAssetLibrary shaderLibrary = TestGeneratedAssetGraph.CreateShaderLibrary();
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
+            EditorBuiltInShaderAssetLibrary shaderLibrary = GeneratedAssetGraph.ShaderLibrary;
 
             EditorEntity gridEntity = EditorViewportGridFactory.Create(renderManager3D, shaderLibrary);
             MeshComponent gridMeshComponent = Assert.IsType<MeshComponent>(Assert.Single(gridEntity.Components, component => component is MeshComponent));
@@ -84,9 +86,16 @@ namespace helengine.editor.tests.managers.scene {
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
+        }
+
+        public void Dispose() {
+            GeneratedAssetGraph?.Dispose();
+            CoreValue?.Dispose();
         }
 
         /// <summary>

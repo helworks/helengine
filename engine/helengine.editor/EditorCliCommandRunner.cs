@@ -111,6 +111,7 @@ namespace helengine.editor {
             if (generatedAssetProviders == null) {
                 throw new ArgumentNullException(nameof(generatedAssetProviders));
             }
+            EditorCommandGraphValidator.Validate(authoring, core, interactionServices, generatedAssetProviders, rendererResources);
             if (!ReferenceEquals(rendererResources.OwningCore, core)
                 || !ReferenceEquals(rendererResources.InteractionServices, interactionServices)) {
                 throw new InvalidOperationException("Nested editor commands must use the outer invocation renderer and interaction graph.");
@@ -230,6 +231,7 @@ namespace helengine.editor {
             if (generatedAssetProviders == null) {
                 throw new ArgumentNullException(nameof(generatedAssetProviders));
             }
+            EditorCommandGraphValidator.Validate(authoring, core, interactionServices, generatedAssetProviders, rendererResources);
             if (commandCatalogProvider == null) {
                 throw new ArgumentNullException(nameof(commandCatalogProvider));
             }

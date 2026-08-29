@@ -361,7 +361,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// </summary>
     [Fact]
     public void Cook_when_using_committed_point_shadow_scene_with_windows_builder_metadata_succeeds() {
-        string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
         CopyDirectory(Path.Combine(sourceProjectRootPath, "assets"), Path.Combine(ProjectRootPath, "assets"));
         string sourceCacheRootPath = Path.Combine(sourceProjectRootPath, "cache");
@@ -402,7 +402,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// </summary>
     [Fact]
     public void Cook_when_builder_definition_publishes_standard_material_schema_cooks_material_with_base_color_buffer() {
-        string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+        string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
         EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(sourceProjectRootPath, "project.heproj"));
         AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");

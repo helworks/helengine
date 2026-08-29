@@ -9,7 +9,8 @@ namespace helengine.editor.tests {
     /// Verifies viewport-local grid toggle behavior through the viewport settings overlay.
     /// </summary>
     public class EditorViewportGridToggleTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
+        Core CoreValue;
         TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Ensures the overlay grid toggle target adds and removes only the scene-grid layer.
@@ -60,6 +61,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new FakeContentStreamSource()
             });
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
+            CoreValue = core;
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
@@ -68,7 +70,7 @@ namespace helengine.editor.tests {
 
         public void Dispose() {
             GeneratedAssetGraph?.Dispose();
-            Core.Instance?.Dispose();
+            CoreValue?.Dispose();
         }
 
         /// <summary>
@@ -77,12 +79,12 @@ namespace helengine.editor.tests {
         /// <param name="initialLayerMask">Initial camera layer mask assigned to the viewport.</param>
         /// <returns>Viewport prepared for isolated grid-toggle testing.</returns>
         EditorViewport CreateViewportForGridTesting(ushort initialLayerMask) {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent camera = new CameraComponent();
             camera.LayerMask = initialLayerMask;
             cameraEntity.AddComponent(camera);
 
-            EditorViewport viewport = new EditorViewport(Core.Instance,
+            EditorViewport viewport = new EditorViewport(CoreValue,
                 camera,
                 CreateFont(),
                 CreateFont(),

@@ -1909,6 +1909,7 @@ namespace helengine.editor.tests.serialization.scene {
         EditorEntity CreateUserEntity(string name) {
             EditorEntity entity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices) {
                 Name = name,
+                IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects,
                 LocalPosition = float3.Zero,
                 LocalScale = float3.One,

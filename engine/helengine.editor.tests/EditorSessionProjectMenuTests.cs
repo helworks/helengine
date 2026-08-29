@@ -9,10 +9,12 @@ namespace helengine.editor.tests {
     /// Verifies editor-session integration for project-authored contributed title-bar menus.
     /// </summary>
     public sealed class EditorSessionProjectMenuTests : IDisposable {
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary project root used by the current editor-session project menu tests.
         /// </summary>
         readonly string TempProjectRootPath;
+        readonly EditorCore CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -28,10 +30,12 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scripts"));
             File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"), "public sealed class Player { }");
 
-            Core core = new Core(new CoreInitializationOptions {
-                ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
+            EditorCore core = new EditorCore(new helengine.ui.Project {
+                Name = "Project Menu",
+                Path = TempProjectRootPath
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
@@ -44,6 +48,7 @@ namespace helengine.editor.tests {
                 AuthoringSession.Dispose();
             }
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -110,7 +115,11 @@ namespace helengine.editor.tests {
         EditorSession CreateSession(EditorGameScriptHotReloadService scriptHotReloadService) {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             SetPrivateField(session, "projectPath", TempProjectRootPath);
-            SetPrivateField(session, "titleBar", new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine"));
+            SetPrivateField(session, "core", CoreValue);
+            SetPrivateField(session, "interactionServices", InteractionServices);
+            SetPrivateField(session, "generatedAssetProviderRegistry", GeneratedAssetGraph.Registry);
+            SetPrivateField(session, "rendererResources", GeneratedAssetGraph.RendererResources);
+            SetPrivateField(session, "titleBar", new EditorTitleBar(CoreValue, InteractionServices, CreateFont(), 1280, 720, "helengine"));
             SetPrivateField(session, "scriptHotReloadService", scriptHotReloadService);
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets")));
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
@@ -256,4 +265,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

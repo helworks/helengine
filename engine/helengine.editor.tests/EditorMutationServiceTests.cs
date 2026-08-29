@@ -10,6 +10,7 @@ namespace helengine.editor.tests {
         /// Temporary project root used to back scene snapshot serialization.
         /// </summary>
         readonly string TempRootPath;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -23,6 +24,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
@@ -31,6 +33,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -110,8 +113,9 @@ namespace helengine.editor.tests {
         /// <param name="name">Entity display name.</param>
         /// <returns>Configured editor entity.</returns>
         EditorEntity CreateSceneEntity(uint entityId, string name) {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
-                Name = name
+            EditorEntity entity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices) {
+                Name = name,
+                IsSceneOwned = true
             };
             EntitySaveComponent saveComponent = Assert.IsType<EntitySaveComponent>(Assert.Single(entity.Components, component => component is EntitySaveComponent));
             saveComponent.EntityId = entityId;

@@ -10,7 +10,7 @@ namespace helengine.editor.tests {
     /// Verifies the editor session routes selection changes through the preview source resolver.
     /// </summary>
     public class EditorSessionPreviewSelectionTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary project root used by the preview selection tests.
         /// </summary>
@@ -20,6 +20,7 @@ namespace helengine.editor.tests {
         /// Temporary assets root used by the import manager.
         /// </summary>
         readonly string AssetsRootPath;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -34,6 +35,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
@@ -71,7 +73,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void HandleSelectionChanged_WhenSceneEntityIsSelected_ShowsPropertiesPlatformTabs() {
             EditorSession session = CreateSession();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Cube"
             };
             entity.AddComponent(new CameraComponent());
@@ -93,7 +95,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void HandleSelectionChanged_WhenSceneEntityIsSelected_BuildsPropertiesPlatformTabVisuals() {
             EditorSession session = CreateSession();
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = "Cube"
             };
             entity.AddComponent(new CameraComponent());
@@ -152,22 +154,22 @@ namespace helengine.editor.tests {
         EditorSession CreateSession() {
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, CoreValue.RenderManager2D);
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
             assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
             assetImportManager.CurrentPlatformId = "windows";
 
-            PropertiesPanel propertiesPanel = new PropertiesPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), contentManager);
+            PropertiesPanel propertiesPanel = new PropertiesPanel(CoreValue, InteractionServices, CreateFont(), contentManager);
             propertiesPanel.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
             propertiesPanel.SetRendererResources(GeneratedAssetGraph.RendererResources);
-            PreviewPanel previewPanel = new PreviewPanel(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            PreviewPanel previewPanel = new PreviewPanel(CoreValue, InteractionServices, CreateFont());
             IReadOnlyList<string> supportedPlatforms = new List<string> { "windows" };
             EditorProjectLocalSettingsService localSettingsService = new EditorProjectLocalSettingsService(TempProjectRootPath, supportedPlatforms);
             PreviewSourceResolver previewSourceResolver = new PreviewSourceResolver(
                 assetImportManager,
-                Core.Instance.RenderManager2D,
-                Core.Instance.RenderManager3D,
+                CoreValue.RenderManager2D,
+                CoreValue.RenderManager3D,
                 new EditorSceneCanvasProfileState(),
                 GeneratedAssetGraph.Registry,
                 GeneratedAssetGraph.MaterialCache,
@@ -219,7 +221,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Editor entity with a camera component.</returns>
         EditorEntity CreateCameraEntity() {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
             float4 orientation;
             float4.CreateFromYawPitchRoll(0.2f, -0.1f, 0f, out orientation);
             cameraEntity.Position = new float3(5f, 3f, -7f);
@@ -380,4 +382,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

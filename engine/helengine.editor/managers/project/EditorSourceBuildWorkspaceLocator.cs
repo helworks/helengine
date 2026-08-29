@@ -37,6 +37,15 @@ namespace helengine.editor {
                 return environmentOverrideRootPath;
             }
 
+            string embeddedManifestRootPath = GeneratedHelengineSourceRoot.Path.Trim();
+            if (!string.IsNullOrWhiteSpace(embeddedManifestRootPath)) {
+                string fullEmbeddedManifestRootPath = Path.GetFullPath(embeddedManifestRootPath);
+                string embeddedMarkerPath = Path.Combine(fullEmbeddedManifestRootPath, HelEngineEditorProjectRelativePath);
+                if (File.Exists(embeddedMarkerPath)) {
+                    return fullEmbeddedManifestRootPath;
+                }
+            }
+
             string baseDirectory = AppContext.BaseDirectory;
             if (string.IsNullOrWhiteSpace(baseDirectory)) {
                 throw new InvalidOperationException("Application base directory could not be resolved.");

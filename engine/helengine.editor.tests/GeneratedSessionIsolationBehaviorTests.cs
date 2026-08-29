@@ -67,6 +67,7 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
                     .Where(instance => !string.Equals(instance.InstanceId, "properties-primary", StringComparison.OrdinalIgnoreCase)));
             Assert.Same(sessionB.Core, secondaryPropertiesPanelB.Dockable.OwnerCore);
             Assert.Same(sessionB.InteractionServices, secondaryPropertiesPanelB.Dockable.InteractionServices);
+            int focusTargetCountB;
 
             EditorEntity selectedEntityB = new EditorEntity(sessionB.Core, sessionB.InteractionServices) {
                 Name = "Session B entity"
@@ -78,6 +79,8 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             sessionB.InteractionServices.ViewportTool.SetToolMode(cameraB, EditorViewportToolMode.Translate);
             sessionB.InteractionServices.GizmoHover.SetHoveredHandle(cameraB, selectedEntityB);
             sessionB.InteractionServices.GizmoDrag.BeginDrag(cameraB, selectedEntityB);
+            focusTargetCountB = GetFocusTargetCount(sessionB.InteractionServices);
+            Assert.True(focusTargetCountB > 0);
 
             AssetBrowserEntry cubeEntry = AssetBrowserEntry.CreateGeneratedAsset(
                 "Cube",
@@ -96,16 +99,22 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             sessionA.Dispose();
             sessionA = null;
 
+            string savedScenePathAfterPeerDispose = Path.Combine(projectRootB, "assets", "Scenes", "IsolationAfterPeerDispose.helen");
+            saveServiceB.Save(savedScenePathAfterPeerDispose);
             Assert.Same(modelB, registryB.ResolveRuntimeModel(cubeEntry));
             Assert.False(sessionB.Core.RenderManager2D.PixelTexture.IsDisposed);
             Assert.Same(selectedEntityB, sessionB.InteractionServices.Selection.SelectedEntity);
+            Assert.Equal(focusTargetCountB, GetFocusTargetCount(sessionB.InteractionServices));
             Assert.True(sessionB.InteractionServices.InputCapture.IsPointerBlocked(new int2(4, 4)));
             Assert.Same(selectedEntityB, sessionB.InteractionServices.GizmoHover.GetHoveredHandle(cameraB));
             Assert.True(sessionB.InteractionServices.GizmoDrag.IsDragging(cameraB));
             sessionB.Core.ObjectManager.Update();
             sessionB.Core.Update();
+            sessionB.Core.Draw();
+            Assert.True(Assert.IsType<TestDirectX11RenderManager3D>(sessionB.Core.RenderManager3D).DrawCallCount > 0);
             Assert.Same(sessionB.Core, secondaryPropertiesPanelB.Dockable.OwnerCore);
             Assert.True(File.Exists(savedScenePath));
+            Assert.True(File.Exists(savedScenePathAfterPeerDispose));
 
             sessionB.InteractionServices.GizmoDrag.EndDrag(cameraB);
             selectedEntityB.Dispose();
@@ -152,14 +161,19 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
                     .Where(instance => !string.Equals(instance.InstanceId, "properties-primary", StringComparison.OrdinalIgnoreCase)));
             Assert.Same(sessionA.Core, secondaryPropertiesPanel.Dockable.OwnerCore);
             Assert.Same(sessionA.InteractionServices, secondaryPropertiesPanel.Dockable.InteractionServices);
+            int focusTargetCountA = GetFocusTargetCount(sessionA.InteractionServices);
+            Assert.True(focusTargetCountA > 0);
             string savedScenePath = Path.Combine(projectRootA, "assets", "Scenes", "IsolationAfterB.helen");
             GetPrivateField<SceneSaveService>(sessionA, "SceneSaveService").Save(savedScenePath);
 
             sessionB.Dispose();
             sessionB = null;
 
+            string savedScenePathAfterPeerDispose = Path.Combine(projectRootA, "assets", "Scenes", "IsolationAfterPeerDispose.helen");
+            GetPrivateField<SceneSaveService>(sessionA, "SceneSaveService").Save(savedScenePathAfterPeerDispose);
             Assert.Same(modelA, GetPrivateField<GeneratedAssetProviderRegistry>(sessionA, "generatedAssetProviderRegistry").ResolveRuntimeModel(cubeEntry));
             Assert.Same(selectedEntityA, sessionA.InteractionServices.Selection.SelectedEntity);
+            Assert.Equal(focusTargetCountA, GetFocusTargetCount(sessionA.InteractionServices));
             Assert.True(sessionA.InteractionServices.InputCapture.IsPointerBlocked(new int2(8, 9)));
             Assert.Equal(EditorViewportToolMode.Rotate, sessionA.InteractionServices.ViewportTool.GetToolMode(cameraA));
             Assert.Same(selectedEntityA, sessionA.InteractionServices.GizmoHover.GetHoveredHandle(cameraA));
@@ -167,9 +181,12 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
             Assert.False(sessionA.Core.RenderManager2D.PixelTexture.IsDisposed);
             sessionA.Core.ObjectManager.Update();
             sessionA.Core.Update();
+            sessionA.Core.Draw();
+            Assert.True(Assert.IsType<TestDirectX11RenderManager3D>(sessionA.Core.RenderManager3D).DrawCallCount > 0);
             Assert.Same(sessionA.Core, secondaryPropertiesPanel.Dockable.OwnerCore);
             Assert.Same(sessionA.Core, sessionA.Core.RenderManager3D.OwnerCore);
             Assert.True(File.Exists(savedScenePath));
+            Assert.True(File.Exists(savedScenePathAfterPeerDispose));
             sessionA.InteractionServices.GizmoDrag.EndDrag(cameraA);
             selectedEntityA.Dispose();
         } finally {
@@ -400,6 +417,40 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
     }
 
     [Fact]
+    public void EditorCommandContext_RejectsEveryMixedInvocationGraphDependency() {
+        string projectRootA = CreateProjectRoot();
+        string projectRootB = CreateProjectRoot();
+        Core coreA = CreateCore(projectRootA);
+        Core coreB = CreateCore(projectRootB);
+        TestGeneratedAssetGraph graphA = new TestGeneratedAssetGraph(coreA);
+        TestGeneratedAssetGraph graphB = new TestGeneratedAssetGraph(coreB);
+        EditorProjectAuthoringSession authoringA = CreateAuthoringSession(projectRootA, graphA);
+        ScriptTypeResolver resolver = new ScriptTypeResolver();
+
+        try {
+            Assert.Throws<InvalidOperationException>(() => new EditorCommandContext(
+                projectRootA, resolver, authoringA, coreB, graphA.InteractionServices, graphA.Registry, graphA.RendererResources));
+            Assert.Throws<InvalidOperationException>(() => new EditorCommandContext(
+                projectRootA, resolver, authoringA, coreA, graphB.InteractionServices, graphA.Registry, graphA.RendererResources));
+            Assert.Throws<InvalidOperationException>(() => new EditorCommandContext(
+                projectRootA, resolver, authoringA, coreA, graphA.InteractionServices, graphB.Registry, graphA.RendererResources));
+            Assert.Throws<InvalidOperationException>(() => new EditorCommandContext(
+                projectRootA, resolver, authoringA, coreA, graphA.InteractionServices, graphA.Registry, graphB.RendererResources));
+            EditorCommandContext matchingContext = new EditorCommandContext(
+                projectRootA, resolver, authoringA, coreA, graphA.InteractionServices, graphA.Registry, graphA.RendererResources);
+            Assert.Same(authoringA, matchingContext.Authoring);
+        } finally {
+            authoringA.Dispose();
+            graphA.Dispose();
+            graphB.Dispose();
+            coreA.Dispose();
+            coreB.Dispose();
+            DeleteProjectRoot(projectRootA);
+            DeleteProjectRoot(projectRootB);
+        }
+    }
+
+    [Fact]
     public void LiveAuthoringSessions_KeepResolverGraphsIndependentAfterSessionADisposes() {
         string projectRootA = CreateProjectRoot();
         string projectRootB = CreateProjectRoot();
@@ -581,6 +632,11 @@ public sealed class GeneratedSessionIsolationBehaviorTests {
     static T GetPrivateField<T>(EditorSession session, string fieldName) {
         FieldInfo field = typeof(EditorSession).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         return Assert.IsType<T>(field.GetValue(session));
+    }
+
+    static int GetFocusTargetCount(EditorSessionInteractionServices interactionServices) {
+        FieldInfo field = typeof(EditorKeyboardFocusService).GetField("RegisteredTargets", BindingFlags.Instance | BindingFlags.NonPublic);
+        return Assert.IsAssignableFrom<System.Collections.ICollection>(field.GetValue(interactionServices.KeyboardFocus)).Count;
     }
 
     static EditorProjectAuthoringSession CreateAuthoringSession(string projectRootPath, TestGeneratedAssetGraph graph) {

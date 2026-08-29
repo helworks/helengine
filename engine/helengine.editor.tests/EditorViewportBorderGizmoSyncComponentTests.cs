@@ -6,6 +6,8 @@ namespace helengine.editor.tests {
     /// Verifies that the editor-owned authored-viewport border synchronizer creates and updates world-space border gizmos correctly.
     /// </summary>
     public sealed class EditorViewportBorderGizmoSyncComponentTests : IDisposable {
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by authored-viewport border gizmo tests.
@@ -13,6 +15,7 @@ namespace helengine.editor.tests {
         public EditorViewportBorderGizmoSyncComponentTests() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
@@ -21,7 +24,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            Core.Instance?.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -29,7 +32,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenAuthoredViewportExists_CreatesBorderGizmoEntity() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new ViewportComponent {
@@ -37,15 +40,15 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(320, 180)
             });
 
-            EditorEntity syncHostEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity syncHostEntity = new EditorEntity(CoreValue, InteractionServices);
             EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
             syncHostEntity.InitializeHierarchy();
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             EditorViewportBorderGizmoComponent gizmoComponent = Assert.Single(
-                Core.Instance.ObjectManager.Entities
+                CoreValue.ObjectManager.Entities
                     .SelectMany(entity => entity.Components)
                     .OfType<EditorViewportBorderGizmoComponent>());
             Assert.Same(sourceEntity, gizmoComponent.SourceEntity);
@@ -57,10 +60,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenViewportBelongsToInternalEditorHierarchy_DoesNotCreateBorderGizmoEntity() {
-            EditorEntity internalRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity internalRoot = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true
             };
-            Entity viewportEntity = new Entity(Core.Instance);
+            Entity viewportEntity = new Entity(CoreValue);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -69,15 +72,15 @@ namespace helengine.editor.tests {
             });
             internalRoot.AddChild(viewportEntity);
 
-            EditorEntity syncHostEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity syncHostEntity = new EditorEntity(CoreValue, InteractionServices);
             EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
             syncHostEntity.InitializeHierarchy();
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             Assert.Empty(
-                Core.Instance.ObjectManager.Entities
+                CoreValue.ObjectManager.Entities
                     .SelectMany(entity => entity.Components)
                     .OfType<EditorViewportBorderGizmoComponent>());
         }
@@ -87,7 +90,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenAuthoredViewportExists_SynchronizesBorderTransformAndSize() {
-            Entity sourceEntity = new Entity(Core.Instance) {
+            Entity sourceEntity = new Entity(CoreValue) {
                 LocalPosition = new float3(42f, 24f, 7f)
             };
             sourceEntity.InitComponents();
@@ -97,15 +100,15 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(640, 360)
             });
 
-            EditorEntity syncHostEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity syncHostEntity = new EditorEntity(CoreValue, InteractionServices);
             EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
             syncHostEntity.InitializeHierarchy();
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             EditorViewportBorderGizmoComponent gizmoComponent = Assert.Single(
-                Core.Instance.ObjectManager.Entities
+                CoreValue.ObjectManager.Entities
                     .SelectMany(entity => entity.Components)
                     .OfType<EditorViewportBorderGizmoComponent>());
             Assert.Equal(sourceEntity.Position, gizmoComponent.Parent.LocalPosition);
@@ -118,7 +121,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenAuthoredViewportExists_BuildsCornerOriginBorderMesh() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new ViewportComponent {
@@ -126,14 +129,14 @@ namespace helengine.editor.tests {
                 FixedSize = new int2(320, 180)
             });
 
-            EditorEntity syncHostEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity syncHostEntity = new EditorEntity(CoreValue, InteractionServices);
             EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
             syncHostEntity.InitializeHierarchy();
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             ModelAsset builtModelAsset = Assert.Single(renderManager3D.BuiltModelAssets);
             Assert.Equal(new float3(0f, 0f, 0f), builtModelAsset.Positions[0]);
             Assert.Equal(new float3(1f, 0f, 0f), builtModelAsset.Positions[1]);
@@ -146,10 +149,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenViewportUsesReferenceCanvasFit_ResolvesPresentedViewportOriginInsteadOfLiveWindowOffset() {
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
 
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new ViewportComponent {
@@ -161,15 +164,15 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             });
 
-            EditorEntity syncHostEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity syncHostEntity = new EditorEntity(CoreValue, InteractionServices);
             EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
             syncHostEntity.InitializeHierarchy();
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             EditorViewportBorderGizmoComponent gizmoComponent = Assert.Single(
-                Core.Instance.ObjectManager.Entities
+                CoreValue.ObjectManager.Entities
                     .SelectMany(entity => entity.Components)
                     .OfType<EditorViewportBorderGizmoComponent>());
             Assert.Equal(float3.Zero, gizmoComponent.Parent.LocalPosition);
@@ -181,10 +184,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenScreenBoundViewportUsesReferenceCanvasFit_PresentsReferenceCanvasSize() {
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
 
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new ViewportComponent {
@@ -196,15 +199,15 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             });
 
-            EditorEntity syncHostEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity syncHostEntity = new EditorEntity(CoreValue, InteractionServices);
             EditorViewportBorderGizmoSyncComponent syncComponent = new EditorViewportBorderGizmoSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
             syncHostEntity.InitializeHierarchy();
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             EditorViewportBorderGizmoComponent gizmoComponent = Assert.Single(
-                Core.Instance.ObjectManager.Entities
+                CoreValue.ObjectManager.Entities
                     .SelectMany(entity => entity.Components)
                     .OfType<EditorViewportBorderGizmoComponent>());
             Assert.Equal(float3.Zero, gizmoComponent.Parent.LocalPosition);

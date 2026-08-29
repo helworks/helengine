@@ -10,7 +10,7 @@ namespace helengine.editor.tests {
     /// Verifies editor-session undo and redo handlers can replay authored scene mutations through the real session history pipeline.
     /// </summary>
     public sealed class EditorSessionUndoRedoIntegrationTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary project root used by the current editor-session history integration test.
         /// </summary>
@@ -20,6 +20,7 @@ namespace helengine.editor.tests {
         /// Deterministic input backend used when keyboard shortcuts are exercised through the real keyboard-focus update component.
         /// </summary>
         readonly TestInputBackend InputBackend;
+        Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -30,7 +31,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets"));
             InputBackend = new TestInputBackend();
             EnsureEditorCoreHost();
-            GeneratedAssetGraph = new TestGeneratedAssetGraph(Core.Instance);
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
             InteractionServices.Selection.ClearSelection();
         }
 
@@ -40,6 +41,7 @@ namespace helengine.editor.tests {
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
             InteractionServices.Selection.ClearSelection();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -174,7 +176,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Keyboard_focus_update_component_routes_keyboard_shortcuts_into_session_history() {
             EditorSession session = CreateSessionForUndoRedo();
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices) {
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(CoreValue.Input, InteractionServices) {
                 UndoShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalUndoShortcut"),
                 RedoShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalRedoShortcut")
             };
@@ -428,7 +430,7 @@ namespace helengine.editor.tests {
             EditorSession session = CreateSessionForUndoRedo();
             EditorEntity selectedEntity = CreateUserSceneEntity(303u, "Delete Key");
             InteractionServices.Selection.SetSelectedEntity(selectedEntity);
-            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(Core.Instance.Input, InteractionServices) {
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(CoreValue.Input, InteractionServices) {
                 DeleteShortcutRequested = CreatePrivateActionDelegate(session, "HandleGlobalDeleteShortcut")
             };
 
@@ -535,14 +537,14 @@ namespace helengine.editor.tests {
             sceneCanvasProfileState.ApplySceneSettings(currentSceneSettings);
             EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
-            SetPrivateField(session, "core", Assert.IsType<EditorCore>(Core.Instance));
+            SetPrivateField(session, "core", Assert.IsType<EditorCore>(CoreValue));
             SetPrivateField(session, "interactionServices", InteractionServices);
             SetPrivateField(session, "projectPath", TempProjectRootPath);
-            SetPrivateField(session, "openFileDialog", new OpenFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
-            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
-            SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()));
-            SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default));
-            SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), EditorUiMetrics.Default));
+            SetPrivateField(session, "openFileDialog", new OpenFileDialog(CoreValue, InteractionServices, CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
+            SetPrivateField(session, "saveFileDialog", new SaveFileDialog(CoreValue, InteractionServices, CreateFont(), TempProjectRootPath, GeneratedAssetGraph.Registry));
+            SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(CoreValue, InteractionServices, CreateFont()));
+            SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(CoreValue, InteractionServices, CreateFont(), EditorUiMetrics.Default));
+            SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(CoreValue, InteractionServices, CreateFont(), EditorUiMetrics.Default));
             SetPrivateField(session, "sceneCatalogService", new EditorProjectSceneCatalogService(TempProjectRootPath));
             SetPrivateField(session, "SceneSaveService", saveService);
             SetPrivateField(session, "SceneFileLoadService", loadService);
@@ -590,7 +592,7 @@ namespace helengine.editor.tests {
         /// <returns>Number of non-internal editor entities currently present in the scene.</returns>
         int CountUserSceneEntities() {
             int count = 0;
-            List<Entity> entities = Core.Instance.ObjectManager.Entities;
+            List<Entity> entities = CoreValue.ObjectManager.Entities;
             for (int index = 0; index < entities.Count; index++) {
                 if (entities[index] is not EditorEntity editorEntity
                     || editorEntity.InternalEntity
@@ -611,7 +613,7 @@ namespace helengine.editor.tests {
         /// <param name="name">Display name assigned to the entity.</param>
         /// <returns>Created user-authored scene entity.</returns>
         EditorEntity CreateUserSceneEntity(uint entityId, string name) {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices) {
                 Name = name,
                 IsSceneOwned = true,
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -638,7 +640,7 @@ namespace helengine.editor.tests {
         /// Ensures the active core host is an initialized editor core for the temporary project root used by the current test.
         /// </summary>
         void EnsureEditorCoreHost() {
-            if (Core.Instance is EditorCore editorCore
+            if (CoreValue is EditorCore editorCore
                 && editorCore.Project != null
                 && string.Equals(editorCore.Project.Path, TempProjectRootPath, StringComparison.Ordinal)) {
                 return;
@@ -652,6 +654,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath),
                 ScenePathResolver = new EditorProjectSceneCatalogService(TempProjectRootPath)
             });
+            CoreValue = core;
             core.InputSystem.SetKeyboardActive(true);
         }
 

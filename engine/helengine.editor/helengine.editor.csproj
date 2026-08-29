@@ -29,4 +29,14 @@
     </None>
   </ItemGroup>
 
+  <Target Name="EmbedHelengineSourceRootManifest" BeforeTargets="CoreCompile">
+    <WriteLinesToFile
+      File="$(IntermediateOutputPath)HelengineSourceRoot.g.cs"
+      Lines="namespace helengine.editor { internal static class GeneratedHelengineSourceRoot { internal const string Path = @&quot;$(MSBuildProjectDirectory)\..\..&quot;%3B } }"
+      Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)HelengineSourceRoot.g.cs" />
+    </ItemGroup>
+  </Target>
+
 </Project>

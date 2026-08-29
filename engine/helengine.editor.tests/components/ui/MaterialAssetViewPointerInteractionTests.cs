@@ -9,6 +9,7 @@ namespace helengine.editor.tests.components.ui;
 /// Verifies pointer routing remains stable while the material editor rebuilds rows in response to custom shader changes.
 /// </summary>
 public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
+    EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
     /// <summary>
     /// Temporary root used by the isolated pointer interaction test.
     /// </summary>
@@ -56,7 +57,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     }
 
     MaterialAssetView CreateView() {
-        MaterialAssetView view = new MaterialAssetView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, null, TempRootPath);
+        MaterialAssetView view = new MaterialAssetView(CoreValue, InteractionServices, CreateFont(), 1, null, TempRootPath);
         view.SetRendererResources(GeneratedAssetGraph.RendererResources);
         return view;
     }
@@ -131,7 +132,7 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
     /// <param name="width">Viewport width in pixels.</param>
     /// <param name="height">Viewport height in pixels.</param>
     void CreateUiCamera(int width, int height) {
-        EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+        EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices) {
             InternalEntity = true,
             LayerMask = 1
         };
@@ -325,4 +326,3 @@ public sealed class MaterialAssetViewPointerInteractionTests : IDisposable {
             ButtonState.Released);
     }
 }
-

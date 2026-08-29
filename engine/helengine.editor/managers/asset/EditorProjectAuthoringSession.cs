@@ -49,6 +49,7 @@ namespace helengine.editor {
         readonly GeneratedAssetProviderRegistry GeneratedAssetProviders;
         readonly EngineGeneratedModelCache GeneratedModelCache;
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
+        readonly EditorSessionRendererResources RendererResourcesValue;
 
         /// <summary>
         /// Indicates whether this project session owns the generated provider registry.
@@ -220,6 +221,7 @@ namespace helengine.editor {
             GeneratedModelCache = generatedModelCache ?? throw new ArgumentNullException(nameof(generatedModelCache));
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
             rendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            RendererResourcesValue = rendererResources;
             OwnsGeneratedAssetProviders = false;
             OwnsAssetImportManager = ownsAssetImportManager;
             AssetAuthoringService = new EditorProjectAssetAuthoringService(AssetImportManagerValue, ReferenceResolver, NativeAssetWriteService, GeneratedAssetProviders, GeneratedModelCache, GeneratedMaterialCache, rendererResources);
@@ -239,6 +241,21 @@ namespace helengine.editor {
         /// Gets the session-owned identity index for editor services within this host lifetime.
         /// </summary>
         internal EditorAssetIdentityIndex IdentityIndexValue => IdentityIndex;
+
+        /// <summary>Gets the core that owns this session's generated and renderer graph.</summary>
+        internal Core OwningCoreValue => GeneratedModelCache.OwningCore;
+
+        /// <summary>Gets the exact generated-provider registry borrowed by this session.</summary>
+        internal GeneratedAssetProviderRegistry GeneratedAssetProvidersValue => GeneratedAssetProviders;
+
+        /// <summary>Gets the exact generated-model cache borrowed by this session.</summary>
+        internal EngineGeneratedModelCache GeneratedModelCacheValue => GeneratedModelCache;
+
+        /// <summary>Gets the exact generated-material cache borrowed by this session.</summary>
+        internal EngineGeneratedMaterialCache GeneratedMaterialCacheValue => GeneratedMaterialCache;
+
+        /// <summary>Gets the exact renderer-resource graph borrowed by this session.</summary>
+        internal EditorSessionRendererResources RendererResourcesGraphValue => RendererResourcesValue;
 
         /// <summary>
         /// Gets the immutable repair report accumulated by this session.
@@ -774,12 +791,10 @@ namespace helengine.editor {
                 || !ReferenceEquals(rendererResources.ObjectManager.OwnerCore, ownerCore)) {
                 throw new InvalidOperationException("Renderer resources must use managers owned by their declared core.");
             }
-            if (ownerCore.SessionInteractionGraph != null
-                && !ReferenceEquals(ownerCore.SessionInteractionGraph, rendererResources.InteractionServices)) {
+            if (!ReferenceEquals(ownerCore.SessionInteractionGraph, rendererResources.InteractionServices)) {
                 throw new InvalidOperationException("Renderer resources must use the interaction graph attached to their owning core.");
             }
             if (ownerCore is EditorCore editorCore
-                && editorCore.SessionInteractionServices != null
                 && !ReferenceEquals(editorCore.SessionInteractionServices, rendererResources.InteractionServices)) {
                 throw new InvalidOperationException("Renderer resources must use the interaction graph attached to their owning editor core.");
             }

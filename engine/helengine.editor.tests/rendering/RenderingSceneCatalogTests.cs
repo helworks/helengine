@@ -27,7 +27,7 @@ namespace helengine.editor.tests.rendering {
         /// Initializes the committed scene catalog test fixture.
         /// </summary>
         public RenderingSceneCatalogTests() {
-            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
             RenderingSceneRootPath = Path.Combine(repositoryRootPath, "test-project", "assets", "Scenes", "rendering");
             RenderingMaterialRootPath = Path.Combine(repositoryRootPath, "test-project", "assets", "Materials", "rendering");
             RenderingCodeRootPath = Path.Combine(repositoryRootPath, "test-project", "assets", "codebase", "rendering");

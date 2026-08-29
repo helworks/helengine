@@ -37,8 +37,8 @@ public sealed class EditorProjectAuthoringSessionTests : IDisposable {
     [Fact]
     public void Authoring_WhenSessionIsInjected_ReturnsTheHostOwnedInstance() {
         string projectRootPath = CreateTemporaryProjectRoot();
-        FakeEditorProjectAuthoringSession authoring = new FakeEditorProjectAuthoringSession();
-        TestGeneratedAssetGraph graph = CreateGeneratedGraph(projectRootPath);
+        EditorProjectAuthoringSession authoring = CreateSession(projectRootPath);
+        TestGeneratedAssetGraph graph = MostRecentGeneratedGraph;
         EditorCommandContext context = new EditorCommandContext(projectRootPath, new ScriptTypeResolver(), authoring, graph.OwnerCore, graph.InteractionServices, graph.Registry, graph.RendererResources);
 
         Assert.Same(authoring, context.Authoring);

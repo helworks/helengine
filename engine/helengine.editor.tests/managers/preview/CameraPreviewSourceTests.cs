@@ -7,11 +7,13 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies live camera preview behavior.
     /// </summary>
-    public class CameraPreviewSourceTests : IDisposable {
+public class CameraPreviewSourceTests : IDisposable {
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary content root used by the camera preview tests.
         /// </summary>
         readonly string TempRootPath;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -28,6 +30,7 @@ namespace helengine.editor.tests {
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
@@ -36,6 +39,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -50,7 +54,7 @@ namespace helengine.editor.tests {
             CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
             EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity, GeneratedAssetGraph.ObjectManager);
 
-            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D, GeneratedAssetGraph.RendererResources);
+            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, CoreValue.RenderManager3D, GeneratedAssetGraph.RendererResources);
             source.Update();
 
             Assert.Equal(new float3(3f, 4f, -9f), source.PreviewCamera.Parent.Position);
@@ -66,7 +70,7 @@ namespace helengine.editor.tests {
         public void Resize_WhenPanelSizeChanges_RebuildsTheRenderTarget() {
             EditorEntity cameraEntity = CreateCameraEntity();
             CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
-            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D, GeneratedAssetGraph.RendererResources);
+            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, CoreValue.RenderManager3D, GeneratedAssetGraph.RendererResources);
             RenderTarget initialRenderTarget = source.RenderTarget;
 
             source.Resize(new int2(320, 180));
@@ -88,7 +92,7 @@ namespace helengine.editor.tests {
             CameraComponent liveCamera = Assert.IsType<CameraComponent>(Assert.Single(cameraEntity.Components, component => component is CameraComponent));
             EditorSceneCameraSuppressionService.AttachAndSuppress(cameraEntity, GeneratedAssetGraph.ObjectManager);
 
-            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, Core.Instance.RenderManager3D, GeneratedAssetGraph.RendererResources);
+            CameraPreviewSource source = new CameraPreviewSource(cameraEntity, liveCamera, CoreValue.RenderManager3D, GeneratedAssetGraph.RendererResources);
             source.Resize(new int2(320, 180));
 
             TestRenderTarget resizedRenderTarget = Assert.IsType<TestRenderTarget>(source.RenderTarget);
@@ -111,7 +115,7 @@ namespace helengine.editor.tests {
         /// <param name="viewport">Viewport assigned to the created camera.</param>
         /// <returns>Editor entity with one camera component.</returns>
         EditorEntity CreateCameraEntity(float4 viewport) {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
             cameraEntity.Position = new float3(3f, 4f, -9f);
             float4 orientation;
             float4.CreateFromYawPitchRoll(0.25f, -0.15f, 0f, out orientation);
@@ -177,4 +181,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

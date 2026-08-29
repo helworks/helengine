@@ -7,7 +7,9 @@ namespace helengine.editor.tests.managers.gizmo {
     /// <summary>
     /// Verifies translation-gizmo entity creation and plane-handle geometry.
     /// </summary>
-    public class TransformTranslationGizmoFactoryTests : IDisposable {
+public class TransformTranslationGizmoFactoryTests : IDisposable {
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
+        Core CoreValue;
         TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Expected plane side length after increasing the translation plane handles by 30%.
@@ -45,12 +47,13 @@ namespace helengine.editor.tests.managers.gizmo {
         void InitializeCore() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
         public void Dispose() {
             GeneratedAssetGraph?.Dispose();
-            Core.Instance?.Dispose();
+            CoreValue?.Dispose();
         }
 
         /// <summary>
@@ -58,7 +61,7 @@ namespace helengine.editor.tests.managers.gizmo {
         /// </summary>
         /// <returns>Configured scene camera component.</returns>
         CameraComponent CreateSceneCamera() {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
             cameraEntity.InternalEntity = true;
             cameraEntity.Position = new float3(0f, 2f, -8f);
 

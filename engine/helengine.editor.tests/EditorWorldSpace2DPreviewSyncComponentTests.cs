@@ -8,7 +8,8 @@ namespace helengine.editor.tests {
     /// Verifies that the editor-owned world-space 2D preview synchronizer creates and removes internal preview proxies for supported scene entities.
     /// </summary>
     public sealed class EditorWorldSpace2DPreviewSyncComponentTests : IDisposable {
-        readonly helengine.editor.EditorSessionInteractionServices InteractionServices = new helengine.editor.EditorSessionInteractionServices();
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by the preview-sync tests.
@@ -16,6 +17,7 @@ namespace helengine.editor.tests {
         public EditorWorldSpace2DPreviewSyncComponentTests() {
             Core core = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
@@ -27,7 +29,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            Core.Instance?.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -35,12 +37,12 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSupported2DSceneEntityAppears_CreatesPreviewProxy() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(64, 32),
-                Texture = Core.Instance.RenderManager2D.PixelTexture
+                Texture = CoreValue.RenderManager2D.PixelTexture
             });
 
             EditorEntity syncHostEntity = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
@@ -60,12 +62,12 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSourceEntityIsRemoved_RemovesPreviewProxy() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new SpriteComponent {
                 Size = new int2(64, 32),
-                Texture = Core.Instance.RenderManager2D.PixelTexture
+                Texture = CoreValue.RenderManager2D.PixelTexture
             });
 
             EditorEntity syncHostEntity = new EditorEntity(GeneratedAssetGraph.ObjectManager.OwnerCore, InteractionServices);
@@ -84,7 +86,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSourceEntityUsesTextComponent_CreatesPreviewProxy() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new TextComponent {
@@ -109,7 +111,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSourceEntityUsesRoundedRectComponent_CreatesPreviewProxy() {
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             sourceEntity.AddComponent(new RoundedRectComponent {
@@ -133,17 +135,17 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSpriteEntityBelongsToInternalEditorHierarchy_DoesNotCreatePreviewProxy() {
-            EditorEntity internalRoot = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity internalRoot = new EditorEntity(CoreValue, InteractionServices) {
                 InternalEntity = true,
                 LayerMask = EditorLayerMasks.EditorUi
             };
 
-            EditorEntity internalChild = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            EditorEntity internalChild = new EditorEntity(CoreValue, InteractionServices) {
                 LayerMask = EditorLayerMasks.EditorUi
             };
             internalChild.AddComponent(new SpriteComponent {
                 Size = new int2(24, 24),
-                Texture = Core.Instance.RenderManager2D.PixelTexture
+                Texture = CoreValue.RenderManager2D.PixelTexture
             });
             internalRoot.AddChild(internalChild);
 
@@ -162,7 +164,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenViewportOwnedSpriteUsesBottomRightAnchor_SynchronizerPlacesPreviewAtBottomRight() {
 
-            Entity viewportEntity = new Entity(Core.Instance);
+            Entity viewportEntity = new Entity(CoreValue);
             viewportEntity.InitComponents();
             viewportEntity.InitChildren();
             viewportEntity.AddComponent(new ViewportComponent {
@@ -174,19 +176,19 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             });
 
-            Entity generatedRootEntity = new Entity(Core.Instance);
+            Entity generatedRootEntity = new Entity(CoreValue);
             generatedRootEntity.InitComponents();
             generatedRootEntity.InitChildren();
             viewportEntity.AddChild(generatedRootEntity);
 
-            Entity sourceEntity = new Entity(Core.Instance);
+            Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
             sourceEntity.InitChildren();
             generatedRootEntity.AddChild(sourceEntity);
 
             SpriteComponent spriteComponent = new SpriteComponent {
                 Size = new int2(220, 220),
-                Texture = Core.Instance.RenderManager2D.PixelTexture
+                Texture = CoreValue.RenderManager2D.PixelTexture
             };
             sourceEntity.AddComponent(spriteComponent);
 
@@ -198,7 +200,7 @@ namespace helengine.editor.tests {
             EditorWorldSpace2DPreviewSyncComponent syncComponent = new EditorWorldSpace2DPreviewSyncComponent(GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources);
             syncHostEntity.AddComponent(syncComponent);
 
-            Core.Instance.Update();
+            CoreValue.Update();
             syncComponent.Update();
 
             EditorEntity previewEntity = InteractionServices.WorldSpace2DPreviewRegistry.ResolvePreviewEntity(sourceEntity);

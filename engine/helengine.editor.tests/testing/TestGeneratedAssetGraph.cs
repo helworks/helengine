@@ -44,6 +44,9 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         if (OwnsInteractionServices) {
             core.SessionInteractionGraph = InteractionServices;
         }
+        if (core is EditorCore editorCoreOwner) {
+            editorCoreOwner.SessionInteractionServices = InteractionServices;
+        }
         RendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, entityFactory, SceneEntityIdAllocatorValue, core.Input, () => core.FrameDeltaSeconds, core is EditorCore editorCoreWithFont ? editorCoreWithFont.DefaultFontAssetForEditor : null, InteractionServices);
         Registry = new GeneratedAssetProviderRegistry();
     }
@@ -80,6 +83,11 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         DisposeOwned(ShaderLibrary, failures);
         if (OwnsInteractionServices && ReferenceEquals(CoreValue.SessionInteractionGraph, InteractionServices)) {
             CoreValue.SessionInteractionGraph = null;
+        }
+        if (OwnsInteractionServices
+            && CoreValue is EditorCore editorCoreOwner
+            && ReferenceEquals(editorCoreOwner.SessionInteractionServices, InteractionServices)) {
+            editorCoreOwner.SessionInteractionServices = null;
         }
         if (OwnsInteractionServices) {
             // Clear the borrowed core slot before releasing the graph. This

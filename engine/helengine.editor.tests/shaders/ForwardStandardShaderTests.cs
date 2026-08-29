@@ -61,7 +61,7 @@ namespace helengine.editor.tests.shaders {
         /// </summary>
         [Fact]
         public void ForwardStandardShaderSource_WhenInspected_UsesSharedAmbientLightBuffer() {
-            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
             string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
             string shaderSource = File.ReadAllText(shaderPath);
 
@@ -74,7 +74,7 @@ namespace helengine.editor.tests.shaders {
         /// </summary>
         [Fact]
         public void ForwardStandardShaderSource_WhenInspected_DoesNotContainPointLightDebugTintOverride() {
-            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
             string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
             string shaderSource = File.ReadAllText(shaderPath);
 
@@ -91,7 +91,7 @@ namespace helengine.editor.tests.shaders {
         /// </summary>
         [Fact]
         public void ForwardStandardShaderSource_WhenInspected_UsesAuthoredRoughnessInputs() {
-            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
             string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
             string shaderSource = File.ReadAllText(shaderPath);
 
@@ -105,7 +105,7 @@ namespace helengine.editor.tests.shaders {
         /// </summary>
         [Fact]
         public void ForwardStandardShaderSource_WhenInspected_UsesAuthoredMetallicAndSpecularInputs() {
-            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
             string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
             string shaderSource = File.ReadAllText(shaderPath);
 
@@ -122,7 +122,7 @@ namespace helengine.editor.tests.shaders {
         /// </summary>
         [Fact]
         public void ForwardStandardShaderSource_WhenInspected_UsesEmissiveTextureInput() {
-            string repositoryRootPath = new EditorSourceBuildWorkspaceLocator().ResolveHelEngineRootPath();
+            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
             string shaderPath = Path.Combine(repositoryRootPath, "engine", "helengine.editor", "shaders", "builtin", "ForwardStandardShader.hlsl");
             string shaderSource = File.ReadAllText(shaderPath);
 

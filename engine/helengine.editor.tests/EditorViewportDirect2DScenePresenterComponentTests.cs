@@ -6,6 +6,8 @@ namespace helengine.editor.tests {
     /// Verifies direct 2D scene presentation behavior for editor viewports.
     /// </summary>
     public sealed class EditorViewportDirect2DScenePresenterComponentTests : IDisposable {
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
         /// <summary>
         /// Initializes the core services required by the direct scene-presentation tests.
@@ -17,6 +19,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new FakeContentStreamSource()
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
@@ -25,7 +28,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
-            Core.Instance?.Dispose();
+            CoreValue.Dispose();
         }
 
         /// <summary>
@@ -33,7 +36,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenSceneViewportIs1280By720_UsesMatchingWorldPresented2DSize() {
-            EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity sceneCameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 1280f, 720f)
             };
@@ -47,7 +50,7 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(presenter);
             sceneCameraEntity.InitializeHierarchy();
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             Assert.Equal(new int2(1280, 720), presenter.PresentedWorldSize);
         }
@@ -57,7 +60,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenTextHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
-            EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity sceneCameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -72,7 +75,7 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(presenter);
             sceneCameraEntity.InitializeHierarchy();
 
-            Entity drawableEntity = new Entity(Core.Instance);
+            Entity drawableEntity = new Entity(CoreValue);
             drawableEntity.InitComponents();
             drawableEntity.InitChildren();
             drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
@@ -81,7 +84,7 @@ namespace helengine.editor.tests {
                 Text = "Preview"
             });
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             Assert.Equal(new int2(640, 360), presenter.PresentedWorldSize);
             Assert.Equal(0, sceneCamera.RenderQueue2D.Count);
@@ -92,7 +95,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenViewportOwnedSpriteHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
-            EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity sceneCameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -107,7 +110,7 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(presenter);
             sceneCameraEntity.InitializeHierarchy();
 
-            Entity viewportOwnedRoot = new Entity(Core.Instance);
+            Entity viewportOwnedRoot = new Entity(CoreValue);
             viewportOwnedRoot.InitComponents();
             viewportOwnedRoot.InitChildren();
             viewportOwnedRoot.LayerMask = EditorLayerMasks.SceneObjects;
@@ -117,17 +120,17 @@ namespace helengine.editor.tests {
             });
             sceneCameraEntity.AddChild(viewportOwnedRoot);
 
-            Entity drawableEntity = new Entity(Core.Instance);
+            Entity drawableEntity = new Entity(CoreValue);
             drawableEntity.InitComponents();
             drawableEntity.InitChildren();
             drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
             drawableEntity.AddComponent(new SpriteComponent {
                 Size = new int2(32, 32),
-                Texture = Core.Instance.RenderManager2D.PixelTexture
+                Texture = CoreValue.RenderManager2D.PixelTexture
             });
             viewportOwnedRoot.AddChild(drawableEntity);
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             Assert.Equal(new int2(640, 360), presenter.PresentedWorldSize);
             Assert.Equal(0, sceneCamera.RenderQueue2D.Count);
@@ -138,7 +141,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Update_WhenRoundedRectHasWorldPreview_RemovesItFromTheSceneCameraQueue() {
-            EditorEntity sceneCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity sceneCameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent sceneCamera = new CameraComponent {
                 Viewport = new float4(0f, 0f, 640f, 360f),
                 LayerMask = EditorLayerMasks.SceneObjects
@@ -153,7 +156,7 @@ namespace helengine.editor.tests {
             sceneCameraEntity.AddComponent(presenter);
             sceneCameraEntity.InitializeHierarchy();
 
-            Entity viewportOwnedRoot = new Entity(Core.Instance);
+            Entity viewportOwnedRoot = new Entity(CoreValue);
             viewportOwnedRoot.InitComponents();
             viewportOwnedRoot.InitChildren();
             viewportOwnedRoot.LayerMask = EditorLayerMasks.SceneObjects;
@@ -163,7 +166,7 @@ namespace helengine.editor.tests {
             });
             sceneCameraEntity.AddChild(viewportOwnedRoot);
 
-            Entity drawableEntity = new Entity(Core.Instance);
+            Entity drawableEntity = new Entity(CoreValue);
             drawableEntity.InitComponents();
             drawableEntity.InitChildren();
             drawableEntity.LayerMask = EditorLayerMasks.SceneObjects;
@@ -172,7 +175,7 @@ namespace helengine.editor.tests {
             });
             viewportOwnedRoot.AddChild(drawableEntity);
 
-            Core.Instance.Update();
+            CoreValue.Update();
 
             Assert.Equal(new int2(640, 360), presenter.PresentedWorldSize);
             Assert.Equal(0, sceneCamera.RenderQueue2D.Count);

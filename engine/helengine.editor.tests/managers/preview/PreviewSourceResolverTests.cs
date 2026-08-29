@@ -6,7 +6,8 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies preview source selection for asset browser entries and scene selections.
     /// </summary>
-    public class PreviewSourceResolverTests : IDisposable {
+public class PreviewSourceResolverTests : IDisposable {
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary project root used by preview resolver tests.
         /// </summary>
@@ -21,6 +22,7 @@ namespace helengine.editor.tests {
         /// Asset import manager configured for deterministic texture loading.
         /// </summary>
         readonly AssetImportManager AssetImportManager;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -35,10 +37,11 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, CoreValue.RenderManager2D);
             AssetImportManager = new AssetImportManager(TempProjectRootPath, contentManager);
             AssetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }));
             AssetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj", ".x" }));
@@ -49,6 +52,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -156,8 +160,8 @@ namespace helengine.editor.tests {
         PreviewSourceResolver CreateResolver() {
             return new PreviewSourceResolver(
                 AssetImportManager,
-                Core.Instance.RenderManager2D,
-                Core.Instance.RenderManager3D,
+                CoreValue.RenderManager2D,
+                CoreValue.RenderManager3D,
                 new EditorSceneCanvasProfileState(),
                 GeneratedAssetGraph.Registry,
                 GeneratedAssetGraph.MaterialCache,
@@ -200,7 +204,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Editor entity with one camera component.</returns>
         EditorEntity CreateCameraEntity() {
-            EditorEntity cameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity cameraEntity = new EditorEntity(CoreValue, InteractionServices);
             float4 orientation;
             float4.CreateFromYawPitchRoll(0.1f, -0.2f, 0f, out orientation);
             cameraEntity.Position = new float3(6f, 2f, -5f);
@@ -217,4 +221,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-

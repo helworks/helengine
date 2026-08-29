@@ -5,7 +5,8 @@ namespace helengine.editor.tests {
     /// <summary>
     /// Verifies model preview behavior for bounds framing and pointer interaction.
     /// </summary>
-    public class ModelPreviewSourceTests : IDisposable {
+public class ModelPreviewSourceTests : IDisposable {
+        EditorSessionInteractionServices InteractionServices => GeneratedAssetGraph.InteractionServices;
         /// <summary>
         /// Temporary project root used by the preview tests.
         /// </summary>
@@ -14,6 +15,7 @@ namespace helengine.editor.tests {
         /// Temporary assets root used by the preview tests.
         /// </summary>
         readonly string AssetsRootPath;
+        readonly Core CoreValue;
         readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
@@ -33,6 +35,7 @@ namespace helengine.editor.tests {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue = core;
             GeneratedAssetGraph = new TestGeneratedAssetGraph(core);
         }
 
@@ -41,6 +44,7 @@ namespace helengine.editor.tests {
         /// </summary>
         public void Dispose() {
             GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempProjectRootPath)) {
                 Directory.Delete(TempProjectRootPath, true);
             }
@@ -51,7 +55,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Resize_WhenContentSizeChanges_ResizesTheRenderTargetAndViewport() {
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
 
             source.Resize(new int2(640, 360));
 
@@ -68,7 +72,7 @@ namespace helengine.editor.tests {
             ThemeManager.ThemePalette originalTheme = ThemeManager.Current;
             try {
                 ThemeManager.SetTheme(ThemeManager.CreateDarkTheme());
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
 
                 Assert.Equal(ConvertThemeColor(ThemeManager.Colors.BackgroundPrimary), source.PreviewCamera.ClearSettings.ClearColor);
 
@@ -83,7 +87,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleMouseWheel_WhenZoomingIn_MovesTheCameraCloser() {
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             source.Resize(new int2(640, 360));
             float3 initialPosition = source.PreviewCamera.Parent.Position;
             double initialDistance = GetDistance(initialPosition, float3.Zero);
@@ -102,7 +106,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleMouseDrag_WhenOrbiting_ChangesTheCameraOrientationWithoutChangingDistance() {
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             source.Resize(new int2(640, 360));
             float3 initialPosition = source.PreviewCamera.Parent.Position;
             float4 initialOrientation = source.PreviewCamera.Parent.Orientation;
@@ -125,7 +129,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void HandleMouseMiddleDrag_WhenPanning_ChangesTheCameraPositionWithoutChangingOrientation() {
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             source.Resize(new int2(640, 360));
             float3 initialPosition = source.PreviewCamera.Parent.Position;
             float4 initialOrientation = source.PreviewCamera.Parent.Orientation;
@@ -146,7 +150,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Resize_WhenPreviewModelIsTallerThanDefaultFarPlane_KeepsNearPlaneAtMinimumAndExtendsTheFarPlane() {
             RuntimeModel tallModel = CreateTallRuntimeModel();
-            ModelPreviewSource source = new ModelPreviewSource(tallModel, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(tallModel, CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             source.Resize(new int2(640, 360));
             double radius = Math.Sqrt((11.949154d * 11.949154d) + (113.883775d * 113.883775d) + (12.0684385d * 12.0684385d));
             double cameraDistance = GetDistance(source.PreviewCamera.Parent.Position, float3.Zero);
@@ -183,7 +187,7 @@ namespace helengine.editor.tests {
             Assert.False(entry.IsGenerated);
             Assert.Equal(AssetEntryKind.Model, entry.EntryKind);
 
-            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, Core.Instance.RenderManager3D, GeneratedAssetGraph.Registry, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources, out ModelPreviewSource source);
+            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, CoreValue.RenderManager3D, GeneratedAssetGraph.Registry, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources, out ModelPreviewSource source);
 
             Assert.True(created);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
@@ -192,7 +196,7 @@ namespace helengine.editor.tests {
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
             Assert.NotNull(diffuseTexture);
-            Assert.NotSame(Core.Instance.RenderManager2D.PixelTexture, diffuseTexture);
+            Assert.NotSame(CoreValue.RenderManager2D.PixelTexture, diffuseTexture);
 
             source.Dispose();
         }
@@ -213,7 +217,7 @@ namespace helengine.editor.tests {
             string modelSourcePath = WriteSourceFile("Models/Sponza/Sponza.mock", "model source");
             AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile("Sponza", "Models/Sponza/Sponza.mock", modelSourcePath, ".mock", AssetEntryKind.Model);
 
-            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, Core.Instance.RenderManager3D, GeneratedAssetGraph.Registry, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources, out ModelPreviewSource source);
+            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, CoreValue.RenderManager3D, GeneratedAssetGraph.Registry, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources, out ModelPreviewSource source);
 
             Assert.True(created);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
@@ -222,7 +226,7 @@ namespace helengine.editor.tests {
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
             Assert.NotNull(diffuseTexture);
-            Assert.NotSame(Core.Instance.RenderManager2D.PixelTexture, diffuseTexture);
+            Assert.NotSame(CoreValue.RenderManager2D.PixelTexture, diffuseTexture);
 
             source.Dispose();
         }
@@ -254,7 +258,7 @@ namespace helengine.editor.tests {
             string modelSourcePath = WriteSourceFile("Models/Preview.mock", "model source");
             AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile("Preview", "Models/Preview.mock", modelSourcePath, ".mock", AssetEntryKind.Model);
 
-            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, Core.Instance.RenderManager3D, GeneratedAssetGraph.Registry, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources, out ModelPreviewSource source);
+            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, CoreValue.RenderManager3D, GeneratedAssetGraph.Registry, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources, out ModelPreviewSource source);
 
             Assert.True(created);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
@@ -283,7 +287,7 @@ namespace helengine.editor.tests {
             string modelSourcePath = WriteSourceFile("Models/Lamppost.mock", "model source");
             AssetBrowserEntry entry = AssetBrowserEntry.CreateFileSystemFile("Lamppost", "Models/Lamppost.mock", modelSourcePath, ".mock", AssetEntryKind.Model);
 
-            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, Core.Instance.RenderManager3D, GeneratedAssetGraph.Registry, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources, out ModelPreviewSource source);
+            bool created = ModelPreviewSource.TryCreate(entry, assetImportManager, CoreValue.RenderManager3D, GeneratedAssetGraph.Registry, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.RendererResources, out ModelPreviewSource source);
 
             Assert.True(created);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
@@ -292,7 +296,7 @@ namespace helengine.editor.tests {
             Assert.True(diffuseBindingIndex >= 0);
             RuntimeTexture diffuseTexture = previewMaterial.Properties.GetTexture(diffuseBindingIndex);
             Assert.NotNull(diffuseTexture);
-            Assert.NotSame(Core.Instance.RenderManager2D.PixelTexture, diffuseTexture);
+            Assert.NotSame(CoreValue.RenderManager2D.PixelTexture, diffuseTexture);
 
             source.Dispose();
         }
@@ -302,7 +306,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_WhenPreviewSourceIsCreated_KeepsTheModelOutOfTheMainViewportQueue() {
-            EditorEntity mainCameraEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity mainCameraEntity = new EditorEntity(CoreValue, InteractionServices);
             CameraComponent mainCamera = new CameraComponent {
                 LayerMask = EditorLayerMasks.SceneObjects,
                 CameraDrawOrder = 0,
@@ -310,7 +314,7 @@ namespace helengine.editor.tests {
             };
             mainCameraEntity.AddComponent(mainCamera);
 
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             MeshComponent previewMesh = GetPrivateField<MeshComponent>(source, "previewMeshComponent");
 
             Assert.False(QueueContainsDrawable(mainCamera.RenderQueue3D, previewMesh));
@@ -325,10 +329,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_WhenModelBoundsAreSmallerThanFiveUnits_CreatesFiveUnitPreviewGrid() {
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             RuntimeModel runtimeModel = CreateRuntimeModel();
             int gridModelAssetIndex = renderManager3D.BuiltModelAssets.Count;
-            ModelPreviewSource source = new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(runtimeModel, CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
 
             EditorEntity gridEntity = GetPrivateField<EditorEntity>(source, "previewGridEntity");
             MeshComponent gridMesh = Assert.IsType<MeshComponent>(Assert.Single(gridEntity.Components, component => component is MeshComponent));
@@ -348,10 +352,10 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_WhenModelIsWiderThanFiveUnits_ScalesPreviewGridToModelWidth() {
-            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
+            TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
             RuntimeModel runtimeModel = CreateWideRuntimeModel();
             int gridModelAssetIndex = renderManager3D.BuiltModelAssets.Count;
-            ModelPreviewSource source = new ModelPreviewSource(runtimeModel, Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(runtimeModel, CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
 
             EditorEntity gridEntity = GetPrivateField<EditorEntity>(source, "previewGridEntity");
             MeshComponent gridMesh = Assert.IsType<MeshComponent>(Assert.Single(gridEntity.Components, component => component is MeshComponent));
@@ -369,7 +373,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetGridVisible_WhenDisabled_HidesThePreviewGridEntity() {
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
 
             source.SetGridVisible(false);
 
@@ -383,7 +387,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void SetBoundsDisplayMode_WhenModeChanges_EnablesOnlyTheRequestedLineOverlay() {
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorEntity boundsBoxEntity = GetPrivateField<EditorEntity>(source, "boundsBoxEntity");
             EditorEntity boundsSphereEntity = GetPrivateField<EditorEntity>(source, "boundsSphereEntity");
 
@@ -410,7 +414,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void Constructor_WhenBoundsOverlaysAreCreated_UsesLineListSubmeshes() {
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorEntity boundsBoxEntity = GetPrivateField<EditorEntity>(source, "boundsBoxEntity");
             EditorEntity boundsSphereEntity = GetPrivateField<EditorEntity>(source, "boundsSphereEntity");
             MeshComponent boxMesh = Assert.IsType<MeshComponent>(Assert.Single(boundsBoxEntity.Components, component => component is MeshComponent));
@@ -429,7 +433,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void ConfigureBoundsDimensionLabels_WhenBoxModeIsSelected_ShowsThreeGizmoFontBillboardsAtPositiveEdges() {
-            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), Core.Instance.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            ModelPreviewSource source = new ModelPreviewSource(CreateRuntimeModel(), CoreValue.RenderManager3D, GeneratedAssetGraph.ShaderLibrary, GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             FontAsset font = CreateAxisLabelFont();
 
             source.ConfigureBoundsDimensionLabels(font);
@@ -499,7 +503,7 @@ namespace helengine.editor.tests {
                 BoundsMax = new float3(1f, 1f, 1f)
             };
 
-            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            return CoreValue.RenderManager3D.BuildModelFromRaw(modelAsset);
         }
 
         /// <summary>
@@ -538,7 +542,7 @@ namespace helengine.editor.tests {
                 BoundsMax = new float3(-9.314689f, 227.78258f, 13.117148f)
             };
 
-            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            return CoreValue.RenderManager3D.BuildModelFromRaw(modelAsset);
         }
 
         /// <summary>
@@ -608,7 +612,7 @@ namespace helengine.editor.tests {
                 BoundsMax = new float3(8f, 4f, 1f)
             };
 
-            return Core.Instance.RenderManager3D.BuildModelFromRaw(modelAsset);
+            return CoreValue.RenderManager3D.BuildModelFromRaw(modelAsset);
         }
 
         /// <summary>
@@ -772,4 +776,3 @@ namespace helengine.editor.tests {
         }
     }
 }
-
