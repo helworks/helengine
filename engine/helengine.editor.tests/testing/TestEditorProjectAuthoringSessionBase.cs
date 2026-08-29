@@ -18,11 +18,13 @@ public abstract class TestEditorProjectAuthoringSessionBase : IEditorProjectAuth
     public virtual SceneAssetReference CreateReference(string relativePath, AssetEntryKind expectedKind) => throw Unsupported();
     public virtual AssetReferenceResolution ResolveReference(SceneAssetReference reference, AssetEntryKind expectedKind) => throw Unsupported();
     public virtual RuntimeModel LoadImportedRuntimeModel(string relativePath) => throw Unsupported();
+    public virtual RuntimeModel LoadImportedRuntimeModel(string relativePath, EditorAuthoringTransaction transaction) => throw Unsupported();
     public virtual ShaderAsset LoadBuiltInShaderAsset(string shaderFileName) => throw Unsupported();
     public virtual ShaderAsset LoadBuiltInShaderAssetById(string shaderAssetId) => throw Unsupported();
     public virtual EditorAssetWriteResult WriteAsset(string relativePath, Asset asset) => throw Unsupported();
     public virtual EditorAssetWriteResult WriteGeneratedMaterial(string relativePath, GeneratedMaterialAssetDefinition definition, EditorAuthoringTransaction transaction) => throw Unsupported();
     public virtual EditorAssetWriteResult WriteGeneratedFile(string projectRelativePath, byte[] bytes, string expectedPriorContentHash, EditorGeneratedFileKind fileKind, EditorAuthoringTransaction transaction) => throw Unsupported();
+    public virtual TextureAssetImportSettings WriteGeneratedTexture(string assetsRelativePath, byte[] sourceBytes, TextureAssetImportSettings settingsIntent, EditorAuthoringTransaction transaction) => throw Unsupported();
     public virtual EditorAssetWriteResult WriteGeneratedCacheAsset(string relativePath, Asset asset, EditorAuthoringTransaction transaction) => throw Unsupported();
     public virtual byte[] ReadStagedFile(string projectRelativePath, EditorAuthoringTransaction transaction) => throw Unsupported();
 

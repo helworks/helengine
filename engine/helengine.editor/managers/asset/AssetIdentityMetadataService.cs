@@ -165,6 +165,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Serializes one validated external identity document for a caller
+        /// that will publish it through an enclosing authoring transaction.
+        /// </summary>
+        internal static byte[] SerializeDocument(AssetIdentityMetadataDocument document) {
+            if (document == null) {
+                throw new ArgumentNullException(nameof(document));
+            }
+            ValidateDocument(document, "generated identity metadata");
+            return new UTF8Encoding(false).GetBytes(JsonSerializer.Serialize(document, JsonOptions));
+        }
+
+        /// <summary>
         /// Loads identity metadata from one current engine-native authored payload.
         /// Missing identity is rejected and never repaired.
         /// </summary>

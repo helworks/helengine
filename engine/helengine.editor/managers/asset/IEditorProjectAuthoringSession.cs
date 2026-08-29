@@ -44,6 +44,12 @@ namespace helengine.editor {
         /// <returns>Imported runtime model.</returns>
         RuntimeModel LoadImportedRuntimeModel(string relativePath);
 
+        /// <summary>
+        /// Materializes one imported model from a staged native asset when
+        /// present, otherwise from the already-published destination.
+        /// </summary>
+        RuntimeModel LoadImportedRuntimeModel(string relativePath, EditorAuthoringTransaction transaction);
+
         /// <summary>Loads one built-in shader through the session-owned shader library and renderer.</summary>
         ShaderAsset LoadBuiltInShaderAsset(string shaderFileName);
 
@@ -75,6 +81,17 @@ namespace helengine.editor {
             byte[] bytes,
             string expectedPriorContentHash,
             EditorGeneratedFileKind fileKind,
+            EditorAuthoringTransaction transaction);
+
+        /// <summary>
+        /// Stages a generated texture source and its importer settings as one
+        /// transaction-owned pair. The returned settings contain the checksum
+        /// and deterministic processed asset id for the supplied source bytes.
+        /// </summary>
+        TextureAssetImportSettings WriteGeneratedTexture(
+            string assetsRelativePath,
+            byte[] sourceBytes,
+            TextureAssetImportSettings settingsIntent,
             EditorAuthoringTransaction transaction);
 
         /// <summary>Stages one serialized generated cache asset in the caller-owned transaction.</summary>

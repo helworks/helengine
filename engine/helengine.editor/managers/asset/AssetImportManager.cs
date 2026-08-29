@@ -2683,6 +2683,84 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves texture importer settings from explicit generated source
+        /// bytes without repairing or writing the destination sidecar. The
+        /// caller owns publication of both source and settings bytes.
+        /// </summary>
+        /// <param name="sourcePath">Absolute destination source path.</param>
+        /// <param name="sourceBytes">Bytes that will be published as the source.</param>
+        /// <param name="settingsIntent">Explicit importer and processor intent.</param>
+        /// <returns>Settings prepared for the supplied source bytes.</returns>
+        internal TextureAssetImportSettings PrepareGeneratedTextureImportSettings(
+            string sourcePath,
+            byte[] sourceBytes,
+            TextureAssetImportSettings settingsIntent) {
+            sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
+            if (sourceBytes == null) {
+                throw new ArgumentNullException(nameof(sourceBytes));
+            } else if (settingsIntent == null) {
+                throw new ArgumentNullException(nameof(settingsIntent));
+            } else if (settingsIntent.Importer == null || settingsIntent.Processor == null || settingsIntent.Processor.Platforms == null || settingsIntent.Processor.Environments == null) {
+                throw new InvalidOperationException("Generated texture settings intent must include importer and processor settings.");
+            }
+
+            TextureAssetImportSettings settings = CloneTextureImportSettings(settingsIntent);
+            TextureAssetImportSettings existingSettings = null;
+            string settingsPath = GetSettingsPath(sourcePath);
+            if (File.Exists(settingsPath) && TryLoadTextureImportSettings(settingsPath, out existingSettings)) {
+                if (string.IsNullOrWhiteSpace(settings.Importer.ImporterId)) {
+                    settings.Importer.ImporterId = existingSettings.Importer?.ImporterId;
+                }
+                if (settings.Processor.Platforms.Count == 0 && settings.Processor.Environments.Count == 0) {
+                    settings.Processor = existingSettings.Processor;
+                }
+            }
+
+            RepairTextureImporterId(sourcePath, settings);
+            using MemoryStream sourceStream = new MemoryStream(sourceBytes, writable: false);
+            string sourceChecksum = fileHasher.ComputeHash(sourceStream);
+            settings.Importer.SourceChecksum = sourceChecksum;
+            string computedAssetId = BuildTextureAssetId(sourcePath, settings, sourceChecksum);
+            bool existingIdentityMatchesCurrentSemantics = false;
+            if (existingSettings != null
+                && !string.IsNullOrWhiteSpace(existingSettings.Importer?.AssetId)
+                && string.Equals(existingSettings.Importer?.SourceChecksum, sourceChecksum, StringComparison.Ordinal)) {
+                string existingComputedAssetId = BuildTextureAssetId(
+                    sourcePath,
+                    existingSettings,
+                    sourceChecksum);
+                existingIdentityMatchesCurrentSemantics = string.Equals(
+                    existingSettings.Importer.AssetId,
+                    existingComputedAssetId,
+                    StringComparison.Ordinal)
+                    && string.Equals(
+                        computedAssetId,
+                        existingComputedAssetId,
+                        StringComparison.Ordinal);
+            }
+
+            // A valid published sidecar owns the processed identity while its
+            // source and processing semantics remain unchanged. A proposed
+            // catalog id is therefore only honored for a new destination;
+            // changed or semantically reconfigured sources receive the id
+            // computed from the staged bytes/settings.
+            if (existingIdentityMatchesCurrentSemantics) {
+                settings.Importer.AssetId = existingSettings.Importer.AssetId;
+            } else if (existingSettings != null || string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
+                settings.Importer.AssetId = computedAssetId;
+            }
+            return settings;
+        }
+
+        /// <summary>Clones typed texture settings through the canonical binary format.</summary>
+        static TextureAssetImportSettings CloneTextureImportSettings(TextureAssetImportSettings settings) {
+            using MemoryStream stream = new MemoryStream();
+            TextureAssetImportSettingsBinarySerializer.Serialize(stream, settings);
+            stream.Position = 0;
+            return TextureAssetImportSettingsBinarySerializer.Deserialize(stream);
+        }
+
+        /// <summary>
         /// Loads typed model import settings for a source file or creates defaults if missing.
         /// </summary>
         /// <param name="sourcePath">Absolute path to the source file.</param>

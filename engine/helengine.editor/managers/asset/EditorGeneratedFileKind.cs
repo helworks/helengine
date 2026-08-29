@@ -7,6 +7,7 @@ namespace helengine.editor {
     public enum EditorGeneratedFileKind {
         Source,
         ImportSettings,
-        Cache
+        Cache,
+        IdentityMetadata
     }
 }

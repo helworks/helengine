@@ -5,11 +5,17 @@ namespace helengine.editor {
     internal sealed class EditorAuthoringTransactionEntry {
         public string DestinationRelativePath { get; set; }
 
+        /// <summary>Assets-relative change-log path for an indexed generated source.</summary>
+        public string ChangeLogRelativePath { get; set; }
+
         public bool UsesProjectRoot { get; set; }
 
         public string StagedRelativePath { get; set; }
 
         public bool PriorExists { get; set; }
+
+        /// <summary>Persists the prior external-source identity-sidecar state for rollback.</summary>
+        public bool PriorIdentityMetadataExists { get; set; }
 
         public string PriorContentHash { get; set; }
 

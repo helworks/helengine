@@ -222,6 +222,7 @@ namespace helengine.editor {
                 AssetId = assetId ?? string.Empty,
                 AssetKind = assetKind,
                 PriorExists = priorExists,
+                PriorIdentityMetadataExists = updatesIdentityIndex,
                 PriorContentHash = priorContentHash,
                 PriorSerializedHash = priorExists ? HashCache.ComputeSerializedHash(priorBytes) : null,
                 PreservedExistingIdentity = updatesIdentityIndex && priorExists,
@@ -242,6 +243,19 @@ namespace helengine.editor {
             byte[] bytes,
             string expectedPriorContentHash,
             EditorGeneratedFileKind fileKind) {
+            return PrepareGeneratedFile(projectRelativePath, bytes, expectedPriorContentHash, fileKind, null);
+        }
+
+        /// <summary>
+        /// Prepares generated source bytes with the external identity that is
+        /// staged alongside the source by the owning session.
+        /// </summary>
+        internal EditorPreparedAssetWrite PrepareGeneratedFile(
+            string projectRelativePath,
+            byte[] bytes,
+            string expectedPriorContentHash,
+            EditorGeneratedFileKind fileKind,
+            string externalAssetId) {
             EnsureNotDisposed();
             if (bytes == null) {
                 throw new ArgumentNullException(nameof(bytes));
@@ -268,22 +282,61 @@ namespace helengine.editor {
             }
 
             string stagedHash = ComputeRawBytesHash(bytes);
+            string changeLogRelativePath = null;
+            if (!string.IsNullOrWhiteSpace(externalAssetId) && normalizedRelativePath.StartsWith("assets/", StringComparison.OrdinalIgnoreCase)) {
+                changeLogRelativePath = normalizedRelativePath.Substring("assets/".Length);
+            }
+            // A source with no identity sidecar still needs one publication
+            // pass even when its bytes are unchanged. This makes the source
+            // entry visible to the identity graph after the session stages
+            // the companion .hmeta file.
+            bool identityMetadataMissing = !string.IsNullOrWhiteSpace(externalAssetId)
+                && !File.Exists(fullPath + ".hmeta");
             return new EditorPreparedAssetWrite {
                 RelativePath = normalizedRelativePath,
+                ChangeLogRelativePath = changeLogRelativePath,
                 FullPath = fullPath,
                 SerializedBytes = bytes.ToArray(),
                 ContentHash = stagedHash,
                 SerializedHash = stagedHash,
-                AssetId = string.Empty,
                 AssetKind = fileKind.ToString(),
                 PayloadKind = EditorAuthoringTransactionPayloadKind.GeneratedFile,
                 UsesProjectRoot = true,
                 PriorExists = priorExists,
+                PriorIdentityMetadataExists = !identityMetadataMissing,
                 PriorContentHash = priorHash,
                 PriorSerializedHash = priorHash,
-                IsUnchanged = priorExists && priorBytes.AsSpan().SequenceEqual(bytes),
-                UpdatesIdentityIndex = false
+                IsUnchanged = priorExists && priorBytes.AsSpan().SequenceEqual(bytes) && !identityMetadataMissing,
+                UpdatesIdentityIndex = fileKind == EditorGeneratedFileKind.Source && !string.IsNullOrWhiteSpace(externalAssetId),
+                AssetId = externalAssetId ?? string.Empty,
+                PreservedExistingIdentity = !string.IsNullOrWhiteSpace(externalAssetId) && priorExists
             };
+        }
+
+        /// <summary>
+        /// Reads the current external identity for a source, or allocates the
+        /// identity that the caller will persist in the staged metadata pair.
+        /// </summary>
+        internal string ResolveGeneratedSourceAssetId(string sourcePath) {
+            EnsureNotDisposed();
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+            }
+            string normalizedPath = Path.GetFullPath(sourcePath);
+            ValidateNoReparseTraversal(normalizedPath);
+            string metadataPath = normalizedPath + ".hmeta";
+            if (File.Exists(metadataPath)) {
+                if (!File.Exists(normalizedPath)) {
+                    throw new InvalidOperationException($"Generated source identity metadata '{metadataPath}' has no source destination.");
+                }
+                return MetadataService.Load(normalizedPath).AssetId;
+            }
+
+            string assetId;
+            do {
+                assetId = Guid.NewGuid().ToString("N");
+            } while (IdentityIndex.IsCurrentAssetIdOwned(assetId));
+            return assetId;
         }
 
         /// <summary>
@@ -440,6 +493,7 @@ namespace helengine.editor {
                 AssetId = asset.AuthoringAssetId,
                 AssetKind = GetExpectedValueKind(asset).ToString(),
                 PriorExists = priorExists,
+                PriorIdentityMetadataExists = true,
                 PriorContentHash = priorContentHash,
                 PriorSerializedHash = priorExists ? HashCache.ComputeSerializedHash(priorBytes) : null,
                 PreservedExistingIdentity = preservedExistingIdentity,
@@ -498,8 +552,16 @@ namespace helengine.editor {
                 if (!prepared.UpdatesIdentityIndex) {
                     continue;
                 }
+                // Native identity-index paths are assets-relative, while
+                // generated external sources are staged with their
+                // project-relative `assets/` destination. Normalize the
+                // comparison path before checking the claim so an existing
+                // source is recognized as its own replacement.
+                string identityRelativePath = prepared.RelativePath.StartsWith("assets/", StringComparison.OrdinalIgnoreCase)
+                    ? prepared.RelativePath.Substring("assets/".Length)
+                    : prepared.RelativePath;
                 if (string.IsNullOrWhiteSpace(prepared.AssetId) || !claims.Add(prepared.AssetId) ||
-                    IdentityIndex.IsAssetIdentityClaimedByOtherPathUnderLock(prepared.AssetId, prepared.RelativePath)) {
+                    IdentityIndex.IsAssetIdentityClaimedByOtherPathUnderLock(prepared.AssetId, identityRelativePath)) {
                     throw new InvalidOperationException($"Native asset identity '{prepared.AssetId}' is claimed by another current transaction destination.");
                 }
             }
@@ -761,7 +823,11 @@ namespace helengine.editor {
                 HashCache.InvalidateContentHash(prepared.FullPath);
             }
             if (prepared.PriorExists && prepared.UpdatesIdentityIndex) {
-                IdentityIndex.RegisterOrUpdateUnderLock(prepared.FullPath);
+                if (prepared.PriorIdentityMetadataExists) {
+                    IdentityIndex.RegisterOrUpdateUnderLock(prepared.FullPath);
+                } else {
+                    IdentityIndex.RemoveUnderLock(prepared.FullPath);
+                }
             } else if (!prepared.PriorExists && prepared.UpdatesIdentityIndex) {
                 IdentityIndex.RemoveUnderLock(prepared.FullPath);
             }

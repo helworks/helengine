@@ -384,8 +384,9 @@ namespace helengine.editor {
                 ? StringComparer.OrdinalIgnoreCase
                 : StringComparer.Ordinal);
             return document.Entries
-                .Where(entry => !entry.UsesProjectRoot && restored.Contains(entry.DestinationRelativePath))
-                .Select(entry => entry.DestinationRelativePath)
+                .Where(entry => ((!entry.UsesProjectRoot && restored.Contains(entry.DestinationRelativePath))
+                    || (entry.UsesProjectRoot && entry.UpdatesIdentityIndex && restored.Contains(entry.DestinationRelativePath))))
+                .Select(entry => entry.ChangeLogRelativePath ?? entry.DestinationRelativePath)
                 .ToArray();
         }
 

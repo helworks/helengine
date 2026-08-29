@@ -199,6 +199,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Stages generated source bytes with an explicit external identity.
+        /// The caller must stage the matching metadata sidecar in this same
+        /// transaction before commit.
+        /// </summary>
+        internal EditorAssetWriteResult WriteGeneratedSource(
+            string projectRelativePath,
+            byte[] bytes,
+            string expectedPriorContentHash,
+            string externalAssetId) {
+            lock (StateGate) {
+                EnsureStaging();
+                return StagePrepared(NativeWriter.PrepareGeneratedFile(
+                    projectRelativePath,
+                    bytes,
+                    expectedPriorContentHash,
+                    EditorGeneratedFileKind.Source,
+                    externalAssetId));
+            }
+        }
+
+        /// <summary>
         /// Reads output already staged by this transaction without consulting
         /// the live destination. Dependent generated values can therefore be
         /// materialized before publication.
@@ -365,8 +386,10 @@ namespace helengine.editor {
 
             EditorAuthoringTransactionEntry entry = existingEntry ?? new EditorAuthoringTransactionEntry {
                 DestinationRelativePath = prepared.RelativePath,
+                ChangeLogRelativePath = prepared.ChangeLogRelativePath,
                 StagedRelativePath = stagedRelativePath,
                 PriorExists = prepared.PriorExists,
+                PriorIdentityMetadataExists = prepared.PriorIdentityMetadataExists,
                 PriorContentHash = prepared.PriorContentHash,
                 PriorSerializedHash = prepared.PriorSerializedHash,
                 BackupRelativePath = prepared.PriorExists
@@ -378,6 +401,7 @@ namespace helengine.editor {
             entry.ExpectedAssetId = prepared.AssetId;
             entry.ExpectedAssetKind = prepared.AssetKind;
             entry.PayloadKind = prepared.PayloadKind;
+            entry.ChangeLogRelativePath = prepared.ChangeLogRelativePath;
             entry.UsesProjectRoot = prepared.UsesProjectRoot;
             entry.IsMaterialSettingsPayload = prepared.IsMaterialSettingsPayload;
             entry.UpdatesIdentityIndex = prepared.UpdatesIdentityIndex;
@@ -429,6 +453,13 @@ namespace helengine.editor {
                     .ToList();
                 EditorAuthoringTransactionEntry[] nativeChangedEntries = changedEntries
                     .Where(entry => !entry.UsesProjectRoot)
+                    .ToArray();
+                EditorAuthoringTransactionEntry[] indexedGeneratedEntries = changedEntries
+                    .Where(entry => entry.UsesProjectRoot && entry.UpdatesIdentityIndex)
+                    .ToArray();
+                string[] generationPaths = nativeChangedEntries
+                    .Select(entry => entry.ChangeLogRelativePath ?? entry.DestinationRelativePath)
+                    .Concat(indexedGeneratedEntries.Select(entry => entry.ChangeLogRelativePath ?? entry.DestinationRelativePath))
                     .ToArray();
                 List<EditorAuthoringTransactionEntry> appliedEntries = new List<EditorAuthoringTransactionEntry>();
                 IDisposable pendingOwner = null;
@@ -497,8 +528,8 @@ namespace helengine.editor {
                     for (int index = 0; index < changedEntries.Count; index++) {
                         Hooks.BeforePublication?.Invoke(index, changedEntries[index].DestinationRelativePath);
                     }
-                    if (nativeChangedEntries.Length > 0) {
-                        NativeWriter.PublishChangesUnderLock(nativeChangedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
+                    if (generationPaths.Length > 0) {
+                        NativeWriter.PublishChangesUnderLock(generationPaths);
                         generationPublished = true;
                     }
                     for (int index = 0; index < changedEntries.Count; index++) {
@@ -548,11 +579,11 @@ namespace helengine.editor {
                                 rollbackException = cacheRollbackException;
                             }
                         }
-                        if (rollbackException == null && generationPublished && nativeChangedEntries.Length > 0) {
+                        if (rollbackException == null && generationPublished && generationPaths.Length > 0) {
                             try {
                                 NativeWriter.PublishRollbackChangesUnderLock(
                                     Document.TransactionId,
-                                    nativeChangedEntries.Select(entry => entry.DestinationRelativePath).ToArray());
+                                    generationPaths);
                                 NativeWriter.ObserveCurrentGenerationUnderLock();
                             } catch (Exception generationRollbackException) {
                                 rollbackException = generationRollbackException;
@@ -573,7 +604,7 @@ namespace helengine.editor {
                             WriteDocument();
                             Hooks.BeforePendingMarkerClear?.Invoke();
                             EditorAuthoringTransactionPendingMarker.ClearUnderLock(ProjectRootPath, Document.TransactionId);
-                            if (generationPublished && nativeChangedEntries.Length > 0) {
+                            if (generationPublished && generationPaths.Length > 0) {
                                 NativeWriter.PruneRollbackChangesUnderLock(Document.TransactionId);
                             }
                             try {

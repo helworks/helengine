@@ -68,7 +68,11 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
 
     [Fact]
     public void WriteMaterial_StagesAllDocumentsAndPreservesExistingIdentity() {
-        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorProjectAuthoringSession session = CreateSession(
+            ProjectRootPath,
+            new IAssetImporterRegistration[] {
+                new TextureImporterRegistration("repaired", new TestTextureImporter(), new[] { ".png" })
+            });
         GeneratedMaterialAssetDefinition firstDefinition = CreateGeneratedMaterial("Materials/TestMaterial");
         using (EditorAuthoringTransaction firstTransaction = session.BeginTransaction()) {
             EditorAssetWriteResult firstResult = firstTransaction.WriteMaterial("materials/TestMaterial.hasset", firstDefinition);
@@ -242,6 +246,277 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
 
         Assert.Equal("ForwardStandardShader", material.ShaderAssetId);
         Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "materials", "TestMaterial.hasset")));
+    }
+
+    [Fact]
+    public void WriteGeneratedTexture_StagesSourceAndSettingsFromTheSameBytes() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        byte[] sourceBytes = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+        TextureAssetImportSettings intent = new TextureAssetImportSettings();
+        intent.Importer.ImporterId = "generated";
+
+        TextureAssetImportSettings prepared = session.WriteGeneratedTexture(
+            "textures/generated.png",
+            sourceBytes,
+            intent,
+            transaction);
+
+        Assert.Equal(
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sourceBytes)).ToLowerInvariant(),
+            prepared.Importer.SourceChecksum);
+        Assert.NotNull(prepared.Importer.AssetId);
+        Assert.Equal(sourceBytes, transaction.ReadStagedFile("assets/textures/generated.png"));
+        Assert.NotEmpty(transaction.ReadStagedFile("assets/textures/generated.png.hasset"));
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "textures", "generated.png")));
+        transaction.Commit();
+        Assert.Equal(sourceBytes, File.ReadAllBytes(Path.Combine(ProjectRootPath, "assets", "textures", "generated.png")));
+        Assert.NotNull(session.IdentityIndexValue.FindByPath("textures/generated.png"));
+        Assert.True(File.Exists(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-write.generation")));
+    }
+
+    [Fact]
+    public void WriteGeneratedTexture_WhenPublicationFails_RollsBackSourceMetadataAndIndex() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            AfterReplacement = (_, _) => throw new IOException("injected generated texture publication failure")
+        };
+        using EditorAuthoringTransaction transaction = session.BeginTransaction(hooks);
+        TextureAssetImportSettings intent = new TextureAssetImportSettings();
+        intent.Importer.ImporterId = "generated";
+        session.WriteGeneratedTexture("textures/rollback.png", new byte[] { 0x09, 0x08 }, intent, transaction);
+
+        Assert.Throws<IOException>(() => transaction.Commit());
+
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "textures", "rollback.png")));
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "textures", "rollback.png.hmeta")));
+        Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "textures", "rollback.png.hasset")));
+        Assert.Null(session.IdentityIndexValue.FindByPath("textures/rollback.png"));
+    }
+
+    [Fact]
+    public void WriteGeneratedTexture_WhenSourceChanges_RecomputesStaleIntentIdentityBeforeCommit() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        TextureAssetImportSettings firstIntent = new TextureAssetImportSettings();
+        firstIntent.Importer.ImporterId = "generated";
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            TextureAssetImportSettings firstSettings = session.WriteGeneratedTexture(
+                "textures/changed.png",
+                new byte[] { 0x01 },
+                firstIntent,
+                first);
+            first.Commit();
+            firstIntent = firstSettings;
+        }
+
+        byte[] changedBytes = new byte[] { 0x02, 0x03 };
+        using EditorAuthoringTransaction second = session.BeginTransaction();
+        TextureAssetImportSettings changedSettings = session.WriteGeneratedTexture(
+            "textures/changed.png",
+            changedBytes,
+            firstIntent,
+            second);
+
+        Assert.NotEqual(firstIntent.Importer.AssetId, changedSettings.Importer.AssetId);
+        Assert.Equal(
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(changedBytes)).ToLowerInvariant(),
+            changedSettings.Importer.SourceChecksum);
+        Assert.Equal(new byte[] { 0x01 }, File.ReadAllBytes(Path.Combine(ProjectRootPath, "assets", "textures", "changed.png")));
+        second.Commit();
+        Assert.Equal(changedBytes, File.ReadAllBytes(Path.Combine(ProjectRootPath, "assets", "textures", "changed.png")));
+    }
+
+    [Fact]
+    public void WriteGeneratedTexture_PreservesExistingSemanticIdentityOverAProposedCatalogId() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        TextureAssetImportSettings firstIntent = new TextureAssetImportSettings();
+        firstIntent.Importer.ImporterId = "generated";
+        TextureAssetImportSettings firstSettings;
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            firstSettings = session.WriteGeneratedTexture(
+                "textures/identity.png",
+                new byte[] { 0x71, 0x72 },
+                firstIntent,
+                first);
+            first.Commit();
+        }
+
+        TextureAssetImportSettings proposed = new TextureAssetImportSettings();
+        proposed.Importer.ImporterId = firstSettings.Importer.ImporterId;
+        proposed.Importer.AssetId = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        proposed.Processor = firstSettings.Processor;
+        using EditorAuthoringTransaction repeat = session.BeginTransaction();
+        TextureAssetImportSettings repeated = session.WriteGeneratedTexture(
+            "textures/identity.png",
+            new byte[] { 0x71, 0x72 },
+            proposed,
+            repeat);
+
+        Assert.Equal(firstSettings.Importer.AssetId, repeated.Importer.AssetId);
+        repeat.Commit();
+    }
+
+    [Fact]
+    public void WriteGeneratedTexture_WhenProcessingIntentChanges_DoesNotReuseExistingIdentity() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        TextureAssetImportSettings initialIntent = new TextureAssetImportSettings();
+        initialIntent.Importer.ImporterId = "generated";
+        TextureAssetImportSettings initialSettings;
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            initialSettings = session.WriteGeneratedTexture(
+                "textures/semantic.png",
+                new byte[] { 0x21, 0x22 },
+                initialIntent,
+                first);
+            first.Commit();
+        }
+
+        TextureAssetImportSettings changedIntent = new TextureAssetImportSettings {
+            Importer = new AssetImporterSettings {
+                ImporterId = initialSettings.Importer.ImporterId
+            }
+        };
+        changedIntent.Processor.Platforms["windows"] = new TextureAssetProcessorSettings {
+            MaxResolution = 64,
+            ColorFormatId = TextureAssetColorFormat.Rgba4444.ToString(),
+            AlphaPrecision = TextureAssetAlphaPrecision.A4
+        };
+        using EditorAuthoringTransaction second = session.BeginTransaction();
+        TextureAssetImportSettings changedSettings = session.WriteGeneratedTexture(
+            "textures/semantic.png",
+            new byte[] { 0x21, 0x22 },
+            changedIntent,
+            second);
+
+        Assert.NotEqual(initialSettings.Importer.AssetId, changedSettings.Importer.AssetId);
+        second.Commit();
+    }
+
+    [Fact]
+    public void WriteGeneratedTexture_RefreshesExternalSourceGraphAndLeavesIdenticalRunsUnchanged() {
+        using EditorProjectAuthoringSession author = CreateSession(ProjectRootPath);
+        using EditorProjectAuthoringSession observer = CreateSession(ProjectRootPath);
+        TextureAssetImportSettings intent = new TextureAssetImportSettings();
+        intent.Importer.ImporterId = "generated";
+        byte[] sourceBytes = new byte[] { 0x42, 0x43, 0x44 };
+        using (EditorAuthoringTransaction transaction = author.BeginTransaction()) {
+            author.WriteGeneratedTexture("textures/graph.png", sourceBytes, intent, transaction);
+            Assert.ThrowsAny<Exception>(() => observer.CreateReference("textures/graph.png", AssetEntryKind.Image));
+            transaction.Commit();
+        }
+
+        SceneAssetReference publishedReference = observer.CreateReference("textures/graph.png", AssetEntryKind.Image);
+        Assert.False(string.IsNullOrWhiteSpace(publishedReference.AssetId));
+        Assert.NotNull(observer.IdentityIndexValue.FindByPath("textures/graph.png"));
+        string sourcePath = Path.Combine(ProjectRootPath, "assets", "textures", "graph.png");
+        DateTime sourceWriteTime = File.GetLastWriteTimeUtc(sourcePath);
+        byte[] publishedBytes = File.ReadAllBytes(sourcePath);
+
+        using (EditorAuthoringTransaction repeat = author.BeginTransaction()) {
+            author.WriteGeneratedTexture("textures/graph.png", sourceBytes, intent, repeat);
+            repeat.Commit();
+        }
+
+        Assert.Equal(publishedBytes, File.ReadAllBytes(sourcePath));
+        Assert.Equal(sourceWriteTime, File.GetLastWriteTimeUtc(sourcePath));
+        Assert.NotNull(observer.IdentityIndexValue.FindByPath("textures/graph.png"));
+    }
+
+    [Fact]
+    public void WriteGeneratedTexture_WhenExistingSourceLacksMetadata_PublishesTheNewIdentityPair() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        string sourcePath = Path.Combine(ProjectRootPath, "assets", "textures", "metadata.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
+        byte[] sourceBytes = new byte[] { 0x51, 0x52 };
+        File.WriteAllBytes(sourcePath, sourceBytes);
+        TextureAssetImportSettings intent = new TextureAssetImportSettings();
+        intent.Importer.ImporterId = "generated";
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        session.WriteGeneratedTexture("textures/metadata.png", sourceBytes, intent, transaction);
+        transaction.Commit();
+
+        Assert.True(File.Exists(sourcePath + ".hmeta"));
+        Assert.NotNull(session.IdentityIndexValue.FindByPath("textures/metadata.png"));
+        Assert.Equal(
+            "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(sourceBytes)).ToLowerInvariant(),
+            session.HashCacheValue.GetContentHash(sourcePath));
+    }
+
+    [Fact]
+    public void WriteGeneratedTexture_WhenImporterIdNeedsRepair_StagesRepairAndRollsItBackWithPublication() {
+        string sourcePath = Path.Combine(ProjectRootPath, "assets", "textures", "repair.png");
+        string settingsPath = sourcePath + ".hasset";
+        using EditorProjectAuthoringSession session = CreateSession(
+            ProjectRootPath,
+            new IAssetImporterRegistration[] {
+                new TextureImporterRegistration("repaired", new TestTextureImporter(), new[] { ".png" })
+            });
+        Directory.CreateDirectory(Path.GetDirectoryName(sourcePath));
+        byte[] sourceBytes = new byte[] { 0x11, 0x22, 0x33 };
+        File.WriteAllBytes(sourcePath, sourceBytes);
+        TextureAssetImportSettings invalidSettings = new TextureAssetImportSettings();
+        invalidSettings.Importer.ImporterId = "missing-importer";
+        using (FileStream stream = File.Create(settingsPath)) {
+            TextureAssetImportSettingsBinarySerializer.Serialize(stream, invalidSettings);
+        }
+        byte[] priorSettingsBytes = File.ReadAllBytes(settingsPath);
+
+        EditorAuthoringTransactionHooks hooks = new EditorAuthoringTransactionHooks {
+            AfterReplacement = (index, _) => {
+                if (index == 1) {
+                    throw new IOException("injected repaired texture publication failure");
+                }
+            }
+        };
+        using EditorAuthoringTransaction transaction = session.BeginTransaction(hooks);
+        TextureAssetImportSettings intent = new TextureAssetImportSettings();
+        intent.Importer.ImporterId = "missing-importer";
+        TextureAssetImportSettings prepared = session.WriteGeneratedTexture(
+            "textures/repair.png",
+            sourceBytes,
+            intent,
+            transaction);
+
+        Assert.NotEqual("missing-importer", prepared.Importer.ImporterId);
+        using (MemoryStream stagedStream = new MemoryStream(transaction.ReadStagedFile("assets/textures/repair.png.hasset"))) {
+            TextureAssetImportSettings staged = TextureAssetImportSettingsBinarySerializer.Deserialize(stagedStream);
+            Assert.Equal(prepared.Importer.ImporterId, staged.Importer.ImporterId);
+        }
+        Assert.Throws<IOException>(() => transaction.Commit());
+
+        Assert.Equal(sourceBytes, File.ReadAllBytes(sourcePath));
+        Assert.Equal(priorSettingsBytes, File.ReadAllBytes(settingsPath));
+        Assert.False(File.Exists(sourcePath + ".hmeta"));
+        Assert.Null(session.IdentityIndexValue.FindByPath("textures/repair.png"));
+    }
+
+    [Fact]
+    public void LoadImportedRuntimeModel_ReadsTheNativeModelStagedByTheSameTransaction() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        transaction.WriteAsset("models/staged.hasset", CreateModel("Staged"));
+
+        RuntimeModel runtimeModel = session.LoadImportedRuntimeModel("models/staged.hasset", transaction);
+
+        Assert.NotNull(runtimeModel);
+        transaction.Commit();
+    }
+
+    [Fact]
+    public void LoadImportedRuntimeModel_PrefersChangedStagedNativeModelOverPublishedDestination() {
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        using (EditorAuthoringTransaction initial = session.BeginTransaction()) {
+            initial.WriteAsset("models/staged-change.hasset", CreateModel("Published"));
+            initial.Commit();
+        }
+
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        transaction.WriteAsset("models/staged-change.hasset", CreateModel("Changed"));
+        RuntimeModel runtimeModel = session.LoadImportedRuntimeModel("models/staged-change.hasset", transaction);
+
+        Assert.Equal("Changed", runtimeModel.Id);
+        Assert.Equal("Published", session.LoadImportedRuntimeModel("models/staged-change.hasset").Id);
+        transaction.Commit();
     }
 
     [Fact]
@@ -973,6 +1248,12 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     EditorProjectAuthoringSession CreateSession(string projectRootPath) {
+        return CreateSession(projectRootPath, Array.Empty<IAssetImporterRegistration>());
+    }
+
+    EditorProjectAuthoringSession CreateSession(
+        string projectRootPath,
+        IReadOnlyList<IAssetImporterRegistration> importers) {
         Core core = new Core(new CoreInitializationOptions {
             ContentStreamSource = new HostFileSystemContentStreamSource(projectRootPath)
         });
@@ -981,7 +1262,7 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
         GeneratedGraphs.Add(graph);
         return new EditorProjectAuthoringSession(
             projectRootPath,
-            Array.Empty<IAssetImporterRegistration>(),
+            importers,
             new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets"))),
             graph.Registry,
             graph.ModelCache,

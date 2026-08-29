@@ -5,6 +5,12 @@ namespace helengine.editor {
     internal sealed class EditorPreparedAssetWrite {
         public string RelativePath { get; init; }
 
+        /// <summary>
+        /// Assets-relative path used by the project change log, when this is
+        /// an externally indexed generated source.
+        /// </summary>
+        public string ChangeLogRelativePath { get; init; }
+
         public string FullPath { get; init; }
 
         public byte[] SerializedBytes { get; init; }
@@ -26,6 +32,12 @@ namespace helengine.editor {
         public bool UsesProjectRoot { get; init; }
 
         public bool PriorExists { get; init; }
+
+        /// <summary>
+        /// Indicates whether an externally indexed source already had its
+        /// identity sidecar before this generated write was staged.
+        /// </summary>
+        public bool PriorIdentityMetadataExists { get; init; }
 
         public string PriorContentHash { get; init; }
 

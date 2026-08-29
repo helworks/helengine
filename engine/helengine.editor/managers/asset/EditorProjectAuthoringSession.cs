@@ -343,6 +343,46 @@ namespace helengine.editor {
             return AssetAuthoringService.ResolveRuntimeModel(ResolveAssetsPath(relativePath));
         }
 
+        /// <summary>
+        /// Loads an imported model from this transaction's staged native
+        /// payload when available. This keeps generated model consumers on
+        /// the same session graph before publication.
+        /// </summary>
+        public RuntimeModel LoadImportedRuntimeModel(string relativePath, EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            EnsureTransactionBelongsToSession(transaction);
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            ModelAsset modelAsset;
+            if (transaction.TryReadStagedFile(normalizedRelativePath, out byte[] stagedBytes)) {
+                modelAsset = DeserializeStagedModel(stagedBytes, relativePath);
+            } else if (transaction.TryReadStagedFile("assets/" + normalizedRelativePath, out stagedBytes)) {
+                modelAsset = DeserializeStagedModel(stagedBytes, relativePath);
+            } else {
+                return LoadImportedRuntimeModel(relativePath);
+            }
+
+            RuntimeModel runtimeModel = RendererResourcesValue.RenderManager3D.BuildModelFromRaw(modelAsset);
+            if (runtimeModel == null) {
+                throw new InvalidOperationException($"Model importer did not return a runtime model for '{relativePath}'.");
+            }
+            if (!string.IsNullOrWhiteSpace(modelAsset.Id)) {
+                runtimeModel.SetId(modelAsset.Id);
+            }
+            return runtimeModel;
+        }
+
+        /// <summary>Deserializes a staged model and rejects a mismatched native payload.</summary>
+        static ModelAsset DeserializeStagedModel(byte[] bytes, string relativePath) {
+            if (bytes == null || bytes.Length == 0) {
+                throw new InvalidDataException($"Staged model payload for '{relativePath}' is empty.");
+            }
+            Asset asset = AssetSerializer.DeserializeFromBytes(bytes);
+            if (asset is not ModelAsset modelAsset) {
+                throw new InvalidDataException($"Staged payload for '{relativePath}' is not a model asset.");
+            }
+            return modelAsset;
+        }
+
         /// <summary>Loads one built-in shader through this session's renderer graph.</summary>
         public ShaderAsset LoadBuiltInShaderAsset(string shaderFileName) {
             EnsureNotDisposed();
@@ -404,6 +444,66 @@ namespace helengine.editor {
             }
             EnsureTransactionBelongsToSession(transaction);
             return transaction.WriteGeneratedFile(projectRelativePath, bytes, expectedPriorContentHash, fileKind);
+        }
+
+        /// <summary>
+        /// Stages a generated texture source and its settings sidecar through
+        /// one caller-owned transaction. Settings are computed from the
+        /// supplied bytes, so changed or first-time sources never consult a
+        /// stale published checksum.
+        /// </summary>
+        public TextureAssetImportSettings WriteGeneratedTexture(
+            string assetsRelativePath,
+            byte[] sourceBytes,
+            TextureAssetImportSettings settingsIntent,
+            EditorAuthoringTransaction transaction) {
+            EnsureNotDisposed();
+            EnsureTransactionBelongsToSession(transaction);
+            if (sourceBytes == null) {
+                throw new ArgumentNullException(nameof(sourceBytes));
+            } else if (settingsIntent == null) {
+                throw new ArgumentNullException(nameof(settingsIntent));
+            }
+
+            string normalizedRelativePath = NormalizeRelativePath(assetsRelativePath);
+            string sourcePath = ResolveAssetsPath(normalizedRelativePath);
+            TextureAssetImportSettings prepared = AssetImportManagerValue.PrepareGeneratedTextureImportSettings(
+                sourcePath,
+                sourceBytes,
+                settingsIntent);
+            string sourceProjectPath = "assets/" + normalizedRelativePath;
+            string sourceAssetId = NativeAssetWriteService.ResolveGeneratedSourceAssetId(sourcePath);
+            transaction.WriteGeneratedSource(
+                sourceProjectPath,
+                sourceBytes,
+                transaction.GetCurrentFileHash(sourceProjectPath),
+                sourceAssetId);
+
+            string metadataProjectPath = sourceProjectPath + ".hmeta";
+            if (!File.Exists(sourcePath + ".hmeta")) {
+                AssetIdentityMetadataDocument metadata = new AssetIdentityMetadataDocument {
+                    AssetId = sourceAssetId,
+                    FormerAssetIds = new List<string>()
+                };
+                transaction.WriteGeneratedFile(
+                    metadataProjectPath,
+                    AssetIdentityMetadataService.SerializeDocument(metadata),
+                    transaction.GetCurrentFileHash(metadataProjectPath),
+                    EditorGeneratedFileKind.IdentityMetadata);
+            }
+
+            byte[] settingsBytes;
+            using (MemoryStream settingsStream = new MemoryStream()) {
+                TextureAssetImportSettingsBinarySerializer.Serialize(settingsStream, prepared);
+                settingsBytes = settingsStream.ToArray();
+            }
+            string settingsProjectPath = sourceProjectPath + AssetImportManager.SettingsExtension;
+            transaction.WriteGeneratedFile(
+                settingsProjectPath,
+                settingsBytes,
+                transaction.GetCurrentFileHash(settingsProjectPath),
+                EditorGeneratedFileKind.ImportSettings);
+            return prepared;
         }
 
         /// <summary>Stages one generated cache asset without publishing it outside the transaction.</summary>
