@@ -12,6 +12,10 @@ namespace helengine.editor.tests.managers.asset {
         /// Shared 3D renderer used to capture generated model builds.
         /// </summary>
         readonly TestRenderManager3D RenderManager3D;
+        /// <summary>
+        /// Session-owned 2D renderer that supplies generated material fallback textures.
+        /// </summary>
+        readonly TestRenderManager2D RenderManager2D;
         readonly Core CoreValue;
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
         readonly EngineGeneratedModelCache ModelCache;
@@ -22,8 +26,9 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         public EngineGeneratedAssetProviderTests() {
             RenderManager3D = new TestRenderManager3D();
+            RenderManager2D = new TestRenderManager2D();
             CoreValue = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
-            CoreValue.Initialize(RenderManager3D, null, null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(RenderManager3D, RenderManager2D, null, new PlatformInfo("test", "test-version"));
             ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
             shaderBackendRegistry.Register(new DirectX11ShaderBackend());
             shaderBackendRegistry.Register(new VulkanShaderBackend());
