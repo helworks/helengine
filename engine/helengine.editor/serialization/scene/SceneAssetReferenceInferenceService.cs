@@ -27,6 +27,10 @@ namespace helengine.editor {
         /// Service used to inspect authored material settings documents.
         /// </summary>
         readonly MaterialAssetSettingsService MaterialAssetSettingsService;
+        /// <summary>
+        /// Shared classifier used to distinguish material settings from typed importer sidecars.
+        /// </summary>
+        readonly EditorAssetPathClassifier AssetPathClassifier;
         /// <summary>Project authoring boundary used for all canonical references.</summary>
         readonly IEditorProjectAuthoringSession AuthoringSession;
         /// <summary>Session-owned generated model cache used for identity inference.</summary>
@@ -55,6 +59,7 @@ namespace helengine.editor {
             ProjectRootPath = Path.GetFullPath(authoringSession.ProjectRootPath);
             AssetsRootPath = Path.GetFullPath(Path.Combine(ProjectRootPath, "assets"));
             MaterialAssetSettingsService = new MaterialAssetSettingsService(ProjectRootPath);
+            AssetPathClassifier = new EditorAssetPathClassifier(ProjectRootPath);
             GeneratedModelCache = authoringSession.GeneratedModelCache ?? throw new InvalidOperationException("Authoring session must provide a generated model cache.");
             GeneratedMaterialCache = authoringSession.GeneratedMaterialCache ?? throw new InvalidOperationException("Authoring session must provide a generated material cache.");
             RendererResources = authoringSession.RendererResources ?? throw new InvalidOperationException("Authoring session must provide renderer resources.");
@@ -338,6 +343,9 @@ namespace helengine.editor {
                 string extension = Path.GetExtension(materialPath);
                 if (!string.Equals(extension, ".hasset", StringComparison.OrdinalIgnoreCase) &&
                     !string.Equals(extension, ".helmat", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (AssetPathClassifier.Classify(materialPath) != AssetEntryKind.Material) {
                     continue;
                 }
                 if (!MaterialAssetSettingsService.TryLoadMaterialAssetId(materialPath, out string assetId) ||

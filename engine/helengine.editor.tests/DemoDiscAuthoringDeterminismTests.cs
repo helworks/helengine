@@ -79,6 +79,15 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         Directory.CreateDirectory(destinationRootPath);
         foreach (string sourceFilePath in Directory.EnumerateFiles(sourceRootPath, "*", SearchOption.AllDirectories)) {
             string relativePath = Path.GetRelativePath(sourceRootPath, sourceFilePath);
+            // The fixture command is source content for the copied project,
+            // not source content for this test project. Keep it packaged with
+            // a non-C# extension so a custom --output directory nested under
+            // this project cannot be picked up by the SDK compile glob on a
+            // later invocation. Restore the extension only in the hermetic
+            // project copy that is compiled by the test itself.
+            if (relativePath.EndsWith(".cs.fixture", StringComparison.OrdinalIgnoreCase)) {
+                relativePath = relativePath.Substring(0, relativePath.Length - ".fixture".Length);
+            }
             string destinationFilePath = Path.Combine(destinationRootPath, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destinationFilePath));
             File.Copy(sourceFilePath, destinationFilePath, true);
@@ -89,6 +98,28 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
     /// Ensures two complete public-session generation passes publish the same
     /// files, bytes, timestamps, references, and no-op write dispositions.
     /// </summary>
+    [Fact]
+    public void FixturePackage_UsesNonCompileExtensionAndCopiesAsCommandSource() {
+        string packagedFixtureRootPath = Path.Combine(AppContext.BaseDirectory, "fixtures", "demodisc-authoring");
+        string packagedCommandPath = Path.Combine(
+            packagedFixtureRootPath,
+            "assets",
+            "codebase",
+            "fixture.editor",
+            "DeterministicDemodiscAuthoringCommand.cs.fixture");
+        string accidentalCompilePath = Path.ChangeExtension(packagedCommandPath, null);
+
+        Assert.True(File.Exists(packagedCommandPath));
+        Assert.False(File.Exists(accidentalCompilePath));
+        string copiedCommandPath = Path.Combine(
+            ProjectRootPath,
+            "assets",
+            "codebase",
+            "fixture.editor",
+            "DeterministicDemodiscAuthoringCommand.cs");
+        Assert.True(File.Exists(copiedCommandPath));
+    }
+
     [Fact]
     public void PublicGeneration_TwoIdenticalPassesHaveExactProjectSnapshotAndNoOpWrites() {
         GenerationPass first = RunGenerationPass();
@@ -176,8 +207,17 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
             first.RepairRecords[0].Evidence);
         Assert.Equal(string.Empty, first.RepairRecords[0].OwningDocument);
         Assert.Equal("Healed the saved asset path to the selected authored source.", first.RepairRecords[0].Diagnostic);
-        Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, first.RepairRecords[1].Kind);
-        Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", first.RepairRecords[1].Diagnostic);
+        EditorAssetRepairRecord canonicalRefresh = first.RepairRecords[1];
+        Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, canonicalRefresh.Kind);
+        Assert.Equal("models/after.obj", canonicalRefresh.RelativePath);
+        Assert.Equal(savedReference.AssetId, canonicalRefresh.PreviousAssetId);
+        Assert.Equal(savedReference.AssetId, canonicalRefresh.CurrentAssetId);
+        Assert.Equal(AssetReferenceResolutionTier.AssetId, canonicalRefresh.ResolutionTier);
+        Assert.Equal(
+            "current-id=True; saved-path=False; saved-hash=False; recorded-owner=True; path='models/after.obj'",
+            canonicalRefresh.Evidence);
+        Assert.Equal(string.Empty, canonicalRefresh.OwningDocument);
+        Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", canonicalRefresh.Diagnostic);
         Assert.False(second.Resolution.ReferenceChanged);
         Assert.Empty(second.RepairRecords);
         AssertSnapshotsEqual(first.Snapshot, second.Snapshot);
@@ -293,8 +333,17 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         }
         Assert.Equal(EditorAssetRepairKind.HashHealing, first.RepairRecords[2].Kind);
         Assert.Equal("Healed the saved content hash to the selected authored source.", first.RepairRecords[2].Diagnostic);
-        Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, first.RepairRecords[3].Kind);
-        Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", first.RepairRecords[3].Diagnostic);
+        EditorAssetRepairRecord canonicalRefresh = first.RepairRecords[3];
+        Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, canonicalRefresh.Kind);
+        Assert.Equal("models/hash-after.obj", canonicalRefresh.RelativePath);
+        Assert.Equal(savedReference.AssetId, canonicalRefresh.PreviousAssetId);
+        Assert.Equal(savedReference.AssetId, canonicalRefresh.CurrentAssetId);
+        Assert.Equal(AssetReferenceResolutionTier.ContentHash, canonicalRefresh.ResolutionTier);
+        Assert.Equal(
+            "current-id=False; saved-path=False; saved-hash=True; recorded-owner=False; path='models/hash-after.obj'",
+            canonicalRefresh.Evidence);
+        Assert.Equal(string.Empty, canonicalRefresh.OwningDocument);
+        Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", canonicalRefresh.Diagnostic);
         Assert.False(second.Resolution.ReferenceChanged);
         Assert.Empty(second.RepairRecords);
         AssertSnapshotsEqual(first.Snapshot, second.Snapshot);
@@ -511,8 +560,17 @@ public sealed class DemoDiscAuthoringDeterminismTests : IDisposable {
         Assert.Equal("models/a-owner.obj", pass.RepairRecords[0].RelativePath);
         Assert.Equal(string.Empty, pass.RepairRecords[0].OwningDocument);
         Assert.Equal("Healed the saved asset path to the selected authored source.", pass.RepairRecords[0].Diagnostic);
-        Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, pass.RepairRecords[1].Kind);
-        Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", pass.RepairRecords[1].Diagnostic);
+        EditorAssetRepairRecord canonicalRefresh = pass.RepairRecords[1];
+        Assert.Equal(EditorAssetRepairKind.CanonicalReferenceRefresh, canonicalRefresh.Kind);
+        Assert.Equal("models/a-owner.obj", canonicalRefresh.RelativePath);
+        Assert.Equal(copiedAssetId, canonicalRefresh.PreviousAssetId);
+        Assert.Equal(copiedAssetId, canonicalRefresh.CurrentAssetId);
+        Assert.Equal(AssetReferenceResolutionTier.AssetId, canonicalRefresh.ResolutionTier);
+        Assert.Equal(
+            "current-id=True; saved-path=False; saved-hash=False; recorded-owner=True; path='models/a-owner.obj'",
+            canonicalRefresh.Evidence);
+        Assert.Equal(string.Empty, canonicalRefresh.OwningDocument);
+        Assert.Equal("Refreshed the saved asset reference to its canonical identity, path, and hash.", canonicalRefresh.Diagnostic);
     }
 
     GenerationPass RunGenerationPass() {

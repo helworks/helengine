@@ -234,6 +234,7 @@ namespace helengine.editor {
                 hashMatches.Count == 1 &&
                 IsValidAssetId(reference.AssetId) &&
                 !PathClassifier.UsesEmbeddedIdentity(winner.FullPath) &&
+                IsMetadataMissing(winner.FullPath) &&
                 !IdentityIndex.IsAnyAssetIdentityClaimedUnderLock(reference.AssetId)) {
                 EditorAssetRepairRecord adoptionRepair = CreateRepairRecord(
                     EditorAssetRepairKind.SavedIdAdoption,

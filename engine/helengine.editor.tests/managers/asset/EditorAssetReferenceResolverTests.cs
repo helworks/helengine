@@ -151,6 +151,44 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures hash recovery cannot replace a valid external identity with an
+    /// unclaimed stale id when the winning source already has metadata.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenHashWinnerHasValidMetadata_DoesNotAdoptUnclaimedSavedAssetId() {
+        string assetPath = CreateAsset("Models/ValidHashWinner.fbx", new byte[] { 4, 5, 6 });
+        const string winnerAssetId = "11223344556677889900aabbccddeeff";
+        const string staleAssetId = "ffeeddccbbaa99887766554433221100";
+        AssetIdentityMetadataService metadata = new AssetIdentityMetadataService(TempRootPath);
+        metadata.Save(assetPath, new AssetIdentityMetadataDocument {
+            AssetId = winnerAssetId,
+            FormerAssetIds = new List<string>()
+        });
+
+        SceneAssetReference savedReference;
+        using (EditorAssetReferenceResolver setupResolver = new EditorAssetReferenceResolver(TempRootPath)) {
+            savedReference = setupResolver.CreateFileReference(assetPath, AssetEntryKind.Model);
+        }
+
+        EditorAssetRepairReport report = new EditorAssetRepairReport();
+        using (EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(TempRootPath, repairReport: report)) {
+            AssetReferenceResolution result = resolver.Resolve(
+                global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                    staleAssetId,
+                    "Models/MissingValidHashWinner.fbx",
+                    savedReference.ContentHash),
+                AssetEntryKind.Model);
+
+            Assert.Equal(assetPath, result.FullPath);
+            Assert.Equal(winnerAssetId, result.CanonicalReference.AssetId);
+            Assert.Equal(AssetReferenceResolutionTier.ContentHash, result.Tier);
+            Assert.DoesNotContain(report.Records, repair => repair.Kind == EditorAssetRepairKind.SavedIdAdoption);
+        }
+
+        Assert.Equal(winnerAssetId, metadata.Load(assetPath).AssetId);
+    }
+
+    /// <summary>
     /// Ensures a saved ID that is already a former alias is resolved through the ID tier instead of being adopted by a path.
     /// </summary>
     [Fact]
@@ -406,10 +444,17 @@ public sealed class EditorAssetReferenceResolverTests : IDisposable {
         AssetReferenceResolution result = resolver.Resolve(reference, AssetEntryKind.Model);
 
         Assert.Equal("Models/A-Canonical.fbx", result.CanonicalReference.RelativePath);
+        Assert.Equal(copiedAssetId, result.CanonicalReference.AssetId);
+        Assert.Equal(AssetReferenceResolutionTier.AssetId, result.Tier);
+        Assert.True(result.CandidateEvidence.IsCurrentId);
         EditorAssetRepairRecord repair = Assert.Single(report.Records);
         Assert.Equal(EditorAssetRepairKind.DuplicateIdReassignment, repair.Kind);
         Assert.Equal("Models/Z-Losing.fbx", repair.RelativePath);
         Assert.Equal(copiedAssetId, repair.PreviousAssetId);
+        AssetIdentityMetadataDocument losingMetadata = new AssetIdentityMetadataService(TempRootPath).Load(losingPath);
+        Assert.NotEqual(copiedAssetId, losingMetadata.AssetId);
+        Assert.Equal(losingMetadata.AssetId, repair.CurrentAssetId);
+        Assert.Equal(new[] { copiedAssetId }, losingMetadata.FormerAssetIds);
         Assert.Equal("selected ordinal owner path='Models/A-Canonical.fbx'", repair.Evidence);
         Assert.Equal(Path.Combine(TempRootPath, "assets", "Models", "Z-Losing.fbx.hmeta"), repair.OwningDocument);
         Assert.Equal("Reassigned copied identity to the non-owning asset.", repair.Diagnostic);

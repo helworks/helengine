@@ -368,6 +368,59 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures material-reference inference ignores current font import sidecars instead of interpreting every `.hasset` as a material document.
+        /// </summary>
+        [Fact]
+        public void Save_WhenMaterialInferenceSeesFontImportSidecar_SkipsNonMaterialHasset() {
+            string fontSourcePath = Path.Combine(TempProjectRootPath, "assets", "Fonts", "DemoDiscBody.ttf");
+            Directory.CreateDirectory(Path.GetDirectoryName(fontSourcePath));
+            File.WriteAllBytes(fontSourcePath, new byte[] { 1, 2, 3 });
+
+            AssetImportSettings fontImportSettings = new AssetImportSettings {
+                Importer = new AssetImporterSettings {
+                    ImporterId = "font"
+                }
+            };
+            fontImportSettings.Processor.Platforms["windows"] = new AssetPlatformProcessorSettings {
+                Font = new FontAssetProcessorSettings()
+            };
+            using (FileStream stream = File.Create(fontSourcePath + ".hasset")) {
+                SectionedAssetImportSettingsBinarySerializer.Serialize(stream, fontImportSettings);
+            }
+
+            const string materialAssetId = "file-material-id";
+            string materialPath = Path.Combine(TempProjectRootPath, "assets", "Materials", "Body.hasset");
+            Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
+            MaterialAssetImportSettings materialSettings = new MaterialAssetImportSettings();
+            materialSettings.Importer.ImporterId = "helengine.material";
+            materialSettings.Importer.AssetId = materialAssetId;
+            materialSettings.Processor.Platforms["windows"] = new MaterialAssetProcessorSettings {
+                SchemaId = "standard-shader"
+            };
+            new MaterialAssetSettingsService(TempProjectRootPath).Save(materialPath, materialSettings);
+
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = CreateSceneSaveService(registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "FontSidecarInference.helen");
+            EditorEntity root = CreateUserEntity("Body", float3.Zero, float3.One, float4.Identity);
+            MeshComponent meshComponent = new MeshComponent {
+                Model = GeneratedAssetGraph.GetRuntimeModel(EngineGeneratedModelCache.CubeAssetId)
+            };
+            TestRuntimeMaterial fileMaterial = new TestRuntimeMaterial();
+            fileMaterial.SetId(materialAssetId);
+            SetMeshMaterials(meshComponent, new RuntimeMaterial[] { fileMaterial });
+            root.AddComponent(meshComponent);
+
+            saveService.Save(scenePath);
+
+            using FileStream assetStream = File.OpenRead(scenePath);
+            SceneAsset asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(assetStream));
+            Assert.Contains(asset.AssetReferences, reference =>
+                reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem &&
+                reference.RelativePath == "Materials/Body.hasset");
+        }
+
+        /// <summary>
         /// Ensures scene save can infer the editor default-font reference for FPS overlays without requiring user-authored save metadata.
         /// </summary>
         [Fact]
