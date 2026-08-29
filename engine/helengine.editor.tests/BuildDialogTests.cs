@@ -1801,7 +1801,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void UpdateLayout_WhenDialogIsVisible_BlocksPointerOutsidePanelAcrossHost() {
-            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            BuildDialog dialog = new BuildDialog(Core.Instance, InteractionServices, CreateFont());
             dialog.Show(
                 ["windows"],
                 [
