@@ -1,7 +1,5 @@
 using System.Text;
 
-using System.Security.Cryptography;
-
 namespace helengine.editor {
     /// <summary>
     /// Generates one C# solution for the current game project and opens it in the configured IDE.
@@ -51,16 +49,6 @@ namespace helengine.editor {
         /// Early MSBuild property file imported by generated SDK projects before project extensions are derived.
         /// </summary>
         const string GeneratedBuildPropertiesFileName = "Directory.Build.props";
-
-        /// <summary>
-        /// Directory beneath the system temporary root that holds process-level metadata publication locks.
-        /// </summary>
-        const string GenerationLockDirectoryName = "helengine-generated-code-locks";
-
-        /// <summary>
-        /// In-process publication gate shared by all generated solution services.
-        /// </summary>
-        static readonly object ProcessGenerationGate = new object();
 
         /// <summary>
         /// Absolute path to the game project root.
@@ -182,7 +170,7 @@ namespace helengine.editor {
             GeneratedCodeSolutionBuilder = new EditorGeneratedCodeSolutionBuilder();
             GeneratedOutputRootPath = string.Empty;
             GeneratedWorkspaceRootPath = string.Empty;
-            GeneratedProjectOutputRootPath = string.Empty;
+            GeneratedProjectOutputRootPath = ResolveDefaultGeneratedOutputRootPath(ProjectRootPath);
             UsesInvocationOutputOverrideValue = false;
             CompilationMode = EditorScriptCompilationMode.EditorFull;
         }
@@ -229,7 +217,9 @@ namespace helengine.editor {
                 ? string.Empty
                 : Path.GetFullPath(generatedOutputRootPath);
             GeneratedWorkspaceRootPath = string.Empty;
-            GeneratedProjectOutputRootPath = string.Empty;
+            GeneratedProjectOutputRootPath = string.IsNullOrWhiteSpace(GeneratedOutputRootPath)
+                ? ResolveDefaultGeneratedOutputRootPath(ProjectRootPath)
+                : GeneratedOutputRootPath;
             UsesInvocationOutputOverrideValue = false;
             CompilationMode = EditorScriptCompilationMode.EditorFull;
         }
@@ -492,36 +482,64 @@ namespace helengine.editor {
             string generationWorkspaceRootPath = string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
                 ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
                 : GeneratedWorkspaceRootPath;
-            lock (ProcessGenerationGate) {
-                using (FileStream generationGate = AcquireGenerationGate(generationWorkspaceRootPath)) {
-                    Directory.CreateDirectory(ProjectRootPath);
-                    string solutionDirectoryPath = Path.GetDirectoryName(SolutionFilePath);
-                    if (!string.IsNullOrWhiteSpace(solutionDirectoryPath)) {
-                        Directory.CreateDirectory(solutionDirectoryPath);
-                    }
-
-                    GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
-                    if (UsesInvocationOutputOverrideValue) {
-                        WriteTextIfChanged(
-                            Path.Combine(GeneratedWorkspaceRootPath, GeneratedBuildPropertiesFileName),
-                            BuildGeneratedBuildPropertiesFileContents());
-                    }
-
-                    for (int index = 0; index < GeneratedCodeSolutionValue.Projects.Count; index++) {
-                        EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.Projects[index];
-                        string projectDirectoryPath = Path.GetDirectoryName(moduleProject.ProjectFilePath);
-                        if (!string.IsNullOrWhiteSpace(projectDirectoryPath)) {
-                            Directory.CreateDirectory(projectDirectoryPath);
-                        }
-
-                        WriteTextIfChanged(moduleProject.GeneratedGlobalUsingsFilePath, BuildGlobalUsingsFileContents(moduleProject));
-                        WriteTextIfChanged(moduleProject.ProjectFilePath, BuildProjectFileContents(moduleProject));
-                    }
-
-                    WriteTextIfChanged(SolutionFilePath, BuildSolutionFileContents(GeneratedCodeSolutionValue));
-                    return SolutionFilePath;
-                }
+            using (EditorGeneratedCodeWorkspaceLease workspaceLease = AcquireWorkspaceLease()) {
+                return GenerateSolutionFiles(workspaceLease);
             }
+        }
+
+        /// <summary>
+        /// Acquires the generated metadata lease used to keep generation and build evaluation on one project set.
+        /// </summary>
+        /// <returns>Held generated workspace lease.</returns>
+        internal EditorGeneratedCodeWorkspaceLease AcquireWorkspaceLease() {
+            string generationWorkspaceRootPath = string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
+                ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
+                : GeneratedWorkspaceRootPath;
+            return EditorGeneratedCodeWorkspaceLease.Acquire(generationWorkspaceRootPath);
+        }
+
+        /// <summary>
+        /// Generates metadata while the caller retains the workspace lease through build evaluation.
+        /// </summary>
+        /// <param name="workspaceLease">Lease covering this service's generated workspace.</param>
+        /// <returns>Absolute path to the generated solution file.</returns>
+        internal string GenerateSolutionFiles(EditorGeneratedCodeWorkspaceLease workspaceLease) {
+            if (workspaceLease == null) {
+                throw new ArgumentNullException(nameof(workspaceLease));
+            }
+
+            string generationWorkspaceRootPath = string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
+                ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
+                : GeneratedWorkspaceRootPath;
+            if (!workspaceLease.Covers(generationWorkspaceRootPath)) {
+                throw new ArgumentException("Workspace lease does not cover the generated solution workspace.", nameof(workspaceLease));
+            }
+
+            Directory.CreateDirectory(ProjectRootPath);
+            string solutionDirectoryPath = Path.GetDirectoryName(SolutionFilePath);
+            if (!string.IsNullOrWhiteSpace(solutionDirectoryPath)) {
+                Directory.CreateDirectory(solutionDirectoryPath);
+            }
+
+            GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
+            Directory.CreateDirectory(generationWorkspaceRootPath);
+            WriteTextIfChanged(
+                Path.Combine(generationWorkspaceRootPath, GeneratedBuildPropertiesFileName),
+                BuildGeneratedBuildPropertiesFileContents());
+
+            for (int index = 0; index < GeneratedCodeSolutionValue.Projects.Count; index++) {
+                EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.Projects[index];
+                string projectDirectoryPath = Path.GetDirectoryName(moduleProject.ProjectFilePath);
+                if (!string.IsNullOrWhiteSpace(projectDirectoryPath)) {
+                    Directory.CreateDirectory(projectDirectoryPath);
+                }
+
+                WriteTextIfChanged(moduleProject.GeneratedGlobalUsingsFilePath, BuildGlobalUsingsFileContents(moduleProject));
+                WriteTextIfChanged(moduleProject.ProjectFilePath, BuildProjectFileContents(moduleProject));
+            }
+
+            WriteTextIfChanged(SolutionFilePath, BuildSolutionFileContents(GeneratedCodeSolutionValue));
+            return SolutionFilePath;
         }
 
         /// <summary>
@@ -558,28 +576,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Acquires a process-level lock for one deterministic generated metadata root.
-        /// </summary>
-        /// <param name="generatedWorkspaceRootPath">Stable generated metadata root.</param>
-        /// <returns>Held lock stream; disposing it releases the lock.</returns>
-        static FileStream AcquireGenerationGate(string generatedWorkspaceRootPath) {
-            string canonicalWorkspaceRootPath = Path.GetFullPath(generatedWorkspaceRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string lockIdentity = canonicalWorkspaceRootPath.ToUpperInvariant();
-            string lockName = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(lockIdentity))).ToLowerInvariant() + ".lock";
-            string lockDirectoryPath = Path.Combine(Path.GetTempPath(), GenerationLockDirectoryName);
-            Directory.CreateDirectory(lockDirectoryPath);
-            string lockPath = Path.Combine(lockDirectoryPath, lockName);
-
-            while (true) {
-                try {
-                    return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-                } catch (IOException) {
-                    Thread.Yield();
-                }
-            }
-        }
-
-        /// <summary>
         /// Builds the early MSBuild property import used by invocation-isolated projects.
         /// </summary>
         /// <returns>Stable Directory.Build.props contents.</returns>
@@ -587,6 +583,9 @@ namespace helengine.editor {
             StringBuilder builder = new StringBuilder();
             builder.AppendLine("<Project>");
             builder.AppendLine("  <Import Project=\"$(HelengineExecutionOutputRootFile)\" Condition=\"Exists('$(HelengineExecutionOutputRootFile)')\" />");
+            builder.AppendLine("  <PropertyGroup Condition=\"'$(HelengineExecutionOutputRoot)' == ''\">");
+            builder.AppendLine("    <HelengineExecutionOutputRoot>" + EscapeXml(GeneratedProjectOutputRootPath) + "</HelengineExecutionOutputRoot>");
+            builder.AppendLine("  </PropertyGroup>");
             builder.AppendLine("  <PropertyGroup Condition=\"'$(HelengineExecutionOutputRoot)' != ''\">");
             builder.AppendLine("    <BaseIntermediateOutputPath>$(HelengineExecutionOutputRoot)\\generated_code\\obj\\$(MSBuildProjectName)\\</BaseIntermediateOutputPath>");
             builder.AppendLine("    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>");
@@ -594,6 +593,21 @@ namespace helengine.editor {
             builder.AppendLine("  </PropertyGroup>");
             builder.AppendLine("</Project>");
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// Resolves the stable sibling output root used by default generated projects.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute authored project root.</param>
+        /// <returns>Stable fallback output root.</returns>
+        static string ResolveDefaultGeneratedOutputRootPath(string projectRootPath) {
+            DirectoryInfo projectDirectory = new DirectoryInfo(projectRootPath);
+            DirectoryInfo parentDirectory = projectDirectory.Parent;
+            if (parentDirectory == null || string.IsNullOrWhiteSpace(projectDirectory.Name)) {
+                return Path.Combine(projectDirectory.FullName, "output");
+            }
+
+            return Path.Combine(parentDirectory.FullName, "output", projectDirectory.Name);
         }
 
         /// <summary>

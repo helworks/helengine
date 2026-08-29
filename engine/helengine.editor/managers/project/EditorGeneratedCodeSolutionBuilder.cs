@@ -150,6 +150,7 @@ namespace helengine.editor {
                 testProjects = TestProjectDiscoveryService.Discover(
                     fullProjectRootPath,
                     fullGeneratedOutputRootPath,
+                    fullGeneratedWorkspaceRootPath,
                     moduleProjects);
                 filteredModuleProjects = ApplyTestFolderExclusions(moduleProjects, testProjects);
             }

@@ -27,6 +27,11 @@ namespace helengine.editor.tests {
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
             }
+            string defaultOutputRootPath = Path.Combine(
+                Path.GetDirectoryName(ProjectRootPath) ?? ProjectRootPath,
+                "output",
+                Path.GetFileName(ProjectRootPath));
+            DeleteDirectoryIfPresent(defaultOutputRootPath);
         }
 
         /// <summary>
@@ -61,6 +66,41 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the workspace lease is an exclusive operating-system file lease, not only an in-process convention.
+        /// </summary>
+        [Fact]
+        public void AcquireWorkspaceLease_WhenHeld_RejectsAnotherExclusiveFileHandle() {
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "editor-command", "EditorFull");
+            EditorGameSolutionService service = CreateService(workspaceRootPath, Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "lease"));
+
+            using EditorGeneratedCodeWorkspaceLease lease = service.AcquireWorkspaceLease();
+
+            Assert.Throws<IOException>(() => new FileStream(lease.LockFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.None));
+        }
+
+        /// <summary>
+        /// Ensures a default non-override build uses its documented sibling output root before project evaluation.
+        /// </summary>
+        [Fact]
+        public void BuildGeneratedSolution_WithoutOverride_UsesStableFallbackForIntermediateAndOutputState() {
+            EditorGameSolutionService service = new EditorGameSolutionService(ProjectRootPath, "SkyRider", new TestIdeLauncher());
+            string solutionPath = service.GenerateSolutionFiles();
+            string stableOutputRootPath = Path.Combine(
+                Path.GetDirectoryName(ProjectRootPath) ?? ProjectRootPath,
+                "output",
+                Path.GetFileName(ProjectRootPath));
+
+            EditorBuildExecutionResult result = new EditorDotNetScriptBuildTool().Build(solutionPath);
+
+            Assert.True(result.Succeeded, result.Message);
+            string generatedWorkspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code");
+            Assert.Empty(Directory.EnumerateDirectories(generatedWorkspaceRootPath, "obj", SearchOption.AllDirectories));
+            Assert.Empty(Directory.EnumerateDirectories(generatedWorkspaceRootPath, "bin", SearchOption.AllDirectories));
+            Assert.True(File.Exists(Path.Combine(stableOutputRootPath, "generated_code", "obj", "gameplay", "project.assets.json")));
+            Assert.True(File.Exists(Path.Combine(stableOutputRootPath, "generated_code", "bin", "gameplay", "Debug", "net9.0", "gameplay.dll")));
+        }
+
+        /// <summary>
         /// Ensures the real dotnet build receives separator-heavy output roots without creating project-local intermediate state.
         /// </summary>
         [Fact]
@@ -68,7 +108,7 @@ namespace helengine.editor.tests {
             string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "editor-command", "EditorFull");
             string executionRootPath = Path.Combine(
                 Path.GetTempPath(),
-                "helengine generated,probe;percent% " + Guid.NewGuid().ToString("N"));
+                "helengine generated,probe;percent% & apostrophe' " + Guid.NewGuid().ToString("N"));
 
             try {
                 EditorGameSolutionService service = CreateService(workspaceRootPath, executionRootPath);
@@ -86,14 +126,67 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures independent build workspaces can publish to one requested destination without exposing a partial tree.
+        /// </summary>
+        [Fact]
+        public async Task BuildGeneratedSolutions_WhenIndependentInvocationsShareDestination_PublishCompleteTrees() {
+            string secondProjectRootPath = Path.Combine(
+                Path.GetTempPath(),
+                "helengine-generated-code-isolation-tests",
+                Guid.NewGuid().ToString("N"));
+            string firstWorkspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "first");
+            string secondWorkspaceRootPath = Path.Combine(secondProjectRootPath, "user_settings", "generated_code", "second");
+            string firstExecutionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "first");
+            string secondExecutionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "second");
+            string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
+
+            try {
+                Directory.CreateDirectory(Path.Combine(secondProjectRootPath, "assets", "Scripts"));
+                File.WriteAllText(Path.Combine(secondProjectRootPath, "assets", "Scripts", "Player.cs"), "public sealed class Player { }");
+                EditorGameSolutionService firstService = CreateService(ProjectRootPath, firstWorkspaceRootPath, firstExecutionRootPath);
+                EditorGameSolutionService secondService = CreateService(secondProjectRootPath, secondWorkspaceRootPath, secondExecutionRootPath);
+                string firstSolutionPath = firstService.GenerateSolutionFiles();
+                string secondSolutionPath = secondService.GenerateSolutionFiles();
+                EditorDotNetScriptBuildTool buildTool = new EditorDotNetScriptBuildTool();
+
+                EditorBuildExecutionResult[] results = await Task.WhenAll(
+                    Task.Run(() => buildTool.Build(firstSolutionPath, destinationRootPath)),
+                    Task.Run(() => buildTool.Build(secondSolutionPath, destinationRootPath)));
+
+                Assert.All(results, result => Assert.True(result.Succeeded, result.Message));
+                Assert.True(File.Exists(Path.Combine(destinationRootPath, "generated_code", "bin", "gameplay", "Debug", "net9.0", "gameplay.dll")));
+                string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
+                string destinationName = Path.GetFileName(destinationRootPath);
+                Assert.Empty(Directory.GetDirectories(destinationParentPath, destinationName + ".staging-*", SearchOption.TopDirectoryOnly));
+                Assert.Empty(Directory.GetDirectories(destinationParentPath, destinationName + ".backup-*", SearchOption.TopDirectoryOnly));
+            } finally {
+                DeleteDirectoryIfPresent(secondProjectRootPath);
+                DeleteDirectoryIfPresent(firstExecutionRootPath);
+                DeleteDirectoryIfPresent(secondExecutionRootPath);
+                DeleteDirectoryIfPresent(destinationRootPath);
+            }
+        }
+
+        /// <summary>
         /// Creates one isolated full-editor solution service with stable metadata and a unique execution root.
         /// </summary>
         /// <param name="workspaceRootPath">Stable generated metadata root.</param>
         /// <param name="executionRootPath">Unique compiler output root.</param>
         /// <returns>Configured solution service.</returns>
         EditorGameSolutionService CreateService(string workspaceRootPath, string executionRootPath) {
+            return CreateService(ProjectRootPath, workspaceRootPath, executionRootPath);
+        }
+
+        /// <summary>
+        /// Creates one isolated solution service for an explicitly supplied authored project root.
+        /// </summary>
+        /// <param name="projectRootPath">Authored project root.</param>
+        /// <param name="workspaceRootPath">Stable generated metadata root.</param>
+        /// <param name="executionRootPath">Unique compiler output root.</param>
+        /// <returns>Configured solution service.</returns>
+        static EditorGameSolutionService CreateService(string projectRootPath, string workspaceRootPath, string executionRootPath) {
             return new EditorGameSolutionService(
-                ProjectRootPath,
+                projectRootPath,
                 "SkyRider",
                 new TestIdeLauncher(),
                 executionRootPath,

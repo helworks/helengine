@@ -147,6 +147,26 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures route identifiers cannot escape or alias a route-scoped metadata root on any supported filesystem.
+        /// </summary>
+        [Theory]
+        [InlineData("..")]
+        [InlineData(".")]
+        [InlineData("route/child")]
+        [InlineData("route\\child")]
+        [InlineData("route.")]
+        [InlineData("route ")]
+        [InlineData("route:child")]
+        [InlineData("CON.txt")]
+        [InlineData("COM1")]
+        [InlineData("NUL")]
+        public void ResolveGeneratedCodeProjectWorkspaceRootPath_WhenRouteIdIsUnsafe_Throws(string routeId) {
+            EditorBuildIsolationPathResolver resolver = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "unsafe-route-project"));
+
+            Assert.ThrowsAny<ArgumentException>(() => resolver.ResolveGeneratedCodeProjectWorkspaceRootPath(routeId, EditorScriptCompilationMode.EditorFull));
+        }
+
+        /// <summary>
         /// Ensures stable-cache mode ignores invocation ids and uses the wrapper-compatible project identity.
         /// </summary>
         [Fact]

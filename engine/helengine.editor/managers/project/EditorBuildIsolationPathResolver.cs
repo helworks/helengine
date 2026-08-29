@@ -174,8 +174,8 @@ namespace helengine.editor {
 
             return Path.Combine(
                 ResolveGeneratedCodeProjectWorkspaceRootPath(),
-                SanitizePathSegment(routeId),
-                SanitizePathSegment(compilationMode.ToString()));
+                SanitizeStablePathSegment(routeId),
+                SanitizeStablePathSegment(compilationMode.ToString()));
         }
 
         /// <summary>
@@ -358,6 +358,16 @@ namespace helengine.editor {
         /// <param name="value">Untrusted stable-cache segment value.</param>
         /// <returns>Filesystem-safe stable-cache segment.</returns>
         static string SanitizeStablePathSegment(string value) {
+            if (string.IsNullOrWhiteSpace(value)) {
+                throw new ArgumentException("Path segment must be provided.", nameof(value));
+            }
+            const string windowsInvalidCharacters = "<>:\"/\\|?*";
+            for (int index = 0; index < value.Length; index++) {
+                char currentCharacter = value[index];
+                if (currentCharacter < 0x20 || windowsInvalidCharacters.IndexOf(currentCharacter) >= 0) {
+                    throw new ArgumentException($"Path segment '{value}' contains a filesystem separator or invalid character.", nameof(value));
+                }
+            }
             if (value == "." || value == "..") {
                 throw new ArgumentException($"Path segment '{value}' is not allowed.", nameof(value));
             }

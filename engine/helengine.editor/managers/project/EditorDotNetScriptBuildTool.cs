@@ -1,12 +1,12 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
+using System.Security;
 using System.Text;
 
 namespace helengine.editor {
     /// <summary>
     /// Builds the generated scripting solution by invoking the local `dotnet` CLI.
     /// </summary>
-    public sealed class EditorDotNetScriptBuildTool : IEditorScriptBuildToolWithOutputRoot {
+    public sealed class EditorDotNetScriptBuildTool : IEditorScriptBuildToolWithWorkspaceLease {
         /// <summary>
         /// Build configuration used for editor-driven script reloads.
         /// </summary>
@@ -43,16 +43,35 @@ namespace helengine.editor {
         /// <param name="executionOutputRootPath">Unique generated-output root for this invocation, or empty to use project metadata defaults.</param>
         /// <returns>Structured execution result describing the process outcome.</returns>
         public EditorBuildExecutionResult Build(string solutionPath, string executionOutputRootPath) {
+            string workingDirectory = ResolveWorkingDirectory(solutionPath);
+            using EditorGeneratedCodeWorkspaceLease workspaceLease = EditorGeneratedCodeWorkspaceLease.Acquire(workingDirectory);
+            return Build(solutionPath, executionOutputRootPath, workspaceLease);
+        }
+
+        /// <summary>
+        /// Builds one solution while retaining a caller-owned generated-workspace lease through evaluation and publication.
+        /// </summary>
+        /// <param name="solutionPath">Absolute path to the generated solution file.</param>
+        /// <param name="executionOutputRootPath">Unique generated-output root for this invocation, or empty for fallback output.</param>
+        /// <param name="workspaceLease">Lease acquired for the generated solution workspace.</param>
+        /// <returns>Structured execution result describing the process outcome.</returns>
+        public EditorBuildExecutionResult Build(
+            string solutionPath,
+            string executionOutputRootPath,
+            EditorGeneratedCodeWorkspaceLease workspaceLease) {
             if (string.IsNullOrWhiteSpace(solutionPath)) {
                 throw new ArgumentException("Solution path must be provided.", nameof(solutionPath));
             }
             if (executionOutputRootPath == null) {
                 throw new ArgumentNullException(nameof(executionOutputRootPath));
             }
+            if (workspaceLease == null) {
+                throw new ArgumentNullException(nameof(workspaceLease));
+            }
 
-            string workingDirectory = Path.GetDirectoryName(Path.GetFullPath(solutionPath));
-            if (string.IsNullOrWhiteSpace(workingDirectory)) {
-                workingDirectory = Environment.CurrentDirectory;
+            string workingDirectory = ResolveWorkingDirectory(solutionPath);
+            if (!workspaceLease.Covers(workingDirectory)) {
+                throw new ArgumentException("Workspace lease does not cover the generated solution directory.", nameof(workspaceLease));
             }
 
             ProcessStartInfo startInfo = new ProcessStartInfo {
@@ -73,7 +92,13 @@ namespace helengine.editor {
             if (!string.IsNullOrWhiteSpace(executionOutputRootPath)) {
                 msbuildOutputRootPath = ResolveMsBuildOutputRootPath(executionOutputRootPath);
                 outputRootTransportFilePath = CreateOutputRootTransportFile(msbuildOutputRootPath);
-                startInfo.ArgumentList.Add("-p:HelengineExecutionOutputRootFile=" + outputRootTransportFilePath);
+                // Environment properties are imported before SDK project evaluation. Keeping this out of
+                // ArgumentList is essential: filesystem paths are not a safe MSBuild -p transport.
+                startInfo.Environment["HelengineExecutionOutputRootFile"] = outputRootTransportFilePath;
+            } else {
+                // Do not let an inherited invocation override defeat the stable fallback properties.
+                startInfo.Environment.Remove("HelengineExecutionOutputRootFile");
+                startInfo.Environment.Remove("HelengineExecutionOutputRoot");
             }
 
             try {
@@ -86,7 +111,7 @@ namespace helengine.editor {
 
                 if (process.ExitCode == 0) {
                     if (!string.IsNullOrWhiteSpace(msbuildOutputRootPath)) {
-                        PublishBuildOutputs(msbuildOutputRootPath, executionOutputRootPath);
+                        PublishBuildOutputs(msbuildOutputRootPath, executionOutputRootPath, workspaceLease);
                     }
 
                     return EditorBuildExecutionResult.Success($"Script build completed: {solutionPath}");
@@ -118,16 +143,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves a filesystem-safe temporary MSBuild root for one exact requested output root.
+        /// Resolves a unique filesystem-safe temporary MSBuild root for one invocation.
         /// </summary>
-        /// <param name="executionOutputRootPath">Requested output root, which may contain MSBuild separator characters.</param>
+        /// <param name="executionOutputRootPath">Requested output root, retained for the call contract.</param>
         /// <returns>Safe temporary MSBuild output root.</returns>
         static string ResolveMsBuildOutputRootPath(string executionOutputRootPath) {
-            byte[] pathHash = SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(executionOutputRootPath)));
-            return Path.Combine(
+            string temporaryRootPath = Path.Combine(
                 Path.GetTempPath(),
                 MsBuildOutputRootDirectoryName,
-                Convert.ToHexString(pathHash).ToLowerInvariant());
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(temporaryRootPath);
+            return temporaryRootPath;
         }
 
         /// <summary>
@@ -143,7 +169,7 @@ namespace helengine.editor {
             string contents = "<Project>\n"
                 + "  <PropertyGroup>\n"
                 + "    <HelengineExecutionOutputRoot>"
-                + fullOutputRootPath
+                + SecurityElement.Escape(fullOutputRootPath)
                 + "</HelengineExecutionOutputRoot>\n"
                 + "  </PropertyGroup>\n"
                 + "</Project>\n";
@@ -156,27 +182,136 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="msbuildOutputRootPath">Safe temporary MSBuild output root.</param>
         /// <param name="executionOutputRootPath">Exact caller-visible output root.</param>
-        static void PublishBuildOutputs(string msbuildOutputRootPath, string executionOutputRootPath) {
+        static void PublishBuildOutputs(
+            string msbuildOutputRootPath,
+            string executionOutputRootPath,
+            EditorGeneratedCodeWorkspaceLease workspaceLease) {
             if (!Directory.Exists(msbuildOutputRootPath)) {
                 return;
             }
 
             string destinationRootPath = Path.GetFullPath(executionOutputRootPath);
-            Directory.CreateDirectory(destinationRootPath);
-            foreach (string sourceDirectoryPath in Directory.GetDirectories(msbuildOutputRootPath, "*", SearchOption.AllDirectories)) {
-                string relativeDirectoryPath = Path.GetRelativePath(msbuildOutputRootPath, sourceDirectoryPath);
-                Directory.CreateDirectory(Path.Combine(destinationRootPath, relativeDirectoryPath));
+            if (workspaceLease.Covers(destinationRootPath)) {
+                throw new InvalidOperationException("Generated compiler output cannot replace its metadata workspace.");
             }
 
-            foreach (string sourceFilePath in Directory.GetFiles(msbuildOutputRootPath, "*", SearchOption.AllDirectories)) {
-                string relativeFilePath = Path.GetRelativePath(msbuildOutputRootPath, sourceFilePath);
+            using EditorGeneratedCodeWorkspaceLease destinationLease = EditorGeneratedCodeWorkspaceLease.Acquire(destinationRootPath);
+            PublishBuildOutputsUnderLease(msbuildOutputRootPath, destinationLease.WorkspaceRootPath);
+        }
+
+        /// <summary>
+        /// Publishes one complete output tree under a destination lease by swapping a sibling staging directory.
+        /// </summary>
+        static void PublishBuildOutputsUnderLease(string msbuildOutputRootPath, string destinationRootPath) {
+            string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
+            if (string.IsNullOrWhiteSpace(destinationParentPath)) {
+                throw new InvalidOperationException("Generated compiler output destination must have a parent directory.");
+            }
+
+            Directory.CreateDirectory(destinationParentPath);
+            string destinationName = Path.GetFileName(destinationRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrWhiteSpace(destinationName)) {
+                throw new InvalidOperationException("Generated compiler output destination must have a directory name.");
+            }
+
+            RecoverPublicationLeftovers(destinationParentPath, destinationName, destinationRootPath);
+            string stagingRootPath = Path.Combine(destinationParentPath, destinationName + ".staging-" + Guid.NewGuid().ToString("N"));
+            string backupRootPath = Path.Combine(destinationParentPath, destinationName + ".backup-" + Guid.NewGuid().ToString("N"));
+            bool destinationMoved = false;
+            try {
+                CopyDirectory(msbuildOutputRootPath, stagingRootPath);
+                if (Directory.Exists(destinationRootPath)) {
+                    Directory.Move(destinationRootPath, backupRootPath);
+                    destinationMoved = true;
+                }
+
+                Directory.Move(stagingRootPath, destinationRootPath);
+                if (destinationMoved && Directory.Exists(backupRootPath)) {
+                    Directory.Delete(backupRootPath, true);
+                }
+            } catch {
+                if (!Directory.Exists(destinationRootPath) && destinationMoved && Directory.Exists(backupRootPath)) {
+                    Directory.Move(backupRootPath, destinationRootPath);
+                }
+
+                throw;
+            } finally {
+                if (Directory.Exists(stagingRootPath)) {
+                    Directory.Delete(stagingRootPath, true);
+                }
+                if (Directory.Exists(backupRootPath) && Directory.Exists(destinationRootPath)) {
+                    Directory.Delete(backupRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Recovers crash leftovers deterministically while the destination lease is held.
+        /// </summary>
+        static void RecoverPublicationLeftovers(string parentPath, string destinationName, string destinationRootPath) {
+            string stagingPrefix = destinationName + ".staging-";
+            string backupPrefix = destinationName + ".backup-";
+            StringComparison pathComparison = OperatingSystem.IsWindows()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            string[] stagingPaths = Directory.EnumerateDirectories(parentPath, "*", SearchOption.TopDirectoryOnly)
+                .Where(path => Path.GetFileName(path).StartsWith(stagingPrefix, pathComparison))
+                .ToArray();
+            Array.Sort(stagingPaths, StringComparer.Ordinal);
+            string[] backupPaths = Directory.EnumerateDirectories(parentPath, "*", SearchOption.TopDirectoryOnly)
+                .Where(path => Path.GetFileName(path).StartsWith(backupPrefix, pathComparison))
+                .ToArray();
+            Array.Sort(backupPaths, StringComparer.Ordinal);
+
+            if (!Directory.Exists(destinationRootPath) && backupPaths.Length > 0) {
+                Directory.Move(backupPaths[0], destinationRootPath);
+                backupPaths = backupPaths[1..];
+            }
+
+            for (int index = 0; index < stagingPaths.Length; index++) {
+                if (Directory.Exists(stagingPaths[index])) {
+                    Directory.Delete(stagingPaths[index], true);
+                }
+            }
+            for (int index = 0; index < backupPaths.Length; index++) {
+                if (Directory.Exists(backupPaths[index])) {
+                    Directory.Delete(backupPaths[index], true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Copies a complete build tree to a sibling staging directory.
+        /// </summary>
+        static void CopyDirectory(string sourceRootPath, string destinationRootPath) {
+            Directory.CreateDirectory(destinationRootPath);
+            foreach (string sourceDirectoryPath in Directory.GetDirectories(sourceRootPath, "*", SearchOption.AllDirectories)) {
+                string relativeDirectoryPath = Path.GetRelativePath(sourceRootPath, sourceDirectoryPath);
+                Directory.CreateDirectory(Path.Combine(destinationRootPath, relativeDirectoryPath));
+            }
+            foreach (string sourceFilePath in Directory.GetFiles(sourceRootPath, "*", SearchOption.AllDirectories)) {
+                string relativeFilePath = Path.GetRelativePath(sourceRootPath, sourceFilePath);
                 string destinationFilePath = Path.Combine(destinationRootPath, relativeFilePath);
                 string destinationDirectoryPath = Path.GetDirectoryName(destinationFilePath);
                 if (!string.IsNullOrWhiteSpace(destinationDirectoryPath)) {
                     Directory.CreateDirectory(destinationDirectoryPath);
                 }
-                File.Copy(sourceFilePath, destinationFilePath, true);
+                File.Copy(sourceFilePath, destinationFilePath, false);
             }
+        }
+
+        /// <summary>
+        /// Resolves and validates the generated-solution working directory.
+        /// </summary>
+        static string ResolveWorkingDirectory(string solutionPath) {
+            if (string.IsNullOrWhiteSpace(solutionPath)) {
+                throw new ArgumentException("Solution path must be provided.", nameof(solutionPath));
+            }
+
+            string? workingDirectory = Path.GetDirectoryName(Path.GetFullPath(solutionPath));
+            return string.IsNullOrWhiteSpace(workingDirectory)
+                ? Environment.CurrentDirectory
+                : workingDirectory;
         }
 
         /// <summary>

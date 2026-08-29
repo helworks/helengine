@@ -303,6 +303,42 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures route-scoped generation keeps inferred test projects inside the same metadata workspace as production projects.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenWorkspaceIsRouteScoped_UsesThatWorkspaceForInferredTests() {
+            File.Delete(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"));
+            Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests"));
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "RuntimePlayer.cs"), "public sealed class RuntimePlayer { }");
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests", "RuntimePlayerTests.cs"), "public sealed class RuntimePlayerTests { }");
+            string routeOutputRootPath = Path.Combine(Path.GetTempPath(), "helengine-route-output", Guid.NewGuid().ToString("N"));
+            string routeWorkspaceRootPath = Path.Combine(Path.GetTempPath(), "helengine-route-workspace", Guid.NewGuid().ToString("N"));
+
+            try {
+                EditorGameSolutionService service = new EditorGameSolutionService(
+                    TempProjectRootPath,
+                    "SkyRider",
+                    new TestIdeLauncher(),
+                    routeOutputRootPath,
+                    routeWorkspaceRootPath,
+                    EditorScriptCompilationMode.EditorFull,
+                    Path.Combine(routeWorkspaceRootPath, "output"));
+
+                service.GenerateSolutionFiles();
+
+                Assert.True(File.Exists(Path.Combine(routeWorkspaceRootPath, "projects", "gameplay.tests", "gameplay.tests.csproj")));
+                Assert.False(File.Exists(Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "gameplay.tests", "gameplay.tests.csproj")));
+            } finally {
+                if (Directory.Exists(routeOutputRootPath)) {
+                    Directory.Delete(routeOutputRootPath, true);
+                }
+                if (Directory.Exists(routeWorkspaceRootPath)) {
+                    Directory.Delete(routeWorkspaceRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures generated editor test projects carry the shader-compilation
         /// dependency required by the public ShaderBackendRegistry surface.
         /// </summary>

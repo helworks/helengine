@@ -40,11 +40,22 @@ namespace helengine.editor {
                     return EditorBuildExecutionResult.Success("Script hot reload skipped: the project declares no code modules.");
                 }
 
-                string solutionPath = GameSolutionService.GenerateSolutionFiles();
-                EditorBuildExecutionResult buildResult = BuildTool is IEditorScriptBuildToolWithOutputRoot isolatedBuildTool
-                    && GameSolutionService.UsesInvocationOutputOverride
-                    ? isolatedBuildTool.Build(solutionPath, GameSolutionService.GeneratedExecutionOutputRootPath)
-                    : BuildTool.Build(solutionPath);
+                using EditorGeneratedCodeWorkspaceLease workspaceLease = GameSolutionService.AcquireWorkspaceLease();
+                string solutionPath = GameSolutionService.GenerateSolutionFiles(workspaceLease);
+                EditorBuildExecutionResult buildResult;
+                if (BuildTool is IEditorScriptBuildToolWithWorkspaceLease leasedBuildTool) {
+                    buildResult = leasedBuildTool.Build(
+                        solutionPath,
+                        GameSolutionService.UsesInvocationOutputOverride
+                            ? GameSolutionService.GeneratedExecutionOutputRootPath
+                            : string.Empty,
+                        workspaceLease);
+                } else if (BuildTool is IEditorScriptBuildToolWithOutputRoot isolatedBuildTool
+                    && GameSolutionService.UsesInvocationOutputOverride) {
+                    buildResult = isolatedBuildTool.Build(solutionPath, GameSolutionService.GeneratedExecutionOutputRootPath);
+                } else {
+                    buildResult = BuildTool.Build(solutionPath);
+                }
                 if (!buildResult.Succeeded) {
                     return buildResult;
                 }

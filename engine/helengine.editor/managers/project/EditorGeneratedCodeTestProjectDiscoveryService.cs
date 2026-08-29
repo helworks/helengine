@@ -22,6 +22,26 @@ namespace helengine.editor {
             string projectRootPath,
             string generatedOutputRootPath,
             IReadOnlyList<EditorGeneratedCodeModuleProject> productionProjects) {
+            return Discover(
+                projectRootPath,
+                generatedOutputRootPath,
+                Path.Combine(Path.GetFullPath(projectRootPath), "user_settings", "generated_code"),
+                productionProjects);
+        }
+
+        /// <summary>
+        /// Discovers generated test projects beneath one explicit generated metadata workspace.
+        /// </summary>
+        /// <param name="projectRootPath">Authored project root.</param>
+        /// <param name="generatedOutputRootPath">Compiler output root.</param>
+        /// <param name="generatedWorkspaceRootPath">Generated solution metadata root.</param>
+        /// <param name="productionProjects">Ordered generated production projects.</param>
+        /// <returns>Ordered inferred generated test projects.</returns>
+        public IReadOnlyList<EditorGeneratedCodeModuleProject> Discover(
+            string projectRootPath,
+            string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
+            IReadOnlyList<EditorGeneratedCodeModuleProject> productionProjects) {
             if (string.IsNullOrWhiteSpace(projectRootPath)) {
                 throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
             }
@@ -31,9 +51,13 @@ namespace helengine.editor {
             if (productionProjects == null) {
                 throw new ArgumentNullException(nameof(productionProjects));
             }
+            if (string.IsNullOrWhiteSpace(generatedWorkspaceRootPath)) {
+                throw new ArgumentException("Generated workspace root path must be provided.", nameof(generatedWorkspaceRootPath));
+            }
 
             string fullProjectRootPath = Path.GetFullPath(projectRootPath);
             string fullGeneratedOutputRootPath = Path.GetFullPath(generatedOutputRootPath);
+            string fullGeneratedWorkspaceRootPath = Path.GetFullPath(generatedWorkspaceRootPath);
             string codebaseRootPath = Path.Combine(fullProjectRootPath, "assets", "codebase");
             if (!Directory.Exists(codebaseRootPath)) {
                 return [];
@@ -52,7 +76,13 @@ namespace helengine.editor {
                 }
 
                 string relativeSourceFolderPath = Path.GetRelativePath(fullProjectRootPath, testFolderPath).Replace('\\', '/');
-                discoveredProjects.Add(CreateTestProject(fullProjectRootPath, fullGeneratedOutputRootPath, productionProject, testSurfaceId, relativeSourceFolderPath));
+                discoveredProjects.Add(CreateTestProject(
+                    fullProjectRootPath,
+                    fullGeneratedOutputRootPath,
+                    fullGeneratedWorkspaceRootPath,
+                    productionProject,
+                    testSurfaceId,
+                    relativeSourceFolderPath));
             }
 
             discoveredProjects.Sort(static (left, right) => string.Compare(left.ModuleId, right.ModuleId, StringComparison.OrdinalIgnoreCase));
@@ -71,10 +101,11 @@ namespace helengine.editor {
         static EditorGeneratedCodeModuleProject CreateTestProject(
             string projectRootPath,
             string generatedOutputRootPath,
+            string generatedWorkspaceRootPath,
             EditorGeneratedCodeModuleProject productionProject,
             string testSurfaceId,
             string relativeSourceFolderPath) {
-            string projectDirectoryPath = Path.Combine(projectRootPath, "user_settings", "generated_code", "projects", testSurfaceId);
+            string projectDirectoryPath = Path.Combine(generatedWorkspaceRootPath, "projects", testSurfaceId);
             string projectFilePath = Path.Combine(projectDirectoryPath, testSurfaceId + ".csproj");
             string generatedGlobalUsingsFilePath = Path.Combine(projectDirectoryPath, "GlobalUsings.g.cs");
             string baseIntermediateOutputPath = Path.Combine(generatedOutputRootPath, "generated_code", "obj", testSurfaceId);
