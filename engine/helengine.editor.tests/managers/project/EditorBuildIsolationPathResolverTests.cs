@@ -130,6 +130,23 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures editor-full and runtime-only solution routes never publish different project sets into one metadata root.
+        /// </summary>
+        [Fact]
+        public void ResolveGeneratedCodeProjectWorkspaceRootPath_WhenRoutesDiffer_ReturnsStableRouteScopedRoots() {
+            EditorBuildIsolationPathResolver resolver = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "route-scoped-code-project"));
+
+            string editorWorkspaceRootPath = resolver.ResolveGeneratedCodeProjectWorkspaceRootPath("editor-command", EditorScriptCompilationMode.EditorFull);
+            string repeatedEditorWorkspaceRootPath = resolver.ResolveGeneratedCodeProjectWorkspaceRootPath("editor-command", EditorScriptCompilationMode.EditorFull);
+            string runtimeWorkspaceRootPath = resolver.ResolveGeneratedCodeProjectWorkspaceRootPath("platform-build", EditorScriptCompilationMode.RuntimeOnly);
+
+            Assert.Equal(editorWorkspaceRootPath, repeatedEditorWorkspaceRootPath);
+            Assert.NotEqual(editorWorkspaceRootPath, runtimeWorkspaceRootPath);
+            Assert.EndsWith(Path.Combine("user_settings", "generated_code", "editor-command", "EditorFull"), editorWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("user_settings", "generated_code", "platform-build", "RuntimeOnly"), runtimeWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Ensures stable-cache mode ignores invocation ids and uses the wrapper-compatible project identity.
         /// </summary>
         [Fact]

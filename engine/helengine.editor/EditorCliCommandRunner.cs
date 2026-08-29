@@ -145,8 +145,8 @@ namespace helengine.editor {
             EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(bootstrap.ProjectRootPath);
             string commandExecutionId = Guid.NewGuid().ToString("N");
             string generatedOutputRootPath = isolationPathResolver.ResolveGeneratedCodeOutputRootPath("editor-command", commandExecutionId);
-            string generatedWorkspaceRootPath = isolationPathResolver.ResolveGeneratedCodeProjectWorkspaceRootPath();
-            string generatedProjectOutputRootPath = isolationPathResolver.ResolveGeneratedCodeProjectOutputRootPath();
+            string generatedWorkspaceRootPath = isolationPathResolver.ResolveGeneratedCodeProjectWorkspaceRootPath("editor-command", EditorScriptCompilationMode.EditorFull);
+            string generatedProjectOutputRootPath = isolationPathResolver.ResolveGeneratedCodeProjectOutputRootPath("editor-command", EditorScriptCompilationMode.EditorFull);
             EditorGameSolutionService solutionService = new EditorGameSolutionService(
                 bootstrap.ProjectRootPath,
                 bootstrap.ProjectName,

@@ -1,5 +1,7 @@
 using System.Text;
 
+using System.Security.Cryptography;
+
 namespace helengine.editor {
     /// <summary>
     /// Generates one C# solution for the current game project and opens it in the configured IDE.
@@ -44,6 +46,21 @@ namespace helengine.editor {
         /// Package version used by generated xUnit test projects for coverage collection.
         /// </summary>
         const string CoverletCollectorPackageVersion = "6.0.2";
+
+        /// <summary>
+        /// Early MSBuild property file imported by generated SDK projects before project extensions are derived.
+        /// </summary>
+        const string GeneratedBuildPropertiesFileName = "Directory.Build.props";
+
+        /// <summary>
+        /// Directory beneath the system temporary root that holds process-level metadata publication locks.
+        /// </summary>
+        const string GenerationLockDirectoryName = "helengine-generated-code-locks";
+
+        /// <summary>
+        /// In-process publication gate shared by all generated solution services.
+        /// </summary>
+        static readonly object ProcessGenerationGate = new object();
 
         /// <summary>
         /// Absolute path to the game project root.
@@ -472,25 +489,39 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Absolute path to the generated solution file.</returns>
         public string GenerateSolutionFiles() {
-            Directory.CreateDirectory(ProjectRootPath);
-            string solutionDirectoryPath = Path.GetDirectoryName(SolutionFilePath);
-            if (!string.IsNullOrWhiteSpace(solutionDirectoryPath)) {
-                Directory.CreateDirectory(solutionDirectoryPath);
-            }
-            GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
-            for (int index = 0; index < GeneratedCodeSolutionValue.Projects.Count; index++) {
-                EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.Projects[index];
-                string projectDirectoryPath = Path.GetDirectoryName(moduleProject.ProjectFilePath);
-                if (!string.IsNullOrWhiteSpace(projectDirectoryPath)) {
-                    Directory.CreateDirectory(projectDirectoryPath);
+            string generationWorkspaceRootPath = string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
+                ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
+                : GeneratedWorkspaceRootPath;
+            lock (ProcessGenerationGate) {
+                using (FileStream generationGate = AcquireGenerationGate(generationWorkspaceRootPath)) {
+                    Directory.CreateDirectory(ProjectRootPath);
+                    string solutionDirectoryPath = Path.GetDirectoryName(SolutionFilePath);
+                    if (!string.IsNullOrWhiteSpace(solutionDirectoryPath)) {
+                        Directory.CreateDirectory(solutionDirectoryPath);
+                    }
+
+                    GeneratedCodeSolutionValue = BuildGeneratedCodeSolution();
+                    if (UsesInvocationOutputOverrideValue) {
+                        WriteTextIfChanged(
+                            Path.Combine(GeneratedWorkspaceRootPath, GeneratedBuildPropertiesFileName),
+                            BuildGeneratedBuildPropertiesFileContents());
+                    }
+
+                    for (int index = 0; index < GeneratedCodeSolutionValue.Projects.Count; index++) {
+                        EditorGeneratedCodeModuleProject moduleProject = GeneratedCodeSolutionValue.Projects[index];
+                        string projectDirectoryPath = Path.GetDirectoryName(moduleProject.ProjectFilePath);
+                        if (!string.IsNullOrWhiteSpace(projectDirectoryPath)) {
+                            Directory.CreateDirectory(projectDirectoryPath);
+                        }
+
+                        WriteTextIfChanged(moduleProject.GeneratedGlobalUsingsFilePath, BuildGlobalUsingsFileContents(moduleProject));
+                        WriteTextIfChanged(moduleProject.ProjectFilePath, BuildProjectFileContents(moduleProject));
+                    }
+
+                    WriteTextIfChanged(SolutionFilePath, BuildSolutionFileContents(GeneratedCodeSolutionValue));
+                    return SolutionFilePath;
                 }
-
-                WriteTextIfChanged(moduleProject.GeneratedGlobalUsingsFilePath, BuildGlobalUsingsFileContents(moduleProject));
-                WriteTextIfChanged(moduleProject.ProjectFilePath, BuildProjectFileContents(moduleProject));
             }
-
-            WriteTextIfChanged(SolutionFilePath, BuildSolutionFileContents(GeneratedCodeSolutionValue));
-            return SolutionFilePath;
         }
 
         /// <summary>
@@ -499,12 +530,70 @@ namespace helengine.editor {
         /// <param name="filePath">Generated file path.</param>
         /// <param name="contents">Expected UTF-8 text contents.</param>
         static void WriteTextIfChanged(string filePath, string contents) {
+            byte[] expectedBytes = Encoding.UTF8.GetBytes(contents);
             if (File.Exists(filePath)
-                && File.ReadAllBytes(filePath).SequenceEqual(Encoding.UTF8.GetBytes(contents))) {
+                && File.ReadAllBytes(filePath).SequenceEqual(expectedBytes)) {
                 return;
             }
 
-            File.WriteAllText(filePath, contents);
+            string temporaryFilePath = filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try {
+                using (FileStream temporaryFile = new FileStream(
+                    temporaryFilePath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    4096,
+                    FileOptions.WriteThrough)) {
+                    temporaryFile.Write(expectedBytes, 0, expectedBytes.Length);
+                    temporaryFile.Flush(true);
+                }
+
+                File.Move(temporaryFilePath, filePath, true);
+            } finally {
+                if (File.Exists(temporaryFilePath)) {
+                    File.Delete(temporaryFilePath);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Acquires a process-level lock for one deterministic generated metadata root.
+        /// </summary>
+        /// <param name="generatedWorkspaceRootPath">Stable generated metadata root.</param>
+        /// <returns>Held lock stream; disposing it releases the lock.</returns>
+        static FileStream AcquireGenerationGate(string generatedWorkspaceRootPath) {
+            string canonicalWorkspaceRootPath = Path.GetFullPath(generatedWorkspaceRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string lockIdentity = canonicalWorkspaceRootPath.ToUpperInvariant();
+            string lockName = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(lockIdentity))).ToLowerInvariant() + ".lock";
+            string lockDirectoryPath = Path.Combine(Path.GetTempPath(), GenerationLockDirectoryName);
+            Directory.CreateDirectory(lockDirectoryPath);
+            string lockPath = Path.Combine(lockDirectoryPath, lockName);
+
+            while (true) {
+                try {
+                    return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                } catch (IOException) {
+                    Thread.Yield();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Builds the early MSBuild property import used by invocation-isolated projects.
+        /// </summary>
+        /// <returns>Stable Directory.Build.props contents.</returns>
+        string BuildGeneratedBuildPropertiesFileContents() {
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine("<Project>");
+            builder.AppendLine("  <Import Project=\"$(HelengineExecutionOutputRootFile)\" Condition=\"Exists('$(HelengineExecutionOutputRootFile)')\" />");
+            builder.AppendLine("  <PropertyGroup Condition=\"'$(HelengineExecutionOutputRoot)' != ''\">");
+            builder.AppendLine("    <BaseIntermediateOutputPath>$(HelengineExecutionOutputRoot)\\generated_code\\obj\\$(MSBuildProjectName)\\</BaseIntermediateOutputPath>");
+            builder.AppendLine("    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>");
+            builder.AppendLine("    <BaseOutputPath>$(HelengineExecutionOutputRoot)\\generated_code\\bin\\$(MSBuildProjectName)\\</BaseOutputPath>");
+            builder.AppendLine("  </PropertyGroup>");
+            builder.AppendLine("</Project>");
+            return builder.ToString();
         }
 
         /// <summary>
@@ -548,8 +637,8 @@ namespace helengine.editor {
                 builder.AppendLine("    <HelengineExecutionOutputRoot Condition=\"'$(HelengineExecutionOutputRoot)' == ''\">" + EscapeXml(GeneratedProjectOutputRootPath) + "</HelengineExecutionOutputRoot>");
                 string intermediateOutputPath = Path.Combine("$(HelengineExecutionOutputRoot)", "generated_code", "obj", moduleProject.ModuleId);
                 string outputPath = Path.Combine("$(HelengineExecutionOutputRoot)", "generated_code", "bin", moduleProject.ModuleId);
-                builder.AppendLine("    <BaseIntermediateOutputPath>" + EscapeXml(intermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
-                builder.AppendLine("    <BaseOutputPath>" + EscapeXml(outputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");
+                builder.AppendLine("    <BaseIntermediateOutputPath Condition=\"'$(HelengineExecutionOutputRoot)' == ''\">" + EscapeXml(intermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
+                builder.AppendLine("    <BaseOutputPath Condition=\"'$(HelengineExecutionOutputRoot)' == ''\">" + EscapeXml(outputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");
             } else {
                 builder.AppendLine("    <BaseIntermediateOutputPath>" + EscapeXml(moduleProject.BaseIntermediateOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseIntermediateOutputPath>");
                 builder.AppendLine("    <BaseOutputPath>" + EscapeXml(moduleProject.BaseOutputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar) + "</BaseOutputPath>");

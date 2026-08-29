@@ -1,0 +1,127 @@
+using System.Xml.Linq;
+using Xunit;
+
+namespace helengine.editor.tests {
+    /// <summary>
+    /// Exercises generated project publication and the real dotnet build transport at their process boundary.
+    /// </summary>
+    public sealed class EditorGeneratedCodeConcurrencyAndBuildIsolationTests : IDisposable {
+        /// <summary>
+        /// Temporary authored project used by the generation and build probes.
+        /// </summary>
+        readonly string ProjectRootPath;
+
+        /// <summary>
+        /// Initializes one minimal authored project.
+        /// </summary>
+        public EditorGeneratedCodeConcurrencyAndBuildIsolationTests() {
+            ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-isolation-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Scripts"));
+            File.WriteAllText(Path.Combine(ProjectRootPath, "assets", "Scripts", "Player.cs"), "public sealed class Player { }");
+        }
+
+        /// <summary>
+        /// Removes only this test's temporary authored and execution roots.
+        /// </summary>
+        public void Dispose() {
+            if (Directory.Exists(ProjectRootPath)) {
+                Directory.Delete(ProjectRootPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Ensures concurrent same-route generators leave one complete, deterministic metadata set without temporary publications.
+        /// </summary>
+        [Fact]
+        public async Task GenerateSolutionFiles_WhenSameRouteRunsConcurrently_PublishesOneCompleteStableMetadataSet() {
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "editor-command", "EditorFull");
+            string firstExecutionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "first");
+            string secondExecutionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "second");
+
+            try {
+                EditorGameSolutionService firstService = CreateService(workspaceRootPath, firstExecutionRootPath);
+                EditorGameSolutionService secondService = CreateService(workspaceRootPath, secondExecutionRootPath);
+
+                await Task.WhenAll(
+                    Task.Run(firstService.GenerateSolutionFiles),
+                    Task.Run(secondService.GenerateSolutionFiles));
+
+                string projectFilePath = Path.Combine(workspaceRootPath, "projects", "gameplay", "gameplay.csproj");
+                string solutionFilePath = Path.Combine(workspaceRootPath, "SkyRider.sln");
+                XDocument projectDocument = XDocument.Load(projectFilePath);
+
+                Assert.NotNull(projectDocument.Root);
+                Assert.Contains("gameplay", File.ReadAllText(solutionFilePath), StringComparison.Ordinal);
+                Assert.Empty(Directory.EnumerateFiles(workspaceRootPath, "*.tmp", SearchOption.AllDirectories));
+                Assert.NotEqual(firstService.GeneratedOutputDirectoryPath, secondService.GeneratedOutputDirectoryPath);
+            } finally {
+                DeleteDirectoryIfPresent(firstExecutionRootPath);
+                DeleteDirectoryIfPresent(secondExecutionRootPath);
+            }
+        }
+
+        /// <summary>
+        /// Ensures the real dotnet build receives separator-heavy output roots without creating project-local intermediate state.
+        /// </summary>
+        [Fact]
+        public void BuildGeneratedSolution_WhenExecutionRootContainsSeparators_UsesEarlyIsolatedIntermediateAndOutputPaths() {
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "editor-command", "EditorFull");
+            string executionRootPath = Path.Combine(
+                Path.GetTempPath(),
+                "helengine generated,probe;percent% " + Guid.NewGuid().ToString("N"));
+
+            try {
+                EditorGameSolutionService service = CreateService(workspaceRootPath, executionRootPath);
+                string solutionPath = service.GenerateSolutionFiles();
+
+                EditorBuildExecutionResult result = new EditorDotNetScriptBuildTool().Build(solutionPath, executionRootPath);
+
+                Assert.True(result.Succeeded, result.Message);
+                Assert.True(File.Exists(Path.Combine(executionRootPath, "generated_code", "bin", "gameplay", "Debug", "net9.0", "gameplay.dll")));
+                Assert.Empty(Directory.EnumerateDirectories(workspaceRootPath, "obj", SearchOption.AllDirectories));
+                Assert.True(File.Exists(Path.Combine(executionRootPath, "generated_code", "obj", "gameplay", "project.assets.json")));
+            } finally {
+                DeleteDirectoryIfPresent(executionRootPath);
+            }
+        }
+
+        /// <summary>
+        /// Creates one isolated full-editor solution service with stable metadata and a unique execution root.
+        /// </summary>
+        /// <param name="workspaceRootPath">Stable generated metadata root.</param>
+        /// <param name="executionRootPath">Unique compiler output root.</param>
+        /// <returns>Configured solution service.</returns>
+        EditorGameSolutionService CreateService(string workspaceRootPath, string executionRootPath) {
+            return new EditorGameSolutionService(
+                ProjectRootPath,
+                "SkyRider",
+                new TestIdeLauncher(),
+                executionRootPath,
+                workspaceRootPath,
+                EditorScriptCompilationMode.EditorFull,
+                Path.Combine(workspaceRootPath, "output"));
+        }
+
+        /// <summary>
+        /// Removes one temporary directory when a test created it.
+        /// </summary>
+        /// <param name="directoryPath">Directory to remove.</param>
+        static void DeleteDirectoryIfPresent(string directoryPath) {
+            if (Directory.Exists(directoryPath)) {
+                Directory.Delete(directoryPath, true);
+            }
+        }
+
+        /// <summary>
+        /// Launcher implementation that keeps the probe on the public generation path without opening an IDE.
+        /// </summary>
+        sealed class TestIdeLauncher : IEditorIdeLauncher {
+            /// <summary>
+            /// Receives a generated solution without side effects.
+            /// </summary>
+            /// <param name="solutionPath">Generated solution path.</param>
+            public void OpenSolution(string solutionPath) {
+            }
+        }
+    }
+}

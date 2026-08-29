@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace helengine.editor {
@@ -15,6 +16,16 @@ namespace helengine.editor {
         /// CLI executable used for solution builds.
         /// </summary>
         const string DotNetExecutableName = "dotnet";
+
+        /// <summary>
+        /// Prefix for short-lived MSBuild property transport files used to preserve arbitrary output-root characters.
+        /// </summary>
+        const string OutputRootTransportFilePrefix = "helengine-output-root-";
+
+        /// <summary>
+        /// Temporary root used for MSBuild's scalar path properties before results are published to the requested root.
+        /// </summary>
+        const string MsBuildOutputRootDirectoryName = "helengine-msbuild-output-roots";
 
         /// <summary>
         /// Builds one solution file and returns the captured process outcome.
@@ -57,34 +68,115 @@ namespace helengine.editor {
             startInfo.ArgumentList.Add("--configuration");
             startInfo.ArgumentList.Add(BuildConfigurationValue);
             startInfo.ArgumentList.Add("--nologo");
+            string outputRootTransportFilePath = string.Empty;
+            string msbuildOutputRootPath = string.Empty;
             if (!string.IsNullOrWhiteSpace(executionOutputRootPath)) {
-                startInfo.ArgumentList.Add("-p:HelengineExecutionOutputRoot=" + Path.GetFullPath(executionOutputRootPath));
+                msbuildOutputRootPath = ResolveMsBuildOutputRootPath(executionOutputRootPath);
+                outputRootTransportFilePath = CreateOutputRootTransportFile(msbuildOutputRootPath);
+                startInfo.ArgumentList.Add("-p:HelengineExecutionOutputRootFile=" + outputRootTransportFilePath);
             }
 
-            using Process process = Process.Start(startInfo);
-            if (process == null) {
-                throw new InvalidOperationException($"Failed to launch '{DotNetExecutableName}'.");
+            try {
+                using Process process = Process.Start(startInfo);
+                if (process == null) {
+                    throw new InvalidOperationException($"Failed to launch '{DotNetExecutableName}'.");
+                }
+
+                CaptureProcessOutput(process, out string stdout, out string stderr);
+
+                if (process.ExitCode == 0) {
+                    if (!string.IsNullOrWhiteSpace(msbuildOutputRootPath)) {
+                        PublishBuildOutputs(msbuildOutputRootPath, executionOutputRootPath);
+                    }
+
+                    return EditorBuildExecutionResult.Success($"Script build completed: {solutionPath}");
+                }
+
+                StringBuilder messageBuilder = new StringBuilder();
+                messageBuilder.Append(DotNetExecutableName);
+                messageBuilder.Append(" build failed with exit code ");
+                messageBuilder.Append(process.ExitCode);
+                messageBuilder.Append('.');
+
+                string output = ChooseFailureOutput(stdout, stderr);
+                if (!string.IsNullOrWhiteSpace(output)) {
+                    messageBuilder.Append(' ');
+                    messageBuilder.Append(output.Trim());
+                }
+
+                return EditorBuildExecutionResult.Failure(messageBuilder.ToString());
+            } finally {
+                if (!string.IsNullOrWhiteSpace(outputRootTransportFilePath)
+                    && File.Exists(outputRootTransportFilePath)) {
+                    File.Delete(outputRootTransportFilePath);
+                }
+                if (!string.IsNullOrWhiteSpace(msbuildOutputRootPath)
+                    && Directory.Exists(msbuildOutputRootPath)) {
+                    Directory.Delete(msbuildOutputRootPath, true);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resolves a filesystem-safe temporary MSBuild root for one exact requested output root.
+        /// </summary>
+        /// <param name="executionOutputRootPath">Requested output root, which may contain MSBuild separator characters.</param>
+        /// <returns>Safe temporary MSBuild output root.</returns>
+        static string ResolveMsBuildOutputRootPath(string executionOutputRootPath) {
+            byte[] pathHash = SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(executionOutputRootPath)));
+            return Path.Combine(
+                Path.GetTempPath(),
+                MsBuildOutputRootDirectoryName,
+                Convert.ToHexString(pathHash).ToLowerInvariant());
+        }
+
+        /// <summary>
+        /// Creates one temporary MSBuild property file carrying the exact invocation output root.
+        /// </summary>
+        /// <param name="executionOutputRootPath">Output root to transport to the child process.</param>
+        /// <returns>Path to the temporary property file.</returns>
+        static string CreateOutputRootTransportFile(string executionOutputRootPath) {
+            string fullOutputRootPath = Path.GetFullPath(executionOutputRootPath);
+            string transportFilePath = Path.Combine(
+                Path.GetTempPath(),
+                OutputRootTransportFilePrefix + Guid.NewGuid().ToString("N") + ".props");
+            string contents = "<Project>\n"
+                + "  <PropertyGroup>\n"
+                + "    <HelengineExecutionOutputRoot>"
+                + fullOutputRootPath
+                + "</HelengineExecutionOutputRoot>\n"
+                + "  </PropertyGroup>\n"
+                + "</Project>\n";
+            File.WriteAllText(transportFilePath, contents, Encoding.UTF8);
+            return transportFilePath;
+        }
+
+        /// <summary>
+        /// Publishes completed MSBuild outputs into the exact invocation root requested by the caller.
+        /// </summary>
+        /// <param name="msbuildOutputRootPath">Safe temporary MSBuild output root.</param>
+        /// <param name="executionOutputRootPath">Exact caller-visible output root.</param>
+        static void PublishBuildOutputs(string msbuildOutputRootPath, string executionOutputRootPath) {
+            if (!Directory.Exists(msbuildOutputRootPath)) {
+                return;
             }
 
-            CaptureProcessOutput(process, out string stdout, out string stderr);
-
-            if (process.ExitCode == 0) {
-                return EditorBuildExecutionResult.Success($"Script build completed: {solutionPath}");
+            string destinationRootPath = Path.GetFullPath(executionOutputRootPath);
+            Directory.CreateDirectory(destinationRootPath);
+            foreach (string sourceDirectoryPath in Directory.GetDirectories(msbuildOutputRootPath, "*", SearchOption.AllDirectories)) {
+                string relativeDirectoryPath = Path.GetRelativePath(msbuildOutputRootPath, sourceDirectoryPath);
+                Directory.CreateDirectory(Path.Combine(destinationRootPath, relativeDirectoryPath));
             }
 
-            StringBuilder messageBuilder = new StringBuilder();
-            messageBuilder.Append(DotNetExecutableName);
-            messageBuilder.Append(" build failed with exit code ");
-            messageBuilder.Append(process.ExitCode);
-            messageBuilder.Append('.');
-
-            string output = ChooseFailureOutput(stdout, stderr);
-            if (!string.IsNullOrWhiteSpace(output)) {
-                messageBuilder.Append(' ');
-                messageBuilder.Append(output.Trim());
+            foreach (string sourceFilePath in Directory.GetFiles(msbuildOutputRootPath, "*", SearchOption.AllDirectories)) {
+                string relativeFilePath = Path.GetRelativePath(msbuildOutputRootPath, sourceFilePath);
+                string destinationFilePath = Path.Combine(destinationRootPath, relativeFilePath);
+                string destinationDirectoryPath = Path.GetDirectoryName(destinationFilePath);
+                if (!string.IsNullOrWhiteSpace(destinationDirectoryPath)) {
+                    Directory.CreateDirectory(destinationDirectoryPath);
+                }
+                File.Copy(sourceFilePath, destinationFilePath, true);
             }
-
-            return EditorBuildExecutionResult.Failure(messageBuilder.ToString());
         }
 
         /// <summary>

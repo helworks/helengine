@@ -200,14 +200,15 @@ namespace helengine.editor {
 
             EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(bootstrap.ProjectRootPath);
             string buildExecutionId = Guid.NewGuid().ToString("N");
+            EditorScriptCompilationMode compilationMode = ResolveProjectScriptCompilationMode();
             EditorGameSolutionService solutionService = new EditorGameSolutionService(
                 bootstrap.ProjectRootPath,
                 bootstrap.ProjectName,
                 new EditorVisualStudioLauncher(),
                 isolationPathResolver.ResolveGeneratedCodeOutputRootPath(platformId, buildExecutionId),
-                isolationPathResolver.ResolveGeneratedCodeProjectWorkspaceRootPath(),
-                ResolveProjectScriptCompilationMode(),
-                isolationPathResolver.ResolveGeneratedCodeProjectOutputRootPath());
+                isolationPathResolver.ResolveGeneratedCodeProjectWorkspaceRootPath(platformId, compilationMode),
+                compilationMode,
+                isolationPathResolver.ResolveGeneratedCodeProjectOutputRootPath(platformId, compilationMode));
             EditorDotNetScriptBuildTool buildTool = new EditorDotNetScriptBuildTool();
             assemblyHost = new EditorGameScriptAssemblyHost(bootstrap.ProjectRootPath);
             hotReloadService = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);
