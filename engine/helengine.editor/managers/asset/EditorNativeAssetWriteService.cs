@@ -1005,6 +1005,7 @@ namespace helengine.editor {
                     // a prior publication before it reads every generated
                     // output; retaining the complete cache document is part
                     // of deterministic no-op authoring.
+                    HashCache.InvalidateContentHash(fullPath);
                     HashCache.GetContentHash(fullPath);
                 } else {
                     IdentityIndex.RemoveUnderLock(fullPath);

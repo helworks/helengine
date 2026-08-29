@@ -523,6 +523,46 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a cross-session replay invalidates a same-length external source
+    /// before resolving a saved reference through its content hash.
+    /// </summary>
+    [Fact]
+    public void Resolve_WhenOtherSessionReplacesSameLengthBytesWithRestoredTimestamp_RehashesBeforeHashFallback() {
+        const string relativePath = "models/SameLengthReplay.fbx";
+        const string currentAssetId = "00112233445566778899aabbccddeeff";
+        byte[] originalBytes = new byte[] { 1, 2, 3, 4, 5, 6 };
+        byte[] replacementBytes = new byte[] { 7, 8, 9, 10, 11, 12 };
+        string fullPath = CreateExternalAsset(relativePath, originalBytes);
+        new AssetIdentityMetadataService(ProjectRootPath).Save(fullPath, new AssetIdentityMetadataDocument {
+            AssetId = currentAssetId,
+            FormerAssetIds = new List<string>()
+        });
+
+        using EditorProjectAuthoringSession firstSession = (EditorProjectAuthoringSession)CreateSession();
+        using EditorProjectAuthoringSession secondSession = (EditorProjectAuthoringSession)CreateSession();
+        SceneAssetReference initialReference = firstSession.ReferenceResolverValue.CreateFileReference(fullPath, AssetEntryKind.Model);
+        DateTime originalTimestamp = File.GetLastWriteTimeUtc(fullPath);
+
+        Assert.Equal(originalBytes.Length, replacementBytes.Length);
+        File.WriteAllBytes(fullPath, replacementBytes);
+        File.SetLastWriteTimeUtc(fullPath, originalTimestamp);
+        EditorProjectWriteGeneration.PublishChange(ProjectRootPath, relativePath);
+
+        SceneAssetReference replacementReference = secondSession.ReferenceResolverValue.CreateFileReference(fullPath, AssetEntryKind.Model);
+        SceneAssetReference hashOnlyReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+            "11223344556677889900aabbccddeeff",
+            "models/MissingSameLengthReplay.fbx",
+            replacementReference.ContentHash);
+
+        AssetReferenceResolution resolution = firstSession.ReferenceResolverValue.Resolve(hashOnlyReference, AssetEntryKind.Model);
+
+        Assert.Equal(fullPath, resolution.FullPath);
+        Assert.Equal(AssetReferenceResolutionTier.ContentHash, resolution.Tier);
+        Assert.Equal(replacementReference.ContentHash, resolution.CanonicalReference.ContentHash);
+        Assert.NotEqual(initialReference.ContentHash, resolution.CanonicalReference.ContentHash);
+    }
+
+    /// <summary>
     /// Ensures a post-replacement bookkeeping failure is healed by a newly opened session.
     /// </summary>
     [Fact]
@@ -610,10 +650,10 @@ public sealed class EditorNativeAssetWriteServiceTests : IDisposable {
     /// <summary>
     /// Writes one external authored source without creating an identity document.
     /// </summary>
-    string CreateExternalAsset(string relativePath) {
+    string CreateExternalAsset(string relativePath, byte[] bytes = null) {
         string fullPath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
-        File.WriteAllBytes(fullPath, new byte[] { 1, 2, 3 });
+        File.WriteAllBytes(fullPath, bytes ?? new byte[] { 1, 2, 3 });
         return fullPath;
     }
 

@@ -80,8 +80,24 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
     /// fixture's exact generated and renderer graph.
     /// </summary>
     public IEditorProjectAuthoringSession CreateAuthoringSession(string projectRootPath) {
+        return CreateAuthoringSession(projectRootPath, Array.Empty<IAssetImporterRegistration>());
+    }
+
+    /// <summary>
+    /// Creates and tracks one explicit project authoring session with the
+    /// caller-supplied host importer registrations.
+    /// </summary>
+    /// <param name="projectRootPath">Project root owned by the session.</param>
+    /// <param name="importers">Current host importer registrations.</param>
+    /// <returns>Disposable authoring session.</returns>
+    public IEditorProjectAuthoringSession CreateAuthoringSession(
+        string projectRootPath,
+        IReadOnlyList<IAssetImporterRegistration> importers) {
         if (string.IsNullOrWhiteSpace(projectRootPath)) {
             throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+        }
+        if (importers == null) {
+            throw new ArgumentNullException(nameof(importers));
         }
 
         Directory.CreateDirectory(Path.Combine(projectRootPath, "assets"));
@@ -90,7 +106,7 @@ public sealed class TestGeneratedAssetGraph : IDisposable {
         try {
             IEditorProjectAuthoringSession session = new EditorProjectAuthoringSession(
                 projectRootPath,
-                Array.Empty<IAssetImporterRegistration>(),
+                importers,
                 contentManager,
                 Registry,
                 ModelCache,

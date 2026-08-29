@@ -249,8 +249,15 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
         EditorAssetHashCache cache = new EditorAssetHashCache(TempRootPath, hasher, store);
         EditorAssetIdentityIndex identityIndex = new EditorAssetIdentityIndex(TempRootPath, null, null, cache, catalog);
         identityIndex.Initialize();
-        EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(TempRootPath, identityIndex, cache);
         EditorNativeAssetWriteService nativeAssetWriteService = new EditorNativeAssetWriteService(TempRootPath, identityIndex, cache);
+        EditorAssetReferenceResolver referenceResolver = new EditorAssetReferenceResolver(
+            TempRootPath,
+            identityIndex,
+            cache,
+            null,
+            null,
+            null,
+            nativeAssetWriteService);
         EditorProjectAuthoringSessionResources resources = new EditorProjectAuthoringSessionResources(referenceResolver, identityIndex, cache, nativeAssetWriteService);
         AssetImportManager manager = new AssetImportManager(
             TempRootPath,
