@@ -319,17 +319,21 @@ namespace helengine.editor {
 
             return ExecuteSynchronizedRead(() => {
                 if (IsValidAssetId(reference.AssetId)) {
-                    IReadOnlyList<EditorAssetIdentityEntry> durableIdentityMatches =
-                        IdentityIndex.FindByAssetId(reference.AssetId, expectedKind);
-                    bool stagedIdentityIsDurableMatch = string.Equals(
-                            reference.AssetId,
+                    // Select the durable identity using the resolver's strict
+                    // current-ID, former-alias, path, and hash ordering. A
+                    // staged asset may carry the saved ID as a former alias,
+                    // but that must not make it preempt the durable asset that
+                    // still owns the ID as its current identity.
+                    EditorAssetIdentityEntry selectedDurableIdentity = SelectByAssetId(
+                        reference.AssetId,
+                        expectedKind,
+                        NormalizeRelativePath(reference.RelativePath),
+                        reference.ContentHash,
+                        out _);
+                    if (selectedDurableIdentity != null && !string.Equals(
+                            selectedDurableIdentity.AssetId,
                             stagedReference.AssetId,
-                            StringComparison.Ordinal) ||
-                        durableIdentityMatches.Any(candidate => string.Equals(
-                            candidate.AssetId,
-                            stagedReference.AssetId,
-                            StringComparison.Ordinal));
-                    if (!stagedIdentityIsDurableMatch && durableIdentityMatches.Count > 0) {
+                            StringComparison.Ordinal)) {
                         // AssetId (including a former alias) outranks a staged
                         // path. Let the normal resolver select that durable
                         // identity instead of rebinding a moved asset to an

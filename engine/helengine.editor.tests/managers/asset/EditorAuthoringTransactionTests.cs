@@ -233,6 +233,51 @@ public sealed class EditorAuthoringTransactionTests : IDisposable {
     }
 
     [Fact]
+    public void ResolveReference_DoesNotLetStagedFormerAliasPreemptDurableCurrentIdentity() {
+        const string savedAssetId = "00112233445566778899aabbccddeeff";
+        const string stagedCurrentAssetId = "ffeeddccbbaa99887766554433221100";
+        using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
+        EditorAssetWriteResult original;
+        using (EditorAuthoringTransaction first = session.BeginTransaction()) {
+            ModelAsset durableAsset = CreateModel("Durable");
+            durableAsset.AuthoringAssetId = savedAssetId;
+            original = first.WriteAsset("models/moved.hasset", durableAsset);
+            first.Commit();
+        }
+
+        SceneAssetReference savedReference = session.CreateReference("models/moved.hasset", AssetEntryKind.Model);
+        string originalPath = Path.Combine(ProjectRootPath, "assets", "models", "moved.hasset");
+        string relocatedPath = Path.Combine(ProjectRootPath, "assets", "models", "relocated.hasset");
+        File.Move(originalPath, relocatedPath);
+
+        ModelAsset aliasAsset = CreateModel("FormerAlias");
+        aliasAsset.AuthoringAssetId = stagedCurrentAssetId;
+        aliasAsset.FormerAuthoringAssetIds = new[] { savedAssetId };
+        File.WriteAllBytes(originalPath, AssetSerializer.SerializeToBytes(aliasAsset));
+        session.RefreshExternalChanges();
+
+        EditorAssetIdentityEntry durableEntry = session.IdentityIndexValue.FindByPath("models/relocated.hasset");
+        EditorAssetIdentityEntry aliasEntry = session.IdentityIndexValue.FindByPath("models/moved.hasset");
+        Assert.Equal(original.AssetId, durableEntry.AssetId);
+        Assert.Equal(stagedCurrentAssetId, aliasEntry.AssetId);
+        Assert.Equal(new[] { savedAssetId }, aliasEntry.FormerAssetIds);
+        Assert.Equal(
+            new[] { "models/moved.hasset", "models/relocated.hasset" },
+            session.IdentityIndexValue.FindByAssetId(savedAssetId, AssetEntryKind.Model)
+                .Select(entry => entry.RelativePath));
+
+        using EditorAuthoringTransaction transaction = session.BeginTransaction();
+        EditorAssetWriteResult staged = transaction.WriteAsset("models/moved.hasset", CreateModel("Replacement"));
+
+        AssetReferenceResolution resolution = session.ResolveReference(savedReference, AssetEntryKind.Model);
+
+        Assert.Equal(original.AssetId, resolution.CanonicalReference.AssetId);
+        Assert.Equal("models/relocated.hasset", resolution.CanonicalReference.RelativePath);
+        Assert.NotEqual(staged.AssetId, resolution.CanonicalReference.AssetId);
+        Assert.False(resolution.IsStaged);
+    }
+
+    [Fact]
     public void WriteGeneratedCacheAsset_IsStagedAndPublishedThroughTheSameTransaction() {
         using EditorProjectAuthoringSession session = CreateSession(ProjectRootPath);
         using EditorAuthoringTransaction transaction = session.BeginTransaction();
