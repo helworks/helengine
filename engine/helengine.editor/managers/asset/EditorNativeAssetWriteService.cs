@@ -999,10 +999,17 @@ namespace helengine.editor {
                     if (metadataWasMissing) {
                         IdentityIndex.MarkMetadataMissingUnderLock(fullPath);
                     }
+                    // Recompute the replayed path immediately instead of
+                    // removing its cache entry and waiting for an arbitrary
+                    // later reader to restore it.  A new session can observe
+                    // a prior publication before it reads every generated
+                    // output; retaining the complete cache document is part
+                    // of deterministic no-op authoring.
+                    HashCache.GetContentHash(fullPath);
                 } else {
                     IdentityIndex.RemoveUnderLock(fullPath);
+                    HashCache.InvalidateContentHash(fullPath);
                 }
-                HashCache.InvalidateContentHash(fullPath);
                 LastObservedGeneration = change.Generation;
             }
         }

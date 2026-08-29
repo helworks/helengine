@@ -156,11 +156,15 @@ namespace helengine.editor {
             }
 
             string projectRootPath = ResolveProjectRoot(cachePath);
-            string json = JsonSerializer.Serialize(document, JsonOptions);
-            EditorAuthoringMutationScope.WriteAllBytesAtomically(
-                projectRootPath,
-                cachePath,
-                new UTF8Encoding(false).GetBytes(json));
+            byte[] serializedBytes = new UTF8Encoding(false).GetBytes(JsonSerializer.Serialize(document, JsonOptions));
+            if (File.Exists(cachePath)) {
+                byte[] existingBytes = EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, cachePath);
+                if (existingBytes.SequenceEqual(serializedBytes)) {
+                    return;
+                }
+            }
+
+            EditorAuthoringMutationScope.WriteAllBytesAtomically(projectRootPath, cachePath, serializedBytes);
         }
 
         /// <summary>

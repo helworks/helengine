@@ -66,6 +66,29 @@ public sealed class EditorAssetHashCacheTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a dirty in-memory refresh that reconstructs the exact stored
+    /// document does not replace the cache file or churn its timestamp.
+    /// </summary>
+    [Fact]
+    public void Flush_WhenMergedDocumentIsByteIdentical_PreservesCacheTimestamp() {
+        string assetPath = CreateAsset("Models/Stable.obj", new byte[] { 1, 2, 3 });
+        string cachePath = Path.Combine(TempRootPath, "cache", "editor", "asset-identity-index.json");
+        using (EditorAssetHashCache firstCache = new EditorAssetHashCache(TempRootPath)) {
+            firstCache.GetContentHash(assetPath);
+        }
+
+        DateTime sentinelTimestamp = DateTime.UtcNow.AddMinutes(-5);
+        File.SetLastWriteTimeUtc(cachePath, sentinelTimestamp);
+        using (EditorAssetHashCache secondCache = new EditorAssetHashCache(TempRootPath)) {
+            secondCache.InvalidateContentHash(assetPath);
+            secondCache.GetContentHash(assetPath);
+            secondCache.Flush();
+        }
+
+        Assert.Equal(sentinelTimestamp, File.GetLastWriteTimeUtc(cachePath));
+    }
+
+    /// <summary>
     /// Ensures sequential cache flushes merge dirty paths instead of dropping another cache's update.
     /// </summary>
     [Fact]
