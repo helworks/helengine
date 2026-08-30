@@ -9,7 +9,7 @@ public sealed class CityTiltTrialLightingSourceTests {
     /// </summary>
     [Fact]
     public void City_tilt_trial_scene_source_authors_weaker_shadowless_fill_light() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\game.tools\GameSceneFactory.cs";
+        string sourcePath = CityFixtureRepository.ResolveSourcePath("game.tools/GameSceneFactory.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("CreateDirectionalLightEntity(),", source, StringComparison.Ordinal);

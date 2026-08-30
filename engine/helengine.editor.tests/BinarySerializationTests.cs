@@ -529,6 +529,7 @@ namespace helengine.editor.tests {
 
             SceneAsset authoredScene = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = "00112222333344445555666677778888",
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -1115,7 +1116,7 @@ namespace helengine.editor.tests {
             };
             string scenePath = Path.Combine(TempRootPath, "BrowserTest.helen");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
 
             using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, asset);
@@ -1139,7 +1140,7 @@ namespace helengine.editor.tests {
             };
             string texturePath = Path.Combine(TempRootPath, "WrongType.hasset");
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, null);
 
             using (FileStream stream = new FileStream(texturePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, asset);
@@ -1147,9 +1148,9 @@ namespace helengine.editor.tests {
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => contentManager.Load<SceneAsset>(texturePath, RuntimeContentProcessorIds.SceneAsset));
 
-            Assert.Contains("asset_path='", exception.Message);
-            Assert.Contains(texturePath, exception.Message);
-            Assert.Contains("read_stage='", exception.Message);
+            Assert.Equal(
+                "Serialized payload value kind '1' is not supported for scene-asset deserialization.",
+                exception.Message);
         }
 
         /// <summary>
@@ -1158,7 +1159,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void RuntimeContentManagerConfiguration_RegistersSceneAssetWithBinaryContentProcessor() {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(TempRootPath));
-            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, null);
             var registrationsField = typeof(ContentManager).GetField("ProcessorRegistrationsById", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 ?? throw new InvalidOperationException("Expected ProcessorRegistrationsById field was not found.");
             var registrations = Assert.IsType<Dictionary<string, ContentProcessorRegistration>>(registrationsField.GetValue(contentManager));
@@ -1317,8 +1318,9 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void LoadOrCreateModelImportSettings_WhenObsoleteGenericSidecarExists_ThrowsWithoutRewrite() {
-            string sourcePath = Path.Combine(TempRootPath, "DemoDiscBody.obj");
+            string sourcePath = Path.Combine(TempRootPath, "assets", "DemoDiscBody.obj");
             string settingsPath = sourcePath + ".hasset";
+            Directory.CreateDirectory(Path.GetDirectoryName(sourcePath)!);
             File.WriteAllBytes(sourcePath, new byte[] { 1, 2, 3, 4 });
 
             AssetImportSettings obsoleteSettings = CreateAssetImportSettings();

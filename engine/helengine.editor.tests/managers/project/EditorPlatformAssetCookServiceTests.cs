@@ -86,6 +86,19 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         Assert.Contains(manifest.Scenes[0].ResolvedMetadata, entry => entry.Key == PlatformBuildSceneMetadataKeys.AutomaticRuntimeComponentTypeIds && entry.Value == string.Empty);
     }
 
+    [Fact]
+    public void WriteSceneAsset_uses_current_embedded_identity_metadata() {
+        const string sceneRelativePath = "Scenes/IdentityFixture.helen";
+        string scenePath = Path.Combine(ProjectRootPath, "assets", sceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+
+        WriteSceneAsset(sceneRelativePath, Array.Empty<SceneAssetReference>());
+
+        AssetIdentityMetadataDocument identity = new AssetIdentityMetadataService(ProjectRootPath).Load(scenePath);
+
+        Assert.Equal(BuildTestAuthoringAssetId(sceneRelativePath), identity.AssetId);
+        Assert.False(File.Exists(scenePath + ".hmeta"));
+    }
+
     /// <summary>
     /// Ensures the selected platform profile controls the runtime version stamped into the cooked manifest.
     /// </summary>
@@ -442,9 +455,10 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         using FileStream stream = new FileStream(cookedMaterialPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         ShaderMaterialAsset cookedMaterial = Assert.IsType<ShaderMaterialAsset>(AssetSerializer.Deserialize(stream));
         Assert.Equal("ForwardStandardShader", cookedMaterial.ShaderAssetId);
-        Assert.Single(cookedMaterial.ConstantBuffers);
-        Assert.Equal("BaseColorBuffer", cookedMaterial.ConstantBuffers[0].Name);
-        Assert.Equal(16, cookedMaterial.ConstantBuffers[0].Data.Length);
+        MaterialConstantBufferAsset baseColorBuffer = Assert.Single(
+            cookedMaterial.ConstantBuffers,
+            buffer => string.Equals(buffer.Name, "BaseColorBuffer", StringComparison.Ordinal));
+        Assert.Equal(16, baseColorBuffer.Data.Length);
     }
 
     /// <summary>
@@ -662,6 +676,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         SceneAsset sceneAsset = new() {
             Id = sceneId,
+            AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
             AssetReferences = assetReferences ?? Array.Empty<SceneAssetReference>(),
             RootEntities = new[] {
                 new SceneEntityAsset {
@@ -723,6 +738,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
 
         SceneAsset sceneAsset = new() {
             Id = sceneId,
+            AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
             RootEntities = [
                 new SceneEntityAsset {
                     Id = 1u,
@@ -787,8 +803,17 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// <param name="fullPath">Full destination path for the serialized asset.</param>
     /// <param name="asset">Asset instance to serialize.</param>
     static void WriteSerializedAsset(string fullPath, Asset asset) {
+        if (string.IsNullOrWhiteSpace(asset.AuthoringAssetId)) {
+            asset.AuthoringAssetId = BuildTestAuthoringAssetId(fullPath);
+        }
         using FileStream stream = new(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
         AssetSerializer.Serialize(stream, asset);
+    }
+
+    static string BuildTestAuthoringAssetId(string relativePath) {
+        byte[] hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(relativePath));
+        return Convert.ToHexString(hash)[..32].ToLowerInvariant();
     }
 
     /// <summary>

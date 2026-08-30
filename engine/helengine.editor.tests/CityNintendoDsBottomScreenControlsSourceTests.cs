@@ -9,7 +9,7 @@ public sealed class CityNintendoDsBottomScreenControlsSourceTests {
     /// </summary>
     [Fact]
     public void City_ds_scaffold_source_authors_canonical_bottom_screen_controls() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\NintendoDsRenderingSceneScaffoldFactory.cs";
+        string sourcePath = CityFixtureRepository.ResolveSourcePath("rendering.tools/NintendoDsRenderingSceneScaffoldFactory.cs");
         Assert.True(File.Exists(sourcePath), $"Expected source file '{sourcePath}' to exist.");
 
         string source = File.ReadAllText(sourcePath);
@@ -34,7 +34,7 @@ public sealed class CityNintendoDsBottomScreenControlsSourceTests {
     /// </summary>
     [Fact]
     public void City_ds_scaffold_source_uses_demo_disc_lilac_bottom_screen_clear() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\NintendoDsRenderingSceneScaffoldFactory.cs";
+        string sourcePath = CityFixtureRepository.ResolveSourcePath("rendering.tools/NintendoDsRenderingSceneScaffoldFactory.cs");
         Assert.True(File.Exists(sourcePath), $"Expected source file '{sourcePath}' to exist.");
 
         string source = File.ReadAllText(sourcePath);
@@ -47,7 +47,7 @@ public sealed class CityNintendoDsBottomScreenControlsSourceTests {
     /// </summary>
     [Fact]
     public void City_handheld_light_controller_source_responds_to_pointer_and_r_input() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering\NintendoDsLightToggleOverlayComponent.cs";
+        string sourcePath = CityFixtureRepository.ResolveSourcePath("rendering/NintendoDsLightToggleOverlayComponent.cs");
         Assert.True(File.Exists(sourcePath), $"Expected source file '{sourcePath}' to exist.");
 
         string source = File.ReadAllText(sourcePath);
@@ -64,7 +64,7 @@ public sealed class CityNintendoDsBottomScreenControlsSourceTests {
     /// </summary>
     [Fact]
     public void City_handheld_light_controller_source_uses_demo_disc_cycle_order() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering\NintendoDsLightToggleOverlayComponent.cs";
+        string sourcePath = CityFixtureRepository.ResolveSourcePath("rendering/NintendoDsLightToggleOverlayComponent.cs");
         Assert.True(File.Exists(sourcePath), $"Expected source file '{sourcePath}' to exist.");
 
         string source = File.ReadAllText(sourcePath);
@@ -82,7 +82,7 @@ public sealed class CityNintendoDsBottomScreenControlsSourceTests {
     /// </summary>
     [Fact]
     public void City_physics_ds_generator_source_uses_canonical_scaffold_bottom_controls() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\physics.tools\PhysicsNintendoDsSceneGenerator.cs";
+        string sourcePath = CityFixtureRepository.ResolveSourcePath("physics.tools/PhysicsNintendoDsSceneGenerator.cs");
         Assert.True(File.Exists(sourcePath), $"Expected source file '{sourcePath}' to exist.");
 
         string source = File.ReadAllText(sourcePath);

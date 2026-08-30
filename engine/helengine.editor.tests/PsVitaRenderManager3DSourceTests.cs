@@ -9,7 +9,7 @@ public sealed class PsVitaRenderManager3DSourceTests {
     /// </summary>
     [Fact]
     public void PsVita_render_manager_3d_source_dispatches_shader_material_asset_format() {
-        string sourcePath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "..", "helengine-psvita", "src", "platform", "psvita", "rendering", "PsVitaRenderManager3D.cpp");
+        string sourcePath = PsVitaFixtureRepository.ResolveSourcePath("rendering/PsVitaRenderManager3D.cpp");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("#include \"ShaderMaterialAssetBinarySerializer.hpp\"", source, StringComparison.Ordinal);

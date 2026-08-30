@@ -9,7 +9,8 @@ public sealed class CityNintendoDsBuildQueueItemTests {
     /// </summary>
     [Fact]
     public void City_nintendo_ds_build_queue_item_includes_demo_disc_selectable_physics_scenes() {
-        EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(@"C:\dev\helprojs\city\project.heproj");
+        using CityFixtureBuildProject fixtureProject = CityFixtureRepository.CreateBuildProject();
+        EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(fixtureProject.RootPath, "project.heproj"));
         EditorBuildConfigDocument buildConfig = bootstrap.BuildConfigService.TryLoadExisting();
         EditorBuildPlatformConfigDocument platformConfig = Assert.Single(
             buildConfig.Platforms,
@@ -20,7 +21,7 @@ public sealed class CityNintendoDsBuildQueueItemTests {
             bootstrap.SceneCatalogService,
             platformConfig,
             selectionModel,
-            @"C:\dev\helprojs\output\ds");
+            Path.Combine(fixtureProject.RootPath, "output", "ds"));
 
         Assert.Contains(queueItem.SelectedSceneIds, sceneId => string.Equals(sceneId, "test_scene_dynamic_stack_boxes", StringComparison.Ordinal));
         Assert.Contains(queueItem.SelectedSceneIds, sceneId => string.Equals(sceneId, "test_scene_dynamic_sphere_stack", StringComparison.Ordinal));
