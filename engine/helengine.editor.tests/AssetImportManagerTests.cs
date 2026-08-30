@@ -995,7 +995,8 @@ namespace helengine.editor.tests {
             }
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(AssetsRootPath));
-            EditorContentManagerConfiguration.ConfigureEditorContentManager(contentManager, Core.Instance.RenderManager2D);
+            using TestRenderManager2D renderManager2D = new TestRenderManager2D();
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(contentManager, renderManager2D);
 
             ShaderMaterialAsset loadedMaterialAsset = contentManager.Load<ShaderMaterialAsset>(materialPath, ShaderRuntimeContentProcessorIds.ShaderMaterialAsset);
 
