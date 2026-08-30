@@ -9,7 +9,7 @@ public sealed class CityColoredCubeGridSceneSourceTests {
     /// </summary>
     [Fact]
     public void City_colored_cube_grid_source_authors_gamecube_material_settings() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\ColoredCubeGridSceneFactory.cs";
+        string sourcePath = CityFixtureRepository.ResolveSourcePath("rendering.tools/ColoredCubeGridSceneFactory.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("const string GameCubeMaterialSchemaId = \"standard-shader\";", source, StringComparison.Ordinal);
@@ -26,7 +26,7 @@ public sealed class CityColoredCubeGridSceneSourceTests {
     /// </summary>
     [Fact]
     public void City_colored_cube_grid_source_uses_shared_ds_bottom_overlay() {
-        string sourcePath = @"C:\dev\helprojs\city\assets\codebase\rendering.tools\ColoredCubeGridSceneFactory.cs";
+        string sourcePath = CityFixtureRepository.ResolveSourcePath("rendering.tools/ColoredCubeGridSceneFactory.cs");
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("Entity[] nintendoDsRootEntities = new Entity[cubeEntities.Length + 3];", source, StringComparison.Ordinal);

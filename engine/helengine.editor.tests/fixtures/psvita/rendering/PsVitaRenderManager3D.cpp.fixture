@@ -1,0 +1,29 @@
+#include "ShaderMaterialAssetBinarySerializer.hpp"
+
+void PsVitaRenderManager3D::DrawScene() {
+    DirectionalLightComponent directionalLight;
+    AmbientLightComponent ambientLight;
+    ResolveActiveDirectionalLight(directionalLight);
+    ResolveAmbientLightColor(ambientLight);
+    BuildLambertVertexColor();
+    GetNormals();
+    SubmitSolidColorTriangles(QueuedMeshTriangles);
+}
+
+void PsVitaRenderManager3D::DrawTriangle(float signedAreaTwice, ::MaterialCullMode cullMode) {
+    MaterialCullMode ResolveSubmeshCullMode() const;
+    bool ShouldCullProjectedTriangle(float signedAreaTwice, MaterialCullMode cullMode) const;
+    if (ShouldCullProjectedTriangle(signedAreaTwice, cullMode)) {
+        return;
+    }
+    if (cullMode == ::MaterialCullMode::Front) {
+            return signedAreaTwice < 0.0;
+        }
+
+        return signedAreaTwice > 0.0;
+}
+
+void PsVitaRenderManager3D::LoadMaterial() {
+    ShaderMaterialAssetBinarySerializer::FormatId;
+    ShaderMaterialAssetBinarySerializer::Deserialize(stream, header);
+}

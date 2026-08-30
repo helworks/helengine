@@ -1,0 +1,10 @@
+namespace CityFixture.PhysicsTools;
+
+sealed class PhysicsNintendoDsSceneGenerator {
+    public void Generate() {
+        Entity[] bottomScreenEntities = Array.Empty<Entity>();
+        WriteNintendoDsCompanionScene(bottomScreenEntities);
+    }
+
+    void WriteNintendoDsCompanionScene(Entity[] entities) { }
+}

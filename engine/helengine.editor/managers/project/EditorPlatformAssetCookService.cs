@@ -416,7 +416,7 @@ namespace helengine.editor {
             try {
                 EngineBinaryReadContext.CurrentAssetPath = fullScenePath;
                 using FileStream stream = File.OpenRead(fullScenePath);
-                Asset asset = global::helengine.AssetSerializer.Deserialize(stream);
+                Asset asset = DeserializeSerializedArtifact(stream);
                 if (asset is not SceneAsset sceneAsset) {
                     throw new InvalidOperationException($"Cooked scene '{cookedRelativePath}' did not deserialize into a SceneAsset.");
                 }
@@ -673,7 +673,7 @@ namespace helengine.editor {
                     return string.Empty;
                 }
 
-                Asset asset = global::helengine.AssetSerializer.Deserialize(stream);
+                Asset asset = DeserializeSerializedArtifact(stream);
                 if (asset is ModelAsset) {
                     return "model";
                 }
@@ -707,7 +707,7 @@ namespace helengine.editor {
                     return "asset";
                 }
 
-                Asset asset = global::helengine.AssetSerializer.Deserialize(stream);
+                Asset asset = DeserializeSerializedArtifact(stream);
                 if (asset is ModelAsset) {
                     return "model";
                 }
@@ -727,6 +727,29 @@ namespace helengine.editor {
 
         static string NormalizeRelativePath(string relativePath) {
             return relativePath.Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// Deserializes one current cooked asset using the serializer selected by its HELE format id.
+        /// Shader-owned materials deliberately use their own current format and are not registered with the generic core serializer.
+        /// </summary>
+        /// <param name="stream">Seekable stream positioned at the beginning of a serialized payload.</param>
+        /// <returns>The decoded asset instance.</returns>
+        static Asset DeserializeSerializedArtifact(Stream stream) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+            if (!stream.CanSeek) {
+                throw new InvalidOperationException("Serialized artifact classification requires a seekable stream.");
+            }
+
+            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+            stream.Position = 0;
+            if (header.FormatId == ShaderMaterialAssetBinarySerializer.FormatId) {
+                return ShaderMaterialAssetBinarySerializer.Deserialize(stream);
+            }
+
+            return global::helengine.AssetSerializer.Deserialize(stream);
         }
 
         /// <summary>
