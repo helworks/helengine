@@ -5,29 +5,9 @@ using helengine.editor.tests.testing;
 namespace helengine.editor.tests;
 
 /// <summary>
-/// Resolves the small, checked-in City-style source fixtures used by source-contract tests.
+/// Provides hermetic current-format projects for tests that exercise City-authored editor behavior.
 /// </summary>
 internal static class CityFixtureRepository {
-    const string FixtureRootRelativePath = "fixtures/city";
-
-    public static string ResolveSourcePath(string relativePath) {
-        if (string.IsNullOrWhiteSpace(relativePath)) {
-            throw new ArgumentException("Fixture source path must be provided.", nameof(relativePath));
-        }
-
-        string path = Path.Combine(
-            TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
-            "engine",
-            "helengine.editor.tests",
-            FixtureRootRelativePath.Replace('/', Path.DirectorySeparatorChar),
-            relativePath.Replace('/', Path.DirectorySeparatorChar) + ".fixture");
-        if (!File.Exists(path)) {
-            throw new FileNotFoundException($"City fixture source '{relativePath}' was not found.", path);
-        }
-
-        return path;
-    }
-
     public static CityFixtureBuildProject CreateBuildProject() {
         string rootPath = Path.Combine(Path.GetTempPath(), "helengine-city-fixture-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(rootPath, "assets", "scenes", "physics"));
@@ -103,31 +83,6 @@ internal static class CityFixtureRepository {
     }
 }
 
-/// <summary>
-/// Resolves the checked-in PS Vita source fixtures used by native source-contract tests.
-/// </summary>
-internal static class PsVitaFixtureRepository {
-    const string FixtureRootRelativePath = "fixtures/psvita";
-
-    public static string ResolveSourcePath(string relativePath) {
-        if (string.IsNullOrWhiteSpace(relativePath)) {
-            throw new ArgumentException("Fixture source path must be provided.", nameof(relativePath));
-        }
-
-        string path = Path.Combine(
-            TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
-            "engine",
-            "helengine.editor.tests",
-            FixtureRootRelativePath.Replace('/', Path.DirectorySeparatorChar),
-            relativePath.Replace('/', Path.DirectorySeparatorChar) + ".fixture");
-        if (!File.Exists(path)) {
-            throw new FileNotFoundException($"PS Vita fixture source '{relativePath}' was not found.", path);
-        }
-
-        return path;
-    }
-}
-
 internal sealed class CityFixtureBuildProject : IDisposable {
     public CityFixtureBuildProject(string rootPath) {
         RootPath = rootPath;
@@ -157,6 +112,46 @@ internal sealed class CityTextureFixtureProject : IDisposable {
     public string RootPath { get; }
 
     public AssetImportManager Manager => AssetImportManager;
+
+    /// <summary>
+    /// Persists one independently authored current texture sidecar beside a source file.
+    /// </summary>
+    /// <param name="relativePath">Project-relative source path beneath the assets root.</param>
+    /// <param name="assetId">Stable imported asset id written by the authored document.</param>
+    /// <returns>Absolute source path whose persisted sidecar carries the supplied id.</returns>
+    public string WritePersistedTextureReference(string relativePath, string assetId) {
+        if (string.IsNullOrWhiteSpace(assetId)) {
+            throw new ArgumentException("Persisted texture asset id must be provided.", nameof(assetId));
+        }
+
+        string sourcePath = WriteTextureSource(relativePath);
+        TextureAssetImportSettings settings = new() {
+            Importer = new AssetImporterSettings {
+                ImporterId = "gdi",
+                AssetId = assetId,
+                SourceChecksum = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(sourcePath))).ToLowerInvariant()
+            },
+            Processor = new TextureAssetProcessorPlatformSettings()
+        };
+        settings.Processor.Platforms["gamecube"] = new TextureAssetProcessorSettings {
+            MaxResolution = 256,
+            ColorFormatId = "GxRgb5A3",
+            AlphaPrecision = TextureAssetAlphaPrecision.A8
+        };
+        AssetImportManager.SaveTextureImportSettings(sourcePath, settings);
+        return sourcePath;
+    }
+
+    /// <summary>
+    /// Creates a second manager over the same project root so resolution must consume persisted state.
+    /// </summary>
+    public AssetImportManager CreateFreshManager() {
+        ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(RootPath));
+        AssetImportManager manager = new AssetImportManager(RootPath, contentManager);
+        manager.RegisterTextureImporter(new TextureImporterRegistration("gdi", new TestTextureImporter(), [".bmp"]));
+        manager.CurrentPlatformId = "gamecube";
+        return manager;
+    }
 
     public static CityTextureFixtureProject Create() {
         string rootPath = Path.Combine(Path.GetTempPath(), "helengine-city-texture-fixture-" + Guid.NewGuid().ToString("N"));

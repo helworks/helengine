@@ -1,5 +1,0 @@
-namespace CityFixture.MenuTools;
-
-sealed class RegeneratePs2EmptyStartupProbeCommand {
-    public const string CommandId = "menu.regenerate-ps2-empty-startup-probe";
-}

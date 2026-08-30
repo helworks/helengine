@@ -1,3 +1,0 @@
-const std::vector<::float3>& PsVitaRuntimeModel::GetNormals() const {
-    return Normals;
-}

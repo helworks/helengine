@@ -1,9 +1,0 @@
-class PsVitaRuntimeModel {
-public:
-    explicit PsVitaRuntimeModel(std::vector<::float3> positions, std::vector<::float3> normals);
-    const std::vector<::float3>& GetNormals() const;
-
-private:
-    std::vector<::float3> Positions;
-    std::vector<::float3> Normals;
-};
