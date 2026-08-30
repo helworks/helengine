@@ -504,7 +504,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     public void ResolveArtifactKind_when_imported_cooked_texture_is_supplied_returns_asset() {
         string importedTexturePath = Path.Combine(BuildRootPath, "cooked", "imported", "0123456789ABCDEF0123456789ABCDEF.hasset");
         Directory.CreateDirectory(Path.GetDirectoryName(importedTexturePath)!);
-        WriteSerializedAsset(importedTexturePath, new TextureAsset {
+        WriteSerializedAsset(importedTexturePath, "cooked/imported/0123456789ABCDEF0123456789ABCDEF.hasset", new TextureAsset {
             Id = "ImportedTexture",
             Width = 2,
             Height = 2,
@@ -528,7 +528,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     public void ResolveArtifactKind_when_imported_cooked_model_is_supplied_returns_model() {
         string importedModelPath = Path.Combine(BuildRootPath, "cooked", "imported", "FEDCBA9876543210FEDCBA9876543210.hasset");
         Directory.CreateDirectory(Path.GetDirectoryName(importedModelPath)!);
-        WriteSerializedAsset(importedModelPath, new ModelAsset {
+        WriteSerializedAsset(importedModelPath, "cooked/imported/FEDCBA9876543210FEDCBA9876543210.hasset", new ModelAsset {
             Id = "ImportedModel",
             Positions = [float3.Zero, new float3(1.0f, 0.0f, 0.0f), new float3(0.0f, 1.0f, 0.0f)],
             Normals = [new float3(0.0f, 0.0f, 1.0f), new float3(0.0f, 0.0f, 1.0f), new float3(0.0f, 0.0f, 1.0f)],
@@ -552,7 +552,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     public void ResolveArtifactKind_when_cooked_material_is_stored_beneath_models_directory_returns_material() {
         string cookedMaterialPath = Path.Combine(BuildRootPath, "cooked", "models", "Riemers", "racer", "x3ds_mat_Material_1_2.hasset");
         Directory.CreateDirectory(Path.GetDirectoryName(cookedMaterialPath)!);
-        WriteSerializedAsset(cookedMaterialPath, new ShaderMaterialAsset {
+        WriteSerializedAsset(cookedMaterialPath, "cooked/models/Riemers/racer/x3ds_mat_Material_1_2.hasset", new ShaderMaterialAsset {
             Id = "RacerMaterial",
             ShaderAssetId = "ForwardStandardShader",
             ConstantBuffers = Array.Empty<MaterialConstantBufferAsset>()
@@ -570,7 +570,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     public void ResolveArtifactKind_when_cooked_audio_is_supplied_returns_audio() {
         string cookedAudioPath = Path.Combine(BuildRootPath, "cooked", "audio", "menu", "theme.hasset");
         Directory.CreateDirectory(Path.GetDirectoryName(cookedAudioPath)!);
-        WriteSerializedAsset(cookedAudioPath, new AudioAsset {
+        WriteSerializedAsset(cookedAudioPath, "cooked/audio/menu/theme.hasset", new AudioAsset {
             Id = "theme",
             PlaybackMode = AudioPlaybackMode.Streamed,
             EncodingFamilyId = "pcm-streamed",
@@ -802,9 +802,12 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     /// </summary>
     /// <param name="fullPath">Full destination path for the serialized asset.</param>
     /// <param name="asset">Asset instance to serialize.</param>
-    static void WriteSerializedAsset(string fullPath, Asset asset) {
+    static void WriteSerializedAsset(string fullPath, string stableRelativePath, Asset asset) {
+        if (string.IsNullOrWhiteSpace(stableRelativePath)) {
+            throw new ArgumentException("Stable relative identity path must be provided.", nameof(stableRelativePath));
+        }
         if (string.IsNullOrWhiteSpace(asset.AuthoringAssetId)) {
-            asset.AuthoringAssetId = BuildTestAuthoringAssetId(fullPath);
+            asset.AuthoringAssetId = BuildTestAuthoringAssetId(stableRelativePath);
         }
         using FileStream stream = new(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
         AssetSerializer.Serialize(stream, asset);
@@ -824,7 +827,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     void WriteAnimationClipAsset(string animationRelativePath, AnimationClipAsset animationClipAsset) {
         string animationPath = Path.Combine(ProjectRootPath, "assets", animationRelativePath.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(animationPath)!);
-        WriteSerializedAsset(animationPath, animationClipAsset);
+        WriteSerializedAsset(animationPath, animationRelativePath, animationClipAsset);
     }
 
     /// <summary>

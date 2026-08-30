@@ -1,5 +1,0 @@
-class PsVitaRenderManager3D {
-    std::vector<rendering::PsVitaSolidColorVertex> QueuedMeshTriangles;
-    MaterialCullMode ResolveSubmeshCullMode() const;
-    bool ShouldCullProjectedTriangle(float signedAreaTwice, MaterialCullMode cullMode) const;
-};
