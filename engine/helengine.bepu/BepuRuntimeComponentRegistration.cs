@@ -23,7 +23,7 @@ namespace helengine {
 
             state = new RegistrationState(core);
             core.PhysicsRuntimeRegistrationState = state;
-            return state;
+            return core.PhysicsRuntimeRegistrationState as RegistrationState;
         }
 
         /// <summary>

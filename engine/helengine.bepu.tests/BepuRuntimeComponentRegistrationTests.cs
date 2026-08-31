@@ -37,6 +37,28 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures registration reads a fresh borrowed reference from Core after transferring a newly allocated state.
+        /// </summary>
+        [Fact]
+        public void GetRegistrationState_SourceReadsCoreSlotAfterOwnershipTransfer() {
+            string sourcePath = Path.Combine(
+                ResolveRepositoryRootPath(),
+                "engine",
+                "helengine.bepu",
+                "BepuRuntimeComponentRegistration.cs");
+            string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+            Assert.Contains(
+                "core.PhysicsRuntimeRegistrationState = state;\n            return core.PhysicsRuntimeRegistrationState as RegistrationState;",
+                source,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "core.PhysicsRuntimeRegistrationState = state;\n            return state;",
+                source,
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures registration defers BEPU-backed runtime attachment until one physics scene is loaded.
         /// </summary>
         [Fact]
@@ -223,6 +245,28 @@ namespace helengine.bepu.tests {
                 Size = new float3(1f, 1f, 1f)
             });
             return entity;
+        }
+
+        /// <summary>
+        /// Resolves the engine repository root from the test assembly location.
+        /// </summary>
+        /// <returns>Absolute engine repository root path.</returns>
+        static string ResolveRepositoryRootPath() {
+            string currentPath = AppContext.BaseDirectory;
+            while (!string.IsNullOrWhiteSpace(currentPath)) {
+                if (File.Exists(Path.Combine(currentPath, "engine", "helengine.editor", "helengine.editor.csproj"))) {
+                    return currentPath;
+                }
+
+                DirectoryInfo parentDirectory = Directory.GetParent(currentPath);
+                if (parentDirectory == null) {
+                    break;
+                }
+
+                currentPath = parentDirectory.FullName;
+            }
+
+            throw new InvalidOperationException("Unable to resolve the HelEngine repository root from the current test directory.");
         }
     }
 }
