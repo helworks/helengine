@@ -595,23 +595,36 @@ namespace helengine.vulkan {
             surface.BeginRenderPass(commandBuffer, imageIndex, clearColor.X, clearColor.Y, clearColor.Z, clearColor.W);
 
             renderer2D.BeginFrame(surface, commandBuffer);
-            frameActive = true;
-            activeSurface = surface;
-            activeCommandBuffer = commandBuffer;
-            transformDrawCount = 0;
+            ExecuteSurfaceFrame(() => {
+                frameActive = true;
+                activeSurface = surface;
+                activeCommandBuffer = commandBuffer;
+                transformDrawCount = 0;
 
-            for (int i = 0; i < cameras.Count; i++) {
-                RenderCamera(cameras[i], surface);
+                for (int i = 0; i < cameras.Count; i++) {
+                    RenderCamera(cameras[i], surface);
+                }
+
+                frameActive = false;
+                activeSurface = null;
+                activeCommandBuffer = default;
+                surface.EndRenderPass(commandBuffer);
+
+                surface.EndFrame(commandBuffer, imageIndex);
+            });
+        }
+
+        /// <summary>
+        /// Executes the remaining surface work after a 2D frame begins and always ends that 2D frame.
+        /// </summary>
+        /// <param name="surfaceFrameBody">Recording, submission, and presentation work for the surface.</param>
+        void ExecuteSurfaceFrame(System.Action surfaceFrameBody) {
+            try {
+                surfaceFrameBody();
+            } finally {
+                // Keep the 2D frame active through the complete swapchain recording/submission interval.
+                renderer2D.EndFrame();
             }
-
-            frameActive = false;
-            activeSurface = null;
-            activeCommandBuffer = default;
-            surface.EndRenderPass(commandBuffer);
-
-            surface.EndFrame(commandBuffer, imageIndex);
-            // Keep the 2D frame active through the complete swapchain recording/submission interval.
-            renderer2D.EndFrame();
         }
 
         /// <summary>

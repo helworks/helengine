@@ -316,6 +316,34 @@ namespace helengine.editor.windows.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures an exception during surface recording/submission still ends the Vulkan 2D frame.
+        /// </summary>
+        [Fact]
+        public void Vulkan_surface_submission_exception_ends_2d_frame() {
+            using VulkanRenderer3D renderer = CreateVulkanRendererOrSkip();
+            FieldInfo frameActiveField = typeof(VulkanRenderer2D).GetField(
+                "frameActive",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo executeSurfaceFrameMethod = typeof(VulkanRenderer3D).GetMethod(
+                "ExecuteSurfaceFrame",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(executeSurfaceFrameMethod);
+
+            try {
+                frameActiveField.SetValue(renderer.Render2D, true);
+                Action throwingSurfaceFrame = () => throw new InvalidOperationException("surface submission failed");
+
+                TargetInvocationException exception = Assert.Throws<TargetInvocationException>(() =>
+                    executeSurfaceFrameMethod.Invoke(renderer, new object[] { throwingSurfaceFrame }));
+
+                Assert.IsType<InvalidOperationException>(exception.InnerException);
+                Assert.False((bool)frameActiveField.GetValue(renderer.Render2D));
+            } finally {
+                frameActiveField.SetValue(renderer.Render2D, false);
+            }
+        }
+
+        /// <summary>
         /// Ensures Direct3D11 rejects texture release while the renderer is traversing a frame.
         /// </summary>
         [Fact]
