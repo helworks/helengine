@@ -17,6 +17,26 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures the Core-owned opaque registration slot declares native ownership and is cleared at Core disposal.
+        /// </summary>
+        [Fact]
+        public void Core_PhysicsRuntimeRegistrationState_IsOwnedAndClearedOnDispose() {
+            System.Reflection.PropertyInfo property = typeof(Core).GetProperty(
+                "PhysicsRuntimeRegistrationState",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.NotNull(property);
+            Assert.NotEmpty(property.GetCustomAttributes(typeof(NativeOwnedMemberAttribute), false));
+
+            Core core = new Core(new CoreInitializationOptions());
+            property.SetValue(core, new object());
+
+            core.Dispose();
+
+            Assert.Null(property.GetValue(core));
+        }
+
+        /// <summary>
         /// Ensures registration defers BEPU-backed runtime attachment until one physics scene is loaded.
         /// </summary>
         [Fact]

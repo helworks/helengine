@@ -142,6 +142,7 @@ namespace helengine {
         /// Opaque per-core runtime-module state. Runtime modules use this slot
         /// for event-bound state instead of process-global registration caches.
         /// </summary>
+        [NativeOwnedMember]
         internal object PhysicsRuntimeRegistrationState { get; set; }
 
         /// <summary>
@@ -837,6 +838,7 @@ namespace helengine {
             if (RenderManager2D != null) {
                 RenderManager2D.Dispose();
             }
+            PhysicsRuntimeRegistrationState = null;
             RuntimeDiagnosticsService = null;
         }
 
