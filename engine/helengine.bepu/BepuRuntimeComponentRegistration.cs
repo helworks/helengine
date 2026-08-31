@@ -13,6 +13,7 @@ namespace helengine {
             }
         }
 
+        [NativeBorrowedReturn]
         static RegistrationState GetRegistrationState(Core core) {
             ValidateCore(core);
             RegistrationState state = core.PhysicsRuntimeRegistrationState as RegistrationState;

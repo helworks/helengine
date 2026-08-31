@@ -4,6 +4,19 @@ namespace helengine.bepu.tests {
     /// </summary>
     public sealed class BepuRuntimeComponentRegistrationTests {
         /// <summary>
+        /// Ensures the cached registration state returned from the core-owned slot is borrowed by native callers.
+        /// </summary>
+        [Fact]
+        public void GetRegistrationState_ReturnValue_IsDeclaredBorrowed() {
+            System.Reflection.MethodInfo method = typeof(BepuRuntimeComponentRegistration).GetMethod(
+                "GetRegistrationState",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.NotNull(method);
+            Assert.NotEmpty(method.GetCustomAttributes(typeof(NativeBorrowedReturnAttribute), false));
+        }
+
+        /// <summary>
         /// Ensures registration defers BEPU-backed runtime attachment until one physics scene is loaded.
         /// </summary>
         [Fact]
