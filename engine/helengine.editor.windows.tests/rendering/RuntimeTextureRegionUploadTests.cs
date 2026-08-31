@@ -252,6 +252,70 @@ namespace helengine.editor.windows.tests.rendering {
             Assert.Equal(0ul, texture.DescriptorSet.Handle);
         }
 
+        /// <summary>
+        /// Ensures Vulkan preserves a texture when release is attempted while a 2D frame is recording.
+        /// </summary>
+        [Fact]
+        public void Vulkan_release_during_active_frame_preserves_texture_resources() {
+            using VulkanRenderer3D renderer = CreateVulkanRendererOrSkip();
+            VulkanTextureResource texture = Assert.IsType<VulkanTextureResource>(
+                renderer.Render2D.BuildTextureFromRaw(CreateBlackTextureAsset()));
+            FieldInfo frameActiveField = typeof(VulkanRenderer2D).GetField(
+                "frameActive",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            try {
+                frameActiveField.SetValue(renderer.Render2D, true);
+
+                Assert.Throws<InvalidOperationException>(() => renderer.Render2D.ReleaseTexture(texture));
+                Assert.False(texture.IsDisposed);
+                Assert.NotEqual(0ul, texture.Image.Handle);
+                Assert.NotEqual(0ul, texture.Memory.Handle);
+                Assert.NotEqual(0ul, texture.ImageView.Handle);
+                Assert.NotEqual(0ul, texture.DescriptorSet.Handle);
+            } finally {
+                frameActiveField.SetValue(renderer.Render2D, false);
+                if (!texture.IsDisposed) {
+                    renderer.Render2D.ReleaseTexture(texture);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Ensures releasing texture descriptors permits reuse of the fixed Vulkan descriptor pool.
+        /// </summary>
+        [Fact]
+        public void Vulkan_reuses_texture_descriptor_pool_after_release() {
+            using VulkanRenderer3D renderer = CreateVulkanRendererOrSkip();
+            for (int index = 0; index < 2050; index++) {
+                VulkanTextureResource texture = Assert.IsType<VulkanTextureResource>(
+                    renderer.Render2D.BuildTextureFromRaw(CreateBlackTextureAsset()));
+                renderer.Render2D.ReleaseTexture(texture);
+            }
+        }
+
+        /// <summary>
+        /// Ensures aborting a transient command buffer removes only an actively recording allocation.
+        /// </summary>
+        [Fact]
+        public void Vulkan_abort_single_time_command_tracks_recording_ownership() {
+            using VulkanRenderer3D renderer = CreateVulkanRendererOrSkip();
+            VulkanContext context = GetVulkanContext(renderer);
+            FieldInfo recordingCommandBuffersField = typeof(VulkanContext).GetField(
+                "RecordingCommandBufferHandles",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(recordingCommandBuffersField);
+            var recordingCommandBufferHandles = Assert.IsAssignableFrom<ICollection<ulong>>(
+                recordingCommandBuffersField.GetValue(context));
+
+            CommandBuffer commandBuffer = BeginSingleTimeCommands(context);
+            Assert.True(recordingCommandBufferHandles.Contains((ulong)commandBuffer.Handle));
+
+            context.AbortSingleTimeCommands(commandBuffer);
+
+            Assert.False(recordingCommandBufferHandles.Contains((ulong)commandBuffer.Handle));
+        }
+
         static TextureAsset CreateBlackTextureAsset() {
             byte[] colors = new byte[4 * 4 * 4];
             for (int index = 3; index < colors.Length; index += 4) {
@@ -290,6 +354,12 @@ namespace helengine.editor.windows.tests.rendering {
                 0, 0, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255, 0, 0, 0, 255,
                 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255
             };
+        }
+
+        static VulkanContext GetVulkanContext(VulkanRenderer3D renderer) {
+            FieldInfo contextField = typeof(VulkanRenderer3D).GetField("context", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(contextField);
+            return Assert.IsType<VulkanContext>(contextField.GetValue(renderer));
         }
 
         static DirectX11Renderer3D CreateDirectX11RendererOrSkip() {

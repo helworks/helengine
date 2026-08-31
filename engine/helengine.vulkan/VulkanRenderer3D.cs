@@ -392,12 +392,8 @@ namespace helengine.vulkan {
                 return;
             }
 
-            disposed = true;
-
-            WindowResized -= OnWindowResized;
-            context.Api.DeviceWaitIdle(context.Device);
-
             renderer2D.Dispose();
+            WindowResized -= OnWindowResized;
             DisposeMaterials();
 
             for (int i = 0; i < surfaces.Count; i++) {
@@ -435,6 +431,7 @@ namespace helengine.vulkan {
             context.Dispose();
 
             base.Dispose();
+            disposed = true;
         }
 
         /// <summary>

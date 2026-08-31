@@ -114,10 +114,12 @@ namespace helengine.vulkan {
 
             if (buffer.Handle != 0) {
                 context.Api.DestroyBuffer(context.Device, buffer, null);
+                buffer = default;
             }
 
             if (memory.Handle != 0) {
                 context.Api.FreeMemory(context.Device, memory, null);
+                memory = default;
             }
         }
 

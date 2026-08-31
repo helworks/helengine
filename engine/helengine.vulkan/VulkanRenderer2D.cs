@@ -87,6 +87,14 @@ namespace helengine.vulkan {
         /// </summary>
         readonly HashSet<VulkanTextureResource> OwnedTextures = new();
         /// <summary>
+        /// Staging buffers retained after a queue-wait failure until device completion is proven.
+        /// </summary>
+        readonly List<VulkanGpuBuffer> PendingStagingBuffers = new();
+        /// <summary>
+        /// Image resources retained after a queue-wait failure until device completion is proven.
+        /// </summary>
+        readonly List<VulkanTextureResource> PendingTextureResources = new();
+        /// <summary>
         /// Surface currently being rendered.
         /// </summary>
         VulkanSwapchainSurface currentSurface = null!;
@@ -346,21 +354,32 @@ namespace helengine.vulkan {
 
             int rowBytes = checked(width * 4);
             int sourceBytes = checked(sourceRowPitch * (height - 1) + rowBytes);
-            using VulkanGpuBuffer stagingBuffer = new VulkanGpuBuffer(
+            VulkanGpuBuffer stagingBuffer = new VulkanGpuBuffer(
                 context,
                 (ulong)sourceBytes,
                 BufferUsageFlags.BufferUsageTransferSrcBit,
                 MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
 
-            UpdateStagingBuffer(stagingBuffer, rgba8, sourceBytes);
-            CopyBufferToImageRegion(
-                stagingBuffer.Handle,
-                vulkanTextureResource.Image,
-                checked((uint)width),
-                checked((uint)height),
-                (uint)(sourceRowPitch / 4),
-                x,
-                y);
+            bool stagingBufferPending = false;
+            try {
+                UpdateStagingBuffer(stagingBuffer, rgba8, sourceBytes);
+                CopyBufferToImageRegion(
+                    stagingBuffer.Handle,
+                    vulkanTextureResource.Image,
+                    checked((uint)width),
+                    checked((uint)height),
+                    (uint)(sourceRowPitch / 4),
+                    x,
+                    y);
+            } catch (VulkanQueueWaitException) {
+                PendingStagingBuffers.Add(stagingBuffer);
+                stagingBufferPending = true;
+                throw;
+            } finally {
+                if (!stagingBufferPending) {
+                    stagingBuffer.Dispose();
+                }
+            }
         }
 
         /// <summary>
@@ -375,6 +394,12 @@ namespace helengine.vulkan {
                 !OwnedTextures.Contains(vulkanTextureResource)) {
                 throw new ArgumentException("Runtime texture was not created by the Vulkan 2D renderer.", nameof(texture));
             }
+
+            if (frameActive) {
+                throw new InvalidOperationException("Cannot release a Vulkan texture while a 2D frame is recording.");
+            }
+
+            WaitForDeviceIdle();
 
             DestroyTextureResource(vulkanTextureResource);
             base.ReleaseTexture(texture);
@@ -589,8 +614,8 @@ namespace helengine.vulkan {
                 return;
             }
 
+            WaitForDeviceIdle();
             disposed = true;
-            context.Api.DeviceWaitIdle(context.Device);
 
             DisposeDefaultTextures();
             List<VulkanTextureResource> ownedTextureSnapshot = new List<VulkanTextureResource>(OwnedTextures);
@@ -629,6 +654,7 @@ namespace helengine.vulkan {
                 context.Api.DestroyShaderModule(context.Device, fragmentShader, null);
             }
 
+            disposed = true;
         }
 
         /// <summary>
@@ -699,6 +725,7 @@ namespace helengine.vulkan {
 
             DescriptorPoolCreateInfo poolInfo = new DescriptorPoolCreateInfo {
                 SType = StructureType.DescriptorPoolCreateInfo,
+                Flags = DescriptorPoolCreateFlags.DescriptorPoolCreateFreeDescriptorSetBit,
                 PoolSizeCount = 1,
                 PPoolSizes = &poolSize,
                 MaxSets = MaxDescriptorSets
@@ -1026,34 +1053,51 @@ namespace helengine.vulkan {
         /// <returns>Texture resource.</returns>
         VulkanTextureResource CreateTextureResource(TextureAsset data) {
             ulong imageSize = (ulong)data.Colors.Length;
-            var stagingBuffer = new VulkanGpuBuffer(
+            VulkanGpuBuffer stagingBuffer = new VulkanGpuBuffer(
                 context,
                 imageSize,
                 BufferUsageFlags.BufferUsageTransferSrcBit,
                 MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
-            stagingBuffer.Update(data.Colors);
+            VulkanTextureResource resource = null!;
+            bool stagingBufferPending = false;
 
-            Image image;
-            DeviceMemory memory;
-            CreateImage(data.Width, data.Height, Format.R8G8B8A8Unorm, ImageUsageFlags.ImageUsageTransferDstBit | ImageUsageFlags.ImageUsageSampledBit, out image, out memory);
+            try {
+                stagingBuffer.Update(data.Colors);
 
-            TransitionImageLayout(image, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
-            CopyBufferToImage(stagingBuffer.Handle, image, data.Width, data.Height);
-            TransitionImageLayout(image, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
+                Image image;
+                DeviceMemory memory;
+                CreateImage(data.Width, data.Height, Format.R8G8B8A8Unorm, ImageUsageFlags.ImageUsageTransferDstBit | ImageUsageFlags.ImageUsageSampledBit, out image, out memory);
+                resource = new VulkanTextureResource {
+                    Image = image,
+                    Memory = memory,
+                    Width = data.Width,
+                    Height = data.Height
+                };
 
-            stagingBuffer.Dispose();
+                TransitionImageLayout(image, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
+                CopyBufferToImage(stagingBuffer.Handle, image, data.Width, data.Height);
+                TransitionImageLayout(image, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
 
-            ImageView imageView = CreateImageView(image, Format.R8G8B8A8Unorm);
-            DescriptorSet descriptorSet = AllocateTextureDescriptorSet(imageView);
-
-            return new VulkanTextureResource {
-                Image = image,
-                Memory = memory,
-                ImageView = imageView,
-                DescriptorSet = descriptorSet,
-                Width = data.Width,
-                Height = data.Height
-            };
+                resource.ImageView = CreateImageView(image, Format.R8G8B8A8Unorm);
+                resource.DescriptorSet = AllocateTextureDescriptorSet(resource.ImageView);
+                return resource;
+            } catch (VulkanQueueWaitException) {
+                stagingBufferPending = true;
+                PendingStagingBuffers.Add(stagingBuffer);
+                if (resource != null && !PendingTextureResources.Contains(resource)) {
+                    PendingTextureResources.Add(resource);
+                }
+                throw;
+            } catch {
+                if (resource != null) {
+                    DestroyTextureResource(resource);
+                }
+                throw;
+            } finally {
+                if (!stagingBufferPending) {
+                    stagingBuffer.Dispose();
+                }
+            }
         }
 
         /// <summary>
@@ -1064,6 +1108,19 @@ namespace helengine.vulkan {
             if (texture == null) {
                 return;
             }
+
+            if (texture.DescriptorSet.Handle != 0) {
+                DescriptorSet descriptorSet = texture.DescriptorSet;
+                Result freeDescriptorResult = context.Api.FreeDescriptorSets(
+                    context.Device,
+                    descriptorPool,
+                    1,
+                    in descriptorSet);
+                if (freeDescriptorResult != Result.Success) {
+                    throw new InvalidOperationException($"Failed to free Vulkan texture descriptor set: {freeDescriptorResult}.");
+                }
+            }
+            texture.DescriptorSet = default;
 
             if (texture.ImageView.Handle != 0) {
                 context.Api.DestroyImageView(context.Device, texture.ImageView, null);
@@ -1378,41 +1435,91 @@ namespace helengine.vulkan {
                 out PipelineStageFlags toShaderReadDestinationStage);
 
             CommandBuffer commandBuffer = context.BeginSingleTimeCommands();
-            RecordImageLayoutTransition(
-                commandBuffer,
-                image,
-                ImageLayout.ShaderReadOnlyOptimal,
-                ImageLayout.TransferDstOptimal,
-                toTransferSourceAccess,
-                toTransferDestinationAccess,
-                toTransferSourceStage,
-                toTransferDestinationStage);
+            ImageLayout recordedLayout = ImageLayout.ShaderReadOnlyOptimal;
+            bool submissionStarted = false;
+            try {
+                RecordImageLayoutTransition(
+                    commandBuffer,
+                    image,
+                    ImageLayout.ShaderReadOnlyOptimal,
+                    ImageLayout.TransferDstOptimal,
+                    toTransferSourceAccess,
+                    toTransferDestinationAccess,
+                    toTransferSourceStage,
+                    toTransferDestinationStage);
+                recordedLayout = ImageLayout.TransferDstOptimal;
 
-            BufferImageCopy region = new BufferImageCopy {
-                BufferOffset = 0,
-                BufferRowLength = bufferRowLength,
-                BufferImageHeight = 0,
-                ImageSubresource = new ImageSubresourceLayers {
-                    AspectMask = ImageAspectFlags.ImageAspectColorBit,
-                    MipLevel = 0,
-                    BaseArrayLayer = 0,
-                    LayerCount = 1
-                },
-                ImageOffset = new Offset3D(imageOffsetX, imageOffsetY, 0),
-                ImageExtent = new Extent3D(width, height, 1)
-            };
-            context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
+                BufferImageCopy region = new BufferImageCopy {
+                    BufferOffset = 0,
+                    BufferRowLength = bufferRowLength,
+                    BufferImageHeight = 0,
+                    ImageSubresource = new ImageSubresourceLayers {
+                        AspectMask = ImageAspectFlags.ImageAspectColorBit,
+                        MipLevel = 0,
+                        BaseArrayLayer = 0,
+                        LayerCount = 1
+                    },
+                    ImageOffset = new Offset3D(imageOffsetX, imageOffsetY, 0),
+                    ImageExtent = new Extent3D(width, height, 1)
+                };
+                context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
 
-            RecordImageLayoutTransition(
-                commandBuffer,
-                image,
-                ImageLayout.TransferDstOptimal,
-                ImageLayout.ShaderReadOnlyOptimal,
-                toShaderReadSourceAccess,
-                toShaderReadDestinationAccess,
-                toShaderReadSourceStage,
-                toShaderReadDestinationStage);
-            context.EndSingleTimeCommands(commandBuffer);
+                RecordImageLayoutTransition(
+                    commandBuffer,
+                    image,
+                    ImageLayout.TransferDstOptimal,
+                    ImageLayout.ShaderReadOnlyOptimal,
+                    toShaderReadSourceAccess,
+                    toShaderReadDestinationAccess,
+                    toShaderReadSourceStage,
+                    toShaderReadDestinationStage);
+                recordedLayout = ImageLayout.ShaderReadOnlyOptimal;
+
+                submissionStarted = true;
+                context.EndSingleTimeCommands(commandBuffer);
+            } catch (VulkanQueueWaitException) {
+                // Queue submission succeeded, so the command buffer and staging source remain retained by their owners.
+                throw;
+            } catch {
+                // Commands are recorded but not submitted yet. Restore the tracked layout before abandoning the recording,
+                // then let the context free the buffer only if it still knows it is actively recording.
+                if (!submissionStarted && recordedLayout == ImageLayout.TransferDstOptimal) {
+                    try {
+                        RecordImageLayoutTransition(
+                            commandBuffer,
+                            image,
+                            ImageLayout.TransferDstOptimal,
+                            ImageLayout.ShaderReadOnlyOptimal,
+                            toShaderReadSourceAccess,
+                            toShaderReadDestinationAccess,
+                            toShaderReadSourceStage,
+                            toShaderReadDestinationStage);
+                    } catch {
+                        // Preserve the original recording failure; no submitted command can have changed the image layout.
+                    }
+                }
+                context.AbortSingleTimeCommands(commandBuffer);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Waits for all submitted work to complete before releasing resources used by it.
+        /// </summary>
+        void WaitForDeviceIdle() {
+            context.WaitForDeviceIdle();
+
+            for (int index = 0; index < PendingStagingBuffers.Count; index++) {
+                PendingStagingBuffers[index].Dispose();
+            }
+            PendingStagingBuffers.Clear();
+
+            while (PendingTextureResources.Count > 0) {
+                int lastIndex = PendingTextureResources.Count - 1;
+                VulkanTextureResource resource = PendingTextureResources[lastIndex];
+                DestroyTextureResource(resource);
+                PendingTextureResources.RemoveAt(lastIndex);
+            }
         }
 
         /// <summary>

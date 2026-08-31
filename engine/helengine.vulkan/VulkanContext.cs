@@ -2,8 +2,28 @@ using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan;
 using Silk.NET.Vulkan.Extensions.KHR;
+using System.Collections.Generic;
 
 namespace helengine.vulkan {
+    /// <summary>
+    /// Reports a one-time submission whose queue wait failed after submission, so its command buffer must remain allocated.
+    /// </summary>
+    sealed class VulkanQueueWaitException : InvalidOperationException {
+        /// <summary>
+        /// Vulkan result returned by the failed queue wait.
+        /// </summary>
+        public Result Result { get; }
+
+        /// <summary>
+        /// Initializes an exception for a failed queue wait.
+        /// </summary>
+        /// <param name="result">Vulkan result returned by the queue wait.</param>
+        public VulkanQueueWaitException(Result result)
+            : base($"Vulkan queue wait for one-time command buffer failed: {result}. The command buffer remains owned by the transfer pool because execution may still be pending.") {
+            Result = result;
+        }
+    }
+
     /// <summary>
     /// Owns the Vulkan instance, device, and queue used by the renderer.
     /// </summary>
@@ -57,6 +77,14 @@ namespace helengine.vulkan {
         /// Command pool used for transient upload operations.
         /// </summary>
         CommandPool transferCommandPool;
+        /// <summary>
+        /// One-time command buffers retained after a queue-wait failure until device completion is proven.
+        /// </summary>
+        readonly List<CommandBuffer> PendingCommandBuffers = new();
+        /// <summary>
+        /// Handles of transient command buffers that are currently being recorded and have not been submitted.
+        /// </summary>
+        readonly HashSet<ulong> RecordingCommandBufferHandles = new();
         /// <summary>
         /// Cached physical device memory properties.
         /// </summary>
@@ -168,6 +196,7 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException($"Vulkan command buffer begin failed: {beginResult}.");
             }
 
+            RecordingCommandBufferHandles.Add((ulong)commandBuffer.Handle);
             return commandBuffer;
         }
 
@@ -178,6 +207,7 @@ namespace helengine.vulkan {
         public unsafe void EndSingleTimeCommands(CommandBuffer commandBuffer) {
             Result endResult = api.EndCommandBuffer(commandBuffer);
             if (endResult != Result.Success) {
+                RecordingCommandBufferHandles.Remove((ulong)commandBuffer.Handle);
                 api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
                 throw new InvalidOperationException($"Vulkan command buffer end failed: {endResult}.");
             }
@@ -190,13 +220,52 @@ namespace helengine.vulkan {
 
             Result submitResult = api.QueueSubmit(graphicsQueue, 1, in submitInfo, default);
             if (submitResult != Result.Success) {
+                RecordingCommandBufferHandles.Remove((ulong)commandBuffer.Handle);
                 api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
                 throw new InvalidOperationException($"Vulkan queue submit failed: {submitResult}.");
             }
 
+            RecordingCommandBufferHandles.Remove((ulong)commandBuffer.Handle);
             Result waitResult = api.QueueWaitIdle(graphicsQueue);
             if (waitResult != Result.Success) {
-                throw new InvalidOperationException($"Vulkan queue wait for one-time command buffer failed: {waitResult}. The command buffer remains owned by the transfer pool because execution may still be pending.");
+                PendingCommandBuffers.Add(commandBuffer);
+                throw new VulkanQueueWaitException(waitResult);
+            }
+
+            api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
+        }
+
+        /// <summary>
+        /// Waits for all submitted work to complete and releases command buffers retained after failed waits.
+        /// </summary>
+        public void WaitForDeviceIdle() {
+            if (RecordingCommandBufferHandles.Count != 0) {
+                throw new InvalidOperationException("Cannot wait for Vulkan device idle while a transient command buffer is still recording.");
+            }
+
+            Result waitResult = api.DeviceWaitIdle(device);
+            if (waitResult != Result.Success) {
+                throw new InvalidOperationException($"Vulkan device idle wait failed: {waitResult}. Pending command buffers remain owned by the transfer pool.");
+            }
+
+            for (int index = 0; index < PendingCommandBuffers.Count; index++) {
+                CommandBuffer commandBuffer = PendingCommandBuffers[index];
+                api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
+            }
+            PendingCommandBuffers.Clear();
+        }
+
+        /// <summary>
+        /// Aborts a one-time command buffer that has not been submitted.
+        /// </summary>
+        /// <param name="commandBuffer">Command buffer still owned by the transfer pool.</param>
+        public unsafe void AbortSingleTimeCommands(CommandBuffer commandBuffer) {
+            if (commandBuffer.Handle == 0) {
+                return;
+            }
+
+            if (!RecordingCommandBufferHandles.Remove((ulong)commandBuffer.Handle)) {
+                return;
             }
 
             api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
@@ -210,10 +279,22 @@ namespace helengine.vulkan {
                 return;
             }
 
-            disposed = true;
-
             if (device.Handle != 0) {
-                api.DeviceWaitIdle(device);
+                if (RecordingCommandBufferHandles.Count != 0) {
+                    throw new InvalidOperationException("Cannot dispose Vulkan context while a transient command buffer is still recording.");
+                }
+
+                Result waitResult = api.DeviceWaitIdle(device);
+                if (waitResult != Result.Success) {
+                    throw new InvalidOperationException($"Vulkan device idle wait failed during context disposal: {waitResult}. Vulkan resources remain owned by the context for a later safe teardown.");
+                }
+
+                for (int index = 0; index < PendingCommandBuffers.Count; index++) {
+                    CommandBuffer commandBuffer = PendingCommandBuffers[index];
+                    api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
+                }
+                PendingCommandBuffers.Clear();
+                RecordingCommandBufferHandles.Clear();
                 api.DestroyCommandPool(device, transferCommandPool, null);
                 api.DestroyDevice(device, null);
             }
@@ -221,6 +302,8 @@ namespace helengine.vulkan {
             if (instance.Handle != 0) {
                 api.DestroyInstance(instance, null);
             }
+
+            disposed = true;
         }
 
         /// <summary>
