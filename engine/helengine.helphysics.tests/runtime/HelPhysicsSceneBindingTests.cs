@@ -16,6 +16,72 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Ensures binding lookup exposes an existing binder-owned association as a borrowed native return.
+        /// </summary>
+        [Fact]
+        public void GetBinding_ReturnValue_IsDeclaredBorrowed() {
+            System.Reflection.MethodInfo method = typeof(HelPhysicsSceneBinder3D).GetMethod(
+                nameof(HelPhysicsSceneBinder3D.GetBinding));
+
+            Assert.NotNull(method);
+            Assert.NotEmpty(method.GetCustomAttributes(typeof(NativeBorrowedReturnAttribute), false));
+        }
+
+        /// <summary>
+        /// Ensures a newly allocated body description transfers ownership into its binding record during construction.
+        /// </summary>
+        [Fact]
+        public void BindingConstructor_DescriptionParameter_TakesNativeOwnership() {
+            System.Reflection.ConstructorInfo constructor = typeof(HelPhysicsEntityBinding3D).GetConstructor(
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                null,
+                new[] {
+                    typeof(HelPhysicsWorld3D),
+                    typeof(Entity),
+                    typeof(RigidBody3DComponent),
+                    typeof(BoxCollider3DComponent),
+                    typeof(HelPhysicsBodyHandle3D),
+                    typeof(int),
+                    typeof(HelPhysicsBodyDescription3D),
+                    typeof(HelPhysicsEntityBindingLifecycle3D)
+                },
+                null);
+
+            Assert.NotNull(constructor);
+            System.Reflection.ParameterInfo descriptionParameter = Assert.Single(
+                constructor.GetParameters(),
+                parameter => parameter.ParameterType == typeof(HelPhysicsBodyDescription3D));
+            Assert.NotEmpty(descriptionParameter.GetCustomAttributes(typeof(NativeTakesOwnershipAttribute), false));
+        }
+
+        /// <summary>
+        /// Ensures the binding keeps only a non-owning back-reference to the lifecycle component transferred to its entity.
+        /// </summary>
+        [Fact]
+        public void BindingConstructor_LifecycleParameter_RetainsBorrowedReference() {
+            System.Reflection.ConstructorInfo constructor = typeof(HelPhysicsEntityBinding3D).GetConstructor(
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                null,
+                new[] {
+                    typeof(HelPhysicsWorld3D),
+                    typeof(Entity),
+                    typeof(RigidBody3DComponent),
+                    typeof(BoxCollider3DComponent),
+                    typeof(HelPhysicsBodyHandle3D),
+                    typeof(int),
+                    typeof(HelPhysicsBodyDescription3D),
+                    typeof(HelPhysicsEntityBindingLifecycle3D)
+                },
+                null);
+
+            Assert.NotNull(constructor);
+            System.Reflection.ParameterInfo lifecycleParameter = Assert.Single(
+                constructor.GetParameters(),
+                parameter => parameter.ParameterType == typeof(HelPhysicsEntityBindingLifecycle3D));
+            Assert.NotEmpty(lifecycleParameter.GetCustomAttributes(typeof(NativeRetainsBorrowAttribute), false));
+        }
+
+        /// <summary>
         /// Ensures recursive traversal binds each supported nested physics entity exactly once.
         /// </summary>
         [Fact]

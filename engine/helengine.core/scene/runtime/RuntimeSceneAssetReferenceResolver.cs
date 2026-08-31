@@ -550,10 +550,12 @@ namespace helengine {
 #endif
         }
 
+        [NativeBorrowedReturn]
         RenderManager3D RequireRenderManager3D() {
             return RenderManager3D ?? throw new InvalidOperationException("The owning core must provide a 3D renderer to resolve this asset.");
         }
 
+        [NativeBorrowedReturn]
         RenderManager2D RequireRenderManager2D() {
             return RenderManager2D ?? throw new InvalidOperationException("The owning core must provide a 2D renderer to resolve this asset.");
         }

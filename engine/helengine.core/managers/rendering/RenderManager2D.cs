@@ -102,12 +102,10 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(height), "Texture region exceeds the destination texture height.");
             }
 
-            int requiredRowBytes;
-            try {
-                requiredRowBytes = checked(width * 4);
-            } catch (OverflowException) {
+            if (width > int.MaxValue / 4) {
                 throw new ArgumentOutOfRangeException(nameof(width), "Texture region row size is too large.");
             }
+            int requiredRowBytes = width * 4;
             if (sourceRowPitch < requiredRowBytes) {
                 throw new ArgumentOutOfRangeException(nameof(sourceRowPitch), "Source row pitch is smaller than the requested RGBA8 row.");
             }
@@ -115,12 +113,10 @@ namespace helengine {
                 throw new ArgumentException("Source row pitch must be divisible by four for RGBA8 data.", nameof(sourceRowPitch));
             }
 
-            int requiredBytes;
-            try {
-                requiredBytes = checked(sourceRowPitch * (height - 1) + requiredRowBytes);
-            } catch (OverflowException) {
+            if (height > 1 && sourceRowPitch > (int.MaxValue - requiredRowBytes) / (height - 1)) {
                 throw new ArgumentOutOfRangeException(nameof(sourceRowPitch), "Source buffer size is too large.");
             }
+            int requiredBytes = sourceRowPitch * (height - 1) + requiredRowBytes;
             if (rgba8.Length < requiredBytes) {
                 throw new ArgumentException("Source buffer is shorter than the requested texture region.", nameof(rgba8));
             }

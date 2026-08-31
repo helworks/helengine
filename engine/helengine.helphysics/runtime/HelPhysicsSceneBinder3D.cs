@@ -93,6 +93,7 @@ namespace helengine {
         /// <returns>The current valid binding owned by this runtime.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="entity"/> is null.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the entity is not currently bound.</exception>
+        [NativeBorrowedReturn]
         public HelPhysicsEntityBinding3D GetBinding(Entity entity) {
             if (!TryGetBinding(entity, out HelPhysicsEntityBinding3D binding)) {
                 throw new InvalidOperationException("The entity is not bound to this HelPhysics scene runtime.");

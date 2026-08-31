@@ -263,6 +263,30 @@ namespace helengine.core.tests.managers.rendering {
             AssertNativeNoEscapeOnRgba8(coreMethod);
         }
 
+        /// <summary>
+        /// Ensures the generated texture-region entry point does not contain checked arithmetic unsupported by the C++ backend.
+        /// </summary>
+        [Fact]
+        public void UpdateTextureRegion_DoesNotUseUnsupportedCheckedArithmetic() {
+            string sourcePath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "helengine.core",
+                "managers",
+                "rendering",
+                "RenderManager2D.cs"));
+            string source = File.ReadAllText(sourcePath);
+            int methodStart = source.IndexOf("public void UpdateTextureRegion(", StringComparison.Ordinal);
+            int methodEnd = source.IndexOf("protected abstract void UpdateTextureRegionCore(", methodStart, StringComparison.Ordinal);
+
+            Assert.True(methodStart >= 0);
+            Assert.True(methodEnd > methodStart);
+            Assert.DoesNotContain("checked", source.Substring(methodStart, methodEnd - methodStart), StringComparison.Ordinal);
+        }
+
         static void AssertNativeNoEscapeOnRgba8(MethodInfo method) {
             ParameterInfo rgba8Parameter = Assert.Single(
                 method.GetParameters(),

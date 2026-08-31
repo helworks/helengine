@@ -27,8 +27,8 @@ namespace helengine {
             BoxCollider3DComponent boxCollider,
             HelPhysicsBodyHandle3D bodyHandle,
             int bindingId,
-            HelPhysicsBodyDescription3D description,
-            HelPhysicsEntityBindingLifecycle3D lifecycle) {
+            [NativeTakesOwnership] HelPhysicsBodyDescription3D description,
+            [NativeRetainsBorrow] HelPhysicsEntityBindingLifecycle3D lifecycle) {
             WorldValue = world ?? throw new ArgumentNullException(nameof(world));
             Entity = entity ?? throw new ArgumentNullException(nameof(entity));
             RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
