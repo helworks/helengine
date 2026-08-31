@@ -10,6 +10,16 @@ namespace helengine.core.tests.assets.font {
                 return null;
             }
 
+            protected override void UpdateTextureRegionCore(
+                RuntimeTexture texture,
+                int x,
+                int y,
+                int width,
+                int height,
+                [NativeNoEscape] byte[] rgba8,
+                int sourceRowPitch) {
+            }
+
             public override void DrawSprite(ISpriteDrawable2D sprite) {
             }
 

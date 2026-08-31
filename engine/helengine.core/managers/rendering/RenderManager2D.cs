@@ -51,6 +51,103 @@ namespace helengine {
         public abstract RuntimeTexture BuildTextureFromRaw([NativeNoEscape] TextureAsset data);
 
         /// <summary>
+        /// Updates one pixel rectangle in a renderer-owned runtime texture from an RGBA8 source buffer.
+        /// </summary>
+        /// <param name="texture">Runtime texture that receives the update.</param>
+        /// <param name="x">Destination rectangle X coordinate in pixels.</param>
+        /// <param name="y">Destination rectangle Y coordinate in pixels.</param>
+        /// <param name="width">Destination rectangle width in pixels.</param>
+        /// <param name="height">Destination rectangle height in pixels.</param>
+        /// <param name="rgba8">RGBA8 source pixels, arranged row by row.</param>
+        /// <param name="sourceRowPitch">Number of bytes between the starts of adjacent source rows.</param>
+        public void UpdateTextureRegion(
+            RuntimeTexture texture,
+            int x,
+            int y,
+            int width,
+            int height,
+            [NativeNoEscape] byte[] rgba8,
+            int sourceRowPitch) {
+            if (texture == null) {
+                throw new ArgumentNullException(nameof(texture));
+            }
+            if (texture.IsDisposed) {
+                throw new ObjectDisposedException(nameof(texture));
+            }
+            if (rgba8 == null) {
+                throw new ArgumentNullException(nameof(rgba8));
+            }
+            if (x < 0) {
+                throw new ArgumentOutOfRangeException(nameof(x), "Texture region X coordinate must be non-negative.");
+            }
+            if (y < 0) {
+                throw new ArgumentOutOfRangeException(nameof(y), "Texture region Y coordinate must be non-negative.");
+            }
+            if (width <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(width), "Texture region width must be greater than zero.");
+            }
+            if (height <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(height), "Texture region height must be greater than zero.");
+            }
+            if ((long)x >= texture.Width) {
+                throw new ArgumentOutOfRangeException(nameof(x), "Texture region exceeds the destination texture width.");
+            }
+            if ((long)x + width > texture.Width) {
+                throw new ArgumentOutOfRangeException(nameof(width), "Texture region exceeds the destination texture width.");
+            }
+            if ((long)y >= texture.Height) {
+                throw new ArgumentOutOfRangeException(nameof(y), "Texture region exceeds the destination texture height.");
+            }
+            if ((long)y + height > texture.Height) {
+                throw new ArgumentOutOfRangeException(nameof(height), "Texture region exceeds the destination texture height.");
+            }
+
+            int requiredRowBytes;
+            try {
+                requiredRowBytes = checked(width * 4);
+            } catch (OverflowException) {
+                throw new ArgumentOutOfRangeException(nameof(width), "Texture region row size is too large.");
+            }
+            if (sourceRowPitch < requiredRowBytes) {
+                throw new ArgumentOutOfRangeException(nameof(sourceRowPitch), "Source row pitch is smaller than the requested RGBA8 row.");
+            }
+            if (sourceRowPitch % 4 != 0) {
+                throw new ArgumentException("Source row pitch must be divisible by four for RGBA8 data.", nameof(sourceRowPitch));
+            }
+
+            int requiredBytes;
+            try {
+                requiredBytes = checked(sourceRowPitch * (height - 1) + requiredRowBytes);
+            } catch (OverflowException) {
+                throw new ArgumentOutOfRangeException(nameof(sourceRowPitch), "Source buffer size is too large.");
+            }
+            if (rgba8.Length < requiredBytes) {
+                throw new ArgumentException("Source buffer is shorter than the requested texture region.", nameof(rgba8));
+            }
+
+            UpdateTextureRegionCore(texture, x, y, width, height, rgba8, sourceRowPitch);
+        }
+
+        /// <summary>
+        /// Updates one pixel rectangle in a renderer-owned runtime texture using backend resources.
+        /// </summary>
+        /// <param name="texture">Runtime texture that receives the update.</param>
+        /// <param name="x">Destination rectangle X coordinate in pixels.</param>
+        /// <param name="y">Destination rectangle Y coordinate in pixels.</param>
+        /// <param name="width">Destination rectangle width in pixels.</param>
+        /// <param name="height">Destination rectangle height in pixels.</param>
+        /// <param name="rgba8">RGBA8 source pixels, arranged row by row.</param>
+        /// <param name="sourceRowPitch">Number of bytes between the starts of adjacent source rows.</param>
+        protected abstract void UpdateTextureRegionCore(
+            RuntimeTexture texture,
+            int x,
+            int y,
+            int width,
+            int height,
+            [NativeNoEscape] byte[] rgba8,
+            int sourceRowPitch);
+
+        /// <summary>
         /// Builds a runtime texture from one platform-owned cooked texture payload.
         /// </summary>
         /// <param name="cookedAssetPath">Runtime asset path of the cooked texture payload.</param>

@@ -5,6 +5,8 @@ namespace helengine.editor.tests.testing {
     /// Provides a minimal 2D render manager that can materialize runtime textures for UI-oriented tests.
     /// </summary>
     internal class TestRenderManager2D : RenderManager2D {
+        readonly HashSet<RuntimeTexture> OwnedTextures = new HashSet<RuntimeTexture>();
+
         /// <summary>
         /// Gets the runtime textures released through this test renderer.
         /// </summary>
@@ -36,10 +38,35 @@ namespace helengine.editor.tests.testing {
             }
 
             BuildTextureFromRawCallCount++;
-            return new TestRuntimeTexture {
+            RuntimeTexture texture = new TestRuntimeTexture {
                 Width = data.Width,
                 Height = data.Height
             };
+            OwnedTextures.Add(texture);
+            return texture;
+        }
+
+        /// <summary>
+        /// Rejects texture updates for runtime textures created by another test renderer.
+        /// </summary>
+        /// <param name="texture">Runtime texture that should receive the update.</param>
+        /// <param name="x">Destination rectangle X coordinate in pixels.</param>
+        /// <param name="y">Destination rectangle Y coordinate in pixels.</param>
+        /// <param name="width">Destination rectangle width in pixels.</param>
+        /// <param name="height">Destination rectangle height in pixels.</param>
+        /// <param name="rgba8">RGBA8 source pixels.</param>
+        /// <param name="sourceRowPitch">Number of bytes between source rows.</param>
+        protected override void UpdateTextureRegionCore(
+            RuntimeTexture texture,
+            int x,
+            int y,
+            int width,
+            int height,
+            [NativeNoEscape] byte[] rgba8,
+            int sourceRowPitch) {
+            if (!OwnedTextures.Contains(texture)) {
+                throw new ArgumentException("Texture was not created by this renderer.", nameof(texture));
+            }
         }
 
         /// <summary>
@@ -51,6 +78,7 @@ namespace helengine.editor.tests.testing {
                 throw new ArgumentNullException(nameof(texture));
             }
 
+            OwnedTextures.Remove(texture);
             ReleasedTextures.Add(texture);
             base.ReleaseTexture(texture);
         }
