@@ -17,23 +17,42 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
-        /// Ensures the Core-owned opaque registration slot declares native ownership and is cleared at Core disposal.
+        /// Ensures the Core-owned registration state is disposed exactly once before its native-owned slot is cleared.
         /// </summary>
         [Fact]
         public void Core_PhysicsRuntimeRegistrationState_IsOwnedAndClearedOnDispose() {
-            System.Reflection.PropertyInfo property = typeof(Core).GetProperty(
+            System.Reflection.FieldInfo property = typeof(Core).GetField(
                 "PhysicsRuntimeRegistrationState",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
 
             Assert.NotNull(property);
             Assert.NotEmpty(property.GetCustomAttributes(typeof(NativeOwnedMemberAttribute), false));
+            Assert.Equal(typeof(IDisposable), property.FieldType);
 
             Core core = new Core(new CoreInitializationOptions());
-            property.SetValue(core, new object());
+            CountingDisposable state = new CountingDisposable();
+            property.SetValue(core, state);
 
             core.Dispose();
+            core.Dispose();
 
+            Assert.Equal(1, state.DisposeCount);
             Assert.Null(property.GetValue(core));
+        }
+
+        /// <summary>
+        /// Ensures Core uses the canonical native ownership helper for the registration-state release boundary.
+        /// </summary>
+        [Fact]
+        public void Core_PhysicsRuntimeRegistrationState_UsesDisposeAndReleaseHelper() {
+            string source = File.ReadAllText(
+                Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.core", "Core.cs"))
+                .Replace("\r\n", "\n", StringComparison.Ordinal);
+
+            Assert.Contains(
+                "NativeOwnership.DisposeAndRelease(ref PhysicsRuntimeRegistrationState);",
+                source,
+                StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -267,6 +286,14 @@ namespace helengine.bepu.tests {
             }
 
             throw new InvalidOperationException("Unable to resolve the HelEngine repository root from the current test directory.");
+        }
+
+        sealed class CountingDisposable : IDisposable {
+            public int DisposeCount { get; private set; }
+
+            public void Dispose() {
+                DisposeCount++;
+            }
         }
     }
 }

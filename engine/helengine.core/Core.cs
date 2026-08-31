@@ -143,7 +143,7 @@ namespace helengine {
         /// for event-bound state instead of process-global registration caches.
         /// </summary>
         [NativeOwnedMember]
-        internal object PhysicsRuntimeRegistrationState { get; set; }
+        internal IDisposable PhysicsRuntimeRegistrationState;
 
         /// <summary>
         /// Gets the shared runtime audio manager when one backend has been configured by the active host.
@@ -838,7 +838,7 @@ namespace helengine {
             if (RenderManager2D != null) {
                 RenderManager2D.Dispose();
             }
-            PhysicsRuntimeRegistrationState = null;
+            NativeOwnership.DisposeAndRelease(ref PhysicsRuntimeRegistrationState);
             RuntimeDiagnosticsService = null;
         }
 

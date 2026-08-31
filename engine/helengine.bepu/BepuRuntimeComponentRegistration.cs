@@ -3,13 +3,24 @@ namespace helengine {
     /// Registers packaged scene component support required by the BEPU-backed 3D physics runtime.
     /// </summary>
     public static class BepuRuntimeComponentRegistration {
-        sealed class RegistrationState {
+        sealed class RegistrationState : IDisposable {
             internal readonly Core Core;
             internal BepuPhysicsWorld3D RuntimeWorld;
             internal bool SceneBindingRegistered;
+            bool IsDisposed;
 
             internal RegistrationState(Core core) {
                 Core = core ?? throw new ArgumentNullException(nameof(core));
+            }
+
+            public void Dispose() {
+                if (IsDisposed) {
+                    return;
+                }
+
+                IsDisposed = true;
+                RuntimeWorld = null;
+                SceneBindingRegistered = false;
             }
         }
 
