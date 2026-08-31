@@ -152,14 +152,22 @@ namespace helengine.vulkan {
             };
 
             CommandBuffer commandBuffer;
-            api.AllocateCommandBuffers(device, allocInfo, out commandBuffer);
+            Result allocateResult = api.AllocateCommandBuffers(device, allocInfo, out commandBuffer);
+            if (allocateResult != Result.Success) {
+                throw new InvalidOperationException($"Vulkan command buffer allocation failed: {allocateResult}.");
+            }
 
             CommandBufferBeginInfo beginInfo = new CommandBufferBeginInfo {
                 SType = StructureType.CommandBufferBeginInfo,
                 Flags = CommandBufferUsageFlags.CommandBufferUsageOneTimeSubmitBit
             };
 
-            api.BeginCommandBuffer(commandBuffer, beginInfo);
+            Result beginResult = api.BeginCommandBuffer(commandBuffer, beginInfo);
+            if (beginResult != Result.Success) {
+                api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
+                throw new InvalidOperationException($"Vulkan command buffer begin failed: {beginResult}.");
+            }
+
             return commandBuffer;
         }
 
@@ -168,7 +176,11 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="commandBuffer">Command buffer to submit.</param>
         public unsafe void EndSingleTimeCommands(CommandBuffer commandBuffer) {
-            api.EndCommandBuffer(commandBuffer);
+            Result endResult = api.EndCommandBuffer(commandBuffer);
+            if (endResult != Result.Success) {
+                api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
+                throw new InvalidOperationException($"Vulkan command buffer end failed: {endResult}.");
+            }
 
             SubmitInfo submitInfo = new SubmitInfo {
                 SType = StructureType.SubmitInfo,
@@ -178,9 +190,14 @@ namespace helengine.vulkan {
 
             Result submitResult = api.QueueSubmit(graphicsQueue, 1, in submitInfo, default);
             if (submitResult != Result.Success) {
+                api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
                 throw new InvalidOperationException($"Vulkan queue submit failed: {submitResult}.");
             }
-            api.QueueWaitIdle(graphicsQueue);
+
+            Result waitResult = api.QueueWaitIdle(graphicsQueue);
+            if (waitResult != Result.Success) {
+                throw new InvalidOperationException($"Vulkan queue wait for one-time command buffer failed: {waitResult}. The command buffer remains owned by the transfer pool because execution may still be pending.");
+            }
 
             api.FreeCommandBuffers(device, transferCommandPool, 1, in commandBuffer);
         }

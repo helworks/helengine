@@ -38,6 +38,7 @@ namespace helengine.directx11 {
         const int InitialGeometryVertexCapacity = 1024;
 
         readonly DirectX11Renderer3D parentRenderer;
+        readonly HashSet<DirectX11TextureResource> OwnedTextures = new();
         Buffer spriteQuadBuffer = null!;
         InputLayout spriteInputLayout = null!;
         InputLayout uiShapeInputLayout = null!;
@@ -500,7 +501,50 @@ namespace helengine.directx11 {
             }
 
             asset.Resource = new ShaderResourceView(Device, asset.Texture);
+            OwnedTextures.Add(asset);
             return asset;
+        }
+
+        /// <summary>
+        /// Uploads one validated RGBA8 rectangle into an existing Direct3D11 texture resource.
+        /// </summary>
+        /// <param name="texture">Runtime texture that owns the destination texture.</param>
+        /// <param name="x">Destination X coordinate in pixels.</param>
+        /// <param name="y">Destination Y coordinate in pixels.</param>
+        /// <param name="width">Rectangle width in pixels.</param>
+        /// <param name="height">Rectangle height in pixels.</param>
+        /// <param name="rgba8">Validated RGBA8 source bytes.</param>
+        /// <param name="sourceRowPitch">Source byte distance between rows.</param>
+        protected override void UpdateTextureRegionCore(
+            RuntimeTexture texture,
+            int x,
+            int y,
+            int width,
+            int height,
+            [NativeNoEscape] byte[] rgba8,
+            int sourceRowPitch) {
+            if (texture is not DirectX11TextureResource directX11TextureResource ||
+                !OwnedTextures.Contains(directX11TextureResource)) {
+                throw new ArgumentException("Runtime texture was not created by the DirectX11 2D renderer.", nameof(texture));
+            }
+            if (directX11TextureResource.Texture == null) {
+                throw new InvalidOperationException("DirectX11 runtime texture does not own a texture resource.");
+            }
+
+            GCHandle dataHandle = GCHandle.Alloc(rgba8, GCHandleType.Pinned);
+            try {
+                DataBox dataBox = new DataBox(dataHandle.AddrOfPinnedObject(), sourceRowPitch, 0);
+                ResourceRegion region = new ResourceRegion(
+                    x,
+                    y,
+                    0,
+                    x + width,
+                    y + height,
+                    1);
+                Device.ImmediateContext.UpdateSubresource(dataBox, directX11TextureResource.Texture, 0, region);
+            } finally {
+                dataHandle.Free();
+            }
         }
 
         /// <summary>
@@ -511,8 +555,9 @@ namespace helengine.directx11 {
             if (texture == null) {
                 throw new ArgumentNullException(nameof(texture));
             }
-            if (texture is not DirectX11TextureResource directX11TextureResource) {
-                throw new InvalidOperationException("Released runtime texture was not created by the DirectX11 2D renderer.");
+            if (texture is not DirectX11TextureResource directX11TextureResource ||
+                !OwnedTextures.Contains(directX11TextureResource)) {
+                throw new ArgumentException("Runtime texture was not created by the DirectX11 2D renderer.", nameof(texture));
             }
 
             directX11TextureResource.Resource?.Dispose();
@@ -520,12 +565,20 @@ namespace helengine.directx11 {
             directX11TextureResource.Texture?.Dispose();
             directX11TextureResource.Texture = null;
             base.ReleaseTexture(texture);
+            OwnedTextures.Remove(directX11TextureResource);
         }
 
         /// <summary>
         /// Releases all GPU resources created by the 2D renderer.
         /// </summary>
         public override void Dispose() {
+            DisposeDefaultTextures();
+            List<DirectX11TextureResource> ownedTextureSnapshot = new List<DirectX11TextureResource>(OwnedTextures);
+            for (int index = 0; index < ownedTextureSnapshot.Count; index++) {
+                ReleaseTexture(ownedTextureSnapshot[index]);
+            }
+            OwnedTextures.Clear();
+
             spriteQuadBuffer?.Dispose();
             spriteInputLayout?.Dispose();
             uiShapeInputLayout?.Dispose();
@@ -544,7 +597,6 @@ namespace helengine.directx11 {
             geometryVertexBuffer?.Dispose();
             rasterizerState2D?.Dispose();
             depthStencilState2D?.Dispose();
-            DisposeDefaultTextures();
         }
 
         /// <summary>

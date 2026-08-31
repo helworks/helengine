@@ -83,6 +83,10 @@ namespace helengine.vulkan {
         /// </summary>
         VulkanTextureResource whiteTexture = null!;
         /// <summary>
+        /// Runtime textures created by this renderer and therefore safe to update.
+        /// </summary>
+        readonly HashSet<VulkanTextureResource> OwnedTextures = new();
+        /// <summary>
         /// Surface currently being rendered.
         /// </summary>
         VulkanSwapchainSurface currentSurface = null!;
@@ -309,7 +313,54 @@ namespace helengine.vulkan {
                 throw new ArgumentException("Texture data size does not match expected RGBA length.", nameof(data));
             }
 
-            return CreateTextureResource(data);
+            VulkanTextureResource resource = CreateTextureResource(data);
+            OwnedTextures.Add(resource);
+            return resource;
+        }
+
+        /// <summary>
+        /// Uploads one validated RGBA8 rectangle into an existing Vulkan texture image.
+        /// </summary>
+        /// <param name="texture">Runtime texture that owns the destination image.</param>
+        /// <param name="x">Destination X coordinate in pixels.</param>
+        /// <param name="y">Destination Y coordinate in pixels.</param>
+        /// <param name="width">Rectangle width in pixels.</param>
+        /// <param name="height">Rectangle height in pixels.</param>
+        /// <param name="rgba8">Validated RGBA8 source bytes.</param>
+        /// <param name="sourceRowPitch">Source byte distance between rows.</param>
+        protected override void UpdateTextureRegionCore(
+            RuntimeTexture texture,
+            int x,
+            int y,
+            int width,
+            int height,
+            [NativeNoEscape] byte[] rgba8,
+            int sourceRowPitch) {
+            if (texture is not VulkanTextureResource vulkanTextureResource ||
+                !OwnedTextures.Contains(vulkanTextureResource)) {
+                throw new ArgumentException("Runtime texture was not created by the Vulkan 2D renderer.", nameof(texture));
+            }
+            if (vulkanTextureResource.Image.Handle == 0 || vulkanTextureResource.Memory.Handle == 0) {
+                throw new InvalidOperationException("Vulkan runtime texture does not own a valid image resource.");
+            }
+
+            int rowBytes = checked(width * 4);
+            int sourceBytes = checked(sourceRowPitch * (height - 1) + rowBytes);
+            using VulkanGpuBuffer stagingBuffer = new VulkanGpuBuffer(
+                context,
+                (ulong)sourceBytes,
+                BufferUsageFlags.BufferUsageTransferSrcBit,
+                MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
+
+            UpdateStagingBuffer(stagingBuffer, rgba8, sourceBytes);
+            CopyBufferToImageRegion(
+                stagingBuffer.Handle,
+                vulkanTextureResource.Image,
+                checked((uint)width),
+                checked((uint)height),
+                (uint)(sourceRowPitch / 4),
+                x,
+                y);
         }
 
         /// <summary>
@@ -320,15 +371,14 @@ namespace helengine.vulkan {
             if (texture == null) {
                 throw new ArgumentNullException(nameof(texture));
             }
-            if (texture is not VulkanTextureResource vulkanTextureResource) {
-                throw new InvalidOperationException("Released runtime texture was not created by the Vulkan 2D renderer.");
-            }
-            if (ReferenceEquals(vulkanTextureResource, whiteTexture)) {
-                return;
+            if (texture is not VulkanTextureResource vulkanTextureResource ||
+                !OwnedTextures.Contains(vulkanTextureResource)) {
+                throw new ArgumentException("Runtime texture was not created by the Vulkan 2D renderer.", nameof(texture));
             }
 
             DestroyTextureResource(vulkanTextureResource);
             base.ReleaseTexture(texture);
+            OwnedTextures.Remove(vulkanTextureResource);
         }
 
         /// <summary>
@@ -542,7 +592,14 @@ namespace helengine.vulkan {
             disposed = true;
             context.Api.DeviceWaitIdle(context.Device);
 
-            DestroyTextureResource(whiteTexture);
+            DisposeDefaultTextures();
+            List<VulkanTextureResource> ownedTextureSnapshot = new List<VulkanTextureResource>(OwnedTextures);
+            for (int index = 0; index < ownedTextureSnapshot.Count; index++) {
+                ReleaseTexture(ownedTextureSnapshot[index]);
+            }
+            OwnedTextures.Clear();
+            whiteTexture = null!;
+
             vertexBuffer.Dispose();
             indexBuffer.Dispose();
 
@@ -572,7 +629,6 @@ namespace helengine.vulkan {
                 context.Api.DestroyShaderModule(context.Device, fragmentShader, null);
             }
 
-            DisposeDefaultTextures();
         }
 
         /// <summary>
@@ -720,6 +776,7 @@ namespace helengine.vulkan {
             };
 
             whiteTexture = CreateTextureResource(asset);
+            OwnedTextures.Add(whiteTexture);
         }
 
         /// <summary>
@@ -1011,14 +1068,18 @@ namespace helengine.vulkan {
             if (texture.ImageView.Handle != 0) {
                 context.Api.DestroyImageView(context.Device, texture.ImageView, null);
             }
+            texture.ImageView = default;
 
             if (texture.Image.Handle != 0) {
                 context.Api.DestroyImage(context.Device, texture.Image, null);
             }
+            texture.Image = default;
 
             if (texture.Memory.Handle != 0) {
                 context.Api.FreeMemory(context.Device, texture.Memory, null);
             }
+            texture.Memory = default;
+            texture.DescriptorSet = default;
         }
 
         /// <summary>
@@ -1144,12 +1205,88 @@ namespace helengine.vulkan {
         /// <param name="oldLayout">Old layout.</param>
         /// <param name="newLayout">New layout.</param>
         unsafe void TransitionImageLayout(Image image, ImageLayout oldLayout, ImageLayout newLayout) {
+            ResolveImageLayoutTransition(
+                oldLayout,
+                newLayout,
+                out AccessFlags sourceAccess,
+                out AccessFlags destinationAccess,
+                out PipelineStageFlags sourceStage,
+                out PipelineStageFlags destinationStage);
             CommandBuffer commandBuffer = context.BeginSingleTimeCommands();
+            RecordImageLayoutTransition(
+                commandBuffer,
+                image,
+                oldLayout,
+                newLayout,
+                sourceAccess,
+                destinationAccess,
+                sourceStage,
+                destinationStage);
+            context.EndSingleTimeCommands(commandBuffer);
+        }
 
+        /// <summary>
+        /// Resolves the access masks and pipeline stages for one supported image layout transition.
+        /// </summary>
+        /// <param name="oldLayout">Current image layout.</param>
+        /// <param name="newLayout">Target image layout.</param>
+        /// <param name="sourceAccess">Source access mask.</param>
+        /// <param name="destinationAccess">Destination access mask.</param>
+        /// <param name="sourceStage">Source pipeline stage.</param>
+        /// <param name="destinationStage">Destination pipeline stage.</param>
+        void ResolveImageLayoutTransition(
+            ImageLayout oldLayout,
+            ImageLayout newLayout,
+            out AccessFlags sourceAccess,
+            out AccessFlags destinationAccess,
+            out PipelineStageFlags sourceStage,
+            out PipelineStageFlags destinationStage) {
+            if (oldLayout == ImageLayout.Undefined && newLayout == ImageLayout.TransferDstOptimal) {
+                sourceAccess = 0;
+                destinationAccess = AccessFlags.AccessTransferWriteBit;
+                sourceStage = PipelineStageFlags.PipelineStageTopOfPipeBit;
+                destinationStage = PipelineStageFlags.PipelineStageTransferBit;
+            } else if (oldLayout == ImageLayout.ShaderReadOnlyOptimal && newLayout == ImageLayout.TransferDstOptimal) {
+                sourceAccess = AccessFlags.AccessShaderReadBit;
+                destinationAccess = AccessFlags.AccessTransferWriteBit;
+                sourceStage = PipelineStageFlags.PipelineStageFragmentShaderBit;
+                destinationStage = PipelineStageFlags.PipelineStageTransferBit;
+            } else if (oldLayout == ImageLayout.TransferDstOptimal && newLayout == ImageLayout.ShaderReadOnlyOptimal) {
+                sourceAccess = AccessFlags.AccessTransferWriteBit;
+                destinationAccess = AccessFlags.AccessShaderReadBit;
+                sourceStage = PipelineStageFlags.PipelineStageTransferBit;
+                destinationStage = PipelineStageFlags.PipelineStageFragmentShaderBit;
+            } else {
+                throw new InvalidOperationException("Unsupported image layout transition.");
+            }
+        }
+
+        /// <summary>
+        /// Records one image layout transition into an existing command buffer.
+        /// </summary>
+        /// <param name="commandBuffer">Command buffer receiving the barrier.</param>
+        /// <param name="image">Image to transition.</param>
+        /// <param name="oldLayout">Current image layout.</param>
+        /// <param name="newLayout">Target image layout.</param>
+        /// <param name="sourceAccess">Source access mask.</param>
+        /// <param name="destinationAccess">Destination access mask.</param>
+        /// <param name="sourceStage">Source pipeline stage.</param>
+        /// <param name="destinationStage">Destination pipeline stage.</param>
+        unsafe void RecordImageLayoutTransition(
+            CommandBuffer commandBuffer,
+            Image image,
+            ImageLayout oldLayout,
+            ImageLayout newLayout,
+            AccessFlags sourceAccess,
+            AccessFlags destinationAccess,
+            PipelineStageFlags sourceStage,
+            PipelineStageFlags destinationStage) {
             ImageMemoryBarrier barrier = new ImageMemoryBarrier {
                 SType = StructureType.ImageMemoryBarrier,
                 OldLayout = oldLayout,
                 NewLayout = newLayout,
+                SrcAccessMask = sourceAccess,
+                DstAccessMask = destinationAccess,
                 SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
                 DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
                 Image = image,
@@ -1162,23 +1299,6 @@ namespace helengine.vulkan {
                 }
             };
 
-            PipelineStageFlags sourceStage;
-            PipelineStageFlags destinationStage;
-
-            if (oldLayout == ImageLayout.Undefined && newLayout == ImageLayout.TransferDstOptimal) {
-                barrier.SrcAccessMask = 0;
-                barrier.DstAccessMask = AccessFlags.AccessTransferWriteBit;
-                sourceStage = PipelineStageFlags.PipelineStageTopOfPipeBit;
-                destinationStage = PipelineStageFlags.PipelineStageTransferBit;
-            } else if (oldLayout == ImageLayout.TransferDstOptimal && newLayout == ImageLayout.ShaderReadOnlyOptimal) {
-                barrier.SrcAccessMask = AccessFlags.AccessTransferWriteBit;
-                barrier.DstAccessMask = AccessFlags.AccessShaderReadBit;
-                sourceStage = PipelineStageFlags.PipelineStageTransferBit;
-                destinationStage = PipelineStageFlags.PipelineStageFragmentShaderBit;
-            } else {
-                throw new InvalidOperationException("Unsupported image layout transition.");
-            }
-
             context.Api.CmdPipelineBarrier(
                 commandBuffer,
                 sourceStage,
@@ -1190,8 +1310,6 @@ namespace helengine.vulkan {
                 null,
                 1,
                 in barrier);
-
-            context.EndSingleTimeCommands(commandBuffer);
         }
 
         /// <summary>
@@ -1201,7 +1319,11 @@ namespace helengine.vulkan {
         /// <param name="image">Destination image.</param>
         /// <param name="width">Image width.</param>
         /// <param name="height">Image height.</param>
-        unsafe void CopyBufferToImage(VkBuffer buffer, Image image, ushort width, ushort height) {
+        unsafe void CopyBufferToImage(
+            VkBuffer buffer,
+            Image image,
+            uint width,
+            uint height) {
             CommandBuffer commandBuffer = context.BeginSingleTimeCommands();
 
             BufferImageCopy region = new BufferImageCopy {
@@ -1220,6 +1342,99 @@ namespace helengine.vulkan {
 
             context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
             context.EndSingleTimeCommands(commandBuffer);
+        }
+
+        /// <summary>
+        /// Records one synchronous sub-region upload transaction with both image layout barriers and the copy in one command buffer.
+        /// </summary>
+        /// <param name="buffer">Buffer containing the validated source rows.</param>
+        /// <param name="image">Destination image.</param>
+        /// <param name="width">Region width in pixels.</param>
+        /// <param name="height">Region height in pixels.</param>
+        /// <param name="bufferRowLength">Source row pitch in texels.</param>
+        /// <param name="imageOffsetX">Destination X coordinate in pixels.</param>
+        /// <param name="imageOffsetY">Destination Y coordinate in pixels.</param>
+        unsafe void CopyBufferToImageRegion(
+            VkBuffer buffer,
+            Image image,
+            uint width,
+            uint height,
+            uint bufferRowLength,
+            int imageOffsetX,
+            int imageOffsetY) {
+            ResolveImageLayoutTransition(
+                ImageLayout.ShaderReadOnlyOptimal,
+                ImageLayout.TransferDstOptimal,
+                out AccessFlags toTransferSourceAccess,
+                out AccessFlags toTransferDestinationAccess,
+                out PipelineStageFlags toTransferSourceStage,
+                out PipelineStageFlags toTransferDestinationStage);
+            ResolveImageLayoutTransition(
+                ImageLayout.TransferDstOptimal,
+                ImageLayout.ShaderReadOnlyOptimal,
+                out AccessFlags toShaderReadSourceAccess,
+                out AccessFlags toShaderReadDestinationAccess,
+                out PipelineStageFlags toShaderReadSourceStage,
+                out PipelineStageFlags toShaderReadDestinationStage);
+
+            CommandBuffer commandBuffer = context.BeginSingleTimeCommands();
+            RecordImageLayoutTransition(
+                commandBuffer,
+                image,
+                ImageLayout.ShaderReadOnlyOptimal,
+                ImageLayout.TransferDstOptimal,
+                toTransferSourceAccess,
+                toTransferDestinationAccess,
+                toTransferSourceStage,
+                toTransferDestinationStage);
+
+            BufferImageCopy region = new BufferImageCopy {
+                BufferOffset = 0,
+                BufferRowLength = bufferRowLength,
+                BufferImageHeight = 0,
+                ImageSubresource = new ImageSubresourceLayers {
+                    AspectMask = ImageAspectFlags.ImageAspectColorBit,
+                    MipLevel = 0,
+                    BaseArrayLayer = 0,
+                    LayerCount = 1
+                },
+                ImageOffset = new Offset3D(imageOffsetX, imageOffsetY, 0),
+                ImageExtent = new Extent3D(width, height, 1)
+            };
+            context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
+
+            RecordImageLayoutTransition(
+                commandBuffer,
+                image,
+                ImageLayout.TransferDstOptimal,
+                ImageLayout.ShaderReadOnlyOptimal,
+                toShaderReadSourceAccess,
+                toShaderReadDestinationAccess,
+                toShaderReadSourceStage,
+                toShaderReadDestinationStage);
+            context.EndSingleTimeCommands(commandBuffer);
+        }
+
+        /// <summary>
+        /// Copies the validated source rows into host-visible staging memory for one synchronous upload.
+        /// </summary>
+        /// <param name="stagingBuffer">Host-visible transfer source buffer.</param>
+        /// <param name="rgba8">Validated RGBA8 source bytes.</param>
+        /// <param name="byteCount">Number of source bytes required by the upload.</param>
+        void UpdateStagingBuffer(VulkanGpuBuffer stagingBuffer, byte[] rgba8, int byteCount) {
+            void* mapped;
+            Result mapResult = context.Api.MapMemory(context.Device, stagingBuffer.Memory, 0, (ulong)byteCount, 0, &mapped);
+            if (mapResult != Result.Success) {
+                throw new InvalidOperationException($"Failed to map Vulkan texture staging memory: {mapResult}.");
+            }
+
+            try {
+                fixed (byte* source = rgba8) {
+                    System.Buffer.MemoryCopy(source, mapped, (ulong)byteCount, (ulong)byteCount);
+                }
+            } finally {
+                context.Api.UnmapMemory(context.Device, stagingBuffer.Memory);
+            }
         }
 
         /// <summary>
