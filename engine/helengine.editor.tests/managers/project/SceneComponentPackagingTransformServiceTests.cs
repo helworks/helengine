@@ -303,6 +303,23 @@ namespace helengine.editor.tests {
             Assert.True(usage.Inherited);
         }
 
+        /// <summary>
+        /// Ensures the editor-only CPU-readable marker is omitted from reflection-disabled native source compilation.
+        /// </summary>
+        [Fact]
+        public void Cpu_readable_model_reference_AttributeMetadata_IsExcludedFromCodegenReflectionBuild() {
+            string sourcePath = Path.Combine(
+                TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
+                "engine",
+                "helengine.core",
+                "scene",
+                "CpuReadableModelReferenceAttribute.cs");
+            string source = File.ReadAllText(sourcePath);
+
+            Assert.Contains("#if !HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", source, StringComparison.Ordinal);
+            Assert.Contains("#endif", source, StringComparison.Ordinal);
+        }
+
         [Fact]
         public void TryTransform_Cpu_readable_model_reference_PublicField_WritesCompanion() {
             SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());

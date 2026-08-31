@@ -287,6 +287,32 @@ namespace helengine.core.tests.managers.rendering {
             Assert.DoesNotContain("checked", source.Substring(methodStart, methodEnd - methodStart), StringComparison.Ordinal);
         }
 
+        /// <summary>
+        /// Ensures reflection-disabled native builds use the supported exception set while managed builds retain the disposed-object contract.
+        /// </summary>
+        [Fact]
+        public void UpdateTextureRegion_DisposedValidation_UsesSupportedCodegenExceptionPath() {
+            string sourcePath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "helengine.core",
+                "managers",
+                "rendering",
+                "RenderManager2D.cs"));
+            string source = File.ReadAllText(sourcePath);
+            int methodStart = source.IndexOf("public void UpdateTextureRegion(", StringComparison.Ordinal);
+            int methodEnd = source.IndexOf("protected abstract void UpdateTextureRegionCore(", methodStart, StringComparison.Ordinal);
+            string method = source.Substring(methodStart, methodEnd - methodStart);
+
+            Assert.Contains("#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", method, StringComparison.Ordinal);
+            Assert.Contains("throw new InvalidOperationException", method, StringComparison.Ordinal);
+            Assert.Contains("#else", method, StringComparison.Ordinal);
+            Assert.Contains("throw new ObjectDisposedException", method, StringComparison.Ordinal);
+        }
+
         static void AssertNativeNoEscapeOnRgba8(MethodInfo method) {
             ParameterInfo rgba8Parameter = Assert.Single(
                 method.GetParameters(),

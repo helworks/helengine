@@ -72,7 +72,11 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(texture));
             }
             if (texture.IsDisposed) {
+#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+                throw new InvalidOperationException("Texture has been disposed.");
+#else
                 throw new ObjectDisposedException(nameof(texture));
+#endif
             }
             if (rgba8 == null) {
                 throw new ArgumentNullException(nameof(rgba8));
