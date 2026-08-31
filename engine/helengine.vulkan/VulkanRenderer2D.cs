@@ -614,8 +614,11 @@ namespace helengine.vulkan {
                 return;
             }
 
+            if (frameActive) {
+                throw new InvalidOperationException("Cannot dispose the Vulkan 2D renderer while a frame is recording or being submitted.");
+            }
+
             WaitForDeviceIdle();
-            disposed = true;
 
             DisposeDefaultTextures();
             List<VulkanTextureResource> ownedTextureSnapshot = new List<VulkanTextureResource>(OwnedTextures);
@@ -1219,10 +1222,19 @@ namespace helengine.vulkan {
 
             Result allocResult = context.Api.AllocateMemory(context.Device, allocInfo, null, out memory);
             if (allocResult != Result.Success) {
+                context.Api.DestroyImage(context.Device, image, null);
+                image = default;
                 throw new InvalidOperationException($"Failed to allocate Vulkan image memory: {allocResult}.");
             }
 
-            context.Api.BindImageMemory(context.Device, image, memory, 0);
+            Result bindResult = context.Api.BindImageMemory(context.Device, image, memory, 0);
+            if (bindResult != Result.Success) {
+                context.Api.FreeMemory(context.Device, memory, null);
+                context.Api.DestroyImage(context.Device, image, null);
+                image = default;
+                memory = default;
+                throw new InvalidOperationException($"Failed to bind Vulkan image memory: {bindResult}.");
+            }
         }
 
         /// <summary>
@@ -1270,16 +1282,21 @@ namespace helengine.vulkan {
                 out PipelineStageFlags sourceStage,
                 out PipelineStageFlags destinationStage);
             CommandBuffer commandBuffer = context.BeginSingleTimeCommands();
-            RecordImageLayoutTransition(
-                commandBuffer,
-                image,
-                oldLayout,
-                newLayout,
-                sourceAccess,
-                destinationAccess,
-                sourceStage,
-                destinationStage);
-            context.EndSingleTimeCommands(commandBuffer);
+            try {
+                RecordImageLayoutTransition(
+                    commandBuffer,
+                    image,
+                    oldLayout,
+                    newLayout,
+                    sourceAccess,
+                    destinationAccess,
+                    sourceStage,
+                    destinationStage);
+                context.EndSingleTimeCommands(commandBuffer);
+            } catch {
+                context.AbortSingleTimeCommands(commandBuffer);
+                throw;
+            }
         }
 
         /// <summary>
@@ -1397,8 +1414,13 @@ namespace helengine.vulkan {
                 ImageExtent = new Extent3D(width, height, 1)
             };
 
-            context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
-            context.EndSingleTimeCommands(commandBuffer);
+            try {
+                context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
+                context.EndSingleTimeCommands(commandBuffer);
+            } catch {
+                context.AbortSingleTimeCommands(commandBuffer);
+                throw;
+            }
         }
 
         /// <summary>

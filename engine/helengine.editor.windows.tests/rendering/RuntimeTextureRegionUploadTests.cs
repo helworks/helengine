@@ -282,6 +282,67 @@ namespace helengine.editor.windows.tests.rendering {
         }
 
         /// <summary>
+        /// Ensures Vulkan disposal rejects an active frame without committing disposed state, then can be retried safely.
+        /// </summary>
+        [Fact]
+        public void Vulkan_disposal_during_active_frame_can_retry_after_frame_completion() {
+            using VulkanRenderer3D renderer = CreateVulkanRendererOrSkip();
+            VulkanTextureResource texture = Assert.IsType<VulkanTextureResource>(
+                renderer.Render2D.BuildTextureFromRaw(CreateBlackTextureAsset()));
+            FieldInfo frameActiveField = typeof(VulkanRenderer2D).GetField(
+                "frameActive",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            try {
+                frameActiveField.SetValue(renderer.Render2D, true);
+
+                Assert.Throws<InvalidOperationException>(() => renderer.Render2D.Dispose());
+                Assert.False(texture.IsDisposed);
+                Assert.NotEqual(0ul, texture.Image.Handle);
+                Assert.NotEqual(0ul, texture.Memory.Handle);
+                Assert.NotEqual(0ul, texture.ImageView.Handle);
+                Assert.NotEqual(0ul, texture.DescriptorSet.Handle);
+
+                frameActiveField.SetValue(renderer.Render2D, false);
+                renderer.Render2D.Dispose();
+                Assert.True(texture.IsDisposed);
+                Assert.Equal(0ul, texture.Image.Handle);
+                Assert.Equal(0ul, texture.Memory.Handle);
+                Assert.Equal(0ul, texture.ImageView.Handle);
+                Assert.Equal(0ul, texture.DescriptorSet.Handle);
+            } finally {
+                frameActiveField.SetValue(renderer.Render2D, false);
+            }
+        }
+
+        /// <summary>
+        /// Ensures Direct3D11 rejects texture release while the renderer is traversing a frame.
+        /// </summary>
+        [Fact]
+        public void DirectX11_release_during_active_frame_preserves_texture_resources() {
+            using DirectX11Renderer3D renderer = CreateDirectX11RendererOrSkip();
+            DirectX11TextureResource texture = Assert.IsType<DirectX11TextureResource>(
+                renderer.Render2D.BuildTextureFromRaw(CreateBlackTextureAsset()));
+            FieldInfo frameActiveField = typeof(DirectX11Renderer3D).GetField(
+                "frameActive",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            try {
+                frameActiveField.SetValue(renderer, true);
+
+                Assert.Throws<InvalidOperationException>(() => renderer.Render2D.ReleaseTexture(texture));
+                Assert.False(texture.IsDisposed);
+                Assert.NotNull(texture.Texture);
+                Assert.NotNull(texture.Resource);
+            } finally {
+                frameActiveField.SetValue(renderer, false);
+                if (!texture.IsDisposed) {
+                    renderer.Render2D.ReleaseTexture(texture);
+                }
+            }
+        }
+
+        /// <summary>
         /// Ensures releasing texture descriptors permits reuse of the fixed Vulkan descriptor pool.
         /// </summary>
         [Fact]

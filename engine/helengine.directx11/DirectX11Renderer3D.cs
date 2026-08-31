@@ -205,6 +205,10 @@ namespace helengine.directx11 {
         /// </summary>
         float4x4 currentViewProjection;
         /// <summary>
+        /// Tracks whether the renderer is traversing and presenting a frame.
+        /// </summary>
+        bool frameActive;
+        /// <summary>
         /// Shared extraction service used to build backend-neutral render frames.
         /// </summary>
         RenderFrameExtractionService FrameExtractionServiceValue;
@@ -342,6 +346,11 @@ namespace helengine.directx11 {
         /// Gets the Direct3D device.
         /// </summary>
         public D3DDevice Device { get; }
+
+        /// <summary>
+        /// Gets whether the DirectX11 renderer is traversing an active frame.
+        /// </summary>
+        internal bool IsFrameActive { get { return frameActive; } }
 
         /// <summary>
         /// Gets the DXGI adapter used by the device.
@@ -1855,26 +1864,31 @@ namespace helengine.directx11 {
                 return;
             }
 
-            UpdateFrameStats();
+            frameActive = true;
+            try {
+                UpdateFrameStats();
 
-            RenderCustomPasses();
+                RenderCustomPasses();
 
-            Core ownerCore = OwnerCore ?? throw new InvalidOperationException("DirectX11 renderer is not attached to an owning Core.");
-            var cameras = ownerCore.ObjectManager.Cameras;
+                Core ownerCore = OwnerCore ?? throw new InvalidOperationException("DirectX11 renderer is not attached to an owning Core.");
+                var cameras = ownerCore.ObjectManager.Cameras;
 
-            for (int i = 0; i < surfaces.Count; i++) {
-                var surface = surfaces[i];
+                for (int i = 0; i < surfaces.Count; i++) {
+                    var surface = surfaces[i];
 
-                for (int j = 0; j < cameras.Count; j++) {
-                    ICamera camera = cameras[j];
-                    if (camera is not CameraComponent cameraComponent) {
-                        throw new InvalidOperationException("DirectX11 rendering requires camera entries to be CameraComponent instances.");
+                    for (int j = 0; j < cameras.Count; j++) {
+                        ICamera camera = cameras[j];
+                        if (camera is not CameraComponent cameraComponent) {
+                            throw new InvalidOperationException("DirectX11 rendering requires camera entries to be CameraComponent instances.");
+                        }
+
+                        RenderCamera(surface, cameraComponent);
                     }
 
-                    RenderCamera(surface, cameraComponent);
+                    surface.SwapChain.Present(0, PresentFlags.None);
                 }
-
-                surface.SwapChain.Present(0, PresentFlags.None);
+            } finally {
+                frameActive = false;
             }
         }
 

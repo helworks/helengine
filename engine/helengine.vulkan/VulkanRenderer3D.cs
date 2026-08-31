@@ -607,10 +607,11 @@ namespace helengine.vulkan {
             frameActive = false;
             activeSurface = null;
             activeCommandBuffer = default;
-            renderer2D.EndFrame();
             surface.EndRenderPass(commandBuffer);
 
             surface.EndFrame(commandBuffer, imageIndex);
+            // Keep the 2D frame active through the complete swapchain recording/submission interval.
+            renderer2D.EndFrame();
         }
 
         /// <summary>

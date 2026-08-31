@@ -559,6 +559,9 @@ namespace helengine.directx11 {
                 !OwnedTextures.Contains(directX11TextureResource)) {
                 throw new ArgumentException("Runtime texture was not created by the DirectX11 2D renderer.", nameof(texture));
             }
+            if (parentRenderer.IsFrameActive) {
+                throw new InvalidOperationException("Cannot release a DirectX11 texture while a frame is being rendered.");
+            }
 
             directX11TextureResource.Resource?.Dispose();
             directX11TextureResource.Resource = null;
