@@ -110,6 +110,15 @@ namespace helengine.editor {
         public bool IsField => MemberInfoValue is FieldInfo;
 
         /// <summary>
+        /// Returns whether the reflected member declares the supplied attribute.
+        /// </summary>
+        /// <typeparam name="TAttribute">Attribute type to inspect.</typeparam>
+        /// <returns>True when the member or one inherited declaration defines the attribute.</returns>
+        public bool HasAttribute<TAttribute>() where TAttribute : Attribute {
+            return MemberInfoValue != null && MemberInfoValue.IsDefined(typeof(TAttribute), true);
+        }
+
+        /// <summary>
         /// Gets whether the member is explicitly appended after the required ordinal payload members.
         /// </summary>
         public bool IsAppended => MemberInfoValue != null && ScenePersistenceMemberOrdering.IsAppended(MemberInfoValue);

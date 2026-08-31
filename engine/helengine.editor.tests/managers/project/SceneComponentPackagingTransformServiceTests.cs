@@ -75,6 +75,247 @@ namespace helengine.editor.tests {
             Assert.Equal("helengine.TextComponent", transformedRecord.ComponentTypeId);
         }
 
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_GeneratedCube_WritesExactModelCompanion() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateCpuReadableModelReferenceRecord(SceneAssetReferenceTestFactory.CreateEngineCubeModel());
+
+            Assert.True(service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+
+            CpuReadableModelReferenceComponent transformedComponent = DeserializeCpuReadableModelReferenceComponent(transformedRecord);
+            Assert.Equal("cooked/cpu-models/engine/cube.hasset", transformedComponent.ModelReference.RelativePath);
+            string companionPath = Path.Combine(BuildRootPath, "cooked", "cpu-models", "engine", "cube.hasset");
+            Assert.True(File.Exists(companionPath));
+            using FileStream stream = new FileStream(companionPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            ModelAsset model = Assert.IsType<ModelAsset>(AssetSerializer.Deserialize(stream));
+            Assert.NotEmpty(model.Positions);
+            Assert.True((model.Indices16?.Length > 0) ^ (model.Indices32?.Length > 0));
+        }
+
+        [Theory]
+        [InlineData("plane", "Engine/Models/Plane", "cooked/cpu-models/engine/plane.hasset")]
+        [InlineData("sphere", "Engine/Models/Sphere", "cooked/cpu-models/engine/sphere.hasset")]
+        public void TryTransform_Cpu_readable_model_reference_GeneratedPrimitive_WritesGenericModelCompanion(
+            string primitive,
+            string authoredPath,
+            string expectedPackagedPath) {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneAssetReference reference = primitive == "plane"
+                ? SceneAssetReferenceTestFactory.CreateEnginePlaneModel()
+                : SceneAssetReferenceTestFactory.CreateEngineSphereModel();
+            SceneComponentAssetRecord record = CreateCpuReadableModelReferenceRecord(reference);
+
+            Assert.True(service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+
+            CpuReadableModelReferenceComponent transformedComponent = DeserializeCpuReadableModelReferenceComponent(transformedRecord);
+            Assert.Equal(expectedPackagedPath, transformedComponent.ModelReference.RelativePath);
+            Assert.Equal(authoredPath, reference.RelativePath);
+            string companionPath = Path.Combine(BuildRootPath, expectedPackagedPath.Replace('/', Path.DirectorySeparatorChar));
+            Assert.True(File.Exists(companionPath));
+            using FileStream stream = new FileStream(companionPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            ModelAsset model = Assert.IsType<ModelAsset>(AssetSerializer.Deserialize(stream));
+            Assert.NotEmpty(model.Positions);
+            Assert.True((model.Indices16?.Length > 0) ^ (model.Indices32?.Length > 0));
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_UnmarkedReference_WritesNoCpuCompanion() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateUnmarkedModelReferenceRecord(SceneAssetReferenceTestFactory.CreateEngineCubeModel());
+
+            Assert.True(service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+
+            CpuReadableModelUnmarkedReferenceComponent transformedComponent = DeserializeUnmarkedModelReferenceComponent(transformedRecord);
+            Assert.Equal("Engine/Models/Cube", transformedComponent.ModelReference.RelativePath);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "cpu-models")));
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_InvalidMarkedString_FailsWithDeclaredType() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateInvalidCpuReadableModelReferenceRecord();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                service.TryTransform(record, BuildRootPath, out _));
+
+            Assert.Contains("ModelPath", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("SceneAssetReference", exception.Message, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_NullMarkedReference_RemainsNull() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateCpuReadableModelReferenceRecord(null);
+
+            Assert.True(service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+
+            CpuReadableModelReferenceComponent transformedComponent = DeserializeCpuReadableModelReferenceComponent(transformedRecord);
+            Assert.Null(transformedComponent.ModelReference);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "cpu-models")));
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_RepeatedIdenticalReference_WritesOneCompanion() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneAssetReference reference = SceneAssetReferenceTestFactory.CreateEngineCubeModel();
+
+            Assert.True(service.TryTransform(CreateCpuReadableModelReferenceRecord(reference), BuildRootPath, out _));
+            Assert.True(service.TryTransform(CreateCpuReadableModelReferenceRecord(reference), BuildRootPath, out _));
+
+            string[] companions = Directory.GetFiles(Path.Combine(BuildRootPath, "cooked", "cpu-models"), "*.hasset", SearchOption.AllDirectories);
+            Assert.Single(companions);
+            Assert.Equal(Path.Combine(BuildRootPath, "cooked", "cpu-models", "engine", "cube.hasset"), companions[0]);
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_FileSystemUsesStableIdentityNames() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService(), registerModelImporter: true);
+            WriteSourceModel("Models/First/cube.obj");
+            WriteSourceModel("Models/Second/cube.obj");
+            SceneAssetReference firstReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "11112222333344445555666677778888",
+                "Models/First/cube.obj",
+                "sha256:1111111111111111111111111111111111111111111111111111111111111111");
+            SceneAssetReference secondReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "9999aaaabbbbccccddddeeeeffff0000",
+                "Models/Second/cube.obj",
+                "sha256:2222222222222222222222222222222222222222222222222222222222222222");
+
+            Assert.True(service.TryTransform(CreateCpuReadableModelReferenceRecord(firstReference), BuildRootPath, out SceneComponentAssetRecord firstRecord));
+            Assert.True(service.TryTransform(CreateCpuReadableModelReferenceRecord(secondReference), BuildRootPath, out SceneComponentAssetRecord secondRecord));
+
+            string firstPath = ReadPackagedCpuReadableModelReference(firstRecord).RelativePath;
+            string secondPath = ReadPackagedCpuReadableModelReference(secondRecord).RelativePath;
+            Assert.Equal("cooked/cpu-models/filesystem/11112222333344445555666677778888.hasset", firstPath);
+            Assert.Equal("cooked/cpu-models/filesystem/9999aaaabbbbccccddddeeeeffff0000.hasset", secondPath);
+            Assert.Equal(2, Directory.GetFiles(Path.Combine(BuildRootPath, "cooked", "cpu-models"), "*.hasset", SearchOption.AllDirectories).Length);
+            AssertValidCpuReadableModelCompanion(Path.Combine(BuildRootPath, firstPath));
+            AssertValidCpuReadableModelCompanion(Path.Combine(BuildRootPath, secondPath));
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_MalformedImportedModel_FailsBeforeWritingCompanion() {
+            SceneComponentPackagingTransformService service = CreateService(
+                new StubTextComponentSpriteBakeService(),
+                registerModelImporter: true,
+                modelImporter: new MalformedModelImporter());
+            WriteSourceModel("Models/Malformed.obj");
+            SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "11112222333344445555666677778888",
+                "Models/Malformed.obj",
+                "sha256:1111111111111111111111111111111111111111111111111111111111111111");
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                service.TryTransform(CreateCpuReadableModelReferenceRecord(reference), BuildRootPath, out _));
+
+            Assert.Contains("CPU-readable model companion", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("Positions", exception.Message, StringComparison.Ordinal);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "cpu-models")));
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_ImportedModelWithMultipleIndexWidths_FailsBeforeWritingCompanion() {
+            SceneComponentPackagingTransformService service = CreateService(
+                new StubTextComponentSpriteBakeService(),
+                registerModelImporter: true,
+                modelImporter: new MultipleIndexWidthModelImporter());
+            WriteSourceModel("Models/MultipleIndexWidths.obj");
+            SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "11112222333344445555666677778888",
+                "Models/MultipleIndexWidths.obj",
+                "sha256:1111111111111111111111111111111111111111111111111111111111111111");
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                service.TryTransform(CreateCpuReadableModelReferenceRecord(reference), BuildRootPath, out _));
+
+            Assert.Contains("CPU-readable model companion", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("exactly one populated index width", exception.Message, StringComparison.Ordinal);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "cpu-models")));
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_BuilderOwnedModelCook_EnqueuesNoPlatformCook() {
+            List<PlatformCookWorkItem> workItems = new List<PlatformCookWorkItem>();
+            SceneComponentPackagingTransformService service = CreateService(
+                new StubTextComponentSpriteBakeService(),
+                platformCookWorkItemSink: workItems.Add,
+                platformDefinition: CreateBuilderOwnedModelPlatformDefinition());
+
+            Assert.True(service.TryTransform(
+                CreateCpuReadableModelReferenceRecord(SceneAssetReferenceTestFactory.CreateEngineCubeModel()),
+                BuildRootPath,
+                out SceneComponentAssetRecord transformedRecord));
+
+            Assert.Empty(workItems);
+            Assert.Equal(
+                "cooked/cpu-models/engine/cube.hasset",
+                DeserializeCpuReadableModelReferenceComponent(transformedRecord).ModelReference.RelativePath);
+            AssertValidCpuReadableModelCompanion(Path.Combine(BuildRootPath, "cooked", "cpu-models", "engine", "cube.hasset"));
+        }
+
+        [Fact]
+        public void Cpu_readable_model_reference_AttributeMetadata_UsesPublicFieldPropertyNonRepeatableInheritedContract() {
+            AttributeUsageAttribute usage = typeof(CpuReadableModelReferenceAttribute).GetCustomAttribute<AttributeUsageAttribute>();
+
+            Assert.NotNull(usage);
+            Assert.Equal(AttributeTargets.Field | AttributeTargets.Property, usage.ValidOn);
+            Assert.False(usage.AllowMultiple);
+            Assert.True(usage.Inherited);
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_PublicField_WritesCompanion() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateCpuReadableModelFieldReferenceRecord(SceneAssetReferenceTestFactory.CreateEngineCubeModel());
+
+            Assert.True(service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+
+            Assert.Equal(
+                "cooked/cpu-models/engine/cube.hasset",
+                DeserializeCpuReadableModelFieldReferenceComponent(transformedRecord).ModelReference.RelativePath);
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_InheritedMember_WritesCompanion() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateCpuReadableModelInheritedReferenceRecord(SceneAssetReferenceTestFactory.CreateEngineCubeModel());
+
+            Assert.True(service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+
+            Assert.Equal(
+                "cooked/cpu-models/engine/cube.hasset",
+                DeserializeCpuReadableModelInheritedReferenceComponent(transformedRecord).ModelReference.RelativePath);
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_UnsupportedGeneratedReference_FailsClearly() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneAssetReference reference = SceneAssetReferenceTestFactory.CreateSerialized(
+                SceneAssetReferenceSourceKind.Generated,
+                "Engine/Models/Unsupported",
+                "engine",
+                "engine:model:unsupported");
+            SceneComponentAssetRecord record = CreateCpuReadableModelReferenceRecord(reference);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                service.TryTransform(record, BuildRootPath, out _));
+
+            Assert.Contains("Unsupported generated CPU-readable model asset id", exception.Message, StringComparison.Ordinal);
+            Assert.Contains("engine:model:unsupported", exception.Message, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_OrdinaryMeshModel_RemainsNormalModelPackaging() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneComponentAssetRecord record = CreateWrappedTessellatedMeshRecord(tessellateAtCookTime: false);
+
+            Assert.True(service.TryTransform(record, BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+
+            SceneAssetReference modelReference = ReadAutomaticComponentAssetReference<MeshComponent>(transformedRecord, nameof(MeshComponent.Model));
+            Assert.Equal("cooked/engine/models/cube.hasset", modelReference.RelativePath);
+            Assert.False(Directory.Exists(Path.Combine(BuildRootPath, "cooked", "cpu-models")));
+        }
+
         /// <summary>
         /// Ensures a stale imported texture path fails instead of being rewritten while preparing a builder cook request.
         /// </summary>
@@ -478,12 +719,21 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <param name="bakeService">Bake service that should receive flagged text requests.</param>
         /// <returns>Configured transform service.</returns>
-        SceneComponentPackagingTransformService CreateService(ITextComponentSpriteBakeService bakeService, StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry = null) {
+        SceneComponentPackagingTransformService CreateService(
+            ITextComponentSpriteBakeService bakeService,
+            StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry = null,
+            bool registerModelImporter = false,
+            IModelImporter modelImporter = null,
+            Action<PlatformCookWorkItem> platformCookWorkItemSink = null,
+            PlatformDefinition platformDefinition = null) {
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
             AssetImportManager assetImportManager = new AssetImportManager(ProjectRootPath, contentManager);
             assetImportManager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), [".ttf"]));
             assetImportManager.RegisterTextureImporter(new TextureImporterRegistration("test-texture", new TestTextureImporter(), [".png"]));
             assetImportManager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), [".wav"]));
+            if (registerModelImporter || modelImporter != null) {
+                assetImportManager.RegisterModelImporter(new ModelImporterRegistration("test-model", modelImporter ?? new TestModelImporter(), [".obj"]));
+            }
             EditorFileSystemModelResolver fileSystemModelResolver = new EditorFileSystemModelResolver(assetImportManager);
 
             return new SceneComponentPackagingTransformService(
@@ -497,8 +747,8 @@ namespace helengine.editor.tests {
                 string.Empty,
                 string.Empty,
                 null,
-                null,
-                null,
+                platformCookWorkItemSink,
+                platformDefinition,
                 bakeService,
                 staticMeshCookProcessorRegistry);
         }
@@ -670,6 +920,91 @@ namespace helengine.editor.tests {
                 workItems.Add,
                 CreateRootedBuilderOwnedFontAtlasPlatformDefinition(),
                 bakeService);
+        }
+
+        static SceneComponentAssetRecord CreateCpuReadableModelReferenceRecord(SceneAssetReference reference) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return descriptor.SerializeComponent(
+                new CpuReadableModelReferenceComponent { ModelReference = reference },
+                0,
+                null);
+        }
+
+        static SceneComponentAssetRecord CreateCpuReadableModelFieldReferenceRecord(SceneAssetReference reference) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            CpuReadableModelFieldReferenceComponent component = new CpuReadableModelFieldReferenceComponent {
+                ModelReference = reference
+            };
+            return descriptor.SerializeComponent(component, 0, null);
+        }
+
+        static SceneComponentAssetRecord CreateCpuReadableModelInheritedReferenceRecord(SceneAssetReference reference) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return descriptor.SerializeComponent(
+                new CpuReadableModelInheritedReferenceComponent { ModelReference = reference },
+                0,
+                null);
+        }
+
+        void WriteSourceModel(string relativePath) {
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            string directoryPath = Path.GetDirectoryName(sourcePath);
+            Directory.CreateDirectory(directoryPath);
+            File.WriteAllText(sourcePath, "test model source");
+        }
+
+        static SceneComponentAssetRecord CreateUnmarkedModelReferenceRecord(SceneAssetReference reference) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return descriptor.SerializeComponent(
+                new CpuReadableModelUnmarkedReferenceComponent { ModelReference = reference },
+                0,
+                null);
+        }
+
+        static SceneComponentAssetRecord CreateInvalidCpuReadableModelReferenceRecord() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return descriptor.SerializeComponent(
+                new InvalidCpuReadableModelReferenceComponent { ModelPath = "Models/cube.obj" },
+                0,
+                null);
+        }
+
+        static CpuReadableModelReferenceComponent DeserializeCpuReadableModelReferenceComponent(SceneComponentAssetRecord record) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return Assert.IsType<CpuReadableModelReferenceComponent>(descriptor.DeserializeComponent(record, new EntitySaveComponent(), null));
+        }
+
+        static CpuReadableModelUnmarkedReferenceComponent DeserializeUnmarkedModelReferenceComponent(SceneComponentAssetRecord record) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return Assert.IsType<CpuReadableModelUnmarkedReferenceComponent>(descriptor.DeserializeComponent(record, new EntitySaveComponent(), null));
+        }
+
+        static CpuReadableModelFieldReferenceComponent DeserializeCpuReadableModelFieldReferenceComponent(SceneComponentAssetRecord record) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return Assert.IsType<CpuReadableModelFieldReferenceComponent>(descriptor.DeserializeComponent(record, new EntitySaveComponent(), null));
+        }
+
+        static CpuReadableModelInheritedReferenceComponent DeserializeCpuReadableModelInheritedReferenceComponent(SceneComponentAssetRecord record) {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            return Assert.IsType<CpuReadableModelInheritedReferenceComponent>(descriptor.DeserializeComponent(record, new EntitySaveComponent(), null));
+        }
+
+        static void AssertValidCpuReadableModelCompanion(string companionPath) {
+            using FileStream stream = new FileStream(companionPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            ModelAsset model = Assert.IsType<ModelAsset>(AssetSerializer.Deserialize(stream));
+            Assert.NotNull(model.Positions);
+            Assert.NotEmpty(model.Positions);
+            bool has16BitIndices = model.Indices16 != null && model.Indices16.Length > 0;
+            bool has32BitIndices = model.Indices32 != null && model.Indices32.Length > 0;
+            Assert.True(has16BitIndices ^ has32BitIndices);
+        }
+
+        static SceneAssetReference ReadPackagedCpuReadableModelReference(SceneComponentAssetRecord record) {
+            using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
+            Assert.Equal(1, reader.ReadInt32());
+            return Assert.IsType<SceneAssetReference>(global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader));
         }
 
         /// <summary>
@@ -1133,6 +1468,66 @@ namespace helengine.editor.tests {
             return Assert.IsType<TComponent>(descriptor.DeserializeComponent(record, new EntitySaveComponent(), new TestSceneAssetReferenceResolver()));
         }
 
+        public sealed class CpuReadableModelReferenceComponent : Component {
+            [CpuReadableModelReference]
+            public SceneAssetReference ModelReference { get; set; }
+        }
+
+        public sealed class CpuReadableModelFieldReferenceComponent : Component {
+            [CpuReadableModelReference]
+            public SceneAssetReference ModelReference;
+        }
+
+        public class CpuReadableModelInheritedReferenceBaseComponent : Component {
+            [CpuReadableModelReference]
+            public SceneAssetReference ModelReference { get; set; }
+        }
+
+        public sealed class CpuReadableModelInheritedReferenceComponent : CpuReadableModelInheritedReferenceBaseComponent {
+        }
+
+        public sealed class CpuReadableModelUnmarkedReferenceComponent : Component {
+            public SceneAssetReference ModelReference { get; set; }
+        }
+
+        public sealed class InvalidCpuReadableModelReferenceComponent : Component {
+            [CpuReadableModelReference]
+            public string ModelPath { get; set; }
+        }
+
+        sealed class MalformedModelImporter : IModelImporter {
+            public ImportedModelAssetSet ImportModel(Stream stream) {
+                if (stream == null) {
+                    throw new ArgumentNullException(nameof(stream));
+                }
+
+                return new ImportedModelAssetSet(
+                    new ModelAsset {
+                        Positions = Array.Empty<float3>(),
+                        Indices16 = new ushort[] { 0, 1, 2 },
+                        Submeshes = Array.Empty<ModelSubmeshAsset>()
+                    },
+                    Array.Empty<ImportedModelMaterialAsset>());
+            }
+        }
+
+        sealed class MultipleIndexWidthModelImporter : IModelImporter {
+            public ImportedModelAssetSet ImportModel(Stream stream) {
+                if (stream == null) {
+                    throw new ArgumentNullException(nameof(stream));
+                }
+
+                return new ImportedModelAssetSet(
+                    new ModelAsset {
+                        Positions = new[] { float3.Zero },
+                        Indices16 = new ushort[] { 0 },
+                        Indices32 = new uint[] { 0 },
+                        Submeshes = Array.Empty<ModelSubmeshAsset>()
+                    },
+                    Array.Empty<ImportedModelMaterialAsset>());
+            }
+        }
+
         /// <summary>
         /// Records runtime content paths while delegating stream opening to the host filesystem source.
         /// </summary>
@@ -1240,6 +1635,36 @@ namespace helengine.editor.tests {
                         PlatformAssetCookOwnershipKind.BuilderOwned,
                         "texture.settings",
                         "{\"maxResolution\":64,\"colorFormat\":\"Indexed8\",\"alphaPrecision\":\"A4\",\"indexingMethod\":\"QuantizedIndexed\"}")
+                });
+        }
+
+        /// <summary>
+        /// Creates one minimal platform definition that publishes a builder-owned model cook capability.
+        /// </summary>
+        /// <returns>Minimal platform definition with one builder-owned model cook capability.</returns>
+        static PlatformDefinition CreateBuilderOwnedModelPlatformDefinition() {
+            return new PlatformDefinition(
+                "model-cook-platform",
+                "Model Cook Platform",
+                Array.Empty<PlatformBuildProfileDefinition>(),
+                Array.Empty<PlatformGraphicsProfileDefinition>(),
+                Array.Empty<PlatformAssetRequirementDefinition>(),
+                Array.Empty<PlatformMaterialSchemaDefinition>(),
+                Array.Empty<PlatformComponentSupportRule>(),
+                Array.Empty<PlatformCodegenProfileDefinition>(),
+                Array.Empty<PlatformStorageProfileDefinition>(),
+                Array.Empty<PlatformMediaProfileDefinition>(),
+                RuntimeGenerationContract.CreateDefault(),
+                PlatformHostDebugCapability.CreateDefault(),
+                new[] {
+                    new PlatformAssetCookCapabilityDefinition(
+                        "model",
+                        "runtime-model",
+                        PlatformAssetCookOwnershipKind.BuilderOwned,
+                        "model.settings",
+                        "{}",
+                        null,
+                        ".hasset")
                 });
         }
 

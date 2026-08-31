@@ -155,6 +155,11 @@ namespace helengine.editor {
         const string StandardGeneratedMaterialRelativePath = "cooked/engine/materials/standard.hasset";
 
         /// <summary>
+        /// Root directory used for generic CPU-readable model companions.
+        /// </summary>
+        const string CpuReadableModelRelativePath = "cooked/cpu-models";
+
+        /// <summary>
         /// Relative packaged shader path used by generated primitive scenes.
         /// </summary>
         const string StandardGeneratedShaderRelativePath = "cooked/shaders/ForwardStandardShader.dx11.hasset";
@@ -289,6 +294,11 @@ namespace helengine.editor {
         readonly Dictionary<string, SceneAssetReference> MeshTessellationVariantReferencesByIdentity;
 
         /// <summary>
+        /// Reuses one CPU-readable model companion reference for every equal source and build root identity.
+        /// </summary>
+        readonly Dictionary<string, SceneAssetReference> CpuReadableModelReferencesByIdentity;
+
+        /// <summary>
         /// Initializes one shared scene-component transform service.
         /// </summary>
         /// <param name="assetsRootPath">Absolute source assets root path.</param>
@@ -358,6 +368,7 @@ namespace helengine.editor {
             TextComponentSpriteBakeService = textComponentSpriteBakeService;
             StaticMeshCookProcessorRegistry = staticMeshCookProcessorRegistry ?? StaticMeshCollisionCookProcessorRegistry.Shared;
             MeshTessellationVariantReferencesByIdentity = new Dictionary<string, SceneAssetReference>(StringComparer.Ordinal);
+            CpuReadableModelReferencesByIdentity = new Dictionary<string, SceneAssetReference>(StringComparer.Ordinal);
             AutomaticScriptComponentDescriptor = new AutomaticScriptComponentPersistenceDescriptor(ScriptComponentSchemaBuilder, scriptTypeResolver);
             PersistenceRegistry = new ComponentPersistenceRegistry(scriptTypeResolver);
             PlatformOverridePayloadService = new ComponentPlatformOverridePayloadService();
@@ -794,6 +805,7 @@ namespace helengine.editor {
 
             ScriptComponentReflectionSchema schema = PlatformExtendedSchemaBuilder.Build(component.GetType(), PlatformDefinition);
             EntityComponentSaveState rewrittenSaveState = RewriteAutomaticComponentSaveStateReferences(schema, saveState, buildRootPath);
+            RewriteCpuReadableModelReferenceMembers(schema, component, buildRootPath);
             ApplyMeshComponentTessellationVariant(component, rewrittenSaveState, buildRootPath, context, meshTessellationSettings, meshUvwModifiers, sourceRecord);
             using MemoryStream stream = new MemoryStream();
             using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian);
@@ -813,6 +825,190 @@ namespace helengine.editor {
                 ComponentIndex = componentIndex,
                 Payload = stream.ToArray()
             };
+        }
+
+        /// <summary>
+        /// Rewrites only explicitly marked direct scene-asset-reference members into generic CPU-readable model companions.
+        /// </summary>
+        /// <param name="schema">Reflected component schema whose marked members should be inspected.</param>
+        /// <param name="component">Temporary component instance receiving rewritten member values.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives companion model assets.</param>
+        void RewriteCpuReadableModelReferenceMembers(
+            ScriptComponentReflectionSchema schema,
+            Component component,
+            string buildRootPath) {
+            if (schema == null) {
+                throw new ArgumentNullException(nameof(schema));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                if (!member.HasAttribute<CpuReadableModelReferenceAttribute>()) {
+                    continue;
+                }
+                if (member.ValueType != typeof(SceneAssetReference)) {
+                    throw new InvalidOperationException(
+                        $"CPU-readable model reference member '{member.Name}' must declare exactly {nameof(SceneAssetReference)}.");
+                }
+
+                SceneAssetReference reference = member.GetValue(component) as SceneAssetReference;
+                if (reference != null) {
+                    member.SetValue(component, RewriteCpuReadableModelReference(reference, buildRootPath));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Writes or reuses one generic CPU-readable model companion for a marked scene asset reference.
+        /// </summary>
+        /// <param name="reference">Authored generated or filesystem model reference.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives the companion model asset.</param>
+        /// <returns>Packaged reference targeting the generic CPU-readable model companion.</returns>
+        SceneAssetReference RewriteCpuReadableModelReference(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                return null;
+            } else if (string.IsNullOrWhiteSpace(buildRootPath)) {
+                throw new ArgumentException("Build root path must be provided.", nameof(buildRootPath));
+            }
+
+            string identity = BuildCpuReadableModelReferenceIdentity(reference, buildRootPath);
+            if (CpuReadableModelReferencesByIdentity.TryGetValue(identity, out SceneAssetReference existingReference)) {
+                return existingReference;
+            }
+
+            SceneAssetReference packagedReference;
+            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                packagedReference = RewriteGeneratedCpuReadableModelReference(reference, buildRootPath);
+            } else if (reference.SourceKind == SceneAssetReferenceSourceKind.FileSystem) {
+                packagedReference = RewriteFileSystemCpuReadableModelReference(reference, buildRootPath);
+            } else {
+                throw new InvalidOperationException($"Unsupported CPU-readable model reference source kind '{reference.SourceKind}'.");
+            }
+
+            CpuReadableModelReferencesByIdentity.Add(identity, packagedReference);
+            return packagedReference;
+        }
+
+        /// <summary>
+        /// Builds the stable cache identity for one CPU-readable model companion.
+        /// </summary>
+        /// <param name="reference">Source model reference being identified.</param>
+        /// <param name="buildRootPath">Build root that owns the companion output.</param>
+        /// <returns>Stable companion identity.</returns>
+        string BuildCpuReadableModelReferenceIdentity(SceneAssetReference reference, string buildRootPath) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            return string.Concat(
+                Path.GetFullPath(buildRootPath),
+                "|",
+                (int)reference.SourceKind,
+                "|",
+                reference.ProviderId,
+                "|",
+                reference.AssetId,
+                "|",
+                reference.ContentHash,
+                "|",
+                reference.RelativePath);
+        }
+
+        /// <summary>
+        /// Rewrites one supported engine-generated model reference into its CPU-readable companion.
+        /// </summary>
+        /// <param name="reference">Generated model reference being rewritten.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives the companion model asset.</param>
+        /// <returns>Generated packaged reference targeting the CPU-readable companion.</returns>
+        SceneAssetReference RewriteGeneratedCpuReadableModelReference(SceneAssetReference reference, string buildRootPath) {
+            if (!string.Equals(reference.ProviderId, EngineGeneratedProviderId, StringComparison.Ordinal)) {
+                throw new InvalidOperationException($"Unsupported generated CPU-readable model provider '{reference.ProviderId}'.");
+            }
+
+            string relativePath;
+            ModelAsset modelAsset;
+            if (string.Equals(reference.AssetId, CubeGeneratedAssetId, StringComparison.Ordinal)) {
+                relativePath = NormalizeRelativePath(Path.Combine(CpuReadableModelRelativePath, "engine", "cube.hasset"));
+                modelAsset = ModelUtils.GenerateCubeMesh(float3.Zero, float3.One);
+            } else if (string.Equals(reference.AssetId, PlaneGeneratedAssetId, StringComparison.Ordinal)) {
+                relativePath = NormalizeRelativePath(Path.Combine(CpuReadableModelRelativePath, "engine", "plane.hasset"));
+                modelAsset = ModelUtils.GeneratePlaneMesh(float3.Zero, float3.One);
+            } else if (string.Equals(reference.AssetId, SphereGeneratedAssetId, StringComparison.Ordinal)) {
+                relativePath = NormalizeRelativePath(Path.Combine(CpuReadableModelRelativePath, "engine", "sphere.hasset"));
+                modelAsset = ModelUtils.GenerateSphereMesh(float3.Zero, float3.One);
+            } else {
+                throw new InvalidOperationException($"Unsupported generated CPU-readable model asset id '{reference.AssetId}'.");
+            }
+
+            WriteAsset(Path.Combine(buildRootPath, relativePath), modelAsset);
+            return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
+        }
+
+        /// <summary>
+        /// Rewrites one filesystem model reference into a stable asset-id/hash-named CPU-readable companion.
+        /// </summary>
+        /// <param name="reference">Filesystem model reference being rewritten.</param>
+        /// <param name="buildRootPath">Absolute build root path that receives the companion model asset.</param>
+        /// <returns>Filesystem packaged reference targeting the CPU-readable companion.</returns>
+        SceneAssetReference RewriteFileSystemCpuReadableModelReference(SceneAssetReference reference, string buildRootPath) {
+            string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            ModelAsset modelAsset = FileSystemModelResolver.ResolveModelAsset(sourcePath);
+            ValidateCpuReadableModelCompanion(modelAsset, reference.RelativePath);
+            string relativePath = BuildFileSystemCpuReadableModelRelativePath(reference);
+            WriteAsset(Path.Combine(buildRootPath, relativePath), modelAsset);
+            return CreateFileSystemReference(relativePath);
+        }
+
+        /// <summary>
+        /// Validates one imported model before it is persisted as a generic CPU-readable companion.
+        /// </summary>
+        /// <param name="modelAsset">Imported model asset to validate.</param>
+        /// <param name="sourceRelativePath">Authored source path used in diagnostics.</param>
+        void ValidateCpuReadableModelCompanion(ModelAsset modelAsset, string sourceRelativePath) {
+            if (modelAsset == null) {
+                throw new InvalidOperationException(
+                    $"Filesystem model '{sourceRelativePath}' produced an invalid CPU-readable model companion: ModelAsset is null.");
+            }
+            if (modelAsset.Positions == null || modelAsset.Positions.Length == 0) {
+                throw new InvalidOperationException(
+                    $"Filesystem model '{sourceRelativePath}' produced an invalid CPU-readable model companion: Positions must be non-null and non-empty.");
+            }
+
+            bool has16BitIndices = modelAsset.Indices16 != null && modelAsset.Indices16.Length > 0;
+            bool has32BitIndices = modelAsset.Indices32 != null && modelAsset.Indices32.Length > 0;
+            if (has16BitIndices == has32BitIndices) {
+                throw new InvalidOperationException(
+                    $"Filesystem model '{sourceRelativePath}' produced an invalid CPU-readable model companion: exactly one populated index width (Indices16 or Indices32) is required.");
+            }
+        }
+
+        /// <summary>
+        /// Builds one stable generic companion path for a filesystem model reference.
+        /// </summary>
+        /// <param name="reference">Filesystem model reference being named.</param>
+        /// <returns>Normalized generic CPU-readable companion path.</returns>
+        string BuildFileSystemCpuReadableModelRelativePath(SceneAssetReference reference) {
+            if (reference == null) {
+                throw new ArgumentNullException(nameof(reference));
+            }
+
+            string identity = reference.AssetId;
+            if (string.IsNullOrWhiteSpace(identity)) {
+                identity = reference.ContentHash;
+                if (identity.StartsWith("sha256:", StringComparison.Ordinal)) {
+                    identity = identity.Substring("sha256:".Length);
+                }
+            }
+            if (string.IsNullOrWhiteSpace(identity)) {
+                byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(reference.RelativePath ?? string.Empty));
+                identity = Convert.ToHexString(hashBytes).ToLowerInvariant();
+            }
+
+            return NormalizeRelativePath(Path.Combine(CpuReadableModelRelativePath, "filesystem", string.Concat(identity, ".hasset")));
         }
 
         /// <summary>
