@@ -32,6 +32,7 @@ namespace helengine {
                 return state;
             }
 
+            NativeOwnership.DisposeAndRelease(ref core.PhysicsRuntimeRegistrationState);
             state = new RegistrationState(core);
             core.PhysicsRuntimeRegistrationState = state;
             return core.PhysicsRuntimeRegistrationState as RegistrationState;

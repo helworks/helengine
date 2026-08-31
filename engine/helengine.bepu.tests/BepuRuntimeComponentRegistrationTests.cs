@@ -78,6 +78,56 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures an incompatible disposable in the Core-owned slot is released once before registration installs a fresh state.
+        /// </summary>
+        [Fact]
+        public void GetRegistrationState_WithIncompatibleOwnedValue_ReleasesItBeforeInstallingNewState() {
+            System.Reflection.FieldInfo slot = typeof(Core).GetField(
+                "PhysicsRuntimeRegistrationState",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            System.Reflection.MethodInfo method = typeof(BepuRuntimeComponentRegistration).GetMethod(
+                "GetRegistrationState",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.NotNull(slot);
+            Assert.NotNull(method);
+
+            Core core = new Core(new CoreInitializationOptions());
+            CountingDisposable incompatibleState = new CountingDisposable();
+            slot.SetValue(core, incompatibleState);
+
+            object firstState = method.Invoke(null, [core]);
+            object secondState = method.Invoke(null, [core]);
+
+            Assert.Equal(1, incompatibleState.DisposeCount);
+            Assert.NotNull(firstState);
+            Assert.Same(firstState, secondState);
+            Assert.Same(firstState, slot.GetValue(core));
+
+            core.Dispose();
+            Assert.Equal(1, incompatibleState.DisposeCount);
+            Assert.Null(slot.GetValue(core));
+        }
+
+        /// <summary>
+        /// Ensures incompatible replacement follows the canonical native-owned release pattern in source.
+        /// </summary>
+        [Fact]
+        public void GetRegistrationState_WithIncompatibleOwnedValue_UsesDisposeAndReleaseBeforeAllocation() {
+            string sourcePath = Path.Combine(
+                ResolveRepositoryRootPath(),
+                "engine",
+                "helengine.bepu",
+                "BepuRuntimeComponentRegistration.cs");
+            string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+            Assert.Contains(
+                "NativeOwnership.DisposeAndRelease(ref core.PhysicsRuntimeRegistrationState);\n            state = new RegistrationState(core);",
+                source,
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures registration defers BEPU-backed runtime attachment until one physics scene is loaded.
         /// </summary>
         [Fact]
