@@ -67,6 +67,40 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures raw scene asset references survive the descriptor-to-runtime ordinal payload path without invoking an asset resolver.
+        /// </summary>
+        [Fact]
+        public void Cpu_readable_model_reference_RuntimeDeserializer_RoundTripsNullAndCanonicalReferenceWithoutResolver() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            SceneAssetReference authoredReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                "11112222333344445555666677778888",
+                "Models/RawReference.obj",
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
+
+            foreach (SceneAssetReference reference in new[] { null, authoredReference }) {
+                RawSceneAssetReferenceComponent component = new RawSceneAssetReferenceComponent { ModelReference = reference };
+                SceneComponentAssetRecord taggedRecord = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+                SceneComponentAssetRecord runtimeRecord = BuildRuntimeRecordFromDescriptor(component, taggedRecord);
+                AutomaticScriptComponentRuntimeDeserializer runtimeDeserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                    runtimeRecord.ComponentTypeId,
+                    typeof(RawSceneAssetReferenceComponent));
+
+                RawSceneAssetReferenceComponent restored = Assert.IsType<RawSceneAssetReferenceComponent>(runtimeDeserializer.Deserialize(runtimeRecord, null));
+                if (reference == null) {
+                    Assert.Null(restored.ModelReference);
+                    continue;
+                }
+
+                Assert.NotNull(restored.ModelReference);
+                Assert.Equal(reference.SourceKind, restored.ModelReference.SourceKind);
+                Assert.Equal(reference.RelativePath, restored.ModelReference.RelativePath);
+                Assert.Equal(reference.ProviderId, restored.ModelReference.ProviderId);
+                Assert.Equal(reference.AssetId, restored.ModelReference.AssetId);
+                Assert.Equal(reference.ContentHash, restored.ModelReference.ContentHash);
+            }
+        }
+
+        /// <summary>
         /// Ensures reflected automatic persistence can round-trip arrays of simple authored classes, enums, and double values used by the planned memory probe.
         /// </summary>
         [Fact]
@@ -557,6 +591,35 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Converts one descriptor-serialized component into the strict ordinal runtime payload using the descriptor's supported-value writer.
+        /// </summary>
+        static SceneComponentAssetRecord BuildRuntimeRecordFromDescriptor(
+            Component component,
+            SceneComponentAssetRecord descriptorRecord) {
+            if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            } else if (descriptorRecord == null) {
+                throw new ArgumentNullException(nameof(descriptorRecord));
+            }
+
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(component.GetType());
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, EngineBinaryEndianness.LittleEndian)) {
+                writer.WriteByte(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion);
+                writer.WriteInt32(schema.Members.Count);
+                foreach (ScriptComponentReflectionMember member in schema.Members) {
+                    AutomaticScriptComponentPersistenceDescriptor.WriteSupportedValue(writer, member.ValueType, member.GetValue(component));
+                }
+            }
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = descriptorRecord.ComponentTypeId,
+                ComponentIndex = descriptorRecord.ComponentIndex,
+                Payload = stream.ToArray()
+            };
+        }
+
+        /// <summary>
         /// Ensures scenes persisted with the removed anchor component id fail instead of resolving the renamed layout component.
         /// </summary>
         [Fact]
@@ -949,6 +1012,10 @@ namespace helengine.editor.tests.serialization.scene {
             });
 
             return writer.BuildPayload();
+        }
+
+        public sealed class RawSceneAssetReferenceComponent : Component {
+            public SceneAssetReference ModelReference { get; set; }
         }
     }
 }

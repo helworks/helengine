@@ -316,6 +316,40 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures raw scene asset references are read and assigned unchanged in managed generated player deserializers without a runtime asset resolver.
+        /// </summary>
+        [Fact]
+        public void Cpu_readable_model_reference_Generate_WhenSchemaContainsRawReference_UsesDirectFactoryReadWithoutResolver() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(RawSceneAssetReferenceComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.Generate(schema);
+
+            Assert.Contains("global::helengine.SceneAssetReferenceFactory.ReadOptionalReference(reader)", source, StringComparison.Ordinal);
+            Assert.Contains("component.ModelReference =", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("referenceResolver.Resolve", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures raw scene asset references are supported by native generated player deserializers and include their factory value types.
+        /// </summary>
+        [Fact]
+        public void Cpu_readable_model_reference_GenerateNative_WhenSchemaContainsRawReference_UsesDirectFactoryReadWithoutResolver() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(RawSceneAssetReferenceComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            Assert.True(generator.CanGenerateNativeDeserializer(schema));
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("#include \"SceneAssetReference.hpp\"", header, StringComparison.Ordinal);
+            Assert.Contains("#include \"SceneAssetReferenceSourceKind.hpp\"", header, StringComparison.Ordinal);
+            Assert.Contains("::SceneAssetReferenceFactory::ReadOptionalReference(reader)", source, StringComparison.Ordinal);
+            Assert.Contains("component->set_ModelReference(", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("ResolveModel", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures platform-extended schemas emit native deserializer writes through the component synthetic-member store instead of assuming one reflected property exists on the component type.
         /// </summary>
         [Fact]
@@ -399,6 +433,10 @@ namespace helengine.editor.tests.managers.project {
                         "0",
                         0)
                 ]);
+        }
+
+        public sealed class RawSceneAssetReferenceComponent : Component {
+            public SceneAssetReference ModelReference { get; set; }
         }
     }
 }

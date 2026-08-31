@@ -168,6 +168,23 @@ namespace helengine.editor.tests {
         }
 
         [Fact]
+        public void TryTransform_Cpu_readable_model_reference_SameServiceAfterCompanionDeletion_RecreatesCompanion() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            SceneAssetReference reference = SceneAssetReferenceTestFactory.CreateEngineCubeModel();
+            string companionPath = Path.Combine(BuildRootPath, "cooked", "cpu-models", "engine", "cube.hasset");
+
+            Assert.True(service.TryTransform(CreateCpuReadableModelReferenceRecord(reference), BuildRootPath, out _));
+            Assert.True(File.Exists(companionPath));
+            File.Delete(companionPath);
+
+            Assert.True(service.TryTransform(CreateCpuReadableModelReferenceRecord(reference), BuildRootPath, out SceneComponentAssetRecord transformedRecord));
+
+            Assert.Equal("cooked/cpu-models/engine/cube.hasset", DeserializeCpuReadableModelReferenceComponent(transformedRecord).ModelReference.RelativePath);
+            Assert.True(File.Exists(companionPath));
+            AssertValidCpuReadableModelCompanion(companionPath);
+        }
+
+        [Fact]
         public void TryTransform_Cpu_readable_model_reference_FileSystemUsesStableIdentityNames() {
             SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService(), registerModelImporter: true);
             WriteSourceModel("Models/First/cube.obj");
@@ -186,9 +203,32 @@ namespace helengine.editor.tests {
 
             string firstPath = ReadPackagedCpuReadableModelReference(firstRecord).RelativePath;
             string secondPath = ReadPackagedCpuReadableModelReference(secondRecord).RelativePath;
-            Assert.Equal("cooked/cpu-models/filesystem/11112222333344445555666677778888.hasset", firstPath);
-            Assert.Equal("cooked/cpu-models/filesystem/9999aaaabbbbccccddddeeeeffff0000.hasset", secondPath);
+            Assert.Equal("cooked/cpu-models/filesystem/11112222333344445555666677778888-1111111111111111111111111111111111111111111111111111111111111111.hasset", firstPath);
+            Assert.Equal("cooked/cpu-models/filesystem/9999aaaabbbbccccddddeeeeffff0000-2222222222222222222222222222222222222222222222222222222222222222.hasset", secondPath);
             Assert.Equal(2, Directory.GetFiles(Path.Combine(BuildRootPath, "cooked", "cpu-models"), "*.hasset", SearchOption.AllDirectories).Length);
+            AssertValidCpuReadableModelCompanion(Path.Combine(BuildRootPath, firstPath));
+            AssertValidCpuReadableModelCompanion(Path.Combine(BuildRootPath, secondPath));
+        }
+
+        [Fact]
+        public void TryTransform_Cpu_readable_model_reference_SameAssetIdDifferentHashes_UsesDistinctStableCompanionNames() {
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService(), registerModelImporter: true);
+            WriteSourceModel("Models/First/same-name.obj");
+            WriteSourceModel("Models/Second/same-name.obj");
+            const string assetId = "11112222333344445555666677778888";
+            const string firstHash = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+            const string secondHash = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+            SceneAssetReference firstReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(assetId, "Models/First/same-name.obj", firstHash);
+            SceneAssetReference secondReference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(assetId, "Models/Second/same-name.obj", secondHash);
+
+            Assert.True(service.TryTransform(CreateCpuReadableModelReferenceRecord(firstReference), BuildRootPath, out SceneComponentAssetRecord firstRecord));
+            Assert.True(service.TryTransform(CreateCpuReadableModelReferenceRecord(secondReference), BuildRootPath, out SceneComponentAssetRecord secondRecord));
+
+            string firstPath = ReadPackagedCpuReadableModelReference(firstRecord).RelativePath;
+            string secondPath = ReadPackagedCpuReadableModelReference(secondRecord).RelativePath;
+            Assert.Equal("cooked/cpu-models/filesystem/11112222333344445555666677778888-1111111111111111111111111111111111111111111111111111111111111111.hasset", firstPath);
+            Assert.Equal("cooked/cpu-models/filesystem/11112222333344445555666677778888-2222222222222222222222222222222222222222222222222222222222222222.hasset", secondPath);
+            Assert.NotEqual(firstPath, secondPath);
             AssertValidCpuReadableModelCompanion(Path.Combine(BuildRootPath, firstPath));
             AssertValidCpuReadableModelCompanion(Path.Combine(BuildRootPath, secondPath));
         }

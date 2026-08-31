@@ -256,6 +256,9 @@ namespace helengine {
             if (valueType == null) {
                 throw new ArgumentNullException(nameof(valueType));
             }
+            if (valueType == typeof(SceneAssetReference)) {
+                return ReadOptionalReference(reader);
+            }
             if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType)) {
                 SceneAssetReference reference = ReadOptionalReference(reader);
                 return AutomaticComponentAssetReferenceSupport.ResolveRuntimeAssetReference(valueType, reference, referenceResolver);

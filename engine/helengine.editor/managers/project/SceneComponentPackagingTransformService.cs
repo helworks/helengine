@@ -877,7 +877,12 @@ namespace helengine.editor {
 
             string identity = BuildCpuReadableModelReferenceIdentity(reference, buildRootPath);
             if (CpuReadableModelReferencesByIdentity.TryGetValue(identity, out SceneAssetReference existingReference)) {
-                return existingReference;
+                string existingCompanionPath = ResolvePackagedModelAssetPath(buildRootPath, existingReference.RelativePath);
+                if (File.Exists(existingCompanionPath)) {
+                    return existingReference;
+                }
+
+                CpuReadableModelReferencesByIdentity.Remove(identity);
             }
 
             SceneAssetReference packagedReference;
@@ -996,14 +1001,16 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(reference));
             }
 
-            string identity = reference.AssetId;
-            if (string.IsNullOrWhiteSpace(identity)) {
-                identity = reference.ContentHash;
-                if (identity.StartsWith("sha256:", StringComparison.Ordinal)) {
-                    identity = identity.Substring("sha256:".Length);
-                }
+            string assetId = reference.AssetId;
+            string contentHash = reference.ContentHash;
+            if (contentHash.StartsWith("sha256:", StringComparison.Ordinal)) {
+                contentHash = contentHash.Substring("sha256:".Length);
             }
-            if (string.IsNullOrWhiteSpace(identity)) {
+
+            string identity;
+            if (!string.IsNullOrWhiteSpace(assetId) && !string.IsNullOrWhiteSpace(contentHash)) {
+                identity = string.Concat(assetId, "-", contentHash);
+            } else {
                 byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(reference.RelativePath ?? string.Empty));
                 identity = Convert.ToHexString(hashBytes).ToLowerInvariant();
             }

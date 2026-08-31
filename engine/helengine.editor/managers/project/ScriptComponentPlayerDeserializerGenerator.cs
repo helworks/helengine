@@ -371,6 +371,9 @@ namespace helengine.editor {
             if (valueType == typeof(byte4)) {
                 return $"new byte4({readerVariableName}.ReadByte(), {readerVariableName}.ReadByte(), {readerVariableName}.ReadByte(), {readerVariableName}.ReadByte())";
             }
+            if (valueType == typeof(SceneAssetReference)) {
+                return BuildManagedOptionalReferenceReadExpression(readerVariableName);
+            }
             if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType)) {
                 return BuildManagedAssetReferenceReadExpression(valueType, readerVariableName);
             }
@@ -501,6 +504,10 @@ namespace helengine.editor {
                     + "; "
                     + "return ::EngineSerializedPayload::Restore(formatId, serializedBytes); "
                     + "})()";
+                return true;
+            }
+            if (valueType == typeof(SceneAssetReference)) {
+                expression = BuildNativeOptionalReferenceReadExpression(readerVariableName);
                 return true;
             }
             if (AutomaticComponentAssetReferenceSupport.IsSupportedAssetReferenceType(valueType)) {
@@ -865,6 +872,10 @@ namespace helengine.editor {
                 includeTypes.Add(typeof(SceneAssetReference));
                 includeTypes.Add(typeof(SceneAssetReferenceSourceKind));
             }
+            if (valueType == typeof(SceneAssetReference)) {
+                includeTypes.Add(typeof(SceneAssetReference));
+                includeTypes.Add(typeof(SceneAssetReferenceSourceKind));
+            }
             if (valueType.IsEnum || IsSupportedNestedObjectType(valueType) || valueType == typeof(SceneEntityReference)) {
                 includeTypes.Add(valueType);
             }
@@ -981,6 +992,9 @@ namespace helengine.editor {
             }
             if (valueType == typeof(byte4)) {
                 return "::byte4";
+            }
+            if (valueType == typeof(SceneAssetReference)) {
+                return "::SceneAssetReference*";
             }
             if (AutomaticComponentAssetReferenceSupport.MatchesSupportedAssetReferenceType(valueType, typeof(FontAsset))) {
                 return "::FontAsset*";
