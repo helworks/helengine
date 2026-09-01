@@ -63,7 +63,7 @@ namespace helengine {
                 RegisterProcessorIfMissing(
                     contentManager,
                     RuntimeContentProcessorIds.FontAsset,
-                    new BinaryContentProcessor<FontAsset>(stream => FontAssetBinarySerializer.Deserialize(stream, renderManager2D)),
+                    new FontAssetBinaryContentProcessor(renderManager2D),
                     new[] { FontAssetExtension });
             }
         }
