@@ -832,6 +832,17 @@ namespace helengine.editor {
                 builder.AppendLine("    <Reference Include=\"helengine.editor\">");
                 builder.AppendLine("      <HintPath>" + EscapeXml(typeof(EditorGameSolutionService).Assembly.Location) + "</HintPath>");
                 builder.AppendLine("    </Reference>");
+                string editorAssemblyDirectoryPath = Path.GetDirectoryName(typeof(EditorGameSolutionService).Assembly.Location);
+                if (string.IsNullOrWhiteSpace(editorAssemblyDirectoryPath)) {
+                    throw new InvalidOperationException("The deployed HelEngine editor assembly directory could not be resolved.");
+                }
+                string assimpNetterAssemblyPath = Path.Combine(editorAssemblyDirectoryPath, "AssimpNetter.dll");
+                if (!File.Exists(assimpNetterAssemblyPath)) {
+                    throw new FileNotFoundException("The deployed AssimpNetter editor dependency was not found.", assimpNetterAssemblyPath);
+                }
+                builder.AppendLine("    <Reference Include=\"AssimpNetter\">");
+                builder.AppendLine("      <HintPath>" + EscapeXml(assimpNetterAssemblyPath) + "</HintPath>");
+                builder.AppendLine("    </Reference>");
             }
             builder.AppendLine("  </ItemGroup>");
         }

@@ -196,6 +196,10 @@ namespace helengine.editor.tests {
             Assert.Contains("helengine.core", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("<Reference Include=\"helengine.nativeownership\">", projectFileContents, StringComparison.Ordinal);
             Assert.Contains("helengine.editor", projectFileContents, StringComparison.OrdinalIgnoreCase);
+            string editorAssemblyDirectoryPath = Path.GetDirectoryName(typeof(EditorGameSolutionService).Assembly.Location);
+            string assimpNetterAssemblyPath = Path.Combine(editorAssemblyDirectoryPath, "AssimpNetter.dll");
+            Assert.Contains("<Reference Include=\"AssimpNetter\">", projectFileContents, StringComparison.Ordinal);
+            Assert.Contains("<HintPath>" + EscapeXml(assimpNetterAssemblyPath) + "</HintPath>", projectFileContents, StringComparison.Ordinal);
             Assert.Contains("..\\gameplay\\gameplay.csproj", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("global using helengine;", globalUsingsContents, StringComparison.Ordinal);
             Assert.Contains("global using helengine.editor;", globalUsingsContents, StringComparison.Ordinal);
