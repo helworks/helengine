@@ -32,7 +32,7 @@ namespace helengine.editor {
             }
 
             string normalizedRelativePath = relativePath.Replace(Path.DirectorySeparatorChar, '/');
-            string contentHash = string.Concat("sha256:", FileHasher.ComputeHash(fullPath));
+            string contentHash = string.Concat("sha256:", ComputeCookedArtifactHash(fullPath));
             Artifacts.Add(new PlatformBuildArtifact(normalizedRelativePath, contentHash, artifactKind, variantId));
         }
 
@@ -48,13 +48,23 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(declaration));
             }
 
-            string contentHash = string.Concat("sha256:", FileHasher.ComputeHash(fullPath));
+            string contentHash = string.Concat("sha256:", ComputeCookedArtifactHash(fullPath));
             Artifacts.Add(new PlatformBuildArtifact(
                 declaration.RelativePath,
                 declaration.LogicalArtifactId,
                 contentHash,
                 declaration.ArtifactKind,
                 declaration.VariantId));
+        }
+
+        /// <summary>
+        /// Computes a cooked-output hash without treating the build cache as authored project content.
+        /// </summary>
+        /// <param name="fullPath">Absolute path to the generated cooked file.</param>
+        /// <returns>Lowercase hexadecimal SHA-256 hash.</returns>
+        string ComputeCookedArtifactHash(string fullPath) {
+            using FileStream stream = File.OpenRead(fullPath);
+            return FileHasher.ComputeHash(stream);
         }
 
         public PlatformBuildArtifact[] ToArray() {

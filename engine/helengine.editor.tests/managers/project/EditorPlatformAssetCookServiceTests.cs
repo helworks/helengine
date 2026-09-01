@@ -156,6 +156,41 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures declared cooked artifacts can be hashed from an isolated build cache outside the authored project root.
+    /// </summary>
+    [Fact]
+    public void AddDeclaredFile_whenCookedFileIsOutsideProjectRoot_usesStableContentHash() {
+        string externalBuildRootPath = Path.Combine(
+            Path.GetTempPath(),
+            "helengine-cooked-artifact-outside-root-" + Guid.NewGuid().ToString("N"));
+        string fullPath = Path.Combine(externalBuildRootPath, "cooked", "shaders", "ForwardStandardShader.dx11.hasset");
+        byte[] payload = new byte[] { 3, 1, 4, 1, 5, 9 };
+
+        try {
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            File.WriteAllBytes(fullPath, payload);
+            PlatformCookedArtifactDeclaration declaration = new(
+                "cooked/shaders/ForwardStandardShader.dx11.hasset",
+                "shader:forward-standard",
+                "shader",
+                "windows");
+            EditorPlatformCookedArtifactPool artifactPool = new(ProjectRootPath);
+
+            artifactPool.AddDeclaredFile(fullPath, declaration);
+
+            PlatformBuildArtifact artifact = Assert.Single(artifactPool.ToArray());
+            string expectedHash = string.Concat(
+                "sha256:",
+                Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(payload)).ToLowerInvariant());
+            Assert.Equal(expectedHash, artifact.ContentHash);
+        } finally {
+            if (Directory.Exists(externalBuildRootPath)) {
+                Directory.Delete(externalBuildRootPath, true);
+            }
+        }
+    }
+
+    /// <summary>
     /// Verifies cooked scene metadata records the used automatic runtime component type ids so later build phases can discover code-driven runtime feature requirements.
     /// </summary>
     [Fact]
