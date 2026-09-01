@@ -168,7 +168,7 @@ namespace helengine.editor.app {
             string rendererBackend = Environment.GetEnvironmentVariable(RendererBackendEnvironmentVariable, EnvironmentVariableTarget.Process);
             string experimentalVulkan = Environment.GetEnvironmentVariable(ExperimentalVulkanEnvironmentVariable, EnvironmentVariableTarget.Process);
             bool experimentalVulkanEnabled = string.Equals(experimentalVulkan, "1", StringComparison.Ordinal);
-            bool useVulkan = default(bool);
+            bool useVulkan = false;
             if (!string.IsNullOrWhiteSpace(rendererBackend)) {
                 rendererBackend = rendererBackend.Trim();
                 if (string.Equals(rendererBackend, "vulkan", StringComparison.OrdinalIgnoreCase)) {

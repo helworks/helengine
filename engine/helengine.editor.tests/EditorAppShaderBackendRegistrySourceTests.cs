@@ -50,7 +50,7 @@ public sealed class EditorAppShaderBackendRegistrySourceTests {
             "Vulkan rendering requires HELENGINE_ENABLE_EXPERIMENTAL_VULKAN=1.",
             source,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("useVulkan = false;", source, StringComparison.Ordinal);
+        Assert.Equal(1, source.Split("useVulkan = false;", StringSplitOptions.None).Length - 1);
     }
 
     /// <summary>
