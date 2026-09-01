@@ -65,4 +65,3 @@ and produce no `renderManager2D`, fatal, unhandled-exception, or Vulkan log entr
 
 After that passes, rebuild the retained Release target and run the packaged
 DemoDisc navigation smoke through the Software Path Tracer scene.
-
