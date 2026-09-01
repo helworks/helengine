@@ -56,6 +56,56 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures generated native payload-boundary validation calls the concrete native stream API.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenValidatingPayloadBoundary_UsesNativeMemoryStreamMethods() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("stream->Position() != stream->Length()", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("stream->get_Position()", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("stream->get_Length()", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures generated native truncation diagnostics use the exception constructors exposed by the native runtime shim.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenPayloadIsTruncated_UsesSupportedNativeExceptionConstructor() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("catch (const EndOfStreamException&)", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("exception);", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures nested native read helpers are emitted after the deserializer function has closed.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenSchemaNeedsNestedHelper_ClosesDeserializeBeforeHelperDefinition() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+            string expectedBoundary = string.Join(Environment.NewLine, [
+                "}",
+                "}",
+                "}",
+                "}",
+                string.Empty,
+                "::float4 GeneratedRuntimeAmbientLightComponentDeserializer::Readfloat4(::EngineBinaryReader* reader)"
+            ]);
+
+            Assert.Contains(expectedBoundary, source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures generated managed and native deserializers require the exact current rigid-body member count.
         /// </summary>
         [Fact]

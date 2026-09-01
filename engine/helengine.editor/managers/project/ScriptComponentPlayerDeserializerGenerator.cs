@@ -235,6 +235,12 @@ namespace helengine.editor {
             builder.AppendLine("auto __ctor_arg_00000003 = false;");
             builder.AppendLine("return new ::MemoryStream(__ctor_arg_00000001, __ctor_arg_00000003);");
             builder.AppendLine("})();");
+            builder.AppendLine("auto __usingDisposeGuard_00000004 = he_cpp_make_scope_exit([&]() {");
+            builder.AppendLine("if (stream != nullptr) {");
+            builder.AppendLine("stream->Dispose();");
+            builder.AppendLine("delete stream;");
+            builder.AppendLine("}");
+            builder.AppendLine("});");
             builder.AppendLine("{");
             builder.AppendLine("::EngineBinaryReader *reader = EngineBinaryReader::Create(stream, EngineBinaryEndianness::LittleEndian, true);");
             builder.AppendLine("auto __usingDisposeGuard_00000005 = he_cpp_make_scope_exit([&]() {");
@@ -274,7 +280,7 @@ namespace helengine.editor {
                 builder.AppendLine(BuildNativeAssignmentStatement(member, BuildNativeReadExpression(member.ValueType, BuildNativeReaderVariableName(), nativeNestedHelperNames)));
             }
 
-            builder.AppendLine("if (stream->get_Position() != stream->get_Length())");
+            builder.AppendLine("if (stream->Position() != stream->Length())");
             builder.AppendLine("{");
             builder.AppendLine(UseCompactNativeExceptionMessages
                 ? "throw new InvalidOperationException();"
@@ -282,11 +288,12 @@ namespace helengine.editor {
             builder.AppendLine("}");
             builder.AppendLine("return component;");
             builder.AppendLine("}");
-            builder.AppendLine("catch (const EndOfStreamException& exception)");
+            builder.AppendLine("catch (const EndOfStreamException&)");
             builder.AppendLine("{");
             builder.AppendLine(UseCompactNativeExceptionMessages
                 ? "throw new InvalidOperationException();"
-                : "std::string versionText = hasReceivedVersion ? std::string(\"received version '\") + String::ToJoinString(receivedVersion) + std::string(\"', current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"'\") : std::string(\"received version unavailable, current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"'\");\nstd::string memberCountText = hasReceivedMemberCount ? std::string(\"received member count '\") + String::ToJoinString(receivedMemberCount) + std::string(\"', current member count '\") + String::ToJoinString(MemberCount) + std::string(\"'\") : std::string(\"received member count unavailable, current member count '\") + String::ToJoinString(MemberCount) + std::string(\"'\");\nthrow new InvalidOperationException(std::string(\"Automatic scripted component payload is truncated (\") + versionText + std::string(\"; \") + memberCountText + std::string(\"). Regenerate/rebuild the asset in the current format.\"), exception);");
+                : "std::string versionText = hasReceivedVersion ? std::string(\"received version '\") + String::ToJoinString(receivedVersion) + std::string(\"', current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"'\") : std::string(\"received version unavailable, current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"'\");\nstd::string memberCountText = hasReceivedMemberCount ? std::string(\"received member count '\") + String::ToJoinString(receivedMemberCount) + std::string(\"', current member count '\") + String::ToJoinString(MemberCount) + std::string(\"'\") : std::string(\"received member count unavailable, current member count '\") + String::ToJoinString(MemberCount) + std::string(\"'\");\nthrow new InvalidOperationException(std::string(\"Automatic scripted component payload is truncated (\") + versionText + std::string(\"; \") + memberCountText + std::string(\"). Regenerate/rebuild the asset in the current format.\"));");
+            builder.AppendLine("}");
             builder.AppendLine("}");
             builder.AppendLine("}");
             builder.AppendLine("}");
