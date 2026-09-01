@@ -16,6 +16,10 @@ namespace helengine.editor.app {
         /// </summary>
         const string RendererBackendEnvironmentVariable = "HELENGINE_RENDER_BACKEND";
         /// <summary>
+        /// Environment variable that explicitly opts into the experimental Vulkan renderer.
+        /// </summary>
+        const string ExperimentalVulkanEnvironmentVariable = "HELENGINE_ENABLE_EXPERIMENTAL_VULKAN";
+        /// <summary>
         /// Windows message sent after a move or resize loop completes.
         /// </summary>
         const int WmExitSizeMove = 0x0232;
@@ -162,17 +166,21 @@ namespace helengine.editor.app {
             EditorUiMetrics initialUiMetrics = uiScaleController.ResolveMetrics(DeviceDpi);
 
             string rendererBackend = Environment.GetEnvironmentVariable(RendererBackendEnvironmentVariable, EnvironmentVariableTarget.Process);
-            bool useVulkan = false;
+            string experimentalVulkan = Environment.GetEnvironmentVariable(ExperimentalVulkanEnvironmentVariable, EnvironmentVariableTarget.Process);
+            bool experimentalVulkanEnabled = string.Equals(experimentalVulkan, "1", StringComparison.Ordinal);
+            bool useVulkan = default(bool);
             if (!string.IsNullOrWhiteSpace(rendererBackend)) {
                 rendererBackend = rendererBackend.Trim();
                 if (string.Equals(rendererBackend, "vulkan", StringComparison.OrdinalIgnoreCase)) {
+                    if (!experimentalVulkanEnabled) {
+                        throw new InvalidOperationException("Vulkan rendering requires HELENGINE_ENABLE_EXPERIMENTAL_VULKAN=1.");
+                    }
+
                     useVulkan = true;
                 } else if (!string.Equals(rendererBackend, "directx11", StringComparison.OrdinalIgnoreCase)) {
                     throw new InvalidOperationException($"Unsupported renderer backend '{rendererBackend}'. Use 'vulkan' or 'directx11'.");
                 }
             }
-
-            useVulkan = false;
 
             RenderManager2D renderer2D;
             if (useVulkan) {

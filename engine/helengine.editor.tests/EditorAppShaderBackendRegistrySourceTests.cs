@@ -23,6 +23,36 @@ public sealed class EditorAppShaderBackendRegistrySourceTests {
         Assert.Contains("shaderBackendRegistry)", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Editor_app_host_requires_explicit_experimental_opt_in_for_vulkan() {
+        string sourcePath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "helengine.ui",
+            "helengine.editor.app",
+            "MainForm.cs");
+
+        string source = File.ReadAllText(sourcePath);
+
+        Assert.Contains(
+            "const string ExperimentalVulkanEnvironmentVariable = \"HELENGINE_ENABLE_EXPERIMENTAL_VULKAN\";",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Environment.GetEnvironmentVariable(ExperimentalVulkanEnvironmentVariable, EnvironmentVariableTarget.Process)",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "string.Equals(experimentalVulkan, \"1\", StringComparison.Ordinal)",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("if (!experimentalVulkanEnabled)", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "Vulkan rendering requires HELENGINE_ENABLE_EXPERIMENTAL_VULKAN=1.",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("useVulkan = false;", source, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Resolves the helengine repository root from the current test assembly location.
     /// </summary>
