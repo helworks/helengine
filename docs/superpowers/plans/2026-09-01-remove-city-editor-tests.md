@@ -73,7 +73,7 @@ Run:
 
 ```powershell
 $cityFiles = Get-ChildItem -LiteralPath engine\helengine.editor.tests -File -Filter 'City*.cs'
-$demodiscFiles = Get-ChildItem -LiteralPath engine\helengine.editor.tests -File -Filter 'Demodisc*.cs'
+$demodiscFiles = Get-ChildItem -LiteralPath engine\helengine.editor.tests -File | Where-Object Name -CMatch '^Demodisc.*\.cs$'
 $externalReferences = rtk rg -n --glob '*.cs' 'C:\\dev\\helprojs\\(?:city|demodisc)' engine\helengine.editor.tests
 if ($cityFiles.Count -ne 0) { $cityFiles | ForEach-Object FullName; throw 'City project tests remain in the editor test root.' }
 if ($demodiscFiles.Count -ne 0) { $demodiscFiles | ForEach-Object FullName; throw 'DemoDisc project tests remain in the editor test root.' }
