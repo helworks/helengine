@@ -949,8 +949,30 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"Unsupported generated CPU-readable model asset id '{reference.AssetId}'.");
             }
 
+            NormalizeGeneratedCpuReadableModelCompanion(modelAsset);
             WriteAsset(Path.Combine(buildRootPath, relativePath), modelAsset);
             return CreateGeneratedPackagedReference(relativePath, reference.ProviderId, reference.AssetId);
+        }
+
+        /// <summary>
+        /// Ensures a generated CPU-readable model companion has one material-mappable submesh.
+        /// </summary>
+        /// <param name="modelAsset">Generated model asset being normalized.</param>
+        static void NormalizeGeneratedCpuReadableModelCompanion(ModelAsset modelAsset) {
+            ModelAssetIndexData indexData = ModelAssetIndexData.Resolve(modelAsset);
+            if (indexData.IndexCount <= 0) {
+                throw new InvalidOperationException(
+                    "Generated CPU-readable model companion must contain at least one index.");
+            }
+            if (modelAsset.Submeshes == null || modelAsset.Submeshes.Length == 0) {
+                modelAsset.Submeshes = new[] {
+                    new ModelSubmeshAsset {
+                        MaterialSlotName = "DefaultMaterial",
+                        IndexStart = 0,
+                        IndexCount = indexData.IndexCount
+                    }
+                };
+            }
         }
 
         /// <summary>

@@ -90,6 +90,10 @@ namespace helengine.editor.tests {
             ModelAsset model = Assert.IsType<ModelAsset>(AssetSerializer.Deserialize(stream));
             Assert.NotEmpty(model.Positions);
             Assert.True((model.Indices16?.Length > 0) ^ (model.Indices32?.Length > 0));
+            ModelSubmeshAsset submesh = Assert.Single(model.Submeshes);
+            Assert.Equal(0, submesh.IndexStart);
+            int activeIndexCount = model.Indices16?.Length > 0 ? model.Indices16.Length : model.Indices32.Length;
+            Assert.Equal(activeIndexCount, submesh.IndexCount);
         }
 
         [Theory]
@@ -116,6 +120,10 @@ namespace helengine.editor.tests {
             ModelAsset model = Assert.IsType<ModelAsset>(AssetSerializer.Deserialize(stream));
             Assert.NotEmpty(model.Positions);
             Assert.True((model.Indices16?.Length > 0) ^ (model.Indices32?.Length > 0));
+            ModelSubmeshAsset submesh = Assert.Single(model.Submeshes);
+            Assert.Equal(0, submesh.IndexStart);
+            int activeIndexCount = model.Indices16?.Length > 0 ? model.Indices16.Length : model.Indices32.Length;
+            Assert.Equal(activeIndexCount, submesh.IndexCount);
         }
 
         [Fact]
