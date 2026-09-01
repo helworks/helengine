@@ -9,7 +9,7 @@ namespace helengine {
     /// <summary>
     /// Hosts the real BEPU simulation used by supported Helengine 3D rigid-body scenes.
     /// </summary>
-    public sealed class BepuPhysicsWorld3D : ISceneBindablePhysicsRuntime, IPhysicsBodySynchronizationRuntime3D, IPhysicsTriggerEventRuntime3D
+    public sealed class BepuPhysicsWorld3D : ISceneBindablePhysicsRuntime, IPhysicsBodySynchronizationRuntime3D, IPhysicsTriggerEventRuntime3D, IDisposable
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         , IPhysicsRuntimeProfilerMetricsProvider
 #endif
@@ -118,6 +118,11 @@ namespace helengine {
         /// Authored gravity accelerations aligned to active BEPU body handles.
         /// </summary>
         CollidableProperty<float> GravityAccelerationsValue;
+
+        /// <summary>
+        /// Tracks whether this world has released its simulation, registries, and pooled memory resources.
+        /// </summary>
+        bool IsDisposedValue;
 
         /// <summary>
         /// Initializes one BEPU-backed physics world.
@@ -399,15 +404,7 @@ namespace helengine {
         /// Recreates the BEPU simulation and the collidable-property stores that accompany it.
         /// </summary>
         void ResetSimulation() {
-            if (SimulationValue != null) {
-                SimulationValue.Dispose();
-            }
-            if (CollidablePropertiesValue != null) {
-                CollidablePropertiesValue.Dispose();
-            }
-            if (GravityAccelerationsValue != null) {
-                GravityAccelerationsValue.Dispose();
-            }
+            DisposeSimulationResources();
 
             CollidablePropertiesValue = new CollidableProperty<BepuCollidableProperties3D>(BufferPoolValue);
             GravityAccelerationsValue = new CollidableProperty<float>(BufferPoolValue);
@@ -420,6 +417,41 @@ namespace helengine {
                 new SolveDescription(SolveVelocityIterationCountValue, SolveSubstepCountValue),
                 initialAllocationSizes: CreateDefaultSimulationAllocationSizes());
             WireSimulationStageDiagnostics();
+        }
+
+        /// <summary>
+        /// Releases the active BEPU simulation and its collidable-property stores in dependency order so their pooled allocations can be reclaimed safely.
+        /// </summary>
+        void DisposeSimulationResources() {
+            if (SimulationValue != null) {
+                SimulationValue.Dispose();
+                SimulationValue = null;
+            }
+            if (CollidablePropertiesValue != null) {
+                CollidablePropertiesValue.Dispose();
+                CollidablePropertiesValue = null;
+            }
+            if (GravityAccelerationsValue != null) {
+                GravityAccelerationsValue.Dispose();
+                GravityAccelerationsValue = null;
+            }
+        }
+
+        /// <summary>
+        /// Releases all BEPU resources owned by this world and safely ignores repeated disposal requests.
+        /// </summary>
+        public void Dispose() {
+            if (IsDisposedValue) {
+                return;
+            }
+
+            IsDisposedValue = true;
+            DisposeSimulationResources();
+            BodyRegistryValue.Clear();
+            TriggerEventsValue.Clear();
+            ActiveTriggerPairsValue.Clear();
+            CurrentTriggerPairsValue.Clear();
+            BufferPoolValue.Clear();
         }
 
         /// <summary>

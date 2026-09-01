@@ -29,9 +29,29 @@ namespace helengine.bepu.tests {
         /// </summary>
         [Fact]
         public void CreateDefault_ConstructsWorldInstance() {
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
 
             Assert.NotNull(world);
+        }
+
+        /// <summary>
+        /// Ensures disposing a BEPU world clears its pooled simulation allocations and remains safe when called repeatedly.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenWorldOwnsPooledResources_ClearsBufferPoolAndIsIdempotent() {
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            System.Reflection.FieldInfo bufferPoolField = typeof(BepuPhysicsWorld3D).GetField(
+                "BufferPoolValue",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(bufferPoolField);
+            BepuUtilities.Memory.BufferPool bufferPool = Assert.IsType<BepuUtilities.Memory.BufferPool>(bufferPoolField.GetValue(world));
+            Assert.True(bufferPool.GetTotalAllocatedByteCount() > 0);
+            IDisposable disposableWorld = Assert.IsAssignableFrom<IDisposable>(world);
+            disposableWorld.Dispose();
+            disposableWorld.Dispose();
+
+            Assert.Equal(0UL, bufferPool.GetTotalAllocatedByteCount());
         }
 
         /// <summary>
@@ -147,7 +167,7 @@ namespace helengine.bepu.tests {
                 Size = new float3(1f, 1f, 1f)
             });
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { entity });
 
             Assert.Equal(1, world.RegisteredBodyCount);
@@ -161,7 +181,7 @@ namespace helengine.bepu.tests {
             List<string> diagnosticRecords = new List<string>();
             Entity groundEntity = CreateStaticBoxEntity(new float3(0f, -0.5f, 0f), new float3(8f, 1f, 8f));
             Entity dynamicEntity = CreateDynamicBoxEntity(new float3(0f, 2f, 0f), new float3(1f, 1f, 1f));
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.SceneBindingDiagnosticSink = diagnosticRecords.Add;
 
             world.BindScene([groundEntity, dynamicEntity]);
@@ -184,7 +204,7 @@ namespace helengine.bepu.tests {
             Entity groundEntity = CreateStaticBoxEntity(new float3(0f, -0.5f, 0f), new float3(8f, 1f, 8f));
             Entity dynamicEntity = CreateDynamicBoxEntity(new float3(0f, 2f, 0f), new float3(1f, 1f, 1f));
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { groundEntity, dynamicEntity });
 
             for (int index = 0; index < 120; index++) {
@@ -203,7 +223,7 @@ namespace helengine.bepu.tests {
             Entity groundEntity = CreateStaticBoxEntity(new float3(0f, -0.5f, 0f), new float3(8f, 1f, 8f));
             Entity dynamicEntity = CreateDynamicSphereEntity(new float3(0f, 2f, 0f), 0.5f);
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { groundEntity, dynamicEntity });
 
             for (int index = 0; index < 120; index++) {
@@ -221,7 +241,7 @@ namespace helengine.bepu.tests {
         public void Step_WithDynamicSphereAboveStaticMeshGround_ResolvesGroundContact() {
             Entity groundEntity = CreateStaticMeshGroundEntity();
             Entity sphereEntity = CreateDynamicSphereEntity(new float3(0f, 2f, 0f), 0.5f);
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
 
             world.BindScene(new[] { groundEntity, sphereEntity });
             for (int index = 0; index < 180; index++) {
@@ -259,7 +279,7 @@ namespace helengine.bepu.tests {
                     writer => writer.WriteByte(0x01))
             });
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
 
             Assert.Throws<NotSupportedException>(() => world.BindScene(new[] { entity }));
         }
@@ -273,7 +293,7 @@ namespace helengine.bepu.tests {
             Entity lowerBoxEntity = CreateDynamicBoxEntity(new float3(0f, 1f, 0f), new float3(1f, 1f, 1f));
             Entity upperBoxEntity = CreateDynamicBoxEntity(new float3(0f, 2f, 0f), new float3(1f, 1f, 1f));
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { groundEntity, lowerBoxEntity, upperBoxEntity });
 
             for (int index = 0; index < 180; index++) {
@@ -295,7 +315,7 @@ namespace helengine.bepu.tests {
             Entity thirdBoxEntity = CreateDynamicBoxEntity(new float3(1.0f, 3f, 0f), new float3(1f, 1f, 1f));
             Entity fourthBoxEntity = CreateDynamicBoxEntity(new float3(1.5f, 4f, 0f), new float3(1f, 1f, 1f));
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { groundEntity, firstBoxEntity, secondBoxEntity, thirdBoxEntity, fourthBoxEntity });
 
             for (int index = 0; index < 240; index++) {
@@ -323,7 +343,7 @@ namespace helengine.bepu.tests {
             Entity lowerSphereEntity = CreateDynamicSphereEntity(new float3(0f, 0.5f, 0f), 0.5f);
             Entity upperSphereEntity = CreateDynamicSphereEntity(new float3(0f, 1.5f, 0f), 0.5f);
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { groundEntity, lowerSphereEntity, upperSphereEntity });
 
             for (int index = 0; index < 180; index++) {
@@ -343,7 +363,7 @@ namespace helengine.bepu.tests {
             Entity boxEntity = CreateDynamicBoxEntity(new float3(0f, 1f, 0f), new float3(1f, 1f, 1f));
             Entity sphereEntity = CreateDynamicSphereEntity(new float3(0f, 2f, 0f), 0.5f);
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { groundEntity, boxEntity, sphereEntity });
 
             for (int index = 0; index < 180; index++) {
@@ -378,7 +398,7 @@ namespace helengine.bepu.tests {
             sphereRigidBody.LinearVelocity = float3.Zero;
             sphereRigidBody.AngularVelocity = float3.Zero;
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             IPhysicsTriggerEventRuntime3D triggerRuntime = Assert.IsAssignableFrom<IPhysicsTriggerEventRuntime3D>(world);
             world.BindScene(new[] { triggerEntity, sphereEntity });
 
@@ -414,7 +434,7 @@ namespace helengine.bepu.tests {
         public void SynchronizeKinematicBody_WithUpdatedEntityPose_UpdatesRuntimeBodyPose() {
             Entity entity = CreateKinematicBoxEntity(new float3(0f, 0.5f, 0f), new float3(4f, 1f, 4f));
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { entity });
 
             float4 updatedOrientation;
@@ -441,7 +461,7 @@ namespace helengine.bepu.tests {
         public void SynchronizeDynamicBody_WithUpdatedEntityPose_UpdatesRuntimeBodyPose() {
             Entity entity = CreateDynamicSphereEntity(new float3(0f, 2f, 0f), 0.5f);
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { entity });
 
             float4 updatedOrientation;
@@ -472,7 +492,7 @@ namespace helengine.bepu.tests {
         public void SynchronizeDynamicBodyVelocity_WithStaleEntityPose_PreservesRuntimePoseAndAppliesVelocity() {
             Entity entity = CreateDynamicSphereEntity(new float3(0f, 2f, 0f), 0.5f);
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { entity });
 
             RigidBody3DComponent rigidBody = FindRequiredRigidBody(entity);

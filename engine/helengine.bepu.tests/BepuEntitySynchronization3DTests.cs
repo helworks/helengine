@@ -38,7 +38,7 @@ namespace helengine.bepu.tests {
                 Size = new float3(1f, 1f, 1f)
             });
 
-            BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
             world.BindScene(new[] { entity });
             world.Step(1d / 60d);
 

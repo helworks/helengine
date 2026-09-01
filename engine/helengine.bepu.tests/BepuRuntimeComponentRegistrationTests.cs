@@ -41,6 +41,35 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures disposing a core releases the BEPU world reserved by registration and clears its pooled simulation allocations.
+        /// </summary>
+        [Fact]
+        public void Core_Dispose_WhenRegistrationOwnsRuntimeWorld_ReleasesWorldBufferPool() {
+            Core core = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
+            });
+            core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
+
+            BepuRuntimeComponentRegistration.Register(core);
+            BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity(core)]);
+
+            BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
+            System.Reflection.FieldInfo bufferPoolField = typeof(BepuPhysicsWorld3D).GetField(
+                "BufferPoolValue",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.NotNull(bufferPoolField);
+            BepuUtilities.Memory.BufferPool bufferPool = Assert.IsType<BepuUtilities.Memory.BufferPool>(bufferPoolField.GetValue(world));
+            Assert.True(bufferPool.GetTotalAllocatedByteCount() > 0);
+
+            core.Dispose();
+            core.Dispose();
+
+            Assert.Null(core.PhysicsRuntime);
+            Assert.Equal(0UL, bufferPool.GetTotalAllocatedByteCount());
+        }
+
+        /// <summary>
         /// Ensures Core uses the canonical native ownership helper for the registration-state release boundary.
         /// </summary>
         [Fact]
@@ -201,7 +230,7 @@ namespace helengine.bepu.tests {
     /// </summary>
     [Fact]
     public void Step_WhenPhysicsWorldAdvances_RecordsProfilerBreakdown() {
-        BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateWithSolveSchedule(1, 1);
+        using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateWithSolveSchedule(1, 1);
 
         world.Step(1.0d / 20.0d);
 

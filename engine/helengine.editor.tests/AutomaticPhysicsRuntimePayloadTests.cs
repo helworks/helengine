@@ -53,7 +53,7 @@ namespace helengine.editor.tests {
                 }
             };
 
-            Core core = new Core(new CoreInitializationOptions {
+            using Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(AppContext.BaseDirectory)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));

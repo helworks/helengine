@@ -19,9 +19,30 @@ namespace helengine {
                 }
 
                 IsDisposed = true;
-                RuntimeWorld = null;
+                ReplaceOwnedRuntimeWorld(this, null);
                 SceneBindingRegistered = false;
             }
+        }
+
+        /// <summary>
+        /// Replaces the world reserved by one registration state after detaching and disposing its prior owned instance when necessary.
+        /// </summary>
+        /// <param name="state">Registration state whose owned runtime world is being replaced.</param>
+        /// <param name="replacementWorld">New world to reserve, or <see langword="null"/> to release the current reservation.</param>
+        static void ReplaceOwnedRuntimeWorld(RegistrationState state, BepuPhysicsWorld3D replacementWorld) {
+            BepuPhysicsWorld3D previousWorld = state.RuntimeWorld;
+            if (ReferenceEquals(previousWorld, replacementWorld)) {
+                return;
+            }
+
+            if (previousWorld != null) {
+                if (ReferenceEquals(state.Core.PhysicsRuntime, previousWorld)) {
+                    state.Core.DetachPhysicsRuntime();
+                }
+                previousWorld.Dispose();
+            }
+
+            state.RuntimeWorld = replacementWorld;
         }
 
         [NativeBorrowedReturn]
@@ -44,7 +65,7 @@ namespace helengine {
         /// <param name="core">Initialized core that owns the runtime scene loader.</param>
         public static void Register(Core core) {
             RegistrationState state = GetRegistrationState(core);
-            state.RuntimeWorld = core.PhysicsRuntime as BepuPhysicsWorld3D;
+            ReplaceOwnedRuntimeWorld(state, core.PhysicsRuntime as BepuPhysicsWorld3D);
             RegisterSceneBinding(core);
         }
 
@@ -56,7 +77,8 @@ namespace helengine {
         /// <param name="solveSubstepCount">Substep count applied to each fixed simulation step.</param>
         public static void Register(Core core, int solveVelocityIterationCount, int solveSubstepCount) {
             RegistrationState state = GetRegistrationState(core);
-            state.RuntimeWorld = BepuPhysicsWorld3D.CreateWithSolveSchedule(core, solveVelocityIterationCount, solveSubstepCount);
+            BepuPhysicsWorld3D replacementWorld = BepuPhysicsWorld3D.CreateWithSolveSchedule(core, solveVelocityIterationCount, solveSubstepCount);
+            ReplaceOwnedRuntimeWorld(state, replacementWorld);
             RegisterSceneBinding(core);
         }
 
@@ -80,7 +102,7 @@ namespace helengine {
             ValidateWorld(world);
 
             RegistrationState state = GetRegistrationState(core);
-            state.RuntimeWorld = world;
+            ReplaceOwnedRuntimeWorld(state, world);
             core.AttachPhysicsRuntime(world);
         }
 
@@ -196,7 +218,7 @@ namespace helengine {
             ValidateCore(core);
 
             if (state.RuntimeWorld == null) {
-                state.RuntimeWorld = CreateRuntimeWorld(core);
+                ReplaceOwnedRuntimeWorld(state, CreateRuntimeWorld(core));
             }
             if (!ReferenceEquals(core.PhysicsRuntime, state.RuntimeWorld)) {
                 AttachRuntimeWorld(core, state.RuntimeWorld);
