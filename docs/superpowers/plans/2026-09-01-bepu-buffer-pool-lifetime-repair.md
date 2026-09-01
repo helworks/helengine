@@ -144,6 +144,63 @@ rtk git commit -m "Dispose BEPU runtime buffer pools"
 
 Expected: only the six listed files are committed; the unrelated dirty runtime deserializer remains unstaged and untouched.
 
+### Task 1A: Prevent post-disposal world resurrection
+
+**Files:**
+- Modify: `engine/helengine.bepu/BepuPhysicsWorld3D.cs`
+- Modify: `engine/helengine.bepu.tests/BepuPhysicsWorld3DTests.cs`
+- Modify: `engine/helengine.bepu.tests/BepuRuntimeComponentRegistrationTests.cs`
+
+- [ ] **Step 1: Add failing disposed-operation coverage**
+
+Add one theory or individually named facts proving that after `world.Dispose()`, each simulation-backed public operation throws `ObjectDisposedException`: `SynchronizeKinematicBody`, `SynchronizeDynamicBody`, `SynchronizeDynamicBodyVelocity`, `BindScene`, `Step`, `TryBuildStackBoxesDebugSnapshot`, and `TryBuildStackBoxesDebugSentinel`. The `BindScene` assertion must also retain the reflected pool and confirm it remains at zero bytes after the rejected call.
+
+- [ ] **Step 2: Add failing replacement and same-instance attachment coverage**
+
+Add two behavior tests to `BepuRuntimeComponentRegistrationTests`:
+
+1. Attach a first created world, attach a different second world, assert the first pool is cleared, the second remains allocated and attached, then dispose the core and assert the second pool is cleared.
+2. Attach one world twice, assert it remains attached and its pool remains allocated after reattachment, then dispose the core and assert the pool is cleared.
+
+Use a class-level reflection helper for obtaining `BufferPoolValue`; do not duplicate reflection setup across all three ownership tests.
+
+- [ ] **Step 3: Run the new lifecycle tests and verify RED**
+
+Run:
+
+```powershell
+rtk dotnet test engine\helengine.bepu.tests\helengine.bepu.tests.csproj --no-restore --filter "FullyQualifiedName~Dispose_WhenWorldIsUsedAgain|FullyQualifiedName~AttachRuntimeWorld_WhenReplacingDifferentWorld|FullyQualifiedName~AttachRuntimeWorld_WhenReattachingSameWorld" -v:minimal
+```
+
+Expected: disposed-operation coverage fails because post-disposal methods do not yet consistently throw `ObjectDisposedException`; the replacement tests provide direct executable coverage of the already-implemented registration semantics.
+
+- [ ] **Step 4: Reject simulation-backed operations after disposal**
+
+Add one class-level `ThrowIfDisposed()` method that throws `ObjectDisposedException` naming `BepuPhysicsWorld3D` when `IsDisposedValue` is true. Call it at the beginning of `SynchronizeKinematicBody`, `SynchronizeDynamicBody`, `SynchronizeDynamicBodyVelocity`, `BindScene`, `Step`, `TryBuildStackBoxesDebugSnapshot`, and `TryBuildStackBoxesDebugSentinel`. Do not reset `IsDisposedValue`, recreate the buffer pool, or allow `ResetSimulation()` to run after disposal.
+
+- [ ] **Step 5: Verify focused ownership and lifecycle GREEN**
+
+Run:
+
+```powershell
+rtk dotnet test engine\helengine.bepu.tests\helengine.bepu.tests.csproj --no-restore --filter "FullyQualifiedName~BepuPhysicsWorld3DTests|FullyQualifiedName~BepuRuntimeComponentRegistrationTests|FullyQualifiedName~BepuEntitySynchronization3DTests" -v:minimal
+rtk dotnet test engine\helengine.editor.tests\helengine.editor.tests.csproj --no-restore --filter "FullyQualifiedName~AutomaticPhysicsRuntimePayloadTests" -v:minimal
+```
+
+Expected: every selected test passes, disposed `BindScene` leaves the pool at zero bytes, and no testhost crash occurs.
+
+- [ ] **Step 6: Commit the lifecycle guard**
+
+Run:
+
+```powershell
+rtk git add -- engine/helengine.bepu/BepuPhysicsWorld3D.cs engine/helengine.bepu.tests/BepuPhysicsWorld3DTests.cs engine/helengine.bepu.tests/BepuRuntimeComponentRegistrationTests.cs
+rtk git diff --cached --check
+rtk git commit -m "Reject reuse of disposed BEPU worlds"
+```
+
+Expected: only the three listed files are committed; the unrelated dirty runtime deserializer remains unstaged and untouched.
+
 ### Task 2: Re-establish a complete clean editor failure inventory
 
 **Files:**
