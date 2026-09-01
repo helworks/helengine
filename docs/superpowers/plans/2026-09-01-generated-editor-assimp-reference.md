@@ -152,3 +152,38 @@ Get-Process codegen -ErrorAction SilentlyContinue
 ```
 
 Run the Git commands once in each feature worktree. Expected: no whitespace errors, no new tracked DemoDisc changes, only the two committed engine source/test files in Task 1, all unrelated dirt preserved, and no `codegen.exe` process.
+
+---
+
+### Task 3: Clear the inherited engine-plan whitespace audit
+
+**Files:**
+- Modify: `docs/superpowers/plans/2026-09-01-native-font-processor-lifetime.md`
+
+**Interfaces:**
+- Consumes: the final `main..HEAD` engine whitespace audit from Task 2.
+- Produces: the same native-font plan content with one normal terminal newline and no blank line at EOF.
+
+- [ ] **Step 1: Reproduce the single audit failure**
+
+```powershell
+git diff --check main..HEAD
+```
+
+Expected: one `new blank line at EOF` error at line 68 of the listed plan.
+
+- [ ] **Step 2: Remove only the extra final empty line**
+
+Use `apply_patch` to delete the final blank line. Retain the newline terminating the last content line and do not reflow any text.
+
+- [ ] **Step 3: Verify and commit**
+
+```powershell
+git diff --check main..HEAD
+rtk git diff --numstat -- docs/superpowers/plans/2026-09-01-native-font-processor-lifetime.md
+rtk git add -- docs/superpowers/plans/2026-09-01-native-font-processor-lifetime.md
+rtk git diff --cached --check
+rtk git commit -m "Repair native font plan whitespace"
+```
+
+Expected: the whitespace audit exits `0`; the task diff contains exactly one deleted blank line and no other file.
