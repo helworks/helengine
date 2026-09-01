@@ -19,7 +19,7 @@ namespace helengine {
         /// <summary>
         /// Gets the font type produced by this processor.
         /// </summary>
-        public Type OutputType => typeof(FontAsset);
+        public Type OutputType => ResolveOutputType<FontAsset>();
 
         /// <summary>
         /// Reads a packaged font using the renderer captured when this processor was created.
@@ -41,6 +41,15 @@ namespace helengine {
         /// <returns>Deserialized font asset boxed as an object.</returns>
         object IContentProcessor.ReadObject(Stream stream) {
             return Read(stream);
+        }
+
+        /// <summary>
+        /// Resolves a processor output type through its generic argument so native code preserves the generated pointer identity.
+        /// </summary>
+        /// <typeparam name="T">Managed output type whose native representation should be resolved.</typeparam>
+        /// <returns>Runtime type descriptor for the requested output type.</returns>
+        static Type ResolveOutputType<T>() {
+            return typeof(T);
         }
     }
 }

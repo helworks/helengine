@@ -60,6 +60,8 @@ namespace helengine.core.tests.content {
             Assert.Contains("readonly RenderManager2D RenderManager2DValue;", source, StringComparison.Ordinal);
             Assert.Contains("RenderManager2DValue = renderManager2D", source, StringComparison.Ordinal);
             Assert.Contains("FontAssetBinarySerializer.Deserialize(stream, RenderManager2DValue)", source, StringComparison.Ordinal);
+            Assert.Contains("ResolveOutputType<FontAsset>()", source, StringComparison.Ordinal);
+            Assert.Contains("static Type ResolveOutputType<T>()", source, StringComparison.Ordinal);
         }
 
         /// <summary>
