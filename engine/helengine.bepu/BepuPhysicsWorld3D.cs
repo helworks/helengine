@@ -279,6 +279,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Bound entity whose kinematic body should be updated.</param>
         public void SynchronizeKinematicBody(Entity entity) {
+            ThrowIfDisposed();
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             } else if (SimulationValue == null) {
@@ -298,6 +299,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Bound entity whose dynamic body should be updated.</param>
         public void SynchronizeDynamicBody(Entity entity) {
+            ThrowIfDisposed();
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             } else if (SimulationValue == null) {
@@ -317,6 +319,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Bound entity whose dynamic body velocity should be updated.</param>
         public void SynchronizeDynamicBodyVelocity(Entity entity) {
+            ThrowIfDisposed();
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
             } else if (SimulationValue == null) {
@@ -334,6 +337,7 @@ namespace helengine {
         /// </summary>
         /// <param name="rootEntities">Root entities that should be scanned for supported rigid bodies.</param>
         public void BindScene(IReadOnlyList<Entity> rootEntities) {
+            ThrowIfDisposed();
             if (rootEntities == null) {
                 throw new ArgumentNullException(nameof(rootEntities));
             }
@@ -357,6 +361,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stepSeconds">Simulation step length in seconds.</param>
         public void Step(double stepSeconds) {
+            ThrowIfDisposed();
             if (double.IsNaN(stepSeconds) || double.IsInfinity(stepSeconds) || stepSeconds <= 0d) {
                 throw new ArgumentOutOfRangeException(nameof(stepSeconds), "Simulation step must be a finite value greater than zero.");
             }
@@ -434,6 +439,15 @@ namespace helengine {
             if (GravityAccelerationsValue != null) {
                 GravityAccelerationsValue.Dispose();
                 GravityAccelerationsValue = null;
+            }
+        }
+
+        /// <summary>
+        /// Rejects operations that would attempt to use simulation state after this world has released it.
+        /// </summary>
+        void ThrowIfDisposed() {
+            if (IsDisposedValue) {
+                throw new ObjectDisposedException(nameof(BepuPhysicsWorld3D));
             }
         }
 
@@ -763,6 +777,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Snapshot text when the currently bound scene matches the traced stack-box layout; otherwise an empty string.</returns>
         public string TryBuildStackBoxesDebugSnapshot() {
+            ThrowIfDisposed();
             return BepuPhysicsWorld3DDiagnostics.BuildSyncSnapshot(BodyRegistryValue.Handles, SimulationValue);
         }
 
@@ -771,6 +786,7 @@ namespace helengine {
         /// </summary>
         /// <returns>One constant sentinel line.</returns>
         public string TryBuildStackBoxesDebugSentinel() {
+            ThrowIfDisposed();
             return "[BepuWorldSentinel]\n";
         }
 

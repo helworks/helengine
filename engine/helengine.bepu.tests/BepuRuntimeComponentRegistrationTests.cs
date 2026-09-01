@@ -54,18 +54,56 @@ namespace helengine.bepu.tests {
             BepuRuntimeComponentRegistration.HandleLoadedScene(core, [CreateStaticBoxPhysicsEntity(core)]);
 
             BepuPhysicsWorld3D world = Assert.IsType<BepuPhysicsWorld3D>(core.PhysicsRuntime);
-            System.Reflection.FieldInfo bufferPoolField = typeof(BepuPhysicsWorld3D).GetField(
-                "BufferPoolValue",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-
-            Assert.NotNull(bufferPoolField);
-            BepuUtilities.Memory.BufferPool bufferPool = Assert.IsType<BepuUtilities.Memory.BufferPool>(bufferPoolField.GetValue(world));
+            BepuUtilities.Memory.BufferPool bufferPool = GetBufferPool(world);
             Assert.True(bufferPool.GetTotalAllocatedByteCount() > 0);
 
             core.Dispose();
             core.Dispose();
 
             Assert.Null(core.PhysicsRuntime);
+            Assert.Equal(0UL, bufferPool.GetTotalAllocatedByteCount());
+        }
+
+        /// <summary>
+        /// Ensures attaching a different world releases the first owned pool while keeping the replacement attached until core disposal.
+        /// </summary>
+        [Fact]
+        public void AttachRuntimeWorld_WhenReplacingDifferentWorld_ReleasesFirstPoolAndKeepsSecondAttached() {
+            using Core core = CreateInitializedCore();
+            BepuPhysicsWorld3D firstWorld = BepuRuntimeComponentRegistration.CreateRuntimeWorld(core);
+            BepuUtilities.Memory.BufferPool firstBufferPool = GetBufferPool(firstWorld);
+            BepuRuntimeComponentRegistration.AttachRuntimeWorld(core, firstWorld);
+
+            BepuPhysicsWorld3D secondWorld = BepuRuntimeComponentRegistration.CreateRuntimeWorld(core);
+            BepuUtilities.Memory.BufferPool secondBufferPool = GetBufferPool(secondWorld);
+            BepuRuntimeComponentRegistration.AttachRuntimeWorld(core, secondWorld);
+
+            Assert.Equal(0UL, firstBufferPool.GetTotalAllocatedByteCount());
+            Assert.True(secondBufferPool.GetTotalAllocatedByteCount() > 0);
+            Assert.Same(secondWorld, core.PhysicsRuntime);
+
+            core.Dispose();
+
+            Assert.Equal(0UL, secondBufferPool.GetTotalAllocatedByteCount());
+        }
+
+        /// <summary>
+        /// Ensures reattaching the same world preserves its pool and attachment until the owning core is disposed.
+        /// </summary>
+        [Fact]
+        public void AttachRuntimeWorld_WhenReattachingSameWorld_PreservesPoolAndClearsItOnCoreDispose() {
+            using Core core = CreateInitializedCore();
+            BepuPhysicsWorld3D world = BepuRuntimeComponentRegistration.CreateRuntimeWorld(core);
+            BepuUtilities.Memory.BufferPool bufferPool = GetBufferPool(world);
+
+            BepuRuntimeComponentRegistration.AttachRuntimeWorld(core, world);
+            BepuRuntimeComponentRegistration.AttachRuntimeWorld(core, world);
+
+            Assert.True(bufferPool.GetTotalAllocatedByteCount() > 0);
+            Assert.Same(world, core.PhysicsRuntime);
+
+            core.Dispose();
+
             Assert.Equal(0UL, bufferPool.GetTotalAllocatedByteCount());
         }
 
@@ -316,6 +354,23 @@ namespace helengine.bepu.tests {
             });
             core.Initialize(null, null, null, new PlatformInfo("test", "test-version"));
             return core;
+        }
+
+        /// <summary>
+        /// Reflects the BEPU world buffer pool used by ownership lifecycle tests.
+        /// </summary>
+        /// <param name="world">World whose private buffer pool should be inspected.</param>
+        /// <returns>Private buffer pool owned by the supplied world.</returns>
+        static BepuUtilities.Memory.BufferPool GetBufferPool(BepuPhysicsWorld3D world) {
+            if (world == null) {
+                throw new ArgumentNullException(nameof(world));
+            }
+
+            System.Reflection.FieldInfo bufferPoolField = typeof(BepuPhysicsWorld3D).GetField(
+                "BufferPoolValue",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(bufferPoolField);
+            return Assert.IsType<BepuUtilities.Memory.BufferPool>(bufferPoolField.GetValue(world));
         }
 
         /// <summary>

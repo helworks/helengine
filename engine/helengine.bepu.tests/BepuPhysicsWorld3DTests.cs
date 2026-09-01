@@ -55,6 +55,92 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures a disposed BEPU world rejects kinematic-body synchronization requests.
+        /// </summary>
+        [Fact]
+        public void SynchronizeKinematicBody_AfterDispose_ThrowsObjectDisposedException() {
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => world.SynchronizeKinematicBody(null));
+        }
+
+        /// <summary>
+        /// Ensures a disposed BEPU world rejects dynamic-body synchronization requests.
+        /// </summary>
+        [Fact]
+        public void SynchronizeDynamicBody_AfterDispose_ThrowsObjectDisposedException() {
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => world.SynchronizeDynamicBody(null));
+        }
+
+        /// <summary>
+        /// Ensures a disposed BEPU world rejects dynamic-body velocity synchronization requests.
+        /// </summary>
+        [Fact]
+        public void SynchronizeDynamicBodyVelocity_AfterDispose_ThrowsObjectDisposedException() {
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => world.SynchronizeDynamicBodyVelocity(null));
+        }
+
+        /// <summary>
+        /// Ensures a disposed BEPU world rejects scene rebinding without reacquiring pooled allocations.
+        /// </summary>
+        [Fact]
+        public void BindScene_AfterDispose_ThrowsObjectDisposedExceptionAndKeepsBufferPoolClear() {
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            System.Reflection.FieldInfo bufferPoolField = typeof(BepuPhysicsWorld3D).GetField(
+                "BufferPoolValue",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+
+            Assert.NotNull(bufferPoolField);
+            BepuUtilities.Memory.BufferPool bufferPool = Assert.IsType<BepuUtilities.Memory.BufferPool>(bufferPoolField.GetValue(world));
+            world.Dispose();
+            Assert.Equal(0UL, bufferPool.GetTotalAllocatedByteCount());
+
+            Assert.Throws<ObjectDisposedException>(() => world.BindScene(Array.Empty<Entity>()));
+
+            Assert.Equal(0UL, bufferPool.GetTotalAllocatedByteCount());
+        }
+
+        /// <summary>
+        /// Ensures a disposed BEPU world rejects fixed-step simulation requests.
+        /// </summary>
+        [Fact]
+        public void Step_AfterDispose_ThrowsObjectDisposedException() {
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => world.Step(1d / 60d));
+        }
+
+        /// <summary>
+        /// Ensures a disposed BEPU world rejects stack-box debug snapshot requests.
+        /// </summary>
+        [Fact]
+        public void TryBuildStackBoxesDebugSnapshot_AfterDispose_ThrowsObjectDisposedException() {
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => world.TryBuildStackBoxesDebugSnapshot());
+        }
+
+        /// <summary>
+        /// Ensures a disposed BEPU world rejects stack-box debug sentinel requests.
+        /// </summary>
+        [Fact]
+        public void TryBuildStackBoxesDebugSentinel_AfterDispose_ThrowsObjectDisposedException() {
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            world.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => world.TryBuildStackBoxesDebugSentinel());
+        }
+
+        /// <summary>
         /// Ensures the default BEPU world startup profile stays compact enough for small-runtime builds while still allowing the simulation to grow on demand.
         /// </summary>
         [Fact]
