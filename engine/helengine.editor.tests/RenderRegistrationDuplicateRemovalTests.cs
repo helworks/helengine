@@ -11,7 +11,9 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void RemoveFromRender3D_WhenDrawableWasRegisteredMultipleTimes_RemovesAllRegistrations() {
-            ObjectManager objectManager = new(new CoreInitializationOptions());
+            ObjectManager objectManager = new(new CoreInitializationOptions {
+                ContentStreamSource = new FakeContentStreamSource()
+            });
             MeshComponent drawable = new();
 
             objectManager.RegisterForRender3D(drawable);

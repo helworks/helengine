@@ -79,8 +79,9 @@ namespace helengine.editor.tests {
         [Fact]
         public void Constructor_AddsShowInExplorerItemThatOpensTheCurrentFolder() {
             string launchedPath = string.Empty;
-            AssetBrowserPanel assetBrowserPanel = (AssetBrowserPanel)Activator.CreateInstance(
-                typeof(AssetBrowserPanel),
+            AssetBrowserPanel assetBrowserPanel = new AssetBrowserPanel(
+                Core.Instance,
+                new helengine.editor.EditorSessionInteractionServices(),
                 CreateFont(),
                 TempProjectRootPath,
                 EditorUiMetrics.Default,

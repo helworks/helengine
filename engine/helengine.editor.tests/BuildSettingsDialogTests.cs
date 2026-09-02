@@ -86,9 +86,9 @@ namespace helengine.editor.tests {
             Assert.All(previousLabelHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
             Assert.All(previousStatusHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
             Assert.All(previousCheckBoxHosts, host => Assert.DoesNotContain(host, Core.Instance.ObjectManager.Entities));
-            Assert.All(previousLabelHosts, host => Assert.Empty(host.Components));
-            Assert.All(previousStatusHosts, host => Assert.Empty(host.Components));
-            Assert.All(previousCheckBoxHosts, host => Assert.Empty(host.Components));
+            Assert.All(previousLabelHosts, host => Assert.True(host.IsDisposed));
+            Assert.All(previousStatusHosts, host => Assert.True(host.IsDisposed));
+            Assert.All(previousCheckBoxHosts, host => Assert.True(host.IsDisposed));
             Assert.All(previousLabelHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
             Assert.All(previousStatusHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));
             Assert.All(previousCheckBoxHosts, host => Assert.DoesNotContain(Core.Instance.ObjectManager.Drawables2D, drawable => ReferenceEquals(drawable.Parent, host)));

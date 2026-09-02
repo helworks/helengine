@@ -53,8 +53,10 @@ namespace helengine.editor.tests.serialization.scene {
             CoreInitializationOptions options = new CoreInitializationOptions {
                 ContentStreamSource = null
             };
+            Core core = new Core(options);
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => new Core(options));
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"), options));
 
             Assert.Contains("ContentStreamSource", exception.Message);
         }
@@ -490,14 +492,14 @@ namespace helengine.editor.tests.serialization.scene {
         /// </summary>
         [Fact]
         public void LoadScene_whenModeIsSingleAfterMeshSceneWasLoaded_releasesPreviousSceneModelAndMaterial() {
-            WriteModelAsset("cooked/models/TestModel.hasset");
-            WriteMaterialAsset("cooked/materials/TestMaterial.hasset", "ForwardStandardShader");
+            WriteModelAsset("cooked/models/testmodel.hasset");
+            WriteMaterialAsset("cooked/materials/testmaterial.hasset", "ForwardStandardShader");
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.dx11.hasset", "ForwardStandardShader");
             WriteShaderAsset("cooked/shaders/ForwardStandardShader.vulkan.hasset", "ForwardStandardShader");
             WriteSceneAsset(
                 "cooked/scenes/bootstrap.hasset",
                 1u,
-                CreateMeshComponentRecord("cooked/models/TestModel.hasset", "cooked/materials/TestMaterial.hasset"));
+                CreateMeshComponentRecord("cooked/models/testmodel.hasset", "cooked/materials/testmaterial.hasset"));
             WriteSceneAsset("cooked/scenes/TestPlayableScene.hasset", 2u);
             TestRenderManager3D renderManager3D = new TestRenderManager3D();
             Core core = CreateCore(renderManager3D, new TestRenderManager2D(), CreateSceneCatalog(

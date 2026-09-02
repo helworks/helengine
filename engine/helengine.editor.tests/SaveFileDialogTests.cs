@@ -91,7 +91,7 @@ namespace helengine.editor.tests {
             SpriteComponent backdropTopSurface = GetPrivateField<SpriteComponent>(dialog, "BackdropTopSurface");
 
             Assert.Equal(1280 - (EditorDialogBase.CloseButtonWidth * 3), backdropTopSurface.Size.X);
-            Assert.Equal(EditorTitleBar.HeightPixels, backdropTopSurface.Size.Y);
+            Assert.Equal(EditorUiMetrics.Default.HostTitleBarHeight, backdropTopSurface.Size.Y);
         }
 
         /// <summary>
@@ -112,7 +112,7 @@ namespace helengine.editor.tests {
             Assert.Equal(new int2(1184, 33), fileNameField.Size);
             Assert.Equal(new int2(132, 33), cancelButton.Size);
             Assert.Equal(new int2(132, 33), saveButton.Size);
-            Assert.Equal(41, backdropTopSurface.Size.Y);
+            Assert.Equal(metrics.HostTitleBarHeight, backdropTopSurface.Size.Y);
         }
 
         /// <summary>

@@ -50,9 +50,9 @@ namespace helengine.editor.tests {
             SpriteComponent backdropTopSurface = GetPrivateField<SpriteComponent>(modal, "BackdropTopSurface");
 
             Assert.Equal(new int2(1232, 672), panelBackground.Size);
-            Assert.Equal(41, headerBackground.Size.Y);
-            Assert.Equal(new int2(60, 41), closeButton.Size);
-            Assert.Equal(41, backdropTopSurface.Size.Y);
+            Assert.Equal(metrics.HostTitleBarHeight, headerBackground.Size.Y);
+            Assert.Equal(new int2(60, metrics.HostTitleBarHeight), closeButton.Size);
+            Assert.Equal(metrics.HostTitleBarHeight, backdropTopSurface.Size.Y);
         }
 
         /// <summary>

@@ -11,6 +11,8 @@ namespace helengine.editor.tests {
         /// Temporary content root used by the test content manager.
         /// </summary>
         readonly string TempRootPath;
+        readonly Core CoreValue;
+        readonly TestGeneratedAssetGraph GeneratedAssetGraph;
 
         /// <summary>
         /// Initializes an isolated content root and the core services required by component property rows.
@@ -19,16 +21,19 @@ namespace helengine.editor.tests {
             TempRootPath = Path.Combine(Path.GetTempPath(), "helengine-scene-persistence-picker-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempRootPath, "assets", "Models"));
 
-            Core core = new Core(new CoreInitializationOptions {
+            CoreValue = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
-            core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            CoreValue.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+            GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
         }
 
         /// <summary>
         /// Deletes temporary test content after each test.
         /// </summary>
         public void Dispose() {
+            GeneratedAssetGraph.Dispose();
+            CoreValue.Dispose();
             if (Directory.Exists(TempRootPath)) {
                 Directory.Delete(TempRootPath, true);
             }
@@ -48,10 +53,14 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = CreateAssetImportManager();
             MeshComponent meshComponent = new MeshComponent();
             EditorEntity entity = CreateEntityWithComponent(meshComponent);
-            ComponentPropertiesView view = new ComponentPropertiesView(Core.Instance, new helengine.editor.EditorSessionInteractionServices(),
+            ComponentPropertiesView view = new ComponentPropertiesView(CoreValue, GeneratedAssetGraph.InteractionServices,
                 CreateFont(),
                 contentManager,
                 new EditorFileSystemModelResolver(assetImportManager));
+            view.SetGeneratedAssetProviderRegistry(GeneratedAssetGraph.Registry);
+            view.SetRendererResources(GeneratedAssetGraph.RendererResources);
+            using EditorAssetReferenceResolver assetReferenceResolver = new EditorAssetReferenceResolver(TempRootPath);
+            view.SetAssetReferenceResolver(assetReferenceResolver);
             view.ShowComponents(entity);
 
             ComponentPropertyRow modelRow = FindModelRow(view);
@@ -90,7 +99,7 @@ namespace helengine.editor.tests {
         /// <param name="component">Component to add to the entity.</param>
         /// <returns>Entity containing the supplied component.</returns>
         EditorEntity CreateEntityWithComponent(Component component) {
-            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            EditorEntity entity = new EditorEntity(CoreValue, GeneratedAssetGraph.InteractionServices);
             entity.AddComponent(component);
             return entity;
         }

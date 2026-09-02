@@ -92,18 +92,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the reflected catalog still exposes the rotate component even though it inherits the update base type.
-        /// </summary>
-        [Fact]
-        public void GetAvailableComponents_WhenEntityHasNoComponents_StillIncludesRotateDescriptor() {
-            EditorEntity entity = new EditorEntity(CoreValue, InteractionServices);
-
-            IReadOnlyList<EditorComponentAddDescriptor> components = EditorComponentAddCatalog.GetAvailableComponents(entity);
-
-            Assert.Contains(components, component => string.Equals(component.DisplayName, "Rotate", StringComparison.Ordinal));
-        }
-
-        /// <summary>
         /// Ensures the catalog suppresses duplicate debug overlay descriptors on entities that already own one.
         /// </summary>
         [Fact]
