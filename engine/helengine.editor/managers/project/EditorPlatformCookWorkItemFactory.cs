@@ -60,6 +60,7 @@ internal static class EditorPlatformCookWorkItemFactory {
     /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
     /// <param name="processorSettings">Resolved texture processor settings for the generated texture.</param>
     /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
     /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
     public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
         PlatformDefinition platformDefinition,
@@ -68,13 +69,16 @@ internal static class EditorPlatformCookWorkItemFactory {
         string outputRelativePath,
         string sourceAssetId,
         TextureAssetProcessorSettings processorSettings,
-        AssetFileHasher fileHasher) {
+        AssetFileHasher fileHasher,
+        string generatedSourceRootPath) {
         if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
             throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
         } else if (processorSettings == null) {
             throw new ArgumentNullException(nameof(processorSettings));
         } else if (fileHasher == null) {
             throw new ArgumentNullException(nameof(fileHasher));
+        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
         }
 
         PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
@@ -90,7 +94,8 @@ internal static class EditorPlatformCookWorkItemFactory {
             outputRelativePath,
             sourceAssetId,
             processorSettings,
-            fileHasher);
+            fileHasher,
+            generatedSourceRootPath);
     }
 
     /// <summary>
@@ -102,6 +107,7 @@ internal static class EditorPlatformCookWorkItemFactory {
     /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
     /// <param name="sourceAssetId">Stable identifier of the generated font-atlas asset.</param>
     /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
     /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
     public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
         PlatformDefinition platformDefinition,
@@ -109,11 +115,14 @@ internal static class EditorPlatformCookWorkItemFactory {
         string sourceAssetPath,
         string outputRelativePath,
         string sourceAssetId,
-        AssetFileHasher fileHasher) {
+        AssetFileHasher fileHasher,
+        string generatedSourceRootPath) {
         if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
             throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
         } else if (fileHasher == null) {
             throw new ArgumentNullException(nameof(fileHasher));
+        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
         }
 
         PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture")
@@ -130,7 +139,8 @@ internal static class EditorPlatformCookWorkItemFactory {
             outputRelativePath,
             sourceAssetId,
             ResolveDefaultTextureProcessorSettings(capability),
-            fileHasher);
+            fileHasher,
+            generatedSourceRootPath);
     }
 
     /// <summary>
@@ -142,6 +152,7 @@ internal static class EditorPlatformCookWorkItemFactory {
     /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
     /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
     /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
     /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
     public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
         PlatformDefinition platformDefinition,
@@ -149,11 +160,14 @@ internal static class EditorPlatformCookWorkItemFactory {
         string sourceAssetPath,
         string outputRelativePath,
         string sourceAssetId,
-        AssetFileHasher fileHasher) {
+        AssetFileHasher fileHasher,
+        string generatedSourceRootPath) {
         if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
             throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
         } else if (fileHasher == null) {
             throw new ArgumentNullException(nameof(fileHasher));
+        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
         }
 
         PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
@@ -169,7 +183,8 @@ internal static class EditorPlatformCookWorkItemFactory {
             outputRelativePath,
             sourceAssetId,
             ResolveDefaultTextureProcessorSettings(capability),
-            fileHasher);
+            fileHasher,
+            generatedSourceRootPath);
     }
 
     /// <summary>
@@ -182,6 +197,7 @@ internal static class EditorPlatformCookWorkItemFactory {
     /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
     /// <param name="settings">Resolved import settings whose texture processor data should drive the generated texture cook contract.</param>
     /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
     /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
     public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
         PlatformDefinition platformDefinition,
@@ -190,13 +206,16 @@ internal static class EditorPlatformCookWorkItemFactory {
         string outputRelativePath,
         string sourceAssetId,
         AssetImportSettings settings,
-        AssetFileHasher fileHasher) {
+        AssetFileHasher fileHasher,
+        string generatedSourceRootPath) {
         if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
             throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
         } else if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         } else if (fileHasher == null) {
             throw new ArgumentNullException(nameof(fileHasher));
+        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
         }
 
         PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
@@ -213,7 +232,8 @@ internal static class EditorPlatformCookWorkItemFactory {
             outputRelativePath,
             sourceAssetId,
             processorSettings,
-            fileHasher);
+            fileHasher,
+            generatedSourceRootPath);
     }
 
     /// <summary>
@@ -226,6 +246,7 @@ internal static class EditorPlatformCookWorkItemFactory {
     /// <param name="sourceAssetId">Stable identifier of the generated font-atlas asset.</param>
     /// <param name="settings">Resolved import settings whose texture processor data should drive the generated font-atlas cook contract.</param>
     /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
     /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
     public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
         PlatformDefinition platformDefinition,
@@ -234,13 +255,16 @@ internal static class EditorPlatformCookWorkItemFactory {
         string outputRelativePath,
         string sourceAssetId,
         AssetImportSettings settings,
-        AssetFileHasher fileHasher) {
+        AssetFileHasher fileHasher,
+        string generatedSourceRootPath) {
         if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
             throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
         } else if (settings == null) {
             throw new ArgumentNullException(nameof(settings));
         } else if (fileHasher == null) {
             throw new ArgumentNullException(nameof(fileHasher));
+        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
         }
 
         PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture")
@@ -258,7 +282,8 @@ internal static class EditorPlatformCookWorkItemFactory {
             outputRelativePath,
             sourceAssetId,
             processorSettings,
-            fileHasher);
+            fileHasher,
+            generatedSourceRootPath);
     }
 
     static PlatformCookWorkItem CreateWorkItem(
@@ -325,7 +350,8 @@ internal static class EditorPlatformCookWorkItemFactory {
         string outputRelativePath,
         string sourceAssetId,
         TextureAssetProcessorSettings processorSettings,
-        AssetFileHasher fileHasher) {
+        AssetFileHasher fileHasher,
+        string generatedSourceRootPath) {
         if (capability == null) {
             throw new ArgumentNullException(nameof(capability));
         } else if (string.IsNullOrWhiteSpace(targetPlatformId)) {
@@ -340,6 +366,8 @@ internal static class EditorPlatformCookWorkItemFactory {
             throw new ArgumentNullException(nameof(processorSettings));
         } else if (fileHasher == null) {
             throw new ArgumentNullException(nameof(fileHasher));
+        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
         }
 
         string fullSourcePath = Path.GetFullPath(sourceAssetPath);
@@ -350,7 +378,7 @@ internal static class EditorPlatformCookWorkItemFactory {
         string normalizedOutputRelativePath = outputRelativePath.Replace('\\', '/');
         string serializedSettings = SerializeTextureSettings(processorSettings);
         string settingsHash = ComputeStringHash(fileHasher, serializedSettings);
-        string sourceHash = fileHasher.ComputeHash(fullSourcePath);
+        string sourceHash = new AssetFileHasher(generatedSourceRootPath).ComputeHash(fullSourcePath);
         string workItemId = string.Concat(targetPlatformId, ":", sourceAssetKind, ":", normalizedOutputRelativePath);
 
         return new PlatformCookWorkItem(

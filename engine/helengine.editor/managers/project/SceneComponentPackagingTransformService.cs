@@ -1647,7 +1647,7 @@ namespace helengine.editor {
                     string sourceAtlasAssetId = sourceFontAsset.SourceTextureAsset == null
                         ? string.Empty
                         : sourceFontAsset.SourceTextureAsset.Id ?? string.Empty;
-                    RememberGeneratedFontCookWorkItem(generatedAtlasSourceFullPath, cookedAtlasTextureRelativePath, sourceAtlasAssetId);
+                    RememberGeneratedFontCookWorkItem(generatedAtlasSourceFullPath, cookedAtlasTextureRelativePath, sourceAtlasAssetId, buildRootPath);
                     return CreateFontFileReference(cookedRelativePath);
                 }
 
@@ -1656,7 +1656,7 @@ namespace helengine.editor {
                 FontAsset cachedFontAsset = LoadPackagedFontAssetForPackaging(fontVariant.CachedFontAssetPath);
                 FontAsset cachedPackagedFontAsset = PrepareFontAssetForExternalCookedAtlas(cachedFontAsset, cookedAtlasTextureRelativePath);
                 WriteFontAsset(Path.Combine(buildRootPath, cookedRelativePath), cachedPackagedFontAsset);
-                RememberFontCookWorkItem(fontVariant.CachedAtlasTextureAssetPath, cookedAtlasTextureRelativePath, settings);
+                RememberFontCookWorkItem(fontVariant.CachedAtlasTextureAssetPath, cookedAtlasTextureRelativePath, settings, AssetImportManager.ProjectRootPath);
                 return CreateFontFileReference(cookedRelativePath);
             }
 
@@ -2165,10 +2165,12 @@ namespace helengine.editor {
         /// <param name="sourceAssetPath">Absolute generated texture source path written under the build root.</param>
         /// <param name="cookedRelativePath">Runtime-relative cooked output path that the builder should produce.</param>
         /// <param name="bakeResult">Generated text-sprite bake result containing the source asset id and texture settings.</param>
+        /// <param name="generatedSourceRootPath">Trusted containing root for the generated texture source.</param>
         void RememberGeneratedTextureCookWorkItem(
             string sourceAssetPath,
             string cookedRelativePath,
-            TextComponentSpriteBakeResult bakeResult) {
+            TextComponentSpriteBakeResult bakeResult,
+            string generatedSourceRootPath) {
             if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedPlatformCookKind("texture")) {
                 return;
             } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
@@ -2186,13 +2188,21 @@ namespace helengine.editor {
                 cookedRelativePath,
                 bakeResult.TextureAsset?.Id,
                 bakeResult.ProcessorSettings,
-                FileHasher);
+                FileHasher,
+                generatedSourceRootPath);
             if (workItem != null) {
                 PlatformCookWorkItemSink(workItem);
             }
         }
 
-        void RememberFontCookWorkItem(string sourceAssetPath, string cookedRelativePath, AssetImportSettings settings) {
+        /// <summary>
+        /// Records one builder-owned font-atlas cook work item using the supplied generated-source root for source hashing.
+        /// </summary>
+        /// <param name="sourceAssetPath">Absolute generated atlas source path.</param>
+        /// <param name="cookedRelativePath">Runtime-relative cooked atlas output path.</param>
+        /// <param name="settings">Resolved authored font import settings.</param>
+        /// <param name="generatedSourceRootPath">Trusted containing root for the generated atlas source.</param>
+        void RememberFontCookWorkItem(string sourceAssetPath, string cookedRelativePath, AssetImportSettings settings, string generatedSourceRootPath) {
             if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedFontAtlasCookKind()) {
                 return;
             } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
@@ -2210,7 +2220,8 @@ namespace helengine.editor {
                 cookedRelativePath,
                 string.Empty,
                 settings,
-                FileHasher);
+                FileHasher,
+                generatedSourceRootPath);
             if (workItem != null) {
                 PlatformCookWorkItemSink(workItem);
             }
@@ -2222,7 +2233,8 @@ namespace helengine.editor {
         /// <param name="sourceAssetPath">Absolute generated texture asset path that the builder should cook.</param>
         /// <param name="cookedRelativePath">Runtime-relative cooked atlas texture path the builder must produce.</param>
         /// <param name="sourceAssetId">Stable identifier of the generated source texture asset, or an empty string when the output path should become the fallback identifier.</param>
-        void RememberGeneratedFontCookWorkItem(string sourceAssetPath, string cookedRelativePath, string sourceAssetId) {
+        /// <param name="generatedSourceRootPath">Trusted containing root for the generated atlas source.</param>
+        void RememberGeneratedFontCookWorkItem(string sourceAssetPath, string cookedRelativePath, string sourceAssetId, string generatedSourceRootPath) {
             if (PlatformCookWorkItemSink == null || !SupportsBuilderOwnedFontAtlasCookKind()) {
                 return;
             } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
@@ -2237,7 +2249,8 @@ namespace helengine.editor {
                 sourceAssetPath,
                 cookedRelativePath,
                 sourceAssetId,
-                FileHasher);
+                FileHasher,
+                generatedSourceRootPath);
             if (workItem != null) {
                 PlatformCookWorkItemSink(workItem);
             }

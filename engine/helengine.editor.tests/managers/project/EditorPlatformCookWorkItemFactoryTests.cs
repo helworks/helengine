@@ -13,12 +13,19 @@ namespace helengine.editor.tests.managers.project {
         readonly string ProjectRootPath;
 
         /// <summary>
+        /// Separate build-owned root used to host generated cook sources.
+        /// </summary>
+        readonly string GeneratedSourceRootPath;
+
+        /// <summary>
         /// Initializes one isolated project root with a builder-owned texture source file.
         /// </summary>
         public EditorPlatformCookWorkItemFactoryTests() {
             ProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-platform-cook-work-item-factory-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(ProjectRootPath, "assets", "Images"));
             File.WriteAllBytes(Path.Combine(ProjectRootPath, "assets", "Images", "logo.png"), [0, 1, 2, 3]);
+            GeneratedSourceRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-platform-cook-work-item-factory-generated-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(GeneratedSourceRootPath);
         }
 
         /// <summary>
@@ -27,6 +34,9 @@ namespace helengine.editor.tests.managers.project {
         public void Dispose() {
             if (Directory.Exists(ProjectRootPath)) {
                 Directory.Delete(ProjectRootPath, true);
+            }
+            if (Directory.Exists(GeneratedSourceRootPath)) {
+                Directory.Delete(GeneratedSourceRootPath, true);
             }
         }
 
@@ -60,7 +70,8 @@ namespace helengine.editor.tests.managers.project {
                 "cooked/fonts/demodiscbody.hetex",
                 "fonts/demodiscbody",
                 CreateFontImportSettings(),
-                new AssetFileHasher(ProjectRootPath));
+                new AssetFileHasher(ProjectRootPath),
+                ProjectRootPath);
 
             Assert.Contains("\"colorFormat\":\"Indexed4\"", workItem.SerializedPlatformSettings);
             Assert.Contains("\"alphaPrecision\":\"Binary\"", workItem.SerializedPlatformSettings);
@@ -90,10 +101,39 @@ namespace helengine.editor.tests.managers.project {
                 "cooked/fonts/demodiscbody.hetex",
                 "fonts/demodiscbody",
                 settings,
-                new AssetFileHasher(ProjectRootPath));
+                new AssetFileHasher(ProjectRootPath),
+                ProjectRootPath);
 
             Assert.Contains("\"colorFormat\":\"Indexed4\"", workItem.SerializedPlatformSettings);
             Assert.Contains("\"alphaPrecision\":\"Binary\"", workItem.SerializedPlatformSettings);
+        }
+
+        /// <summary>
+        /// Ensures a generated atlas under the build-owned root is hashed using that explicit root instead of the authored project root.
+        /// </summary>
+        [Fact]
+        public void CreateGeneratedFontAtlasTextureWorkItem_WhenSourceIsUnderExplicitGeneratedRoot_HashesTheGeneratedSource() {
+            string sourceAtlasPath = Path.Combine(GeneratedSourceRootPath, "default-font-atlas.hasset");
+            File.WriteAllBytes(sourceAtlasPath, [4, 5, 6, 7]);
+
+            PlatformCookWorkItem workItem = EditorPlatformCookWorkItemFactory.CreateGeneratedFontAtlasTextureWorkItem(
+                CreateFontAtlasTexturePlatformDefinition(),
+                "ds",
+                sourceAtlasPath,
+                "cooked/fonts/default.hetex",
+                "fonts/default",
+                new AssetFileHasher(ProjectRootPath),
+                GeneratedSourceRootPath);
+
+            Assert.Equal(new AssetFileHasher(GeneratedSourceRootPath).ComputeHash(sourceAtlasPath), workItem.SourceContentHash);
+            Assert.Throws<InvalidDataException>(() => EditorPlatformCookWorkItemFactory.CreateGeneratedFontAtlasTextureWorkItem(
+                CreateFontAtlasTexturePlatformDefinition(),
+                "ds",
+                sourceAtlasPath,
+                "cooked/fonts/default.hetex",
+                "fonts/default",
+                new AssetFileHasher(ProjectRootPath),
+                ProjectRootPath));
         }
 
         /// <summary>
