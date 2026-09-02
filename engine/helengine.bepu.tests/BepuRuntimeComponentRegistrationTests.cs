@@ -188,6 +188,28 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures the post-transfer attachment reads the registration state's sole native-owned world.
+        /// </summary>
+        [Fact]
+        public void AttachRuntimeWorld_SourceAttachesStateWorldAfterOwnershipTransfer() {
+            string sourcePath = Path.Combine(
+                ResolveRepositoryRootPath(),
+                "engine",
+                "helengine.bepu",
+                "BepuRuntimeComponentRegistration.cs");
+            string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+            Assert.Contains(
+                "ReplaceOwnedRuntimeWorld(state, world);\n            core.AttachPhysicsRuntime(state.RuntimeWorld);",
+                source,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "ReplaceOwnedRuntimeWorld(state, world);\n            core.AttachPhysicsRuntime(world);",
+                source,
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures an incompatible disposable in the Core-owned slot is released once before registration installs a fresh state.
         /// </summary>
         [Fact]

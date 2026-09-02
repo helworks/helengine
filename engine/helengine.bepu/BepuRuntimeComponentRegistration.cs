@@ -103,7 +103,7 @@ namespace helengine {
 
             RegistrationState state = GetRegistrationState(core);
             ReplaceOwnedRuntimeWorld(state, world);
-            core.AttachPhysicsRuntime(world);
+            core.AttachPhysicsRuntime(state.RuntimeWorld);
         }
 
         /// <summary>
