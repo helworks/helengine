@@ -17,6 +17,49 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures the registration state declares ownership of its reserved BEPU world.
+        /// </summary>
+        [Fact]
+        public void RegistrationState_RuntimeWorld_IsDeclaredNativeOwned() {
+            System.Type registrationStateType = typeof(BepuRuntimeComponentRegistration).GetNestedType(
+                "RegistrationState",
+                System.Reflection.BindingFlags.NonPublic);
+            System.Reflection.FieldInfo runtimeWorldField = registrationStateType?.GetField(
+                "RuntimeWorld",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.NotNull(registrationStateType);
+            Assert.NotNull(runtimeWorldField);
+            Assert.NotEmpty(runtimeWorldField.GetCustomAttributes(typeof(NativeOwnedMemberAttribute), false));
+        }
+
+        /// <summary>
+        /// Ensures replacement-world adoption declares the transferred world as native-owned.
+        /// </summary>
+        [Fact]
+        public void ReplaceOwnedRuntimeWorld_ReplacementParameter_TakesNativeOwnership() {
+            System.Reflection.MethodInfo method = typeof(BepuRuntimeComponentRegistration).GetMethod(
+                "ReplaceOwnedRuntimeWorld",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+            Assert.NotNull(method);
+            Assert.NotEmpty(method.GetParameters()[1].GetCustomAttributes(typeof(NativeTakesOwnershipAttribute), false));
+        }
+
+        /// <summary>
+        /// Ensures explicit runtime-world attachment declares adoption of the caller-supplied world.
+        /// </summary>
+        [Fact]
+        public void AttachRuntimeWorld_WorldParameter_TakesNativeOwnership() {
+            System.Reflection.MethodInfo method = typeof(BepuRuntimeComponentRegistration).GetMethod(
+                nameof(BepuRuntimeComponentRegistration.AttachRuntimeWorld),
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+
+            Assert.NotNull(method);
+            Assert.NotEmpty(method.GetParameters()[1].GetCustomAttributes(typeof(NativeTakesOwnershipAttribute), false));
+        }
+
+        /// <summary>
         /// Ensures the Core-owned registration state is disposed exactly once before its native-owned slot is cleared.
         /// </summary>
         [Fact]

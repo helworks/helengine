@@ -5,6 +5,7 @@ namespace helengine {
     public static class BepuRuntimeComponentRegistration {
         sealed class RegistrationState : IDisposable {
             internal readonly Core Core;
+            [NativeOwnedMember]
             internal BepuPhysicsWorld3D RuntimeWorld;
             internal bool SceneBindingRegistered;
             bool IsDisposed;
@@ -29,7 +30,7 @@ namespace helengine {
         /// </summary>
         /// <param name="state">Registration state whose owned runtime world is being replaced.</param>
         /// <param name="replacementWorld">New world to reserve, or <see langword="null"/> to release the current reservation.</param>
-        static void ReplaceOwnedRuntimeWorld(RegistrationState state, BepuPhysicsWorld3D replacementWorld) {
+        static void ReplaceOwnedRuntimeWorld(RegistrationState state, [NativeTakesOwnership] BepuPhysicsWorld3D replacementWorld) {
             BepuPhysicsWorld3D previousWorld = state.RuntimeWorld;
             if (ReferenceEquals(previousWorld, replacementWorld)) {
                 return;
@@ -65,7 +66,6 @@ namespace helengine {
         /// <param name="core">Initialized core that owns the runtime scene loader.</param>
         public static void Register(Core core) {
             RegistrationState state = GetRegistrationState(core);
-            ReplaceOwnedRuntimeWorld(state, core.PhysicsRuntime as BepuPhysicsWorld3D);
             RegisterSceneBinding(core);
         }
 
@@ -97,7 +97,7 @@ namespace helengine {
         /// </summary>
         /// <param name="core">Initialized core that will own the physics runtime.</param>
         /// <param name="world">Constructed BEPU-backed physics world.</param>
-        public static void AttachRuntimeWorld(Core core, BepuPhysicsWorld3D world) {
+        public static void AttachRuntimeWorld(Core core, [NativeTakesOwnership] BepuPhysicsWorld3D world) {
             ValidateCore(core);
             ValidateWorld(world);
 
@@ -221,7 +221,7 @@ namespace helengine {
                 ReplaceOwnedRuntimeWorld(state, CreateRuntimeWorld(core));
             }
             if (!ReferenceEquals(core.PhysicsRuntime, state.RuntimeWorld)) {
-                AttachRuntimeWorld(core, state.RuntimeWorld);
+                core.AttachPhysicsRuntime(state.RuntimeWorld);
             }
 
             return state.RuntimeWorld;
