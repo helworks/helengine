@@ -55,6 +55,36 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures disposed-world validation keeps managed exception behavior while using a native-supported codegen exception.
+        /// </summary>
+        [Fact]
+        public void ThrowIfDisposed_UsesSupportedCodegenExceptionPath() {
+            string sourcePath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "helengine.bepu",
+                "BepuPhysicsWorld3D.cs"));
+            string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
+            int methodStart = source.IndexOf("void ThrowIfDisposed()", StringComparison.Ordinal);
+            int methodEnd = source.IndexOf("/// <summary>", methodStart, StringComparison.Ordinal);
+            string method = source.Substring(methodStart, methodEnd - methodStart);
+
+            Assert.Contains("#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION", method, StringComparison.Ordinal);
+            Assert.Contains(
+                "throw new InvalidOperationException(\"BepuPhysicsWorld3D has been disposed.\");",
+                method,
+                StringComparison.Ordinal);
+            Assert.Contains("#else", method, StringComparison.Ordinal);
+            Assert.Contains(
+                "throw new ObjectDisposedException(nameof(BepuPhysicsWorld3D));",
+                method,
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures a disposed BEPU world rejects kinematic-body synchronization requests.
         /// </summary>
         [Fact]

@@ -447,7 +447,11 @@ namespace helengine {
         /// </summary>
         void ThrowIfDisposed() {
             if (IsDisposedValue) {
+#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+                throw new InvalidOperationException("BepuPhysicsWorld3D has been disposed.");
+#else
                 throw new ObjectDisposedException(nameof(BepuPhysicsWorld3D));
+#endif
             }
         }
 
