@@ -210,6 +210,51 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures registration-state disposal detaches only its attached world and canonically releases the owned member on every exit.
+        /// </summary>
+        [Fact]
+        public void RegistrationState_Dispose_SourceDetachesAndReleasesOwnedWorldOnEveryExit() {
+            string sourcePath = Path.Combine(
+                ResolveRepositoryRootPath(),
+                "engine",
+                "helengine.bepu",
+                "BepuRuntimeComponentRegistration.cs");
+            string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+            Assert.Contains(
+                "if (!IsDisposed) {\n                    IsDisposed = true;\n                    if (RuntimeWorld != null && ReferenceEquals(Core.PhysicsRuntime, RuntimeWorld)) {\n                        Core.DetachPhysicsRuntime();\n                    }\n                    SceneBindingRegistered = false;\n                }\n\n                NativeOwnership.DisposeAndRelease(ref RuntimeWorld);",
+                source,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "if (IsDisposed) {\n                    return;\n                }",
+                source,
+                StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures replacement releases the owned world slot before assigning its replacement.
+        /// </summary>
+        [Fact]
+        public void ReplaceOwnedRuntimeWorld_SourceReleasesOwnedSlotBeforeReplacementAssignment() {
+            string sourcePath = Path.Combine(
+                ResolveRepositoryRootPath(),
+                "engine",
+                "helengine.bepu",
+                "BepuRuntimeComponentRegistration.cs");
+            string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
+            int releaseIndex = source.IndexOf(
+                "NativeOwnership.DisposeAndRelease(ref state.RuntimeWorld);",
+                StringComparison.Ordinal);
+            int assignmentIndex = source.IndexOf(
+                "state.RuntimeWorld = replacementWorld;",
+                StringComparison.Ordinal);
+
+            Assert.True(releaseIndex >= 0);
+            Assert.True(assignmentIndex > releaseIndex);
+            Assert.DoesNotContain("previousWorld.Dispose();", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures an incompatible disposable in the Core-owned slot is released once before registration installs a fresh state.
         /// </summary>
         [Fact]

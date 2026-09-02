@@ -15,13 +15,15 @@ namespace helengine {
             }
 
             public void Dispose() {
-                if (IsDisposed) {
-                    return;
+                if (!IsDisposed) {
+                    IsDisposed = true;
+                    if (RuntimeWorld != null && ReferenceEquals(Core.PhysicsRuntime, RuntimeWorld)) {
+                        Core.DetachPhysicsRuntime();
+                    }
+                    SceneBindingRegistered = false;
                 }
 
-                IsDisposed = true;
-                ReplaceOwnedRuntimeWorld(this, null);
-                SceneBindingRegistered = false;
+                NativeOwnership.DisposeAndRelease(ref RuntimeWorld);
             }
         }
 
@@ -40,9 +42,9 @@ namespace helengine {
                 if (ReferenceEquals(state.Core.PhysicsRuntime, previousWorld)) {
                     state.Core.DetachPhysicsRuntime();
                 }
-                previousWorld.Dispose();
             }
 
+            NativeOwnership.DisposeAndRelease(ref state.RuntimeWorld);
             state.RuntimeWorld = replacementWorld;
         }
 
