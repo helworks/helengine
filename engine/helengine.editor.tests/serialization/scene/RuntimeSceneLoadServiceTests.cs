@@ -157,7 +157,7 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
                 CoreValue.ContentManager);
             AnimationClipAsset clipAsset = new AnimationClipAsset {
-                Id = "Animations/runtime-scene-load.hanim",
+                Id = "animations/runtime-scene-load.hanim",
                 Duration = 2f,
                 PositionOffsetTracks = [
                     new PositionOffsetKeyframeTrackAsset {
@@ -177,13 +177,13 @@ namespace helengine.editor.tests.serialization.scene {
                 ]
             };
 
-            WriteAnimationClipAsset("Animations/runtime-scene-load.hanim", clipAsset);
+            WriteAnimationClipAsset("animations/runtime-scene-load.hanim", clipAsset);
 
             AnimationClipAsset loadedClip = resolver.ResolveAnimationClip(
-                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip("Animations/runtime-scene-load.hanim"));
+                global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemAnimationClip("animations/runtime-scene-load.hanim"));
 
             Assert.NotNull(loadedClip);
-            Assert.Equal("Animations/runtime-scene-load.hanim", loadedClip.Id);
+            Assert.Equal("animations/runtime-scene-load.hanim", loadedClip.Id);
             Assert.Equal(2f, loadedClip.Duration);
             PositionOffsetKeyframeTrackAsset offsetTrack = Assert.Single(loadedClip.PositionOffsetTracks);
             Assert.Equal(new float3(8f, 3f, 0f), offsetTrack.Keyframes[1].Value);
@@ -691,7 +691,9 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(sceneAsset));
-            Assert.Contains("Unsupported automatic scripted component payload version", exception.Message);
+            Assert.Contains("received version '2'", exception.ToString(), StringComparison.Ordinal);
+            Assert.Contains("current version '1'", exception.ToString(), StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.ToString(), StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -945,6 +947,7 @@ namespace helengine.editor.tests.serialization.scene {
             Directory.CreateDirectory(Path.GetDirectoryName(authoredScenePath));
             SceneAsset authoredSceneAsset = new SceneAsset {
                 Id = "Scenes/TextScene.helen",
+                AuthoringAssetId = BuildTestAuthoringAssetId("Scenes/TextScene.helen"),
                 AssetReferences = new[] {
                     CreateFileFontReference("Fonts/DemoDiscTitle.ttf")
                 },
@@ -978,20 +981,23 @@ namespace helengine.editor.tests.serialization.scene {
             string packagedScenePath = GetPackagedScenePath(buildRootPath, "Scenes/TextScene.helen");
             SceneAsset sceneAsset;
             using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
-                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+                sceneAsset = global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(packagedSceneStream);
             }
 
+            ContentManager runtimeContentManager = new ContentManager(new HostFileSystemContentStreamSource(buildRootPath));
+            RuntimeContentManagerConfiguration.ConfigureSharedAssetContentManager(runtimeContentManager, CoreValue.RenderManager2D);
             RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue,
-                CoreValue.ContentManager);
+                runtimeContentManager);
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
 
-            IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
+            RuntimeSceneLoadResult loadResult = loadService.LoadTracked(sceneAsset);
+            IReadOnlyList<Entity> loadedRoots = loadResult.RootEntities;
             TextComponent textComponent = Assert.IsType<TextComponent>(
                 Assert.Single(loadedRoots[0].Components, component => component is TextComponent));
 
             Assert.NotNull(textComponent.Font);
             Assert.Equal("ImportedTestFont", textComponent.Font.FontInfo.Name);
-            Assert.True(File.Exists(Path.Combine(buildRootPath, "cooked", "Fonts", "DemoDiscTitle.hefont")));
+            Assert.True(File.Exists(Path.Combine(buildRootPath, "cooked", "fonts", "demodisctitle.hefont")));
         }
 
         /// <summary>
@@ -1051,6 +1057,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneAssetReference sharedFontReference = CreateFileFontReference("Fonts/DemoDiscBody.ttf");
             SceneAsset authoredSceneAsset = new SceneAsset {
                 Id = "Scenes/SharedFontScene.helen",
+                AuthoringAssetId = BuildTestAuthoringAssetId("Scenes/SharedFontScene.helen"),
                 AssetReferences = new[] {
                     sharedFontReference
                 },
@@ -1095,7 +1102,7 @@ namespace helengine.editor.tests.serialization.scene {
             string packagedScenePath = GetPackagedScenePath(buildRootPath, "Scenes/SharedFontScene.helen");
             SceneAsset sceneAsset;
             using (FileStream packagedSceneStream = File.OpenRead(packagedScenePath)) {
-                sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(packagedSceneStream));
+                sceneAsset = global::helengine.PackagedAssetBinarySerializer.DeserializeSceneAsset(packagedSceneStream);
             }
 
             TestRenderManager2D renderManager2D = Assert.IsType<TestRenderManager2D>(CoreValue.RenderManager2D);
@@ -1382,7 +1389,9 @@ namespace helengine.editor.tests.serialization.scene {
             };
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(sceneAsset));
-            Assert.Contains("Unsupported automatic scripted component payload version", exception.Message);
+            Assert.Contains("received version '99'", exception.ToString(), StringComparison.Ordinal);
+            Assert.Contains("current version '1'", exception.ToString(), StringComparison.Ordinal);
+            Assert.Contains("Regenerate", exception.ToString(), StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -1461,7 +1470,8 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
-            SpriteComponent loadedSpriteComponent = Assert.IsType<SpriteComponent>(Assert.Single(loadedRoots[0].Components));
+            SpriteComponent loadedSpriteComponent = Assert.IsType<SpriteComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is SpriteComponent));
 
             Assert.NotNull(loadedSpriteComponent.Texture);
             Assert.Equal(new float4(0f, 0f, 1f, 1f), loadedSpriteComponent.SourceRect);
@@ -1509,7 +1519,8 @@ namespace helengine.editor.tests.serialization.scene {
             RuntimeSceneLoadService loadService = new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
 
             IReadOnlyList<Entity> loadedRoots = loadService.Load(sceneAsset);
-            RoundedRectComponent loadedRoundedRectComponent = Assert.IsType<RoundedRectComponent>(Assert.Single(loadedRoots[0].Components));
+            RoundedRectComponent loadedRoundedRectComponent = Assert.IsType<RoundedRectComponent>(
+                Assert.Single(loadedRoots[0].Components, component => component is RoundedRectComponent));
 
             Assert.Equal(8, loadedRoundedRectComponent.RenderOrder2D);
             Assert.Equal(RoundedRectCorners.All, loadedRoundedRectComponent.Corners);
@@ -1708,6 +1719,17 @@ namespace helengine.editor.tests.serialization.scene {
 
             using FileStream stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, animationClipAsset);
+        }
+
+        /// <summary>
+        /// Builds the deterministic embedded identity used by current-format native scene fixtures.
+        /// </summary>
+        /// <param name="relativePath">Stable project-relative fixture path.</param>
+        /// <returns>Lowercase 32-character identity derived from the fixture path.</returns>
+        static string BuildTestAuthoringAssetId(string relativePath) {
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(relativePath));
+            return Convert.ToHexString(hash)[..32].ToLowerInvariant();
         }
 
         /// <summary>

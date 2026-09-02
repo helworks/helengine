@@ -144,8 +144,8 @@ namespace helengine.editor.tests.serialization.scene {
         [Fact]
         public void Load_WhenSceneFileIsInvalid_ThrowsInvalidOperationException() {
             string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "Broken.helen");
-            File.WriteAllText(scenePath, "not-a-helen");
             SceneFileLoadService loadService = CreateLoadService(CreateGeneratedModelReference(), CreateGeneratedMaterialReference());
+            File.WriteAllText(scenePath, "not-a-helen");
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => loadService.Load(scenePath));
 
@@ -307,6 +307,7 @@ namespace helengine.editor.tests.serialization.scene {
                 stream,
                 new SceneAsset {
                     Id = fileName,
+                    AuthoringAssetId = BuildTestAuthoringAssetId(fileName),
                     SceneSettings = new SceneSettingsAsset(),
                     RootEntities = [
                         new SceneEntityAsset {
@@ -321,6 +322,17 @@ namespace helengine.editor.tests.serialization.scene {
                     ]
                 });
             return scenePath;
+        }
+
+        /// <summary>
+        /// Builds the deterministic embedded identity used by current-format native scene fixtures.
+        /// </summary>
+        /// <param name="relativePath">Stable project-relative fixture path.</param>
+        /// <returns>Lowercase 32-character identity derived from the fixture path.</returns>
+        static string BuildTestAuthoringAssetId(string relativePath) {
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(relativePath));
+            return Convert.ToHexString(hash)[..32].ToLowerInvariant();
         }
 
         /// <summary>
