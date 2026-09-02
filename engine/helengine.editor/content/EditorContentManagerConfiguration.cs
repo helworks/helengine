@@ -55,7 +55,7 @@ namespace helengine.editor {
             RegisterProcessorIfMissing(
                 contentManager,
                 EditorContentProcessorIds.BlueprintAsset,
-                new AssetContentProcessor<BlueprintAsset>(),
+                new BinaryContentProcessor<BlueprintAsset>(DeserializeBlueprintAsset),
                 new[] { BlueprintAsset.FileExtension });
             RegisterProcessorIfMissing(
                 contentManager,
@@ -65,6 +65,19 @@ namespace helengine.editor {
                 contentManager,
                 EditorContentProcessorIds.AudioAsset,
                 new AssetContentProcessor<AudioAsset>());
+        }
+
+        /// <summary>
+        /// Deserializes one editor-native blueprint payload and verifies its encoded asset type.
+        /// </summary>
+        /// <param name="stream">Stream containing the editor-native blueprint payload.</param>
+        /// <returns>Deserialized blueprint asset.</returns>
+        static BlueprintAsset DeserializeBlueprintAsset(Stream stream) {
+            if (global::helengine.files.AssetSerializer.Deserialize(stream) is not BlueprintAsset blueprintAsset) {
+                throw new InvalidOperationException($"Serialized asset is not a {typeof(BlueprintAsset).Name}.");
+            }
+
+            return blueprintAsset;
         }
 
         /// <summary>

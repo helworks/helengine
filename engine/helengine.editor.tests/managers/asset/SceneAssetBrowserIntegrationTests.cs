@@ -36,6 +36,7 @@ namespace helengine.editor.tests.managers.asset {
             using (FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new SceneAsset {
                     Id = "Scenes/Sample.helen",
+                    AuthoringAssetId = "00112233445566778899aabbccddeeff",
                     RootEntities = Array.Empty<SceneEntityAsset>()
                 });
             }

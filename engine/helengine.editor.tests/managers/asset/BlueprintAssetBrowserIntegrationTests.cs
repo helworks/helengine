@@ -36,6 +36,7 @@ namespace helengine.editor.tests.managers.asset {
             using (FileStream stream = new FileStream(blueprintPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new BlueprintAsset {
                     Id = "Blueprints/Sample" + BlueprintAsset.FileExtension,
+                    AuthoringAssetId = "112233445566778899aabbccddeeff00",
                     RootEntity = new SceneEntityAsset {
                         Id = 1u,
                         Name = "Root",
@@ -46,7 +47,7 @@ namespace helengine.editor.tests.managers.asset {
             }
 
             ContentManager contentManager = new ContentManager(new HostFileSystemContentStreamSource(ProjectRootPath));
-            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager, Core.Instance.RenderManager2D);
+            EditorContentManagerConfiguration.ConfigureSharedAssetContentManager(contentManager);
 
             BlueprintAsset loadedAsset = contentManager.Load<BlueprintAsset>(blueprintPath);
 
@@ -63,6 +64,7 @@ namespace helengine.editor.tests.managers.asset {
             using (FileStream stream = new FileStream(blueprintPath, FileMode.Create, FileAccess.Write, FileShare.None)) {
                 AssetSerializer.Serialize(stream, new BlueprintAsset {
                     Id = "Blueprints/Sample" + BlueprintAsset.FileExtension,
+                    AuthoringAssetId = "112233445566778899aabbccddeeff00",
                     RootEntity = new SceneEntityAsset {
                         Id = 1u,
                         Name = "Root",
