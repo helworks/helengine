@@ -17,12 +17,12 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Gets the project-relative current scene identifier used by the tests.
         /// </summary>
-        string CurrentSceneId => "Scenes/City.helen";
+        string CurrentSceneId => "Scenes/Main.helen";
 
         /// <summary>
         /// Gets the absolute path to the current scene file used by the tests.
         /// </summary>
-        string CurrentScenePath => Path.Combine(TempProjectRootPath, "assets", "Scenes", "City.helen");
+        string CurrentScenePath => Path.Combine(TempProjectRootPath, "assets", "Scenes", "Main.helen");
 
         /// <summary>
         /// Initializes one isolated temporary project root and scene catalog for the current test instance.
@@ -30,13 +30,39 @@ namespace helengine.editor.tests {
         public EditorSessionBuildQueueTests() {
             TempProjectRootPath = Path.Combine(Path.GetTempPath(), "helengine-editor-build-queue-session-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(TempProjectRootPath, "assets", "Scenes"));
-            File.WriteAllText(CurrentScenePath, "{}");
-            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Scenes", "Menu.helen"), "{}");
+            WriteSceneAsset(CurrentSceneId);
+            WriteSceneAsset("Scenes/Menu.helen");
 
             Core core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
             });
             core.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), null, new PlatformInfo("test", "test-version"));
+        }
+
+        /// <summary>
+        /// Writes one minimal current-format authored scene fixture beneath the temporary project assets directory.
+        /// The stable scene id and deterministic lowercase embedded identity make the file acceptable to the strict
+        /// editor scene loader while the empty root list keeps this build-queue fixture independent of project content.
+        /// </summary>
+        /// <param name="sceneId">Project-relative scene identifier, including the <c>.helen</c> extension.</param>
+        void WriteSceneAsset(string sceneId) {
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
+            string sceneDirectoryPath = Path.GetDirectoryName(scenePath);
+            if (string.IsNullOrWhiteSpace(sceneDirectoryPath)) {
+                throw new InvalidOperationException("Scene fixture directory could not be resolved.");
+            }
+
+            Directory.CreateDirectory(sceneDirectoryPath);
+            string authoringAssetId = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sceneId)))[..32].ToLowerInvariant();
+            SceneAsset sceneAsset = new SceneAsset {
+                Id = sceneId,
+                AuthoringAssetId = authoringAssetId,
+                RootEntities = Array.Empty<SceneEntityAsset>()
+            };
+
+            using FileStream stream = new FileStream(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            AssetSerializer.Serialize(stream, sceneAsset);
         }
 
         /// <summary>
@@ -109,7 +135,7 @@ namespace helengine.editor.tests {
             List<TextComponent> mapLabelTexts = GetPrivateField<List<TextComponent>>(dialog, "MapLabelTexts");
             Assert.Collection(
                 mapLabelTexts,
-                label => Assert.Equal("City", label.Text),
+                label => Assert.Equal("Main", label.Text),
                 label => Assert.Equal("Menu", label.Text));
             Assert.True(mapCheckBoxes[0].IsChecked);
             Assert.False(mapCheckBoxes[1].IsChecked);
@@ -134,7 +160,7 @@ namespace helengine.editor.tests {
                     new EditorBuildPlatformConfigDocument {
                         PlatformId = "windows",
                         SelectedSceneIds = [
-                            "Scenes/City.helen"
+                            "Scenes/Main.helen"
                         ]
                     },
                     new EditorBuildPlatformConfigDocument {
@@ -153,7 +179,7 @@ namespace helengine.editor.tests {
                     "ps2"
                 ],
                 [
-                    "Scenes/City.helen",
+                    "Scenes/Main.helen",
                     "Scenes/Menu.helen"
                 ],
                 "ps2",
@@ -175,7 +201,7 @@ namespace helengine.editor.tests {
             Assert.True(mapCheckBoxes[0].IsChecked);
             Assert.False(mapCheckBoxes[1].IsChecked);
             Assert.Equal([
-                "Scenes/City.helen"
+                "Scenes/Main.helen"
             ], ps2Config.SelectedSceneIds);
         }
 
