@@ -795,6 +795,7 @@ namespace helengine.editor.tests {
                         ContentStreamSource = new HostFileSystemContentStreamSource(TempProjectRootPath)
                     });
                 CoreValue.SessionInteractionServices = InteractionServices;
+                CoreValue.SessionInteractionGraph = InteractionServices;
                 ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
                 shaderBackendRegistry.Register(new helengine.directx11.DirectX11ShaderBackend());
                 GeneratedAssetGraph = new TestGeneratedAssetGraph(CoreValue);
