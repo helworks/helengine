@@ -898,6 +898,10 @@ namespace helengine {
                 return "Update FPS: " + FormatFpsValue(updateFps);
             }
 
+            if (ShouldUseCompactOverlayRows(core)) {
+                return "Update FPS: " + FormatFpsValue(updateFps);
+            }
+
             if (ShouldUsePerformanceOverlayRows(core)) {
                 return "Update FPS: " + FormatFpsValue(updateFps)
                     + " Set " + FormatFpsValue(core.PerformanceOverlayTriangleSetupMilliseconds)
@@ -921,6 +925,10 @@ namespace helengine {
                     return core.PerformanceOverlayRenderText;
                 }
 
+                return "Render FPS: " + FormatFpsValue(renderFps) + " Drw " + FormatFpsValue(drawMilliseconds);
+            }
+
+            if (ShouldUseCompactOverlayRows(core)) {
                 return "Render FPS: " + FormatFpsValue(renderFps) + " Drw " + FormatFpsValue(drawMilliseconds);
             }
 
@@ -969,9 +977,22 @@ namespace helengine {
             return core != null
                 && core.UsesPerformanceOverlayMetrics
                 && (!string.IsNullOrEmpty(core.PerformanceOverlayUpdateText)
-                    || !string.IsNullOrEmpty(core.PerformanceOverlayRenderText)
-                    || !string.IsNullOrEmpty(core.PerformanceOverlayDetailText)
-                    || !string.IsNullOrEmpty(core.PerformanceOverlayAdditionalText));
+                    || !string.IsNullOrEmpty(core.PerformanceOverlayRenderText));
+        }
+
+        /// <summary>
+        /// Gets whether the compact summary rows should remain visible instead of using metric suffixes.
+        /// </summary>
+        /// <param name="core">Active core instance that may publish platform overlay state.</param>
+        /// <returns><c>true</c> for platform-owned presentation or detail-only platform diagnostics.</returns>
+        bool ShouldUseCompactOverlayRows(Core core) {
+            return core != null
+                && (core.UsesPlatformOwnedPerformanceOverlayPresentation
+                    || (core.UsesPerformanceOverlayMetrics
+                        && string.IsNullOrEmpty(core.PerformanceOverlayUpdateText)
+                        && string.IsNullOrEmpty(core.PerformanceOverlayRenderText)
+                        && (!string.IsNullOrEmpty(core.PerformanceOverlayDetailText)
+                            || !string.IsNullOrEmpty(core.PerformanceOverlayAdditionalText))));
         }
 
         /// <summary>
