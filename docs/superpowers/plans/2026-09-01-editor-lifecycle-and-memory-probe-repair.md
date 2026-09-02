@@ -75,3 +75,28 @@ Commit `SceneMemoryProbeComponent.cs` with message `Restore scene memory probe m
 - [ ] **Step 1: Run lifecycle-adjacent suites**
 
 Run the core entity, update-component, render-registration, and editor component execution policy tests most directly adjacent to the modified fixtures. Expected: all selected tests pass and no production lifecycle behavior has been loosened.
+
+### Task 2A: Advance probe test scenes at frame boundaries
+
+**Files:**
+- Modify: `engine/helengine.editor.tests/SceneMemoryProbeComponentTests.cs`
+
+- [ ] **Step 1: Record the post-production-fix RED split**
+
+With the `EmitMeasurement` early return removed, run `SceneMemoryProbeComponentTests`. Expected: the stable log test passes because `core.Draw()` commits its bootstrap load; the other five tests fail before attaching the probe because their queued bootstrap scenes have not crossed a frame boundary.
+
+- [ ] **Step 2: Commit setup loads explicitly**
+
+Call `core.CompleteFrameBoundary()` after the bootstrap `LoadScene` in every test that immediately inspects `LoadedScenes`. In the unload test, queue both the persistent bootstrap single load and the additive target load, then commit the boundary before selecting the bootstrap root.
+
+- [ ] **Step 3: Commit probe-issued scene actions before observing them**
+
+For single-load, additive-load, and unload probe steps, keep the first update that starts the probe and the next update that queues the scene action. Call `core.CompleteFrameBoundary()` after the action-issuing update, then perform the following update that emits the measurement. Preserve the production rule that `LoadScene` and `UnloadScene` remain deferred.
+
+- [ ] **Step 4: Verify the full probe class GREEN**
+
+Run `SceneMemoryProbeComponentTests`. Expected: all six tests pass, including loading, unloading, looping, and stable measurement logging.
+
+- [ ] **Step 5: Commit the completed probe repair**
+
+Commit `SceneMemoryProbeComponent.cs` and `SceneMemoryProbeComponentTests.cs` together with message `Restore scene memory probe measurements` so the production repair and its current-frame-boundary test contract remain atomic.
