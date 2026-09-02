@@ -125,6 +125,7 @@ public sealed class EditorWindowsBuildScenePackagerAudioTests : IDisposable {
 
         SceneAsset sceneAsset = new() {
             Id = sceneId,
+            AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
             AssetReferences = assetReferences,
             RootEntities = [
                 new SceneEntityAsset {
@@ -141,6 +142,17 @@ public sealed class EditorWindowsBuildScenePackagerAudioTests : IDisposable {
 
         using FileStream stream = new(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
         AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    /// <summary>
+    /// Builds the deterministic embedded identity used by current-format native test fixtures.
+    /// </summary>
+    /// <param name="relativePath">Stable project-relative fixture path.</param>
+    /// <returns>Lowercase 32-character identity derived from the fixture path.</returns>
+    static string BuildTestAuthoringAssetId(string relativePath) {
+        byte[] hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(relativePath));
+        return Convert.ToHexString(hash)[..32].ToLowerInvariant();
     }
 
     EditorPlatformBuildScenePackager CreatePackager(string targetPlatformId) {

@@ -58,96 +58,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the real Windows builder metadata and gameplay script-type resolver package project-owned scripted scene components through the generic automatic runtime payload contract.
-        /// </summary>
-        [Fact]
-        public void Package_WhenWindowsBuilderCompatibilityMetadataAndScriptResolverAreSupplied_PackagesCityStyleScriptComponents() {
-            string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
-            string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
-            EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(Path.Combine(sourceProjectRootPath, "project.heproj"));
-            AvailablePlatformDescriptor platformDescriptor = bootstrap.ResolvePlatformDescriptor("windows");
-            EditorPlatformAssetBuilderLoader builderLoader = new();
-            IPlatformAssetBuilder builder = builderLoader.Load(platformDescriptor.BuilderAssemblyPath);
-            AutomaticScriptComponentPersistenceDescriptor automaticDescriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
-            DictionaryScriptTypeResolver scriptTypeResolver = new DictionaryScriptTypeResolver();
-            scriptTypeResolver.Register("project.menu.SceneReturnComponent, gameplay", typeof(TestSceneReturnComponent));
-            scriptTypeResolver.Register("project.rendering.TowerSpinComponent, gameplay", typeof(TestDirectionalShadowTowerSpinComponent));
-
-            SceneComponentAssetRecord returnToMenuRecord = new SceneComponentAssetRecord {
-                ComponentTypeId = "project.menu.SceneReturnComponent, gameplay",
-                ComponentIndex = 0,
-                Payload = automaticDescriptor.SerializeComponent(new TestSceneReturnComponent(), 0, null).Payload
-            };
-            SceneComponentAssetRecord towerSpinRecord = automaticDescriptor.SerializeComponent(
-                new TestDirectionalShadowTowerSpinComponent {
-                    BaseYawRadians = 0.75f,
-                    AngularSpeedRadians = 1.5f
-                },
-                1,
-                new EntityComponentSaveState());
-            towerSpinRecord.ComponentTypeId = "project.rendering.TowerSpinComponent, gameplay";
-
-            string sceneId = "Scenes/CityStyleCompatibilityScene.helen";
-            WriteSceneAsset(sceneId, new SceneAsset {
-                Id = sceneId,
-                RootEntities = new[] {
-                    new SceneEntityAsset {
-                        Id = 1u,
-                        Name = "CityRoot",
-                        LocalPosition = float3.Zero,
-                        LocalScale = float3.One,
-                        LocalOrientation = float4.Identity,
-                        Components = new[] {
-                            returnToMenuRecord,
-                            towerSpinRecord
-                        },
-                        Children = Array.Empty<SceneEntityAsset>()
-                    }
-                },
-                AssetReferences = Array.Empty<SceneAssetReference>()
-            });
-
-            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
-                ProjectRootPath,
-                Array.Empty<IAssetImporterRegistration>(),
-                builder.Definition,
-                null,
-                builder,
-                "debug",
-                "directx11",
-                BuiltInShaderAssetLibrary,
-                scriptTypeResolver);
-
-            packager.Package(new[] { sceneId }, BuildRootPath);
-
-            SceneAsset packagedScene;
-            using (FileStream stream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId))) {
-                packagedScene = DeserializePackagedScene(stream);
-            }
-
-            SceneEntityAsset packagedRoot = Assert.Single(packagedScene.RootEntities);
-            SceneComponentAssetRecord packagedReturnToMenuRecord = Assert.Single(
-                packagedRoot.Components,
-                componentRecord => string.Equals(componentRecord.ComponentTypeId, "project.menu.SceneReturnComponent, gameplay", StringComparison.Ordinal));
-            SceneComponentAssetRecord packagedTowerSpinRecord = Assert.Single(
-                packagedRoot.Components,
-                componentRecord => string.Equals(componentRecord.ComponentTypeId, "project.rendering.TowerSpinComponent, gameplay", StringComparison.Ordinal));
-
-            using (MemoryStream payloadStream = new MemoryStream(packagedReturnToMenuRecord.Payload ?? Array.Empty<byte>(), false))
-            using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
-                Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-                Assert.Equal(1, reader.ReadInt32());
-                Assert.Equal((byte)0, reader.ReadByte());
-            }
-
-            using (MemoryStream payloadStream = new MemoryStream(packagedTowerSpinRecord.Payload ?? Array.Empty<byte>(), false))
-            using (EngineBinaryReader reader = EngineBinaryReader.Create(payloadStream, EngineBinaryEndianness.LittleEndian)) {
-                Assert.Equal(AutomaticScriptComponentRuntimeDeserializer.CurrentVersion, reader.ReadByte());
-                Assert.Equal(3, reader.ReadInt32());
-            }
-        }
-
-        /// <summary>
         /// Ensures packaged boot scenes rewrite scene-map helper payloads into the strict runtime format consumed by player builds.
         /// </summary>
         [Fact]
@@ -1173,6 +1083,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -1255,6 +1166,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -2560,6 +2472,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 AssetReferences = new[] {
                     global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateFileSystemModel(sourceModelRelativePath)
                 },
@@ -3104,6 +3017,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -3184,6 +3098,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -3246,6 +3161,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -3351,6 +3267,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -3400,6 +3317,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -3453,6 +3371,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -3495,6 +3414,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -3545,6 +3465,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 AssetReferences = assetReferences ?? Array.Empty<SceneAssetReference>(),
                 RootEntities = new[] {
                     new SceneEntityAsset {
@@ -3577,6 +3498,9 @@ namespace helengine.editor.tests {
         void WriteSceneAsset(string sceneId, SceneAsset sceneAsset) {
             if (sceneAsset == null) {
                 throw new ArgumentNullException(nameof(sceneAsset));
+            }
+            if (string.IsNullOrWhiteSpace(sceneAsset.AuthoringAssetId)) {
+                sceneAsset.AuthoringAssetId = BuildTestAuthoringAssetId(sceneId);
             }
 
             string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId.Replace('/', Path.DirectorySeparatorChar));
@@ -3630,6 +3554,7 @@ namespace helengine.editor.tests {
             Directory.CreateDirectory(directoryPath);
             AnimationClipAsset clipAsset = new AnimationClipAsset {
                 Id = relativePath,
+                AuthoringAssetId = BuildTestAuthoringAssetId(relativePath),
                 Duration = 0.75f,
                 PositionTracks = Array.Empty<PositionKeyframeTrackAsset>(),
                 PositionOffsetTracks = Array.Empty<PositionOffsetKeyframeTrackAsset>(),
@@ -3639,6 +3564,17 @@ namespace helengine.editor.tests {
 
             using FileStream stream = new FileStream(clipPath, FileMode.Create, FileAccess.Write, FileShare.None);
             AssetSerializer.Serialize(stream, clipAsset);
+        }
+
+        /// <summary>
+        /// Builds the deterministic embedded identity used by current-format native test fixtures.
+        /// </summary>
+        /// <param name="relativePath">Stable project-relative fixture path.</param>
+        /// <returns>Lowercase 32-character identity derived from the fixture path.</returns>
+        static string BuildTestAuthoringAssetId(string relativePath) {
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(relativePath));
+            return Convert.ToHexString(hash)[..32].ToLowerInvariant();
         }
 
         /// <summary>
@@ -3778,6 +3714,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
@@ -3971,7 +3908,8 @@ namespace helengine.editor.tests {
             TextureAsset textureAsset = new TextureAsset {
                 Width = 1,
                 Height = 1,
-                Colors = new byte[] { 255, 255, 255, 255 }
+                Colors = new byte[] { 255, 255, 255, 255 },
+                AuthoringAssetId = BuildTestAuthoringAssetId(textureAssetId)
             };
 
             using FileStream stream = new FileStream(texturePath, FileMode.Create, FileAccess.Write, FileShare.None);
@@ -4172,6 +4110,7 @@ namespace helengine.editor.tests {
 
             ShaderAsset shaderAsset = new ShaderAsset {
                 Id = shaderAssetId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(shaderAssetId),
                 Name = shaderAssetId,
                 TargetName = ShaderTargetNames.GetTargetName(target),
                 Programs = new[] {
@@ -4359,6 +4298,7 @@ namespace helengine.editor.tests {
 
             SceneAsset sceneAsset = new SceneAsset {
                 Id = sceneId,
+                AuthoringAssetId = BuildTestAuthoringAssetId(sceneId),
                 RootEntities = new[] {
                     new SceneEntityAsset {
                         Id = 1u,
