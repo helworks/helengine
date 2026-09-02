@@ -194,6 +194,7 @@ namespace helengine.editor.tests {
 
             int anchorBoundsChangedCount = 0;
             viewport.AnchorBoundsChanged += () => anchorBoundsChangedCount++;
+            cameraEntity.InitializeHierarchy();
 
             CoreValue.Update();
             anchorBoundsChangedCount = 0;
@@ -266,6 +267,7 @@ namespace helengine.editor.tests {
 
             LayoutComponent anchor = Assert.IsType<LayoutComponent>(Assert.Single(contentEntity.Components, component => component is LayoutComponent));
             anchor.SetAnchorDistances(left: 88f, top: 190f);
+            viewportEntity.InitializeHierarchy();
 
             renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
             CoreValue.Update();
@@ -516,6 +518,7 @@ namespace helengine.editor.tests {
                 ReferenceHeight = 720
             };
             viewportEntity.AddComponent(viewport);
+            viewportEntity.InitializeHierarchy();
 
             AnchorSpace initialAnchorSpace = viewport.AnchorSpace;
 
@@ -560,6 +563,7 @@ namespace helengine.editor.tests {
             contentEntity.AddComponent(layout);
             viewportEntity.AddChild(contentEntity);
 
+            viewportEntity.InitializeHierarchy();
             CoreValue.Update();
             layout.SetAnchorDistances(right: 44f, top: 28f);
             layout.RefreshAnchoring();
@@ -611,6 +615,7 @@ namespace helengine.editor.tests {
             contentEntity.AddComponent(layout);
             generatedRootEntity.AddChild(contentEntity);
 
+            viewportEntity.InitializeHierarchy();
             CoreValue.Update();
             layout.SetAnchorDistances(right: 44f, top: 28f);
             layout.RefreshAnchoring();

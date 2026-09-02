@@ -15,6 +15,7 @@ namespace helengine.editor.tests {
 
             Entity parent = CreateEntity();
             parent.Enabled = false;
+            parent.InitializeHierarchy();
 
             Entity child = CreateEntity();
             SpriteComponent sprite = new SpriteComponent();
@@ -24,6 +25,7 @@ namespace helengine.editor.tests {
             child.AddComponent(sprite);
             child.AddComponent(interactable);
             child.AddComponent(updateComponent);
+            child.InitializeHierarchy();
 
             Assert.Contains(sprite, Core.Instance.ObjectManager.Drawables2D);
             Assert.Contains(interactable, Core.Instance.ObjectManager.Interactables);
@@ -51,6 +53,7 @@ namespace helengine.editor.tests {
 
             Entity parent = CreateEntity();
             parent.Enabled = false;
+            parent.InitializeHierarchy();
 
             Entity child = CreateEntity();
             parent.AddChild(child);
@@ -102,6 +105,7 @@ namespace helengine.editor.tests {
 
             disabledParent.RemoveChild(child);
             enabledParent.AddChild(child);
+            enabledParent.InitializeHierarchy();
 
             Assert.Same(enabledParent, child.Parent);
             Assert.DoesNotContain(child, disabledParent.Children);

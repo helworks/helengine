@@ -189,6 +189,7 @@ namespace helengine.editor.tests {
             };
 
             component.Play(clip, false);
+            entity.InitializeHierarchy();
 
             core.Update(1d / 30d);
 

@@ -31,6 +31,7 @@ namespace helengine.editor.tests {
 
             SetPropertyValue(textComponent, "SelectionEnabled", true);
             entity.AddComponent(textComponent);
+            entity.InitializeHierarchy();
 
             ((TestInputBackend)Core.Instance.InputSystem.Backend).SetMouseState(new MouseState(
                 10,
@@ -73,6 +74,7 @@ namespace helengine.editor.tests {
 
             SetPropertyValue(textComponent, "SelectionEnabled", true);
             entity.AddComponent(textComponent);
+            entity.InitializeHierarchy();
 
             ((TestInputBackend)Core.Instance.InputSystem.Backend).SetMouseState(new MouseState(
                 10,
@@ -120,6 +122,7 @@ namespace helengine.editor.tests {
 
             SetPropertyValue(textComponent, "SelectionEnabled", true);
             entity.AddComponent(textComponent);
+            entity.InitializeHierarchy();
 
             ((TestInputBackend)Core.Instance.InputSystem.Backend).SetMouseState(new MouseState(
                 130,
@@ -162,6 +165,7 @@ namespace helengine.editor.tests {
 
             SetPropertyValue(textComponent, "SelectionEnabled", true);
             entity.AddComponent(textComponent);
+            entity.InitializeHierarchy();
 
             ((TestInputBackend)Core.Instance.InputSystem.Backend).SetMouseState(new MouseState(
                 2,

@@ -158,6 +158,7 @@ namespace helengine.editor.tests {
                 Size = new int2(400, 120)
             };
             buttonEntity.AddComponent(interactable);
+            root.InitializeHierarchy();
 
             renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
             Core.Instance.Update();

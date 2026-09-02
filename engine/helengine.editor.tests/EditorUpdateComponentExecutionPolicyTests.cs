@@ -128,6 +128,7 @@ namespace helengine.editor.tests {
             EditorUpdateLifecycleProbeComponent component = new EditorUpdateLifecycleProbeComponent();
 
             EnterEditorAndRun(() => entity.AddComponent(component));
+            EnterEditorAndRun(() => entity.InitializeHierarchy());
 
             Assert.Equal(1, component.ComponentAddedCallCount);
             Assert.Single(Core.Instance.ObjectManager.Updateables);

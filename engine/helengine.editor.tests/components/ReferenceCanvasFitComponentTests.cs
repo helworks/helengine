@@ -86,6 +86,7 @@ namespace helengine.editor.tests.components {
                 ReferenceWidth = 1280,
                 ReferenceHeight = 720
             });
+            menuRoot.InitializeHierarchy();
 
             renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
             Core.Instance.Update();
@@ -139,6 +140,7 @@ namespace helengine.editor.tests.components {
                 ReferenceWidth = 1280,
                 ReferenceHeight = 720
             });
+            menuRoot.InitializeHierarchy();
 
             renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
             Core.Instance.Update();
@@ -179,6 +181,7 @@ namespace helengine.editor.tests.components {
                 ReferenceWidth = 1280,
                 ReferenceHeight = 720
             });
+            menuRoot.InitializeHierarchy();
 
             renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
             Core.Instance.Update();
@@ -220,6 +223,7 @@ namespace helengine.editor.tests.components {
                 ReferenceWidth = 1280,
                 ReferenceHeight = 720
             });
+            menuRoot.InitializeHierarchy();
 
             renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
             Core.Instance.Update();
@@ -272,6 +276,7 @@ namespace helengine.editor.tests.components {
                 ReferenceWidth = 1280,
                 ReferenceHeight = 720
             });
+            menuRoot.InitializeHierarchy();
 
             renderManager.OnWindowResize(IntPtr.Zero, 853, 480);
             Core.Instance.Update();
@@ -315,6 +320,7 @@ namespace helengine.editor.tests.components {
             };
             panelEntity.AddComponent(panelBackground);
             generatedRoot.AddChild(panelEntity);
+            menuRoot.InitializeHierarchy();
 
             renderManager.OnWindowResize(IntPtr.Zero, 640, 480);
             Core.Instance.Update();
@@ -342,6 +348,7 @@ namespace helengine.editor.tests.components {
                 ReferenceHeight = 720
             };
             menuRoot.AddComponent(fitComponent);
+            menuRoot.InitializeHierarchy();
 
             AnchorSpace initialAnchorSpace = fitComponent.AnchorSpace;
 

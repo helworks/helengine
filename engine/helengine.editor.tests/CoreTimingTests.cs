@@ -140,6 +140,7 @@ namespace helengine.editor.tests {
             entity.InitComponents();
             TestDeltaTimeProbeComponent component = new TestDeltaTimeProbeComponent();
             entity.AddComponent(component);
+            entity.InitializeHierarchy();
 
             core.Update();
             core.Update();

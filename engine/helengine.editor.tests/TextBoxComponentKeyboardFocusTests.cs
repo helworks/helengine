@@ -117,6 +117,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
+            entity.InitializeHierarchy();
 
             textBox.IsFocused = true;
 
@@ -164,6 +165,7 @@ namespace helengine.editor.tests {
             textBox.Text = "Name";
 
             InvokePrivate(textBox, "OnCursorEvent", new int2(18, 10), new int2(0, 0), PointerInteraction.Press);
+            Core.Instance.Input.SetMouseState(new MouseState(42, 10, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             InvokePrivate(textBox, "OnCursorEvent", new int2(42, 10), new int2(24, 0), PointerInteraction.Hover);
 
             TextBoxEditState editState = GetPrivateField<TextBoxEditState>(textBox, "EditState");
@@ -182,10 +184,12 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
+            entity.InitializeHierarchy();
             textBox.Text = "Name";
             textBox.IsFocused = true;
 
             InvokePrivate(textBox, "OnCursorEvent", new int2(18, 10), new int2(0, 0), PointerInteraction.Press);
+            Core.Instance.Input.SetMouseState(new MouseState(42, 10, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             InvokePrivate(textBox, "OnCursorEvent", new int2(42, 10), new int2(24, 0), PointerInteraction.Hover);
 
             ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.B));
@@ -203,6 +207,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
+            entity.InitializeHierarchy();
             textBox.Text = "Name";
             textBox.IsFocused = true;
 
@@ -226,10 +231,12 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
+            entity.InitializeHierarchy();
             textBox.Text = "Name";
             textBox.IsFocused = true;
 
             InvokePrivate(textBox, "OnCursorEvent", new int2(18, 10), new int2(0, 0), PointerInteraction.Press);
+            Core.Instance.Input.SetMouseState(new MouseState(42, 10, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released));
             InvokePrivate(textBox, "OnCursorEvent", new int2(42, 10), new int2(24, 0), PointerInteraction.Hover);
 
             ((TestInputBackend)Core.Instance.InputSystem.Backend).SetKeyboardState(new KeyboardState(Keys.LeftControl, Keys.C));
@@ -256,6 +263,7 @@ namespace helengine.editor.tests {
             EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             TextBoxComponent textBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Name");
             entity.AddComponent(textBox);
+            entity.InitializeHierarchy();
             textBox.Text = "Name";
             textBox.IsFocused = true;
 

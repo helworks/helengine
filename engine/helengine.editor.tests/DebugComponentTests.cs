@@ -111,6 +111,7 @@ namespace helengine.editor.tests {
             };
 
             entity.AddComponent(debug);
+            entity.InitializeHierarchy();
 
             Core.Instance.Update(0.05d);
             Core.Instance.Draw();
@@ -134,6 +135,7 @@ namespace helengine.editor.tests {
             };
 
             entity.AddComponent(debug);
+            entity.InitializeHierarchy();
             CoreInstance.QueueMeasuredDrawMilliseconds(new[] { 30d });
 
             Core.Instance.Update(0.05d);
@@ -158,6 +160,7 @@ namespace helengine.editor.tests {
             };
 
             entity.AddComponent(debug);
+            entity.InitializeHierarchy();
             CoreInstance.QueueMeasuredDrawMilliseconds(new[] { double.NaN });
 
             Core.Instance.Update(0.05d);
@@ -182,6 +185,7 @@ namespace helengine.editor.tests {
             };
 
             entity.AddComponent(debug);
+            entity.InitializeHierarchy();
             CoreInstance.SetPerformanceOverlayMetrics(true, 1.2d, 3.4d, 5.6d, 7.8d, 9.1d, 11.2d, 5, 6);
 
             Core.Instance.Update(0.05d);
@@ -213,6 +217,7 @@ namespace helengine.editor.tests {
             };
 
             entity.AddComponent(debug);
+            entity.InitializeHierarchy();
             dsCore.SetPerformanceOverlayMetrics(true, 1.2d, 3.4d, 5.6d, 7.8d, 9.1d, 11.2d, 5, 6);
 
             Core.Instance.Update(0.05d);
