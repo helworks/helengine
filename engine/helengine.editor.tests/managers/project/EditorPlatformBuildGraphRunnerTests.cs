@@ -2362,6 +2362,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
 
         SceneAsset sceneAsset = new() {
             Id = sceneRelativePath,
+            AuthoringAssetId = BuildTestAuthoringAssetId(sceneRelativePath),
             AssetReferences = Array.Empty<SceneAssetReference>(),
             RootEntities = [
                 new SceneEntityAsset {
@@ -2378,6 +2379,17 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
 
         using FileStream stream = new(scenePath, FileMode.Create, FileAccess.Write, FileShare.None);
         AssetSerializer.Serialize(stream, sceneAsset);
+    }
+
+    /// <summary>
+    /// Builds the deterministic lowercase embedded identity used by current-format native scene fixtures.
+    /// </summary>
+    /// <param name="relativePath">Stable project-relative fixture path.</param>
+    /// <returns>Lowercase 32-character identity derived from the fixture path.</returns>
+    static string BuildTestAuthoringAssetId(string relativePath) {
+        byte[] hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(relativePath));
+        return Convert.ToHexString(hash)[..32].ToLowerInvariant();
     }
 
     /// <summary>
