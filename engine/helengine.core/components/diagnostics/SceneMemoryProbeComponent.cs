@@ -249,8 +249,6 @@ namespace helengine {
         /// <param name="core">Active runtime core driving the current frame.</param>
         /// <param name="step">Current authored step that completed.</param>
         void EmitMeasurement(Core core, SceneMemoryProbeStep step) {
-            return;
-
             RuntimeDiagnosticsService diagnosticsService = core.RuntimeDiagnosticsService;
             if (diagnosticsService != null) {
                 diagnosticsService.CaptureMemoryCounters(MemoryCountersValue);

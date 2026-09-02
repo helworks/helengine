@@ -37,6 +37,7 @@ namespace helengine.editor.tests {
             TestClockDrivenCore core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            core.CompleteFrameBoundary();
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "wait-probe",
                 Steps = new[] {
@@ -78,6 +79,7 @@ namespace helengine.editor.tests {
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            core.CompleteFrameBoundary();
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "single-load",
                 Steps = new[] {
@@ -99,6 +101,7 @@ namespace helengine.editor.tests {
 
             core.Update(0d);
             core.Update(0d);
+            core.CompleteFrameBoundary();
             core.Update(0d);
 
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/TestPlayableScene.helen"));
@@ -117,6 +120,7 @@ namespace helengine.editor.tests {
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset"),
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            core.CompleteFrameBoundary();
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "additive-load",
                 Steps = new[] {
@@ -131,6 +135,8 @@ namespace helengine.editor.tests {
             Assert.Single(core.SceneManager.LoadedScenes).RootEntities[0].AddComponent(component);
 
             core.Update(0d);
+            core.Update(0d);
+            core.CompleteFrameBoundary();
             core.Update(0d);
 
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
@@ -150,6 +156,7 @@ namespace helengine.editor.tests {
                 new RuntimeSceneCatalogEntry("Scenes/TestPlayableScene.helen", "cooked/scenes/testplayablescene.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
             core.SceneManager.LoadScene("Scenes/TestPlayableScene.helen", SceneLoadMode.Additive);
+            core.CompleteFrameBoundary();
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "unload",
                 Steps = new[] {
@@ -171,6 +178,7 @@ namespace helengine.editor.tests {
 
             core.Update(0d);
             core.Update(0d);
+            core.CompleteFrameBoundary();
             core.Update(0d);
 
             Assert.True(core.SceneManager.IsSceneLoaded("Scenes/Bootstrap.helen"));
@@ -187,6 +195,7 @@ namespace helengine.editor.tests {
             TestClockDrivenCore core = CreateCore(CreateSceneCatalog(
                 new RuntimeSceneCatalogEntry("Scenes/Bootstrap.helen", "cooked/scenes/bootstrap.hasset")));
             core.SceneManager.LoadScene("Scenes/Bootstrap.helen", SceneLoadMode.Single);
+            core.CompleteFrameBoundary();
             SceneMemoryProbeComponent component = new SceneMemoryProbeComponent {
                 ProbeName = "looping",
                 Loop = true,
