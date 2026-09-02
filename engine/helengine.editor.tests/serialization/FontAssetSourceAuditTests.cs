@@ -10,7 +10,7 @@ namespace helengine.editor.tests.serialization {
         /// </summary>
         [Fact]
         public void Dispose_whenSourceTextureUsesSharedEmptyArrays_guardsAgainstDeletingArrayEmptySentinels() {
-            string sourcePath = Path.GetFullPath(Path.Combine(
+            string fontSourcePath = Path.GetFullPath(Path.Combine(
                 AppContext.BaseDirectory,
                 "..",
                 "..",
@@ -20,12 +20,26 @@ namespace helengine.editor.tests.serialization {
                 "assets",
                 "font",
                 "FontAsset.cs"));
-            string sourceText = File.ReadAllText(sourcePath);
+            string textureSourcePath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "helengine.core",
+                "assets",
+                "raw",
+                "TextureAsset.cs"));
+            string fontSourceText = File.ReadAllText(fontSourcePath)
+                .Replace("\r\n", "\n", StringComparison.Ordinal);
+            string textureSourceText = File.ReadAllText(textureSourcePath)
+                .Replace("\r\n", "\n", StringComparison.Ordinal);
 
-            Assert.Contains("ReferenceEquals(sourceTextureColors, Array.Empty<byte>())", sourceText);
-            Assert.Contains("ReferenceEquals(sourceTexturePaletteColors, Array.Empty<byte>())", sourceText);
-            Assert.Contains("if (!sourceTextureColorsUsesSharedEmptyArray)", sourceText);
-            Assert.Contains("if (!sourceTexturePaletteColorsUsesSharedEmptyArray)", sourceText);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(SourceTextureAsset);", fontSourceText);
+            Assert.Contains("[NativeOwnedMember]\n        public TextureAsset SourceTextureAsset", fontSourceText);
+            Assert.Contains("public class TextureAsset : Asset, IDisposable", textureSourceText);
+            Assert.Contains("NativeOwnership.Release(ref Colors);", textureSourceText);
+            Assert.Contains("NativeOwnership.Release(ref PaletteColors);", textureSourceText);
         }
     }
 }

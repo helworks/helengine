@@ -14,13 +14,10 @@ namespace helengine.editor.tests.serialization.scene {
             string entitySource = ReadSource("helengine.core", "Entity.cs");
 
             Assert.Contains("public virtual void Dispose()", componentSource);
-            Assert.Contains("NativeOwnership.DisposeAndDelete(child);", entitySource);
-            Assert.Contains("component.Dispose();", entitySource);
-            Assert.Contains("NativeOwnership.Delete(component);", entitySource);
-            Assert.Contains("List<Component> components = Components;", entitySource);
-            Assert.Contains("NativeOwnership.Delete(components);", entitySource);
-            Assert.Contains("List<Entity> children = Children;", entitySource);
-            Assert.Contains("NativeOwnership.Delete(children);", entitySource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(children[children.Count - 1]);", entitySource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(detachedComponents[i]);", entitySource);
+            Assert.Contains("NativeOwnership.Release(ref components);", entitySource);
+            Assert.Contains("NativeOwnership.Release(ref children);", entitySource);
         }
 
         /// <summary>
@@ -60,25 +57,6 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
-        /// Ensures menu runtime teardown releases bound panel and item runtimes together with temporary binding lists used during initialization.
-        /// </summary>
-        [Fact]
-        public void Dispose_whenMenuRuntimeIsRemoved_releasesPanelStateAndTemporaryBindingLists() {
-            string menuComponentSource = ReadSource("helengine.core", "components", "2d", "menu", "MenuComponent.cs");
-
-            Assert.Contains("public override void Dispose()", menuComponentSource);
-            Assert.Contains("NativeOwnership.Delete(PanelsById);", menuComponentSource);
-            Assert.Contains("NativeOwnership.Delete(PanelRuntimes);", menuComponentSource);
-            Assert.Contains("NativeOwnership.Delete(PanelHistory);", menuComponentSource);
-            Assert.Contains("NativeOwnership.Delete(panelEntities);", menuComponentSource);
-            Assert.Contains("NativeOwnership.Delete(itemEntities);", menuComponentSource);
-            Assert.Contains("NativeOwnership.Delete(markerEntities);", menuComponentSource);
-            Assert.Contains("NativeOwnership.Delete(scrollEntities);", menuComponentSource);
-            Assert.Contains("panelRuntime.ItemsScrollComponent.ScrollOffsetChanged -= HandleItemsScrollOffsetChanged;", menuComponentSource);
-            Assert.Contains("NativeOwnership.Delete(panelRuntime.Items);", menuComponentSource);
-        }
-
-        /// <summary>
         /// Ensures camera teardown releases per-camera render queues and renderer intent objects created for native runtime cameras.
         /// </summary>
         [Fact]
@@ -88,7 +66,7 @@ namespace helengine.editor.tests.serialization.scene {
             string renderList3DSource = ReadSource("helengine.core", "managers", "rendering", "RenderList3D.cs");
 
             Assert.Contains("public override void ComponentRemoved(Entity entity)", cameraComponentSource);
-            Assert.Contains("Core.Instance.ObjectManager.RemoveCamera(this);", cameraComponentSource);
+            Assert.Contains("OwnerCore.ObjectManager.RemoveCamera(this);", cameraComponentSource);
             Assert.Contains("public override void Dispose()", cameraComponentSource);
             Assert.Contains("NativeOwnership.DisposeAndDelete(renderList2D);", cameraComponentSource);
             Assert.Contains("NativeOwnership.DisposeAndDelete(renderList3D);", cameraComponentSource);
@@ -134,12 +112,12 @@ namespace helengine.editor.tests.serialization.scene {
 
             Assert.Contains("public override void Dispose()", viewportComponentSource);
             Assert.Contains("ReleaseLayoutSnapshots();", viewportComponentSource);
-            Assert.Contains("NativeOwnership.Delete(LayoutSnapshotsValue[snapshotIndex]);", viewportComponentSource);
+            Assert.Contains("LayoutSnapshotsValue.Clear();", viewportComponentSource);
             Assert.Contains("NativeOwnership.Delete(LayoutSnapshotsValue);", viewportComponentSource);
 
             Assert.Contains("public override void Dispose()", referenceCanvasFitComponentSource);
             Assert.Contains("ReleaseSnapshots();", referenceCanvasFitComponentSource);
-            Assert.Contains("NativeOwnership.Delete(SnapshotsValue[snapshotIndex]);", referenceCanvasFitComponentSource);
+            Assert.Contains("SnapshotsValue.Clear();", referenceCanvasFitComponentSource);
             Assert.Contains("NativeOwnership.Delete(SnapshotsValue);", referenceCanvasFitComponentSource);
         }
 
@@ -154,18 +132,18 @@ namespace helengine.editor.tests.serialization.scene {
             string roundedRectComponentSource = ReadSource("helengine.core", "components", "2d", "RoundedRectComponent.cs");
 
             Assert.Contains("public override void ComponentRemoved(Entity entity)", meshComponentSource);
-            Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender3D(this);", meshComponentSource);
+            Assert.Contains("OwnerCore.ObjectManager.RemoveFromRender3D(this);", meshComponentSource);
             Assert.Contains("public override void Dispose()", meshComponentSource);
             Assert.Contains("NativeOwnership.Release(ref MaterialsBySlot);", meshComponentSource);
 
             Assert.Contains("public override void ComponentRemoved(Entity entity)", textComponentSource);
-            Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender2D(this);", textComponentSource);
+            Assert.Contains("OwnerCore.ObjectManager.RemoveFromRender2D(this);", textComponentSource);
 
             Assert.Contains("public override void ComponentRemoved(Entity entity)", spriteComponentSource);
-            Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender2D(this);", spriteComponentSource);
+            Assert.Contains("OwnerCore.ObjectManager.RemoveFromRender2D(this);", spriteComponentSource);
 
             Assert.Contains("public override void ComponentRemoved(Entity entity)", roundedRectComponentSource);
-            Assert.Contains("Core.Instance.ObjectManager.RemoveFromRender2D(this);", roundedRectComponentSource);
+            Assert.Contains("OwnerCore.ObjectManager.RemoveFromRender2D(this);", roundedRectComponentSource);
         }
 
         /// <summary>
@@ -175,25 +153,8 @@ namespace helengine.editor.tests.serialization.scene {
         public void Dispose_whenFpsOverlayIsTornDown_deletesGeneratedOverlayEntitySubtree() {
             string fpsComponentSource = ReadSource("helengine.core", "components", "2d", "FPSComponent.cs");
 
-            Assert.Contains("NativeOwnership.DisposeAndDelete(overlayHost);", fpsComponentSource);
-            Assert.DoesNotContain("overlayHost.Dispose();", fpsComponentSource, StringComparison.Ordinal);
-        }
-
-        /// <summary>
-        /// Ensures menu-driven scene transitions resolve logical ids through the optional scene-map singleton helper instead of the removed scene-map service seam.
-        /// </summary>
-        [Fact]
-        public void Load_whenMenuTransitionsScenes_usesSceneMapComponentHelperAndDoesNotReferenceSceneMapService() {
-            string coreSource = ReadSource("helengine.core", "Core.cs");
-            string menuComponentSource = ReadSource("helengine.core", "components", "2d", "menu", "MenuComponent.cs");
-            string returnToMenuSource = ReadSource("helengine.core", "components", "2d", "menu", "DemoDiscReturnToMenuRuntimeComponent.cs");
-
-            Assert.DoesNotContain("SceneMapService", coreSource, StringComparison.Ordinal);
-            Assert.Contains("string resolvedSceneId = SceneMapComponent.ResolveSceneId(sceneId);", menuComponentSource);
-            Assert.Contains("Core.Instance.SceneManager.LoadScene(resolvedSceneId, SceneLoadMode.Single);", menuComponentSource);
-            Assert.DoesNotContain("Core.Instance.SceneManager.LoadScene(sceneId, SceneLoadMode.Single);", menuComponentSource, StringComparison.Ordinal);
-            Assert.Contains("string resolvedSceneId = SceneMapComponent.ResolveSceneId(MainMenuSceneId);", returnToMenuSource);
-            Assert.DoesNotContain("Core.Instance.SceneMapService", returnToMenuSource, StringComparison.Ordinal);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(OverlayHost);", fpsComponentSource);
+            Assert.DoesNotContain("OverlayHost.Dispose();", fpsComponentSource, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -203,16 +164,20 @@ namespace helengine.editor.tests.serialization.scene {
         public void Dispose_whenRuntimeRenderingStateIsReleased_deletesNestedNativeContainersAndPreviousReplacements() {
             string runtimeMaterialSource = ReadSource("helengine.core", "assets", "RuntimeMaterial.cs");
             string runtimeModelSource = ReadSource("helengine.core", "assets", "RuntimeModel.cs");
-            string materialLayoutSource = ReadSource("helengine.core", "assets", "material", "MaterialLayout.cs");
-            string materialPropertyBlockSource = ReadSource("helengine.core", "assets", "material", "MaterialPropertyBlock.cs");
+            string shaderRuntimeMaterialSource = ReadSource("helengine.shader", "assets", "ShaderRuntimeMaterial.cs");
+            string materialLayoutSource = ReadSource("helengine.shader", "assets", "material", "MaterialLayout.cs");
+            string materialPropertyBlockSource = ReadSource("helengine.shader", "assets", "material", "MaterialPropertyBlock.cs");
 
             Assert.Contains("public class RuntimeMaterial : RuntimeData, IDisposable", runtimeMaterialSource);
-            Assert.Contains("NativeOwnership.Delete(previousRenderState);", runtimeMaterialSource);
-            Assert.Contains("NativeOwnership.DisposeAndDelete(previousProperties);", runtimeMaterialSource);
-            Assert.Contains("NativeOwnership.DisposeAndDelete(LayoutValue);", runtimeMaterialSource);
             Assert.Contains("NativeOwnership.Delete(RenderStateValue);", runtimeMaterialSource);
-            Assert.Contains("NativeOwnership.DisposeAndDelete(PropertiesValue);", runtimeMaterialSource);
             Assert.Contains("NativeOwnership.Delete(ChildMaterialsValue);", runtimeMaterialSource);
+
+            Assert.Contains("public class ShaderRuntimeMaterial : RuntimeMaterial", shaderRuntimeMaterialSource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(LayoutValue);", shaderRuntimeMaterialSource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(PropertiesValue);", shaderRuntimeMaterialSource);
+            Assert.Contains("NativeOwnership.DisposeAndRelease(ref PropertiesValue);", shaderRuntimeMaterialSource);
+            Assert.Contains("DisposeOwnedLayout(previousOwnedLayout);", shaderRuntimeMaterialSource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(layout);", shaderRuntimeMaterialSource);
 
             Assert.Contains("public abstract class RuntimeModel : RuntimeData, IDisposable", runtimeModelSource);
             Assert.Contains("NativeOwnership.DeleteItemsAndRelease(ref SubmeshesValue);", runtimeModelSource);

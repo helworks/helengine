@@ -31,7 +31,7 @@ public class HelengineFeatureCatalogIntegrityTests {
         Assert.True(File.Exists(normalizedFilePath));
 
         string json = File.ReadAllText(normalizedFilePath);
-        Assert.Contains("\"typeName\": \"helengine.ContentManager\", \"featureIds\": [ \"host_file_system\" ]", json, StringComparison.Ordinal);
+        Assert.Contains("\"typeName\": \"helengine.HostFileSystemContentStreamSource\", \"featureIds\": [ \"host_file_system\" ]", json, StringComparison.Ordinal);
         Assert.Contains("\"typeName\": \"helengine.TextContentManagerConfiguration\", \"featureIds\": [ \"text_processing\" ]", json, StringComparison.Ordinal);
         Assert.Contains("\"typeName\": \"helengine.GeneratedRuntimeModuleManifestAttribute\", \"featureIds\": [ \"managed_metadata_only\" ]", json, StringComparison.Ordinal);
         Assert.Contains("\"typeName\": \"helengine.RuntimeFeatureRequirementAttribute\", \"featureIds\": [ \"managed_metadata_only\" ]", json, StringComparison.Ordinal);

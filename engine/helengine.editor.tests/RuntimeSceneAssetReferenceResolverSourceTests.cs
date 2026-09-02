@@ -20,7 +20,7 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("#if HELENGINE_RUNTIME_MATERIAL_RESOLUTION_COOKED_PLATFORM_OWNED", source, StringComparison.Ordinal);
-        Assert.Contains("BuildMaterialFromCooked(fullPath)", source, StringComparison.Ordinal);
+        Assert.Contains("renderer.BuildMaterialFromCooked(fullPath, AssetContentManager.ContentStreamSource)", source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -39,9 +39,9 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
         string source = File.ReadAllText(sourcePath);
 
         Assert.Contains("#if HELENGINE_RUNTIME_MODEL_RESOLUTION_COOKED_PLATFORM_OWNED", source, StringComparison.Ordinal);
-        Assert.Contains("BuildModelFromCooked(fullPath)", source, StringComparison.Ordinal);
+        Assert.Contains("renderer.BuildModelFromCooked(fullPath, AssetContentManager.ContentStreamSource)", source, StringComparison.Ordinal);
         Assert.Contains("#if HELENGINE_RUNTIME_TEXTURE_RESOLUTION_COOKED_PLATFORM_OWNED", source, StringComparison.Ordinal);
-        Assert.Contains("BuildTextureFromCooked(fullPath)", source, StringComparison.Ordinal);
+        Assert.Contains("renderer.BuildTextureFromCooked(fullPath, AssetContentManager.ContentStreamSource)", source, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -100,8 +100,9 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
         Assert.Contains("if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated)", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedModelsByKey.TryGetValue", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedModelsByKey.Add(generatedAssetKey, generatedModel);", source, StringComparison.Ordinal);
-        Assert.Contains("TrackOwnedModel(generatedRuntimeModel);", source, StringComparison.Ordinal);
-        Assert.Contains("TrackOwnedModel(generatedModel);", source, StringComparison.Ordinal);
+        Assert.Contains("RuntimeModel generatedModel = TrackOwnedModel(", source, StringComparison.Ordinal);
+        Assert.Contains("RuntimeModel runtimeModel = renderer.BuildModelFromCooked(fullPath, AssetContentManager.ContentStreamSource);", source, StringComparison.Ordinal);
+        Assert.Contains("return TrackOwnedModel(runtimeModel);", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedModelsByKey.Clear();", source, StringComparison.Ordinal);
     }
 
@@ -123,10 +124,10 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
         Assert.Contains("ActiveGeneratedMaterialsByKey.TryGetValue", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedCookedRuntimeMaterial);", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedMaterialsByKey.Add(generatedAssetKey, generatedRawRuntimeMaterial);", source, StringComparison.Ordinal);
-        Assert.Contains("TrackOwnedMaterial(generatedRuntimeMaterial);", source, StringComparison.Ordinal);
-        Assert.Contains("TrackOwnedMaterial(generatedCookedRuntimeMaterial);", source, StringComparison.Ordinal);
-        Assert.Contains("TrackOwnedMaterial(generatedRawRuntimeMaterial);", source, StringComparison.Ordinal);
-        Assert.Contains("TrackOwnedMaterial(runtimeMaterial);", source, StringComparison.Ordinal);
+        Assert.Contains("RuntimeMaterial generatedCookedRuntimeMaterial = TrackOwnedMaterial(", source, StringComparison.Ordinal);
+        Assert.Contains("RuntimeMaterial generatedRawRuntimeMaterial = TrackOwnedMaterial(", source, StringComparison.Ordinal);
+        Assert.Contains("RuntimeMaterial runtimeMaterial = renderer.BuildMaterialFromCooked(fullPath, AssetContentManager.ContentStreamSource);", source, StringComparison.Ordinal);
+        Assert.Contains("return TrackOwnedMaterial(runtimeMaterial);", source, StringComparison.Ordinal);
         Assert.Contains("ActiveGeneratedMaterialsByKey.Clear();", source, StringComparison.Ordinal);
     }
 
@@ -147,8 +148,8 @@ public sealed class RuntimeSceneAssetReferenceResolverSourceTests {
 
         Assert.Contains("List<AudioAsset> ActiveOwnedAudio;", source, StringComparison.Ordinal);
         Assert.Contains("TrackOwnedAudio(audioAsset);", source, StringComparison.Ordinal);
-        Assert.Contains("List<AudioAsset> ownedAudio = ActiveOwnedAudio;", source, StringComparison.Ordinal);
-        Assert.Contains("new RuntimeSceneOwnedAssetSet(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials);", source, StringComparison.Ordinal);
+        Assert.Contains("List<AudioAsset> ownedAudio = new List<AudioAsset>(ActiveOwnedAudio);", source, StringComparison.Ordinal);
+        Assert.Contains("RuntimeSceneOwnedAssetSet.CreateOwned(ownedTextures, ownedFonts, ownedAudio, ownedModels, ownedMaterials);", source, StringComparison.Ordinal);
         Assert.Contains("internal static void ReleaseTransientAudioAsset(AudioAsset asset)", source, StringComparison.Ordinal);
     }
 

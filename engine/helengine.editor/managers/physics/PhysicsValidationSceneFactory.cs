@@ -1138,7 +1138,7 @@ namespace helengine.editor {
                     definition.MaterialAsset.AuthoringAssetId = metadata.AssetId;
                     definition.MaterialAsset.FormerAuthoringAssetIds = metadata.FormerAssetIds.ToArray();
                 } catch (InvalidOperationException) {
-                    // The current writer replaces invalid legacy output; no alternate layout is interpreted.
+                    // The current writer replaces invalid prior output; no alternate layout is interpreted.
                 }
             }
             if (string.IsNullOrWhiteSpace(definition.MaterialAsset.AuthoringAssetId)) {

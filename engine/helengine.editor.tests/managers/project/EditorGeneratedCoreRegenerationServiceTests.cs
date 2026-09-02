@@ -105,13 +105,20 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     [Fact]
     public void Portable_input_desktop_state_source_units_are_gated_by_desktop_platform() {
         string inputRootPath = Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.input");
-        string inputFrameStateSource = File.ReadAllText(Path.Combine(inputRootPath, "InputFrameState.cs"));
-        string keyboardStateSource = File.ReadAllText(Path.Combine(inputRootPath, "KeyboardState.cs"));
-        string mouseStateSource = File.ReadAllText(Path.Combine(inputRootPath, "MouseState.cs"));
-        string keysSource = File.ReadAllText(Path.Combine(inputRootPath, "Keys.cs"));
-        string buttonStateSource = File.ReadAllText(Path.Combine(inputRootPath, "ButtonState.cs"));
-        string keyStateSource = File.ReadAllText(Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.core", "managers", "input", "KeyState.cs"));
-        string typeForwardersSource = File.ReadAllText(Path.Combine(inputRootPath, "TypeForwarders.cs"));
+        string inputFrameStateSource = File.ReadAllText(Path.Combine(inputRootPath, "InputFrameState.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        string keyboardStateSource = File.ReadAllText(Path.Combine(inputRootPath, "KeyboardState.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        string mouseStateSource = File.ReadAllText(Path.Combine(inputRootPath, "MouseState.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        string keysSource = File.ReadAllText(Path.Combine(inputRootPath, "Keys.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        string buttonStateSource = File.ReadAllText(Path.Combine(inputRootPath, "ButtonState.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        string keyStateSource = File.ReadAllText(Path.Combine(ResolveRepositoryRootPath(), "engine", "helengine.core", "managers", "input", "KeyState.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+        string typeForwardersSource = File.ReadAllText(Path.Combine(inputRootPath, "TypeForwarders.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
 
         Assert.Contains("#if DESKTOP_PLATFORM\n    /// <summary>\n    /// Gets or sets the captured keyboard state", inputFrameStateSource, StringComparison.Ordinal);
         Assert.Contains("#if DESKTOP_PLATFORM", keyboardStateSource, StringComparison.Ordinal);

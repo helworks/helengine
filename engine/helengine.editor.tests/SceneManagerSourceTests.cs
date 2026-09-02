@@ -21,9 +21,10 @@ public sealed class SceneManagerSourceTests {
 
         Assert.Contains("readonly Dictionary<AudioAsset, int> ActiveOwnedAudioReferenceCounts;", source, StringComparison.Ordinal);
         Assert.Contains("public int ActiveOwnedAudioReferenceCount => ActiveOwnedAudioReferenceCounts.Count;", source, StringComparison.Ordinal);
-        Assert.Contains("NativeOwnership.Delete(releasedOwnedAssets.OwnedAudio);", source, StringComparison.Ordinal);
         Assert.Contains("RegisterOwnedAudio(ownedAssets.OwnedAudio);", source, StringComparison.Ordinal);
         Assert.Contains("ReleaseOwnedAudio(ownedAssets.OwnedAudio);", source, StringComparison.Ordinal);
+        Assert.Contains("ActiveOwnedAudioReferenceCounts.Remove(ownedAsset);", source, StringComparison.Ordinal);
+        Assert.Contains("ReleaseOwnedAudioAsset(ownedAsset);", source, StringComparison.Ordinal);
         Assert.Contains("RuntimeSceneAssetReferenceResolver.ReleaseTransientAudioAsset(ownedAsset);", source, StringComparison.Ordinal);
     }
 

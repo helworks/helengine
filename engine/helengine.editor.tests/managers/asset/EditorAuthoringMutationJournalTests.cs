@@ -76,7 +76,8 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.NotNull(method);
         Assert.Contains(method.GetParameters(), parameter => parameter.Name == "sourcePath");
 
-        string source = File.ReadAllText(FindSourceFile("EditorAuthoringMutationScope.cs"));
+        string source = File.ReadAllText(FindSourceFile("EditorAuthoringMutationScope.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
         Assert.Contains("string sourcePath", source, StringComparison.Ordinal);
         Assert.Contains("sourcePath,\n                recoveryIntent: \"RollbackPublication\"", source, StringComparison.Ordinal);
     }

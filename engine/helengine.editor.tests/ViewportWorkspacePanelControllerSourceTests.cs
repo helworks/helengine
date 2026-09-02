@@ -18,7 +18,7 @@ public sealed class ViewportWorkspacePanelControllerSourceTests {
         string source = File.ReadAllText(sourcePath).Replace("\r\n", "\n", StringComparison.Ordinal);
 
         Assert.Contains(
-            "State.Viewport.ClearInputBlockers();\n            EditorGizmoHoverService.ClearHoveredHandle(State.SceneCamera);\n            EditorGizmoDragService.EndDrag(State.SceneCamera);\n            EditorViewportToolService.ClearToolMode(State.SceneCamera);\n            TransformGizmoSnapSettingsService.ClearState(State.SceneCamera);\n            State.TranslationGizmoRoot.Dispose();",
+            "State.Viewport.ClearInputBlockers();\n            EditorSessionInteractionServices.From(State.Viewport).GizmoHover.ClearHoveredHandle(State.SceneCamera);\n            EditorSessionInteractionServices.From(State.Viewport).GizmoDrag.EndDrag(State.SceneCamera);\n            EditorSessionInteractionServices.From(State.Viewport).ViewportTool.ClearToolMode(State.SceneCamera);\n            EditorSessionInteractionServices.From(State.Viewport).TransformSnap.ClearState(State.SceneCamera);\n            State.TranslationGizmoRoot.Dispose();",
             source,
             StringComparison.Ordinal);
     }
