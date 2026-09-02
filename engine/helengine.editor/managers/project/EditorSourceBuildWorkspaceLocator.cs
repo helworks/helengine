@@ -29,6 +29,11 @@ namespace helengine.editor {
         const string WorktreeDirectoryName = "worktrees";
 
         /// <summary>
+        /// Prefix written by Git into a worktree's file-based .git pointer.
+        /// </summary>
+        const string GitDirectoryPointerPrefix = "gitdir:";
+
+        /// <summary>
         /// Resolves the HelEngine source root that contains the current editor assembly.
         /// </summary>
         /// <returns>Absolute HelEngine source root path.</returns>
@@ -105,16 +110,85 @@ namespace helengine.editor {
             }
 
             DirectoryInfo sharedRootDirectory = worktreeDirectory.Parent;
+            if (sharedRootDirectory != null) {
+                string markerPath = Path.Combine(sharedRootDirectory.FullName, HelEngineEditorProjectRelativePath);
+                if (File.Exists(markerPath)) {
+                    return sharedRootDirectory.FullName;
+                }
+            }
+
+            if (TryResolveGitWorktreeMainRootPath(helEngineRootPath, out string gitWorktreeMainRootPath)) {
+                return gitWorktreeMainRootPath;
+            }
+
             if (sharedRootDirectory == null) {
                 throw new InvalidOperationException("Shared HelEngine source root could not be resolved from the current git worktree path.");
             }
 
-            string markerPath = Path.Combine(sharedRootDirectory.FullName, HelEngineEditorProjectRelativePath);
-            if (!File.Exists(markerPath)) {
-                throw new InvalidOperationException($"Expected shared HelEngine source root was not found at '{sharedRootDirectory.FullName}'.");
+            throw new InvalidOperationException($"Expected shared HelEngine source root was not found at '{sharedRootDirectory.FullName}'.");
+        }
+
+        /// <summary>
+        /// Resolves and validates the main checkout named by a file-based Git worktree pointer.
+        /// Git stores the pointer as <c>gitdir: &lt;main&gt;/.git/worktrees/&lt;name&gt;</c>; only that
+        /// conventional metadata shape and a checkout containing the HelEngine marker are accepted.
+        /// </summary>
+        /// <param name="worktreeRootPath">Absolute source root of the active Git worktree.</param>
+        /// <param name="mainRootPath">Validated main checkout path when the pointer is usable.</param>
+        /// <returns>True when the worktree pointer identifies a valid main checkout; otherwise false.</returns>
+        static bool TryResolveGitWorktreeMainRootPath(string worktreeRootPath, out string mainRootPath) {
+            mainRootPath = string.Empty;
+            string gitPointerPath = Path.Combine(worktreeRootPath, ".git");
+            if (!File.Exists(gitPointerPath)) {
+                return false;
             }
 
-            return sharedRootDirectory.FullName;
+            string pointerContents;
+            try {
+                pointerContents = File.ReadAllText(gitPointerPath).Trim();
+            } catch (IOException) {
+                return false;
+            } catch (UnauthorizedAccessException) {
+                return false;
+            }
+
+            if (!pointerContents.StartsWith(GitDirectoryPointerPrefix, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            string gitDirectoryPath = pointerContents.Substring(GitDirectoryPointerPrefix.Length).Trim();
+            if (string.IsNullOrWhiteSpace(gitDirectoryPath)) {
+                return false;
+            }
+
+            string fullGitDirectoryPath;
+            try {
+                fullGitDirectoryPath = Path.IsPathRooted(gitDirectoryPath)
+                    ? Path.GetFullPath(gitDirectoryPath)
+                    : Path.GetFullPath(Path.Combine(worktreeRootPath, gitDirectoryPath));
+            } catch (ArgumentException) {
+                return false;
+            } catch (NotSupportedException) {
+                return false;
+            }
+
+            if (!Directory.Exists(fullGitDirectoryPath)) {
+                return false;
+            }
+
+            DirectoryInfo worktreeMetadataDirectory = new DirectoryInfo(fullGitDirectoryPath);
+            DirectoryInfo worktreesDirectory = worktreeMetadataDirectory.Parent;
+            DirectoryInfo gitDirectory = worktreesDirectory?.Parent;
+            DirectoryInfo mainRootDirectory = gitDirectory?.Parent;
+            if (worktreesDirectory == null || gitDirectory == null || mainRootDirectory == null
+                || !string.Equals(worktreesDirectory.Name, WorktreeDirectoryName, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(gitDirectory.Name, ".git", StringComparison.OrdinalIgnoreCase)
+                || !File.Exists(Path.Combine(mainRootDirectory.FullName, HelEngineEditorProjectRelativePath))) {
+                return false;
+            }
+
+            mainRootPath = mainRootDirectory.FullName;
+            return true;
         }
 
         /// <summary>

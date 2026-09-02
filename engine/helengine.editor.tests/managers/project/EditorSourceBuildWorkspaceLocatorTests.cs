@@ -92,5 +92,27 @@ namespace helengine.editor.tests.managers.project {
 
             Assert.Equal(Path.Combine(Path.GetFullPath(TemporaryRepositoryRootPath), "user_settings"), resolvedRootPath);
         }
+
+        /// <summary>
+        /// Ensures a worktree whose conventional parent does not contain the main checkout resolves that checkout from its standard gitdir pointer.
+        /// </summary>
+        [Fact]
+        public void ResolveSharedHelEngineRootPath_WhenWorktreeParentDiffersFromMainCheckout_UsesGitdirPointer() {
+            const string worktreeName = "feature-copy";
+            string worktreeRootPath = Path.Combine(TemporaryRepositoryRootPath, "alternate-workspace", ".worktrees", worktreeName);
+            string worktreeMarkerPath = Path.Combine(worktreeRootPath, "engine", "helengine.editor");
+            string gitMetadataPath = Path.Combine(TemporaryRepositoryRootPath, ".git", "worktrees", worktreeName);
+            Directory.CreateDirectory(worktreeMarkerPath);
+            Directory.CreateDirectory(gitMetadataPath);
+            File.WriteAllText(Path.Combine(worktreeMarkerPath, "helengine.editor.csproj"), "<Project />");
+            File.WriteAllText(Path.Combine(worktreeRootPath, ".git"), "gitdir: " + gitMetadataPath);
+            Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, worktreeRootPath);
+
+            EditorSourceBuildWorkspaceLocator locator = new();
+
+            string resolvedRootPath = locator.ResolveSharedHelEngineRootPath();
+
+            Assert.Equal(Path.GetFullPath(TemporaryRepositoryRootPath), resolvedRootPath);
+        }
     }
 }
