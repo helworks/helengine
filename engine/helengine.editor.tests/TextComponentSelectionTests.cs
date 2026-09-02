@@ -18,6 +18,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the generated selection child is a complete entity hierarchy that runtime mesh preparation can traverse.
+        /// </summary>
+        [Fact]
+        public void TextComponent_WhenSelectionIsEnabled_GeneratedChildInitializesItsHierarchyCollections() {
+            InitializeCore();
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+            TextComponent textComponent = new TextComponent {
+                Font = CreateFont(),
+                Text = "Name"
+            };
+
+            SetPropertyValue(textComponent, "SelectionEnabled", true);
+            entity.AddComponent(textComponent);
+
+            Entity selectionEntity = Assert.Single(entity.Children);
+            Assert.NotNull(selectionEntity.Components);
+            Assert.NotNull(selectionEntity.Children);
+
+            RuntimeMeshPreparationService meshPreparationService = new RuntimeMeshPreparationService();
+            meshPreparationService.Prepare(entity, _ => { });
+        }
+
+        /// <summary>
         /// Ensures dragging across a selectable text component creates a non-empty selection range.
         /// </summary>
         [Fact]

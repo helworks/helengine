@@ -532,6 +532,7 @@ namespace helengine {
                 SelectionEntityValue.LayerMask = entity.LayerMask;
                 SelectionEntityValue.Enabled = false;
                 SelectionEntityValue.InitComponents();
+                SelectionEntityValue.InitChildren();
                 entity.AddChild(SelectionEntityValue);
 
                 SelectionSpriteValue = new RoundedRectComponent();
