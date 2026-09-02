@@ -67,6 +67,28 @@ Run `SceneMemoryProbeComponentTests`. Expected: all tests pass.
 
 Commit `SceneMemoryProbeComponent.cs` with message `Restore scene memory probe measurements`.
 
+### Task 1A: Keep the FPS overlay compact for detail-only platform rows
+
+**Files:**
+- Modify: `engine/helengine.core/components/2d/FPSComponent.cs`
+- Modify: `engine/helengine.editor.tests/FPSComponentTests.cs`
+
+- [ ] **Step 1: Preserve the post-lifecycle RED evidence**
+
+After initializing the four FPS test hierarchies, run `FPSComponentTests`. Expected: 20 pass and two detail-only cases fail because `ShouldUsePlatformOwnedOverlayTextRows` activates on detail/additional text without a platform update or render row.
+
+- [ ] **Step 2: Require a platform summary-row override**
+
+Change `ShouldUsePlatformOwnedOverlayTextRows` so explicit platform text mode activates only when `PerformanceOverlayUpdateText` or `PerformanceOverlayRenderText` is non-empty. Detail and additional rows remain visible when supplied alongside either summary override, but detail-only diagnostics do not expand the generic compact two-line FPS overlay. Preserve platform-owned presentation and metrics fallback behavior.
+
+- [ ] **Step 3: Verify the complete FPS class**
+
+Run `FPSComponentTests`. Expected: all 22 tests pass, the generic summary remains compact for detail-only inputs, full platform row sets remain visible, and platform-owned presentation publishes the compact resolved rows.
+
+- [ ] **Step 4: Commit the FPS contract repair**
+
+Commit `FPSComponent.cs` and `FPSComponentTests.cs` together with message `Keep detail-only FPS overlays compact`.
+
 ### Task 3: Verify adjacent lifecycle behavior
 
 **Files:**
