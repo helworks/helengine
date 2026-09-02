@@ -69,15 +69,49 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
-        /// Ensures one queue item execution root stays beneath the resolved platform workspace root.
+        /// Ensures one default queue workspace stays beneath the resolved platform root without exposing the queue identifier.
         /// </summary>
         [Fact]
-        public void ResolveWorkspaceExecutionRootPath_WhenQueueItemIsProvided_NestsQueueItemBeneathPlatformWorkspaceRoot() {
+        public void ResolveWorkspaceExecutionRootPath_WhenQueueItemIsProvided_UsesCompactDeterministicQueueSegment() {
             EditorBuildIsolationPathResolver resolver = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "workspace-project"));
 
             string executionRootPath = resolver.ResolveWorkspaceExecutionRootPath("windows", "queue-123");
+            string repeatedRootPath = resolver.ResolveWorkspaceExecutionRootPath("windows", "queue-123");
+            string platformRootPath = resolver.ResolvePlatformRootPath("windows");
+            string[] relativeSegments = Path.GetRelativePath(platformRootPath, executionRootPath)
+                .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
 
-            Assert.EndsWith(Path.Combine("windows", "workspace", "queue-123"), executionRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(executionRootPath, repeatedRootPath);
+            Assert.StartsWith(platformRootPath + Path.DirectorySeparatorChar, executionRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(["w"], relativeSegments[..1]);
+            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[1]);
+            Assert.DoesNotContain("queue-123", executionRootPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Ensures default queue and execution identifiers produce deterministic but isolated invocation roots.
+        /// </summary>
+        [Fact]
+        public void ResolveWorkspaceExecutionRootPath_WhenQueueOrExecutionChanges_ReturnsDistinctCompactRoots() {
+            EditorBuildIsolationPathResolver resolver = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "invocation-project"));
+
+            string firstRootPath = resolver.ResolveWorkspaceExecutionRootPath("windows", "queue-a", "execution-a");
+            string repeatedRootPath = resolver.ResolveWorkspaceExecutionRootPath("windows", "queue-a", "execution-a");
+            string otherQueueRootPath = resolver.ResolveWorkspaceExecutionRootPath("windows", "queue-b", "execution-a");
+            string otherExecutionRootPath = resolver.ResolveWorkspaceExecutionRootPath("windows", "queue-a", "execution-b");
+            string platformRootPath = resolver.ResolvePlatformRootPath("windows");
+            string[] relativeSegments = Path.GetRelativePath(platformRootPath, firstRootPath)
+                .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+
+            Assert.Equal(firstRootPath, repeatedRootPath);
+            Assert.NotEqual(firstRootPath, otherQueueRootPath);
+            Assert.NotEqual(firstRootPath, otherExecutionRootPath);
+            Assert.Equal(3, relativeSegments.Length);
+            Assert.Equal("w", relativeSegments[0]);
+            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[1]);
+            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[2]);
+            Assert.DoesNotContain("queue-a", firstRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("execution-a", firstRootPath, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -89,10 +123,15 @@ namespace helengine.editor.tests.managers.project {
 
             string firstOutputRootPath = resolver.ResolveGeneratedCodeOutputRootPath("vita", "cli-build-a");
             string secondOutputRootPath = resolver.ResolveGeneratedCodeOutputRootPath("vita", "cli-build-b");
+            string platformRootPath = resolver.ResolvePlatformRootPath("vita");
 
             Assert.NotEqual(firstOutputRootPath, secondOutputRootPath);
-            Assert.EndsWith(Path.Combine("vita", "workspace", "cli-build-a", "generated-dotnet"), firstOutputRootPath, StringComparison.OrdinalIgnoreCase);
-            Assert.EndsWith(Path.Combine("vita", "workspace", "cli-build-b", "generated-dotnet"), secondOutputRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.StartsWith(platformRootPath + Path.DirectorySeparatorChar, firstOutputRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.StartsWith(platformRootPath + Path.DirectorySeparatorChar, secondOutputRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("generated-dotnet"), firstOutputRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("generated-dotnet"), secondOutputRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("cli-build-a", firstOutputRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("cli-build-b", secondOutputRootPath, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -103,11 +142,11 @@ namespace helengine.editor.tests.managers.project {
             EditorBuildIsolationPathResolver resolver = new(Path.Combine(Path.GetTempPath(), "helengine-isolation-tests", "command-project"));
 
             string workspaceRootPath = resolver.ResolveGeneratedCodeWorkspaceRootPath("editor-command", "command-a");
+            string platformRootPath = resolver.ResolvePlatformRootPath("editor-command");
 
-            Assert.EndsWith(
-                Path.Combine("editor-command", "workspace", "command-a", "generated-dotnet", "workspace"),
-                workspaceRootPath,
-                StringComparison.OrdinalIgnoreCase);
+            Assert.StartsWith(platformRootPath + Path.DirectorySeparatorChar, workspaceRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("generated-dotnet", "workspace"), workspaceRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("command-a", workspaceRootPath, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

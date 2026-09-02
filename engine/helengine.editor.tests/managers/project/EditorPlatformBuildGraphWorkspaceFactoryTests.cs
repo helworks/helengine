@@ -56,12 +56,50 @@ namespace helengine.editor.tests.managers.project {
 
             EditorPlatformBuildGraphWorkspace firstWorkspace = factory.Create("ps2", "queue-123");
             EditorPlatformBuildGraphWorkspace secondWorkspace = factory.Create("ps2", "queue-123");
+            string[] relativeSegments = Path.GetRelativePath(
+                    Path.Combine(Path.GetTempPath(), "helengine-builds"),
+                    firstWorkspace.ExecutionRootPath)
+                .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
 
             Assert.NotEqual(firstWorkspace.ExecutionRootPath, secondWorkspace.ExecutionRootPath);
             Assert.StartsWith(Path.Combine(Path.GetTempPath(), "helengine-builds"), firstWorkspace.ExecutionRootPath, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(Path.Combine("ps2", "workspace", "queue-123"), firstWorkspace.ExecutionRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("ps2", relativeSegments[1]);
+            Assert.Equal("w", relativeSegments[2]);
+            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[3]);
+            Assert.Matches("^[0-9a-f]{16}$", relativeSegments[4]);
+            Assert.DoesNotContain("queue-123", firstWorkspace.ExecutionRootPath, StringComparison.OrdinalIgnoreCase);
             Assert.Equal(Path.Combine(firstWorkspace.ExecutionRootPath, "generated-core"), firstWorkspace.GeneratedCoreRootPath);
             Assert.Equal(Path.Combine(firstWorkspace.ExecutionRootPath, "builder"), firstWorkspace.BuilderWorkingRootPath);
+        }
+
+        /// <summary>
+        /// Ensures the default Windows native object path leaves explicit headroom below CMake's maximum path budget.
+        /// </summary>
+        [Fact]
+        public void Create_WhenWindowsNativeObjectPathIsBudgeted_LeavesCmakeObjectPathHeadroom() {
+            const int CmakeObjectPathLimit = 250;
+            const int RequiredPathHeadroom = 8;
+            EditorPlatformBuildGraphWorkspaceFactory factory = new(Path.Combine(
+                Path.GetTempPath(),
+                "helengine-isolation-tests",
+                "windows-native-path-budget-project"));
+
+            EditorPlatformBuildGraphWorkspace workspace = factory.Create(
+                "windows",
+                "editor-platform-build-queue-item-with-a-long-stable-id-20260901");
+            string nativeObjectPath = Path.Combine(
+                workspace.BuilderWorkingRootPath,
+                "CMakeFiles",
+                "helengine_windows.dir",
+                "src",
+                "platform",
+                "windows",
+                "runtime",
+                "runtime_memory_diagnostics_provider.cpp.obj");
+
+            Assert.True(
+                nativeObjectPath.Length <= CmakeObjectPathLimit - RequiredPathHeadroom,
+                $"Native object path was {nativeObjectPath.Length} characters: {nativeObjectPath}");
         }
 
         /// <summary>

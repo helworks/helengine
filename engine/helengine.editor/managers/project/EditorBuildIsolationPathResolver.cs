@@ -37,6 +37,16 @@ namespace helengine.editor {
         const int ProjectHashByteCount = 16;
 
         /// <summary>
+        /// Number of SHA-256 bytes retained in each default temporary invocation segment.
+        /// </summary>
+        const int InvocationHashByteCount = 8;
+
+        /// <summary>
+        /// Short marker used to identify the default temporary workspace branch.
+        /// </summary>
+        const string DefaultWorkspaceMarker = "w";
+
+        /// <summary>
         /// Absolute authored project root path used to seed stable isolation roots.
         /// </summary>
         readonly string ProjectRootPath;
@@ -100,7 +110,10 @@ namespace helengine.editor {
                 return Path.Combine(ResolveIsolationRootPath(), SanitizePathSegment(platformId), SanitizePathSegment(queueItemId));
             }
 
-            return Path.Combine(ResolvePlatformRootPath(platformId), "workspace", SanitizePathSegment(queueItemId));
+            return Path.Combine(
+                ResolvePlatformRootPath(platformId),
+                DefaultWorkspaceMarker,
+                ComputeInvocationSegment(queueItemId));
         }
 
         /// <summary>
@@ -123,7 +136,9 @@ namespace helengine.editor {
                 return Path.Combine(ResolveIsolationRootPath(), SanitizePathSegment(platformId), SanitizePathSegment(executionId));
             }
 
-            return Path.Combine(ResolveWorkspaceExecutionRootPath(platformId, queueItemId), SanitizePathSegment(executionId));
+            return Path.Combine(
+                ResolveWorkspaceExecutionRootPath(platformId, queueItemId),
+                ComputeInvocationSegment(executionId));
         }
 
         /// <summary>
@@ -231,6 +246,22 @@ namespace helengine.editor {
             byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(projectRootPath));
             StringBuilder builder = new StringBuilder(ProjectHashByteCount * 2);
             for (int index = 0; index < ProjectHashByteCount; index++) {
+                builder.Append(hashBytes[index].ToString("x2"));
+            }
+
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Computes one compact deterministic invocation segment from a sanitized identifier.
+        /// </summary>
+        /// <param name="identifier">Queue or execution identifier used by the default temporary layout.</param>
+        /// <returns>Lowercase fixed-width hexadecimal SHA-256 segment.</returns>
+        static string ComputeInvocationSegment(string identifier) {
+            string sanitizedIdentifier = SanitizePathSegment(identifier);
+            byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(sanitizedIdentifier));
+            StringBuilder builder = new StringBuilder(InvocationHashByteCount * 2);
+            for (int index = 0; index < InvocationHashByteCount; index++) {
                 builder.Append(hashBytes[index].ToString("x2"));
             }
 
