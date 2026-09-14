@@ -481,6 +481,10 @@ namespace helengine.editor {
         /// </summary>
         readonly AvailablePlatformProviderResolver availablePlatformProviderResolver;
         /// <summary>
+        /// Decides which platforms the build, platform and profile menus may offer for this project.
+        /// </summary>
+        EditorBuildMenuCoordinator BuildMenuCoordinator;
+        /// <summary>
         /// Loads dynamic platform builders and their metadata.
         /// </summary>
         readonly EditorPlatformCatalogService platformCatalogService;
@@ -676,6 +680,7 @@ namespace helengine.editor {
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
             availablePlatformProviderResolver = platformProviderResolver ?? throw new ArgumentNullException(nameof(platformProviderResolver));
+            BuildMenuCoordinator = new EditorBuildMenuCoordinator(availablePlatformProviderResolver, RequiredEngineVersion);
             platformCatalogService = CreatePlatformCatalogService();
             EditorContentManager = new ContentManager(new HostFileSystemContentStreamSource(EditorSessionShaderMaterialBuilder.ResolveAssetsRootPath(this.projectPath)));
             constructionLedger.Register(EditorContentManager);
@@ -5743,21 +5748,7 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier to inspect.</param>
         /// <returns>True when the platform is installed for the current engine; otherwise false.</returns>
         bool IsInstalledPlatform(string platformId) {
-            if (availablePlatformProviderResolver == null) {
-                return false;
-            }
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                return false;
-            }
-
-            IReadOnlyList<AvailablePlatformDescriptor> availablePlatforms = availablePlatformProviderResolver.LoadPlatforms(RequiredEngineVersion);
-            for (int i = 0; i < availablePlatforms.Count; i++) {
-                if (string.Equals(availablePlatforms[i].Id, platformId, StringComparison.OrdinalIgnoreCase)) {
-                    return availablePlatforms[i].IsInstalled;
-                }
-            }
-
-            return false;
+            return BuildMenuCoordinator.IsInstalledPlatform(platformId);
         }
 
         /// <summary>
@@ -5765,16 +5756,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Alphabetically ordered installed platform identifiers.</returns>
         IReadOnlyList<string> ResolveInstalledPlatformIds() {
-            if (availablePlatformProviderResolver == null) {
-                return Array.Empty<string>();
-            }
-
-            return availablePlatformProviderResolver
-                .LoadPlatforms(RequiredEngineVersion)
-                .Where(platform => platform.IsInstalled)
-                .Select(platform => platform.Id)
-                .OrderBy(platformId => platformId, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+            return BuildMenuCoordinator.ResolveInstalledPlatformIds();
         }
 
         /// <summary>
@@ -5782,22 +5764,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Alphabetically ordered visible platform identifiers.</returns>
         IReadOnlyList<string> ResolveVisibleSupportedPlatforms() {
-            IReadOnlyList<string> installedPlatformIds = ResolveInstalledPlatformIds();
-            if (installedPlatformIds.Count < 1 || SupportedPlatforms.Count < 1) {
-                return Array.Empty<string>();
-            }
-
-            HashSet<string> installedPlatformIdSet = new HashSet<string>(installedPlatformIds, StringComparer.OrdinalIgnoreCase);
-            List<string> visiblePlatformIds = new List<string>(SupportedPlatforms.Count);
-            for (int index = 0; index < SupportedPlatforms.Count; index++) {
-                string platformId = SupportedPlatforms[index];
-                if (installedPlatformIdSet.Contains(platformId)) {
-                    visiblePlatformIds.Add(platformId);
-                }
-            }
-
-            visiblePlatformIds.Sort(StringComparer.OrdinalIgnoreCase);
-            return visiblePlatformIds;
+            return BuildMenuCoordinator.ResolveVisibleSupportedPlatforms(SupportedPlatforms);
         }
 
         /// <summary>
@@ -5807,23 +5774,7 @@ namespace helengine.editor {
         /// <param name="preferredPlatformId">Preferred platform id, typically the user-local active platform.</param>
         /// <returns>Visible platform id to show first.</returns>
         string ResolveVisiblePlatformId(IReadOnlyList<string> visiblePlatformIds, string preferredPlatformId) {
-            if (visiblePlatformIds == null) {
-                throw new ArgumentNullException(nameof(visiblePlatformIds));
-            }
-
-            if (visiblePlatformIds.Count < 1) {
-                throw new InvalidOperationException("At least one visible platform is required.");
-            }
-
-            if (!string.IsNullOrWhiteSpace(preferredPlatformId)) {
-                for (int index = 0; index < visiblePlatformIds.Count; index++) {
-                    if (string.Equals(visiblePlatformIds[index], preferredPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                        return visiblePlatformIds[index];
-                    }
-                }
-            }
-
-            return visiblePlatformIds[0];
+            return EditorBuildMenuCoordinator.ResolveVisiblePlatformId(visiblePlatformIds, preferredPlatformId);
         }
 
         /// <summary>
@@ -5832,17 +5783,7 @@ namespace helengine.editor {
         /// <param name="platformId">Platform identifier to validate.</param>
         /// <returns>True when the platform can be used as the current project platform.</returns>
         bool CanUseProjectPlatform(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                return false;
-            }
-
-            for (int index = 0; index < SupportedPlatforms.Count; index++) {
-                if (string.Equals(SupportedPlatforms[index], platformId, StringComparison.OrdinalIgnoreCase)) {
-                    return IsInstalledPlatform(platformId);
-                }
-            }
-
-            return false;
+            return BuildMenuCoordinator.CanUseProjectPlatform(SupportedPlatforms, platformId);
         }
 
         /// <summary>
