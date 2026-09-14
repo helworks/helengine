@@ -403,6 +403,10 @@ namespace helengine.editor {
         /// </summary>
         readonly IEditorUndoRedoService UndoRedoService;
         /// <summary>
+        /// Coordinates scene-transition reset across the existing selection and history owners.
+        /// </summary>
+        readonly EditorSceneWorkspaceCoordinator SceneWorkspaceCoordinator;
+        /// <summary>
         /// Records user-authored mutations into the undo/redo history service.
         /// </summary>
         readonly EditorMutationService HistoryMutationService;
@@ -895,6 +899,7 @@ namespace helengine.editor {
                 rendererResources);
             constructionLedger.Register(SceneFileLoadService);
             UndoRedoService = new EditorUndoRedoService(CreateHistoryContext());
+            SceneWorkspaceCoordinator = new EditorSceneWorkspaceCoordinator(interactionServices.Selection, UndoRedoService);
             HistoryMutationService = new EditorMutationService(
                 UndoRedoService,
                 HistoryCaptureService,
@@ -4209,7 +4214,7 @@ namespace helengine.editor {
                 CurrentSceneSettings = loadedSceneDocument.SceneSettings;
                 TrackCurrentSceneInSceneManager(loadedSceneDocument.RootEntities, CurrentSceneSettings);
                 sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
-                UndoRedoService.Reset();
+                SceneWorkspaceCoordinator.ResetForSceneTransition();
                 MarkSceneClean();
                 ApplyPlatformExistenceSuppression();
                 RefreshHierarchy();
@@ -4243,7 +4248,7 @@ namespace helengine.editor {
             EditorSceneCanvasProfileState resetCanvasProfileState = sceneCanvasProfileState ?? throw new InvalidOperationException("Scene canvas profile state is required during scene reset.");
             SceneSettingsAsset resetSceneSettings = CurrentSceneSettings ?? throw new InvalidOperationException("Scene settings are required during scene reset.");
             resetCanvasProfileState.ApplySceneSettings(resetSceneSettings);
-            UndoRedoService.Reset();
+            SceneWorkspaceCoordinator.ResetForSceneTransition();
             MarkSceneClean();
             RefreshHierarchy();
             if (openFileDialog != null) {
@@ -4473,7 +4478,12 @@ namespace helengine.editor {
         /// Clears the current editor scene selection before authored scene entities start tearing down.
         /// </summary>
         void ClearSceneSelectionBeforeTeardown() {
-            interactionServices?.Selection.ClearSelection();
+            if (SceneWorkspaceCoordinator != null) {
+                SceneWorkspaceCoordinator.ResetForSceneTransition();
+                return;
+            }
+
+                        interactionServices?.Selection.ClearSelection();
         }
 
         /// <summary>
