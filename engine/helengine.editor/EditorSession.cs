@@ -14,6 +14,7 @@ namespace helengine.editor {
         int DisposeThreadId;
         bool ConstructionCompleted;
         EditorSessionConstructionLedger ConstructionLedger;
+        EditorProjectLifecycleCoordinator ProjectLifecycleCoordinator;
         readonly HashSet<IEditorWorkspacePanelController> RegisteredWorkspaceControllers = new HashSet<IEditorWorkspacePanelController>();
         List<EditorSessionCleanupItem> ScaleSensitiveDialogCleanupItems = new List<EditorSessionCleanupItem>();
         List<EditorSessionCleanupItem> ScaleSensitiveDialogHideItems = new List<EditorSessionCleanupItem>();
@@ -654,7 +655,8 @@ namespace helengine.editor {
             Func<string> browseOutputFolderResolver,
             ShaderBackendRegistry shaderBackendRegistry,
             AvailablePlatformProviderResolver platformProviderResolver) {
-            EditorSessionConstructionLedger constructionLedger = new EditorSessionConstructionLedger();
+            ProjectLifecycleCoordinator = new EditorProjectLifecycleCoordinator();
+            EditorSessionConstructionLedger constructionLedger = ProjectLifecycleCoordinator.Ledger;
             constructionLedger.BeforeCleanupAction = sequence => DisposalCheckpointForTests?.Invoke(sequence);
             ConstructionLedger = constructionLedger;
             try {
@@ -2080,7 +2082,11 @@ namespace helengine.editor {
                 ConstructionLedger.TransferOwnership();
             }
             Attempt(() => {
-                ConstructionLedger.Dispose();
+                if (ProjectLifecycleCoordinator != null) {
+                    ProjectLifecycleCoordinator.Dispose();
+                } else {
+                    ConstructionLedger.Dispose();
+                }
             });
 
             lock (disposeGate) {
