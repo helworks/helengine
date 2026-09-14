@@ -658,6 +658,60 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures an overlap between two trigger volumes is reported once from each volume's point of view, so a
+        /// listener attached to either trigger observes the other one. Narrow-phase detection sees the pair a single
+        /// time, and both owners are recorded from it rather than only whichever volume was registered first.
+        /// </summary>
+        [Fact]
+        public void Step_WithTwoOverlappingBoxTriggers_CollectsOneEnterEventPerTriggerVolume() {
+            Entity staticTriggerEntity = CreateStaticBoxTriggerEntity(float3.Zero, new float3(2f, 2f, 2f));
+            Entity dynamicTriggerEntity = CreateRestingDynamicBoxEntity(float3.Zero, new float3(1f, 1f, 1f));
+            FindRequiredBoxCollider(dynamicTriggerEntity).IsTrigger = true;
+
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            IPhysicsTriggerEventRuntime3D triggerRuntime = Assert.IsAssignableFrom<IPhysicsTriggerEventRuntime3D>(world);
+            world.BindScene(new[] { staticTriggerEntity, dynamicTriggerEntity });
+
+            world.Step(1.0 / 60.0);
+
+            Assert.Equal(2, triggerRuntime.TriggerEvents.Count);
+            Assert.Equal(TriggerEventKind3D.Enter, triggerRuntime.TriggerEvents[0].Kind);
+            Assert.Equal(TriggerEventKind3D.Enter, triggerRuntime.TriggerEvents[1].Kind);
+            AssertContainsTriggerEvent(triggerRuntime.TriggerEvents, TriggerEventKind3D.Enter, staticTriggerEntity, dynamicTriggerEntity);
+            AssertContainsTriggerEvent(triggerRuntime.TriggerEvents, TriggerEventKind3D.Enter, dynamicTriggerEntity, staticTriggerEntity);
+
+            MoveRestingDynamicBody(world, dynamicTriggerEntity, new float3(5f, 0f, 0f));
+            world.Step(1.0 / 60.0);
+
+            Assert.Equal(2, triggerRuntime.TriggerEvents.Count);
+            AssertContainsTriggerEvent(triggerRuntime.TriggerEvents, TriggerEventKind3D.Exit, staticTriggerEntity, dynamicTriggerEntity);
+            AssertContainsTriggerEvent(triggerRuntime.TriggerEvents, TriggerEventKind3D.Exit, dynamicTriggerEntity, staticTriggerEntity);
+        }
+
+        /// <summary>
+        /// Asserts the collected trigger events contain one event with the supplied kind and entity roles, without
+        /// constraining the order in which the runtime emitted the events.
+        /// </summary>
+        /// <param name="triggerEvents">Trigger events collected by the most recent fixed step.</param>
+        /// <param name="kind">Expected trigger event kind.</param>
+        /// <param name="triggerEntity">Entity expected to own the trigger volume.</param>
+        /// <param name="otherEntity">Entity expected to be reported as the other collider.</param>
+        static void AssertContainsTriggerEvent(IReadOnlyList<TriggerEvent3D> triggerEvents, TriggerEventKind3D kind, Entity triggerEntity, Entity otherEntity) {
+            if (triggerEvents == null) {
+                throw new ArgumentNullException(nameof(triggerEvents));
+            }
+
+            for (int index = 0; index < triggerEvents.Count; index++) {
+                TriggerEvent3D triggerEvent = triggerEvents[index];
+                if (triggerEvent.Kind == kind && ReferenceEquals(triggerEvent.TriggerEntity, triggerEntity) && ReferenceEquals(triggerEvent.OtherEntity, otherEntity)) {
+                    return;
+                }
+            }
+
+            Assert.Fail($"Expected a {kind} trigger event owned by the trigger entity and reporting the other entity, but the runtime collected {triggerEvents.Count} events without it.");
+        }
+
+        /// <summary>
         /// Ensures one bound kinematic body can be resynchronized from an updated entity pose after scene binding.
         /// </summary>
         [Fact]
