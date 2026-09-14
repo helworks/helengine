@@ -36,15 +36,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material common settings must include field values.");
             }
 
-            EngineBinaryHeader header = new EngineBinaryHeader(
+            using EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
+                stream,
                 PayloadEndianness,
                 CurrentVersion,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument);
-            EngineBinaryHeaderSerializer.Write(stream, header);
-
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
             writer.WriteString(document.AuthoringAssetId ?? string.Empty);
             writer.WriteInt32(document.FormerAuthoringAssetIds?.Count ?? 0);
             if (document.FormerAuthoringAssetIds != null) {
@@ -80,9 +78,16 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)RecordKind,
+                (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument,
+                CurrentVersion,
+                "material common settings",
+                "material common settings",
+                "Regenerate the material settings document.",
+                out EngineBinaryHeader header);
 
             MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument();
             document.AuthoringAssetId = reader.ReadString();
@@ -114,25 +119,6 @@ namespace helengine.editor {
             ReadReferences(reader, document.Processor.AssetReferenceValues);
 
             return document;
-        }
-
-        /// <summary>
-        /// Validates that the provided header matches the shared material settings format.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            } else if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
-                throw new InvalidOperationException($"Unsupported material common settings format id '{header.FormatId}'.");
-            } else if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected material common settings record kind '{header.RecordKind}'.");
-            } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument) {
-                throw new InvalidOperationException($"Unexpected material common settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException(
-                    $"Unsupported material common settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the material settings document.");
-            }
         }
 
         /// <summary>Writes typed material references.</summary>

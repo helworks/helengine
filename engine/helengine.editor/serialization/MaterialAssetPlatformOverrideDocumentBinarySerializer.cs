@@ -36,15 +36,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Material platform override must include field values.");
             }
 
-            EngineBinaryHeader header = new EngineBinaryHeader(
+            using EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
+                stream,
                 PayloadEndianness,
                 CurrentVersion,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetPlatformOverrideDocument);
-            EngineBinaryHeaderSerializer.Write(stream, header);
-
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
             writer.WriteString(document.PlatformId);
             writer.WriteString(document.EnvironmentId ?? string.Empty);
             writer.WriteByte(document.Processor.HasSchemaIdOverride ? (byte)1 : (byte)0);
@@ -73,9 +71,16 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)RecordKind,
+                (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetPlatformOverrideDocument,
+                CurrentVersion,
+                "material platform override",
+                "material platform override",
+                "Regenerate the material platform settings document.",
+                out EngineBinaryHeader header);
 
             MaterialAssetPlatformOverrideDocument document = new MaterialAssetPlatformOverrideDocument();
             document.PlatformId = reader.ReadString();
@@ -103,25 +108,6 @@ namespace helengine.editor {
             ReadReferences(reader, document.Processor.AssetReferenceValues);
 
             return document;
-        }
-
-        /// <summary>
-        /// Validates that the provided header matches the material override format.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            } else if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
-                throw new InvalidOperationException($"Unsupported material platform override format id '{header.FormatId}'.");
-            } else if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected material platform override record kind '{header.RecordKind}'.");
-            } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetPlatformOverrideDocument) {
-                throw new InvalidOperationException($"Unexpected material platform override value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException(
-                    $"Unsupported material platform override binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the material platform settings document.");
-            }
         }
 
         /// <summary>
