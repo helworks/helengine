@@ -8,21 +8,21 @@ namespace helengine {
         /// </summary>
         bool isDisposed;
         /// <summary>
-        /// Stores synthetic string members populated by platform-extended runtime payloads.
+        /// Stores synthetic string members populated by platform-extended runtime payloads; stays null until the first value is set so ordinary components allocate no bag.
         /// </summary>
-        readonly Dictionary<string, string> SyntheticStringMembers = new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string> SyntheticStringMembers;
         /// <summary>
-        /// Stores synthetic boolean members populated by platform-extended runtime payloads.
+        /// Stores synthetic boolean members populated by platform-extended runtime payloads; stays null until the first value is set so ordinary components allocate no bag.
         /// </summary>
-        readonly Dictionary<string, bool> SyntheticBooleanMembers = new Dictionary<string, bool>(StringComparer.Ordinal);
+        Dictionary<string, bool> SyntheticBooleanMembers;
         /// <summary>
-        /// Stores synthetic 32-bit integer members populated by platform-extended runtime payloads.
+        /// Stores synthetic 32-bit integer members populated by platform-extended runtime payloads; stays null until the first value is set so ordinary components allocate no bag.
         /// </summary>
-        readonly Dictionary<string, int> SyntheticInt32Members = new Dictionary<string, int>(StringComparer.Ordinal);
+        Dictionary<string, int> SyntheticInt32Members;
         /// <summary>
-        /// Stores synthetic single-precision members populated by platform-extended runtime payloads.
+        /// Stores synthetic single-precision members populated by platform-extended runtime payloads; stays null until the first value is set so ordinary components allocate no bag.
         /// </summary>
-        readonly Dictionary<string, float> SyntheticSingleMembers = new Dictionary<string, float>(StringComparer.Ordinal);
+        Dictionary<string, float> SyntheticSingleMembers;
 
         /// <summary>
         /// Gets the entity this component is attached to.
@@ -64,7 +64,15 @@ namespace helengine {
                 throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
             }
 
-            SyntheticStringMembers[memberName] = value ?? string.Empty;
+            if (SyntheticStringMembers == null) {
+                SyntheticStringMembers = new Dictionary<string, string>(StringComparer.Ordinal);
+            }
+
+            if (value == null) {
+                SyntheticStringMembers[memberName] = string.Empty;
+            } else {
+                SyntheticStringMembers[memberName] = value;
+            }
         }
 
         /// <summary>
@@ -78,11 +86,15 @@ namespace helengine {
                 throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
             }
 
-            if (SyntheticStringMembers.TryGetValue(memberName, out string value)) {
+            if (SyntheticStringMembers != null && SyntheticStringMembers.TryGetValue(memberName, out string value)) {
                 return value;
             }
 
-            return defaultValue ?? string.Empty;
+            if (defaultValue == null) {
+                return string.Empty;
+            }
+
+            return defaultValue;
         }
 
         /// <summary>
@@ -93,6 +105,10 @@ namespace helengine {
         public void SetSyntheticBooleanMember(string memberName, bool value) {
             if (string.IsNullOrWhiteSpace(memberName)) {
                 throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
+            }
+
+            if (SyntheticBooleanMembers == null) {
+                SyntheticBooleanMembers = new Dictionary<string, bool>(StringComparer.Ordinal);
             }
 
             SyntheticBooleanMembers[memberName] = value;
@@ -109,7 +125,7 @@ namespace helengine {
                 throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
             }
 
-            if (SyntheticBooleanMembers.TryGetValue(memberName, out bool value)) {
+            if (SyntheticBooleanMembers != null && SyntheticBooleanMembers.TryGetValue(memberName, out bool value)) {
                 return value;
             }
 
@@ -126,6 +142,10 @@ namespace helengine {
                 throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
             }
 
+            if (SyntheticInt32Members == null) {
+                SyntheticInt32Members = new Dictionary<string, int>(StringComparer.Ordinal);
+            }
+
             SyntheticInt32Members[memberName] = value;
         }
 
@@ -140,7 +160,7 @@ namespace helengine {
                 throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
             }
 
-            if (SyntheticInt32Members.TryGetValue(memberName, out int value)) {
+            if (SyntheticInt32Members != null && SyntheticInt32Members.TryGetValue(memberName, out int value)) {
                 return value;
             }
 
@@ -157,6 +177,10 @@ namespace helengine {
                 throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
             }
 
+            if (SyntheticSingleMembers == null) {
+                SyntheticSingleMembers = new Dictionary<string, float>(StringComparer.Ordinal);
+            }
+
             SyntheticSingleMembers[memberName] = value;
         }
 
@@ -171,7 +195,7 @@ namespace helengine {
                 throw new ArgumentException("Synthetic member name must be provided.", nameof(memberName));
             }
 
-            if (SyntheticSingleMembers.TryGetValue(memberName, out float value)) {
+            if (SyntheticSingleMembers != null && SyntheticSingleMembers.TryGetValue(memberName, out float value)) {
                 return value;
             }
 
