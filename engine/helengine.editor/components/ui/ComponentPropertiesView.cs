@@ -218,6 +218,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPropertyEditController PropertyEditController;
         /// <summary>
+        /// Service that owns component retargeting, override persistence and history recording for inspector edits.
+        /// </summary>
+        readonly ComponentPropertyMutationService MutationService;
+        /// <summary>
         /// Reads and writes editor-only MeshComponent tessellation metadata for the active target platform.
         /// </summary>
         /// <summary>
@@ -388,6 +392,12 @@ namespace helengine.editor {
                 () => HistoryMutationServiceValue,
                 () => EditorSessionInteractionServices.From(RootEntity).SceneMutation.MarkSceneMutated(),
                 RefreshPropertyEditPresentation);
+            MutationService = new ComponentPropertyMutationService(
+                PlatformEditingService,
+                CurrentScope,
+                ResolveCurrentEditorEntity,
+                () => HistoryMutationServiceValue,
+                () => EditorSessionInteractionServices.From(RootEntity).SceneMutation.MarkSceneMutated());
             PlatformComponentMemberDescriptorResolver = new PlatformComponentMemberDescriptorResolver();
             CollapsedStates = new Dictionary<Component, bool>();
             CustomEditorExpandedStates = new Dictionary<string, bool>();
@@ -2994,24 +3004,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row whose editable component should be resolved.</param>
         void EnsureEditableComponentForRow(ComponentPropertyRow row) {
-            if (row == null) {
-                throw new ArgumentNullException(nameof(row));
-            }
-            if (row.CommonComponent == null || row.TargetComponent == null) {
-                return;
-            }
-            if (row.SaveComponent == null || string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
-                return;
-            }
-            if (string.Equals(row.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return;
-            }
-            if (!ReferenceEquals(row.TargetComponent, row.CommonComponent)) {
-                return;
-            }
-
-            Component editableOverrideComponent = PlatformEditingService.EnsureScopeOverrideComponent(row.CommonComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
-            RetargetRowsForEditableComponent(row.CommonComponent, row.EditingPlatformId, editableOverrideComponent);
+            MutationService.EnsureEditableComponentForRow(row, ActiveRows);
         }
 
         /// <summary>
@@ -3027,36 +3020,6 @@ namespace helengine.editor {
 
             return ReferenceEquals(PendingRemovedExistenceRowComponent, commonComponent)
                 && string.Equals(PendingRemovedExistenceRowPlatformId, platformId, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Retargets every visible row that edits the same common component and platform context.
-        /// </summary>
-        /// <param name="commonComponent">Common live component whose rows should be retargeted.</param>
-        /// <param name="platformId">Platform context whose rows should be retargeted.</param>
-        /// <param name="editableComponent">Effective editable component that should back those rows.</param>
-        void RetargetRowsForEditableComponent(Component commonComponent, string platformId, Component editableComponent) {
-            if (commonComponent == null) {
-                throw new ArgumentNullException(nameof(commonComponent));
-            }
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
-            if (editableComponent == null) {
-                throw new ArgumentNullException(nameof(editableComponent));
-            }
-
-            for (int index = 0; index < ActiveRows.Count; index++) {
-                ComponentPropertyRow activeRow = ActiveRows[index];
-                if (!ReferenceEquals(activeRow.CommonComponent, commonComponent)) {
-                    continue;
-                }
-                if (!string.Equals(activeRow.EditingPlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-
-                activeRow.TargetComponent = editableComponent;
-            }
         }
 
         /// <summary>
@@ -3180,25 +3143,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row whose editable component should be persisted.</param>
         void PersistPlatformOverrideIfNeeded(ComponentPropertyRow row) {
-            if (row == null) {
-                throw new ArgumentNullException(nameof(row));
+            if (MutationService.PersistPlatformOverrideIfNeeded(row, BuildRowPropertyPath(row))) {
+                RefreshRowOverrideChrome(row);
             }
-            if (row.CommonComponent == null || row.TargetComponent == null) {
-                return;
-            }
-            if (row.SaveComponent == null || string.IsNullOrWhiteSpace(row.EditingPlatformId)) {
-                return;
-            }
-            if (string.Equals(row.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return;
-            }
-
-            string propertyPath = BuildRowPropertyPath(row);
-            if (!string.IsNullOrWhiteSpace(propertyPath)) {
-                PlatformEditingService.MarkScopePropertyOverride(row.CommonComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId), propertyPath);
-            }
-            PlatformEditingService.PersistScopeOverride(row.CommonComponent, row.TargetComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
-            RefreshRowOverrideChrome(row);
         }
 
         /// <summary>
@@ -3988,11 +3935,19 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Detached current-entity snapshot when history recording is available; otherwise null.</returns>
         SerializedEditorEntityState CaptureCurrentEntityHistoryState() {
-            if (HistoryMutationService == null || CurrentEntity is not EditorEntity editorEntity || editorEntity.IsDisposed) {
-                return null;
+            return MutationService.CaptureCurrentEntityHistoryState();
+        }
+
+        /// <summary>
+        /// Resolves the inspected entity as an editor entity, or null when nothing editor-owned is inspected.
+        /// </summary>
+        /// <returns>Inspected editor entity, or null when the inspected entity is not editor-owned.</returns>
+        EditorEntity ResolveCurrentEditorEntity() {
+            if (CurrentEntity is EditorEntity editorEntity) {
+                return editorEntity;
             }
 
-            return HistoryMutationService.CaptureEntityState(editorEntity);
+            return null;
         }
 
         /// <summary>
@@ -4000,12 +3955,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="previousEntityState">Detached entity snapshot captured before the mutation.</param>
         void RecordCurrentEntityMutation(SerializedEditorEntityState previousEntityState) {
-            if (previousEntityState == null || HistoryMutationService == null || CurrentEntity is not EditorEntity editorEntity || editorEntity.IsDisposed) {
-                EditorSessionInteractionServices.From(RootEntity).SceneMutation.MarkSceneMutated();
-                return;
-            }
-
-            HistoryMutationService.RecordEntityStateChange(editorEntity, previousEntityState);
+            MutationService.RecordCurrentEntityMutation(previousEntityState);
         }
 
         /// <summary>
@@ -4014,21 +3964,7 @@ namespace helengine.editor {
         /// <param name="row">Row whose owning component mutation should be recorded.</param>
         /// <param name="previousEntityState">Detached entity snapshot captured before the mutation.</param>
         void RecordRowMutation(ComponentPropertyRow row, SerializedEditorEntityState previousEntityState) {
-            if (row == null) {
-                throw new ArgumentNullException(nameof(row));
-            }
-            if (previousEntityState == null || HistoryMutationService == null || CurrentEntity is not EditorEntity editorEntity || editorEntity.IsDisposed) {
-                EditorSessionInteractionServices.From(RootEntity).SceneMutation.MarkSceneMutated();
-                return;
-            }
-
-            Component historyComponent = row.CommonComponent ?? row.TargetComponent;
-            if (historyComponent == null) {
-                HistoryMutationService.RecordEntityStateChange(editorEntity, previousEntityState);
-                return;
-            }
-
-            HistoryMutationService.RecordComponentMutation(editorEntity, historyComponent, previousEntityState);
+            MutationService.RecordRowMutation(row, previousEntityState);
         }
 
         /// <summary>
