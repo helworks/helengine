@@ -120,7 +120,7 @@ namespace helengine.directx11 {
         /// <summary>
         /// Owns the shared default pipeline states, the per-material state caches and the record of what is currently bound.
         /// </summary>
-        DirectX11PipelineStateCache PipelineStateCache;
+        readonly DirectX11PipelineStateCache PipelineStateCache;
         /// <summary>
         /// Tracks the active material for the current pass.
         /// </summary>
@@ -172,35 +172,35 @@ namespace helengine.directx11 {
         /// <summary>
         /// Shared extraction service used to build backend-neutral render frames.
         /// </summary>
-        RenderFrameExtractionService FrameExtractionServiceValue;
+        readonly RenderFrameExtractionService FrameExtractionService;
         /// <summary>
         /// Shared render-plan builder used to select the ordered DirectX11 pass list.
         /// </summary>
-        DirectX11RenderPlanBuilder RenderPlanBuilderValue;
+        readonly DirectX11RenderPlanBuilder RenderPlanBuilder;
         /// <summary>
         /// Shared plan executor used to dispatch selected pass kinds into runtime pass methods.
         /// </summary>
-        DirectX11RenderPlanExecutor RenderPlanExecutorValue;
+        readonly DirectX11RenderPlanExecutor RenderPlanExecutor;
         /// <summary>
         /// Queue snapshot visitor used to copy ordered drawables before extraction.
         /// </summary>
-        DirectX11RenderQueueSnapshotVisitor RenderQueueSnapshotVisitorValue;
+        readonly DirectX11RenderQueueSnapshotVisitor RenderQueueSnapshotVisitor;
         /// <summary>
         /// Builder that packs selected lights into the built-in DirectX11 forward-light constant buffer layout.
         /// </summary>
-        DirectX11ForwardLightShaderDataBuilder ForwardLightShaderDataBuilderValue;
+        readonly DirectX11ForwardLightShaderDataBuilder ForwardLightShaderDataBuilder;
         /// <summary>
         /// Service that applies the DirectX11 visible-light budget to extracted lights.
         /// </summary>
-        DirectX11LightSelectionService LightSelectionServiceValue;
+        readonly DirectX11LightSelectionService LightSelectionService;
         /// <summary>
         /// Service that plans DirectX11 shadow resources for the selected light set.
         /// </summary>
-        DirectX11ShadowResourcePlanner ShadowResourcePlannerValue;
+        readonly DirectX11ShadowResourcePlanner ShadowResourcePlanner;
         /// <summary>
         /// Builder that packs atlas-shadow data into the built-in DirectX11 shadow constant buffer layout.
         /// </summary>
-        DirectX11ShadowShaderDataBuilder ShadowShaderDataBuilderValue;
+        readonly DirectX11ShadowShaderDataBuilder ShadowShaderDataBuilder;
         /// <summary>
         /// Tracks the shadow resources planned for the current extracted camera frame.
         /// </summary>
@@ -232,16 +232,18 @@ namespace helengine.directx11 {
             shaderPassCache = new Dictionary<string, DirectX11ShaderPass>(StringComparer.Ordinal);
             ShaderResourceCache = new Dictionary<string, DirectX11ShaderResource>(StringComparer.Ordinal);
             MaterialsByShaderAssetId = new Dictionary<string, List<DirectX11MaterialResource>>(StringComparer.OrdinalIgnoreCase);
-            FrameExtractionServiceValue = new RenderFrameExtractionService();
-            RenderPlanBuilderValue = new DirectX11RenderPlanBuilder();
-            RenderPlanExecutorValue = new DirectX11RenderPlanExecutor(true, false);
-            RenderQueueSnapshotVisitorValue = new DirectX11RenderQueueSnapshotVisitor();
-            LightSelectionServiceValue = new DirectX11LightSelectionService();
-            ShadowResourcePlannerValue = new DirectX11ShadowResourcePlanner();
-        PointShadowCubeResourcesValue = new List<DirectX11PointShadowCubeResources>();
-        MaterialConstantBuffersBySlot = new Dictionary<int, Buffer>();
-        ActiveMaterialTextureSlots = new List<int>();
-        WindowResized += OnWindowResized;
+            FrameExtractionService = new RenderFrameExtractionService();
+            RenderPlanBuilder = new DirectX11RenderPlanBuilder();
+            RenderPlanExecutor = new DirectX11RenderPlanExecutor(true, false);
+            RenderQueueSnapshotVisitor = new DirectX11RenderQueueSnapshotVisitor();
+            ForwardLightShaderDataBuilder = new DirectX11ForwardLightShaderDataBuilder();
+            LightSelectionService = new DirectX11LightSelectionService();
+            ShadowResourcePlanner = new DirectX11ShadowResourcePlanner();
+            ShadowShaderDataBuilder = new DirectX11ShadowShaderDataBuilder();
+            PointShadowCubeResourcesValue = new List<DirectX11PointShadowCubeResources>();
+            MaterialConstantBuffersBySlot = new Dictionary<int, Buffer>();
+            ActiveMaterialTextureSlots = new List<int>();
+            WindowResized += OnWindowResized;
 
             using (var factory = new DxgiFactory1()) {
                 Adapter = factory.GetAdapter1(0);
@@ -818,18 +820,18 @@ namespace helengine.directx11 {
             IDrawable3D[] drawables = SnapshotRenderQueue(camera.RenderQueue3D);
             LightComponent[] lights = SnapshotVisibleLights(camera);
             RendererBackendCapabilityProfile capabilityProfile = GetCapabilityProfile();
-            RenderFrameExtractionResult extractionResult = GetFrameExtractionService().Extract(
+            RenderFrameExtractionResult extractionResult = FrameExtractionService.Extract(
                 [camera],
                 drawables,
                 lights,
                 capabilityProfile);
             RenderFrame frame = extractionResult.Frames[0];
-            RenderFrameLightSubmission[] selectedLights = GetLightSelectionService().SelectVisibleLights(frame.LightSubmissions, capabilityProfile.MaximumVisibleLights);
+            RenderFrameLightSubmission[] selectedLights = LightSelectionService.SelectVisibleLights(frame.LightSubmissions, capabilityProfile.MaximumVisibleLights);
             lastSelectedLightCount = selectedLights.Length;
-            DirectX11ShadowResourceSet shadowResourceSet = GetShadowResourcePlanner().PlanResources(selectedLights, capabilityProfile.MaximumShadowedLights);
+            DirectX11ShadowResourceSet shadowResourceSet = ShadowResourcePlanner.PlanResources(selectedLights, capabilityProfile.MaximumShadowedLights);
             lastSelectedShadowLightCount = shadowResourceSet.SelectedShadowLights.Count;
             CurrentShadowResourceSet = shadowResourceSet;
-            RenderPlan plan = GetRenderPlanBuilder().Build(frame, extractionResult.BackendCapabilities);
+            RenderPlan plan = RenderPlanBuilder.Build(frame, extractionResult.BackendCapabilities);
             DirectX11RenderPassExecutionContext context = new DirectX11RenderPassExecutionContext(
                 frame,
                 surface,
@@ -853,7 +855,7 @@ namespace helengine.directx11 {
             }
 
             PrepareCameraFrame(context);
-            GetRenderPlanExecutor().ExecutePlan(context, plan, this);
+            RenderPlanExecutor.ExecutePlan(context, plan, this);
         }
 
         /// <summary>
@@ -1172,31 +1174,7 @@ namespace helengine.directx11 {
         /// <param name="selectedLights">Selected lights that survived backend budgeting.</param>
         /// <returns>Packed forward-light shader data.</returns>
         protected virtual DirectX11ForwardLightShaderData BuildForwardLightShaderData(IReadOnlyList<RenderFrameLightSubmission> selectedLights) {
-            return GetForwardLightShaderDataBuilder().Build(selectedLights);
-        }
-
-        /// <summary>
-        /// Gets the DirectX11 shadow-resource planner used to derive shadow execution resources for the current frame.
-        /// </summary>
-        /// <returns>DirectX11 shadow-resource planner.</returns>
-        protected virtual DirectX11ShadowResourcePlanner GetShadowResourcePlanner() {
-            if (ShadowResourcePlannerValue == null) {
-                ShadowResourcePlannerValue = new DirectX11ShadowResourcePlanner();
-            }
-
-            return ShadowResourcePlannerValue;
-        }
-
-        /// <summary>
-        /// Retrieves the shared atlas-shadow shader-data builder, creating it lazily when necessary.
-        /// </summary>
-        /// <returns>Shared DirectX11 atlas-shadow shader-data builder.</returns>
-        protected virtual DirectX11ShadowShaderDataBuilder GetShadowShaderDataBuilder() {
-            if (ShadowShaderDataBuilderValue == null) {
-                ShadowShaderDataBuilderValue = new DirectX11ShadowShaderDataBuilder();
-            }
-
-            return ShadowShaderDataBuilderValue;
+            return ForwardLightShaderDataBuilder.Build(selectedLights);
         }
 
         /// <summary>
@@ -1226,7 +1204,7 @@ namespace helengine.directx11 {
         protected virtual DirectX11ShadowShaderData BuildShadowShaderData(
             DirectX11RenderPassExecutionContext context,
             DirectX11ShadowResourceSet shadowResourceSet) {
-            return GetShadowShaderDataBuilder().Build(context.Frame.Camera, context.SelectedLights, shadowResourceSet);
+            return ShadowShaderDataBuilder.Build(context.Frame.Camera, context.SelectedLights, shadowResourceSet);
         }
 
         /// <summary>
@@ -1306,7 +1284,7 @@ namespace helengine.directx11 {
                     deviceContext.ClearDepthStencilView(cubeResources.DepthStencilViews[faceIndex], DepthStencilClearFlags.Depth, 1f, 0);
                     deviceContext.ClearRenderTargetView(cubeResources.RenderTargetViews[faceIndex], new RawColor4(1f, 0f, 0f, 1f));
                     deviceContext.Rasterizer.SetViewport(0, 0, cubeResources.Resolution, cubeResources.Resolution);
-                    float4x4 lightViewProjection = GetShadowShaderDataBuilder().BuildPointShadowViewProjectionMatrix(pointLight, faceIndex);
+                    float4x4 lightViewProjection = ShadowShaderDataBuilder.BuildPointShadowViewProjectionMatrix(pointLight, faceIndex);
                     for (int casterIndex = 0; casterIndex < context.Frame.ShadowCasterSubmissions.Count; casterIndex++) {
                         RenderFrameShadowCasterSubmission shadowCaster = context.Frame.ShadowCasterSubmissions[casterIndex];
                         if (shadowCaster == null) {
@@ -1438,7 +1416,7 @@ namespace helengine.directx11 {
             for (int allocationIndex = 0; allocationIndex < shadowResourceSet.AtlasAllocations.Count; allocationIndex++) {
                 DirectX11ShadowAtlasAllocation allocation = shadowResourceSet.AtlasAllocations[allocationIndex];
                 deviceContext.Rasterizer.SetViewport(allocation.X, allocation.Y, allocation.Width, allocation.Height);
-                float4x4 lightViewProjection = GetShadowShaderDataBuilder().BuildShadowViewProjectionMatrix(context.Frame.Camera, allocation);
+                float4x4 lightViewProjection = ShadowShaderDataBuilder.BuildShadowViewProjectionMatrix(context.Frame.Camera, allocation);
                 for (int casterIndex = 0; casterIndex < context.Frame.ShadowCasterSubmissions.Count; casterIndex++) {
                     RenderFrameShadowCasterSubmission shadowCaster = context.Frame.ShadowCasterSubmissions[casterIndex];
                     if (shadowCaster == null) {
@@ -1808,66 +1786,6 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Retrieves the shared frame-extraction service, creating it lazily when necessary.
-        /// </summary>
-        /// <returns>Shared render-frame extraction service.</returns>
-        RenderFrameExtractionService GetFrameExtractionService() {
-            if (FrameExtractionServiceValue == null) {
-                FrameExtractionServiceValue = new RenderFrameExtractionService();
-            }
-
-            return FrameExtractionServiceValue;
-        }
-
-        /// <summary>
-        /// Retrieves the shared DirectX11 render-plan builder, creating it lazily when necessary.
-        /// </summary>
-        /// <returns>Shared DirectX11 render-plan builder.</returns>
-        DirectX11RenderPlanBuilder GetRenderPlanBuilder() {
-            if (RenderPlanBuilderValue == null) {
-                RenderPlanBuilderValue = new DirectX11RenderPlanBuilder();
-            }
-
-            return RenderPlanBuilderValue;
-        }
-
-        /// <summary>
-        /// Retrieves the shared DirectX11 render-plan executor, creating it lazily when necessary.
-        /// </summary>
-        /// <returns>Shared DirectX11 render-plan executor.</returns>
-        DirectX11RenderPlanExecutor GetRenderPlanExecutor() {
-            if (RenderPlanExecutorValue == null) {
-                RenderPlanExecutorValue = new DirectX11RenderPlanExecutor(true, false);
-            }
-
-            return RenderPlanExecutorValue;
-        }
-
-        /// <summary>
-        /// Retrieves the shared forward-light shader-data builder, creating it lazily when necessary.
-        /// </summary>
-        /// <returns>Shared forward-light shader-data builder.</returns>
-        DirectX11ForwardLightShaderDataBuilder GetForwardLightShaderDataBuilder() {
-            if (ForwardLightShaderDataBuilderValue == null) {
-                ForwardLightShaderDataBuilderValue = new DirectX11ForwardLightShaderDataBuilder();
-            }
-
-            return ForwardLightShaderDataBuilderValue;
-        }
-
-        /// <summary>
-        /// Retrieves the shared DirectX11 light-selection service, creating it lazily when necessary.
-        /// </summary>
-        /// <returns>Shared DirectX11 light-selection service.</returns>
-        DirectX11LightSelectionService GetLightSelectionService() {
-            if (LightSelectionServiceValue == null) {
-                LightSelectionServiceValue = new DirectX11LightSelectionService();
-            }
-
-            return LightSelectionServiceValue;
-        }
-
-        /// <summary>
         /// Copies one ordered camera render queue into an extraction-ready snapshot.
         /// </summary>
         /// <param name="renderQueue">Ordered render queue to snapshot.</param>
@@ -1877,15 +1795,9 @@ namespace helengine.directx11 {
                 throw new ArgumentNullException(nameof(renderQueue));
             }
 
-            DirectX11RenderQueueSnapshotVisitor snapshotVisitor = RenderQueueSnapshotVisitorValue;
-            if (snapshotVisitor == null) {
-                snapshotVisitor = new DirectX11RenderQueueSnapshotVisitor();
-                RenderQueueSnapshotVisitorValue = snapshotVisitor;
-            }
-
-            snapshotVisitor.Reset(renderQueue.Count);
-            renderQueue.VisitOrdered(snapshotVisitor);
-            return snapshotVisitor.CreateSnapshot();
+            RenderQueueSnapshotVisitor.Reset(renderQueue.Count);
+            renderQueue.VisitOrdered(RenderQueueSnapshotVisitor);
+            return RenderQueueSnapshotVisitor.CreateSnapshot();
         }
 
         /// <summary>
