@@ -134,6 +134,21 @@ namespace helengine.editor {
         readonly AssetImportSettingsRepository SettingsRepositoryInstance;
 
         /// <summary>
+        /// Executes typed imports through the manager-owned cache pipeline.
+        /// </summary>
+        readonly AssetImportExecutionService ExecutionServiceInstance;
+
+        /// <summary>
+        /// Resolves typed runtime assets through the manager-owned cache policy.
+        /// </summary>
+        readonly ImportedAssetRuntimeResolver RuntimeResolverInstance;
+
+        /// <summary>
+        /// Tracks source invalidations for the manager-owned import pipeline.
+        /// </summary>
+        readonly AssetImportInvalidationService InvalidationServiceInstance;
+
+        /// <summary>
         /// Initializes a new asset import manager for a project.
         /// </summary>
         /// <param name="projectRootPath">Absolute path to the project root.</param>
@@ -169,6 +184,9 @@ namespace helengine.editor {
             AudioSampleProcessor = new EditorAudioSampleProcessor();
             ImporterRegistryInstance = new AssetImporterRegistry(this);
             SettingsRepositoryInstance = new AssetImportSettingsRepository(this);
+            ExecutionServiceInstance = new AssetImportExecutionService(this);
+            RuntimeResolverInstance = new ImportedAssetRuntimeResolver(this);
+            InvalidationServiceInstance = new AssetImportInvalidationService(ExecutionServiceInstance);
             EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
             // Directory creation is deferred to the owning authoring boundary.
@@ -195,6 +213,8 @@ namespace helengine.editor {
         /// content manager are owned by their explicit session ledger entries.
         /// </summary>
         public virtual void Dispose() {
+            InvalidationServiceInstance.Dispose();
+
             // The manager currently has no unmanaged resources. This explicit
             // owner boundary is intentionally idempotent and keeps disposal
             // ordering visible to the session construction ledger.
@@ -221,6 +241,21 @@ namespace helengine.editor {
         /// Gets the typed import settings repository for this project.
         /// </summary>
         public AssetImportSettingsRepository SettingsRepository => SettingsRepositoryInstance;
+
+        /// <summary>
+        /// Gets the typed import execution service for this manager.
+        /// </summary>
+        public AssetImportExecutionService ExecutionService => ExecutionServiceInstance;
+
+        /// <summary>
+        /// Gets the typed runtime asset resolver for this manager.
+        /// </summary>
+        public ImportedAssetRuntimeResolver RuntimeResolver => RuntimeResolverInstance;
+
+        /// <summary>
+        /// Gets the typed source invalidation service for this manager.
+        /// </summary>
+        public AssetImportInvalidationService InvalidationService => InvalidationServiceInstance;
 
         /// <summary>
         /// Gets or sets the active project platform whose processor settings should drive model cache generation.
