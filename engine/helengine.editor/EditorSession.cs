@@ -22,18 +22,6 @@ namespace helengine.editor {
         List<EditorSessionCleanupItem> UserSceneEntityCleanupItems = new List<EditorSessionCleanupItem>();
         bool RegisteringScaleSensitiveDialogHandlers;
         /// <summary>
-        /// Default debounce delay for shader rebuilds.
-        /// </summary>
-        const int ShaderBuildDelayMilliseconds = 250;
-        /// <summary>
-        /// Built-in runtime shader file used for transform-gizmo materials.
-        /// </summary>
-        const string TransformGizmoShaderFileName = "EditorTransformGizmo.hlsl";
-        /// <summary>
-        /// Built-in runtime shader file used for highlighted transform-gizmo materials.
-        /// </summary>
-        const string TransformGizmoHighlightShaderFileName = "EditorTransformGizmoHighlight.hlsl";
-        /// <summary>
         /// Stable workspace panel type identifier for viewport panels.
         /// </summary>
         const string ViewportPanelTypeId = "viewport";
@@ -57,14 +45,6 @@ namespace helengine.editor {
         /// Stable workspace panel type identifier for preview panels.
         /// </summary>
         const string PreviewPanelTypeId = "preview";
-        /// <summary>
-        /// Initial capacity reserved for pending shader-build notifications that must be applied on the editor frame thread.
-        /// </summary>
-        const int PendingShaderBuildNotificationInitialCapacity = 8;
-        /// <summary>
-        /// Built-in runtime shader variant.
-        /// </summary>
-        const string DefaultRuntimeShaderVariant = "default";
         /// <summary>
         /// Draw order used by the main scene camera.
         /// </summary>
@@ -234,13 +214,9 @@ namespace helengine.editor {
         /// </summary>
         readonly PreviewPanel previewPanel;
         /// <summary>
-        /// Synchronizes background shader-build notifications before they are applied on the editor frame thread.
+        /// Marshals background shader-build notifications onto the editor frame thread.
         /// </summary>
-        readonly object PendingShaderBuildNotificationLock;
-        /// <summary>
-        /// Background shader-build notifications waiting to refresh runtime renderer shader resources on the editor frame thread.
-        /// </summary>
-        readonly Queue<KeyValuePair<string, string>> PendingShaderBuildNotifications;
+        EditorShaderBuildNotificationQueue ShaderBuildNotificationQueue;
         /// <summary>
         /// Resolves the active preview source for the current selection snapshot.
         /// </summary>
@@ -697,7 +673,7 @@ namespace helengine.editor {
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
             availablePlatformProviderResolver = platformProviderResolver ?? throw new ArgumentNullException(nameof(platformProviderResolver));
             platformCatalogService = CreatePlatformCatalogService();
-            EditorContentManager = new ContentManager(new HostFileSystemContentStreamSource(ResolveAssetsRootPath(this.projectPath)));
+            EditorContentManager = new ContentManager(new HostFileSystemContentStreamSource(EditorSessionShaderMaterialBuilder.ResolveAssetsRootPath(this.projectPath)));
             constructionLedger.Register(EditorContentManager);
             EditorContentManagerConfiguration.ConfigureEditorContentManager(EditorContentManager, render2D);
             this.uiFont = uiFont ?? throw new ArgumentNullException(nameof(uiFont));
@@ -746,8 +722,6 @@ namespace helengine.editor {
             materialAssetSettingsService = new MaterialAssetSettingsService(this.projectPath);
 
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
-            PendingShaderBuildNotificationLock = new object();
-            PendingShaderBuildNotifications = new Queue<KeyValuePair<string, string>>(PendingShaderBuildNotificationInitialCapacity);
             previewSourceResolver = new PreviewSourceResolver(assetImportManager, render2D, render3D, sceneCanvasProfileState, generatedAssetProviderRegistry, generatedMaterialCache, builtInShaderAssetLibrary, rendererResources);
 
             uiCameraEntity = new EditorEntity(core, interactionServices);
@@ -1036,10 +1010,14 @@ namespace helengine.editor {
             dockingManager.Layout.DockRelative(loggerPanel, assetBrowserPanel, DockInsertDirection.Fill, 0.5f);
             dockingManager.Layout.DockRelative(previewPanel, assetBrowserPanel, DockInsertDirection.Right, 0.75f);
 
-            ShaderCompileTarget runtimeTarget = ResolveRuntimeShaderTarget(render3D);
-            shaderModuleManager = BuildShaderModuleManager(runtimeTarget);
+            ShaderCompileTarget runtimeTarget = EditorSessionShaderMaterialBuilder.ResolveRuntimeShaderTarget(render3D);
+            shaderModuleManager = EditorSessionShaderMaterialBuilder.BuildShaderModuleManager(
+                EditorProjectMetadataResolver.ResolveProjectRootPath(this.projectPath),
+                runtimeTarget,
+                ShaderBackends);
             constructionLedger.Register(shaderModuleManager);
             shaderPackageService = new EditorShaderPackageService(this.projectPath, shaderModuleManager, runtimeTarget, EditorContentManager, builtInShaderAssetLibrary);
+            ShaderBuildNotificationQueue = new EditorShaderBuildNotificationQueue(shaderPackageService, core.RenderManager3D);
             propertiesPanel.ShaderPackageService = shaderPackageService;
             sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             ConstructionCheckpointForTests?.Invoke("after-shader-package-initialized");
@@ -4659,7 +4637,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildTransformGizmoNormalMaterial() {
-            return BuildBuiltInRuntimeMaterial(TransformGizmoShaderFileName);
+            return EditorSessionShaderMaterialBuilder.BuildTransformGizmoNormalMaterial(core.RenderManager3D, builtInShaderAssetLibrary);
         }
 
         /// <summary>
@@ -4667,7 +4645,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildTransformGizmoHighlightMaterial() {
-            return BuildBuiltInRuntimeMaterial(TransformGizmoHighlightShaderFileName);
+            return EditorSessionShaderMaterialBuilder.BuildTransformGizmoHighlightMaterial(core.RenderManager3D, builtInShaderAssetLibrary);
         }
 
         /// <summary>
@@ -4676,33 +4654,7 @@ namespace helengine.editor {
         /// <param name="shaderFileName">Built-in editor shader source file name.</param>
         /// <returns>Runtime material instance.</returns>
         RuntimeMaterial BuildBuiltInRuntimeMaterial(string shaderFileName) {
-            if (string.IsNullOrWhiteSpace(shaderFileName)) {
-                throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));
-            }
-
-            ShaderAsset shaderAsset = builtInShaderAssetLibrary.Load(
-                core.RenderManager3D is IShaderCompileTargetProvider targetProvider
-                    ? targetProvider.ShaderCompileTarget
-                    : throw new InvalidOperationException("Unsupported renderer backend for editor built-in shaders."),
-                shaderFileName);
-            string shaderName = Path.GetFileNameWithoutExtension(shaderFileName);
-            if (string.IsNullOrWhiteSpace(shaderName)) {
-                throw new InvalidOperationException("Built-in shader name could not be resolved.");
-            }
-
-            if (string.IsNullOrWhiteSpace(shaderAsset.Id)) {
-                throw new InvalidOperationException("Shader asset id must be provided.");
-            }
-
-            var materialAsset = new ShaderMaterialAsset {
-                Id = string.Concat(shaderName, ".material"),
-                ShaderAssetId = shaderAsset.Id,
-                VertexProgram = string.Concat(shaderName, ".vs"),
-                PixelProgram = string.Concat(shaderName, ".ps"),
-                Variant = DefaultRuntimeShaderVariant
-            };
-
-            return core.RenderManager3D.BuildMaterialFromRaw(materialAsset, shaderAsset);
+            return EditorSessionShaderMaterialBuilder.BuildBuiltInRuntimeMaterial(core.RenderManager3D, builtInShaderAssetLibrary, shaderFileName);
         }
 
         /// <summary>
@@ -4975,39 +4927,14 @@ namespace helengine.editor {
         /// <param name="shaderName">Shader name that was rebuilt.</param>
         /// <param name="packagePath">Package path containing the updated shader.</param>
         void HandleShaderBuilt(string shaderName, string packagePath) {
-            if (string.IsNullOrWhiteSpace(packagePath)) {
-                return;
-            }
-
-            lock (PendingShaderBuildNotificationLock) {
-                PendingShaderBuildNotifications.Enqueue(new KeyValuePair<string, string>(shaderName ?? string.Empty, packagePath));
-            }
+            ShaderBuildNotificationQueue.Enqueue(shaderName, packagePath);
         }
 
         /// <summary>
         /// Applies queued shader-build notifications on the editor frame thread so runtime renderer shader state is never mutated from a background watcher thread.
         /// </summary>
         void ProcessPendingShaderBuildNotifications() {
-            while (true) {
-                KeyValuePair<string, string> notification;
-                lock (PendingShaderBuildNotificationLock) {
-                    if (PendingShaderBuildNotifications.Count == 0) {
-                        return;
-                    }
-
-                    notification = PendingShaderBuildNotifications.Dequeue();
-                }
-
-                try {
-                    string shaderName = notification.Key;
-                    string packagePath = notification.Value;
-                    ShaderAsset shaderAsset = shaderPackageService.LoadShaderAssetFromPackage(packagePath);
-                    string shaderAssetId = string.IsNullOrWhiteSpace(shaderAsset.Id) ? shaderName : shaderAsset.Id;
-                    core.RenderManager3D.InvalidateShaderResources(shaderAssetId, shaderAsset);
-                } catch (Exception ex) {
-                    Logger.WriteError($"Shader reload failed for '{notification.Key}': {ex.Message}");
-                }
-            }
+            ShaderBuildNotificationQueue.ProcessPending();
         }
 
         /// <summary>
@@ -6026,97 +5953,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds a shader module manager for the current project path.
-        /// </summary>
-        /// <returns>Configured shader module manager.</returns>
-        ShaderModuleManager BuildShaderModuleManager(ShaderCompileTarget runtimeTarget) {
-            string projectRoot = EditorProjectMetadataResolver.ResolveProjectRootPath(projectPath);
-            string shaderRootPath = ResolveShaderRootPath(projectRoot);
-            string packageOutputPath = ResolveShaderPackageOutputPath(projectRoot);
-            ShaderPackageBuildOptions buildOptions = BuildShaderPackageOptions(runtimeTarget);
-            var options = new ShaderModuleManagerOptions(
-                shaderRootPath,
-                packageOutputPath,
-                buildOptions,
-                runtimeTarget,
-                ShaderBackends,
-                ShaderBuildDelayMilliseconds);
-            return new ShaderModuleManager(options);
-        }
-
-        /// <summary>
-        /// Builds the default shader package build options for the editor.
-        /// </summary>
-        /// <returns>Shader package build options.</returns>
-        ShaderPackageBuildOptions BuildShaderPackageOptions(ShaderCompileTarget runtimeTarget) {
-            ShaderTargetBuildOptions targetOptions;
-            switch (runtimeTarget) {
-                case ShaderCompileTarget.DirectX11:
-                    targetOptions = new ShaderTargetBuildOptions(ShaderCompileTarget.DirectX11, new ShaderModel(4, 0));
-                    break;
-                case ShaderCompileTarget.Vulkan:
-                    targetOptions = new ShaderTargetBuildOptions(ShaderCompileTarget.Vulkan, new ShaderModel(4, 0));
-                    break;
-                default:
-                    throw new InvalidOperationException("Unsupported runtime shader target.");
-            }
-
-            ShaderTargetBuildOptions[] targets = new[] { targetOptions };
-            ShaderDefine[] defines = Array.Empty<ShaderDefine>();
-            return new ShaderPackageBuildOptions(
-                targets,
-                ShaderBindingPolicies.Default,
-                true,
-                false,
-                false,
-                defines);
-        }
-
-        /// <summary>
-        /// Resolves the runtime shader target from the active renderer instance.
-        /// </summary>
-        /// <param name="render3D">Renderer instance used by the editor session.</param>
-        /// <returns>Shader compile target that matches the runtime renderer.</returns>
-        ShaderCompileTarget ResolveRuntimeShaderTarget(RenderManager3D render3D) {
-            if (render3D == null) {
-                throw new ArgumentNullException(nameof(render3D));
-            }
-
-            if (render3D is IShaderCompileTargetProvider targetProvider) {
-                return targetProvider.ShaderCompileTarget;
-            }
-
-            throw new InvalidOperationException("Unsupported renderer for shader runtime target resolution.");
-        }
-
-        /// <summary>
-        /// Resolves the shader root path for the current project.
-        /// </summary>
-        /// <param name="projectRoot">Project root path.</param>
-        /// <returns>Absolute shader root path.</returns>
-        string ResolveShaderRootPath(string projectRoot) {
-            if (string.IsNullOrWhiteSpace(projectRoot)) {
-                throw new InvalidOperationException("Project root path is required to locate shader sources.");
-            }
-
-            return ResolveAssetsRootPath(projectRoot);
-        }
-
-        /// <summary>
-        /// Resolves the assets root path for the current project.
-        /// </summary>
-        /// <param name="projectRoot">Project root path.</param>
-        /// <returns>Absolute assets root path.</returns>
-        string ResolveAssetsRootPath(string projectRoot) {
-            if (string.IsNullOrWhiteSpace(projectRoot)) {
-                throw new InvalidOperationException("Project root path is required to locate assets.");
-            }
-
-            string assetsRootPath = Path.Combine(projectRoot, "assets");
-            return Path.GetFullPath(assetsRootPath);
-        }
-
-        /// <summary>
         /// Creates the scene component persistence registry used by editor scene save and load workflows.
         /// </summary>
         /// <param name="scriptTypeResolver">Resolver backed by the currently loaded project script assemblies.</param>
@@ -6148,20 +5984,6 @@ namespace helengine.editor {
 
             applyProjectMenus(scriptHotReloadService.GetAvailableEditorMenuItems());
             return result;
-        }
-
-        /// <summary>
-        /// Resolves the shader package output path for the current project.
-        /// </summary>
-        /// <param name="projectRoot">Project root path.</param>
-        /// <returns>Absolute shader package output path.</returns>
-        string ResolveShaderPackageOutputPath(string projectRoot) {
-            if (string.IsNullOrWhiteSpace(projectRoot)) {
-                throw new InvalidOperationException("Project root path is required to locate shader output.");
-            }
-
-            string outputPath = Path.Combine(projectRoot, "cache", "shader-cache");
-            return Path.GetFullPath(outputPath);
         }
 
         /// <summary>
@@ -6392,7 +6214,7 @@ namespace helengine.editor {
             }
 
             string projectRootPath = EditorProjectMetadataResolver.ResolveProjectRootPath(projectPath);
-            string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
+            string projectAssetsRootPath = EditorSessionShaderMaterialBuilder.ResolveAssetsRootPath(projectRootPath);
             ContentManager projectContentManager = null;
             AssetImportManager manager = null;
             try {
