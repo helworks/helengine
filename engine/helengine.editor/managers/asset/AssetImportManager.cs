@@ -72,7 +72,7 @@ namespace helengine.editor {
         /// <summary>
         /// Content manager used to load source files, cached assets, and import settings.
         /// </summary>
-        readonly ContentManager AssetContentManager;
+        internal readonly ContentManager AssetContentManager;
 
         /// <summary>
         /// Applies processor settings to imported model assets before they are cached.
@@ -140,6 +140,21 @@ namespace helengine.editor {
             AudioImportHandler = new AudioAssetTypeImportHandler(this);
             ModelImportHandler = new ModelAssetTypeImportHandler(this);
             ImportHandlers = [TextureImportHandler, TextImportHandler, FontImportHandler, AudioImportHandler, ModelImportHandler];
+            TextureImportHandler.BindConflictOrder(
+                [TextImportHandler, FontImportHandler, ModelImportHandler],
+                [TextImportHandler, ModelImportHandler, FontImportHandler, AudioImportHandler]);
+            TextImportHandler.BindConflictOrder(
+                [TextureImportHandler, FontImportHandler, ModelImportHandler],
+                [TextureImportHandler, FontImportHandler, ModelImportHandler, AudioImportHandler]);
+            FontImportHandler.BindConflictOrder(
+                [TextureImportHandler, TextImportHandler, ModelImportHandler],
+                [TextureImportHandler, TextImportHandler, ModelImportHandler, AudioImportHandler]);
+            AudioImportHandler.BindConflictOrder(
+                [TextureImportHandler, TextImportHandler, FontImportHandler, ModelImportHandler],
+                [TextureImportHandler, TextImportHandler, FontImportHandler, ModelImportHandler]);
+            ModelImportHandler.BindConflictOrder(
+                [TextureImportHandler, TextImportHandler, FontImportHandler],
+                [TextureImportHandler, FontImportHandler, TextImportHandler, AudioImportHandler]);
             fileHasher = new AssetFileHasher(this.projectRootPath);
             AssetContentManager = contentManager;
             ModelAssetProcessor = new ModelAssetProcessor();
@@ -234,51 +249,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="registration">Importer registration data.</param>
         public void RegisterTextureImporter(TextureImporterRegistration registration) {
-            if (registration == null) {
-                throw new ArgumentNullException(nameof(registration));
-            }
-
-            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Texture importer '{registration.ImporterId}' is already registered.");
-            }
-
-            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
-            }
-
-            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
-            }
-
-            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
-            }
-
-            TextureImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
-            AssetContentManager.RegisterProcessor(
-                registration.ImporterId,
-                new TextureImporterContentProcessor(registration.Importer),
-                Array.Empty<string>());
-            string[] extensions = registration.Extensions;
-            for (int i = 0; i < extensions.Length; i++) {
-                string extension = NormalizeExtension(extensions[i]);
-                if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
-                }
-
-                if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
-                }
-
-                if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
-                }
-
-                RegisterTextureImporterExtension(extension, registration.ImporterId);
-                if (!TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    TextureImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
-                }
-            }
+            TextureImportHandler.Register(registration);
         }
 
         /// <summary>
@@ -622,34 +593,7 @@ namespace helengine.editor {
         /// <param name="extension">File extension to associate with the importer.</param>
         /// <param name="importerId">Identifier of the importer to use.</param>
         public void SetDefaultTextureImporter(string extension, string importerId) {
-            if (string.IsNullOrWhiteSpace(extension)) {
-                throw new ArgumentException("Extension must be provided.", nameof(extension));
-            }
-
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
-            }
-
-            EnsureTextureImporterExists(importerId);
-            string normalized = NormalizeExtension(extension);
-            if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a text importer.");
-            }
-
-            if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
-            }
-
-            if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
-            }
-
-            if (AudioImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
-            }
-
-            EnsureTextureImporterSupportsExtension(normalized, importerId);
-            TextureImportHandler.DefaultImporterIdsByExtension[normalized] = importerId;
+            TextureImportHandler.SetDefaultImporter(extension, importerId);
         }
 
         /// <summary>
@@ -773,10 +717,10 @@ namespace helengine.editor {
             TextureAssetImportSettings settings = LoadOrCreateTextureImportSettings(sourcePath);
             EnsureTextureImportSettingsValid(settings);
 
-            EnsureTextureImporterExists(settings.Importer.ImporterId);
+            TextureImportHandler.EnsureImporterExists(settings.Importer.ImporterId);
             TextureAsset asset = LoadVerifiedSource(
                 sourcePath,
-                stream => GetTextureImporter(settings.Importer.ImporterId).ImportTexture(stream));
+                stream => TextureImportHandler.GetImporter(settings.Importer.ImporterId).ImportTexture(stream));
 
             if (asset == null) {
                 throw new InvalidOperationException($"Texture importer '{settings.Importer.ImporterId}' did not return an asset.");
@@ -815,13 +759,13 @@ namespace helengine.editor {
             if (!TryLoadOrCreateTextureImportSettings(sourcePath, out TextureAssetImportSettings settings)) {
                 return false;
             }
-            if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
+            if (!TextureImportHandler.IsImporterRegistered(settings.Importer.ImporterId)) {
                 return false;
             }
 
             TextureAsset asset = LoadVerifiedSource(
                 sourcePath,
-                stream => GetTextureImporter(settings.Importer.ImporterId).ImportTexture(stream));
+                stream => TextureImportHandler.GetImporter(settings.Importer.ImporterId).ImportTexture(stream));
             if (asset == null) {
                 return false;
             }
@@ -1236,12 +1180,12 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
+                if (!TextureImportHandler.IsImporterRegistered(settings.Importer.ImporterId)) {
                     continue;
                 }
 
                 string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
-                if (File.Exists(outputPath) && TryLoadCachedTextureAsset(outputPath, out _)) {
+                if (File.Exists(outputPath) && TextureImportHandler.TryLoadCachedAsset(outputPath, out _)) {
                     continue;
                 }
 
@@ -1332,34 +1276,7 @@ namespace helengine.editor {
         /// <returns>True when the source can be resolved to a texture asset.</returns>
         public bool TryLoadTextureAsset(string sourcePath, out TextureAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
-
-            if (!File.Exists(sourcePath)) {
-                throw new FileNotFoundException("Texture source file was not found.", sourcePath);
-            }
-
-            TextureAssetImportSettings settings;
-            if (!TryLoadOrCreateTextureImportSettings(sourcePath, out settings)) {
-                asset = null;
-                return false;
-            }
-
-            if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
-                asset = null;
-                return false;
-            }
-
-            string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
-            if (!File.Exists(outputPath)) {
-                asset = ImportTexture(sourcePath);
-                return true;
-            }
-
-            if (TryLoadCachedTextureAsset(outputPath, out asset)) {
-                return true;
-            }
-
-            asset = ImportTexture(sourcePath);
-            return true;
+            return TextureImportHandler.TryLoadAsset(sourcePath, out asset);
         }
 
         /// <summary>
@@ -1375,7 +1292,7 @@ namespace helengine.editor {
 
             asset = null;
             string outputPath = GetTextureAssetPath(assetId);
-            if (TryLoadCachedTextureAsset(outputPath, out asset)) {
+            if (TextureImportHandler.TryLoadCachedAsset(outputPath, out asset)) {
                 return true;
             }
 
@@ -1389,7 +1306,7 @@ namespace helengine.editor {
                 return true;
             }
 
-            if (TryLoadCachedTextureAsset(outputPath, out asset)) {
+            if (TextureImportHandler.TryLoadCachedAsset(outputPath, out asset)) {
                 return true;
             }
 
@@ -1898,31 +1815,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to load a cached texture asset.
-        /// </summary>
-        /// <param name="outputPath">Absolute path to the cached texture asset.</param>
-        /// <param name="asset">Loaded texture asset when the cache file exists and contains the expected payload type.</param>
-        /// <returns>True when the cached asset was loaded successfully.</returns>
-        bool TryLoadCachedTextureAsset(string outputPath, out TextureAsset asset) {
-            if (string.IsNullOrWhiteSpace(outputPath)) {
-                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
-            }
-
-            asset = null;
-            Asset cachedAsset;
-            if (!TryLoadCachedAsset(outputPath, "TextureAsset", out cachedAsset)) {
-                return false;
-            }
-
-            if (cachedAsset is TextureAsset textureAsset) {
-                asset = textureAsset;
-                return true;
-            }
-
-            throw new InvalidOperationException($"Texture cache file '{outputPath}' did not contain a TextureAsset payload.");
-        }
-
-        /// <summary>
         /// Attempts to load a cached text asset.
         /// </summary>
         /// <param name="outputPath">Absolute path to the cached text asset.</param>
@@ -2093,7 +1985,7 @@ namespace helengine.editor {
         /// <param name="assetTypeName">Logical asset type name expected inside the cache file.</param>
         /// <param name="asset">Loaded cached asset when the file contains a serialized asset.</param>
         /// <returns>True when the cache file contained a serialized asset.</returns>
-        bool TryLoadCachedAsset(string outputPath, string assetTypeName, out Asset asset) {
+        internal bool TryLoadCachedAsset(string outputPath, string assetTypeName, out Asset asset) {
             if (string.IsNullOrWhiteSpace(outputPath)) {
                 throw new ArgumentException("Output path must be provided.", nameof(outputPath));
             } else if (string.IsNullOrWhiteSpace(assetTypeName)) {
@@ -3005,96 +2897,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Retrieves a texture importer by identifier.
-        /// </summary>
-        /// <param name="importerId">Identifier of the importer.</param>
-        /// <returns>Importer implementation.</returns>
-        ITextureImporter GetTextureImporter(string importerId) {
-            ITextureImporter importer;
-            if (TextureImportHandler.ImportersById.TryGetValue(importerId, out importer)) {
-                return importer;
-            }
-
-            throw new InvalidOperationException($"Texture importer '{importerId}' is not registered.");
-        }
-
-        /// <summary>
-        /// Ensures a texture importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        void EnsureTextureImporterExists(string importerId) {
-            if (!TextureImportHandler.ImportersById.ContainsKey(importerId)) {
-                throw new InvalidOperationException($"Texture importer '{importerId}' is not registered.");
-            }
-        }
-
-        /// <summary>
-        /// Checks whether a texture importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        /// <returns>True when a matching importer is registered.</returns>
-        bool IsTextureImporterRegistered(string importerId) {
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                return false;
-            }
-
-            return TextureImportHandler.ImportersById.ContainsKey(importerId);
-        }
-
-        /// <summary>
-        /// Records that one texture importer supports one file extension.
-        /// </summary>
-        /// <param name="extension">Normalized file extension.</param>
-        /// <param name="importerId">Importer identifier that supports the extension.</param>
-        void RegisterTextureImporterExtension(string extension, string importerId) {
-            if (string.IsNullOrWhiteSpace(extension)) {
-                throw new ArgumentException("Extension must be provided.", nameof(extension));
-            }
-
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
-            }
-
-            List<string> importerIds;
-            if (!TextureImportHandler.ImporterIdsByExtension.TryGetValue(extension, out importerIds)) {
-                importerIds = new List<string>();
-                TextureImportHandler.ImporterIdsByExtension.Add(extension, importerIds);
-            }
-
-            if (!importerIds.Contains(importerId, StringComparer.OrdinalIgnoreCase)) {
-                importerIds.Add(importerId);
-            }
-        }
-
-        /// <summary>
-        /// Ensures the supplied texture importer has been registered for the requested file extension.
-        /// </summary>
-        /// <param name="extension">Normalized file extension.</param>
-        /// <param name="importerId">Importer identifier to validate.</param>
-        void EnsureTextureImporterSupportsExtension(string extension, string importerId) {
-            if (string.IsNullOrWhiteSpace(extension)) {
-                throw new ArgumentException("Extension must be provided.", nameof(extension));
-            }
-
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
-            }
-
-            List<string> importerIds;
-            if (!TextureImportHandler.ImporterIdsByExtension.TryGetValue(extension, out importerIds)) {
-                throw new InvalidOperationException($"No texture importers are registered for '{extension}'.");
-            }
-
-            for (int index = 0; index < importerIds.Count; index++) {
-                if (string.Equals(importerIds[index], importerId, StringComparison.OrdinalIgnoreCase)) {
-                    return;
-                }
-            }
-
-            throw new InvalidOperationException($"Texture importer '{importerId}' does not support '{extension}'.");
-        }
-
-        /// <summary>
         /// Retrieves a text importer by identifier.
         /// </summary>
         /// <param name="importerId">Identifier of the importer.</param>
@@ -3379,7 +3181,7 @@ namespace helengine.editor {
             }
 
             if (!IsModelSourceForAssetId(sourcePath, settings)) {
-                if (IsTextureImporterRegistered(settings.Importer.ImporterId)) {
+                if (TextureImportHandler.IsImporterRegistered(settings.Importer.ImporterId)) {
                     string texturePlatformId = ResolveTextureProcessorPlatformId(settings);
                     TextureAssetProcessorSettings textureProcessorSettings = GetCurrentPlatformTextureProcessorSettings(settings);
                     string textureIdentity = string.Concat(
@@ -3776,7 +3578,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Import settings must specify an importer id.");
             }
 
-            if (!IsTextureImporterRegistered(settings.Importer.ImporterId)) {
+            if (!TextureImportHandler.IsImporterRegistered(settings.Importer.ImporterId)) {
                 return false;
             }
 
@@ -4371,7 +4173,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
-        string GetTextureAssetPath(string assetId) {
+        internal string GetTextureAssetPath(string assetId) {
             return GetImportAssetPath(assetId);
         }
 
@@ -4448,7 +4250,7 @@ namespace helengine.editor {
             }
         }
 
-        string NormalizeAndValidateAuthoredSourcePath(string sourcePath) {
+        internal string NormalizeAndValidateAuthoredSourcePath(string sourcePath) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             }
@@ -4553,7 +4355,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="extension">Extension string to normalize.</param>
         /// <returns>Normalized extension.</returns>
-        string NormalizeExtension(string extension) {
+        internal string NormalizeExtension(string extension) {
             if (string.IsNullOrWhiteSpace(extension)) {
                 throw new ArgumentException("Extension must be provided.", nameof(extension));
             }

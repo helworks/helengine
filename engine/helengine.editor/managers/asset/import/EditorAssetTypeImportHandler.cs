@@ -29,6 +29,37 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the foreign handlers consulted, in the exact reporting order, when this family registers a new importer.
+        /// </summary>
+        public EditorAssetTypeImportHandler[] RegistrationConflictHandlers { get; private set; }
+
+        /// <summary>
+        /// Gets the foreign handlers consulted, in the exact reporting order, when this family is asked to make one importer the default for an extension.
+        /// </summary>
+        public EditorAssetTypeImportHandler[] DefaultSelectionConflictHandlers { get; private set; }
+
+        /// <summary>
+        /// Records which foreign families this handler must not collide with, and in which order their collisions are reported.
+        /// The two orders differ per asset family and are preserved exactly as the manager reported them before handlers existed.
+        /// </summary>
+        /// <param name="registrationConflictHandlers">Handlers consulted while registering an importer.</param>
+        /// <param name="defaultSelectionConflictHandlers">Handlers consulted while selecting a default importer for an extension.</param>
+        public void BindConflictOrder(
+            EditorAssetTypeImportHandler[] registrationConflictHandlers,
+            EditorAssetTypeImportHandler[] defaultSelectionConflictHandlers) {
+            if (registrationConflictHandlers == null) {
+                throw new ArgumentNullException(nameof(registrationConflictHandlers));
+            }
+
+            if (defaultSelectionConflictHandlers == null) {
+                throw new ArgumentNullException(nameof(defaultSelectionConflictHandlers));
+            }
+
+            RegistrationConflictHandlers = registrationConflictHandlers;
+            DefaultSelectionConflictHandlers = defaultSelectionConflictHandlers;
+        }
+
+        /// <summary>
         /// Gets the asset family this handler owns.
         /// </summary>
         public abstract EditorAssetImportKind Kind { get; }
