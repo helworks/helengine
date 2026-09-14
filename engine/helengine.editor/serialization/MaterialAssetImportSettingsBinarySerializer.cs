@@ -89,8 +89,9 @@ namespace helengine.editor {
                 CurrentVersion,
                 "material asset import settings",
                 "material asset import settings",
-                "Regenerate the material import settings sidecar.",
-                out EngineBinaryHeader header);
+                "material asset import settings",
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the material import settings sidecar.");
 
             MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();

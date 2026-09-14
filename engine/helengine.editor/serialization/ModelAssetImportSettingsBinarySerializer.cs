@@ -87,8 +87,9 @@ namespace helengine.editor {
                 CurrentVersion,
                 "model asset import settings",
                 "model asset import settings",
-                "Regenerate the model import settings sidecar.",
-                out EngineBinaryHeader header);
+                "model asset import settings",
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the model import settings sidecar.");
 
             ModelAssetImportSettings settings = new ModelAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();

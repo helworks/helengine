@@ -93,8 +93,9 @@ namespace helengine.editor {
                 CurrentVersion,
                 "texture asset import settings",
                 "texture asset import settings",
-                "Regenerate the texture import settings sidecar.",
-                out EngineBinaryHeader header);
+                "texture asset import settings",
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the texture import settings sidecar.");
 
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();

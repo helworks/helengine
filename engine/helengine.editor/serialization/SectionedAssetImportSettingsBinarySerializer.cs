@@ -95,9 +95,10 @@ namespace helengine.editor {
                 (ushort)ValueKind,
                 CurrentVersion,
                 "asset import settings",
+                "asset import settings",
                 "sectioned asset import settings",
-                "Regenerate the sectioned asset import settings sidecar.",
-                out EngineBinaryHeader header);
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the sectioned asset import settings sidecar.");
 
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();

@@ -79,8 +79,9 @@ namespace helengine.editor {
                 CurrentVersion,
                 "material platform override",
                 "material platform override",
-                "Regenerate the material platform settings document.",
-                out EngineBinaryHeader header);
+                "material platform override",
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the material platform settings document.");
 
             MaterialAssetPlatformOverrideDocument document = new MaterialAssetPlatformOverrideDocument();
             document.PlatformId = reader.ReadString();

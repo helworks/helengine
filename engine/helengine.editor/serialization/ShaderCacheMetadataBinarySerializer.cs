@@ -65,8 +65,9 @@ namespace helengine.editor {
                 CurrentVersion,
                 "shader cache metadata",
                 "shader cache metadata",
-                string.Empty,
-                out EngineBinaryHeader header);
+                "shader cache metadata",
+                VersionedBinaryVersionMismatchStyle.ReceivedVersionOnly,
+                string.Empty);
 
             return new ShaderCacheMetadata {
                 SourceHash = reader.ReadString(),

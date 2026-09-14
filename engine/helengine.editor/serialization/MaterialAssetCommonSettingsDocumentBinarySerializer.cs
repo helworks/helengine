@@ -86,8 +86,9 @@ namespace helengine.editor {
                 CurrentVersion,
                 "material common settings",
                 "material common settings",
-                "Regenerate the material settings document.",
-                out EngineBinaryHeader header);
+                "material common settings",
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the material settings document.");
 
             MaterialAssetCommonSettingsDocument document = new MaterialAssetCommonSettingsDocument();
             document.AuthoringAssetId = reader.ReadString();

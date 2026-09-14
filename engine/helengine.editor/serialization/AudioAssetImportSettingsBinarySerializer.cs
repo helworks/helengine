@@ -87,8 +87,9 @@ namespace helengine.editor {
                 CurrentVersion,
                 "audio asset import settings",
                 "audio asset import settings",
-                "Regenerate the audio import settings sidecar.",
-                out EngineBinaryHeader header);
+                "audio asset import settings",
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the audio import settings sidecar.");
 
             AudioAssetImportSettings settings = new AudioAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
