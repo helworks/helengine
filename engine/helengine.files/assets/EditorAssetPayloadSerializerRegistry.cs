@@ -10,7 +10,11 @@ namespace helengine.files {
         /// </summary>
         static readonly IEditorAssetPayloadSerializer[] Serializers = new IEditorAssetPayloadSerializer[] {
             new TextureAssetPayloadSerializer(),
+            new ModelAssetPayloadSerializer(),
+            new ShaderAssetPayloadSerializer(),
             new TextAssetPayloadSerializer(),
+            new MaterialAssetPayloadSerializer(),
+            new PlatformMaterialAssetPayloadSerializer(),
             new AudioAssetPayloadSerializer()
         };
 

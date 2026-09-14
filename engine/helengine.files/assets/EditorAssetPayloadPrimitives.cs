@@ -64,5 +64,95 @@ namespace helengine.files {
         public static string ReadStringValue(EngineBinaryReader reader) {
             return reader.ReadString();
         }
+
+        /// <summary>
+        /// Writes one 16-bit unsigned integer array element.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="value">Value to serialize.</param>
+        public static void WriteUInt16Value(EngineBinaryWriter writer, ushort value) {
+            writer.WriteUInt16(value);
+        }
+
+        /// <summary>
+        /// Reads one 16-bit unsigned integer array element.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the value.</param>
+        /// <returns>Deserialized value.</returns>
+        public static ushort ReadUInt16Value(EngineBinaryReader reader) {
+            return reader.ReadUInt16();
+        }
+
+        /// <summary>
+        /// Writes one 32-bit unsigned integer array element.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="value">Value to serialize.</param>
+        public static void WriteUInt32Value(EngineBinaryWriter writer, uint value) {
+            writer.WriteUInt32(value);
+        }
+
+        /// <summary>
+        /// Reads one 32-bit unsigned integer array element.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the value.</param>
+        /// <returns>Deserialized value.</returns>
+        public static uint ReadUInt32Value(EngineBinaryReader reader) {
+            return reader.ReadUInt32();
+        }
+
+        /// <summary>
+        /// Writes one float2 array element through the writer's own vector primitive.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="value">Vector value to serialize.</param>
+        public static void WriteFloat2Value(EngineBinaryWriter writer, float2 value) {
+            writer.WriteFloat2(value);
+        }
+
+        /// <summary>
+        /// Reads one float2 array element through the reader's own vector primitive.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the value.</param>
+        /// <returns>Deserialized vector value.</returns>
+        public static float2 ReadFloat2Value(EngineBinaryReader reader) {
+            return reader.ReadFloat2();
+        }
+
+        /// <summary>
+        /// Writes one float3 array element through the writer's own vector primitive.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="value">Vector value to serialize.</param>
+        public static void WriteFloat3Value(EngineBinaryWriter writer, float3 value) {
+            writer.WriteFloat3(value);
+        }
+
+        /// <summary>
+        /// Reads one float3 array element through the reader's own vector primitive.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the value.</param>
+        /// <returns>Deserialized vector value.</returns>
+        public static float3 ReadFloat3Value(EngineBinaryReader reader) {
+            return reader.ReadFloat3();
+        }
+
+        /// <summary>
+        /// Writes one float4 array element through the writer's own vector primitive.
+        /// </summary>
+        /// <param name="writer">Destination writer for the payload.</param>
+        /// <param name="value">Vector value to serialize.</param>
+        public static void WriteFloat4Value(EngineBinaryWriter writer, float4 value) {
+            writer.WriteFloat4(value);
+        }
+
+        /// <summary>
+        /// Reads one float4 array element through the reader's own vector primitive.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the value.</param>
+        /// <returns>Deserialized vector value.</returns>
+        public static float4 ReadFloat4Value(EngineBinaryReader reader) {
+            return reader.ReadFloat4();
+        }
     }
 }
