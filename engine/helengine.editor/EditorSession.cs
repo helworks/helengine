@@ -684,7 +684,6 @@ namespace helengine.editor {
             ProjectLocalSettingsService = new EditorProjectLocalSettingsService(this.projectPath, ProjectSupportedPlatforms);
             ActiveProjectPlatform = ProjectLocalSettingsService.LoadActivePlatform();
             availablePlatformProviderResolver = platformProviderResolver ?? throw new ArgumentNullException(nameof(platformProviderResolver));
-            BuildMenuCoordinator = new EditorBuildMenuCoordinator(availablePlatformProviderResolver, RequiredEngineVersion);
             platformCatalogService = CreatePlatformCatalogService();
             EditorContentManager = new ContentManager(new HostFileSystemContentStreamSource(EditorSessionShaderMaterialBuilder.ResolveAssetsRootPath(this.projectPath)));
             constructionLedger.Register(EditorContentManager);
@@ -852,9 +851,19 @@ namespace helengine.editor {
             SceneModelRefreshService = new EditorSceneModelRefreshService(fileSystemModelResolver, core.ObjectManager);
             buildConfigService = new EditorBuildConfigService(this.projectPath);
             profileSettingsService = new EditorProfileSettingsService(this.projectPath);
+            BuildMenuCoordinator = new EditorBuildMenuCoordinator(
+                availablePlatformProviderResolver,
+                RequiredEngineVersion,
+                this.projectPath,
+                ProjectName,
+                ProjectVersion,
+                Importers,
+                this.uiFont,
+                scriptHotReloadService,
+                builtInShaderAssetLibrary);
             buildQueueService = new EditorBuildQueueService(
                 buildConfigService,
-                CreateBuildExecutorRouter());
+                BuildMenuCoordinator.CreateBuildExecutorRouter());
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
             SceneLifecycleService = new EditorSceneLifecycleService(sceneCatalogService);
             saveFileDialog = new SaveFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
@@ -5466,36 +5475,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates the build executor router from the dynamically discovered platform catalog.
-        /// </summary>
-        /// <returns>Router keyed by platform identifier.</returns>
-        EditorBuildExecutorRouter CreateBuildExecutorRouter() {
-            IReadOnlyList<AvailablePlatformDescriptor> platforms = availablePlatformProviderResolver.LoadPlatforms(RequiredEngineVersion);
-            Dictionary<string, IEditorBuildExecutor> executorsByPlatformId = new(StringComparer.OrdinalIgnoreCase);
-
-            for (int index = 0; index < platforms.Count; index++) {
-                AvailablePlatformDescriptor platform = platforms[index];
-                if (!platform.IsInstalled || string.IsNullOrWhiteSpace(platform.BuilderAssemblyPath)) {
-                    continue;
-                }
-
-                executorsByPlatformId[platform.Id] = new EditorPlatformBuildExecutor(
-                    projectPath,
-                    RequiredEngineVersion,
-                    ProjectName,
-                    ProjectVersion,
-                    Importers,
-                    platform,
-                    uiFont,
-                    null,
-                    scriptHotReloadService.ScriptTypeResolver,
-                    builtInShaderAssetLibrary);
-            }
-
-            return new EditorBuildExecutorRouter(executorsByPlatformId);
-        }
-
-        /// <summary>
         /// Returns true when the supplied platform exists in the current engine catalog and has an installed payload.
         /// </summary>
         /// <param name="platformId">Platform identifier to inspect.</param>
@@ -5540,16 +5519,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Forces the Platforms workflow when the current persisted project platform is no longer usable and a
-        /// replacement can actually be chosen; with no installed platforms the dialog would trap the user.
+        /// Opens the Platforms workflow when the build-menu coordinator reports that the persisted
+        /// project platform can no longer be used and a replacement is actually selectable.
         /// </summary>
         void PromptForPlatformSelectionIfRequired() {
-            if (CanUseProjectPlatform(ActiveProjectPlatform)) {
-                return;
-            }
-
-            if (ResolveInstalledPlatformIds().Count == 0) {
-                Logger.WriteError($"No engine platforms are installed for engine version '{RequiredEngineVersion}'. The engine host platform must be installed; this editor installation is broken.");
+            if (!BuildMenuCoordinator.RequiresPlatformSelectionPrompt(SupportedPlatforms, ActiveProjectPlatform)) {
                 return;
             }
 

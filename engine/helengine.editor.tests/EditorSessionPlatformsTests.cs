@@ -234,7 +234,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "projectPlatformsService", new EditorProjectPlatformsService(TempProjectRootPath));
             AvailablePlatformProviderResolver platformProviderResolver = new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath));
             SetPrivateField(session, "availablePlatformProviderResolver", platformProviderResolver);
-            SetPrivateField(session, "BuildMenuCoordinator", new EditorBuildMenuCoordinator(platformProviderResolver, "1.0.0-custom"));
+            SetPrivateField(session, "BuildMenuCoordinator", TestBuildMenuCoordinatorFactory.Create(platformProviderResolver, "1.0.0-custom", TempProjectRootPath));
 
             return session;
         }
