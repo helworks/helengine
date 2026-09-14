@@ -1,4 +1,3 @@
-using helengine.directx11;
 using System.Text.Json;
 
 namespace helengine.editor {
@@ -56,6 +55,10 @@ namespace helengine.editor {
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
         readonly EngineGeneratedMaterialCache GeneratedMaterialCache;
         readonly EditorSessionRendererResources RendererResources;
+        /// <summary>
+        /// Host-owned factory used to create one picking backend per viewport.
+        /// </summary>
+        readonly IEditorPickingBackendFactory PickingBackendFactory;
         Core OwnerCore => RendererResources.ObjectManager.OwnerCore ?? throw new InvalidOperationException("Viewport renderer resources must be bound to an owning core.");
 
         /// <summary>
@@ -66,6 +69,7 @@ namespace helengine.editor {
         /// <param name="toolbarIcons">Runtime textures used by the viewport toolbar.</param>
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile shared across viewports.</param>
         /// <param name="metrics">Scaled editor UI metrics used by the dockable viewport.</param>
+        /// <param name="pickingBackendFactory">Optional host factory that supplies one native picking backend per viewport.</param>
         public ViewportWorkspacePanelController(
             FontAsset font,
             FontAsset snapModifierFont,
@@ -74,7 +78,8 @@ namespace helengine.editor {
             EditorUiMetrics metrics,
             EditorBuiltInShaderAssetLibrary builtInShaderLibrary,
             EngineGeneratedMaterialCache generatedMaterialCache,
-            EditorSessionRendererResources rendererResources) {
+            EditorSessionRendererResources rendererResources,
+            IEditorPickingBackendFactory pickingBackendFactory = null) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
             }
@@ -94,6 +99,8 @@ namespace helengine.editor {
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
             RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
 
+            PickingBackendFactory = pickingBackendFactory;
+
             SelectionFramingService = new EditorViewportSelectionFramingService();
             State = CreateViewportState(font, snapModifierFont, toolbarIcons, sceneCanvasProfileState, metrics);
         }
@@ -102,10 +109,14 @@ namespace helengine.editor {
         /// Initializes one workspace controller around an existing viewport runtime stack.
         /// </summary>
         /// <param name="state">Existing viewport runtime stack owned by the controller.</param>
-        public ViewportWorkspacePanelController(EditorViewportWorkspaceState state, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache, EditorSessionRendererResources rendererResources) {
+        /// <param name="pickingBackendFactory">Optional host factory that supplies one native picking backend per viewport.</param>
+        public ViewportWorkspacePanelController(EditorViewportWorkspaceState state, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, EngineGeneratedMaterialCache generatedMaterialCache, EditorSessionRendererResources rendererResources,
+            IEditorPickingBackendFactory pickingBackendFactory = null) {
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
             GeneratedMaterialCache = generatedMaterialCache ?? throw new ArgumentNullException(nameof(generatedMaterialCache));
             RendererResources = rendererResources ?? throw new ArgumentNullException(nameof(rendererResources));
+            PickingBackendFactory = pickingBackendFactory;
+
             SelectionFramingService = new EditorViewportSelectionFramingService();
             State = state ?? throw new ArgumentNullException(nameof(state));
             WireViewportCallbacks(State);
@@ -216,6 +227,7 @@ namespace helengine.editor {
         /// <param name="toolbarIcons">Runtime textures used by the viewport toolbar.</param>
         /// <param name="sceneCanvasProfileState">Scene-owned canvas profile shared across viewports.</param>
         /// <param name="metrics">Scaled editor UI metrics used by the dockable viewport.</param>
+        /// <param name="pickingBackendFactory">Optional host factory that supplies one native picking backend per viewport.</param>
         /// <returns>Workspace state bundle for the new viewport instance.</returns>
         EditorViewportWorkspaceState CreateViewportState(
             FontAsset font,
@@ -279,10 +291,9 @@ namespace helengine.editor {
             CameraComponent pickerCamera = CreatePickerCamera();
             pickerCameraEntity.AddComponent(pickerCamera);
             RenderTarget pickerRenderTarget = null;
-            if (render3D is DirectX11Renderer3D pickerRenderer) {
-                pickerRenderTarget = render3D.CreateRenderTarget(DefaultPickerRenderTargetWidth, DefaultPickerRenderTargetHeight);
-                pickerCamera.RenderTarget = pickerRenderTarget;
-                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCamera, gizmoCamera, gizmoDrawableCollector, pickerCameraEntity, pickerCamera, pickerRenderer, RendererResources));
+            if (PickingBackendFactory != null && PickingBackendFactory.IsSupported) {
+                IEditorPickingBackend pickingBackend = PickingBackendFactory.Create(pickerCamera);
+                sceneCameraEntity.AddComponent(new EditorViewportPicker(sceneCamera, gizmoCamera, gizmoDrawableCollector, pickerCameraEntity, pickerCamera, pickingBackend, RendererResources));
             } else {
                 pickerCamera.RenderTarget = null;
             }

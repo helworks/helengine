@@ -1,8 +1,4 @@
-using helengine.directx11;
 using SharpDX;
-using SharpDX.Direct3D11;
-using SharpDX.DXGI;
-using System.Runtime.InteropServices;
 
 namespace helengine.editor {
     /// <summary>
@@ -17,10 +13,6 @@ namespace helengine.editor {
         /// Picker mode used to resolve hovered transform gizmo axis from pointer position.
         /// </summary>
         const int PickModeHoverAxis = 2;
-        /// <summary>
-        /// Shader path used by picker passes.
-        /// </summary>
-        const string PickerShaderPath = "shaders\\PickerShader.fx";
         /// <summary>
         /// Layer mask used for transform gizmo handles.
         /// </summary>
@@ -46,9 +38,9 @@ namespace helengine.editor {
         /// </summary>
         readonly CameraComponent PickerCamera;
         /// <summary>
-        /// Renderer used to execute picker passes.
+        /// Host-owned capability that executes picker passes and reads target pixels.
         /// </summary>
-        readonly helengine.directx11.DirectX11Renderer3D PickerRenderer;
+        readonly IEditorPickingBackend PickingBackend;
         /// <summary>Session-owned object and preview graph used for selection resolution.</summary>
         readonly EditorSessionRendererResources RendererResources;
         /// <summary>
@@ -68,22 +60,6 @@ namespace helengine.editor {
         /// </summary>
         float4 PendingViewport;
         /// <summary>
-        /// Staging texture used for CPU readback of pick results.
-        /// </summary>
-        Texture2D ReadbackTexture;
-        /// <summary>
-        /// Cached readback texture width.
-        /// </summary>
-        int ReadbackWidth;
-        /// <summary>
-        /// Cached readback texture height.
-        /// </summary>
-        int ReadbackHeight;
-        /// <summary>
-        /// Cached readback texture format.
-        /// </summary>
-        Format ReadbackFormat;
-        /// <summary>
         /// True when a pick render has completed and readback is pending.
         /// </summary>
         bool PickReadbackPending;
@@ -100,14 +76,14 @@ namespace helengine.editor {
         /// <param name="gizmoDrawableCollector">Collector that resolves the viewport-owned gizmo drawables used for hover picking.</param>
         /// <param name="pickerEntity">Entity owning the picker camera.</param>
         /// <param name="pickerCamera">Camera that renders the picker pass.</param>
-        /// <param name="pickerRenderer">Renderer that executes the picker pass.</param>
+        /// <param name="pickingBackend">Backend that executes picker passes and reads results.</param>
         public EditorViewportPicker(
             CameraComponent sceneCamera,
             CameraComponent gizmoCamera,
             EditorViewportGizmoDrawableCollector gizmoDrawableCollector,
             EditorEntity pickerEntity,
             CameraComponent pickerCamera,
-            helengine.directx11.DirectX11Renderer3D pickerRenderer,
+            IEditorPickingBackend pickingBackend,
             EditorSessionRendererResources rendererResources) {
             if (sceneCamera == null) {
                 throw new ArgumentNullException(nameof(sceneCamera));
@@ -124,8 +100,8 @@ namespace helengine.editor {
             if (pickerCamera == null) {
                 throw new ArgumentNullException(nameof(pickerCamera));
             }
-            if (pickerRenderer == null) {
-                throw new ArgumentNullException(nameof(pickerRenderer));
+            if (pickingBackend == null) {
+                throw new ArgumentNullException(nameof(pickingBackend));
             }
             if (rendererResources == null) {
                 throw new ArgumentNullException(nameof(rendererResources));
@@ -136,7 +112,7 @@ namespace helengine.editor {
             GizmoDrawableCollector = gizmoDrawableCollector;
             PickerEntity = pickerEntity;
             PickerCamera = pickerCamera;
-            PickerRenderer = pickerRenderer;
+            PickingBackend = pickingBackend;
             RendererResources = rendererResources;
             PickColors = new Dictionary<IDrawable3D, byte4>();
             PickEntitiesById = new Dictionary<int, Entity>();
@@ -192,8 +168,7 @@ namespace helengine.editor {
         /// <param name="entity">Entity losing the component.</param>
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
-            DisposeReadbackTexture();
-            DisposePickerRenderTarget();
+            PickingBackend.Dispose();
             EditorSessionInteractionServices.From(Parent).GizmoHover.ClearHoveredHandle(SceneCamera);
         }
 
@@ -225,11 +200,12 @@ namespace helengine.editor {
             SynchronizePickerCameraProjection(sourceCamera);
             PendingPointer = input.GetMousePosition();
             PendingViewport = sourceCamera.Viewport;
-
-            EnsurePickerRenderTargetSize(PendingViewport);
             RebuildPickerRenderQueue(pickLayerMask, pickMode);
             BuildPickColors(pickMode);
-            PickerRenderer.RequestShaderPass(PickerCamera, PickerCamera.RenderQueue3D, PickerShaderPath, GetPickColor);
+            double viewportWidth = Math.Max(1.0, PendingViewport.Z);
+            double viewportHeight = Math.Max(1.0, PendingViewport.W);
+            PickerCamera.Viewport = new float4(0f, 0f, (float)viewportWidth, (float)viewportHeight);
+            PickingBackend.Render(PickerCamera, PickColors);
             PendingPickMode = pickMode;
             PickReadbackPending = true;
         }
@@ -251,18 +227,15 @@ namespace helengine.editor {
         /// Resolves the most recent picker render into an entity selection or hovered gizmo axis.
         /// </summary>
         void ResolvePick() {
+            int targetWidth = Math.Max(1, (int)Math.Ceiling(Math.Max(1.0, PickerCamera.Viewport.Z)));
+            int targetHeight = Math.Max(1, (int)Math.Ceiling(Math.Max(1.0, PickerCamera.Viewport.W)));
+            int2 pixel = MapPointerToTarget(PendingPointer, PendingViewport, targetWidth, targetHeight);
+            if (!PickingBackend.TryReadPixel(pixel, out byte4 color)) {
+                return;
+            }
+
             PickReadbackPending = false;
-
-            RenderTarget renderTarget = PickerCamera.RenderTarget;
-            if (renderTarget == null) {
-                throw new InvalidOperationException("Picker camera must have a render target.");
-            }
-
-            if (renderTarget is not DirectX11RenderTargetResource directX11Target) {
-                throw new InvalidOperationException("Picker render target must be a DirectX11 render target.");
-            }
-
-            int pickId = ReadPickId(directX11Target);
+            int pickId = BuildPickId(color);
             if (PendingPickMode == PickModeSelection) {
                 ResolveSelectionPick(pickId);
                 return;
@@ -329,41 +302,6 @@ namespace helengine.editor {
 
             EditorSessionInteractionServices.From(Parent).GizmoHover.SetHoveredHandle(SceneCamera, hoveredAxis);
         }
-
-        /// <summary>
-        /// Ensures the picker camera render target and viewport match the active scene viewport size.
-        /// </summary>
-        /// <param name="viewport">Scene viewport used for picking.</param>
-        void EnsurePickerRenderTargetSize(float4 viewport) {
-            double viewportWidth = Math.Max(1.0, viewport.Z);
-            double viewportHeight = Math.Max(1.0, viewport.W);
-            int targetWidth = Math.Max(1, (int)Math.Ceiling(viewportWidth));
-            int targetHeight = Math.Max(1, (int)Math.Ceiling(viewportHeight));
-
-            bool requiresResize = true;
-            if (PickerCamera.RenderTarget is DirectX11RenderTargetResource currentTarget) {
-                requiresResize = currentTarget.Width != targetWidth || currentTarget.Height != targetHeight;
-            }
-
-            if (requiresResize) {
-                DisposePickerRenderTarget();
-                PickerCamera.RenderTarget = PickerRenderer.CreateRenderTarget(targetWidth, targetHeight);
-            }
-
-            PickerCamera.Viewport = new float4(0f, 0f, (float)viewportWidth, (float)viewportHeight);
-        }
-
-        /// <summary>
-        /// Disposes the picker camera render target when it is a DirectX11 resource.
-        /// </summary>
-        void DisposePickerRenderTarget() {
-            if (PickerCamera.RenderTarget is DirectX11RenderTargetResource target) {
-                target.Dispose();
-            }
-
-            PickerCamera.RenderTarget = null;
-        }
-
         /// <summary>
         /// Rebuilds the picker camera render queue for the requested layer mask.
         /// </summary>
@@ -477,54 +415,6 @@ namespace helengine.editor {
                 colorIndex++;
             }
         }
-
-        /// <summary>
-        /// Gets the pick color assigned to the specified drawable.
-        /// </summary>
-        /// <param name="drawable">Drawable to evaluate.</param>
-        /// <returns>Assigned pick color, or transparent when missing.</returns>
-        byte4 GetPickColor(IDrawable3D drawable) {
-            if (drawable != null && PickColors.TryGetValue(drawable, out byte4 color)) {
-                return color;
-            }
-
-            return new byte4(0, 0, 0, 0);
-        }
-
-        /// <summary>
-        /// Reads the pick identifier from the picker render target.
-        /// </summary>
-        /// <param name="target">Render target containing pick colors.</param>
-        /// <returns>Pick identifier derived from the target pixel.</returns>
-        int ReadPickId(DirectX11RenderTargetResource target) {
-            if (target == null) {
-                throw new ArgumentNullException(nameof(target));
-            }
-
-            byte4 color = ReadPickColor(target);
-            return BuildPickId(color);
-        }
-
-        /// <summary>
-        /// Reads the pick color from the picker render target for the pending pointer.
-        /// </summary>
-        /// <param name="target">Render target containing pick colors.</param>
-        /// <returns>Pick color from the target.</returns>
-        byte4 ReadPickColor(DirectX11RenderTargetResource target) {
-            EnsureReadbackTexture(target);
-
-            var context = PickerRenderer.Device.ImmediateContext;
-            context.CopyResource(target.ColorTexture, ReadbackTexture);
-
-            DataBox dataBox = context.MapSubresource(ReadbackTexture, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
-            try {
-                int2 pixel = MapPointerToTarget(PendingPointer, PendingViewport, target.Width, target.Height);
-                return ReadColorFromDataBox(dataBox, pixel, target.ColorFormat);
-            } finally {
-                context.UnmapSubresource(ReadbackTexture, 0);
-            }
-        }
-
         /// <summary>
         /// Maps a pointer location in the scene viewport to a pixel in the pick target.
         /// </summary>
@@ -554,32 +444,6 @@ namespace helengine.editor {
             int mappedY = ClampToRange((int)Math.Floor(clampedNormalizedY * targetHeight), 0, targetHeight - 1);
             return new int2(mappedX, mappedY);
         }
-
-        /// <summary>
-        /// Reads a color from the mapped staging texture data.
-        /// </summary>
-        /// <param name="dataBox">Mapped data box from the staging texture.</param>
-        /// <param name="pixel">Pixel coordinate to sample.</param>
-        /// <param name="format">Texture format used for the pick target.</param>
-        /// <returns>Decoded color at the requested pixel.</returns>
-        byte4 ReadColorFromDataBox(DataBox dataBox, int2 pixel, Format format) {
-            int offset = pixel.Y * dataBox.RowPitch + pixel.X * 4;
-            byte c0 = Marshal.ReadByte(dataBox.DataPointer, offset);
-            byte c1 = Marshal.ReadByte(dataBox.DataPointer, offset + 1);
-            byte c2 = Marshal.ReadByte(dataBox.DataPointer, offset + 2);
-            byte c3 = Marshal.ReadByte(dataBox.DataPointer, offset + 3);
-
-            if (format == Format.R8G8B8A8_UNorm) {
-                return new byte4(c0, c1, c2, c3);
-            }
-
-            if (format == Format.B8G8R8A8_UNorm) {
-                return new byte4(c2, c1, c0, c3);
-            }
-
-            throw new InvalidOperationException("Pick target format is not supported for readback.");
-        }
-
         /// <summary>
         /// Builds a pick identifier from a color.
         /// </summary>
@@ -588,51 +452,6 @@ namespace helengine.editor {
         int BuildPickId(byte4 color) {
             return color.X | (color.Y << 8) | (color.Z << 16);
         }
-
-        /// <summary>
-        /// Ensures the staging texture matches the picker render target.
-        /// </summary>
-        /// <param name="target">Render target used for picking.</param>
-        void EnsureReadbackTexture(DirectX11RenderTargetResource target) {
-            if (ReadbackTexture != null) {
-                if (ReadbackWidth == target.Width && ReadbackHeight == target.Height && ReadbackFormat == target.ColorFormat) {
-                    return;
-                }
-
-                DisposeReadbackTexture();
-            }
-
-            Texture2DDescription description = target.ColorTexture.Description;
-            if (description.SampleDescription.Count != 1 || description.SampleDescription.Quality != 0) {
-                throw new InvalidOperationException("Picker readback does not support multisampled render targets.");
-            }
-
-            description.Usage = ResourceUsage.Staging;
-            description.BindFlags = BindFlags.None;
-            description.CpuAccessFlags = CpuAccessFlags.Read;
-            description.OptionFlags = ResourceOptionFlags.None;
-
-            ReadbackTexture = new Texture2D(PickerRenderer.Device, description);
-            ReadbackWidth = target.Width;
-            ReadbackHeight = target.Height;
-            ReadbackFormat = target.ColorFormat;
-        }
-
-        /// <summary>
-        /// Disposes the staging texture used for pick readback.
-        /// </summary>
-        void DisposeReadbackTexture() {
-            if (ReadbackTexture == null) {
-                return;
-            }
-
-            ReadbackTexture.Dispose();
-            ReadbackTexture = null;
-            ReadbackWidth = 0;
-            ReadbackHeight = 0;
-            ReadbackFormat = Format.Unknown;
-        }
-
         /// <summary>
         /// Gets a display label for a picked entity.
         /// </summary>

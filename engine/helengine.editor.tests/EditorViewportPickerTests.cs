@@ -60,7 +60,7 @@ namespace helengine.editor.tests {
                     gizmoDrawableCollector,
                     pickerCameraEntity,
                     pickerCamera,
-                    TestDirectX11RenderManager3D.Create(),
+                    new TestEditorPickingBackend(),
                     generatedAssetGraph.RendererResources);
                 sceneCameraEntity.AddComponent(picker);
 
@@ -134,7 +134,7 @@ namespace helengine.editor.tests {
                     gizmoDrawableCollector,
                     pickerCameraEntity,
                     pickerCamera,
-                    TestDirectX11RenderManager3D.Create(),
+                    new TestEditorPickingBackend(),
                     generatedAssetGraph.RendererResources);
                 sceneCameraEntity.AddComponent(picker);
 
