@@ -67,6 +67,133 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Characterises the reflected read walk shared by the editor descriptor and the runtime deserializer by round-tripping
+        /// every directly supported leaf type from the editor write path through the runtime ordinal read path.
+        /// </summary>
+        [Fact]
+        public void RuntimeDeserializer_WhenEditorWroteEveryLeafType_RestoresIdenticalValues() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestEveryLeafTypeSerializableComponent component = new TestEveryLeafTypeSerializableComponent {
+                TextValue = "leaf-walker",
+                BoolValue = true,
+                ByteValue = 211,
+                UShortValue = 46517,
+                IntValue = -1234567,
+                UIntValue = 4000000001u,
+                LongValue = -9007199254740993L,
+                FloatValue = 1.25f,
+                DoubleValue = -0.0025d,
+                Int2Value = new int2(-7, 9),
+                Int4Value = new int4(1, -2, 3, -4),
+                Float2Value = new float2(0.5f, -0.25f),
+                Float3Value = new float3(1.5f, -2.5f, 3.5f),
+                Float4Value = new float4(-1f, 2f, -3f, 4f),
+                Byte4Value = new byte4(1, 2, 3, 4),
+                EntityReferenceValue = new SceneEntityReference { EntityId = 4242u }
+            };
+
+            SceneComponentAssetRecord taggedRecord = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            SceneComponentAssetRecord runtimeRecord = BuildRuntimeRecordFromDescriptor(component, taggedRecord);
+            AutomaticScriptComponentRuntimeDeserializer runtimeDeserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                runtimeRecord.ComponentTypeId,
+                typeof(TestEveryLeafTypeSerializableComponent));
+
+            TestEveryLeafTypeSerializableComponent restored = Assert.IsType<TestEveryLeafTypeSerializableComponent>(
+                runtimeDeserializer.Deserialize(runtimeRecord, null));
+
+            Assert.Equal(component.TextValue, restored.TextValue);
+            Assert.Equal(component.BoolValue, restored.BoolValue);
+            Assert.Equal(component.ByteValue, restored.ByteValue);
+            Assert.Equal(component.UShortValue, restored.UShortValue);
+            Assert.Equal(component.IntValue, restored.IntValue);
+            Assert.Equal(component.UIntValue, restored.UIntValue);
+            Assert.Equal(component.LongValue, restored.LongValue);
+            Assert.Equal(component.FloatValue, restored.FloatValue);
+            Assert.Equal(component.DoubleValue, restored.DoubleValue);
+            Assert.Equal(component.Int2Value, restored.Int2Value);
+            Assert.Equal(component.Int4Value, restored.Int4Value);
+            Assert.Equal(component.Float2Value, restored.Float2Value);
+            Assert.Equal(component.Float3Value, restored.Float3Value);
+            Assert.Equal(component.Float4Value, restored.Float4Value);
+            Assert.Equal(component.Byte4Value, restored.Byte4Value);
+            Assert.NotNull(restored.EntityReferenceValue);
+            Assert.Equal(component.EntityReferenceValue.EntityId, restored.EntityReferenceValue.EntityId);
+        }
+
+        /// <summary>
+        /// Characterises the recursive part of the reflected read walk by round-tripping an array of nested authored objects that
+        /// carry enum and double members from the editor write path through the runtime ordinal read path.
+        /// </summary>
+        [Fact]
+        public void RuntimeDeserializer_WhenEditorWroteNestedObjectArrayWithEnumMembers_RestoresIdenticalValues() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestSceneMemoryProbeSerializableComponent component = new TestSceneMemoryProbeSerializableComponent {
+                ProbeName = "walker-soak",
+                Loop = true,
+                Steps = new[] {
+                    new TestSceneMemoryProbeSerializableStep {
+                        ActionKind = TestSceneMemoryProbeSerializableActionKind.Wait,
+                        SceneId = "Scenes/MainMenuScene.helen",
+                        DurationSeconds = 5.0d,
+                        Label = "idle-menu"
+                    },
+                    new TestSceneMemoryProbeSerializableStep {
+                        ActionKind = TestSceneMemoryProbeSerializableActionKind.LoadSceneSingle,
+                        SceneId = "Scenes/AxisTest.helen",
+                        DurationSeconds = 0.25d,
+                        Label = "load-axis"
+                    }
+                }
+            };
+
+            SceneComponentAssetRecord taggedRecord = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            SceneComponentAssetRecord runtimeRecord = BuildRuntimeRecordFromDescriptor(component, taggedRecord);
+            AutomaticScriptComponentRuntimeDeserializer runtimeDeserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                runtimeRecord.ComponentTypeId,
+                typeof(TestSceneMemoryProbeSerializableComponent));
+
+            TestSceneMemoryProbeSerializableComponent restored = Assert.IsType<TestSceneMemoryProbeSerializableComponent>(
+                runtimeDeserializer.Deserialize(runtimeRecord, null));
+
+            Assert.Equal(component.ProbeName, restored.ProbeName);
+            Assert.Equal(component.Loop, restored.Loop);
+            Assert.NotNull(restored.Steps);
+            Assert.Equal(component.Steps.Length, restored.Steps.Length);
+            for (int index = 0; index < component.Steps.Length; index++) {
+                Assert.Equal(component.Steps[index].ActionKind, restored.Steps[index].ActionKind);
+                Assert.Equal(component.Steps[index].SceneId, restored.Steps[index].SceneId);
+                Assert.Equal(component.Steps[index].DurationSeconds, restored.Steps[index].DurationSeconds);
+                Assert.Equal(component.Steps[index].Label, restored.Steps[index].Label);
+            }
+        }
+
+        /// <summary>
+        /// Characterises the dictionary branch of the reflected read walk by round-tripping one string-keyed dictionary from the
+        /// editor write path through the runtime ordinal read path.
+        /// </summary>
+        [Fact]
+        public void RuntimeDeserializer_WhenEditorWroteStringKeyedDictionary_RestoresIdenticalEntries() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestDictionaryScriptComponent component = new TestDictionaryScriptComponent();
+            component.Labels["alpha"] = "first";
+            component.Labels["beta"] = "second";
+
+            SceneComponentAssetRecord taggedRecord = descriptor.SerializeComponent(component, 0, new EntityComponentSaveState());
+            SceneComponentAssetRecord runtimeRecord = BuildRuntimeRecordFromDescriptor(component, taggedRecord);
+            AutomaticScriptComponentRuntimeDeserializer runtimeDeserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                runtimeRecord.ComponentTypeId,
+                typeof(TestDictionaryScriptComponent));
+
+            TestDictionaryScriptComponent restored = Assert.IsType<TestDictionaryScriptComponent>(
+                runtimeDeserializer.Deserialize(runtimeRecord, null));
+
+            Assert.NotNull(restored.Labels);
+            Assert.Equal(component.Labels.Count, restored.Labels.Count);
+            Assert.Equal("first", restored.Labels["alpha"]);
+            Assert.Equal("second", restored.Labels["beta"]);
+        }
+
+        /// <summary>
         /// Ensures raw scene asset references survive the descriptor-to-runtime ordinal payload path without invoking an asset resolver.
         /// </summary>
         [Fact]
