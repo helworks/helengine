@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Provides stable string identifiers for runtime shader package targets.
+    /// Provides stable string identifiers for runtime shader package targets by reading the shared shader target descriptor table.
     /// </summary>
     public static class ShaderTargetNames {
         /// <summary>
@@ -9,22 +9,7 @@ namespace helengine {
         /// <param name="target">Target to map.</param>
         /// <returns>Lowercase target name.</returns>
         public static string GetTargetName(ShaderCompileTarget target) {
-            switch (target) {
-                case ShaderCompileTarget.DirectX9:
-                    return "dx9";
-                case ShaderCompileTarget.DirectX11:
-                    return "dx11";
-                case ShaderCompileTarget.DirectX12:
-                    return "dx12";
-                case ShaderCompileTarget.Vulkan:
-                    return "vulkan";
-                case ShaderCompileTarget.Metal:
-                    return "metal";
-                case ShaderCompileTarget.WiiU:
-                    return "wiiu";
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(target), "Unsupported compile target.");
-            }
+            return ShaderTargetDescriptors.Get(target).Name;
         }
 
         /// <summary>
@@ -34,34 +19,14 @@ namespace helengine {
         /// <param name="target">Parsed target value when successful.</param>
         /// <returns>True when the name matches a known target.</returns>
         public static bool TryParseTarget(string name, out ShaderCompileTarget target) {
-            if (string.IsNullOrWhiteSpace(name)) {
+            ShaderTargetDescriptor descriptor;
+            if (!ShaderTargetDescriptors.TryGetByName(name, out descriptor)) {
                 target = ShaderCompileTarget.DirectX11;
                 return false;
             }
 
-            switch (name.Trim().ToLowerInvariant()) {
-                case "dx9":
-                    target = ShaderCompileTarget.DirectX9;
-                    return true;
-                case "dx11":
-                    target = ShaderCompileTarget.DirectX11;
-                    return true;
-                case "dx12":
-                    target = ShaderCompileTarget.DirectX12;
-                    return true;
-                case "vulkan":
-                    target = ShaderCompileTarget.Vulkan;
-                    return true;
-                case "metal":
-                    target = ShaderCompileTarget.Metal;
-                    return true;
-                case "wiiu":
-                    target = ShaderCompileTarget.WiiU;
-                    return true;
-                default:
-                    target = ShaderCompileTarget.DirectX11;
-                    return false;
-            }
+            target = descriptor.Target;
+            return true;
         }
 
         /// <summary>

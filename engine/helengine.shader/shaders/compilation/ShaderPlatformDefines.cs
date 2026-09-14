@@ -45,27 +45,12 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Maps a target into its standard API define name.
+        /// Maps a target into its standard API define name using the shared shader target descriptor table.
         /// </summary>
         /// <param name="target">Compilation target.</param>
         /// <returns>Define name to emit.</returns>
         static string GetTargetDefineName(ShaderCompileTarget target) {
-            switch (target) {
-                case ShaderCompileTarget.DirectX9:
-                    return "HEL_API_DX9";
-                case ShaderCompileTarget.DirectX11:
-                    return "HEL_API_DX11";
-                case ShaderCompileTarget.DirectX12:
-                    return "HEL_API_DX12";
-                case ShaderCompileTarget.Vulkan:
-                    return "HEL_API_VULKAN";
-                case ShaderCompileTarget.Metal:
-                    return "HEL_API_METAL";
-                case ShaderCompileTarget.WiiU:
-                    return "HEL_API_WIIU";
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(target), "Unsupported compile target.");
-            }
+            return ShaderTargetDescriptors.Get(target).DefineName;
         }
     }
 }

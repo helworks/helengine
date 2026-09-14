@@ -363,23 +363,19 @@ namespace helengine.render.validation {
         /// <param name="target">Target backend to register.</param>
         /// <returns>Configured compile service.</returns>
         static ShaderCompileService CreateCompileService(ShaderCompileTarget target) {
+            ShaderBackendRegistry registry = new ShaderBackendRegistry();
+            registry.Register(new DirectX11ShaderBackend());
+            registry.Register(new VulkanShaderBackend());
+
+            if (!registry.ContainsTarget(target)) {
+                throw new InvalidOperationException("Unsupported shader compile target.");
+            }
+
             string includeRoot = Environment.CurrentDirectory;
-            var includeResolver = new ShaderFilesystemIncludeResolver(includeRoot);
-            var cache = new ShaderMemoryCompileCache();
-            var hasher = new ShaderSourceHasher();
-            var service = new ShaderCompileService(includeResolver, cache, hasher);
-
-            if (target == ShaderCompileTarget.DirectX11) {
-                service.RegisterBackend(new DirectX11ShaderBackend());
-                return service;
-            }
-
-            if (target == ShaderCompileTarget.Vulkan) {
-                service.RegisterBackend(new VulkanShaderBackend());
-                return service;
-            }
-
-            throw new InvalidOperationException("Unsupported shader compile target.");
+            ShaderFilesystemIncludeResolver includeResolver = new ShaderFilesystemIncludeResolver(includeRoot);
+            ShaderMemoryCompileCache cache = new ShaderMemoryCompileCache();
+            ShaderSourceHasher hasher = new ShaderSourceHasher();
+            return registry.CreateCompileService(includeResolver, cache, hasher);
         }
 
         /// <summary>
@@ -390,9 +386,7 @@ namespace helengine.render.validation {
         static ShaderCompileTarget ResolveTarget(RenderBackend backend) {
             if (backend == RenderBackend.DirectX11) {
                 return ShaderCompileTarget.DirectX11;
-            }
-
-            if (backend == RenderBackend.Vulkan) {
+            } else if (backend == RenderBackend.Vulkan) {
                 return ShaderCompileTarget.Vulkan;
             }
 
