@@ -78,30 +78,6 @@ namespace helengine.editor {
         /// </summary>
         internal static Func<IEditorWorkspacePanelController, IEditorWorkspacePanelController> WorkspacePanelControllerDecoratorForTests;
         /// <summary>
-        /// Identifies the pending scene transition that should continue after the unsaved-changes guard resolves.
-        /// </summary>
-        enum SceneTransitionKind {
-            /// <summary>
-            /// No transition is pending.
-            /// </summary>
-            None,
-
-            /// <summary>
-            /// The session should reset to a new empty scene.
-            /// </summary>
-            NewMap,
-
-            /// <summary>
-            /// The session should open one scene file chosen by the user.
-            /// </summary>
-            OpenMap,
-
-            /// <summary>
-            /// The editor host should close after the unsaved-changes guard resolves.
-            /// </summary>
-            Exit
-        }
-        /// <summary>
         /// Editor core driving updates and rendering.
         /// </summary>
         readonly EditorCore core;
@@ -517,21 +493,34 @@ namespace helengine.editor {
         /// </summary>
         EditorSceneLifecycleService SceneLifecycleService;
         /// <summary>
-        /// Absolute path to the current scene file, when one has been saved.
+        /// Absolute path to the current scene file, when one has been saved. Owned by the scene-lifecycle service.
         /// </summary>
-        string CurrentScenePath;
+        string CurrentScenePath {
+            get { return SceneLifecycleService.CurrentScenePath; }
+            set { SceneLifecycleService.CurrentScenePath = value; }
+        }
         /// <summary>
-        /// Scene-level settings tracked for the active editor scene.
+        /// Scene-level settings tracked for the active editor scene. Owned by the scene-lifecycle service.
         /// </summary>
-        SceneSettingsAsset CurrentSceneSettings;
+        SceneSettingsAsset CurrentSceneSettings {
+            get { return SceneLifecycleService.CurrentSceneSettings; }
+            set { SceneLifecycleService.CurrentSceneSettings = value; }
+        }
         /// <summary>
         /// Runtime assets owned by the currently loaded editor scene and released when the scene is replaced.
+        /// Owned by the scene-lifecycle service.
         /// </summary>
-        RuntimeSceneOwnedAssetSet CurrentSceneOwnedAssets;
+        RuntimeSceneOwnedAssetSet CurrentSceneOwnedAssets {
+            get { return SceneLifecycleService.CurrentSceneOwnedAssets; }
+            set { SceneLifecycleService.CurrentSceneOwnedAssets = value; }
+        }
         /// <summary>
-        /// True when the current scene contains unsaved editor changes.
+        /// True when the current scene contains unsaved editor changes. Owned by the scene-lifecycle service.
         /// </summary>
-        bool IsSceneDirty;
+        bool IsSceneDirty {
+            get { return SceneLifecycleService.IsSceneDirty; }
+            set { SceneLifecycleService.IsSceneDirty = value; }
+        }
         /// <summary>
         /// True when one scene mutation notification originated from the tracked undo/redo recorder instead of an untracked mutation path.
         /// </summary>
@@ -554,12 +543,18 @@ namespace helengine.editor {
         bool SuppressSelectionHistoryRecording;
         /// <summary>
         /// Pending scene transition waiting on the unsaved-changes guard or save flow.
+        /// Owned by the scene-lifecycle service.
         /// </summary>
-        SceneTransitionKind PendingSceneTransition;
+        SceneTransitionKind PendingSceneTransition {
+            get { return SceneLifecycleService.PendingSceneTransition; }
+        }
         /// <summary>
         /// Absolute path that should be opened when the pending transition resumes.
+        /// Owned by the scene-lifecycle service.
         /// </summary>
-        string PendingOpenScenePath;
+        string PendingOpenScenePath {
+            get { return SceneLifecycleService.PendingOpenScenePath; }
+        }
         /// <summary>
         /// Currently selected asset browser entry used for preview resolution.
         /// </summary>
@@ -678,6 +673,10 @@ namespace helengine.editor {
             RequiredEngineVersion = EditorProjectMetadataResolver.ResolveRequiredEngineVersion(projectDocument);
             ProjectName = EditorProjectMetadataResolver.ResolveProjectName(projectDocument);
             ProjectVersion = EditorProjectMetadataResolver.ResolveProjectVersion(projectDocument);
+            // The scene-lifecycle service owns the current-scene state that the window title reads,
+            // so it has to exist before the first title is composed later in this constructor.
+            sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
+            SceneLifecycleService = new EditorSceneLifecycleService(sceneCatalogService);
             projectPlatformsService = new EditorProjectPlatformsService(this.projectPath);
             projectEnvironmentsService = new EditorProjectEnvironmentsService(this.projectPath);
             ProjectSupportedPlatforms = projectPlatformsService.Load().SupportedPlatforms.AsReadOnly();
@@ -864,8 +863,6 @@ namespace helengine.editor {
             buildQueueService = new EditorBuildQueueService(
                 buildConfigService,
                 BuildMenuCoordinator.CreateBuildExecutorRouter());
-            sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
-            SceneLifecycleService = new EditorSceneLifecycleService(sceneCatalogService);
             saveFileDialog = new SaveFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
             openFileDialog = new OpenFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
@@ -928,8 +925,7 @@ namespace helengine.editor {
             CurrentSceneSettings = new SceneSettingsAsset();
             CurrentSceneOwnedAssets = EditorSceneLifecycleService.CreateEmptyOwnedAssetSet();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
-            PendingOpenScenePath = string.Empty;
-            PendingSceneTransition = SceneTransitionKind.None;
+            SceneLifecycleService.ClearPendingSceneTransition();
             IsSceneDirty = false;
             HasUntrackedSceneChangesSinceSave = false;
             // Register scene state ownership as soon as its containers exist.
@@ -2043,9 +2039,10 @@ namespace helengine.editor {
             RegisterCurrentScaleSensitiveDialogCleanup(ledger);
             ledger.Register(() => shaderModuleManager?.Dispose(), EditorSessionCleanupPhase.Dispose);
             // Keep fallback fixtures on the same ordered, dependency-aware
-            // scene teardown graph as the fully initialized session.
+            // scene teardown graph as the fully initialized session. A fixture
+            // that never built the scene-lifecycle service owns no scene assets.
             ledger.Register(() => {
-                if (CurrentSceneOwnedAssets != null) {
+                if (SceneLifecycleService != null && CurrentSceneOwnedAssets != null) {
                     ReleaseCurrentSceneOwnedAssets();
                 }
             }, EditorSessionCleanupPhase.OwnedState);
@@ -2746,8 +2743,7 @@ namespace helengine.editor {
         /// <param name="transitionKind">Transition that should continue once the guard is resolved.</param>
         /// <param name="openPath">Absolute scene path that should be opened when resuming an open-map transition.</param>
         void RequestSceneTransition(SceneTransitionKind transitionKind, string openPath) {
-            PendingSceneTransition = transitionKind;
-            PendingOpenScenePath = openPath ?? string.Empty;
+            SceneLifecycleService.BeginSceneTransition(transitionKind, openPath);
             if (reparentEntityDialog != null) {
                 reparentEntityDialog.Hide();
             }
@@ -2768,8 +2764,7 @@ namespace helengine.editor {
         /// <returns>True when the close request was deferred behind the unsaved-changes dialog.</returns>
         public bool RequestClose() {
             if (!IsSceneDirty) {
-                PendingSceneTransition = SceneTransitionKind.None;
-                PendingOpenScenePath = string.Empty;
+                SceneLifecycleService.ClearPendingSceneTransition();
                 if (reparentEntityDialog != null) {
                     reparentEntityDialog.Hide();
                 }
@@ -2779,8 +2774,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            PendingSceneTransition = SceneTransitionKind.Exit;
-            PendingOpenScenePath = string.Empty;
+            SceneLifecycleService.BeginSceneTransition(SceneTransitionKind.Exit, string.Empty);
             if (reparentEntityDialog != null) {
                 reparentEntityDialog.Hide();
             }
@@ -2797,8 +2791,7 @@ namespace helengine.editor {
             SceneTransitionKind pendingTransition = PendingSceneTransition;
             string pendingOpenPath = PendingOpenScenePath;
 
-            PendingSceneTransition = SceneTransitionKind.None;
-            PendingOpenScenePath = string.Empty;
+            SceneLifecycleService.ClearPendingSceneTransition();
             if (unsavedChangesDialog != null) {
                 unsavedChangesDialog.Hide();
             }
@@ -3862,12 +3855,8 @@ namespace helengine.editor {
         /// Reopens the last scene recorded for this project when it still exists on disk.
         /// </summary>
         void RestoreLastOpenScene() {
-            if (sessionStateService == null) {
-                return;
-            }
-
-            string lastScenePath = sessionStateService.TryGetLastScenePath();
-            if (string.IsNullOrWhiteSpace(lastScenePath) || !File.Exists(lastScenePath)) {
+            string lastScenePath = SceneLifecycleService.ResolveRestorableScenePath(sessionStateService);
+            if (string.IsNullOrWhiteSpace(lastScenePath)) {
                 return;
             }
 
@@ -4021,8 +4010,7 @@ namespace helengine.editor {
         /// Handles the Cancel action from the unsaved-changes dialog.
         /// </summary>
         void HandleUnsavedChangesCancelRequested() {
-            PendingSceneTransition = SceneTransitionKind.None;
-            PendingOpenScenePath = string.Empty;
+            SceneLifecycleService.ClearPendingSceneTransition();
             if (unsavedChangesDialog != null) {
                 unsavedChangesDialog.Hide();
             }
@@ -4256,20 +4244,20 @@ namespace helengine.editor {
         /// <param name="rootEntities">Root entities that represent the current editor-authored scene.</param>
         /// <param name="sceneSettings">Scene settings restored from the authored scene file.</param>
         void TrackCurrentSceneInSceneManager(IReadOnlyList<Entity> rootEntities, SceneSettingsAsset sceneSettings) {
-            SceneLifecycleService.TrackCurrentScene(core.SceneManager, CurrentScenePath, rootEntities, sceneSettings);
+            SceneLifecycleService.TrackCurrentScene(core.SceneManager, rootEntities, sceneSettings);
         }
 
         /// <summary>
         /// Withdraws the current editor-authored scene from runtime scene-manager tracking before the editor replaces or clears the scene.
         /// </summary>
         void UntrackCurrentSceneFromSceneManager() {
-            // A session that never opened a saved scene has nothing tracked, and teardown reaches
-            // this before the scene collaborators exist at all.
-            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
+            // Teardown reaches this before the scene collaborators exist at all for fixtures and
+            // aborted constructions; without the service there is no tracked scene to withdraw.
+            if (SceneLifecycleService == null) {
                 return;
             }
 
-            SceneLifecycleService.UntrackCurrentScene(core.SceneManager, CurrentScenePath);
+            SceneLifecycleService.UntrackCurrentScene(core.SceneManager);
         }
 
         /// <summary>

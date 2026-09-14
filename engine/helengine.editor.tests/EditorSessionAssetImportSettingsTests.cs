@@ -393,6 +393,7 @@ namespace helengine.editor.tests {
                 ],
                 ["android", "windows"]);
 
+            SetPrivateField(session, "SceneLifecycleService", new EditorSceneLifecycleService(new EditorProjectSceneCatalogService(TempProjectRootPath)));
             SetPrivateField(session, "assetImportManager", manager);
             SetPrivateField(session, "AssetSelectionCoordinator", new EditorAssetSelectionCoordinator(manager));
             SetPrivateField(session, "propertiesPanel", panel);

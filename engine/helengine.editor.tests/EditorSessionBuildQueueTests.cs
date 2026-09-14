@@ -609,7 +609,6 @@ namespace helengine.editor.tests {
                 "windows"
             });
             SetPrivateField(session, "ActiveProjectPlatform", activePlatform);
-            SetPrivateField(session, "CurrentScenePath", CurrentScenePath);
             SetPrivateField(session, "ProjectLocalSettingsService", new EditorProjectLocalSettingsService(TempProjectRootPath, [
                 "windows"
             ]));
@@ -622,6 +621,7 @@ namespace helengine.editor.tests {
             EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
             SetPrivateField(session, "sceneCatalogService", sceneCatalogService);
             SetPrivateField(session, "SceneLifecycleService", new EditorSceneLifecycleService(sceneCatalogService));
+            SetPrivateField(session, "CurrentScenePath", CurrentScenePath);
             SetPrivateField(session, "RequiredEngineVersion", "1.0.0-custom");
             AvailablePlatformProviderResolver platformProviderResolver = new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath));
             SetPrivateField(session, "availablePlatformProviderResolver", platformProviderResolver);
@@ -689,8 +689,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = FindPrivateField(target.GetType(), fieldName);
-            return Assert.IsType<T>(field.GetValue(target));
+            return Assert.IsType<T>(EditorSessionPrivateMemberAccessor.GetValue(target, fieldName));
         }
 
         /// <summary>
@@ -700,25 +699,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to assign.</param>
         /// <param name="value">Value assigned to the field.</param>
         void SetPrivateField(object target, string fieldName, object value) {
-            FieldInfo field = FindPrivateField(target.GetType(), fieldName);
-            field.SetValue(target, value);
-        }
-
-        /// <summary>
-        /// Finds one non-public instance field declared on the supplied type or one of its base types.
-        /// </summary>
-        /// <param name="type">Type whose field hierarchy should be searched.</param>
-        /// <param name="fieldName">Name of the field to resolve.</param>
-        /// <returns>Resolved field metadata.</returns>
-        FieldInfo FindPrivateField(Type type, string fieldName) {
-            FieldInfo field = null;
-            Type currentType = type;
-            while (currentType != null && field == null) {
-                field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-                currentType = currentType.BaseType;
-            }
-
-            return field ?? throw new InvalidOperationException("Could not find field '" + fieldName + "'.");
+            EditorSessionPrivateMemberAccessor.SetValue(target, fieldName, value);
         }
 
         /// <summary>

@@ -262,6 +262,7 @@ namespace helengine.editor.tests {
                 new ComponentHistoryAdapterRegistry(),
                 () => InteractionServices.SceneMutation.MarkSceneMutated());
 
+            SetPrivateField(session, "SceneLifecycleService", new EditorSceneLifecycleService(new EditorProjectSceneCatalogService(TempProjectRootPath)));
             SetPrivateField(session, "core", CoreValue);
             SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);
             SetPrivateField(session, "reparentEntityDialog", reparentEntityDialog);
@@ -309,8 +310,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            return Assert.IsType<T>(field.GetValue(target));
+            return Assert.IsType<T>(EditorSessionPrivateMemberAccessor.GetValue(target, fieldName));
         }
 
         /// <summary>
@@ -320,8 +320,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to assign.</param>
         /// <param name="value">Value assigned to the field.</param>
         void SetPrivateField(object target, string fieldName, object value) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            field.SetValue(target, value);
+            EditorSessionPrivateMemberAccessor.SetValue(target, fieldName, value);
         }
 
         /// <summary>

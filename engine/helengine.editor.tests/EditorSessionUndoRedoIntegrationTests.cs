@@ -696,12 +696,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to assign.</param>
         /// <param name="value">Value assigned to the field.</param>
         void SetPrivateField(object target, string fieldName, object value) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field == null) {
-                throw new InvalidOperationException("Expected private field was not found.");
-            }
-
-            field.SetValue(target, value);
+            EditorSessionPrivateMemberAccessor.SetValue(target, fieldName, value);
         }
 
         /// <summary>
@@ -712,12 +707,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            if (field == null) {
-                throw new InvalidOperationException("Expected private field was not found.");
-            }
-
-            return Assert.IsType<T>(field.GetValue(target));
+            return Assert.IsType<T>(EditorSessionPrivateMemberAccessor.GetValue(target, fieldName));
         }
 
         /// <summary>

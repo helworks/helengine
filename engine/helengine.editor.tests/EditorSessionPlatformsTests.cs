@@ -221,6 +221,7 @@ namespace helengine.editor.tests {
             AssetImportManager assetImportManager = new AssetImportManager(TempProjectRootPath, new ContentManager(new HostFileSystemContentStreamSource(Path.Combine(TempProjectRootPath, "assets"))));
             assetImportManager.CurrentPlatformId = activePlatform;
 
+            SetPrivateField(session, "SceneLifecycleService", new EditorSceneLifecycleService(new EditorProjectSceneCatalogService(TempProjectRootPath)));
             SetPrivateField(session, "projectPath", TempProjectRootPath);
             SetPrivateField(session, "RequiredEngineVersion", "1.0.0-custom");
             SetPrivateField(session, "ProjectSupportedPlatforms", supportedPlatforms);
@@ -331,8 +332,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to read.</param>
         /// <returns>Field value cast to the requested type.</returns>
         T GetPrivateField<T>(object target, string fieldName) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            return Assert.IsType<T>(field.GetValue(target));
+            return Assert.IsType<T>(EditorSessionPrivateMemberAccessor.GetValue(target, fieldName));
         }
 
         /// <summary>
@@ -342,8 +342,7 @@ namespace helengine.editor.tests {
         /// <param name="fieldName">Name of the field to assign.</param>
         /// <param name="value">Value assigned to the field.</param>
         void SetPrivateField(object target, string fieldName, object value) {
-            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            field.SetValue(target, value);
+            EditorSessionPrivateMemberAccessor.SetValue(target, fieldName, value);
         }
 
         /// <summary>
