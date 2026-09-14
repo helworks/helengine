@@ -127,37 +127,9 @@ namespace helengine.vulkan {
         /// </summary>
         int recordedQuadCount;
         /// <summary>
-        /// Current scissor rectangle in physical pixels for the active camera viewport.
+        /// Tracks nested clip regions during traversal and applies them to the Vulkan dynamic scissor state.
         /// </summary>
-        int currentScissorX;
-        /// <summary>
-        /// Current scissor rectangle in physical pixels for the active camera viewport.
-        /// </summary>
-        int currentScissorY;
-        /// <summary>
-        /// Current scissor rectangle in physical pixels for the active camera viewport.
-        /// </summary>
-        int currentScissorWidth;
-        /// <summary>
-        /// Current scissor rectangle in physical pixels for the active camera viewport.
-        /// </summary>
-        int currentScissorHeight;
-        /// <summary>
-        /// Reusable helper that resolves nested clip chains for the current drawable.
-        /// </summary>
-        readonly ClipRegionStackBuilder2D ClipRegionStackBuilder;
-        /// <summary>
-        /// Clip owners currently active in the render traversal.
-        /// </summary>
-        readonly List<IClipRegion2D> ActiveClipChain;
-        /// <summary>
-        /// Clip owners resolved for the drawable currently being visited.
-        /// </summary>
-        readonly List<IClipRegion2D> NextClipChain;
-        /// <summary>
-        /// Effective clip rectangles for the active clip chain.
-        /// </summary>
-        readonly List<float4> ActiveClipRects;
+        readonly VulkanClipScissorStack ClipScissorStack;
         /// <summary>
         /// Tracks whether the renderer has been disposed.
         /// </summary>
@@ -170,10 +142,7 @@ namespace helengine.vulkan {
         public VulkanRenderer2D(VulkanContext context) {
             this.context = context;
             quadIndices = new uint[] { 0, 1, 2, 2, 3, 0 };
-            ClipRegionStackBuilder = new ClipRegionStackBuilder2D();
-            ActiveClipChain = new List<IClipRegion2D>();
-            NextClipChain = new List<IClipRegion2D>();
-            ActiveClipRects = new List<float4>();
+            ClipScissorStack = new VulkanClipScissorStack(this);
 
             CreateDescriptorSetLayout();
             CreatePipelineLayout();
@@ -225,13 +194,8 @@ namespace helengine.vulkan {
             currentViewportOffsetX = 0;
             currentViewportOffsetY = 0;
             recordedQuadCount = 0;
-            currentScissorX = 0;
-            currentScissorY = 0;
-            currentScissorWidth = 0;
-            currentScissorHeight = 0;
-            ActiveClipChain.Clear();
-            NextClipChain.Clear();
-            ActiveClipRects.Clear();
+            ClipScissorStack.SetCameraScissor(0, 0, 0, 0);
+            ClipScissorStack.Clear();
         }
 
         /// <summary>
@@ -243,9 +207,7 @@ namespace helengine.vulkan {
                 throw new InvalidOperationException("Cannot render 2D camera outside of an active frame.");
             }
 
-            ActiveClipChain.Clear();
-            NextClipChain.Clear();
-            ActiveClipRects.Clear();
+            ClipScissorStack.Clear();
 
             float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, currentSurface.LogicalWidth, currentSurface.LogicalHeight);
             double offsetX = viewport.X;
@@ -274,10 +236,11 @@ namespace helengine.vulkan {
             currentViewportOffsetY = snappedPixelOffsetY / pixelScaleY;
             currentViewportWidth = snappedPixelWidth / pixelScaleX;
             currentViewportHeight = snappedPixelHeight / pixelScaleY;
-            currentScissorX = (int)snappedPixelOffsetX;
-            currentScissorY = (int)snappedPixelOffsetY;
-            currentScissorWidth = (int)snappedPixelWidth;
-            currentScissorHeight = (int)snappedPixelHeight;
+            ClipScissorStack.SetClipViewport(
+                new float4((float)currentViewportOffsetX, (float)currentViewportOffsetY, (float)currentViewportWidth, (float)currentViewportHeight),
+                pixelScaleX,
+                pixelScaleY);
+            ClipScissorStack.SetCameraScissor((int)snappedPixelOffsetX, (int)snappedPixelOffsetY, (int)snappedPixelWidth, (int)snappedPixelHeight);
             SetViewportAndScissor(snappedPixelOffsetX, snappedPixelOffsetY, snappedPixelWidth, snappedPixelHeight);
 
             IRenderQueue2D renderQueue = camera.RenderQueue2D;
@@ -293,8 +256,7 @@ namespace helengine.vulkan {
                 return;
             }
 
-            ClipRegionStackBuilder.BuildClipChain(drawable, NextClipChain);
-            SyncClipTransitions();
+            ClipScissorStack.SyncForDrawable(drawable);
             drawable.Draw();
         }
 
@@ -465,14 +427,14 @@ namespace helengine.vulkan {
                 content = TextLayoutUtils.WrapText(content, font, Math.Max(1, (int)Math.Round(text.Size.X / fontScale)));
             }
 
-            double[] lineOffsets = BuildTextLineOffsets(text, font, content, fontScale, texture.Width);
+            double[] lineOffsets = TextLineOffsets2D.Build(text, font, content, fontScale, texture.Width);
             double offsetX = 0.0;
             double offsetY = 0.0;
             double lineHeight = Math.Max(font.LineHeight * fontScale, 1.0f);
             double baseX = Math.Round(position.X);
             double baseY = Math.Round(position.Y);
             int lineIndex = 0;
-            double lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
+            double lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
 
             for (int i = 0; i < content.Length; i++) {
                 char c = content[i];
@@ -481,7 +443,7 @@ namespace helengine.vulkan {
                     offsetY += lineHeight;
                     offsetX = 0.0;
                     lineIndex++;
-                    lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
+                    lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
                     continue;
                 }
 
@@ -519,56 +481,6 @@ namespace helengine.vulkan {
 
                 offsetX += advance;
             }
-        }
-
-        /// <summary>
-        /// Builds one horizontal offset per rendered text line so authored text alignment is respected consistently across wrapped and non-wrapped content.
-        /// </summary>
-        /// <param name="text">Text drawable that owns the authored layout box.</param>
-        /// <param name="font">Font used to render the text.</param>
-        /// <param name="content">Final rendered text content after wrapping has been applied.</param>
-        /// <param name="fontScale">Resolved glyph scale.</param>
-        /// <param name="textureWidth">Font-atlas texture width used to resolve glyph bounds.</param>
-        /// <returns>One horizontal offset per rendered line.</returns>
-        static double[] BuildTextLineOffsets(ITextDrawable2D text, FontAsset font, string content, double fontScale, int textureWidth) {
-            if (text == null) {
-                throw new ArgumentNullException(nameof(text));
-            } else if (font == null) {
-                throw new ArgumentNullException(nameof(font));
-            } else if (content == null) {
-                throw new ArgumentNullException(nameof(content));
-            } else if (fontScale <= 0d) {
-                throw new ArgumentOutOfRangeException(nameof(fontScale), "Font scale must be greater than zero.");
-            } else if (textureWidth <= 0) {
-                throw new ArgumentOutOfRangeException(nameof(textureWidth), "Texture width must be greater than zero.");
-            }
-
-            string[] lines = content.Split('\n');
-            double[] lineOffsets = new double[lines.Length];
-            for (int index = 0; index < lines.Length; index++) {
-                double visibleWidth = TextLayoutAlignmentUtils.MeasureVisibleLineWidth(lines[index], font, fontScale, textureWidth);
-                lineOffsets[index] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
-            }
-
-            return lineOffsets;
-        }
-
-        /// <summary>
-        /// Resolves one previously measured line offset or returns zero when the requested line index is outside the rendered line array.
-        /// </summary>
-        /// <param name="lineOffsets">Per-line horizontal offsets computed for the rendered text.</param>
-        /// <param name="lineIndex">Rendered line index whose offset should be returned.</param>
-        /// <returns>Horizontal line offset in pixels.</returns>
-        static double ResolveTextLineOffset(double[] lineOffsets, int lineIndex) {
-            if (lineOffsets == null) {
-                throw new ArgumentNullException(nameof(lineOffsets));
-            }
-
-            if (lineIndex < 0 || lineIndex >= lineOffsets.Length) {
-                return 0d;
-            }
-
-            return lineOffsets[lineIndex];
         }
 
         /// <summary>
@@ -1593,10 +1505,7 @@ namespace helengine.vulkan {
 
             viewportWidth = Math.Min(viewportWidth, Math.Max(1, maxWidth - viewportX));
             viewportHeight = Math.Min(viewportHeight, Math.Max(1, maxHeight - viewportY));
-            currentScissorX = viewportX;
-            currentScissorY = viewportY;
-            currentScissorWidth = viewportWidth;
-            currentScissorHeight = viewportHeight;
+            ClipScissorStack.SetCameraScissor(viewportX, viewportY, viewportWidth, viewportHeight);
 
             Viewport vkViewport = new Viewport {
                 X = viewportX,
@@ -1619,91 +1528,16 @@ namespace helengine.vulkan {
         }
 
         /// <summary>
-        /// Synchronizes the active clip stack with the drawable currently being visited and applies the resulting scissor rectangle.
+        /// Records one scissor rectangle, expressed in physical pixels, into the active command buffer.
         /// </summary>
-        void SyncClipTransitions() {
-            int sharedPrefixLength = GetSharedPrefixLength();
-
-            while (ActiveClipChain.Count > sharedPrefixLength) {
-                ActiveClipChain.RemoveAt(ActiveClipChain.Count - 1);
-                ActiveClipRects.RemoveAt(ActiveClipRects.Count - 1);
-            }
-
-            while (ActiveClipChain.Count < NextClipChain.Count) {
-                IClipRegion2D clipRegion = NextClipChain[ActiveClipChain.Count];
-                float4 resolvedRect = ResolveClipRectForPush(clipRegion);
-                ActiveClipChain.Add(clipRegion);
-                ActiveClipRects.Add(resolvedRect);
-            }
-
-            if (ActiveClipRects.Count > 0) {
-                ApplyClipScissor(ActiveClipRects[ActiveClipRects.Count - 1]);
-            } else {
-                ApplyCameraScissor();
-            }
-        }
-
-        /// <summary>
-        /// Returns the number of leading clip owners shared between the current and next clip chains.
-        /// </summary>
-        /// <returns>Shared clip-chain prefix length.</returns>
-        int GetSharedPrefixLength() {
-            int sharedPrefixLength = 0;
-            int maxSharedLength = Math.Min(ActiveClipChain.Count, NextClipChain.Count);
-            while (sharedPrefixLength < maxSharedLength &&
-                   ReferenceEquals(ActiveClipChain[sharedPrefixLength], NextClipChain[sharedPrefixLength])) {
-                sharedPrefixLength++;
-            }
-
-            return sharedPrefixLength;
-        }
-
-        /// <summary>
-        /// Resolves one clip region against the current active clip stack.
-        /// </summary>
-        /// <param name="clipRegion">Clip region to resolve.</param>
-        /// <returns>Effective clip rectangle in logical screen coordinates.</returns>
-        float4 ResolveClipRectForPush(IClipRegion2D clipRegion) {
-            float4 resolvedRect = clipRegion.GetClipRect();
-            if (ActiveClipRects.Count <= 0) {
-                return resolvedRect;
-            }
-
-            float4 currentRect = ActiveClipRects[ActiveClipRects.Count - 1];
-            return ClipRegionStackBuilder.Intersect(currentRect, resolvedRect);
-        }
-
-        /// <summary>
-        /// Restores the camera viewport scissor after the clip stack empties.
-        /// </summary>
-        unsafe void ApplyCameraScissor() {
+        /// <param name="x">Left edge in physical pixels.</param>
+        /// <param name="y">Top edge in physical pixels.</param>
+        /// <param name="width">Width in physical pixels.</param>
+        /// <param name="height">Height in physical pixels.</param>
+        internal unsafe void SetScissorRect(int x, int y, int width, int height) {
             Rect2D scissor = new Rect2D {
-                Offset = new Offset2D(currentScissorX, currentScissorY),
-                Extent = new Extent2D((uint)currentScissorWidth, (uint)currentScissorHeight)
-            };
-
-            Rect2D* scissors = stackalloc Rect2D[] { scissor };
-            context.Api.CmdSetScissor(currentCommandBuffer, 0, 1, scissors);
-        }
-
-        /// <summary>
-        /// Applies one resolved clip rectangle to the active Vulkan scissor state.
-        /// </summary>
-        /// <param name="clipRect">Logical clip rectangle resolved for the current drawable.</param>
-        unsafe void ApplyClipScissor(float4 clipRect) {
-            float4 viewportRect = new float4((float)currentViewportOffsetX, (float)currentViewportOffsetY, (float)currentViewportWidth, (float)currentViewportHeight);
-            float4 effectiveRect = ClipRegionStackBuilder.Intersect(viewportRect, clipRect);
-
-            double pixelScaleX = currentSurface.Extent.Width / currentSurface.LogicalWidth;
-            double pixelScaleY = currentSurface.Extent.Height / currentSurface.LogicalHeight;
-            int scissorX = (int)Math.Round(effectiveRect.X * pixelScaleX);
-            int scissorY = (int)Math.Round(effectiveRect.Y * pixelScaleY);
-            int scissorWidth = Math.Max(0, (int)Math.Round(effectiveRect.Z * pixelScaleX));
-            int scissorHeight = Math.Max(0, (int)Math.Round(effectiveRect.W * pixelScaleY));
-
-            Rect2D scissor = new Rect2D {
-                Offset = new Offset2D(scissorX, scissorY),
-                Extent = new Extent2D((uint)scissorWidth, (uint)scissorHeight)
+                Offset = new Offset2D(x, y),
+                Extent = new Extent2D((uint)width, (uint)height)
             };
 
             Rect2D* scissors = stackalloc Rect2D[] { scissor };

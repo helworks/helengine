@@ -65,21 +65,9 @@ namespace helengine.directx11 {
         RoundedRectBackend roundedRectBackend = RoundedRectBackend.Sdf;
         Dictionary<(int Radius, int Border), NineSliceCacheEntry> nineSliceCache = new();
         /// <summary>
-        /// Reusable helper that resolves nested clip chains for the current drawable.
+        /// Tracks nested clip regions during traversal and applies them to the DirectX scissor state.
         /// </summary>
-        readonly ClipRegionStackBuilder2D ClipRegionStackBuilder;
-        /// <summary>
-        /// Clip owners currently active in the render traversal.
-        /// </summary>
-        readonly List<IClipRegion2D> ActiveClipChain;
-        /// <summary>
-        /// Clip owners resolved for the drawable currently being visited.
-        /// </summary>
-        readonly List<IClipRegion2D> NextClipChain;
-        /// <summary>
-        /// Effective clip rectangles for the active clip chain.
-        /// </summary>
-        readonly List<float4> ActiveClipRects;
+        readonly DirectX11ClipScissorStack ClipScissorStack;
         /// <summary>
         /// Pixel-shader texture slots currently populated by the 2D renderer.
         /// </summary>
@@ -88,22 +76,6 @@ namespace helengine.directx11 {
         /// Tracks whether the released-font-atlas skip diagnostic was already logged this session.
         /// </summary>
         bool hasLoggedReleasedFontAtlasSkip;
-        /// <summary>
-        /// Left edge of the current camera scissor rectangle.
-        /// </summary>
-        int currentScissorLeft;
-        /// <summary>
-        /// Top edge of the current camera scissor rectangle.
-        /// </summary>
-        int currentScissorTop;
-        /// <summary>
-        /// Right edge of the current camera scissor rectangle.
-        /// </summary>
-        int currentScissorRight;
-        /// <summary>
-        /// Bottom edge of the current camera scissor rectangle.
-        /// </summary>
-        int currentScissorBottom;
 
         /// <summary>
         /// Initializes the 2D renderer and builds the required GPU resources.
@@ -112,10 +84,7 @@ namespace helengine.directx11 {
         public DirectX11Renderer2D(DirectX11Renderer3D parentRenderer) {
             this.parentRenderer = parentRenderer;
             Device = parentRenderer.Device;
-            ClipRegionStackBuilder = new ClipRegionStackBuilder2D();
-            ActiveClipChain = new List<IClipRegion2D>();
-            NextClipChain = new List<IClipRegion2D>();
-            ActiveClipRects = new List<float4>();
+            ClipScissorStack = new DirectX11ClipScissorStack(Device);
             ActiveTextureSlots = new List<int>();
 
             InitializeSpritePipeline();
@@ -165,14 +134,8 @@ namespace helengine.directx11 {
 
             float4 viewport = ResolveCameraViewport(camera);
             Device.ImmediateContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
-            currentScissorLeft = (int)Math.Round(viewport.X);
-            currentScissorTop = (int)Math.Round(viewport.Y);
-            currentScissorRight = (int)Math.Round(viewport.X + viewport.Z);
-            currentScissorBottom = (int)Math.Round(viewport.Y + viewport.W);
-            ApplyCameraScissor();
-            ActiveClipChain.Clear();
-            NextClipChain.Clear();
-            ActiveClipRects.Clear();
+            ClipScissorStack.SetCameraViewport(viewport);
+            ClipScissorStack.Clear();
             float4x4.CreateOrthographicOffCenter(
                 viewport.X,
                 viewport.X + viewport.Z,
@@ -214,8 +177,7 @@ namespace helengine.directx11 {
                 return;
             }
 
-            ClipRegionStackBuilder.BuildClipChain(drawable, NextClipChain);
-            SyncClipTransitions();
+            ClipScissorStack.SyncForDrawable(drawable);
             drawable.Draw();
         }
 
@@ -224,6 +186,10 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="drawable">Sprite drawable.</param>
         public override void DrawSprite(ISpriteDrawable2D drawable) {
+            if (drawable == null || drawable.Parent == null || !drawable.Parent.Enabled) {
+                return;
+            }
+
             ConfigureSpritePipeline(spriteInputLayout);
 
             if (drawable.Texture == null) {
@@ -325,7 +291,7 @@ namespace helengine.directx11 {
                 text = TextLayoutUtils.WrapText(text, font, Math.Max(1, (int)Math.Round(drawable.Size.X / fontScale)));
             }
 
-            double[] lineOffsets = BuildTextLineOffsets(drawable, font, text, fontScale, data.Width);
+            double[] lineOffsets = TextLineOffsets2D.Build(drawable, font, text, fontScale, data.Width);
             double offsetX = 0d;
             double offsetY = 0d;
             double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
@@ -333,7 +299,7 @@ namespace helengine.directx11 {
             double baseX = Math.Round(pos.X);
             double baseY = Math.Round(pos.Y);
             int lineIndex = 0;
-            double lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
+            double lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
 
             for (int i = 0; i < text.Length; i++) {
                 char c = text[i];
@@ -342,7 +308,7 @@ namespace helengine.directx11 {
                     offsetY += lineHeight;
                     offsetX = 0d;
                     lineIndex++;
-                    lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
+                    lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
                     continue;
                 }
 
@@ -385,56 +351,6 @@ namespace helengine.directx11 {
                     parentRenderer.IncrementDrawCalls(1);
                 }
             }
-        }
-
-        /// <summary>
-        /// Builds one horizontal offset per rendered text line so authored text alignment is respected consistently across wrapped and non-wrapped content.
-        /// </summary>
-        /// <param name="drawable">Text drawable that owns the authored layout box.</param>
-        /// <param name="font">Font used to render the text.</param>
-        /// <param name="text">Final rendered text content after wrapping has been applied.</param>
-        /// <param name="fontScale">Resolved glyph scale.</param>
-        /// <param name="textureWidth">Font-atlas texture width used to resolve glyph bounds.</param>
-        /// <returns>One horizontal offset per rendered line.</returns>
-        static double[] BuildTextLineOffsets(ITextDrawable2D drawable, FontAsset font, string text, double fontScale, int textureWidth) {
-            if (drawable == null) {
-                throw new ArgumentNullException(nameof(drawable));
-            } else if (font == null) {
-                throw new ArgumentNullException(nameof(font));
-            } else if (text == null) {
-                throw new ArgumentNullException(nameof(text));
-            } else if (fontScale <= 0d) {
-                throw new ArgumentOutOfRangeException(nameof(fontScale), "Font scale must be greater than zero.");
-            } else if (textureWidth <= 0) {
-                throw new ArgumentOutOfRangeException(nameof(textureWidth), "Texture width must be greater than zero.");
-            }
-
-            string[] lines = text.Split('\n');
-            double[] lineOffsets = new double[lines.Length];
-            for (int index = 0; index < lines.Length; index++) {
-                double visibleWidth = TextLayoutAlignmentUtils.MeasureVisibleLineWidth(lines[index], font, fontScale, textureWidth);
-                lineOffsets[index] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(drawable.Alignment, drawable.Size.X, visibleWidth);
-            }
-
-            return lineOffsets;
-        }
-
-        /// <summary>
-        /// Resolves one previously measured line offset or returns zero when the requested line index is outside the rendered line array.
-        /// </summary>
-        /// <param name="lineOffsets">Per-line horizontal offsets computed for the rendered text.</param>
-        /// <param name="lineIndex">Rendered line index whose offset should be returned.</param>
-        /// <returns>Horizontal line offset in pixels.</returns>
-        static double ResolveTextLineOffset(double[] lineOffsets, int lineIndex) {
-            if (lineOffsets == null) {
-                throw new ArgumentNullException(nameof(lineOffsets));
-            }
-
-            if (lineIndex < 0 || lineIndex >= lineOffsets.Length) {
-                return 0d;
-            }
-
-            return lineOffsets[lineIndex];
         }
 
         /// <summary>
@@ -678,87 +594,6 @@ namespace helengine.directx11 {
             }
 
             ActiveTextureSlots.Add(slot);
-        }
-
-        /// <summary>
-        /// Synchronizes the active clip stack with the drawable currently being visited and applies the resulting scissor rectangle.
-        /// </summary>
-        void SyncClipTransitions() {
-            int sharedPrefixLength = GetSharedPrefixLength();
-
-            while (ActiveClipChain.Count > sharedPrefixLength) {
-                ActiveClipChain.RemoveAt(ActiveClipChain.Count - 1);
-                ActiveClipRects.RemoveAt(ActiveClipRects.Count - 1);
-            }
-
-            while (ActiveClipChain.Count < NextClipChain.Count) {
-                IClipRegion2D clipRegion = NextClipChain[ActiveClipChain.Count];
-                float4 resolvedRect = ResolveClipRectForPush(clipRegion);
-                ActiveClipChain.Add(clipRegion);
-                ActiveClipRects.Add(resolvedRect);
-            }
-
-            if (ActiveClipRects.Count > 0) {
-                ApplyClipScissor(ActiveClipRects[ActiveClipRects.Count - 1]);
-            } else {
-                ApplyCameraScissor();
-            }
-        }
-
-        /// <summary>
-        /// Returns the number of leading clip owners shared between the current and next clip chains.
-        /// </summary>
-        /// <returns>Shared clip-chain prefix length.</returns>
-        int GetSharedPrefixLength() {
-            int sharedPrefixLength = 0;
-            int maxSharedLength = Math.Min(ActiveClipChain.Count, NextClipChain.Count);
-            while (sharedPrefixLength < maxSharedLength &&
-                   ReferenceEquals(ActiveClipChain[sharedPrefixLength], NextClipChain[sharedPrefixLength])) {
-                sharedPrefixLength++;
-            }
-
-            return sharedPrefixLength;
-        }
-
-        /// <summary>
-        /// Resolves one clip region against the current active clip stack.
-        /// </summary>
-        /// <param name="clipRegion">Clip region to resolve.</param>
-        /// <returns>Effective clip rectangle in logical screen coordinates.</returns>
-        float4 ResolveClipRectForPush(IClipRegion2D clipRegion) {
-            float4 resolvedRect = clipRegion.GetClipRect();
-            if (ActiveClipRects.Count <= 0) {
-                return resolvedRect;
-            }
-
-            float4 currentRect = ActiveClipRects[ActiveClipRects.Count - 1];
-            return ClipRegionStackBuilder.Intersect(currentRect, resolvedRect);
-        }
-
-        /// <summary>
-        /// Restores the camera viewport scissor after the clip stack empties.
-        /// </summary>
-        void ApplyCameraScissor() {
-            Device.ImmediateContext.Rasterizer.SetScissorRectangle(
-                currentScissorLeft,
-                currentScissorTop,
-                currentScissorRight,
-                currentScissorBottom);
-        }
-
-        /// <summary>
-        /// Applies one resolved clip rectangle to the active DirectX scissor state.
-        /// </summary>
-        /// <param name="clipRect">Logical clip rectangle resolved for the current drawable.</param>
-        void ApplyClipScissor(float4 clipRect) {
-            float4 viewportRect = new float4(currentScissorLeft, currentScissorTop, currentScissorRight - currentScissorLeft, currentScissorBottom - currentScissorTop);
-            float4 effectiveRect = ClipRegionStackBuilder.Intersect(viewportRect, clipRect);
-
-            int scissorLeft = (int)Math.Round(effectiveRect.X);
-            int scissorTop = (int)Math.Round(effectiveRect.Y);
-            int scissorRight = (int)Math.Round(effectiveRect.X + effectiveRect.Z);
-            int scissorBottom = (int)Math.Round(effectiveRect.Y + effectiveRect.W);
-            Device.ImmediateContext.Rasterizer.SetScissorRectangle(scissorLeft, scissorTop, scissorRight, scissorBottom);
         }
 
         /// <summary>

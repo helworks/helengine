@@ -422,7 +422,7 @@ namespace helengine {
                 ? TextRenderEffectPassBuilder.Build(text)
                 : null;
             int lineIndex = 0;
-            double lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
+            double lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
 
             for (int index = 0; index < content.Length; index++) {
                 char character = content[index];
@@ -430,7 +430,7 @@ namespace helengine {
                     offsetY += lineHeight;
                     offsetX = 0d;
                     lineIndex++;
-                    lineOriginX = baseX + ResolveTextLineOffset(lineOffsets, lineIndex);
+                    lineOriginX = baseX + TextLineOffsets2D.Resolve(lineOffsets, lineIndex);
                     continue;
                 }
 
@@ -549,24 +549,6 @@ namespace helengine {
 
             TextLineOffsets[lineIndex] = TextLayoutAlignmentUtils.ResolveHorizontalOffset(text.Alignment, text.Size.X, visibleWidth);
             return TextLineOffsets;
-        }
-
-        /// <summary>
-        /// Resolves one previously measured line offset or returns zero when the requested line index is outside the rendered line array.
-        /// </summary>
-        /// <param name="lineOffsets">Per-line horizontal offsets computed for the rendered text.</param>
-        /// <param name="lineIndex">Rendered line index whose offset should be returned.</param>
-        /// <returns>Horizontal line offset in pixels.</returns>
-        static double ResolveTextLineOffset(IReadOnlyList<double> lineOffsets, int lineIndex) {
-            if (lineOffsets == null) {
-                throw new ArgumentNullException(nameof(lineOffsets));
-            }
-
-            if (lineIndex < 0 || lineIndex >= lineOffsets.Count) {
-                return 0d;
-            }
-
-            return lineOffsets[lineIndex];
         }
 
         /// <summary>
