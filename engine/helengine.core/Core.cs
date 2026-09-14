@@ -714,11 +714,16 @@ namespace helengine {
 
         /// <summary>
         /// Attaches one pluggable physics runtime to the core update loop.
+        /// The runtime must also be able to take ownership of a loaded scene hierarchy, because every caller that
+        /// loads a scene binds it to the attached runtime; a step-only runtime would be attached and then silently
+        /// never receive the scene it is supposed to simulate.
         /// </summary>
-        /// <param name="runtime">Physics runtime that should receive fixed simulation steps.</param>
+        /// <param name="runtime">Physics runtime that should receive fixed simulation steps and scene bindings.</param>
         public void AttachPhysicsRuntime(IPhysicsRuntime runtime) {
             if (runtime == null) {
                 throw new ArgumentNullException(nameof(runtime));
+            } else if (!(runtime is ISceneBindablePhysicsRuntime)) {
+                throw new InvalidOperationException("An attached physics runtime must implement ISceneBindablePhysicsRuntime so loaded scenes can be bound to it.");
             }
 
             PhysicsRuntimeValue = runtime;

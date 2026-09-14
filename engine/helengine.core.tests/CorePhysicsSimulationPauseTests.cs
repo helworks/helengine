@@ -46,8 +46,18 @@ namespace helengine.core.tests {
             field.SetValue(core, value);
         }
 
-        sealed class CountingPhysicsRuntime : IPhysicsRuntime {
+        sealed class CountingPhysicsRuntime : ISceneBindablePhysicsRuntime {
             public int StepCount { get; private set; }
+
+            public int RegisteredBodyCount { get; private set; }
+
+            public void BindScene(IReadOnlyList<Entity> rootEntities) {
+                if (rootEntities == null) {
+                    throw new ArgumentNullException(nameof(rootEntities));
+                }
+
+                RegisteredBodyCount = rootEntities.Count;
+            }
 
             public void Step(double stepSeconds) {
                 StepCount++;

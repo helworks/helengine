@@ -2,7 +2,7 @@ namespace helengine.physics3d.tests {
     /// <summary>
     /// Supplies deterministic physics profiler metrics to core runtime metric tests without depending on one concrete physics implementation.
     /// </summary>
-    sealed class TestProfilerPhysicsRuntime : IPhysicsRuntime, IPhysicsRuntimeProfilerMetricsProvider {
+    sealed class TestProfilerPhysicsRuntime : ISceneBindablePhysicsRuntime, IPhysicsRuntimeProfilerMetricsProvider {
         /// <summary>
         /// Initializes the test runtime with one fully available physics metric sample.
         /// </summary>
@@ -17,6 +17,23 @@ namespace helengine.physics3d.tests {
         /// Stores the metric sample returned to the core after each fixed-step update.
         /// </summary>
         RuntimePhysicsProfilerMetrics Metrics { get; set; }
+
+        /// <summary>
+        /// Gets the number of runtime bodies bound by the most recent scene binding.
+        /// </summary>
+        public int RegisteredBodyCount { get; private set; }
+
+        /// <summary>
+        /// Records the size of the bound scene hierarchy so the core can attach this runtime.
+        /// </summary>
+        /// <param name="rootEntities">Root entities that define the active scene.</param>
+        public void BindScene(IReadOnlyList<Entity> rootEntities) {
+            if (rootEntities == null) {
+                throw new ArgumentNullException(nameof(rootEntities));
+            }
+
+            RegisteredBodyCount = rootEntities.Count;
+        }
 
         /// <summary>
         /// Records one fixed-step call without changing the configured metric sample.
