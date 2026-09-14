@@ -204,7 +204,7 @@ namespace helengine.editor {
         /// <summary>
         /// Tracks display labels for font assets assigned via the picker.
         /// </summary>
-        readonly Dictionary<FontAsset, string> FontLabels;
+        internal readonly Dictionary<FontAsset, string> FontLabels;
         /// <summary>
         /// Builds reflected property descriptors for the default inspector path.
         /// </summary>
@@ -371,6 +371,7 @@ namespace helengine.editor {
             RegisterRowRenderer(new ComboBoxComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new ReadOnlyComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new MaterialComponentPropertyRowRenderer(this));
+            RegisterRowRenderer(new FontComponentPropertyRowRenderer(this));
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
@@ -2148,9 +2149,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.CustomSection:
                     UpdateCustomSectionRow(row);
                     break;
-                case ComponentPropertyRowKind.Font:
-                    UpdateFontRow(row);
-                    break;
                 case ComponentPropertyRowKind.Model:
                     UpdateModelRow(row);
                     break;
@@ -2354,24 +2352,6 @@ namespace helengine.editor {
             }
 
             UpdateCustomSectionVisual(row, false);
-        }
-
-        /// <summary>
-        /// Updates a font row with the component property value.
-        /// </summary>
-        /// <param name="row">Row to update.</param>
-        void UpdateFontRow(ComponentPropertyRow row) {
-            object rawValue = GetPropertyValue(row);
-            if (rawValue is FontAsset font) {
-                if (FontLabels.TryGetValue(font, out string label) && !string.IsNullOrWhiteSpace(label)) {
-                    row.ValueText.Text = label;
-                    return;
-                }
-
-                row.ValueText.Text = string.IsNullOrWhiteSpace(font.FontInfo?.Name) ? EmptyAssetLabel : font.FontInfo.Name;
-            } else {
-                row.ValueText.Text = EmptyAssetLabel;
-            }
         }
 
         /// <summary>
@@ -3383,7 +3363,7 @@ namespace helengine.editor {
         /// Requests the asset picker for a font field.
         /// </summary>
         /// <param name="row">Font row to update.</param>
-        void RequestFontPick(ComponentPropertyRow row) {
+        internal void RequestFontPick(ComponentPropertyRow row) {
             EditorSessionInteractionServices.From(RootEntity).AssetPicker.RequestPick(entry => HandleFontPicked(row, entry));
         }
 
@@ -3439,7 +3419,7 @@ namespace helengine.editor {
                 }
                 StorePickedAssetReference(row, entry);
                 PersistPlatformOverrideIfNeeded(row);
-                UpdateFontRow(row);
+                RefreshRowControls(row);
                 RecordRowMutation(row, previousEntityState);
             } catch (Exception ex) {
                 Logger.WriteError($"Font pick failed: {ex.Message}");
@@ -3710,9 +3690,6 @@ namespace helengine.editor {
                     break;
                 case ComponentPropertyRowKind.CustomSection:
                     LayoutCustomSectionRow(row, contentWidth, height);
-                    break;
-                case ComponentPropertyRowKind.Font:
-                    LayoutMaterialRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Model:
                     LayoutMaterialRow(row, contentWidth, height, labelWidth);
@@ -4503,9 +4480,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.CustomSection:
                     BuildCustomSectionRow(row, rowEntity);
                     break;
-                case ComponentPropertyRowKind.Font:
-                    BuildFontRow(row, rowEntity);
-                    break;
                 case ComponentPropertyRowKind.Model:
                     BuildModelRow(row, rowEntity);
                     break;
@@ -4539,39 +4513,6 @@ namespace helengine.editor {
             row.HeaderBackground = background;
             row.HeaderInteractable = interactable;
             interactable.CursorEvent += (pos, delta, state) => HandleCustomSectionCursor(row, state);
-        }
-
-        /// <summary>
-        /// Builds the font field controls for a row.
-        /// </summary>
-        /// <param name="row">Row to populate.</param>
-        /// <param name="rowEntity">Row root entity.</param>
-        void BuildFontRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            valueHost.LayerMask = RootEntity.LayerMask;
-            valueHost.Position = float3.Zero;
-            rowEntity.AddChild(valueHost);
-
-            var valueText = new TextComponent();
-            valueText.Font = Font;
-            valueText.Text = EmptyAssetLabel;
-            valueText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            valueText.Size = new int2(1, 1);
-            valueText.RenderOrder2D = TextOrder;
-            valueHost.AddComponent(valueText);
-
-            var buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            buttonHost.LayerMask = RootEntity.LayerMask;
-            buttonHost.Position = float3.Zero;
-            rowEntity.AddChild(buttonHost);
-
-            var button = new ButtonComponent("Pick", new int2(PickButtonWidth, PickButtonHeight), Font, () => RequestFontPick(row), 0f);
-            buttonHost.AddComponent(button);
-
-            row.ValueHost = valueHost;
-            row.ValueText = valueText;
-            row.ActionButtonHost = buttonHost;
-            row.ActionButton = button;
         }
 
         /// <summary>
