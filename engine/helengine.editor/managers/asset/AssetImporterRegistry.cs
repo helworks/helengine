@@ -143,16 +143,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Selects the default font importer for an extension.
-        /// </summary>
-        /// <param name="extension">Source extension.</param>
-        /// <param name="importerId">Importer identifier.</param>
-        public void SetDefaultFontImporter(string extension, string importerId) {
-            EnsureMutable();
-            AssetImportManager.SetDefaultFontImporter(extension, importerId);
-        }
-
-        /// <summary>
         /// Selects the default audio importer for an extension.
         /// </summary>
         /// <param name="extension">Source extension.</param>
