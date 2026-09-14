@@ -26,6 +26,26 @@ namespace helengine.files {
         public const ushort ValueKind = 1;
 
         /// <summary>
+        /// Payload description used when a stored header carries a foreign format id.
+        /// </summary>
+        const string FormatIdMismatchSubject = "font binary";
+
+        /// <summary>
+        /// Payload description used when a stored header carries an unexpected record kind or value kind.
+        /// </summary>
+        const string RecordMismatchSubject = "font";
+
+        /// <summary>
+        /// Payload description used when a stored header carries an unsupported serializer version.
+        /// </summary>
+        const string VersionMismatchSubject = "Font binary";
+
+        /// <summary>
+        /// Recovery guidance appended to the version mismatch message for stale packaged fonts.
+        /// </summary>
+        const string RegenerateInstruction = "Regenerate the packaged font asset.";
+
+        /// <summary>
         /// Payload endianness used by packaged font assets.
         /// </summary>
         static readonly EngineBinaryEndianness PayloadEndianness = EngineBinaryEndianness.LittleEndian;
@@ -126,15 +146,19 @@ namespace helengine.files {
         /// <param name="header">Previously decoded HELE header.</param>
         /// <returns>Deserialized font asset.</returns>
         public static FontAsset Deserialize(Stream stream, EngineBinaryHeader header) {
-            if (stream == null) {
-                throw new ArgumentNullException(nameof(stream));
-            }
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            }
+            using EngineBinaryReader reader = VersionedBinaryPayload.ValidateHeader(
+                stream,
+                header,
+                FormatId,
+                (ushort)RecordKind,
+                ValueKind,
+                CurrentVersion,
+                FormatIdMismatchSubject,
+                RecordMismatchSubject,
+                VersionMismatchSubject,
+                VersionedBinaryVersionMismatchStyle.RequiredVersionSubjectFirst,
+                RegenerateInstruction);
 
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
             string cookedAtlasTextureRelativePath = string.Empty;
             TextureAsset sourceTexture = new TextureAsset();
             FontInfo fontInfo;
@@ -174,26 +198,6 @@ namespace helengine.files {
                 SourceTextureAsset = storedSourceTextureAsset,
                 CookedAtlasTextureRelativePath = cookedAtlasTextureRelativePath
             };
-        }
-
-        /// <summary>
-        /// Validates one packaged font header before payload deserialization continues.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header.FormatId != FormatId) {
-                throw new InvalidOperationException($"Unsupported font binary format id '{header.FormatId}'.");
-            }
-            if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected font record kind '{header.RecordKind}'.");
-            }
-            if (header.ValueKind != ValueKind) {
-                throw new InvalidOperationException($"Unexpected font value kind '{header.ValueKind}'.");
-            }
-            if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException(
-                    $"Font binary version '{header.Version}' is unsupported; version '{CurrentVersion}' is required. Regenerate the packaged font asset.");
-            }
         }
 
         /// <summary>

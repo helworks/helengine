@@ -26,6 +26,26 @@ namespace helengine.files {
         const byte SceneEntityPayloadVersion = 8;
 
         /// <summary>
+        /// Payload description used when a stored header carries a foreign format id.
+        /// </summary>
+        const string FormatIdMismatchSubject = "asset binary";
+
+        /// <summary>
+        /// Payload description used when a stored header carries an unexpected record kind.
+        /// </summary>
+        const string RecordMismatchSubject = "asset";
+
+        /// <summary>
+        /// Payload description used when a stored header carries an unsupported serializer version.
+        /// </summary>
+        const string VersionMismatchSubject = "Editor asset";
+
+        /// <summary>
+        /// Recovery guidance appended to the version mismatch message for stale authored assets.
+        /// </summary>
+        const string RegenerateInstruction = "Regenerate the authored asset.";
+
+        /// <summary>
         /// Payload endianness used by the current editor asset format.
         /// </summary>
         static readonly EngineBinaryEndianness PayloadEndianness = EngineBinaryEndianness.LittleEndian;
@@ -62,12 +82,20 @@ namespace helengine.files {
         /// <param name="stream">Source stream containing the asset payload.</param>
         /// <returns>Deserialized asset instance.</returns>
         public static Asset Deserialize(Stream stream) {
-            if (stream == null) {
-                throw new ArgumentNullException(nameof(stream));
-            }
+            EngineBinaryHeader header;
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeaderWithDispatchedValueKind(
+                stream,
+                FormatId,
+                (ushort)RecordKind,
+                CurrentVersion,
+                FormatIdMismatchSubject,
+                RecordMismatchSubject,
+                VersionMismatchSubject,
+                VersionedBinaryVersionMismatchStyle.RequiredVersionSubjectFirst,
+                RegenerateInstruction,
+                out header);
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            return Deserialize(stream, header);
+            return ReadAssetPayload(reader, (EditorAssetBinaryValueKind)header.ValueKind);
         }
 
         /// <summary>
@@ -77,30 +105,19 @@ namespace helengine.files {
         /// <param name="header">Previously decoded HELE header.</param>
         /// <returns>Deserialized asset instance.</returns>
         public static Asset Deserialize(Stream stream, EngineBinaryHeader header) {
-            if (stream == null) {
-                throw new ArgumentNullException(nameof(stream));
-            } else if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            }
+            using EngineBinaryReader reader = VersionedBinaryPayload.ValidateHeaderWithDispatchedValueKind(
+                stream,
+                header,
+                FormatId,
+                (ushort)RecordKind,
+                CurrentVersion,
+                FormatIdMismatchSubject,
+                RecordMismatchSubject,
+                VersionMismatchSubject,
+                VersionedBinaryVersionMismatchStyle.RequiredVersionSubjectFirst,
+                RegenerateInstruction);
 
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
             return ReadAssetPayload(reader, (EditorAssetBinaryValueKind)header.ValueKind);
-        }
-
-        /// <summary>
-        /// Validates that the provided header matches the editor asset format.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header.FormatId != FormatId) {
-                throw new InvalidOperationException($"Unsupported asset binary format id '{header.FormatId}'.");
-            } else if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected asset record kind '{header.RecordKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException(
-                    $"Editor asset version '{header.Version}' is unsupported; version '{CurrentVersion}' is required. Regenerate the authored asset.");
-            }
         }
 
         /// <summary>
