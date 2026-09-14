@@ -87,6 +87,21 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Checks whether more than one registered texture importer claims one normalized extension, which forces cache
+        /// identities for that extension to be qualified by importer id.
+        /// </summary>
+        /// <param name="normalizedExtension">Extension already normalized to a lowercase dotted form.</param>
+        /// <returns>True when at least two texture importers claim the extension.</returns>
+        public bool HasOverlappingImportersForExtension(string normalizedExtension) {
+            List<string> importerIds;
+            if (!ImporterIdsByExtension.TryGetValue(normalizedExtension, out importerIds)) {
+                return false;
+            }
+
+            return importerIds.Count > 1;
+        }
+
+        /// <summary>
         /// Registers one texture importer, its content processor and every extension it claims.
         /// </summary>
         /// <param name="registration">Importer registration data.</param>

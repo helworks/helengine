@@ -22,7 +22,7 @@ namespace helengine.editor {
         /// Root path for the project assets directory.
         /// </summary>
         readonly string assetsRootPath;
-        RenderManager2D RenderManager2D;
+        internal RenderManager2D RenderManager2D;
 
         /// <summary>
         /// Root path for imported asset outputs.
@@ -148,7 +148,7 @@ namespace helengine.editor {
                 [TextureImportHandler, FontImportHandler, ModelImportHandler, AudioImportHandler]);
             FontImportHandler.BindConflictOrder(
                 [TextureImportHandler, TextImportHandler, ModelImportHandler],
-                [TextureImportHandler, TextImportHandler, ModelImportHandler, AudioImportHandler]);
+                []);
             AudioImportHandler.BindConflictOrder(
                 [TextureImportHandler, TextImportHandler, FontImportHandler, ModelImportHandler],
                 [TextureImportHandler, TextImportHandler, FontImportHandler, ModelImportHandler]);
@@ -257,50 +257,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="registration">Importer registration data.</param>
         public void RegisterTextImporter(TextImporterRegistration registration) {
-            if (registration == null) {
-                throw new ArgumentNullException(nameof(registration));
-            }
-
-            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Text importer '{registration.ImporterId}' is already registered.");
-            }
-
-            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
-            }
-
-            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
-            }
-
-            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
-            }
-
-            TextImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
-            AssetContentManager.RegisterProcessor(
-                registration.ImporterId,
-                new TextImporterContentProcessor(registration.Importer),
-                registration.Extensions);
-            string[] extensions = registration.Extensions;
-            for (int i = 0; i < extensions.Length; i++) {
-                string extension = NormalizeExtension(extensions[i]);
-                if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
-                }
-
-                if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
-                }
-
-                if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
-                }
-
-                if (!TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    TextImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
-                }
-            }
+            TextImportHandler.Register(registration);
         }
 
         /// <summary>
@@ -308,50 +265,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="registration">Importer registration data.</param>
         public void RegisterFontImporter(FontImporterRegistration registration) {
-            if (registration == null) {
-                throw new ArgumentNullException(nameof(registration));
-            }
-
-            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Font importer '{registration.ImporterId}' is already registered.");
-            }
-
-            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
-            }
-
-            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
-            }
-
-            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
-            }
-
-            FontImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
-            AssetContentManager.RegisterProcessor(
-                registration.ImporterId,
-                new FontImporterContentProcessor(registration.Importer),
-                registration.Extensions);
-            string[] extensions = registration.Extensions;
-            for (int i = 0; i < extensions.Length; i++) {
-                string extension = NormalizeExtension(extensions[i]);
-                if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
-                }
-
-                if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
-                }
-
-                if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
-                }
-
-                if (!FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    FontImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
-                }
-            }
+            FontImportHandler.Register(registration);
         }
 
         /// <summary>
@@ -359,55 +273,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="registration">Importer registration data.</param>
         public void RegisterAudioImporter(AudioImporterRegistration registration) {
-            if (registration == null) {
-                throw new ArgumentNullException(nameof(registration));
-            }
-
-            if (AudioImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Audio importer '{registration.ImporterId}' is already registered.");
-            }
-
-            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
-            }
-
-            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
-            }
-
-            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
-            }
-
-            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
-            }
-
-            AudioImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
-            string[] extensions = registration.Extensions;
-            for (int index = 0; index < extensions.Length; index++) {
-                string extension = NormalizeExtension(extensions[index]);
-                if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
-                }
-
-                if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
-                }
-
-                if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
-                }
-
-                if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
-                }
-
-                RegisterAudioImporterExtension(extension, registration.ImporterId);
-                if (!AudioImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    AudioImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
-                }
-            }
+            AudioImportHandler.Register(registration);
         }
 
         /// <summary>
@@ -415,50 +281,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="registration">Importer registration data.</param>
         public void RegisterModelImporter(ModelImporterRegistration registration) {
-            if (registration == null) {
-                throw new ArgumentNullException(nameof(registration));
-            }
-
-            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Model importer '{registration.ImporterId}' is already registered.");
-            }
-
-            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
-            }
-
-            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
-            }
-
-            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
-                throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
-            }
-
-            ModelImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
-            AssetContentManager.RegisterProcessor(
-                registration.ImporterId,
-                new ModelImporterContentProcessor(registration.Importer),
-                registration.Extensions);
-            string[] extensions = registration.Extensions;
-            for (int i = 0; i < extensions.Length; i++) {
-                string extension = NormalizeExtension(extensions[i]);
-                if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
-                }
-
-                if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
-                }
-
-                if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
-                }
-
-                if (!ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
-                    ModelImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
-                }
-            }
+            ModelImportHandler.Register(registration);
         }
 
         /// <summary>
@@ -499,6 +322,27 @@ namespace helengine.editor {
         /// <returns>Ordered list of importer identifiers.</returns>
         public IReadOnlyList<string> GetModelImporterIds() {
             return ModelImportHandler.GetImporterIds();
+        }
+
+        /// <summary>
+        /// Resolves which asset family claims one source extension by asking each asset-type handler in precedence order.
+        /// </summary>
+        /// <param name="extension">File extension to classify.</param>
+        /// <param name="kind">Asset family that claims the extension when one does.</param>
+        /// <returns>True when an asset-type handler claims the extension.</returns>
+        bool TryResolveImportKindForExtension(string extension, out EditorAssetImportKind kind) {
+            if (!string.IsNullOrWhiteSpace(extension)) {
+                string normalized = NormalizeExtension(extension);
+                for (int index = 0; index < ImportHandlers.Length; index++) {
+                    if (ImportHandlers[index].IsNormalizedExtensionSupported(normalized)) {
+                        kind = ImportHandlers[index].Kind;
+                        return true;
+                    }
+                }
+            }
+
+            kind = EditorAssetImportKind.Texture;
+            return false;
         }
 
         /// <summary>
@@ -602,33 +446,7 @@ namespace helengine.editor {
         /// <param name="extension">File extension to associate with the importer.</param>
         /// <param name="importerId">Identifier of the importer to use.</param>
         public void SetDefaultTextImporter(string extension, string importerId) {
-            if (string.IsNullOrWhiteSpace(extension)) {
-                throw new ArgumentException("Extension must be provided.", nameof(extension));
-            }
-
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
-            }
-
-            EnsureTextImporterExists(importerId);
-            string normalized = NormalizeExtension(extension);
-            if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
-            }
-
-            if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
-            }
-
-            if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
-            }
-
-            if (AudioImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
-            }
-
-            TextImportHandler.DefaultImporterIdsByExtension[normalized] = importerId;
+            TextImportHandler.SetDefaultImporter(extension, importerId);
         }
 
         /// <summary>
@@ -637,34 +455,7 @@ namespace helengine.editor {
         /// <param name="extension">File extension to associate with the importer.</param>
         /// <param name="importerId">Identifier of the importer to use.</param>
         public void SetDefaultAudioImporter(string extension, string importerId) {
-            if (string.IsNullOrWhiteSpace(extension)) {
-                throw new ArgumentException("Extension must be provided.", nameof(extension));
-            }
-
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
-            }
-
-            EnsureAudioImporterExists(importerId);
-            string normalized = NormalizeExtension(extension);
-            if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
-            }
-
-            if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a text importer.");
-            }
-
-            if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
-            }
-
-            if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
-            }
-
-            EnsureAudioImporterSupportsExtension(normalized, importerId);
-            AudioImportHandler.DefaultImporterIdsByExtension[normalized] = importerId;
+            AudioImportHandler.SetDefaultImporter(extension, importerId);
         }
 
         /// <summary>
@@ -673,33 +464,7 @@ namespace helengine.editor {
         /// <param name="extension">File extension to associate with the importer.</param>
         /// <param name="importerId">Identifier of the importer to use.</param>
         public void SetDefaultModelImporter(string extension, string importerId) {
-            if (string.IsNullOrWhiteSpace(extension)) {
-                throw new ArgumentException("Extension must be provided.", nameof(extension));
-            }
-
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
-            }
-
-            EnsureModelImporterExists(importerId);
-            string normalized = NormalizeExtension(extension);
-            if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
-            }
-
-            if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
-            }
-
-            if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a text importer.");
-            }
-
-            if (AudioImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
-                throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
-            }
-
-            ModelImportHandler.DefaultImporterIdsByExtension[normalized] = importerId;
+            ModelImportHandler.SetDefaultImporter(extension, importerId);
         }
 
         /// <summary>
@@ -791,10 +556,10 @@ namespace helengine.editor {
             AssetImportSettings settings = LoadOrCreateImportSettings(sourcePath);
             EnsureImportSettingsValid(settings);
 
-            EnsureTextImporterExists(settings.Importer.ImporterId);
+            TextImportHandler.EnsureImporterExists(settings.Importer.ImporterId);
             TextAsset asset = LoadVerifiedSource(
                 sourcePath,
-                stream => GetTextImporter(settings.Importer.ImporterId).ImportText(stream));
+                stream => TextImportHandler.GetImporter(settings.Importer.ImporterId).ImportText(stream));
 
             if (asset == null) {
                 throw new InvalidOperationException($"Text importer '{settings.Importer.ImporterId}' did not return an asset.");
@@ -849,8 +614,8 @@ namespace helengine.editor {
             AudioAssetImportSettings settings = LoadOrCreateAudioImportSettings(sourcePath);
             EnsureAudioImportSettingsValid(settings);
 
-            EnsureAudioImporterExists(settings.Importer.ImporterId);
-            IAudioImporter importer = GetAudioImporter(settings.Importer.ImporterId);
+            AudioImportHandler.EnsureImporterExists(settings.Importer.ImporterId);
+            IAudioImporter importer = AudioImportHandler.GetImporter(settings.Importer.ImporterId);
             ImportedAudioSource importedAudio;
             using (MemoryStream stream = OpenVerifiedRead(sourcePath)) {
                 importedAudio = importer.ImportAudio(stream);
@@ -909,8 +674,8 @@ namespace helengine.editor {
                 throw new ArgumentException("Font asset id must be provided.", nameof(fontAssetId));
             }
 
-            EnsureFontImporterExists(settings.Importer.ImporterId);
-            IFontImporter importer = GetFontImporter(settings.Importer.ImporterId);
+            FontImportHandler.EnsureImporterExists(settings.Importer.ImporterId);
+            IFontImporter importer = FontImportHandler.GetImporter(settings.Importer.ImporterId);
             FontAssetProcessorSettings fontProcessorSettings = GetFontProcessorSettings(settings, platformId);
             FontAsset asset;
             using (MemoryStream stream = OpenVerifiedRead(sourcePath)) {
@@ -952,10 +717,10 @@ namespace helengine.editor {
             ModelAssetImportSettings settings = LoadOrCreateModelImportSettings(sourcePath);
             EnsureModelImportSettingsValid(settings);
 
-            EnsureModelImporterExists(settings.Importer.ImporterId);
+            ModelImportHandler.EnsureImporterExists(settings.Importer.ImporterId);
             ImportedModelAssetSet importedModel = LoadVerifiedSource(
                 sourcePath,
-                stream => GetModelImporter(settings.Importer.ImporterId).ImportModel(stream));
+                stream => ModelImportHandler.GetImporter(settings.Importer.ImporterId).ImportModel(stream));
             if (importedModel == null || importedModel.ModelAsset == null) {
                 throw new InvalidOperationException($"Model importer '{settings.Importer.ImporterId}' did not return an asset.");
             }
@@ -1122,7 +887,12 @@ namespace helengine.editor {
                 }
 
                 string extension = Path.GetExtension(sourcePath);
-                if (IsTextureExtension(extension)) {
+                EditorAssetImportKind importKind;
+                if (!TryResolveImportKindForExtension(extension, out importKind)) {
+                    continue;
+                }
+
+                if (importKind == EditorAssetImportKind.Texture) {
                     TextureAssetImportSettings textureSettings;
                     if (!TryCreateDefaultTextureImportSettings(sourcePath, out textureSettings)) {
                         continue;
@@ -1130,7 +900,7 @@ namespace helengine.editor {
 
                     UpdateTextureImportSettingsChecksum(textureSettings, sourcePath);
                     SaveTextureImportSettings(sourcePath, textureSettings);
-                } else if (IsModelExtension(extension)) {
+                } else if (importKind == EditorAssetImportKind.Model) {
                     ModelAssetImportSettings modelSettings;
                     if (!TryCreateDefaultModelImportSettings(sourcePath, out modelSettings)) {
                         continue;
@@ -1138,7 +908,7 @@ namespace helengine.editor {
 
                     UpdateModelImportSettingsChecksum(modelSettings, sourcePath);
                     SaveModelImportSettings(sourcePath, modelSettings);
-                } else if (IsAudioExtension(extension)) {
+                } else if (importKind == EditorAssetImportKind.Audio) {
                     AudioAssetImportSettings audioSettings;
                     if (!TryCreateDefaultAudioImportSettings(sourcePath, out audioSettings)) {
                         continue;
@@ -1146,7 +916,7 @@ namespace helengine.editor {
 
                     UpdateAudioImportSettingsChecksum(audioSettings, sourcePath);
                     SaveAudioImportSettings(sourcePath, audioSettings);
-                } else if (IsTextExtension(extension) || IsFontExtension(extension)) {
+                } else {
                     AssetImportSettings settings;
                     if (!TryCreateDefaultSettings(sourcePath, out settings)) {
                         continue;
@@ -1154,8 +924,6 @@ namespace helengine.editor {
 
                     UpdateSettingsChecksum(settings, sourcePath);
                     SaveImportSettings(sourcePath, settings);
-                } else {
-                    continue;
                 }
 
                 createdSettings.Add(settingsPath);
@@ -1212,12 +980,12 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!IsModelImporterRegistered(settings.Importer.ImporterId)) {
+                if (!ModelImportHandler.IsImporterRegistered(settings.Importer.ImporterId)) {
                     continue;
                 }
 
                 string outputPath = GetModelAssetPath(settings.Importer.AssetId);
-                if (File.Exists(outputPath) && TryLoadCachedModelAsset(outputPath, out _)) {
+                if (File.Exists(outputPath) && ModelImportHandler.TryLoadCachedAsset(outputPath, out _)) {
                     continue;
                 }
 
@@ -1248,12 +1016,12 @@ namespace helengine.editor {
                     continue;
                 }
 
-                if (!IsAudioImporterRegistered(settings.Importer.ImporterId)) {
+                if (!AudioImportHandler.IsImporterRegistered(settings.Importer.ImporterId)) {
                     continue;
                 }
 
                 string outputPath = GetAudioAssetPath(settings.Importer.AssetId);
-                if (File.Exists(outputPath) && TryLoadCachedAudioAsset(outputPath, out _)) {
+                if (File.Exists(outputPath) && AudioImportHandler.TryLoadCachedAsset(outputPath, out _)) {
                     continue;
                 }
 
@@ -1522,34 +1290,7 @@ namespace helengine.editor {
         /// <returns>True when the source can be resolved to a text asset.</returns>
         public bool TryLoadTextAsset(string sourcePath, out TextAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
-
-            if (!File.Exists(sourcePath)) {
-                throw new FileNotFoundException("Text source file was not found.", sourcePath);
-            }
-
-            ModelAssetImportSettings settings;
-            if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings)) {
-                asset = null;
-                return false;
-            }
-
-            if (!IsTextImporterRegistered(settings.Importer.ImporterId)) {
-                asset = null;
-                return false;
-            }
-
-            string outputPath = GetTextAssetPath(settings.Importer.AssetId);
-            if (!File.Exists(outputPath)) {
-                asset = ImportText(sourcePath);
-                return true;
-            }
-
-            if (TryLoadCachedTextAsset(outputPath, out asset)) {
-                return true;
-            }
-
-            asset = ImportText(sourcePath);
-            return true;
+            return TextImportHandler.TryLoadAsset(sourcePath, out asset);
         }
 
         /// <summary>
@@ -1560,34 +1301,7 @@ namespace helengine.editor {
         /// <returns>True when the source can be resolved to a font asset.</returns>
         public bool TryLoadFontAsset(string sourcePath, out FontAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
-
-            if (!File.Exists(sourcePath)) {
-                throw new FileNotFoundException("Font source file was not found.", sourcePath);
-            }
-
-            AssetImportSettings settings;
-            if (!TryLoadOrCreateImportSettings(sourcePath, out settings)) {
-                asset = null;
-                return false;
-            }
-
-            if (!IsFontImporterRegistered(settings.Importer.ImporterId)) {
-                asset = null;
-                return false;
-            }
-
-            string outputPath = GetFontAssetPath(settings.Importer.AssetId);
-            if (!File.Exists(outputPath)) {
-                asset = ImportFont(sourcePath);
-                return true;
-            }
-
-            if (TryLoadCachedFontAsset(outputPath, out asset)) {
-                return true;
-            }
-
-            asset = ImportFont(sourcePath);
-            return true;
+            return FontImportHandler.TryLoadAsset(sourcePath, out asset);
         }
 
         /// <summary>
@@ -1598,34 +1312,7 @@ namespace helengine.editor {
         /// <returns>True when the source can be resolved to an audio asset.</returns>
         public bool TryLoadAudioAsset(string sourcePath, out AudioAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
-
-            if (!File.Exists(sourcePath)) {
-                throw new FileNotFoundException("Audio source file was not found.", sourcePath);
-            }
-
-            AudioAssetImportSettings settings;
-            if (!TryLoadOrCreateAudioImportSettings(sourcePath, out settings)) {
-                asset = null;
-                return false;
-            }
-
-            if (!IsAudioImporterRegistered(settings.Importer.ImporterId)) {
-                asset = null;
-                return false;
-            }
-
-            string outputPath = GetAudioAssetPath(settings.Importer.AssetId);
-            if (!File.Exists(outputPath)) {
-                asset = ImportAudio(sourcePath);
-                return true;
-            }
-
-            if (TryLoadCachedAudioAsset(outputPath, out asset)) {
-                return true;
-            }
-
-            asset = ImportAudio(sourcePath);
-            return true;
+            return AudioImportHandler.TryLoadAsset(sourcePath, out asset);
         }
 
         /// <summary>
@@ -1636,43 +1323,7 @@ namespace helengine.editor {
         /// <returns>True when the source can be resolved to a model asset.</returns>
         public bool TryLoadModelAsset(string sourcePath, out ModelAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
-
-            if (!File.Exists(sourcePath)) {
-                throw new FileNotFoundException("Model source file was not found.", sourcePath);
-            }
-
-            string outputPath = null;
-            try {
-                if (string.Equals(Path.GetExtension(sourcePath), SettingsExtension, StringComparison.OrdinalIgnoreCase)) {
-                    return TryLoadSerializedModelAsset(sourcePath, out asset);
-                }
-
-                ModelAssetImportSettings settings;
-                if (!TryLoadOrCreateModelImportSettings(sourcePath, out settings)) {
-                    asset = null;
-                    return false;
-                }
-
-                if (!IsModelImporterRegistered(settings.Importer.ImporterId)) {
-                    asset = null;
-                    return false;
-                }
-
-                outputPath = GetModelAssetPath(settings.Importer.AssetId);
-                if (!File.Exists(outputPath)) {
-                    asset = ImportModel(sourcePath);
-                    return true;
-                }
-
-                if (TryLoadCachedModelAsset(outputPath, out asset)) {
-                    return true;
-                }
-
-                asset = ImportModel(sourcePath);
-                return true;
-            } catch (Exception exception) {
-                throw CreateModelLoadFailureException(sourcePath, outputPath, exception);
-            }
+            return ModelImportHandler.TryLoadAsset(sourcePath, out asset);
         }
 
         /// <summary>
@@ -1694,7 +1345,7 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the serialized model asset file.</param>
         /// <param name="asset">Loaded model asset when the file contains the expected payload type.</param>
         /// <returns>True when the serialized model asset was loaded successfully.</returns>
-        bool TryLoadSerializedModelAsset(string sourcePath, out ModelAsset asset) {
+        internal bool TryLoadSerializedModelAsset(string sourcePath, out ModelAsset asset) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             }
@@ -1723,7 +1374,7 @@ namespace helengine.editor {
         /// <param name="outputPath">Absolute path to the cached model asset when one had already been resolved.</param>
         /// <param name="innerException">Original exception thrown by the importer, serializer, or cache loader.</param>
         /// <returns>Exception enriched with source provenance and file metadata.</returns>
-        InvalidOperationException CreateModelLoadFailureException(string sourcePath, string outputPath, Exception innerException) {
+        internal InvalidOperationException CreateModelLoadFailureException(string sourcePath, string outputPath, Exception innerException) {
             if (string.IsNullOrWhiteSpace(sourcePath)) {
                 throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
             } else if (innerException == null) {
@@ -1815,153 +1466,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to load a cached text asset.
-        /// </summary>
-        /// <param name="outputPath">Absolute path to the cached text asset.</param>
-        /// <param name="asset">Loaded text asset when the cache file exists and contains the expected payload type.</param>
-        /// <returns>True when the cached asset was loaded successfully.</returns>
-        bool TryLoadCachedTextAsset(string outputPath, out TextAsset asset) {
-            if (string.IsNullOrWhiteSpace(outputPath)) {
-                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
-            }
-
-            asset = null;
-            Asset cachedAsset;
-            if (!TryLoadCachedAsset(outputPath, "TextAsset", out cachedAsset)) {
-                return false;
-            }
-
-            if (cachedAsset is TextAsset textAsset) {
-                asset = textAsset;
-                return true;
-            }
-
-            throw new InvalidOperationException($"Text cache file '{outputPath}' did not contain a TextAsset payload.");
-        }
-
-        /// <summary>
-        /// Attempts to load a cached audio asset.
-        /// </summary>
-        /// <param name="outputPath">Absolute path to the cached audio asset.</param>
-        /// <param name="asset">Loaded audio asset when the cache file exists and contains the expected payload type.</param>
-        /// <returns>True when the cached asset was loaded successfully.</returns>
-        bool TryLoadCachedAudioAsset(string outputPath, out AudioAsset asset) {
-            if (string.IsNullOrWhiteSpace(outputPath)) {
-                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
-            }
-
-            asset = null;
-            Asset cachedAsset;
-            if (!TryLoadCachedAsset(outputPath, "AudioAsset", out cachedAsset)) {
-                return false;
-            }
-
-            if (cachedAsset is AudioAsset audioAsset) {
-                asset = audioAsset;
-                return true;
-            }
-
-            throw new InvalidOperationException($"Audio cache file '{outputPath}' did not contain an AudioAsset payload.");
-        }
-
-        /// <summary>
-        /// Attempts to load a cached font asset.
-        /// </summary>
-        /// <param name="outputPath">Absolute path to the cached font asset.</param>
-        /// <param name="asset">Loaded font asset when the cache file exists and contains the expected payload type.</param>
-        /// <returns>True when the cached asset was loaded successfully.</returns>
-        bool TryLoadCachedFontAsset(string outputPath, out FontAsset asset) {
-            if (string.IsNullOrWhiteSpace(outputPath)) {
-                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
-            }
-
-            asset = null;
-            if (!File.Exists(outputPath)) {
-                return false;
-            }
-
-            string previousAssetPath = EngineBinaryReadContext.CurrentAssetPath;
-            try {
-                EngineBinaryReadContext.CurrentAssetPath = outputPath;
-                using MemoryStream stream = OpenVerifiedRead(outputPath);
-                asset = RestoreRuntimeTextureForCachedFontAsset(FontAssetBinarySerializer.Deserialize(stream));
-                return true;
-            } catch {
-                asset = null;
-                return false;
-            } finally {
-                EngineBinaryReadContext.CurrentAssetPath = previousAssetPath;
-            }
-        }
-
-        /// <summary>
-        /// Rebuilds the runtime atlas texture required by editor rendering when a cached font asset was deserialized without one.
-        /// </summary>
-        /// <param name="asset">Cached font asset that may need its runtime atlas restored.</param>
-        /// <returns>The original asset when it already owns a runtime texture; otherwise a replacement asset with a rebuilt runtime atlas.</returns>
-        FontAsset RestoreRuntimeTextureForCachedFontAsset(FontAsset asset) {
-            if (asset == null) {
-                throw new ArgumentNullException(nameof(asset));
-            }
-
-            if (asset.Texture != null || asset.SourceTextureAsset == null) {
-                return asset;
-            }
-
-            if (RenderManager2D == null) {
-                throw new InvalidOperationException("Cached font assets require session-owned 2D renderer resources before their runtime atlas can be restored.");
-            }
-
-            RuntimeTexture runtimeTexture = RenderManager2D.BuildTextureFromRaw(asset.SourceTextureAsset);
-            FontAsset restoredAsset = new FontAsset(
-                asset.FontInfo,
-                runtimeTexture,
-                asset.Characters,
-                asset.LineHeight,
-                asset.AtlasWidth,
-                asset.AtlasHeight) {
-                SourceTextureAsset = asset.SourceTextureAsset,
-                CookedAtlasTextureRelativePath = asset.CookedAtlasTextureRelativePath
-            };
-            return restoredAsset;
-        }
-
-        /// <summary>
-        /// Attempts to load a cached model asset.
-        /// </summary>
-        /// <param name="outputPath">Absolute path to the cached model asset.</param>
-        /// <param name="asset">Loaded model asset when the cache file exists and contains the expected payload type.</param>
-        /// <returns>True when the cached asset was loaded successfully.</returns>
-        bool TryLoadCachedModelAsset(string outputPath, out ModelAsset asset) {
-            if (string.IsNullOrWhiteSpace(outputPath)) {
-                throw new ArgumentException("Output path must be provided.", nameof(outputPath));
-            }
-
-            asset = null;
-            if (IsStaleEditorAssetCache(outputPath)) {
-                DeleteCacheFile(outputPath);
-                return false;
-            }
-
-            Asset cachedAsset;
-            if (!TryLoadCachedAsset(outputPath, "ModelAsset", out cachedAsset)) {
-                return false;
-            }
-
-            if (cachedAsset is ModelAsset modelAsset) {
-                asset = modelAsset;
-                return true;
-            }
-
-            throw new InvalidOperationException($"Model cache file '{outputPath}' did not contain a ModelAsset payload.");
-        }
-
-        /// <summary>
         /// Determines whether a cached asset file uses an older editor asset payload version.
         /// </summary>
         /// <param name="outputPath">Absolute path to the cached asset file.</param>
         /// <returns>True when the cache file should be regenerated using the current serializer version.</returns>
-        bool IsStaleEditorAssetCache(string outputPath) {
+        internal bool IsStaleEditorAssetCache(string outputPath) {
             using (MemoryStream stream = OpenVerifiedRead(outputPath)) {
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 return header.FormatId == EditorAssetBinarySerializer.FormatId &&
@@ -1973,7 +1482,7 @@ namespace helengine.editor {
         /// Deletes a cached asset file so it can be regenerated from source content.
         /// </summary>
         /// <param name="outputPath">Absolute path to the cached asset file.</param>
-        void DeleteCacheFile(string outputPath) {
+        internal void DeleteCacheFile(string outputPath) {
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
             EditorAuthoringMutationScope.DeleteLeaf(projectRootPath, outputPath);
         }
@@ -2897,202 +2406,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Retrieves a text importer by identifier.
-        /// </summary>
-        /// <param name="importerId">Identifier of the importer.</param>
-        /// <returns>Importer implementation.</returns>
-        ITextImporter GetTextImporter(string importerId) {
-            ITextImporter importer;
-            if (TextImportHandler.ImportersById.TryGetValue(importerId, out importer)) {
-                return importer;
-            }
-
-            throw new InvalidOperationException($"Text importer '{importerId}' is not registered.");
-        }
-
-        /// <summary>
-        /// Retrieves a font importer by identifier.
-        /// </summary>
-        /// <param name="importerId">Identifier of the importer.</param>
-        /// <returns>Importer implementation.</returns>
-        IFontImporter GetFontImporter(string importerId) {
-            IFontImporter importer;
-            if (FontImportHandler.ImportersById.TryGetValue(importerId, out importer)) {
-                return importer;
-            }
-
-            throw new InvalidOperationException($"Font importer '{importerId}' is not registered.");
-        }
-
-        /// <summary>
-        /// Ensures a text importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        void EnsureTextImporterExists(string importerId) {
-            if (!TextImportHandler.ImportersById.ContainsKey(importerId)) {
-                throw new InvalidOperationException($"Text importer '{importerId}' is not registered.");
-            }
-        }
-
-        /// <summary>
-        /// Ensures a font importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        void EnsureFontImporterExists(string importerId) {
-            if (!FontImportHandler.ImportersById.ContainsKey(importerId)) {
-                throw new InvalidOperationException($"Font importer '{importerId}' is not registered.");
-            }
-        }
-
-        /// <summary>
-        /// Checks whether a text importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        /// <returns>True when a matching importer is registered.</returns>
-        bool IsTextImporterRegistered(string importerId) {
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                return false;
-            }
-
-            return TextImportHandler.ImportersById.ContainsKey(importerId);
-        }
-
-        /// <summary>
-        /// Checks whether a font importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        /// <returns>True when a matching importer is registered.</returns>
-        bool IsFontImporterRegistered(string importerId) {
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                return false;
-            }
-
-            return FontImportHandler.ImportersById.ContainsKey(importerId);
-        }
-
-        /// <summary>
-        /// Retrieves an audio importer by identifier.
-        /// </summary>
-        /// <param name="importerId">Identifier of the importer.</param>
-        /// <returns>Importer implementation.</returns>
-        IAudioImporter GetAudioImporter(string importerId) {
-            if (AudioImportHandler.ImportersById.TryGetValue(importerId, out IAudioImporter importer)) {
-                return importer;
-            }
-
-            throw new InvalidOperationException($"Audio importer '{importerId}' is not registered.");
-        }
-
-        /// <summary>
-        /// Ensures an audio importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        void EnsureAudioImporterExists(string importerId) {
-            if (!AudioImportHandler.ImportersById.ContainsKey(importerId)) {
-                throw new InvalidOperationException($"Audio importer '{importerId}' is not registered.");
-            }
-        }
-
-        /// <summary>
-        /// Checks whether an audio importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        /// <returns>True when a matching importer is registered.</returns>
-        bool IsAudioImporterRegistered(string importerId) {
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                return false;
-            }
-
-            return AudioImportHandler.ImportersById.ContainsKey(importerId);
-        }
-
-        /// <summary>
-        /// Records that one audio importer supports one file extension.
-        /// </summary>
-        /// <param name="extension">Normalized file extension.</param>
-        /// <param name="importerId">Importer identifier that supports the extension.</param>
-        void RegisterAudioImporterExtension(string extension, string importerId) {
-            if (string.IsNullOrWhiteSpace(extension)) {
-                throw new ArgumentException("Extension must be provided.", nameof(extension));
-            }
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
-            }
-
-            if (!AudioImportHandler.ImporterIdsByExtension.TryGetValue(extension, out List<string> importerIds)) {
-                importerIds = new List<string>();
-                AudioImportHandler.ImporterIdsByExtension.Add(extension, importerIds);
-            }
-
-            if (!importerIds.Contains(importerId, StringComparer.OrdinalIgnoreCase)) {
-                importerIds.Add(importerId);
-            }
-        }
-
-        /// <summary>
-        /// Ensures the supplied audio importer has been registered for the requested file extension.
-        /// </summary>
-        /// <param name="extension">Normalized file extension.</param>
-        /// <param name="importerId">Importer identifier to validate.</param>
-        void EnsureAudioImporterSupportsExtension(string extension, string importerId) {
-            if (string.IsNullOrWhiteSpace(extension)) {
-                throw new ArgumentException("Extension must be provided.", nameof(extension));
-            }
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                throw new ArgumentException("Importer id must be provided.", nameof(importerId));
-            }
-
-            if (!AudioImportHandler.ImporterIdsByExtension.TryGetValue(extension, out List<string> importerIds)) {
-                throw new InvalidOperationException($"No audio importers are registered for '{extension}'.");
-            }
-
-            for (int index = 0; index < importerIds.Count; index++) {
-                if (string.Equals(importerIds[index], importerId, StringComparison.OrdinalIgnoreCase)) {
-                    return;
-                }
-            }
-
-            throw new InvalidOperationException($"Audio importer '{importerId}' does not support '{extension}'.");
-        }
-
-        /// <summary>
-        /// Retrieves a model importer by identifier.
-        /// </summary>
-        /// <param name="importerId">Identifier of the importer.</param>
-        /// <returns>Importer implementation.</returns>
-        IModelImporter GetModelImporter(string importerId) {
-            IModelImporter importer;
-            if (ModelImportHandler.ImportersById.TryGetValue(importerId, out importer)) {
-                return importer;
-            }
-
-            throw new InvalidOperationException($"Model importer '{importerId}' is not registered.");
-        }
-
-        /// <summary>
-        /// Ensures a model importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        void EnsureModelImporterExists(string importerId) {
-            if (!ModelImportHandler.ImportersById.ContainsKey(importerId)) {
-                throw new InvalidOperationException($"Model importer '{importerId}' is not registered.");
-            }
-        }
-
-        /// <summary>
-        /// Checks whether a model importer is registered.
-        /// </summary>
-        /// <param name="importerId">Identifier to verify.</param>
-        /// <returns>True when a matching importer is registered.</returns>
-        bool IsModelImporterRegistered(string importerId) {
-            if (string.IsNullOrWhiteSpace(importerId)) {
-                return false;
-            }
-
-            return ModelImportHandler.ImportersById.ContainsKey(importerId);
-        }
-
-        /// <summary>
         /// Updates settings to store the current source checksum.
         /// </summary>
         /// <param name="settings">Settings to update.</param>
@@ -3197,7 +2510,7 @@ namespace helengine.editor {
                     return Convert.ToHexString(textureHashBytes).ToLowerInvariant();
                 }
 
-                if (IsFontImporterRegistered(settings.Importer.ImporterId)) {
+                if (FontImportHandler.IsImporterRegistered(settings.Importer.ImporterId)) {
                     string texturePlatformId = ResolveTextureProcessorPlatformId(settings);
                     return BuildFontAssetId(settings, sourceChecksum, texturePlatformId);
                 }
@@ -3599,12 +2912,7 @@ namespace helengine.editor {
             }
 
             string normalizedExtension = NormalizeExtension(Path.GetExtension(sourcePath));
-            List<string> importerIds;
-            if (!TextureImportHandler.ImporterIdsByExtension.TryGetValue(normalizedExtension, out importerIds)) {
-                return false;
-            }
-
-            return importerIds.Count > 1;
+            return TextureImportHandler.HasOverlappingImportersForExtension(normalizedExtension);
         }
 
         /// <summary>
@@ -3643,7 +2951,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            if (IsModelImporterRegistered(settings.Importer.ImporterId)) {
+            if (ModelImportHandler.IsImporterRegistered(settings.Importer.ImporterId)) {
                 return true;
             }
 
@@ -4182,7 +3490,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
-        string GetTextAssetPath(string assetId) {
+        internal string GetTextAssetPath(string assetId) {
             return GetImportAssetPath(assetId);
         }
 
@@ -4191,7 +3499,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
-        string GetAudioAssetPath(string assetId) {
+        internal string GetAudioAssetPath(string assetId) {
             return GetImportAssetPath(assetId);
         }
 
@@ -4200,7 +3508,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
-        string GetFontAssetPath(string assetId) {
+        internal string GetFontAssetPath(string assetId) {
             return GetImportAssetPath(assetId);
         }
 
@@ -4209,7 +3517,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="assetId">Asset identifier used in the file name.</param>
         /// <returns>Absolute path to the serialized asset file.</returns>
-        string GetModelAssetPath(string assetId) {
+        internal string GetModelAssetPath(string assetId) {
             return GetImportAssetPath(assetId);
         }
 
@@ -4321,7 +3629,7 @@ namespace helengine.editor {
         /// Opens one importer source or cache payload through the verified
         /// project-root leaf boundary without reopening it by path.
         /// </summary>
-        MemoryStream OpenVerifiedRead(string filePath) {
+        internal MemoryStream OpenVerifiedRead(string filePath) {
             return new MemoryStream(
                 EditorAuthoringMutationScope.ReadAllBytes(projectRootPath, filePath),
                 writable: false);

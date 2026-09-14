@@ -35,8 +35,29 @@ namespace helengine.editor {
 
         /// <summary>
         /// Gets the foreign handlers consulted, in the exact reporting order, when this family is asked to make one importer the default for an extension.
+        /// Families that expose no default-importer selection bind an empty order.
         /// </summary>
         public EditorAssetTypeImportHandler[] DefaultSelectionConflictHandlers { get; private set; }
+
+        /// <summary>
+        /// Gets the asset family this handler owns.
+        /// </summary>
+        public abstract EditorAssetImportKind Kind { get; }
+
+        /// <summary>
+        /// Gets the capitalized family name used when reporting a duplicate importer registration, for example "Texture".
+        /// </summary>
+        public abstract string ImporterKindLabel { get; }
+
+        /// <summary>
+        /// Gets the lowercase family name used when reporting that an importer id already belongs to this family, for example "texture".
+        /// </summary>
+        public abstract string AssetKindLabel { get; }
+
+        /// <summary>
+        /// Gets the article-qualified phrase used when reporting that an extension already maps to this family, for example "a texture importer".
+        /// </summary>
+        public abstract string ExtensionMappingLabel { get; }
 
         /// <summary>
         /// Records which foreign families this handler must not collide with, and in which order their collisions are reported.
@@ -58,26 +79,6 @@ namespace helengine.editor {
             RegistrationConflictHandlers = registrationConflictHandlers;
             DefaultSelectionConflictHandlers = defaultSelectionConflictHandlers;
         }
-
-        /// <summary>
-        /// Gets the asset family this handler owns.
-        /// </summary>
-        public abstract EditorAssetImportKind Kind { get; }
-
-        /// <summary>
-        /// Gets the capitalized family name used when reporting a duplicate importer registration, for example "Texture".
-        /// </summary>
-        public abstract string ImporterKindLabel { get; }
-
-        /// <summary>
-        /// Gets the lowercase family name used when reporting that an importer id already belongs to this family, for example "texture".
-        /// </summary>
-        public abstract string AssetKindLabel { get; }
-
-        /// <summary>
-        /// Gets the article-qualified phrase used when reporting that an extension already maps to this family, for example "a texture importer".
-        /// </summary>
-        public abstract string ExtensionMappingLabel { get; }
 
         /// <summary>
         /// Checks whether one importer identifier is registered for this asset family.
@@ -112,15 +113,6 @@ namespace helengine.editor {
             }
 
             return GetImporterIds();
-        }
-
-        /// <summary>
-        /// Checks whether one normalized extension already has a default importer in this family.
-        /// </summary>
-        /// <param name="normalizedExtension">Extension already normalized to a lowercase dotted form.</param>
-        /// <returns>True when a default importer is recorded for the extension.</returns>
-        public bool HasDefaultImporterForExtension(string normalizedExtension) {
-            return DefaultImporterIdsByExtension.ContainsKey(normalizedExtension);
         }
 
         /// <summary>
