@@ -210,6 +210,10 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPlatformEditingService PlatformEditingService;
         /// <summary>
+        /// Coordinates reflected property assignment, scoped persistence and one history mutation per inspector edit.
+        /// </summary>
+        readonly ComponentPropertyEditController PropertyEditController;
+        /// <summary>
         /// Reads and writes editor-only MeshComponent tessellation metadata for the active target platform.
         /// </summary>
         /// <summary>
@@ -363,6 +367,11 @@ namespace helengine.editor {
             FontLabels = new Dictionary<FontAsset, string>();
             DescriptorBuilder = new ReflectedComponentPropertyDescriptorBuilder(new ComponentEditorRegistry());
             PlatformEditingService = new ComponentPlatformEditingService();
+            PropertyEditController = new ComponentPropertyEditController(
+                PlatformEditingService,
+                () => HistoryMutationServiceValue,
+                () => EditorSessionInteractionServices.From(RootEntity).SceneMutation.MarkSceneMutated(),
+                RefreshPropertyEditPresentation);
             PlatformComponentMemberDescriptorResolver = new PlatformComponentMemberDescriptorResolver();
             CollapsedStates = new Dictionary<Component, bool>();
             CustomEditorExpandedStates = new Dictionary<string, bool>();
@@ -2879,10 +2888,8 @@ namespace helengine.editor {
                 return;
             }
 
-            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
-            SetRowValue(row, value);
+            ApplyPropertyEdit(row, value);
             SetVectorFields(row, x, y, z);
-            RecordRowMutation(row, previousEntityState);
         }
 
         /// <summary>
@@ -2912,10 +2919,8 @@ namespace helengine.editor {
                 return;
             }
 
-            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
-            SetRowValue(row, value);
+            ApplyPropertyEdit(row, value);
             SetVector4Fields(row, x, y, z, w);
-            RecordRowMutation(row, previousEntityState);
         }
 
         /// <summary>
@@ -2957,10 +2962,8 @@ namespace helengine.editor {
                 return;
             }
 
-            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
-            SetRowValue(row, parsed);
+            ApplyPropertyEdit(row, parsed);
             UpdateScalarField(row, FormatScalarValue(parsed));
-            RecordRowMutation(row, previousEntityState);
         }
 
         /// <summary>
@@ -3070,10 +3073,8 @@ namespace helengine.editor {
                 return;
             }
 
-            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
-            SetRowValue(row, isChecked);
+            ApplyPropertyEdit(row, isChecked);
             UpdateBooleanField(row, isChecked);
-            RecordRowMutation(row, previousEntityState);
         }
 
         /// <summary>
@@ -3099,14 +3100,12 @@ namespace helengine.editor {
                 return;
             }
 
-            SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
-            SetRowValue(row, selectedItem);
+            ApplyPropertyEdit(row, selectedItem);
             UpdateComboBoxRow(row);
             if (IsMeshComponentModifierRow(row)) {
                 // A mode change swaps which parameter rows the modifier shows, so the section must rebuild.
                 RebuildCurrentComponentView();
             }
-            RecordRowMutation(row, previousEntityState);
         }
 
         /// <summary>
@@ -3305,6 +3304,50 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Routes a reflected row edit through the property mutation boundary while retaining specialized row handlers.
+        /// </summary>
+        /// <param name="row">Row whose value is being edited.</param>
+        /// <param name="value">Typed value submitted by the control.</param>
+        void ApplyPropertyEdit(ComponentPropertyRow row, object value) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+            if (row.TargetComponent == null
+                || (row.Property == null
+                    && row.PlatformComponentMemberDescriptor == null
+                    && !IsMeshComponentModifierRow(row))) {
+                return;
+            }
+
+            if (row.CommonComponent == null
+                || (row.SaveComponent == null
+                    && !string.Equals(row.EditingPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase))
+                || IsMeshComponentModifierRow(row)
+                || row.PlatformComponentMemberDescriptor != null
+                || (!string.IsNullOrWhiteSpace(row.NestedMemberName)
+                    && string.Equals(row.CustomEditorTypeId, CameraClearSettingsPropertyEditorProvider.EditorTypeId, StringComparison.Ordinal))) {
+                SerializedEditorEntityState previousEntityState = CaptureCurrentEntityHistoryState();
+                SetRowValue(row, value);
+                RecordRowMutation(row, previousEntityState);
+                return;
+            }
+
+            EnsureEditableComponentForRow(row);
+            PropertyEditController.Apply(new ComponentPropertyEditRequest(
+                CurrentEntity as EditorEntity,
+                row.CommonComponent,
+                row.TargetComponent,
+                row.SaveComponent,
+                row.Property,
+                row.Property.Name,
+                value,
+                CurrentScope(row.EditingPlatformId),
+                BuildRowPropertyPath(row),
+                IsReadOnlyMode));
+            RefreshRowOverrideChrome(row);
+        }
+
+        /// <summary>
         /// Applies one effective row value back to the owning component property.
         /// </summary>
         /// <param name="row">Row being updated.</param>
@@ -3400,6 +3443,22 @@ namespace helengine.editor {
             }
             PlatformEditingService.PersistScopeOverride(row.CommonComponent, row.TargetComponent, row.SaveComponent, CurrentScope(row.EditingPlatformId));
             RefreshRowOverrideChrome(row);
+        }
+
+        /// <summary>
+        /// Refreshes runtime presentation after a reflected property edit has been persisted and recorded.
+        /// </summary>
+        /// <param name="request">Committed property edit request.</param>
+        void RefreshPropertyEditPresentation(ComponentPropertyEditRequest request) {
+            if (request == null) {
+                throw new ArgumentNullException(nameof(request));
+            }
+            if (request.TargetComponent is CameraComponent cameraComponent) {
+                if (RendererResources == null) {
+                    throw new InvalidOperationException("Camera property editing requires session renderer resources.");
+                }
+                EditorSceneCameraSuppressionService.RefreshSuppressedRuntimeState(cameraComponent, RendererResources.ObjectManager);
+            }
         }
 
         /// <summary>
