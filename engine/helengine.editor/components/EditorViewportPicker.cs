@@ -1,5 +1,3 @@
-using SharpDX;
-
 namespace helengine.editor {
     /// <summary>
     /// Triggers one-frame picker renders for scene selection and transform-axis hover detection.
