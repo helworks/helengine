@@ -4254,6 +4254,12 @@ namespace helengine.editor {
         /// Withdraws the current editor-authored scene from runtime scene-manager tracking before the editor replaces or clears the scene.
         /// </summary>
         void UntrackCurrentSceneFromSceneManager() {
+            // A session that never opened a saved scene has nothing tracked, and teardown reaches
+            // this before the scene collaborators exist at all.
+            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
+                return;
+            }
+
             SceneLifecycleService.UntrackCurrentScene(core.SceneManager, CurrentScenePath);
         }
 

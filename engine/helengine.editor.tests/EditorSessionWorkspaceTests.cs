@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor.tests.testing;
 using helengine.ui;
@@ -850,7 +850,6 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "titleBar", new EditorTitleBar(CoreValue, InteractionServices, Font, EditorUiMetrics.Default, 1280, 720, "Workspace"));
                 SetPrivateField(Session, "EditorContentManager", ContentManager);
                 SetPrivateField(Session, "CurrentUiMetrics", EditorUiMetrics.Default);
-                SetPrivateField(Session, "SceneCreationService", GeneratedAssetGraph.CreateSceneCreationService());
                 SetPrivateField(Session, "generatedAssetProviderRegistry", GeneratedAssetGraph.Registry);
                 SetPrivateField(Session, "generatedModelCache", GeneratedAssetGraph.ModelCache);
                 SetPrivateField(Session, "generatedMaterialCache", GeneratedAssetGraph.MaterialCache);
@@ -864,8 +863,30 @@ namespace helengine.editor.tests {
                 SetPrivateField(Session, "AuthoringSession", AuthoringSession);
                 SetPrivateField(Session, "authoredAssetReferenceResolver", referenceResolver);
                 SetPrivateField(Session, "previewSourceResolver", previewSourceResolver);
-                SetPrivateField(Session, "sceneAssetReferenceFactory", new SceneAssetReferenceFactory(referenceResolver));
-                SetPrivateField(Session, "sceneAssetReferenceResolver", new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver, new EditorFileSystemTextureResolver(assetImportManager), referenceResolver, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources));
+                SceneAssetReferenceFactory sceneAssetReferenceFactory = new SceneAssetReferenceFactory(referenceResolver);
+                EditorSceneAssetReferenceResolver sceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(ContentManager, TempProjectRootPath, fileSystemModelResolver, fileSystemFontResolver, new EditorFileSystemTextureResolver(assetImportManager), referenceResolver, GeneratedAssetGraph.Registry, GeneratedAssetGraph.RendererResources);
+                SetPrivateField(Session, "sceneAssetReferenceFactory", sceneAssetReferenceFactory);
+                SetPrivateField(Session, "sceneAssetReferenceResolver", sceneAssetReferenceResolver);
+                EditorSceneCreationService sceneCreationService = GeneratedAssetGraph.CreateSceneCreationService();
+                SetPrivateField(Session, "SceneCreationService", sceneCreationService);
+                SceneFileLoadService sceneFileLoadService = new SceneFileLoadService(
+                    TempProjectRootPath,
+                    new ComponentPersistenceRegistry(),
+                    sceneAssetReferenceResolver,
+                    GeneratedAssetGraph.MaterialCache,
+                    GeneratedAssetGraph.RendererResources);
+                SetPrivateField(Session, "SceneFileLoadService", sceneFileLoadService);
+                SetPrivateField(Session, "SceneEntityCreationService", new EditorSceneEntityCreationService(
+                    sceneAssetReferenceFactory,
+                    sceneAssetReferenceResolver,
+                    referenceResolver,
+                    GeneratedAssetGraph.Registry,
+                    GeneratedAssetGraph.MaterialCache,
+                    assetImportManager,
+                    ContentManager,
+                    CoreValue.RenderManager3D,
+                    sceneCreationService,
+                    sceneFileLoadService));
                 SceneSaveService historySaveService = new SceneSaveService(
                     GeneratedAssetGraph.CreateAuthoringSession(TempProjectRootPath),
                     new ComponentPersistenceRegistry());
