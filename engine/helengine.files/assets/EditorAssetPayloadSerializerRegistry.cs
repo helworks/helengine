@@ -16,7 +16,9 @@ namespace helengine.files {
             new MaterialAssetPayloadSerializer(),
             new PlatformMaterialAssetPayloadSerializer(),
             new AnimationClipAssetPayloadSerializer(),
-            new AudioAssetPayloadSerializer()
+            new AudioAssetPayloadSerializer(),
+            new SceneAssetPayloadSerializer(),
+            new BlueprintAssetPayloadSerializer()
         };
 
         /// <summary>
