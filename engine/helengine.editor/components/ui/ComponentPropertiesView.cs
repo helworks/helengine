@@ -103,7 +103,7 @@ namespace helengine.editor {
         /// <summary>
         /// Placeholder text for assigned assets without a known label.
         /// </summary>
-        const string AssignedAssetLabel = "Assigned";
+        internal const string AssignedAssetLabel = "Assigned";
         /// <summary>
         /// Extension used for material assets.
         /// </summary>
@@ -196,7 +196,7 @@ namespace helengine.editor {
         /// <summary>
         /// Tracks display labels for runtime models assigned via the picker.
         /// </summary>
-        readonly Dictionary<RuntimeModel, string> ModelLabels;
+        internal readonly Dictionary<RuntimeModel, string> ModelLabels;
         /// <summary>
         /// Tracks display labels for runtime materials assigned via the picker.
         /// </summary>
@@ -372,6 +372,7 @@ namespace helengine.editor {
             RegisterRowRenderer(new ReadOnlyComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new MaterialComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new FontComponentPropertyRowRenderer(this));
+            RegisterRowRenderer(new ModelComponentPropertyRowRenderer(this));
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
@@ -2149,9 +2150,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.CustomSection:
                     UpdateCustomSectionRow(row);
                     break;
-                case ComponentPropertyRowKind.Model:
-                    UpdateModelRow(row);
-                    break;
             }
 
             RefreshRowOverrideChrome(row);
@@ -2352,25 +2350,6 @@ namespace helengine.editor {
             }
 
             UpdateCustomSectionVisual(row, false);
-        }
-
-        /// <summary>
-        /// Updates a model row with the component property value.
-        /// </summary>
-        /// <param name="row">Row to update.</param>
-        void UpdateModelRow(ComponentPropertyRow row) {
-            object rawValue = GetRowValue(row);
-            if (rawValue is RuntimeModel model) {
-                if (ModelLabels.TryGetValue(model, out string label) && !string.IsNullOrWhiteSpace(label)) {
-                    row.ValueText.Text = label;
-                    return;
-                }
-
-                row.ValueText.Text = string.IsNullOrWhiteSpace(model.Id) ? AssignedAssetLabel : model.Id;
-                return;
-            }
-
-            row.ValueText.Text = EmptyAssetLabel;
         }
 
         /// <summary>
@@ -3691,9 +3670,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.CustomSection:
                     LayoutCustomSectionRow(row, contentWidth, height);
                     break;
-                case ComponentPropertyRowKind.Model:
-                    LayoutMaterialRow(row, contentWidth, height, labelWidth);
-                    break;
                 default:
                     break;
             }
@@ -3769,29 +3745,6 @@ namespace helengine.editor {
                 int revertButtonX = Math.Max(0, safeWidth - SectionRevertButtonWidth);
                 section.RevertButtonHost.Position = new float3(revertButtonX, revertButtonY, 0.2f);
             }
-        }
-
-        /// <summary>
-        /// Layouts a material row with a value label and pick button.
-        /// </summary>
-        /// <param name="row">Material row to layout.</param>
-        /// <param name="width">Available width.</param>
-        /// <param name="height">Row height.</param>
-        /// <param name="labelWidth">Width reserved for labels.</param>
-        void LayoutMaterialRow(ComponentPropertyRow row, int width, int height, int labelWidth) {
-            if (row.ValueHost == null || row.ValueText == null || row.ActionButtonHost == null) {
-                return;
-            }
-
-            int buttonWidth = PickButtonWidth;
-            int valueWidth = Math.Max(0, width - labelWidth - FieldSpacing - buttonWidth);
-            var valueMetrics = Font.MeasureTight(row.ValueText.Text ?? string.Empty);
-            float valueY = GetTextTopOffset(height, valueMetrics);
-            row.ValueHost.Position = new float3(labelWidth + FieldSpacing, valueY, 0.2f);
-            row.ValueText.Size = new int2(valueWidth, (int)Math.Ceiling(valueMetrics.Height));
-
-            float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
-            row.ActionButtonHost.Position = new float3(width - buttonWidth, buttonY, 0.2f);
         }
 
         /// <summary>
@@ -4480,9 +4433,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.CustomSection:
                     BuildCustomSectionRow(row, rowEntity);
                     break;
-                case ComponentPropertyRowKind.Model:
-                    BuildModelRow(row, rowEntity);
-                    break;
                 default:
                     break;
             }
@@ -4516,43 +4466,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the model field controls for a row.
-        /// </summary>
-        /// <param name="row">Row to populate.</param>
-        /// <param name="rowEntity">Row root entity.</param>
-        void BuildModelRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            valueHost.LayerMask = RootEntity.LayerMask;
-            valueHost.Position = float3.Zero;
-            rowEntity.AddChild(valueHost);
-
-            var valueText = new TextComponent();
-            valueText.Font = Font;
-            valueText.Text = EmptyAssetLabel;
-            valueText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            valueText.Size = new int2(1, 1);
-            valueText.RenderOrder2D = TextOrder;
-            valueHost.AddComponent(valueText);
-
-            var buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            buttonHost.LayerMask = RootEntity.LayerMask;
-            buttonHost.Position = float3.Zero;
-            rowEntity.AddChild(buttonHost);
-
-            var button = new ButtonComponent("Pick", new int2(PickButtonWidth, PickButtonHeight), Font, () => RequestModelPick(row), 0f);
-            buttonHost.AddComponent(button);
-
-            row.ValueHost = valueHost;
-            row.ValueText = valueText;
-            row.ActionButtonHost = buttonHost;
-            row.ActionButton = button;
-        }
-
-        /// <summary>
         /// Requests the asset picker for a model field.
         /// </summary>
         /// <param name="row">Model row to update.</param>
-        void RequestModelPick(ComponentPropertyRow row) {
+        internal void RequestModelPick(ComponentPropertyRow row) {
             EditorSessionInteractionServices.From(RootEntity).AssetPicker.RequestPick(entry => HandleModelPicked(row, entry));
         }
 
@@ -4576,7 +4493,7 @@ namespace helengine.editor {
                 }
                 StorePickedAssetReference(row, entry);
                 PersistPlatformOverrideIfNeeded(row);
-                UpdateModelRow(row);
+                RefreshRowControls(row);
                 RecordRowMutation(row, previousEntityState);
             } catch (Exception ex) {
                 Logger.WriteError($"Model pick failed: {ex.Message}");
