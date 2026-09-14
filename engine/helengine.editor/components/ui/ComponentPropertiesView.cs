@@ -259,7 +259,7 @@ namespace helengine.editor {
         /// <summary>
         /// Tracks whether the view is updating text fields internally.
         /// </summary>
-        bool IsSynchronizing;
+        internal bool IsSynchronizing;
         /// <summary>
         /// Tracks one component/platform pair whose removed placeholder should preserve the Exists row for the next rebuild only.
         /// </summary>
@@ -368,6 +368,7 @@ namespace helengine.editor {
             RegisterRowRenderer(new Vector4ComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new ScalarComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new BooleanComponentPropertyRowRenderer(this));
+            RegisterRowRenderer(new ComboBoxComponentPropertyRowRenderer(this));
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
@@ -2154,15 +2155,28 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Model:
                     UpdateModelRow(row);
                     break;
-                case ComponentPropertyRowKind.ComboBox:
-                    UpdateComboBoxRow(row);
-                    break;
                 case ComponentPropertyRowKind.ReadOnly:
                     UpdateReadOnlyRow(row);
                     break;
             }
 
             RefreshRowOverrideChrome(row);
+        }
+
+        /// <summary>
+        /// Refreshes only the kind-specific controls of one row from its bound value, leaving the override chrome
+        /// untouched. Used after an edit that already updated the chrome or does not affect it.
+        /// </summary>
+        /// <param name="row">Row whose controls should be refreshed.</param>
+        void RefreshRowControls(ComponentPropertyRow row) {
+            if (row == null) {
+                throw new ArgumentNullException(nameof(row));
+            }
+
+            ComponentPropertyRowRenderer renderer;
+            if (RowRenderers.TryGetValue(row.Kind, out renderer)) {
+                renderer.Update(row);
+            }
         }
 
         /// <summary>
@@ -2344,35 +2358,6 @@ namespace helengine.editor {
             }
 
             UpdateCustomSectionVisual(row, false);
-        }
-
-        /// <summary>
-        /// Updates a combo-box row with the component property value.
-        /// </summary>
-        /// <param name="row">Row to update.</param>
-        void UpdateComboBoxRow(ComponentPropertyRow row) {
-            if (row == null) {
-                throw new ArgumentNullException(nameof(row));
-            }
-            if (row.ComboBoxField == null) {
-                return;
-            }
-
-            string currentValue = GetRowValue(row) as string ?? string.Empty;
-            int selectedIndex = -1;
-            IReadOnlyList<string> items = row.ComboBoxField.Items;
-            for (int index = 0; index < items.Count; index++) {
-                if (string.Equals(items[index], currentValue, StringComparison.OrdinalIgnoreCase)) {
-                    selectedIndex = index;
-                    break;
-                }
-            }
-
-            IsSynchronizing = true;
-            if (row.ComboBoxField.SelectedIndex != selectedIndex) {
-                row.ComboBoxField.SelectedIndex = selectedIndex;
-            }
-            IsSynchronizing = false;
         }
 
         /// <summary>
@@ -2943,7 +2928,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row whose combo box raised the change event.</param>
         /// <param name="selectedItem">Newly selected item text.</param>
-        void HandleComboBoxRowSelectionChanged(ComponentPropertyRow row, string selectedItem) {
+        internal void HandleComboBoxRowSelectionChanged(ComponentPropertyRow row, string selectedItem) {
             if (IsSynchronizing) {
                 return;
             }
@@ -2962,7 +2947,7 @@ namespace helengine.editor {
             }
 
             ApplyPropertyEdit(row, selectedItem);
-            UpdateComboBoxRow(row);
+            RefreshRowControls(row);
             if (IsMeshComponentModifierRow(row)) {
                 // A mode change swaps which parameter rows the modifier shows, so the section must rebuild.
                 RebuildCurrentComponentView();
@@ -3766,9 +3751,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Model:
                     LayoutMaterialRow(row, contentWidth, height, labelWidth);
                     break;
-                case ComponentPropertyRowKind.ComboBox:
-                    LayoutComboBoxRow(row, contentWidth, height, labelWidth);
-                    break;
                 case ComponentPropertyRowKind.ReadOnly:
                     LayoutReadOnlyRow(row, contentWidth, height, labelWidth);
                     break;
@@ -3870,24 +3852,6 @@ namespace helengine.editor {
 
             float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
             row.ActionButtonHost.Position = new float3(width - buttonWidth, buttonY, 0.2f);
-        }
-
-        /// <summary>
-        /// Layouts a combo-box row with one drop-down choice field.
-        /// </summary>
-        /// <param name="row">Combo-box row to layout.</param>
-        /// <param name="width">Available width.</param>
-        /// <param name="height">Row height.</param>
-        /// <param name="labelWidth">Width reserved for labels.</param>
-        void LayoutComboBoxRow(ComponentPropertyRow row, int width, int height, int labelWidth) {
-            if (row.ComboBoxHost == null || row.ComboBoxField == null) {
-                return;
-            }
-
-            int fieldWidth = Math.Max(48, width - labelWidth - FieldSpacing);
-            float fieldY = (float)Math.Round((height - FieldHeight) * 0.5);
-            row.ComboBoxHost.Position = new float3(labelWidth + FieldSpacing, fieldY, 0.2f);
-            row.ComboBoxField.Size = new int2(fieldWidth, FieldHeight);
         }
 
         /// <summary>
@@ -4604,9 +4568,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Model:
                     BuildModelRow(row, rowEntity);
                     break;
-                case ComponentPropertyRowKind.ComboBox:
-                    BuildComboBoxRow(row, rowEntity);
-                    break;
                 case ComponentPropertyRowKind.ReadOnly:
                     BuildReadOnlyRow(row, rowEntity);
                     break;
@@ -4969,25 +4930,6 @@ namespace helengine.editor {
             }
 
             draftValues[componentKey] = value ?? string.Empty;
-        }
-
-        /// <summary>
-        /// Builds the drop-down choice control for a combo-box row.
-        /// </summary>
-        /// <param name="row">Row to populate.</param>
-        /// <param name="rowEntity">Row root entity.</param>
-        void BuildComboBoxRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var comboBoxHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            comboBoxHost.LayerMask = RootEntity.LayerMask;
-            comboBoxHost.Position = float3.Zero;
-            rowEntity.AddChild(comboBoxHost);
-
-            var comboBox = new ComboBoxComponent(new int2(120, FieldHeight), Font, Array.Empty<string>(), -1);
-            comboBox.SelectionChanged += (selectedIndex, selectedItem) => HandleComboBoxRowSelectionChanged(row, selectedItem);
-            comboBoxHost.AddComponent(comboBox);
-
-            row.ComboBoxHost = comboBoxHost;
-            row.ComboBoxField = comboBox;
         }
 
         /// <summary>
