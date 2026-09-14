@@ -35,15 +35,13 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            EngineBinaryHeader header = new EngineBinaryHeader(
+            using EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
+                stream,
                 PayloadEndianness,
                 CurrentVersion,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)ValueKind);
-
-            EngineBinaryHeaderSerializer.Write(stream, header);
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
             if (settings.Importer == null) {
                 throw new InvalidOperationException("Asset import settings must include importer settings.");
             } else if (settings.Processor == null) {
@@ -90,9 +88,17 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)RecordKind,
+                (ushort)ValueKind,
+                CurrentVersion,
+                "asset import settings",
+                "sectioned asset import settings",
+                "Regenerate the sectioned asset import settings sidecar.",
+                out EngineBinaryHeader header);
+
             AssetImportSettings settings = new AssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
             settings.Importer.SourceChecksum = reader.ReadString();
@@ -129,25 +135,6 @@ namespace helengine.editor {
             }
 
             return settings;
-        }
-
-        /// <summary>
-        /// Validates that the provided header matches the asset import settings format.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            } else if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
-                throw new InvalidOperationException($"Unsupported asset import settings format id '{header.FormatId}'.");
-            } else if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected asset import settings record kind '{header.RecordKind}'.");
-            } else if (header.ValueKind != (ushort)ValueKind) {
-                throw new InvalidOperationException($"Unexpected asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException(
-                    $"Unsupported sectioned asset import settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the sectioned asset import settings sidecar.");
-            }
         }
 
         static void SerializePlatformSettings(EngineBinaryWriter writer, AssetPlatformProcessorSettings settings, string ownerLabel) {

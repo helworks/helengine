@@ -35,15 +35,13 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(metadata));
             }
 
-            EngineBinaryHeader header = new EngineBinaryHeader(
+            using EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
+                stream,
                 PayloadEndianness,
                 CurrentVersion,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)ValueKind);
-
-            EngineBinaryHeaderSerializer.Write(stream, header);
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
             writer.WriteString(metadata.SourceHash);
             writer.WriteInt64(metadata.SourceWriteTimeUtcTicks);
             writer.WriteInt64(metadata.SourceLengthBytes);
@@ -59,32 +57,22 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)RecordKind,
+                (ushort)ValueKind,
+                CurrentVersion,
+                "shader cache metadata",
+                "shader cache metadata",
+                string.Empty,
+                out EngineBinaryHeader header);
+
             return new ShaderCacheMetadata {
                 SourceHash = reader.ReadString(),
                 SourceWriteTimeUtcTicks = reader.ReadInt64(),
                 SourceLengthBytes = reader.ReadInt64()
             };
-        }
-
-        /// <summary>
-        /// Validates that the provided header matches the shader cache metadata format.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            } else if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
-                throw new InvalidOperationException($"Unsupported shader cache metadata format id '{header.FormatId}'.");
-            } else if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected shader cache metadata record kind '{header.RecordKind}'.");
-            } else if (header.ValueKind != (ushort)ValueKind) {
-                throw new InvalidOperationException($"Unexpected shader cache metadata value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException($"Unsupported shader cache metadata binary version '{header.Version}'.");
-            }
         }
     }
 }
