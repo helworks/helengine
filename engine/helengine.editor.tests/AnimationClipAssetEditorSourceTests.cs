@@ -10,12 +10,15 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void EditorSession_routes_hanim_assets_to_animation_clip_settings_view() {
-            string source = File.ReadAllText(Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.editor", "EditorSession.cs"));
+            string editorRootPath = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "engine", "helengine.editor");
+            string sessionSource = File.ReadAllText(Path.Combine(editorRootPath, "EditorSession.cs"));
+            string coordinatorSource = File.ReadAllText(Path.Combine(editorRootPath, "managers", "asset", "EditorAssetSelectionCoordinator.cs"));
 
-            Assert.Contains("bool IsAnimationClipAssetEntry(AssetBrowserEntry entry)", source, StringComparison.Ordinal);
-            Assert.Contains("propertiesPanels[index].ShowAnimationClipSettings(", source, StringComparison.Ordinal);
-            Assert.Contains("entry.Extension", source, StringComparison.Ordinal);
-            Assert.Contains(".hanim", source, StringComparison.Ordinal);
+            Assert.Contains("static bool IsAnimationClipAssetEntry(AssetBrowserEntry entry)", coordinatorSource, StringComparison.Ordinal);
+            Assert.Contains("entry.Extension", coordinatorSource, StringComparison.Ordinal);
+            Assert.Contains(".hanim", coordinatorSource, StringComparison.Ordinal);
+            Assert.Contains("EditorAssetSelectionCoordinator.IsAnimationClipAssetEntry(", sessionSource, StringComparison.Ordinal);
+            Assert.Contains("propertiesPanels[index].ShowAnimationClipSettings(", sessionSource, StringComparison.Ordinal);
         }
 
         /// <summary>
