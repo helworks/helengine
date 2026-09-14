@@ -192,7 +192,7 @@ namespace helengine.editor {
         /// <summary>
         /// Marshals background shader-build notifications onto the editor frame thread.
         /// </summary>
-        EditorShaderBuildNotificationQueue ShaderBuildNotificationQueue;
+        readonly EditorShaderBuildNotificationQueue ShaderBuildNotificationQueue;
         /// <summary>
         /// Resolves the active preview source for the current selection snapshot.
         /// </summary>
@@ -316,7 +316,7 @@ namespace helengine.editor {
         /// <summary>
         /// Classifies browser selections and converts typed import settings for the settings view.
         /// </summary>
-        EditorAssetSelectionCoordinator AssetSelectionCoordinator;
+        readonly EditorAssetSelectionCoordinator AssetSelectionCoordinator;
         /// <summary>
         /// Public project asset-authoring capability backed by this session's host-owned import manager.
         /// </summary>
@@ -463,7 +463,7 @@ namespace helengine.editor {
         /// <summary>
         /// Decides which platforms the build, platform and profile menus may offer for this project.
         /// </summary>
-        EditorBuildMenuCoordinator BuildMenuCoordinator;
+        readonly EditorBuildMenuCoordinator BuildMenuCoordinator;
         /// <summary>
         /// Loads dynamic platform builders and their metadata.
         /// </summary>
@@ -487,11 +487,11 @@ namespace helengine.editor {
         /// <summary>
         /// Builds the scene entities produced by asset-browser add-to-scene commands.
         /// </summary>
-        EditorSceneEntityCreationService SceneEntityCreationService;
+        readonly EditorSceneEntityCreationService SceneEntityCreationService;
         /// <summary>
         /// Publishes the authored scene to the runtime scene manager and the attached physics runtime.
         /// </summary>
-        EditorSceneLifecycleService SceneLifecycleService;
+        readonly EditorSceneLifecycleService SceneLifecycleService;
         /// <summary>
         /// Absolute path to the current scene file, when one has been saved. Owned by the scene-lifecycle service.
         /// </summary>
@@ -2159,7 +2159,8 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles the main `New Map` command from the editor title bar.
+        /// Registers every workspace panel type this session can dock, binding each panel type id to the
+        /// factory that creates its controller so workspace slots can be restored without hard-coded panels.
         /// </summary>
         void InitializePanelRegistry() {
             PanelRegistry.Register(new EditorWorkspacePanelTypeDescriptor(
