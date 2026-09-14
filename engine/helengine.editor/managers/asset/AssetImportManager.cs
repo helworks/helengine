@@ -134,6 +134,20 @@ namespace helengine.editor {
         readonly AssetImportSettingsRepository SettingsRepositoryInstance;
 
         /// <summary>
+        /// Owns typed import execution for this manager.
+        /// </summary>
+        readonly AssetImportExecutionService ExecutionServiceInstance;
+
+        /// <summary>
+        /// Resolves cached runtime assets for this manager.
+        /// </summary>
+        readonly ImportedAssetRuntimeResolver RuntimeResolverInstance;
+
+        /// <summary>
+        /// Tracks source invalidation for the manager lifetime.
+        /// </summary>
+        readonly AssetImportInvalidationService InvalidationServiceInstance;
+        /// <summary>
         /// Initializes a new asset import manager for a project.
         /// </summary>
         /// <param name="projectRootPath">Absolute path to the project root.</param>
@@ -169,6 +183,9 @@ namespace helengine.editor {
             AudioSampleProcessor = new EditorAudioSampleProcessor();
             ImporterRegistryInstance = new AssetImporterRegistry(this);
             SettingsRepositoryInstance = new AssetImportSettingsRepository(this);
+            ExecutionServiceInstance = new AssetImportExecutionService(this);
+            RuntimeResolverInstance = new ImportedAssetRuntimeResolver(this);
+            InvalidationServiceInstance = new AssetImportInvalidationService();
             EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
             // Directory creation is deferred to the owning authoring boundary.
@@ -195,6 +212,7 @@ namespace helengine.editor {
         /// content manager are owned by their explicit session ledger entries.
         /// </summary>
         public virtual void Dispose() {
+            InvalidationServiceInstance.Dispose();
             // The manager currently has no unmanaged resources. This explicit
             // owner boundary is intentionally idempotent and keeps disposal
             // ordering visible to the session construction ledger.
@@ -221,6 +239,21 @@ namespace helengine.editor {
         /// Gets the typed import settings repository for this project.
         /// </summary>
         public AssetImportSettingsRepository SettingsRepository => SettingsRepositoryInstance;
+
+        /// <summary>
+        /// Gets the typed import execution service.
+        /// </summary>
+        public AssetImportExecutionService ExecutionService => ExecutionServiceInstance;
+
+        /// <summary>
+        /// Gets the cached runtime asset resolver.
+        /// </summary>
+        public ImportedAssetRuntimeResolver RuntimeResolver => RuntimeResolverInstance;
+
+        /// <summary>
+        /// Gets the source invalidation service owned by this manager.
+        /// </summary>
+        public AssetImportInvalidationService InvalidationService => InvalidationServiceInstance;
 
         /// <summary>
         /// Gets or sets the active project platform whose processor settings should drive model cache generation.
