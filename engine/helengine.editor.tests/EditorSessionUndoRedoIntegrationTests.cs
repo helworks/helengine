@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor.tests.testing;
 using helengine.projectfile;
@@ -542,7 +542,9 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "unsavedChangesDialog", new UnsavedChangesDialog(CoreValue, InteractionServices, CreateFont()));
             SetPrivateField(session, "reparentEntityDialog", new ReparentEntityDialog(CoreValue, InteractionServices, CreateFont(), EditorUiMetrics.Default));
             SetPrivateField(session, "sceneSettingsDialog", new SceneSettingsDialog(CoreValue, InteractionServices, CreateFont(), EditorUiMetrics.Default));
-            SetPrivateField(session, "sceneCatalogService", new EditorProjectSceneCatalogService(TempProjectRootPath));
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            SetPrivateField(session, "sceneCatalogService", sceneCatalogService);
+            SetPrivateField(session, "SceneLifecycleService", new EditorSceneLifecycleService(sceneCatalogService));
             SetPrivateField(session, "SceneSaveService", saveService);
             SetPrivateField(session, "SceneFileLoadService", loadService);
             SetPrivateField(session, "SceneCreationService", GeneratedAssetGraph.CreateSceneCreationService());

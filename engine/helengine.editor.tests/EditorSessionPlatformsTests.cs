@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using helengine.editor.tests.testing;
@@ -228,10 +228,13 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ActiveProjectPlatform", activePlatform);
             SetPrivateField(session, "ProjectDisplayName", "project.heproj");
             SetPrivateField(session, "assetImportManager", assetImportManager);
+            SetPrivateField(session, "AssetSelectionCoordinator", new EditorAssetSelectionCoordinator(assetImportManager));
             SetPrivateField(session, "titleBar", new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine - project.heproj [WINDOWS]"));
             SetPrivateField(session, "platformsDialog", new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()));
             SetPrivateField(session, "projectPlatformsService", new EditorProjectPlatformsService(TempProjectRootPath));
-            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath)));
+            AvailablePlatformProviderResolver platformProviderResolver = new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath));
+            SetPrivateField(session, "availablePlatformProviderResolver", platformProviderResolver);
+            SetPrivateField(session, "BuildMenuCoordinator", new EditorBuildMenuCoordinator(platformProviderResolver, "1.0.0-custom"));
 
             return session;
         }

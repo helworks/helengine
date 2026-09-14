@@ -260,6 +260,7 @@ namespace helengine.editor.tests {
             manager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".obj" }));
 
             SetPrivateField(session, "assetImportManager", manager);
+            SetPrivateField(session, "AssetSelectionCoordinator", new EditorAssetSelectionCoordinator(manager));
             SetPrivateField(session, "propertiesPanel", propertiesPanel);
             SetPrivateField(session, "previewPanel", previewPanel);
             SetPrivateField(session, "sceneHierarchyPanel", sceneHierarchyPanel);

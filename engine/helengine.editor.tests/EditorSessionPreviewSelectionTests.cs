@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor;
@@ -177,6 +177,7 @@ namespace helengine.editor.tests {
                 GeneratedAssetGraph.RendererResources);
 
             SetPrivateField(session, "assetImportManager", assetImportManager);
+            SetPrivateField(session, "AssetSelectionCoordinator", new EditorAssetSelectionCoordinator(assetImportManager));
             SetPrivateField(session, "interactionServices", InteractionServices);
             SetPrivateField(session, "propertiesPanel", propertiesPanel);
             SetPrivateField(session, "previewPanel", previewPanel);

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using helengine.editor.tests.testing;
 using helengine.platforms;
@@ -619,9 +619,13 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "profileSettingsService", new EditorProfileSettingsService(TempProjectRootPath));
             SetPrivateField(session, "buildConfigService", buildConfigService);
             SetPrivateField(session, "buildQueueService", buildQueueService);
-            SetPrivateField(session, "sceneCatalogService", new EditorProjectSceneCatalogService(TempProjectRootPath));
+            EditorProjectSceneCatalogService sceneCatalogService = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            SetPrivateField(session, "sceneCatalogService", sceneCatalogService);
+            SetPrivateField(session, "SceneLifecycleService", new EditorSceneLifecycleService(sceneCatalogService));
             SetPrivateField(session, "RequiredEngineVersion", "1.0.0-custom");
-            SetPrivateField(session, "availablePlatformProviderResolver", new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath)));
+            AvailablePlatformProviderResolver platformProviderResolver = new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath));
+            SetPrivateField(session, "availablePlatformProviderResolver", platformProviderResolver);
+            SetPrivateField(session, "BuildMenuCoordinator", new EditorBuildMenuCoordinator(platformProviderResolver, "1.0.0-custom"));
 
             return session;
         }
