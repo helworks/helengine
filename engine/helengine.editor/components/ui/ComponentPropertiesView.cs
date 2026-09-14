@@ -15,7 +15,7 @@ namespace helengine.editor {
         /// Session-scoped generated provider registry used to resolve virtual model and material entries.
         /// </summary>
         internal GeneratedAssetProviderRegistry GeneratedAssetProviders { get; private set; }
-        EditorSessionRendererResources RendererResources;
+        internal EditorSessionRendererResources RendererResources;
         /// <summary>
         /// Height of header rows in pixels.
         /// </summary>
@@ -39,7 +39,7 @@ namespace helengine.editor {
         /// <summary>
         /// Padding applied before the title text inside one component section header.
         /// </summary>
-        const int SectionHeaderPadding = 8;
+        internal const int SectionHeaderPadding = 8;
         /// <summary>
         /// Width reserved for the fixed remove button in one component section header.
         /// </summary>
@@ -59,7 +59,7 @@ namespace helengine.editor {
         /// <summary>
         /// Height of property rows in pixels.
         /// </summary>
-        const int RowHeight = 24;
+        internal const int RowHeight = 24;
         /// <summary>
         /// Spacing between rows in pixels.
         /// </summary>
@@ -373,6 +373,7 @@ namespace helengine.editor {
             RegisterRowRenderer(new MaterialComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new FontComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new ModelComponentPropertyRowRenderer(this));
+            RegisterRowRenderer(new CustomSectionComponentPropertyRowRenderer(this));
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
@@ -2147,9 +2148,6 @@ namespace helengine.editor {
             }
 
             switch (row.Kind) {
-                case ComponentPropertyRowKind.CustomSection:
-                    UpdateCustomSectionRow(row);
-                    break;
             }
 
             RefreshRowOverrideChrome(row);
@@ -2338,18 +2336,6 @@ namespace helengine.editor {
             if (HasLayoutState) {
                 UpdateLayout(LastLayoutLeft, LastLayoutTop, LastLayoutWidth);
             }
-        }
-
-        /// <summary>
-        /// Updates one custom section row to reflect its current expansion state.
-        /// </summary>
-        /// <param name="row">Row to update.</param>
-        void UpdateCustomSectionRow(ComponentPropertyRow row) {
-            if (row == null) {
-                throw new ArgumentNullException(nameof(row));
-            }
-
-            UpdateCustomSectionVisual(row, false);
         }
 
         /// <summary>
@@ -3667,30 +3653,9 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Header:
                     LayoutHeaderRow(row, contentWidth, height);
                     break;
-                case ComponentPropertyRowKind.CustomSection:
-                    LayoutCustomSectionRow(row, contentWidth, height);
-                    break;
                 default:
                     break;
             }
-        }
-
-        /// <summary>
-        /// Layouts one custom section row so it spans the available width like a nested header.
-        /// </summary>
-        /// <param name="row">Custom section row to layout.</param>
-        /// <param name="width">Available width.</param>
-        /// <param name="height">Row height.</param>
-        void LayoutCustomSectionRow(ComponentPropertyRow row, int width, int height) {
-            if (row.HeaderBackground == null || row.HeaderInteractable == null) {
-                return;
-            }
-
-            int safeWidth = Math.Max(1, width);
-            row.HeaderBackground.Size = new int2(safeWidth, height);
-            row.HeaderInteractable.Size = new int2(safeWidth, height);
-            row.LabelHost.Position = new float3(SectionHeaderPadding, row.LabelHost.Position.Y, 0.2f);
-            row.Label.Size = new int2(Math.Max(1, safeWidth - SectionHeaderPadding * 2), row.Label.Size.Y);
         }
 
         /// <summary>
@@ -3903,7 +3868,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row receiving the pointer interaction.</param>
         /// <param name="state">Current pointer state.</param>
-        void HandleCustomSectionCursor(ComponentPropertyRow row, PointerInteraction state) {
+        internal void HandleCustomSectionCursor(ComponentPropertyRow row, PointerInteraction state) {
             if (row == null) {
                 return;
             }
@@ -4115,7 +4080,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row whose visual state should be refreshed.</param>
         /// <param name="isHovered">True when the row is currently hovered.</param>
-        void UpdateCustomSectionVisual(ComponentPropertyRow row, bool isHovered) {
+        internal void UpdateCustomSectionVisual(ComponentPropertyRow row, bool isHovered) {
             if (row == null || row.HeaderBackground == null || row.Label == null) {
                 return;
             }
@@ -4430,39 +4395,11 @@ namespace helengine.editor {
             }
 
             switch (kind) {
-                case ComponentPropertyRowKind.CustomSection:
-                    BuildCustomSectionRow(row, rowEntity);
-                    break;
                 default:
                     break;
             }
 
             return row;
-        }
-
-        /// <summary>
-        /// Builds the chrome used by one provider-backed nested section row.
-        /// </summary>
-        /// <param name="row">Row to populate.</param>
-        /// <param name="rowEntity">Row root entity.</param>
-        void BuildCustomSectionRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            SpriteComponent background = new SpriteComponent {
-                Texture = RendererResources.RenderManager2D.PixelTexture,
-                Color = ThemeManager.Colors.AccentSecondary,
-                RenderOrder2D = RenderOrder2D.PanelSurface,
-                Size = new int2(1, RowHeight)
-            };
-            rowEntity.AddComponent(background);
-
-            InteractableComponent interactable = new InteractableComponent {
-                Size = new int2(1, RowHeight),
-                HoverCursor = PointerCursorKind.Hand
-            };
-            rowEntity.AddComponent(interactable);
-
-            row.HeaderBackground = background;
-            row.HeaderInteractable = interactable;
-            interactable.CursorEvent += (pos, delta, state) => HandleCustomSectionCursor(row, state);
         }
 
         /// <summary>
