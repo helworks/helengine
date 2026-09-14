@@ -5,134 +5,46 @@ namespace helengine.vulkan {
     /// <summary>
     /// Compiles HLSL shaders to SPIR-V bytecode for the Vulkan runtime target.
     /// </summary>
-    public class VulkanShaderBackend : IShaderBackend {
+    public class VulkanShaderBackend : ShaderBackendBase {
         /// <summary>
-        /// Default variant name used when a compile request does not specify one.
+        /// Source path reported to shaderc when the request carries no path of its own.
         /// </summary>
-        const string DefaultVariantName = "default";
-
-        /// <summary>
-        /// Capability metadata describing supported shader models and stages.
-        /// </summary>
-        readonly ShaderBackendCapabilities CapabilitiesData;
+        const string FallbackSourcePath = "shader.hlsl";
 
         /// <summary>
         /// Initializes Vulkan shader compiler capabilities.
         /// </summary>
-        public VulkanShaderBackend() {
+        public VulkanShaderBackend()
+            : base(ShaderCompileTarget.Vulkan, BuildCapabilities(), "Vulkan") {
+        }
+
+        /// <summary>
+        /// Compiles the request through shaderc and returns the resulting SPIR-V bytecode.
+        /// </summary>
+        /// <param name="request">Shader compilation request.</param>
+        /// <param name="includeResolver">Resolver used for shader includes; shaderc resolves includes internally so it is unused here.</param>
+        /// <param name="diagnostics">Always an empty array because shaderc reports failures as exceptions rather than warnings.</param>
+        /// <returns>Compiled SPIR-V bytecode.</returns>
+        protected override byte[] CompileBytecode(
+            ShaderCompileRequest request,
+            IShaderIncludeResolver includeResolver,
+            out ShaderCompileDiagnostic[] diagnostics) {
+            diagnostics = Array.Empty<ShaderCompileDiagnostic>();
+            return CompileSpirv(request);
+        }
+
+        /// <summary>
+        /// Builds the capability metadata describing the shader models and stages the Vulkan backend accepts.
+        /// </summary>
+        /// <returns>Backend capability metadata.</returns>
+        static ShaderBackendCapabilities BuildCapabilities() {
             ShaderModel minModel = new ShaderModel(4, 0);
             ShaderModel maxModel = new ShaderModel(6, 7);
-            ShaderStage[] stages = new[] {
+            ShaderStage[] stages = new ShaderStage[] {
                 ShaderStage.Vertex,
                 ShaderStage.Pixel
             };
-            CapabilitiesData = new ShaderBackendCapabilities(minModel, maxModel, stages, false);
-        }
-
-        /// <summary>
-        /// Gets the backend target this compiler emits.
-        /// </summary>
-        public ShaderCompileTarget Target {
-            get {
-                return ShaderCompileTarget.Vulkan;
-            }
-        }
-
-        /// <summary>
-        /// Gets the capabilities supported by the backend.
-        /// </summary>
-        public ShaderBackendCapabilities Capabilities {
-            get {
-                return CapabilitiesData;
-            }
-        }
-
-        /// <summary>
-        /// Compiles the provided shader request into SPIR-V bytecode.
-        /// </summary>
-        /// <param name="request">Shader compilation request.</param>
-        /// <param name="includeResolver">Resolver used for shader includes.</param>
-        /// <returns>Compilation result containing program metadata and SPIR-V bytes.</returns>
-        public ShaderCompileResult Compile(ShaderCompileRequest request, IShaderIncludeResolver includeResolver) {
-            if (request == null) {
-                throw new ArgumentNullException(nameof(request));
-            }
-
-            if (includeResolver == null) {
-                throw new ArgumentNullException(nameof(includeResolver));
-            }
-
-            if (request.Target != ShaderCompileTarget.Vulkan) {
-                throw new InvalidOperationException("VulkanShaderBackend only supports Vulkan targets.");
-            }
-
-            ValidateRequest(request);
-
-            byte[] bytecode = CompileSpirv(request);
-            ShaderProgramDefinition programDefinition = BuildProgramDefinition(request);
-            ShaderCompiledBinary binary = new ShaderCompiledBinary(
-                request.Target,
-                request.Stage,
-                request.EntryPoint,
-                request.Variant,
-                bytecode);
-            ShaderCompileDiagnostic[] diagnostics = Array.Empty<ShaderCompileDiagnostic>();
-            return new ShaderCompileResult(request, programDefinition, binary, diagnostics, true);
-        }
-
-        /// <summary>
-        /// Validates target stage and shader model compatibility.
-        /// </summary>
-        /// <param name="request">Compilation request to validate.</param>
-        void ValidateRequest(ShaderCompileRequest request) {
-            if (!IsStageSupported(request.Stage)) {
-                throw new InvalidOperationException("Shader stage is not supported by the Vulkan backend.");
-            }
-
-            if (!IsShaderModelSupported(request.ShaderModel)) {
-                throw new InvalidOperationException("Shader model is not supported by the Vulkan backend.");
-            }
-        }
-
-        /// <summary>
-        /// Checks whether a shader stage is supported by this backend.
-        /// </summary>
-        /// <param name="stage">Shader stage to validate.</param>
-        /// <returns>True when the stage is supported.</returns>
-        bool IsStageSupported(ShaderStage stage) {
-            IReadOnlyList<ShaderStage> stages = CapabilitiesData.SupportedStages;
-            for (int i = 0; i < stages.Count; i++) {
-                if (stages[i] == stage) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Checks whether a shader model is supported by this backend.
-        /// </summary>
-        /// <param name="shaderModel">Shader model to validate.</param>
-        /// <returns>True when the shader model is supported.</returns>
-        bool IsShaderModelSupported(ShaderModel shaderModel) {
-            int minComparison = CompareShaderModel(shaderModel, CapabilitiesData.MinimumShaderModel);
-            int maxComparison = CompareShaderModel(shaderModel, CapabilitiesData.MaximumShaderModel);
-            return minComparison >= 0 && maxComparison <= 0;
-        }
-
-        /// <summary>
-        /// Compares two shader model versions.
-        /// </summary>
-        /// <param name="left">Left shader model.</param>
-        /// <param name="right">Right shader model.</param>
-        /// <returns>Negative when left is smaller, zero when equal, positive when greater.</returns>
-        int CompareShaderModel(ShaderModel left, ShaderModel right) {
-            if (left.Major != right.Major) {
-                return left.Major.CompareTo(right.Major);
-            }
-
-            return left.Minor.CompareTo(right.Minor);
+            return new ShaderBackendCapabilities(minModel, maxModel, stages, false);
         }
 
         /// <summary>
@@ -140,7 +52,7 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="request">Compilation request containing source and compile options.</param>
         /// <returns>Compiled SPIR-V bytecode.</returns>
-        unsafe byte[] CompileSpirv(ShaderCompileRequest request) {
+        static unsafe byte[] CompileSpirv(ShaderCompileRequest request) {
             Shaderc shaderc = Shaderc.GetApi();
 
             Compiler* compiler = shaderc.CompilerInitialize();
@@ -160,7 +72,7 @@ namespace helengine.vulkan {
                 ShaderKind kind = GetShaderKind(request.Stage);
                 string sourcePath = request.Source.Path;
                 if (string.IsNullOrWhiteSpace(sourcePath)) {
-                    sourcePath = "shader.hlsl";
+                    sourcePath = FallbackSourcePath;
                 }
 
                 CompilationResult* result = shaderc.CompileIntoSpv(
@@ -207,7 +119,7 @@ namespace helengine.vulkan {
         /// <param name="shaderc">Shaderc API entry point.</param>
         /// <param name="options">Compile options to configure.</param>
         /// <param name="request">Compile request containing defines and flags.</param>
-        unsafe void ConfigureCompileOptions(Shaderc shaderc, CompileOptions* options, ShaderCompileRequest request) {
+        static unsafe void ConfigureCompileOptions(Shaderc shaderc, CompileOptions* options, ShaderCompileRequest request) {
             shaderc.CompileOptionsSetTargetEnv(options, TargetEnv.Vulkan, (uint)EnvVersion.Vulkan12);
             shaderc.CompileOptionsSetSourceLanguage(options, SourceLanguage.Hlsl);
             shaderc.CompileOptionsSetHlslIoMapping(options, true);
@@ -220,16 +132,26 @@ namespace helengine.vulkan {
                 shaderc.CompileOptionsSetGenerateDebugInfo(options);
             }
 
-            OptimizationLevel optimizationLevel = request.Options.Optimize
-                ? OptimizationLevel.Performance
-                : OptimizationLevel.Zero;
+            OptimizationLevel optimizationLevel = OptimizationLevel.Zero;
+            if (request.Options.Optimize) {
+                optimizationLevel = OptimizationLevel.Performance;
+            }
+
             shaderc.CompileOptionsSetOptimizationLevel(options, optimizationLevel);
 
             IReadOnlyList<ShaderDefine> defines = request.Defines;
             for (int i = 0; i < defines.Count; i++) {
                 ShaderDefine define = defines[i];
-                string name = define.Name ?? string.Empty;
-                string value = define.Value ?? string.Empty;
+                string name = define.Name;
+                if (name == null) {
+                    name = string.Empty;
+                }
+
+                string value = define.Value;
+                if (value == null) {
+                    value = string.Empty;
+                }
+
                 shaderc.CompileOptionsAddMacroDefinition(
                     options,
                     name,
@@ -245,7 +167,7 @@ namespace helengine.vulkan {
         /// <param name="shaderc">Shaderc API entry point.</param>
         /// <param name="options">Compile options to configure.</param>
         /// <param name="bindingPolicy">Binding policy that defines the engine's unified binding slots.</param>
-        unsafe void ConfigureBindingBases(Shaderc shaderc, CompileOptions* options, ShaderBindingPolicy bindingPolicy) {
+        static unsafe void ConfigureBindingBases(Shaderc shaderc, CompileOptions* options, ShaderBindingPolicy bindingPolicy) {
             if (bindingPolicy == null) {
                 throw new ArgumentNullException(nameof(bindingPolicy));
             }
@@ -265,7 +187,7 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="stage">Engine shader stage.</param>
         /// <returns>Shaderc stage kind.</returns>
-        ShaderKind GetShaderKind(ShaderStage stage) {
+        static ShaderKind GetShaderKind(ShaderStage stage) {
             switch (stage) {
                 case ShaderStage.Vertex:
                     return ShaderKind.VertexShader;
@@ -274,63 +196,6 @@ namespace helengine.vulkan {
                 default:
                     throw new ArgumentOutOfRangeException(nameof(stage), "Unsupported shader stage for Vulkan compilation.");
             }
-        }
-
-        /// <summary>
-        /// Builds the shader program metadata used by package serialization.
-        /// </summary>
-        /// <param name="request">Compile request that produced the bytecode.</param>
-        /// <returns>Program definition with variant metadata.</returns>
-        ShaderProgramDefinition BuildProgramDefinition(ShaderCompileRequest request) {
-            ShaderBinding[] bindings = HlslShaderBindingParser.ParseBindings(
-                request.Source.Source,
-                request.Options.BindingPolicy,
-                request.Defines);
-            ShaderVertexElement[] inputs = Array.Empty<ShaderVertexElement>();
-            ShaderVertexElement[] outputs = Array.Empty<ShaderVertexElement>();
-            ShaderVariant[] variants = BuildVariants(request);
-            return new ShaderProgramDefinition(
-                request.ProgramName,
-                request.Stage,
-                request.EntryPoint,
-                bindings,
-                inputs,
-                outputs,
-                variants);
-        }
-
-        /// <summary>
-        /// Builds compile-time variant metadata from the request.
-        /// </summary>
-        /// <param name="request">Compile request to describe.</param>
-        /// <returns>Array containing a single variant description.</returns>
-        ShaderVariant[] BuildVariants(ShaderCompileRequest request) {
-            string variantName = string.IsNullOrWhiteSpace(request.Variant) ? DefaultVariantName : request.Variant;
-            string[] defineList = BuildVariantDefines(request.Defines);
-            return new[] { new ShaderVariant(variantName, defineList) };
-        }
-
-        /// <summary>
-        /// Converts define entries into stable "NAME=VALUE" strings.
-        /// </summary>
-        /// <param name="defines">Define list to convert.</param>
-        /// <returns>String array used in variant metadata.</returns>
-        string[] BuildVariantDefines(IReadOnlyList<ShaderDefine> defines) {
-            if (defines.Count == 0) {
-                return Array.Empty<string>();
-            }
-
-            string[] values = new string[defines.Count];
-            for (int i = 0; i < defines.Count; i++) {
-                ShaderDefine define = defines[i];
-                if (string.IsNullOrWhiteSpace(define.Value)) {
-                    values[i] = define.Name;
-                } else {
-                    values[i] = string.Concat(define.Name, "=", define.Value);
-                }
-            }
-
-            return values;
         }
     }
 }
