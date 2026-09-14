@@ -338,6 +338,10 @@ namespace helengine.editor {
         /// </summary>
         readonly AssetImportManager assetImportManager;
         /// <summary>
+        /// Classifies browser selections and converts typed import settings for the settings view.
+        /// </summary>
+        EditorAssetSelectionCoordinator AssetSelectionCoordinator;
+        /// <summary>
         /// Public project asset-authoring capability backed by this session's host-owned import manager.
         /// </summary>
         readonly IEditorProjectAssetAuthoringService AssetAuthoringService;
@@ -702,6 +706,7 @@ namespace helengine.editor {
             core.Input.SetKeyboardActive(true);
 
             assetImportManager = InitializeAssetImports(Importers);
+            AssetSelectionCoordinator = new EditorAssetSelectionCoordinator(assetImportManager);
             assetImportManager.SetRenderManager2D(core.RenderManager2D);
             constructionLedger.Register(assetImportManager.ContentManager);
             constructionLedger.Register(assetImportManager);
@@ -4395,68 +4400,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Determines whether one browser entry requires the typed model import-settings path.
-        /// </summary>
-        /// <param name="entry">Asset browser entry to inspect.</param>
-        /// <returns>True for built-in model entries and dynamically registered model extensions.</returns>
-        bool IsModelImportSettingsEntry(AssetBrowserEntry entry) {
-            if (entry == null) {
-                throw new ArgumentNullException(nameof(entry));
-            }
-
-            return entry.EntryKind == AssetEntryKind.Model
-                || (assetImportManager != null && assetImportManager.IsModelExtension(entry.Extension));
-        }
-
-        /// <summary>
-        /// Determines whether one browser entry requires the typed texture import-settings path.
-        /// </summary>
-        /// <param name="entry">Asset browser entry to inspect.</param>
-        /// <returns>True for built-in image entries and dynamically registered texture extensions.</returns>
-        bool IsTextureImportSettingsEntry(AssetBrowserEntry entry) {
-            if (entry == null) {
-                throw new ArgumentNullException(nameof(entry));
-            }
-
-            return entry.EntryKind == AssetEntryKind.Image
-                || (assetImportManager != null && assetImportManager.IsTextureExtension(entry.Extension));
-        }
-
-        /// <summary>
-        /// Determines whether one browser entry requires the audio import-settings rejection path.
-        /// </summary>
-        /// <param name="entry">Asset browser entry to inspect.</param>
-        /// <returns>True for built-in audio entries and dynamically registered audio extensions.</returns>
-        bool IsAudioImportSettingsEntry(AssetBrowserEntry entry) {
-            if (entry == null) {
-                throw new ArgumentNullException(nameof(entry));
-            }
-
-            return entry.EntryKind == AssetEntryKind.Audio
-                || (assetImportManager != null && assetImportManager.IsAudioExtension(entry.Extension));
-        }
-
-        /// <summary>
-        /// Resolves the processor-control kind for an import-settings view without changing the browser entry's original kind.
-        /// </summary>
-        /// <param name="entry">Asset browser entry whose registered importer should determine the presentation kind.</param>
-        /// <returns>Typed presentation kind for model and texture importers, or the original entry kind otherwise.</returns>
-        AssetEntryKind ResolveImportSettingsPresentationKind(AssetBrowserEntry entry) {
-            if (entry == null) {
-                throw new ArgumentNullException(nameof(entry));
-            }
-
-            if (IsModelImportSettingsEntry(entry)) {
-                return AssetEntryKind.Model;
-            }
-            if (IsTextureImportSettingsEntry(entry)) {
-                return AssetEntryKind.Image;
-            }
-
-            return entry.EntryKind;
-        }
-
-        /// <summary>
         /// Handles asset selections from the browser to display import settings.
         /// </summary>
         /// <param name="entry">Selected asset entry.</param>
@@ -4488,7 +4431,7 @@ namespace helengine.editor {
                 RefreshPreviewSource();
                 return;
             }
-            if (IsAnimationClipAssetEntry(entry)) {
+            if (EditorAssetSelectionCoordinator.IsAnimationClipAssetEntry(entry)) {
                 try {
                     AnimationClipAsset clipAsset = LoadAnimationClipAsset(entry.FullPath);
                     IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
@@ -4509,7 +4452,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (IsMaterialAssetEntry(entry)) {
+            if (EditorAssetSelectionCoordinator.IsMaterialAssetEntry(entry)) {
                 try {
                     ShaderMaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
                     MaterialAssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
@@ -4537,7 +4480,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (IsAudioImportSettingsEntry(entry)) {
+            if (AssetSelectionCoordinator.IsAudioImportSettingsEntry(entry)) {
                 ShowAudioImportSettingsUnavailable(entry);
                 RefreshPreviewSource();
                 return;
@@ -4555,7 +4498,7 @@ namespace helengine.editor {
                 }
 
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
-                if (IsModelImportSettingsEntry(entry)) {
+                if (AssetSelectionCoordinator.IsModelImportSettingsEntry(entry)) {
                     ModelAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateModelImportSettings(entry.FullPath, out settings)) {
                         for (int index = 0; index < propertiesPanels.Count; index++) {
@@ -4566,11 +4509,11 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
-                    AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(settings);
+                    AssetProcessorSettings processorSettings = EditorAssetSelectionCoordinator.CreateModelImportViewProcessorSettings(settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), presentationEntryKind: ResolveImportSettingsPresentationKind(entry));
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), presentationEntryKind: AssetSelectionCoordinator.ResolveImportSettingsPresentationKind(entry));
                     }
-                } else if (IsTextureImportSettingsEntry(entry)) {
+                } else if (AssetSelectionCoordinator.IsTextureImportSettingsEntry(entry)) {
                     TextureAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateTextureImportSettings(entry.FullPath, out settings)) {
                         for (int index = 0; index < propertiesPanels.Count; index++) {
@@ -4582,9 +4525,9 @@ namespace helengine.editor {
 
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
                     ResolveImageSourceDimensions(entry.FullPath, out int sourceImageWidth, out int sourceImageHeight);
-                    AssetProcessorSettings textureViewSettings = CreateTextureImportViewProcessorSettings(settings);
+                    AssetProcessorSettings textureViewSettings = EditorAssetSelectionCoordinator.CreateTextureImportViewProcessorSettings(settings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, textureViewSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), sourceImageWidth, sourceImageHeight, ResolveImportSettingsPresentationKind(entry));
+                        propertiesPanels[index].ShowImportSettings(entry, settings.Importer.ImporterId, textureViewSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), sourceImageWidth, sourceImageHeight, AssetSelectionCoordinator.ResolveImportSettingsPresentationKind(entry));
                     }
                 } else {
                     AssetImportSettings settings;
@@ -4644,23 +4587,23 @@ namespace helengine.editor {
                 return;
             }
 
-            if (IsAudioImportSettingsEntry(entry)) {
+            if (AssetSelectionCoordinator.IsAudioImportSettingsEntry(entry)) {
                 ShowAudioImportSettingsUnavailable(entry);
                 return;
             }
 
             try {
-                if (IsModelImportSettingsEntry(entry)) {
+                if (AssetSelectionCoordinator.IsModelImportSettingsEntry(entry)) {
                     ModelAssetImportSettings settings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
                     settings.Importer.ImporterId = request.ImporterId;
-                    ApplyModelImportRequestProcessorSettings(settings, request.ProcessorSettings);
+                    EditorAssetSelectionCoordinator.ApplyModelImportRequestProcessorSettings(settings, request.ProcessorSettings);
                     SetActiveProjectPlatform(request.SelectedPlatformId);
                     assetImportManager.CurrentEnvironmentId = request.SelectedEnvironmentId;
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
-                } else if (IsTextureImportSettingsEntry(entry)) {
+                } else if (AssetSelectionCoordinator.IsTextureImportSettingsEntry(entry)) {
                     TextureAssetImportSettings settings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
                     settings.Importer.ImporterId = request.ImporterId;
-                    ApplyTextureImportRequestProcessorSettings(settings, request.ProcessorSettings);
+                    EditorAssetSelectionCoordinator.ApplyTextureImportRequestProcessorSettings(settings, request.ProcessorSettings);
                     SetActiveProjectPlatform(request.SelectedPlatformId);
                     assetImportManager.CurrentEnvironmentId = request.SelectedEnvironmentId;
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
@@ -4677,18 +4620,18 @@ namespace helengine.editor {
 
                 IReadOnlyList<string> importerIds = assetImportManager.GetImporterIdsForExtension(entry.Extension);
                 IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
-                if (IsModelImportSettingsEntry(entry)) {
+                if (AssetSelectionCoordinator.IsModelImportSettingsEntry(entry)) {
                     ModelAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateModelImportSettings(entry.FullPath);
-                    AssetProcessorSettings processorSettings = CreateModelImportViewProcessorSettings(refreshedSettings);
+                    AssetProcessorSettings processorSettings = EditorAssetSelectionCoordinator.CreateModelImportViewProcessorSettings(refreshedSettings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), presentationEntryKind: ResolveImportSettingsPresentationKind(entry));
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, processorSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), presentationEntryKind: AssetSelectionCoordinator.ResolveImportSettingsPresentationKind(entry));
                     }
-                } else if (IsTextureImportSettingsEntry(entry)) {
+                } else if (AssetSelectionCoordinator.IsTextureImportSettingsEntry(entry)) {
                     TextureAssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateTextureImportSettings(entry.FullPath);
                     ResolveImageSourceDimensions(entry.FullPath, out int refreshedImageWidth, out int refreshedImageHeight);
-                    AssetProcessorSettings refreshedTextureViewSettings = CreateTextureImportViewProcessorSettings(refreshedSettings);
+                    AssetProcessorSettings refreshedTextureViewSettings = EditorAssetSelectionCoordinator.CreateTextureImportViewProcessorSettings(refreshedSettings);
                     for (int index = 0; index < propertiesPanels.Count; index++) {
-                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, refreshedTextureViewSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), refreshedImageWidth, refreshedImageHeight, ResolveImportSettingsPresentationKind(entry));
+                        propertiesPanels[index].ShowImportSettings(entry, refreshedSettings.Importer.ImporterId, refreshedTextureViewSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), refreshedImageWidth, refreshedImageHeight, AssetSelectionCoordinator.ResolveImportSettingsPresentationKind(entry));
                     }
                 } else {
                     AssetImportSettings refreshedSettings = assetImportManager.LoadOrCreateImportSettings(entry.FullPath);
@@ -4702,202 +4645,6 @@ namespace helengine.editor {
                     propertiesPanels[index].ShowImportError(entry, ex.Message);
                 }
             }
-        }
-
-        /// <summary>
-        /// Creates one model-focused processor-settings payload for the import-settings view.
-        /// </summary>
-        /// <param name="settings">Typed model import settings to project into the view model.</param>
-        /// <returns>Processor settings payload consumed by the model import-settings UI.</returns>
-        AssetProcessorSettings CreateModelImportViewProcessorSettings(ModelAssetImportSettings settings) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            AssetProcessorSettings processorSettings = new AssetProcessorSettings();
-            if (settings.Processor == null || settings.Processor.Platforms == null) {
-                return processorSettings;
-            }
-
-            foreach (KeyValuePair<string, ModelAssetProcessorSettings> pair in settings.Processor.Platforms) {
-                if (string.IsNullOrWhiteSpace(pair.Key)) {
-                    continue;
-                }
-
-                AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings {
-                    Model = CloneModelProcessorSettings(pair.Value)
-                };
-                processorSettings.Platforms[pair.Key] = platformSettings;
-                if (settings.Processor.Environments != null
-                    && settings.Processor.Environments.TryGetValue(pair.Key, out Dictionary<string, ModelAssetProcessorSettings> environments)
-                    && environments != null) {
-                    foreach (KeyValuePair<string, ModelAssetProcessorSettings> environment in environments) {
-                        platformSettings.Environments[environment.Key] = new AssetPlatformProcessorSettings {
-                            Model = CloneModelProcessorSettings(environment.Value)
-                        };
-                    }
-                }
-            }
-
-            return processorSettings;
-        }
-
-        /// <summary>
-        /// Applies one model import-settings request payload to typed model settings.
-        /// </summary>
-        /// <param name="settings">Typed model settings to update.</param>
-        /// <param name="processorSettings">Processor settings payload emitted by the import-settings view.</param>
-        void ApplyModelImportRequestProcessorSettings(ModelAssetImportSettings settings, AssetProcessorSettings processorSettings) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            } else if (processorSettings == null) {
-                throw new ArgumentNullException(nameof(processorSettings));
-            }
-
-            settings.Processor = new ModelAssetProcessorPlatformSettings();
-            foreach (KeyValuePair<string, AssetPlatformProcessorSettings> pair in processorSettings.Platforms) {
-                if (string.IsNullOrWhiteSpace(pair.Key)) {
-                    continue;
-                }
-
-                settings.Processor.Platforms[pair.Key] = CloneModelProcessorSettings(pair.Value?.Model);
-                if (pair.Value?.Environments != null) {
-                    Dictionary<string, ModelAssetProcessorSettings> environments = new Dictionary<string, ModelAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
-                    foreach (KeyValuePair<string, AssetPlatformProcessorSettings> environment in pair.Value.Environments) {
-                        environments[environment.Key] = CloneModelProcessorSettings(environment.Value?.Model);
-                    }
-                    settings.Processor.Environments[pair.Key] = environments;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Creates one texture-focused processor-settings payload for the import-settings view.
-        /// </summary>
-        /// <param name="settings">Typed texture import settings to project into the view model.</param>
-        /// <returns>Processor settings payload consumed by the texture import-settings UI.</returns>
-        AssetProcessorSettings CreateTextureImportViewProcessorSettings(TextureAssetImportSettings settings) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            AssetProcessorSettings processorSettings = new AssetProcessorSettings();
-            if (settings.Processor == null || settings.Processor.Platforms == null) {
-                return processorSettings;
-            }
-
-            foreach (KeyValuePair<string, TextureAssetProcessorSettings> pair in settings.Processor.Platforms) {
-                if (string.IsNullOrWhiteSpace(pair.Key)) {
-                    continue;
-                }
-
-                AssetPlatformProcessorSettings platformSettings = new AssetPlatformProcessorSettings {
-                    Texture = CloneTextureProcessorSettings(pair.Value)
-                };
-                processorSettings.Platforms[pair.Key] = platformSettings;
-                if (settings.Processor.Environments != null
-                    && settings.Processor.Environments.TryGetValue(pair.Key, out Dictionary<string, TextureAssetProcessorSettings> environments)
-                    && environments != null) {
-                    foreach (KeyValuePair<string, TextureAssetProcessorSettings> environment in environments) {
-                        platformSettings.Environments[environment.Key] = new AssetPlatformProcessorSettings {
-                            Texture = CloneTextureProcessorSettings(environment.Value)
-                        };
-                    }
-                }
-            }
-
-            return processorSettings;
-        }
-
-        /// <summary>
-        /// Applies one texture import-settings request payload to typed texture settings.
-        /// </summary>
-        /// <param name="settings">Typed texture settings to update.</param>
-        /// <param name="processorSettings">Processor settings payload emitted by the import-settings view.</param>
-        void ApplyTextureImportRequestProcessorSettings(TextureAssetImportSettings settings, AssetProcessorSettings processorSettings) {
-            if (settings == null) {
-                throw new ArgumentNullException(nameof(settings));
-            } else if (processorSettings == null) {
-                throw new ArgumentNullException(nameof(processorSettings));
-            }
-
-            settings.Processor = new TextureAssetProcessorPlatformSettings();
-            foreach (KeyValuePair<string, AssetPlatformProcessorSettings> pair in processorSettings.Platforms) {
-                if (string.IsNullOrWhiteSpace(pair.Key)) {
-                    continue;
-                }
-
-                settings.Processor.Platforms[pair.Key] = CloneTextureProcessorSettings(pair.Value?.Texture);
-                if (pair.Value?.Environments != null) {
-                    Dictionary<string, TextureAssetProcessorSettings> environments = new Dictionary<string, TextureAssetProcessorSettings>(StringComparer.OrdinalIgnoreCase);
-                    foreach (KeyValuePair<string, AssetPlatformProcessorSettings> environment in pair.Value.Environments) {
-                        environments[environment.Key] = CloneTextureProcessorSettings(environment.Value?.Texture);
-                    }
-                    settings.Processor.Environments[pair.Key] = environments;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Creates one copy of texture processor settings.
-        /// </summary>
-        /// <param name="settings">Texture processor settings to clone.</param>
-        /// <returns>Cloned texture processor settings.</returns>
-        TextureAssetProcessorSettings CloneTextureProcessorSettings(TextureAssetProcessorSettings settings) {
-            TextureAssetProcessorSettings clone = new TextureAssetProcessorSettings();
-            if (settings == null) {
-                return clone;
-            }
-
-            clone.MaxResolution = settings.MaxResolution;
-            clone.ColorFormatId = settings.ColorFormatId;
-            clone.AlphaPrecision = settings.AlphaPrecision;
-            clone.IndexingMethodId = settings.IndexingMethodId;
-            return clone;
-        }
-
-        /// <summary>
-        /// Creates one copy of model processor settings.
-        /// </summary>
-        /// <param name="settings">Model processor settings to clone.</param>
-        /// <returns>Cloned model processor settings.</returns>
-        ModelAssetProcessorSettings CloneModelProcessorSettings(ModelAssetProcessorSettings settings) {
-            ModelAssetProcessorSettings clone = new ModelAssetProcessorSettings();
-            if (settings == null) {
-                return clone;
-            }
-
-            clone.FlipWinding = settings.FlipWinding;
-            clone.Tessellate = settings.Tessellate;
-            clone.TessellationMaxEdgeLength = settings.TessellationMaxEdgeLength;
-            return clone;
-        }
-
-        /// <summary>
-        /// Determines whether the selected entry is a material asset.
-        /// </summary>
-        /// <param name="entry">Entry to evaluate.</param>
-        /// <returns>True when the entry is a material asset.</returns>
-        bool IsMaterialAssetEntry(AssetBrowserEntry entry) {
-            if (entry == null) {
-                return false;
-            }
-
-            string extension = entry.Extension;
-            return string.Equals(extension, EditorFileTemplateRegistry.MaterialExtension, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Determines whether the selected entry is an animation clip asset.
-        /// </summary>
-        /// <param name="entry">Entry to evaluate.</param>
-        /// <returns>True when the entry is an animation clip asset.</returns>
-        bool IsAnimationClipAssetEntry(AssetBrowserEntry entry) {
-            if (entry == null) {
-                return false;
-            }
-
-            return string.Equals(entry.Extension, ".hanim", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -5574,7 +5321,7 @@ namespace helengine.editor {
                 panel.ShowSceneAssetSummary(entry);
                 return;
             }
-            if (IsMaterialAssetEntry(entry)) {
+            if (EditorAssetSelectionCoordinator.IsMaterialAssetEntry(entry)) {
                 try {
                     ShaderMaterialAsset materialAsset = LoadMaterialAsset(entry.FullPath);
                     MaterialAssetImportSettings settings = materialAssetSettingsService.LoadOrCreate(
@@ -5595,7 +5342,7 @@ namespace helengine.editor {
                 return;
             }
 
-            if (IsAudioImportSettingsEntry(entry)) {
+            if (AssetSelectionCoordinator.IsAudioImportSettingsEntry(entry)) {
                 ShowAudioImportSettingsUnavailable(panel, entry);
                 return;
             }
@@ -5607,7 +5354,7 @@ namespace helengine.editor {
                     return;
                 }
 
-                if (IsModelImportSettingsEntry(entry)) {
+                if (AssetSelectionCoordinator.IsModelImportSettingsEntry(entry)) {
                     ModelAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateModelImportSettings(entry.FullPath, out settings)) {
                         panel.ShowEmpty();
@@ -5615,8 +5362,8 @@ namespace helengine.editor {
                     }
 
                     assetImportManager.SaveModelImportSettings(entry.FullPath, settings);
-                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, CreateModelImportViewProcessorSettings(settings), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), presentationEntryKind: ResolveImportSettingsPresentationKind(entry));
-                } else if (IsTextureImportSettingsEntry(entry)) {
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, EditorAssetSelectionCoordinator.CreateModelImportViewProcessorSettings(settings), importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), presentationEntryKind: AssetSelectionCoordinator.ResolveImportSettingsPresentationKind(entry));
+                } else if (AssetSelectionCoordinator.IsTextureImportSettingsEntry(entry)) {
                     TextureAssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateTextureImportSettings(entry.FullPath, out settings)) {
                         panel.ShowEmpty();
@@ -5625,8 +5372,8 @@ namespace helengine.editor {
 
                     assetImportManager.SaveTextureImportSettings(entry.FullPath, settings);
                     ResolveImageSourceDimensions(entry.FullPath, out int sourceImageWidth, out int sourceImageHeight);
-                    AssetProcessorSettings textureViewSettings = CreateTextureImportViewProcessorSettings(settings);
-                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, textureViewSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), sourceImageWidth, sourceImageHeight, ResolveImportSettingsPresentationKind(entry));
+                    AssetProcessorSettings textureViewSettings = EditorAssetSelectionCoordinator.CreateTextureImportViewProcessorSettings(settings);
+                    panel.ShowImportSettings(entry, settings.Importer.ImporterId, textureViewSettings, importerIds, SupportedPlatforms, CurrentProjectPlatform, CreateSupportedPlatformDefinitionsById(), ResolveProjectEnvironmentIds(), sourceImageWidth, sourceImageHeight, AssetSelectionCoordinator.ResolveImportSettingsPresentationKind(entry));
                 } else {
                     AssetImportSettings settings;
                     if (!assetImportManager.TryLoadOrCreateImportSettings(entry.FullPath, out settings)) {
