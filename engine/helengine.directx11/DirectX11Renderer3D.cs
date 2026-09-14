@@ -40,14 +40,6 @@ namespace helengine.directx11 {
         /// Maximum number of point-shadow cube textures bound by the built-in forward shader.
         /// </summary>
         const int MaximumPointShadowTextureSlots = 4;
-        /// <summary>
-        /// Constant depth bias applied while rendering shadow maps to reduce self-shadowing on simple authored geometry.
-        /// </summary>
-        const int ShadowDepthBias = 1000;
-        /// <summary>
-        /// Slope-scaled depth bias applied while rendering shadow maps so grazing-angle receivers do not collapse into full self-shadowing.
-        /// </summary>
-        const float ShadowSlopeScaledDepthBias = 1.0f;
 
         /// <summary>
         /// Tracks elapsed time for frame statistics.
@@ -118,10 +110,6 @@ namespace helengine.directx11 {
         /// </summary>
         Dictionary<int, Buffer> MaterialConstantBuffersBySlot;
         /// <summary>
-        /// Blend state for standard rendering.
-        /// </summary>
-        BlendState blendState;
-        /// <summary>
         /// Sampler state shared by textured 3D materials.
         /// </summary>
         SamplerState materialTextureSampler;
@@ -130,24 +118,9 @@ namespace helengine.directx11 {
         /// </summary>
         DirectX11Renderer2D renderer2D;
         /// <summary>
-        /// Rasterizer state used for 3D rendering.
+        /// Owns the shared default pipeline states, the per-material state caches and the record of what is currently bound.
         /// </summary>
-        RasterizerState rasterizerState3D;
-        /// <summary>
-        /// Rasterizer state used while rendering shadow maps.
-        /// </summary>
-        RasterizerState shadowRasterizerState3D;
-        /// Depth-stencil state used for 3D rendering.
-        /// </summary>
-        DepthStencilState depthStencilState3D;
-        /// <summary>
-        /// Cache of non-default rasterizer states keyed by material render state.
-        /// </summary>
-        Dictionary<int, RasterizerState> RasterizerStateCache;
-        /// <summary>
-        /// Cache of non-default depth-stencil states keyed by material render state.
-        /// </summary>
-        Dictionary<int, DepthStencilState> DepthStencilStateCache;
+        DirectX11PipelineStateCache PipelineStateCache;
         /// <summary>
         /// Tracks the active material for the current pass.
         /// </summary>
@@ -160,18 +133,6 @@ namespace helengine.directx11 {
         /// World-space camera position for the active 3D camera pass.
         /// </summary>
         float3 currentCameraPosition;
-        /// <summary>
-        /// Tracks the rasterizer state currently bound to the pipeline.
-        /// </summary>
-        RasterizerState ActiveRasterizerState;
-        /// <summary>
-        /// Tracks the depth-stencil state currently bound to the pipeline.
-        /// </summary>
-        DepthStencilState ActiveDepthStencilState;
-        /// <summary>
-        /// Tracks the blend state currently bound to the pipeline.
-        /// </summary>
-        BlendState ActiveBlendState;
         /// <summary>
         /// Stores the fallback material used when a drawable has no material.
         /// </summary>
@@ -271,8 +232,6 @@ namespace helengine.directx11 {
             shaderPassCache = new Dictionary<string, DirectX11ShaderPass>(StringComparer.Ordinal);
             ShaderResourceCache = new Dictionary<string, DirectX11ShaderResource>(StringComparer.Ordinal);
             MaterialsByShaderAssetId = new Dictionary<string, List<DirectX11MaterialResource>>(StringComparer.OrdinalIgnoreCase);
-            RasterizerStateCache = new Dictionary<int, RasterizerState>();
-            DepthStencilStateCache = new Dictionary<int, DepthStencilState>();
             FrameExtractionServiceValue = new RenderFrameExtractionService();
             RenderPlanBuilderValue = new DirectX11RenderPlanBuilder();
             RenderPlanExecutorValue = new DirectX11RenderPlanExecutor(true, false);
@@ -299,6 +258,7 @@ namespace helengine.directx11 {
                 FeatureLevel.Level_9_1,
             });
             EnableImmediateContextMultithreadProtection();
+            PipelineStateCache = new DirectX11PipelineStateCache(Device);
 
             constantBuffer = new Buffer(Device, Utilities.SizeOf<StandardMeshShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
@@ -311,35 +271,10 @@ namespace helengine.directx11 {
             pointShadowDepthConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11PointShadowDepthShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
 
-            blendState = CreateBlendState(BlendOption.SourceAlpha, BlendOption.InverseSourceAlpha, BlendOperation.Add);
             materialTextureSampler = CreateMaterialTextureSampler();
 
             renderer2D = new DirectX11Renderer2D(this);
             DebugInfoRegistry.Register(new DirectX11Renderer3DDebugInfoProvider(this));
-
-            var rasterizerDesc3D = new RasterizerStateDescription {
-                CullMode = CullMode.Back,
-                FillMode = FillMode.Solid,
-                IsFrontCounterClockwise = true,
-                IsDepthClipEnabled = true
-            };
-            rasterizerState3D = new RasterizerState(Device, rasterizerDesc3D);
-            var shadowRasterizerDesc3D = new RasterizerStateDescription {
-                CullMode = CullMode.Back,
-                FillMode = FillMode.Solid,
-                IsFrontCounterClockwise = true,
-                IsDepthClipEnabled = true,
-                DepthBias = ShadowDepthBias,
-                SlopeScaledDepthBias = ShadowSlopeScaledDepthBias
-            };
-            shadowRasterizerState3D = new RasterizerState(Device, shadowRasterizerDesc3D);
-
-            var depthStencilDesc3D = new DepthStencilStateDescription {
-                IsDepthEnabled = true,
-                DepthWriteMask = DepthWriteMask.All,
-                DepthComparison = Comparison.Less
-            };
-            depthStencilState3D = new DepthStencilState(Device, depthStencilDesc3D);
         }
 
         /// <summary>
@@ -424,11 +359,8 @@ namespace helengine.directx11 {
             surfaces.Clear();
             surfacesByHandle.Clear();
 
-            depthStencilState3D?.Dispose();
-            shadowRasterizerState3D?.Dispose();
-            rasterizerState3D?.Dispose();
+            PipelineStateCache.Dispose();
             materialTextureSampler?.Dispose();
-            blendState?.Dispose();
             pointShadowDepthConstantBuffer?.Dispose();
             shadowConstantBuffer?.Dispose();
             forwardLightConstantBuffer?.Dispose();
@@ -439,8 +371,6 @@ namespace helengine.directx11 {
             ShadowDepthShaderPassValue?.Dispose();
             PointShadowDepthShaderPassValue?.Dispose();
             DisposePointShadowCubeResources();
-            DisposeRasterizerStateCache();
-            DisposeDepthStencilStateCache();
             DisposeMissingMaterial();
             DisposeShaderResourceCache();
             DisposeShaderPassCache();
@@ -813,9 +743,7 @@ namespace helengine.directx11 {
             var context = Device.ImmediateContext;
             context.InputAssembler.InputLayout = shaderPass.InputLayout;
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            context.Rasterizer.State = rasterizerState3D;
-            context.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
-            context.OutputMerger.SetBlendState(null);
+            PipelineStateCache.BindCustomPassState(context);
 
             RenderTargetView renderTargetView = directX11Target.RenderTargetView;
             DepthStencilView depthStencilView = directX11Target.DepthStencilView;
@@ -963,10 +891,7 @@ namespace helengine.directx11 {
             deviceContext.OutputMerger.SetTargets(depthStencilView, renderTargetView);
             ApplyCameraClear(deviceContext, camera, context.Surface, renderTarget, renderTargetView, depthStencilView);
 
-            deviceContext.Rasterizer.State = rasterizerState3D;
-            deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
-            ActiveRasterizerState = rasterizerState3D;
-            ActiveDepthStencilState = depthStencilState3D;
+            PipelineStateCache.BindCameraFrameState(deviceContext);
 
             float4x4 view;
             float3 cameraPos = camera.Parent.Position;
@@ -988,8 +913,7 @@ namespace helengine.directx11 {
             customColorProvider = null;
             ClearActiveMaterialTextureBindings();
             ActiveMaterial = null;
-            deviceContext.OutputMerger.SetBlendState(null);
-            ActiveBlendState = null;
+            PipelineStateCache.BindBlendState(deviceContext, null);
             deviceContext.VertexShader.SetConstantBuffer(0, constantBuffer);
             deviceContext.PixelShader.SetConstantBuffer(0, constantBuffer);
             UpdateShadowShaderData(new DirectX11ShadowShaderData());
@@ -1159,14 +1083,9 @@ namespace helengine.directx11 {
 
             var deviceContext = Device.ImmediateContext;
             deviceContext.OutputMerger.SetTargets(depthStencilView, renderTargetView);
-            deviceContext.Rasterizer.State = rasterizerState3D;
-            deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
-            deviceContext.OutputMerger.SetBlendState(null);
+            PipelineStateCache.BindRestoredCameraFrameState(deviceContext);
             float4 viewport = ResolveCameraViewport(camera, context.Surface);
             deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
-            ActiveRasterizerState = rasterizerState3D;
-            ActiveDepthStencilState = depthStencilState3D;
-            ActiveBlendState = null;
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             deviceContext.VertexShader.SetConstantBuffer(0, constantBuffer);
             deviceContext.PixelShader.SetConstantBuffer(0, constantBuffer);
@@ -1370,9 +1289,7 @@ namespace helengine.directx11 {
             IReadOnlyList<DirectX11PointShadowCubeResources> pointShadowCubeResources = GetPointShadowCubeResources(shadowResourceSet);
             DirectX11ShaderPass pointShadowPass = GetPointShadowDepthShaderPass();
             var deviceContext = Device.ImmediateContext;
-            deviceContext.Rasterizer.State = shadowRasterizerState3D;
-            deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
-            deviceContext.OutputMerger.SetBlendState(null);
+            PipelineStateCache.BindShadowDepthState(deviceContext);
             deviceContext.InputAssembler.InputLayout = pointShadowPass.InputLayout;
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             deviceContext.VertexShader.Set(pointShadowPass.VertexShader);
@@ -1510,9 +1427,7 @@ namespace helengine.directx11 {
             var deviceContext = Device.ImmediateContext;
             deviceContext.OutputMerger.SetTargets(atlasResources.DepthStencilView, (RenderTargetView)null);
             deviceContext.ClearDepthStencilView(atlasResources.DepthStencilView, DepthStencilClearFlags.Depth, 1f, 0);
-            deviceContext.Rasterizer.State = shadowRasterizerState3D;
-            deviceContext.OutputMerger.SetDepthStencilState(depthStencilState3D, 0);
-            deviceContext.OutputMerger.SetBlendState(null);
+            PipelineStateCache.BindShadowDepthState(deviceContext);
             deviceContext.InputAssembler.InputLayout = shadowPass.InputLayout;
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             deviceContext.VertexShader.Set(shadowPass.VertexShader);
@@ -2020,33 +1935,6 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Creates a blend state configured for alpha blending.
-        /// </summary>
-        /// <param name="srcBlend">Source blend factor.</param>
-        /// <param name="destBlend">Destination blend factor.</param>
-        /// <param name="blendOp">Blend operation.</param>
-        /// <returns>Blend state instance.</returns>
-        BlendState CreateBlendState(BlendOption srcBlend, BlendOption destBlend, BlendOperation blendOp) {
-            var blendStateDesc = new BlendStateDescription {
-                AlphaToCoverageEnable = false,
-                IndependentBlendEnable = false
-            };
-
-            blendStateDesc.RenderTarget[0] = new RenderTargetBlendDescription {
-                IsBlendEnabled = true,
-                SourceBlend = srcBlend,
-                DestinationBlend = destBlend,
-                BlendOperation = blendOp,
-                SourceAlphaBlend = BlendOption.One,
-                DestinationAlphaBlend = BlendOption.Zero,
-                AlphaBlendOperation = BlendOperation.Add,
-                RenderTargetWriteMask = ColorWriteMaskFlags.All
-            };
-
-            return new BlendState(Device, blendStateDesc);
-        }
-
-        /// <summary>
         /// Creates the sampler used by textured 3D materials.
         /// </summary>
         /// <returns>Configured sampler state.</returns>
@@ -2089,7 +1977,7 @@ namespace helengine.directx11 {
                 ActiveMaterial = shaderMaterial;
             }
 
-            ApplyMaterialRenderState(material.RenderState);
+            PipelineStateCache.ApplyMaterialRenderState(context, material.RenderState);
             ApplyMaterialConstantBufferBindings(material);
             ClearActiveMaterialTextureBindings();
             if (material.Layout.TextureBindings.Length > 0) {
@@ -2492,118 +2380,6 @@ namespace helengine.directx11 {
         }
 
         /// <summary>
-        /// Applies material-defined fixed-function render state to the DirectX11 pipeline.
-        /// </summary>
-        /// <param name="renderState">Material render state to bind.</param>
-        void ApplyMaterialRenderState(MaterialRenderState renderState) {
-            if (renderState == null) {
-                throw new ArgumentNullException(nameof(renderState));
-            }
-
-            var context = Device.ImmediateContext;
-            RasterizerState rasterizerState = ResolveRasterizerState(renderState);
-            if (!ReferenceEquals(ActiveRasterizerState, rasterizerState)) {
-                context.Rasterizer.State = rasterizerState;
-                ActiveRasterizerState = rasterizerState;
-            }
-
-            DepthStencilState depthStencilState = ResolveDepthStencilState(renderState);
-            if (!ReferenceEquals(ActiveDepthStencilState, depthStencilState)) {
-                context.OutputMerger.SetDepthStencilState(depthStencilState, 0);
-                ActiveDepthStencilState = depthStencilState;
-            }
-
-            BlendState resolvedBlendState = ResolveBlendState(renderState);
-            if (!ReferenceEquals(ActiveBlendState, resolvedBlendState)) {
-                context.OutputMerger.SetBlendState(resolvedBlendState);
-                ActiveBlendState = resolvedBlendState;
-            }
-        }
-
-        /// <summary>
-        /// Resolves the DirectX11 rasterizer state required by one material render state.
-        /// </summary>
-        /// <param name="renderState">Material render state to translate.</param>
-        /// <returns>Rasterizer state to bind.</returns>
-        RasterizerState ResolveRasterizerState(MaterialRenderState renderState) {
-            if (renderState == null) {
-                throw new ArgumentNullException(nameof(renderState));
-            } else if (renderState.CullMode == MaterialCullMode.Back) {
-                return rasterizerState3D;
-            }
-
-            int key = MaterialRenderStateKeyBuilder.Build(renderState);
-            if (RasterizerStateCache.TryGetValue(key, out RasterizerState cachedState)) {
-                return cachedState;
-            }
-
-            CullMode cullMode;
-            if (renderState.CullMode == MaterialCullMode.None) {
-                cullMode = CullMode.None;
-            } else if (renderState.CullMode == MaterialCullMode.Front) {
-                cullMode = CullMode.Front;
-            } else if (renderState.CullMode == MaterialCullMode.Back) {
-                cullMode = CullMode.Back;
-            } else {
-                throw new InvalidOperationException($"Unsupported material cull mode '{renderState.CullMode}'.");
-            }
-
-            var rasterizerDesc = new RasterizerStateDescription {
-                CullMode = cullMode,
-                FillMode = FillMode.Solid,
-                IsFrontCounterClockwise = true,
-                IsDepthClipEnabled = true
-            };
-            RasterizerState state = new RasterizerState(Device, rasterizerDesc);
-            RasterizerStateCache[key] = state;
-            return state;
-        }
-
-        /// <summary>
-        /// Resolves the DirectX11 depth-stencil state required by one material render state.
-        /// </summary>
-        /// <param name="renderState">Material render state to translate.</param>
-        /// <returns>Depth-stencil state to bind.</returns>
-        DepthStencilState ResolveDepthStencilState(MaterialRenderState renderState) {
-            if (renderState == null) {
-                throw new ArgumentNullException(nameof(renderState));
-            } else if (renderState.DepthTestEnabled && renderState.DepthWriteEnabled) {
-                return depthStencilState3D;
-            }
-
-            int key = MaterialRenderStateKeyBuilder.Build(renderState);
-            if (DepthStencilStateCache.TryGetValue(key, out DepthStencilState cachedState)) {
-                return cachedState;
-            }
-
-            var depthStencilDesc = new DepthStencilStateDescription {
-                IsDepthEnabled = renderState.DepthTestEnabled,
-                DepthWriteMask = renderState.DepthWriteEnabled ? DepthWriteMask.All : DepthWriteMask.Zero,
-                DepthComparison = Comparison.Less
-            };
-            DepthStencilState state = new DepthStencilState(Device, depthStencilDesc);
-            DepthStencilStateCache[key] = state;
-            return state;
-        }
-
-        /// <summary>
-        /// Resolves the DirectX11 blend state required by one material render state.
-        /// </summary>
-        /// <param name="renderState">Material render state to translate.</param>
-        /// <returns>Blend state to bind, or <c>null</c> for opaque output.</returns>
-        BlendState ResolveBlendState(MaterialRenderState renderState) {
-            if (renderState == null) {
-                throw new ArgumentNullException(nameof(renderState));
-            } else if (renderState.BlendMode == MaterialBlendMode.Opaque) {
-                return null;
-            } else if (renderState.BlendMode == MaterialBlendMode.AlphaBlend) {
-                return blendState;
-            }
-
-            throw new InvalidOperationException($"Unsupported material blend mode '{renderState.BlendMode}'.");
-        }
-
-        /// <summary>
         /// Builds the shader resource used for missing-material rendering.
         /// </summary>
         /// <returns>Compiled shader resource.</returns>
@@ -2989,28 +2765,6 @@ namespace helengine.directx11 {
             }
 
             PointShadowCubeResourcesValue.Clear();
-        }
-
-        /// <summary>
-        /// Disposes rasterizer states created for non-default material render states.
-        /// </summary>
-        void DisposeRasterizerStateCache() {
-            foreach (RasterizerState state in RasterizerStateCache.Values) {
-                state.Dispose();
-            }
-
-            RasterizerStateCache.Clear();
-        }
-
-        /// <summary>
-        /// Disposes depth-stencil states created for non-default material render states.
-        /// </summary>
-        void DisposeDepthStencilStateCache() {
-            foreach (DepthStencilState state in DepthStencilStateCache.Values) {
-                state.Dispose();
-            }
-
-            DepthStencilStateCache.Clear();
         }
 
         /// <summary>
