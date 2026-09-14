@@ -21,6 +21,22 @@ namespace helengine {
         float3 position;
         float3 scale;
         float4 orientation;
+        /// <summary>
+        /// Caches the composed world position so repeated reads do not walk the parent chain again.
+        /// </summary>
+        float3 CachedWorldPosition;
+        /// <summary>
+        /// Caches the composed world scale so repeated reads do not walk the parent chain again.
+        /// </summary>
+        float3 CachedWorldScale;
+        /// <summary>
+        /// Caches the composed world orientation so repeated reads do not walk the parent chain again.
+        /// </summary>
+        float4 CachedWorldOrientation;
+        /// <summary>
+        /// Tracks whether the cached world transform still matches this entity's local transform and its ancestor chain.
+        /// </summary>
+        bool WorldTransformCacheIsValid;
         ushort layerMask;
         /// <summary>
         /// Stores the component container owned and released by this entity.
@@ -57,19 +73,13 @@ namespace helengine {
         public virtual float3 Position {
             get {
                 ThrowIfDisposed();
-                float3 pos = position;
-
-                if (Parent != null) {
-                    float3 scaledLocal = pos * Parent.Scale;
-                    float3 rotatedLocal = float4.RotateVector(scaledLocal, Parent.Orientation);
-                    pos = rotatedLocal + Parent.Position;
-                }
-
-                return pos;
+                EnsureWorldTransformCache();
+                return CachedWorldPosition;
             }
             set {
                 ThrowIfDisposed();
                 position = value;
+                InvalidateWorldTransformCache();
             }
         }
 
@@ -84,6 +94,7 @@ namespace helengine {
             set {
                 ThrowIfDisposed();
                 position = value;
+                InvalidateWorldTransformCache();
             }
         }
 
@@ -93,17 +104,13 @@ namespace helengine {
         public float3 Scale {
             get {
                 ThrowIfDisposed();
-                float3 sca = scale;
-
-                if (Parent != null) {
-                    sca *= Parent.Scale;
-                }
-
-                return sca;
+                EnsureWorldTransformCache();
+                return CachedWorldScale;
             }
             set {
                 ThrowIfDisposed();
                 scale = value;
+                InvalidateWorldTransformCache();
             }
         }
 
@@ -118,6 +125,7 @@ namespace helengine {
             set {
                 ThrowIfDisposed();
                 scale = value;
+                InvalidateWorldTransformCache();
             }
         }
 
@@ -127,18 +135,13 @@ namespace helengine {
         public float4 Orientation {
             get {
                 ThrowIfDisposed();
-                float4 ori = orientation;
-
-                if (Parent != null) {
-                    float4 parentOrientation = Parent.Orientation;
-                    float4.Concatenate(ref ori, ref parentOrientation, out ori);
-                }
-
-                return ori;
+                EnsureWorldTransformCache();
+                return CachedWorldOrientation;
             }
             set {
                 ThrowIfDisposed();
                 orientation = value;
+                InvalidateWorldTransformCache();
             }
         }
 
@@ -153,6 +156,7 @@ namespace helengine {
             set {
                 ThrowIfDisposed();
                 orientation = value;
+                InvalidateWorldTransformCache();
             }
         }
 
@@ -379,6 +383,7 @@ namespace helengine {
 
             bool wasHierarchyEnabled = entity.IsHierarchyEnabled;
             entity.Parent = this;
+            entity.InvalidateWorldTransformCache();
             children.Add(entity);
             if (isInitialized) {
                 entity.InitializeHierarchy();
@@ -430,6 +435,7 @@ namespace helengine {
             }
 
             entity.Parent = null;
+            entity.InvalidateWorldTransformCache();
             if (!ShouldSuppressRegistrationRefreshForDetachment(entity) && wasHierarchyEnabled && entity.IsHierarchyEnabled) {
                 entity.RefreshRegistrationsAfterParentChange();
             }
@@ -544,6 +550,54 @@ namespace helengine {
             }
 
             comp.DetachFromEntity();
+        }
+
+        /// <summary>
+        /// Recomposes this entity's cached world transform from its local transform and its parent's world transform when the cache is stale.
+        /// The parent transform is read through the public properties so subclasses that override them keep contributing their own values.
+        /// </summary>
+        void EnsureWorldTransformCache() {
+            if (WorldTransformCacheIsValid) {
+                return;
+            }
+
+            if (Parent == null) {
+                CachedWorldPosition = position;
+                CachedWorldScale = scale;
+                CachedWorldOrientation = orientation;
+            } else {
+                float3 parentScale = Parent.Scale;
+                float4 parentOrientation = Parent.Orientation;
+                float3 parentPosition = Parent.Position;
+                float3 scaledLocal = position * parentScale;
+                float3 rotatedLocal = float4.RotateVector(scaledLocal, parentOrientation);
+                CachedWorldPosition = rotatedLocal + parentPosition;
+                CachedWorldScale = scale * parentScale;
+                float4 worldOrientation = orientation;
+                float4.Concatenate(ref worldOrientation, ref parentOrientation, out worldOrientation);
+                CachedWorldOrientation = worldOrientation;
+            }
+
+            WorldTransformCacheIsValid = true;
+        }
+
+        /// <summary>
+        /// Marks this entity's cached world transform stale and propagates the same marking to every descendant.
+        /// Descending stops at nodes that are already stale because a stale node always implies a stale subtree.
+        /// </summary>
+        void InvalidateWorldTransformCache() {
+            if (!WorldTransformCacheIsValid) {
+                return;
+            }
+
+            WorldTransformCacheIsValid = false;
+            if (children == null) {
+                return;
+            }
+
+            for (int childIndex = 0; childIndex < children.Count; childIndex++) {
+                children[childIndex].InvalidateWorldTransformCache();
+            }
         }
 
         /// <summary>
