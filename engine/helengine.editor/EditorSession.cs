@@ -675,17 +675,17 @@ namespace helengine.editor {
             ShaderBackends = shaderBackendRegistry ?? throw new ArgumentNullException(nameof(shaderBackendRegistry));
             builtInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(ShaderBackends);
             constructionLedger.Register(builtInShaderAssetLibrary);
-            CanonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
-            this.projectPath = ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
-            ProjectDisplayName = ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
+            CanonicalProjectFilePath = EditorProjectMetadataResolver.ResolveCanonicalProjectFilePath(projectPath);
+            this.projectPath = EditorProjectMetadataResolver.ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
+            ProjectDisplayName = EditorProjectMetadataResolver.ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
             CurrentEditorPreferences = initialEditorPreferences ?? throw new ArgumentNullException(nameof(initialEditorPreferences));
             CurrentUiScaleSettings = CurrentEditorPreferences.UiScale;
             CurrentThemeId = CurrentEditorPreferences.ThemeId;
             CurrentUiMetrics = initialUiMetrics ?? throw new ArgumentNullException(nameof(initialUiMetrics));
-            ProjectFileDocument projectDocument = LoadProjectDocument(CanonicalProjectFilePath);
-            RequiredEngineVersion = ResolveRequiredEngineVersion(projectDocument);
-            ProjectName = ResolveProjectName(projectDocument);
-            ProjectVersion = ResolveProjectVersion(projectDocument);
+            ProjectFileDocument projectDocument = EditorProjectMetadataResolver.LoadProjectDocument(CanonicalProjectFilePath);
+            RequiredEngineVersion = EditorProjectMetadataResolver.ResolveRequiredEngineVersion(projectDocument);
+            ProjectName = EditorProjectMetadataResolver.ResolveProjectName(projectDocument);
+            ProjectVersion = EditorProjectMetadataResolver.ResolveProjectVersion(projectDocument);
             projectPlatformsService = new EditorProjectPlatformsService(this.projectPath);
             projectEnvironmentsService = new EditorProjectEnvironmentsService(this.projectPath);
             ProjectSupportedPlatforms = projectPlatformsService.Load().SupportedPlatforms.AsReadOnly();
@@ -801,8 +801,8 @@ namespace helengine.editor {
             titleBar.SetInput(core.Input);
             PanelRegistry = new EditorWorkspacePanelRegistry();
             PanelInstances = new List<EditorWorkspacePanelInstance>();
-            WorkspaceLayoutService = new EditorWorkspaceLayoutService(ResolveProjectRootPath(this.projectPath));
-            sessionStateService = new EditorSessionStateService(ResolveProjectRootPath(this.projectPath));
+            WorkspaceLayoutService = new EditorWorkspaceLayoutService(EditorProjectMetadataResolver.ResolveProjectRootPath(this.projectPath));
+            sessionStateService = new EditorSessionStateService(EditorProjectMetadataResolver.ResolveProjectRootPath(this.projectPath));
             InitializePanelRegistry();
 
             dockingManager = new DockingManager(core.RenderManager2D, core.ObjectManager, interactionServices);
@@ -6071,7 +6071,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Configured shader module manager.</returns>
         ShaderModuleManager BuildShaderModuleManager(ShaderCompileTarget runtimeTarget) {
-            string projectRoot = ResolveProjectRootPath(projectPath);
+            string projectRoot = EditorProjectMetadataResolver.ResolveProjectRootPath(projectPath);
             string shaderRootPath = ResolveShaderRootPath(projectRoot);
             string packageOutputPath = ResolveShaderPackageOutputPath(projectRoot);
             ShaderPackageBuildOptions buildOptions = BuildShaderPackageOptions(runtimeTarget);
@@ -6217,134 +6217,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the host window title from the current scene file and open project.
+        /// Builds the host window title from this session's project identity and live scene state.
         /// </summary>
         /// <returns>Window title text shown by the editor host.</returns>
         string BuildWindowTitle() {
-            string platformSuffix = string.IsNullOrWhiteSpace(ActiveProjectPlatform)
-                ? string.Empty
-                : $" [{ActiveProjectPlatform.ToUpperInvariant()}]";
-            string title = $"helengine - {ProjectDisplayName}{platformSuffix}";
-            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
-                return title;
-            }
-
-            string sceneDisplayName = ResolveSceneDisplayName(CurrentScenePath);
-            string sceneTitle = BuildSceneDisplayTitle(sceneDisplayName);
-            return $"{sceneTitle} - {title}";
-        }
-
-        /// <summary>
-        /// Returns whether the currently open map has unsaved editor changes.
-        /// </summary>
-        /// <returns>True when the current map should display a dirty marker.</returns>
-        bool IsCurrentMapDirty() {
-            return IsSceneDirty;
-        }
-
-        /// <summary>
-        /// Appends the current-map dirty marker to one resolved scene display name when needed.
-        /// </summary>
-        /// <param name="sceneDisplayName">Resolved scene display name.</param>
-        /// <returns>Scene display name with the dirty marker applied when required.</returns>
-        string BuildSceneDisplayTitle(string sceneDisplayName) {
-            if (string.IsNullOrWhiteSpace(sceneDisplayName)) {
-                throw new InvalidOperationException("Scene display name must be provided.");
-            }
-
-            return IsCurrentMapDirty()
-                ? $"{sceneDisplayName}*"
-                : sceneDisplayName;
-        }
-
-        /// <summary>
-        /// Resolves the display name for one saved scene path.
-        /// </summary>
-        /// <param name="scenePath">Absolute scene path.</param>
-        /// <returns>Scene file name without its extension.</returns>
-        string ResolveSceneDisplayName(string scenePath) {
-            if (string.IsNullOrWhiteSpace(scenePath)) {
-                throw new InvalidOperationException("Scene path must be provided.");
-            }
-
-            return Path.GetFileNameWithoutExtension(scenePath);
-        }
-
-        /// <summary>
-        /// Resolves one project directory or project file path to the canonical `.heproj` file path.
-        /// </summary>
-        /// <param name="projectPath">Project root directory or project file path.</param>
-        /// <returns>Validated absolute canonical `.heproj` file path.</returns>
-        string ResolveCanonicalProjectFilePath(string projectPath) {
-            if (string.IsNullOrWhiteSpace(projectPath)) {
-                throw new InvalidOperationException("Project path must be provided.");
-            }
-
-            ProjectFilePathResolver resolver = new ProjectFilePathResolver();
-            return resolver.Resolve(projectPath);
-        }
-
-        /// <summary>
-        /// Loads one canonical project document from the validated `.heproj` file path.
-        /// </summary>
-        /// <param name="canonicalProjectFilePath">Validated absolute canonical `.heproj` file path.</param>
-        /// <returns>Canonical project document loaded from disk.</returns>
-        ProjectFileDocument LoadProjectDocument(string canonicalProjectFilePath) {
-            ProjectFileReader reader = new ProjectFileReader();
-            ProjectFileReadResult readResult = reader.ReadAsync(canonicalProjectFilePath).GetAwaiter().GetResult();
-            if (!readResult.Succeeded) {
-                throw new InvalidOperationException(readResult.Errors[0].Message);
-            }
-
-            return readResult.Document;
-        }
-
-        /// <summary>
-        /// Resolves the exact required engine version declared by one loaded project document.
-        /// </summary>
-        /// <param name="projectDocument">Loaded canonical project document.</param>
-        /// <returns>Exact required engine version declared by the project.</returns>
-        string ResolveRequiredEngineVersion(ProjectFileDocument projectDocument) {
-            if (projectDocument == null) {
-                throw new ArgumentNullException(nameof(projectDocument));
-            }
-            if (string.IsNullOrWhiteSpace(projectDocument.RequiredEngineVersion)) {
-                throw new InvalidOperationException("Project file must declare a required engine version.");
-            }
-
-            return projectDocument.RequiredEngineVersion;
-        }
-
-        /// <summary>
-        /// Resolves the game project name declared by one loaded project document.
-        /// </summary>
-        /// <param name="projectDocument">Loaded canonical project document.</param>
-        /// <returns>Game project name used for generated scripting solution files.</returns>
-        string ResolveProjectName(ProjectFileDocument projectDocument) {
-            if (projectDocument == null) {
-                throw new ArgumentNullException(nameof(projectDocument));
-            }
-            if (string.IsNullOrWhiteSpace(projectDocument.Name)) {
-                throw new InvalidOperationException("Project file must declare a project name.");
-            }
-
-            return projectDocument.Name;
-        }
-
-        /// <summary>
-        /// Resolves the human-visible project version declared by one loaded project document.
-        /// </summary>
-        /// <param name="projectDocument">Loaded canonical project document.</param>
-        /// <returns>Project version used for build metadata and queue reporting.</returns>
-        string ResolveProjectVersion(ProjectFileDocument projectDocument) {
-            if (projectDocument == null) {
-                throw new ArgumentNullException(nameof(projectDocument));
-            }
-            if (string.IsNullOrWhiteSpace(projectDocument.Version)) {
-                throw new InvalidOperationException("Project file must declare a project version.");
-            }
-
-            return projectDocument.Version;
+            return EditorProjectMetadataResolver.BuildWindowTitle(ProjectDisplayName, ActiveProjectPlatform, CurrentScenePath, IsSceneDirty);
         }
 
         /// <summary>
@@ -6520,54 +6397,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the project display name from a project file path or root directory path.
-        /// </summary>
-        /// <param name="projectPath">Project root directory or project file path.</param>
-        /// <returns>Display name that should appear in the host window title.</returns>
-        string ResolveProjectDisplayName(string projectPath) {
-            string canonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
-            return ResolveProjectDisplayNameFromCanonicalProjectFile(canonicalProjectFilePath);
-        }
-
-        /// <summary>
-        /// Resolves the project display name from one validated canonical project file path.
-        /// </summary>
-        /// <param name="canonicalProjectFilePath">Validated absolute canonical `.heproj` file path.</param>
-        /// <returns>Display name that should appear in the host window title.</returns>
-        string ResolveProjectDisplayNameFromCanonicalProjectFile(string canonicalProjectFilePath) {
-            string fileName = Path.GetFileName(canonicalProjectFilePath);
-            if (string.IsNullOrWhiteSpace(fileName)) {
-                throw new InvalidOperationException("Project path must resolve to a display name.");
-            }
-
-            return fileName;
-        }
-
-        /// <summary>
-        /// Resolves the project root directory from a project root or project file path.
-        /// </summary>
-        /// <param name="projectPath">Project root directory or project file path.</param>
-        /// <returns>Absolute path to the project root directory.</returns>
-        string ResolveProjectRootPath(string projectPath) {
-            string canonicalProjectFilePath = ResolveCanonicalProjectFilePath(projectPath);
-            return ResolveProjectRootPathFromCanonicalProjectFile(canonicalProjectFilePath);
-        }
-
-        /// <summary>
-        /// Resolves the project root directory from one validated canonical project file path.
-        /// </summary>
-        /// <param name="canonicalProjectFilePath">Validated absolute canonical `.heproj` file path.</param>
-        /// <returns>Absolute path to the project root directory.</returns>
-        string ResolveProjectRootPathFromCanonicalProjectFile(string canonicalProjectFilePath) {
-            string directory = Path.GetDirectoryName(canonicalProjectFilePath);
-            if (string.IsNullOrWhiteSpace(directory)) {
-                throw new InvalidOperationException("Project file path does not include a directory.");
-            }
-
-            return Path.GetFullPath(directory);
-        }
-
-        /// <summary>
         /// Determines whether two scene settings payloads describe the same scene-owned settings state.
         /// </summary>
         /// <param name="left">Left scene settings payload.</param>
@@ -6603,7 +6432,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(importers));
             }
 
-            string projectRootPath = ResolveProjectRootPath(projectPath);
+            string projectRootPath = EditorProjectMetadataResolver.ResolveProjectRootPath(projectPath);
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
             ContentManager projectContentManager = null;
             AssetImportManager manager = null;

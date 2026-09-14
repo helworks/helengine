@@ -1,5 +1,3 @@
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using helengine.editor;
 using helengine.projectfile;
 using Xunit;
@@ -81,9 +79,8 @@ public sealed class EditorProjectFileResolutionTests : IDisposable {
     public void ResolveProjectDisplayName_WhenDirectoryContainsProjectFile_ReturnsProjectFileName() {
         string projectFilePath = Path.Combine(TempProjectRootPath, "project.heproj");
         WriteCanonicalProjectFile(projectFilePath);
-        EditorSession session = (EditorSession)RuntimeHelpers.GetUninitializedObject(typeof(EditorSession));
 
-        string displayName = (string)InvokePrivate(session, "ResolveProjectDisplayName", TempProjectRootPath);
+        string displayName = EditorProjectMetadataResolver.ResolveProjectDisplayName(TempProjectRootPath);
 
         Assert.Equal("project.heproj", displayName);
     }
@@ -102,18 +99,6 @@ public sealed class EditorProjectFileResolutionTests : IDisposable {
 
         Assert.Equal(Path.GetFullPath(TempProjectRootPath), fromDirectory);
         Assert.Equal(fromDirectory, fromProjectFile);
-    }
-
-    /// <summary>
-    /// Invokes one non-public instance method and returns its result.
-    /// </summary>
-    /// <param name="target">Target object that owns the method.</param>
-    /// <param name="methodName">Method name to invoke.</param>
-    /// <param name="arguments">Arguments passed to the method.</param>
-    /// <returns>Returned method value.</returns>
-    object InvokePrivate(object target, string methodName, params object[] arguments) {
-        MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
-        return method.Invoke(target, arguments);
     }
 
     /// <summary>

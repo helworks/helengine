@@ -967,7 +967,7 @@ public class BuildDialog : EditorDialogBase {
             }
 
             List<string> orderedSceneIds = BuildOrderedSceneIds(platformConfig, selectedSceneIds);
-            EnsurePlatformSelectionDefaults(platformConfig);
+            EditorBuildPlatformConfigDefaultsService.EnsurePlatformSelectionDefaults(platformConfig, ActivePlatformSelectionModel);
             AddRequested?.Invoke(new BuildDialogAddRequest(
                 ActivePlatformId,
                 orderedSceneIds,
@@ -1347,7 +1347,7 @@ public class BuildDialog : EditorDialogBase {
             DisplayedSceneIds.Clear();
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
-            EnsurePlatformSelectionDefaults(platformConfig);
+            EditorBuildPlatformConfigDefaultsService.EnsurePlatformSelectionDefaults(platformConfig, ActivePlatformSelectionModel);
             EnsureSceneOrderEntries(platformConfig);
             List<string> orderedSceneIds = BuildDisplayedSceneIds(platformConfig);
             for (int index = 0; index < orderedSceneIds.Count; index++) {
@@ -1924,179 +1924,7 @@ public class BuildDialog : EditorDialogBase {
 
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
             platformConfig.DebugBuild = DebugBuildCheckBox.IsChecked;
-            EnsurePlatformSelectionDefaults(platformConfig);
-        }
-
-        /// <summary>
-        /// Ensures the active platform has a selected build profile and graphics profile snapshot.
-        /// </summary>
-        /// <param name="platformConfig">Active platform configuration to normalize.</param>
-        void EnsurePlatformSelectionDefaults(EditorBuildPlatformConfigDocument platformConfig) {
-            if (platformConfig == null) {
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(platformConfig.SelectedEnvironmentId)) {
-                platformConfig.SelectedEnvironmentId = string.Equals(platformConfig.SelectedBuildProfileId, "debug", StringComparison.OrdinalIgnoreCase)
-                    || platformConfig.DebugBuild
-                    ? "debug"
-                    : "release";
-            }
-
-            if (ActivePlatformSelectionModel == null) {
-                return;
-            }
-
-            PlatformBuildProfileDefinition previousBuildProfile = ActivePlatformSelectionModel.TryResolveBuildProfileExact(platformConfig.SelectedBuildProfileId);
-            PlatformBuildProfileDefinition buildProfile = EditorBuildProfileDefaultResolver.ResolveBuildProfile(
-                ActivePlatformSelectionModel,
-                platformConfig.SelectedBuildProfileId,
-                platformConfig.DebugBuild);
-            if (buildProfile != null) {
-                platformConfig.SelectedBuildProfileId = buildProfile.ProfileId;
-                string selectedGraphicsProfileId = platformConfig.SelectedGraphicsProfileId;
-                EditorBuildProfileDefaultResolver.SynchronizeBoundProfileSelection(
-                    ref selectedGraphicsProfileId,
-                    previousBuildProfile?.GraphicsProfileId ?? string.Empty,
-                    buildProfile.GraphicsProfileId);
-                platformConfig.SelectedGraphicsProfileId = selectedGraphicsProfileId;
-                string selectedCodegenProfileId = platformConfig.SelectedCodegenProfileId;
-                EditorBuildProfileDefaultResolver.SynchronizeBoundProfileSelection(
-                    ref selectedCodegenProfileId,
-                    previousBuildProfile?.CodegenProfileId ?? string.Empty,
-                    buildProfile.CodegenProfileId);
-                platformConfig.SelectedCodegenProfileId = selectedCodegenProfileId;
-                EnsureSettingDefaults(platformConfig.SelectedBuildOptionValues, buildProfile.Settings);
-            }
-
-            PlatformGraphicsProfileDefinition graphicsProfile = ResolveGraphicsProfile(platformConfig, buildProfile);
-            if (graphicsProfile != null) {
-                platformConfig.SelectedGraphicsProfileId = graphicsProfile.ProfileId;
-                EnsureSettingDefaults(platformConfig.SelectedGraphicsOptionValues, graphicsProfile.Settings);
-            }
-
-            PlatformCodegenProfileDefinition codegenProfile = ResolveCodegenProfile(platformConfig, buildProfile);
-            if (codegenProfile != null) {
-                platformConfig.SelectedCodegenProfileId = codegenProfile.ProfileId;
-                platformConfig.SelectedCodegenOptionValues = EditorBuildProfileDefaultResolver.CreateEffectiveCodegenOptionValues(
-                    platformConfig.SelectedCodegenOptionValues,
-                    codegenProfile,
-                    previousBuildProfile,
-                    buildProfile);
-            }
-
-            PlatformStorageProfileDefinition storageProfile = ResolveStorageProfile(platformConfig);
-            if (storageProfile != null) {
-                platformConfig.SelectedStorageProfileId = storageProfile.ProfileId;
-            }
-
-            PlatformMediaProfileDefinition mediaProfile = ResolveMediaProfile(platformConfig);
-            if (mediaProfile != null) {
-                platformConfig.SelectedMediaProfileId = mediaProfile.ProfileId;
-            }
-
-            platformConfig.SelectedBuildOptionValues ??= new Dictionary<string, string>();
-            platformConfig.SelectedGraphicsOptionValues ??= new Dictionary<string, string>();
-            platformConfig.SelectedCodegenOptionValues ??= new Dictionary<string, string>();
-        }
-
-        /// <summary>
-        /// Resolves the selected build profile metadata for one platform configuration.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration to inspect.</param>
-        /// <returns>Resolved build profile metadata, or null when unavailable.</returns>
-        PlatformBuildProfileDefinition ResolveBuildProfile(EditorBuildPlatformConfigDocument platformConfig) {
-            if (platformConfig == null || ActivePlatformSelectionModel == null) {
-                return null;
-            }
-
-            return ActivePlatformSelectionModel.ResolveBuildProfile(platformConfig.SelectedBuildProfileId);
-        }
-
-        /// <summary>
-        /// Resolves the selected graphics profile metadata for one platform configuration.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration to inspect.</param>
-        /// <param name="buildProfile">Resolved build profile metadata.</param>
-        /// <returns>Resolved graphics profile metadata, or null when unavailable.</returns>
-        PlatformGraphicsProfileDefinition ResolveGraphicsProfile(EditorBuildPlatformConfigDocument platformConfig, PlatformBuildProfileDefinition buildProfile) {
-            if (platformConfig == null || ActivePlatformSelectionModel == null) {
-                return null;
-            }
-
-            string graphicsProfileId = platformConfig.SelectedGraphicsProfileId;
-            if (string.IsNullOrWhiteSpace(graphicsProfileId) && buildProfile != null) {
-                graphicsProfileId = buildProfile.GraphicsProfileId;
-            }
-
-            return ActivePlatformSelectionModel.ResolveGraphicsProfile(graphicsProfileId);
-        }
-
-        /// <summary>
-        /// Resolves the selected codegen profile metadata for one platform configuration.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration to inspect.</param>
-        /// <param name="buildProfile">Resolved build profile metadata.</param>
-        /// <returns>Resolved codegen profile metadata, or null when unavailable.</returns>
-        PlatformCodegenProfileDefinition ResolveCodegenProfile(EditorBuildPlatformConfigDocument platformConfig, PlatformBuildProfileDefinition buildProfile) {
-            if (platformConfig == null || ActivePlatformSelectionModel == null) {
-                return null;
-            }
-
-            string codegenProfileId = platformConfig.SelectedCodegenProfileId;
-            if (string.IsNullOrWhiteSpace(codegenProfileId) && buildProfile != null) {
-                codegenProfileId = buildProfile.CodegenProfileId;
-            }
-
-            return ActivePlatformSelectionModel.ResolveCodegenProfile(codegenProfileId);
-        }
-
-        /// <summary>
-        /// Resolves the selected storage profile metadata for one platform configuration.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration to inspect.</param>
-        /// <returns>Resolved storage profile metadata, or null when unavailable.</returns>
-        PlatformStorageProfileDefinition ResolveStorageProfile(EditorBuildPlatformConfigDocument platformConfig) {
-            if (platformConfig == null || ActivePlatformSelectionModel == null) {
-                return null;
-            }
-
-            return ActivePlatformSelectionModel.ResolveStorageProfile(platformConfig.SelectedStorageProfileId);
-        }
-
-        /// <summary>
-        /// Resolves the selected media profile metadata for one platform configuration.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration to inspect.</param>
-        /// <returns>Resolved media profile metadata, or null when unavailable.</returns>
-        PlatformMediaProfileDefinition ResolveMediaProfile(EditorBuildPlatformConfigDocument platformConfig) {
-            if (platformConfig == null || ActivePlatformSelectionModel == null) {
-                return null;
-            }
-
-            return ActivePlatformSelectionModel.ResolveMediaProfile(platformConfig.SelectedMediaProfileId);
-        }
-
-        /// <summary>
-        /// Seeds missing option values from the supplied setting collection.
-        /// </summary>
-        /// <param name="values">Persisted option values.</param>
-        /// <param name="settings">Builder-provided setting definitions.</param>
-        static void EnsureSettingDefaults(Dictionary<string, string> values, PlatformSettingDefinition[] settings) {
-            if (values == null || settings == null) {
-                return;
-            }
-
-            for (int index = 0; index < settings.Length; index++) {
-                PlatformSettingDefinition setting = settings[index];
-                if (setting == null || string.IsNullOrWhiteSpace(setting.SettingId)) {
-                    continue;
-                }
-
-                if (!values.TryGetValue(setting.SettingId, out string existingValue) || string.IsNullOrWhiteSpace(existingValue)) {
-                    values[setting.SettingId] = setting.DefaultValue;
-                }
-            }
+            EditorBuildPlatformConfigDefaultsService.EnsurePlatformSelectionDefaults(platformConfig, ActivePlatformSelectionModel);
         }
 
         /// <summary>
