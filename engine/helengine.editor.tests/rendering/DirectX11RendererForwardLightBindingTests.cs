@@ -102,6 +102,7 @@ namespace helengine.editor.tests.rendering {
             /// <returns>Renderer recorder that can prepare forward-light state without constructing DirectX11.</returns>
             public new static ForwardLightCaptureRenderer Create() {
                 ForwardLightCaptureRenderer renderer = (ForwardLightCaptureRenderer)RuntimeHelpers.GetUninitializedObject(typeof(ForwardLightCaptureRenderer));
+                DirectX11RendererTestAccess.PopulatePlanningCollaborators(renderer);
                 renderer.LastForwardLightShaderData = new DirectX11ForwardLightShaderData();
                 return renderer;
             }

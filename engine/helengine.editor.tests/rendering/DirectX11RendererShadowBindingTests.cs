@@ -145,6 +145,7 @@ namespace helengine.editor.tests.rendering {
             /// <returns>Renderer recorder that can prepare shadow shader state without constructing DirectX11.</returns>
             public new static ShadowBindingCaptureRenderer Create() {
                 ShadowBindingCaptureRenderer renderer = (ShadowBindingCaptureRenderer)RuntimeHelpers.GetUninitializedObject(typeof(ShadowBindingCaptureRenderer));
+                DirectX11RendererTestAccess.PopulatePlanningCollaborators(renderer);
                 renderer.LastShadowShaderData = new DirectX11ShadowShaderData();
                 renderer.ShadowAtlasWasBound = false;
                 renderer.LastPointShadowResourceCount = 0;

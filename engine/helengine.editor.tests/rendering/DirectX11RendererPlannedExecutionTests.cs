@@ -445,6 +445,7 @@ namespace helengine.editor.tests.rendering {
             /// <returns>Renderer recorder that can execute the planned camera path without constructing DirectX11.</returns>
             public static RecordingPlannedRenderer Create(RendererBackendCapabilityProfile capabilityProfile) {
                 RecordingPlannedRenderer renderer = (RecordingPlannedRenderer)RuntimeHelpers.GetUninitializedObject(typeof(RecordingPlannedRenderer));
+                DirectX11RendererTestAccess.PopulatePlanningCollaborators(renderer);
                 renderer.LastPlannedPasses = Array.Empty<RenderPassKind>();
                 renderer.LastSelectedLights = Array.Empty<RenderFrameLightSubmission>();
                 renderer.LastSelectedShadowLights = Array.Empty<RenderFrameLightSubmission>();
@@ -519,6 +520,7 @@ namespace helengine.editor.tests.rendering {
             /// <returns>Renderer recorder that executes pass dispatch without constructing DirectX11.</returns>
             public static ExecutingPlannedRenderer Create(RendererBackendCapabilityProfile capabilityProfile) {
                 ExecutingPlannedRenderer renderer = (ExecutingPlannedRenderer)RuntimeHelpers.GetUninitializedObject(typeof(ExecutingPlannedRenderer));
+                DirectX11RendererTestAccess.PopulatePlanningCollaborators(renderer);
                 renderer.ExecutedPasses = new List<RenderPassKind>();
                 renderer.CapabilityProfile = capabilityProfile;
                 return renderer;
@@ -616,6 +618,7 @@ namespace helengine.editor.tests.rendering {
             /// <returns>Renderer recorder that executes the live shadow pass without constructing DirectX11.</returns>
             public static PointShadowExecutingRenderer Create(RendererBackendCapabilityProfile capabilityProfile) {
                 PointShadowExecutingRenderer renderer = (PointShadowExecutingRenderer)RuntimeHelpers.GetUninitializedObject(typeof(PointShadowExecutingRenderer));
+                DirectX11RendererTestAccess.PopulatePlanningCollaborators(renderer);
                 renderer.ShadowExecutionEvents = new List<string>();
                 renderer.CapabilityProfile = capabilityProfile;
                 return renderer;
@@ -733,6 +736,7 @@ namespace helengine.editor.tests.rendering {
             /// <returns>Renderer recorder that executes planned passes without constructing DirectX11.</returns>
             public new static SubmissionRecordingRenderer Create() {
                 SubmissionRecordingRenderer renderer = (SubmissionRecordingRenderer)RuntimeHelpers.GetUninitializedObject(typeof(SubmissionRecordingRenderer));
+                DirectX11RendererTestAccess.PopulatePlanningCollaborators(renderer);
                 renderer.VisitedSubmeshIndices = new List<int>();
                 return renderer;
             }

@@ -1,6 +1,6 @@
-using System.Reflection;
 using SharpDX.Direct3D11;
 using helengine.directx11;
+using helengine.editor.tests.testing;
 using Xunit;
 
 namespace helengine.editor.tests.rendering {
@@ -12,11 +12,11 @@ namespace helengine.editor.tests.rendering {
         /// Ensures the default DirectX11 3D rasterizer treats counter-clockwise triangles as front-facing so built-in meshes match the Vulkan backend and authored model winding.
         /// </summary>
         [Fact]
-        public void Constructor_WhenCreatingDefault3DRasterizer_UsesCounterClockwiseFrontFaces() {
+        public void PipelineStateCache_WhenCreatingDefault3DRasterizer_UsesCounterClockwiseFrontFaces() {
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
+            using DirectX11PipelineStateCache pipelineStateCache = new DirectX11PipelineStateCache(renderer.Device);
 
-            RasterizerState rasterizerState = GetRequiredRasterizerState(renderer, "rasterizerState3D");
-            RasterizerStateDescription description = rasterizerState.Description;
+            RasterizerStateDescription description = pipelineStateCache.DefaultRasterizerState.Description;
 
             Assert.True(description.IsFrontCounterClockwise);
             Assert.Equal(SharpDX.Direct3D11.CullMode.Back, description.CullMode);
@@ -28,15 +28,12 @@ namespace helengine.editor.tests.rendering {
         [Fact]
         public void ResolveRasterizerState_WhenCreatingMaterialSpecificState_PreservesCounterClockwiseFrontFaces() {
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
+            using DirectX11PipelineStateCache pipelineStateCache = new DirectX11PipelineStateCache(renderer.Device);
             MaterialRenderState renderState = new MaterialRenderState {
                 CullMode = MaterialCullMode.Front
             };
 
-            MethodInfo resolveMethod = typeof(DirectX11Renderer3D).GetMethod("ResolveRasterizerState", BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.NotNull(resolveMethod);
-
-            RasterizerState rasterizerState = Assert.IsType<RasterizerState>(resolveMethod.Invoke(renderer, [renderState]));
-            RasterizerStateDescription description = rasterizerState.Description;
+            RasterizerStateDescription description = pipelineStateCache.ResolveRasterizerState(renderState).Description;
 
             Assert.True(description.IsFrontCounterClockwise);
             Assert.Equal(SharpDX.Direct3D11.CullMode.Front, description.CullMode);
@@ -46,11 +43,11 @@ namespace helengine.editor.tests.rendering {
         /// Ensures DirectX11 shadow rendering does not reuse the unbiased forward rasterizer state, which causes severe self-shadowing on simple lit meshes.
         /// </summary>
         [Fact]
-        public void Constructor_WhenCreatingShadowRasterizer_UsesDedicatedDepthBiasForShadowPasses() {
+        public void PipelineStateCache_WhenCreatingShadowRasterizer_UsesDedicatedDepthBiasForShadowPasses() {
             using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
+            using DirectX11PipelineStateCache pipelineStateCache = new DirectX11PipelineStateCache(renderer.Device);
 
-            RasterizerState shadowRasterizerState = GetRequiredRasterizerState(renderer, "shadowRasterizerState3D");
-            RasterizerStateDescription description = shadowRasterizerState.Description;
+            RasterizerStateDescription description = pipelineStateCache.ShadowRasterizerState.Description;
 
             Assert.True(description.IsFrontCounterClockwise);
             Assert.Equal(SharpDX.Direct3D11.CullMode.Back, description.CullMode);
@@ -59,15 +56,16 @@ namespace helengine.editor.tests.rendering {
         }
 
         /// <summary>
-        /// Retrieves one private rasterizer-state field and fails clearly when it cannot be resolved.
+        /// Ensures the renderer's own pipeline state cache is the one that holds these states, so the assertions above cover what rendering actually binds.
         /// </summary>
-        /// <param name="renderer">Renderer instance that owns the state.</param>
-        /// <param name="fieldName">Private field name to read.</param>
-        /// <returns>Resolved rasterizer-state instance.</returns>
-        static RasterizerState GetRequiredRasterizerState(DirectX11Renderer3D renderer, string fieldName) {
-            FieldInfo field = typeof(DirectX11Renderer3D).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.NotNull(field);
-            return Assert.IsType<RasterizerState>(field.GetValue(renderer));
+        [Fact]
+        public void Renderer_owns_one_pipeline_state_cache_for_its_device() {
+            using DirectX11Renderer3D renderer = new DirectX11Renderer3D();
+
+            DirectX11PipelineStateCache pipelineStateCache = DirectX11RendererTestAccess.GetPipelineStateCache(renderer);
+
+            Assert.NotNull(pipelineStateCache);
+            Assert.Same(pipelineStateCache, DirectX11RendererTestAccess.GetPipelineStateCache(renderer));
         }
     }
 }
