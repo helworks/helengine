@@ -35,64 +35,34 @@ namespace helengine.editor {
         readonly string importRootPrefix;
 
         /// <summary>
-        /// Registered texture importers keyed by identifier.
+        /// Owns texture importer registration, extension claims and default selection.
         /// </summary>
-        readonly Dictionary<string, ITextureImporter> textureImportersById;
+        readonly TextureAssetTypeImportHandler TextureImportHandler;
 
         /// <summary>
-        /// Default texture importer identifiers keyed by extension.
+        /// Owns text importer registration, extension claims and default selection.
         /// </summary>
-        readonly Dictionary<string, string> defaultTextureImportersByExtension;
+        readonly TextAssetTypeImportHandler TextImportHandler;
 
         /// <summary>
-        /// Texture importer identifiers keyed by extension.
+        /// Owns font importer registration, extension claims and default selection.
         /// </summary>
-        readonly Dictionary<string, List<string>> textureImporterIdsByExtension;
+        readonly FontAssetTypeImportHandler FontImportHandler;
 
         /// <summary>
-        /// Registered text importers keyed by identifier.
+        /// Owns audio importer registration, extension claims and default selection.
         /// </summary>
-        readonly Dictionary<string, ITextImporter> textImportersById;
+        readonly AudioAssetTypeImportHandler AudioImportHandler;
 
         /// <summary>
-        /// Registered font importers keyed by identifier.
+        /// Owns model importer registration, extension claims and default selection.
         /// </summary>
-        readonly Dictionary<string, IFontImporter> fontImportersById;
+        readonly ModelAssetTypeImportHandler ModelImportHandler;
 
         /// <summary>
-        /// Registered audio importers keyed by identifier.
+        /// Every asset-type handler in the fixed precedence order the manager dispatches and reports conflicts in.
         /// </summary>
-        readonly Dictionary<string, IAudioImporter> audioImportersById;
-
-        /// <summary>
-        /// Default text importer identifiers keyed by extension.
-        /// </summary>
-        readonly Dictionary<string, string> defaultTextImportersByExtension;
-
-        /// <summary>
-        /// Default font importer identifiers keyed by extension.
-        /// </summary>
-        readonly Dictionary<string, string> defaultFontImportersByExtension;
-
-        /// <summary>
-        /// Default audio importer identifiers keyed by extension.
-        /// </summary>
-        readonly Dictionary<string, string> defaultAudioImportersByExtension;
-
-        /// <summary>
-        /// Audio importer identifiers keyed by extension.
-        /// </summary>
-        readonly Dictionary<string, List<string>> audioImporterIdsByExtension;
-
-        /// <summary>
-        /// Registered model importers keyed by identifier.
-        /// </summary>
-        readonly Dictionary<string, IModelImporter> ModelImportersById;
-
-        /// <summary>
-        /// Default model importer identifiers keyed by extension.
-        /// </summary>
-        readonly Dictionary<string, string> DefaultModelImportersByExtension;
+        readonly EditorAssetTypeImportHandler[] ImportHandlers;
 
         /// <summary>
         /// File hasher used to generate content checksums.
@@ -164,18 +134,12 @@ namespace helengine.editor {
             assetsRootPath = Path.Combine(this.projectRootPath, "assets");
             importRootPath = Path.Combine(this.projectRootPath, ImportFolderName);
             importRootPrefix = importRootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            textureImportersById = new Dictionary<string, ITextureImporter>(StringComparer.OrdinalIgnoreCase);
-            defaultTextureImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            textureImporterIdsByExtension = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-            textImportersById = new Dictionary<string, ITextImporter>(StringComparer.OrdinalIgnoreCase);
-            fontImportersById = new Dictionary<string, IFontImporter>(StringComparer.OrdinalIgnoreCase);
-            audioImportersById = new Dictionary<string, IAudioImporter>(StringComparer.OrdinalIgnoreCase);
-            defaultTextImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            defaultFontImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            defaultAudioImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            audioImporterIdsByExtension = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-            ModelImportersById = new Dictionary<string, IModelImporter>(StringComparer.OrdinalIgnoreCase);
-            DefaultModelImportersByExtension = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            TextureImportHandler = new TextureAssetTypeImportHandler(this);
+            TextImportHandler = new TextAssetTypeImportHandler(this);
+            FontImportHandler = new FontAssetTypeImportHandler(this);
+            AudioImportHandler = new AudioAssetTypeImportHandler(this);
+            ModelImportHandler = new ModelAssetTypeImportHandler(this);
+            ImportHandlers = [TextureImportHandler, TextImportHandler, FontImportHandler, AudioImportHandler, ModelImportHandler];
             fileHasher = new AssetFileHasher(this.projectRootPath);
             AssetContentManager = contentManager;
             ModelAssetProcessor = new ModelAssetProcessor();
@@ -274,23 +238,23 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(registration));
             }
 
-            if (textureImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Texture importer '{registration.ImporterId}' is already registered.");
             }
 
-            if (textImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
             }
 
-            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
             }
 
-            if (ModelImportersById.ContainsKey(registration.ImporterId)) {
+            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
             }
 
-            textureImportersById.Add(registration.ImporterId, registration.Importer);
+            TextureImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
             AssetContentManager.RegisterProcessor(
                 registration.ImporterId,
                 new TextureImporterContentProcessor(registration.Importer),
@@ -298,21 +262,21 @@ namespace helengine.editor {
             string[] extensions = registration.Extensions;
             for (int i = 0; i < extensions.Length; i++) {
                 string extension = NormalizeExtension(extensions[i]);
-                if (defaultTextImportersByExtension.ContainsKey(extension)) {
+                if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
                 }
 
-                if (defaultFontImportersByExtension.ContainsKey(extension)) {
+                if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
                 }
 
-                if (DefaultModelImportersByExtension.ContainsKey(extension)) {
+                if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
                 }
 
                 RegisterTextureImporterExtension(extension, registration.ImporterId);
-                if (!defaultTextureImportersByExtension.ContainsKey(extension)) {
-                    defaultTextureImportersByExtension[extension] = registration.ImporterId;
+                if (!TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
+                    TextureImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
                 }
             }
         }
@@ -326,23 +290,23 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(registration));
             }
 
-            if (textImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Text importer '{registration.ImporterId}' is already registered.");
             }
 
-            if (textureImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
             }
 
-            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
             }
 
-            if (ModelImportersById.ContainsKey(registration.ImporterId)) {
+            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
             }
 
-            textImportersById.Add(registration.ImporterId, registration.Importer);
+            TextImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
             AssetContentManager.RegisterProcessor(
                 registration.ImporterId,
                 new TextImporterContentProcessor(registration.Importer),
@@ -350,20 +314,20 @@ namespace helengine.editor {
             string[] extensions = registration.Extensions;
             for (int i = 0; i < extensions.Length; i++) {
                 string extension = NormalizeExtension(extensions[i]);
-                if (defaultTextureImportersByExtension.ContainsKey(extension)) {
+                if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
                 }
 
-                if (defaultFontImportersByExtension.ContainsKey(extension)) {
+                if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
                 }
 
-                if (DefaultModelImportersByExtension.ContainsKey(extension)) {
+                if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
                 }
 
-                if (!defaultTextImportersByExtension.ContainsKey(extension)) {
-                    defaultTextImportersByExtension[extension] = registration.ImporterId;
+                if (!TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
+                    TextImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
                 }
             }
         }
@@ -377,23 +341,23 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(registration));
             }
 
-            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Font importer '{registration.ImporterId}' is already registered.");
             }
 
-            if (textureImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
             }
 
-            if (textImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
             }
 
-            if (ModelImportersById.ContainsKey(registration.ImporterId)) {
+            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
             }
 
-            fontImportersById.Add(registration.ImporterId, registration.Importer);
+            FontImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
             AssetContentManager.RegisterProcessor(
                 registration.ImporterId,
                 new FontImporterContentProcessor(registration.Importer),
@@ -401,20 +365,20 @@ namespace helengine.editor {
             string[] extensions = registration.Extensions;
             for (int i = 0; i < extensions.Length; i++) {
                 string extension = NormalizeExtension(extensions[i]);
-                if (defaultTextureImportersByExtension.ContainsKey(extension)) {
+                if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
                 }
 
-                if (defaultTextImportersByExtension.ContainsKey(extension)) {
+                if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
                 }
 
-                if (DefaultModelImportersByExtension.ContainsKey(extension)) {
+                if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
                 }
 
-                if (!defaultFontImportersByExtension.ContainsKey(extension)) {
-                    defaultFontImportersByExtension[extension] = registration.ImporterId;
+                if (!FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
+                    FontImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
                 }
             }
         }
@@ -428,49 +392,49 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(registration));
             }
 
-            if (audioImportersById.ContainsKey(registration.ImporterId)) {
+            if (AudioImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Audio importer '{registration.ImporterId}' is already registered.");
             }
 
-            if (textureImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
             }
 
-            if (textImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
             }
 
-            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
             }
 
-            if (ModelImportersById.ContainsKey(registration.ImporterId)) {
+            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for model assets.");
             }
 
-            audioImportersById.Add(registration.ImporterId, registration.Importer);
+            AudioImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
             string[] extensions = registration.Extensions;
             for (int index = 0; index < extensions.Length; index++) {
                 string extension = NormalizeExtension(extensions[index]);
-                if (defaultTextureImportersByExtension.ContainsKey(extension)) {
+                if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
                 }
 
-                if (defaultTextImportersByExtension.ContainsKey(extension)) {
+                if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
                 }
 
-                if (defaultFontImportersByExtension.ContainsKey(extension)) {
+                if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
                 }
 
-                if (DefaultModelImportersByExtension.ContainsKey(extension)) {
+                if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a model importer.");
                 }
 
                 RegisterAudioImporterExtension(extension, registration.ImporterId);
-                if (!defaultAudioImportersByExtension.ContainsKey(extension)) {
-                    defaultAudioImportersByExtension[extension] = registration.ImporterId;
+                if (!AudioImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
+                    AudioImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
                 }
             }
         }
@@ -484,23 +448,23 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(registration));
             }
 
-            if (ModelImportersById.ContainsKey(registration.ImporterId)) {
+            if (ModelImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Model importer '{registration.ImporterId}' is already registered.");
             }
 
-            if (textureImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextureImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for texture assets.");
             }
 
-            if (textImportersById.ContainsKey(registration.ImporterId)) {
+            if (TextImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for text assets.");
             }
 
-            if (fontImportersById.ContainsKey(registration.ImporterId)) {
+            if (FontImportHandler.ImportersById.ContainsKey(registration.ImporterId)) {
                 throw new InvalidOperationException($"Importer id '{registration.ImporterId}' is already registered for font assets.");
             }
 
-            ModelImportersById.Add(registration.ImporterId, registration.Importer);
+            ModelImportHandler.ImportersById.Add(registration.ImporterId, registration.Importer);
             AssetContentManager.RegisterProcessor(
                 registration.ImporterId,
                 new ModelImporterContentProcessor(registration.Importer),
@@ -508,20 +472,20 @@ namespace helengine.editor {
             string[] extensions = registration.Extensions;
             for (int i = 0; i < extensions.Length; i++) {
                 string extension = NormalizeExtension(extensions[i]);
-                if (defaultTextureImportersByExtension.ContainsKey(extension)) {
+                if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a texture importer.");
                 }
 
-                if (defaultTextImportersByExtension.ContainsKey(extension)) {
+                if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a text importer.");
                 }
 
-                if (defaultFontImportersByExtension.ContainsKey(extension)) {
+                if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
                     throw new InvalidOperationException($"Extension '{extension}' is already mapped to a font importer.");
                 }
 
-                if (!DefaultModelImportersByExtension.ContainsKey(extension)) {
-                    DefaultModelImportersByExtension[extension] = registration.ImporterId;
+                if (!ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(extension)) {
+                    ModelImportHandler.DefaultImporterIdsByExtension[extension] = registration.ImporterId;
                 }
             }
         }
@@ -531,13 +495,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Ordered list of importer identifiers.</returns>
         public IReadOnlyList<string> GetTextureImporterIds() {
-            List<string> ids = new List<string>(textureImportersById.Count);
-            foreach (string importerId in textureImportersById.Keys) {
-                ids.Add(importerId);
-            }
-
-            ids.Sort(StringComparer.OrdinalIgnoreCase);
-            return ids;
+            return TextureImportHandler.GetImporterIds();
         }
 
         /// <summary>
@@ -545,13 +503,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Ordered list of importer identifiers.</returns>
         public IReadOnlyList<string> GetTextImporterIds() {
-            List<string> ids = new List<string>(textImportersById.Count);
-            foreach (string importerId in textImportersById.Keys) {
-                ids.Add(importerId);
-            }
-
-            ids.Sort(StringComparer.OrdinalIgnoreCase);
-            return ids;
+            return TextImportHandler.GetImporterIds();
         }
 
         /// <summary>
@@ -559,13 +511,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Ordered list of importer identifiers.</returns>
         public IReadOnlyList<string> GetFontImporterIds() {
-            List<string> ids = new List<string>(fontImportersById.Count);
-            foreach (string importerId in fontImportersById.Keys) {
-                ids.Add(importerId);
-            }
-
-            ids.Sort(StringComparer.OrdinalIgnoreCase);
-            return ids;
+            return FontImportHandler.GetImporterIds();
         }
 
         /// <summary>
@@ -573,13 +519,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Ordered list of importer identifiers.</returns>
         public IReadOnlyList<string> GetAudioImporterIds() {
-            List<string> ids = new List<string>(audioImportersById.Count);
-            foreach (string importerId in audioImportersById.Keys) {
-                ids.Add(importerId);
-            }
-
-            ids.Sort(StringComparer.OrdinalIgnoreCase);
-            return ids;
+            return AudioImportHandler.GetImporterIds();
         }
 
         /// <summary>
@@ -587,17 +527,11 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Ordered list of importer identifiers.</returns>
         public IReadOnlyList<string> GetModelImporterIds() {
-            List<string> ids = new List<string>(ModelImportersById.Count);
-            foreach (string importerId in ModelImportersById.Keys) {
-                ids.Add(importerId);
-            }
-
-            ids.Sort(StringComparer.OrdinalIgnoreCase);
-            return ids;
+            return ModelImportHandler.GetImporterIds();
         }
 
         /// <summary>
-        /// Gets the importer identifiers applicable to a file extension.
+        /// Gets the importer identifiers applicable to a file extension by asking each asset-type handler in precedence order.
         /// </summary>
         /// <param name="extension">File extension to evaluate.</param>
         /// <returns>Ordered list of importer identifiers for the extension.</returns>
@@ -607,24 +541,11 @@ namespace helengine.editor {
             }
 
             string normalized = NormalizeExtension(extension);
-            if (textureImporterIdsByExtension.TryGetValue(normalized, out List<string> textureImporterIds)) {
-                return new List<string>(textureImporterIds);
-            }
-
-            if (defaultTextImportersByExtension.ContainsKey(normalized)) {
-                return GetTextImporterIds();
-            }
-
-            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
-                return GetFontImporterIds();
-            }
-
-            if (audioImporterIdsByExtension.TryGetValue(normalized, out List<string> audioImporterIds)) {
-                return new List<string>(audioImporterIds);
-            }
-
-            if (DefaultModelImportersByExtension.ContainsKey(normalized)) {
-                return GetModelImporterIds();
+            for (int index = 0; index < ImportHandlers.Length; index++) {
+                IReadOnlyList<string> importerIds = ImportHandlers[index].TryGetImporterIdsForExtension(normalized);
+                if (importerIds != null) {
+                    return importerIds;
+                }
             }
 
             return Array.Empty<string>();
@@ -640,8 +561,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string normalized = NormalizeExtension(extension);
-            return textureImporterIdsByExtension.ContainsKey(normalized);
+            return TextureImportHandler.IsNormalizedExtensionSupported(NormalizeExtension(extension));
         }
 
         /// <summary>
@@ -654,8 +574,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string normalized = NormalizeExtension(extension);
-            return defaultTextImportersByExtension.ContainsKey(normalized);
+            return TextImportHandler.IsNormalizedExtensionSupported(NormalizeExtension(extension));
         }
 
         /// <summary>
@@ -668,8 +587,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string normalized = NormalizeExtension(extension);
-            return defaultFontImportersByExtension.ContainsKey(normalized);
+            return FontImportHandler.IsNormalizedExtensionSupported(NormalizeExtension(extension));
         }
 
         /// <summary>
@@ -682,8 +600,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string normalized = NormalizeExtension(extension);
-            return audioImporterIdsByExtension.ContainsKey(normalized);
+            return AudioImportHandler.IsNormalizedExtensionSupported(NormalizeExtension(extension));
         }
 
         /// <summary>
@@ -696,8 +613,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            string normalized = NormalizeExtension(extension);
-            return DefaultModelImportersByExtension.ContainsKey(normalized);
+            return ModelImportHandler.IsNormalizedExtensionSupported(NormalizeExtension(extension));
         }
 
         /// <summary>
@@ -716,24 +632,24 @@ namespace helengine.editor {
 
             EnsureTextureImporterExists(importerId);
             string normalized = NormalizeExtension(extension);
-            if (defaultTextImportersByExtension.ContainsKey(normalized)) {
+            if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a text importer.");
             }
 
-            if (DefaultModelImportersByExtension.ContainsKey(normalized)) {
+            if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
             }
 
-            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+            if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
             }
 
-            if (defaultAudioImportersByExtension.ContainsKey(normalized)) {
+            if (AudioImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
             }
 
             EnsureTextureImporterSupportsExtension(normalized, importerId);
-            defaultTextureImportersByExtension[normalized] = importerId;
+            TextureImportHandler.DefaultImporterIdsByExtension[normalized] = importerId;
         }
 
         /// <summary>
@@ -752,23 +668,23 @@ namespace helengine.editor {
 
             EnsureTextImporterExists(importerId);
             string normalized = NormalizeExtension(extension);
-            if (defaultTextureImportersByExtension.ContainsKey(normalized)) {
+            if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
             }
 
-            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+            if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
             }
 
-            if (DefaultModelImportersByExtension.ContainsKey(normalized)) {
+            if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
             }
 
-            if (defaultAudioImportersByExtension.ContainsKey(normalized)) {
+            if (AudioImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
             }
 
-            defaultTextImportersByExtension[normalized] = importerId;
+            TextImportHandler.DefaultImporterIdsByExtension[normalized] = importerId;
         }
 
         /// <summary>
@@ -787,24 +703,24 @@ namespace helengine.editor {
 
             EnsureAudioImporterExists(importerId);
             string normalized = NormalizeExtension(extension);
-            if (defaultTextureImportersByExtension.ContainsKey(normalized)) {
+            if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
             }
 
-            if (defaultTextImportersByExtension.ContainsKey(normalized)) {
+            if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a text importer.");
             }
 
-            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+            if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
             }
 
-            if (DefaultModelImportersByExtension.ContainsKey(normalized)) {
+            if (ModelImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a model importer.");
             }
 
             EnsureAudioImporterSupportsExtension(normalized, importerId);
-            defaultAudioImportersByExtension[normalized] = importerId;
+            AudioImportHandler.DefaultImporterIdsByExtension[normalized] = importerId;
         }
 
         /// <summary>
@@ -823,23 +739,23 @@ namespace helengine.editor {
 
             EnsureModelImporterExists(importerId);
             string normalized = NormalizeExtension(extension);
-            if (defaultTextureImportersByExtension.ContainsKey(normalized)) {
+            if (TextureImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a texture importer.");
             }
 
-            if (defaultFontImportersByExtension.ContainsKey(normalized)) {
+            if (FontImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a font importer.");
             }
 
-            if (defaultTextImportersByExtension.ContainsKey(normalized)) {
+            if (TextImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to a text importer.");
             }
 
-            if (defaultAudioImportersByExtension.ContainsKey(normalized)) {
+            if (AudioImportHandler.DefaultImporterIdsByExtension.ContainsKey(normalized)) {
                 throw new InvalidOperationException($"Extension '{normalized}' is already mapped to an audio importer.");
             }
 
-            DefaultModelImportersByExtension[normalized] = importerId;
+            ModelImportHandler.DefaultImporterIdsByExtension[normalized] = importerId;
         }
 
         /// <summary>
@@ -3030,59 +2946,12 @@ namespace helengine.editor {
         /// <returns>Identifier for the default importer.</returns>
         string ResolveDefaultImporter(string extension) {
             string normalized = NormalizeExtension(extension);
-            string textureImporterId;
-            string textImporterId;
-            string fontImporterId;
-            string audioImporterId;
-            string modelImporterId;
-            bool hasTexture = defaultTextureImportersByExtension.TryGetValue(normalized, out textureImporterId);
-            bool hasText = defaultTextImportersByExtension.TryGetValue(normalized, out textImporterId);
-            bool hasFont = defaultFontImportersByExtension.TryGetValue(normalized, out fontImporterId);
-            bool hasAudio = defaultAudioImportersByExtension.TryGetValue(normalized, out audioImporterId);
-            bool hasModel = DefaultModelImportersByExtension.TryGetValue(normalized, out modelImporterId);
-
-            int typeCount = 0;
-            if (hasTexture) {
-                typeCount++;
-            }
-            if (hasText) {
-                typeCount++;
-            }
-            if (hasFont) {
-                typeCount++;
-            }
-            if (hasAudio) {
-                typeCount++;
-            }
-            if (hasModel) {
-                typeCount++;
+            string importerId;
+            if (!TryResolveDefaultImporterForNormalizedExtension(normalized, out importerId)) {
+                throw new InvalidOperationException($"No default importer registered for '{normalized}'.");
             }
 
-            if (typeCount > 1) {
-                throw new InvalidOperationException($"Multiple importer types are registered for '{normalized}'.");
-            }
-
-            if (hasTexture) {
-                return textureImporterId;
-            }
-
-            if (hasText) {
-                return textImporterId;
-            }
-
-            if (hasFont) {
-                return fontImporterId;
-            }
-
-            if (hasAudio) {
-                return audioImporterId;
-            }
-
-            if (hasModel) {
-                return modelImporterId;
-            }
-
-            throw new InvalidOperationException($"No default importer registered for '{normalized}'.");
+            return importerId;
         }
 
         /// <summary>
@@ -3097,66 +2966,42 @@ namespace helengine.editor {
                 return false;
             }
 
-            string normalized = NormalizeExtension(extension);
-            string textureImporterId;
-            string textImporterId;
-            string fontImporterId;
-            string audioImporterId;
-            string modelImporterId;
-            bool hasTexture = defaultTextureImportersByExtension.TryGetValue(normalized, out textureImporterId);
-            bool hasText = defaultTextImportersByExtension.TryGetValue(normalized, out textImporterId);
-            bool hasFont = defaultFontImportersByExtension.TryGetValue(normalized, out fontImporterId);
-            bool hasAudio = defaultAudioImportersByExtension.TryGetValue(normalized, out audioImporterId);
-            bool hasModel = DefaultModelImportersByExtension.TryGetValue(normalized, out modelImporterId);
+            return TryResolveDefaultImporterForNormalizedExtension(NormalizeExtension(extension), out importerId);
+        }
 
-            int typeCount = 0;
-            if (hasTexture) {
-                typeCount++;
-            }
-            if (hasText) {
-                typeCount++;
-            }
-            if (hasFont) {
-                typeCount++;
-            }
-            if (hasAudio) {
-                typeCount++;
-            }
-            if (hasModel) {
-                typeCount++;
+        /// <summary>
+        /// Finds the single asset-type handler that claims one normalized extension and returns its default importer.
+        /// </summary>
+        /// <param name="normalizedExtension">Extension already normalized to a lowercase dotted form.</param>
+        /// <param name="importerId">Default importer identifier of the claiming handler when exactly one claims the extension.</param>
+        /// <returns>True when exactly one asset-type handler claims the extension.</returns>
+        bool TryResolveDefaultImporterForNormalizedExtension(string normalizedExtension, out string importerId) {
+            string resolvedImporterId = string.Empty;
+            int claimingHandlerCount = 0;
+            for (int index = 0; index < ImportHandlers.Length; index++) {
+                string handlerImporterId;
+                if (!ImportHandlers[index].DefaultImporterIdsByExtension.TryGetValue(normalizedExtension, out handlerImporterId)) {
+                    continue;
+                }
+
+                if (claimingHandlerCount == 0) {
+                    resolvedImporterId = handlerImporterId;
+                }
+
+                claimingHandlerCount++;
             }
 
-            if (typeCount > 1) {
-                throw new InvalidOperationException($"Multiple importer types are registered for '{normalized}'.");
+            if (claimingHandlerCount > 1) {
+                throw new InvalidOperationException($"Multiple importer types are registered for '{normalizedExtension}'.");
             }
 
-            if (hasTexture) {
-                importerId = textureImporterId;
-                return true;
+            if (claimingHandlerCount == 0) {
+                importerId = string.Empty;
+                return false;
             }
 
-            if (hasText) {
-                importerId = textImporterId;
-                return true;
-            }
-
-            if (hasFont) {
-                importerId = fontImporterId;
-                return true;
-            }
-
-            if (hasAudio) {
-                importerId = audioImporterId;
-                return true;
-            }
-
-            if (hasModel) {
-                importerId = modelImporterId;
-                return true;
-            }
-
-            importerId = string.Empty;
-            return false;
+            importerId = resolvedImporterId;
+            return true;
         }
 
         /// <summary>
@@ -3166,7 +3011,7 @@ namespace helengine.editor {
         /// <returns>Importer implementation.</returns>
         ITextureImporter GetTextureImporter(string importerId) {
             ITextureImporter importer;
-            if (textureImportersById.TryGetValue(importerId, out importer)) {
+            if (TextureImportHandler.ImportersById.TryGetValue(importerId, out importer)) {
                 return importer;
             }
 
@@ -3178,7 +3023,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="importerId">Identifier to verify.</param>
         void EnsureTextureImporterExists(string importerId) {
-            if (!textureImportersById.ContainsKey(importerId)) {
+            if (!TextureImportHandler.ImportersById.ContainsKey(importerId)) {
                 throw new InvalidOperationException($"Texture importer '{importerId}' is not registered.");
             }
         }
@@ -3193,7 +3038,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return textureImportersById.ContainsKey(importerId);
+            return TextureImportHandler.ImportersById.ContainsKey(importerId);
         }
 
         /// <summary>
@@ -3211,9 +3056,9 @@ namespace helengine.editor {
             }
 
             List<string> importerIds;
-            if (!textureImporterIdsByExtension.TryGetValue(extension, out importerIds)) {
+            if (!TextureImportHandler.ImporterIdsByExtension.TryGetValue(extension, out importerIds)) {
                 importerIds = new List<string>();
-                textureImporterIdsByExtension.Add(extension, importerIds);
+                TextureImportHandler.ImporterIdsByExtension.Add(extension, importerIds);
             }
 
             if (!importerIds.Contains(importerId, StringComparer.OrdinalIgnoreCase)) {
@@ -3236,7 +3081,7 @@ namespace helengine.editor {
             }
 
             List<string> importerIds;
-            if (!textureImporterIdsByExtension.TryGetValue(extension, out importerIds)) {
+            if (!TextureImportHandler.ImporterIdsByExtension.TryGetValue(extension, out importerIds)) {
                 throw new InvalidOperationException($"No texture importers are registered for '{extension}'.");
             }
 
@@ -3256,7 +3101,7 @@ namespace helengine.editor {
         /// <returns>Importer implementation.</returns>
         ITextImporter GetTextImporter(string importerId) {
             ITextImporter importer;
-            if (textImportersById.TryGetValue(importerId, out importer)) {
+            if (TextImportHandler.ImportersById.TryGetValue(importerId, out importer)) {
                 return importer;
             }
 
@@ -3270,7 +3115,7 @@ namespace helengine.editor {
         /// <returns>Importer implementation.</returns>
         IFontImporter GetFontImporter(string importerId) {
             IFontImporter importer;
-            if (fontImportersById.TryGetValue(importerId, out importer)) {
+            if (FontImportHandler.ImportersById.TryGetValue(importerId, out importer)) {
                 return importer;
             }
 
@@ -3282,7 +3127,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="importerId">Identifier to verify.</param>
         void EnsureTextImporterExists(string importerId) {
-            if (!textImportersById.ContainsKey(importerId)) {
+            if (!TextImportHandler.ImportersById.ContainsKey(importerId)) {
                 throw new InvalidOperationException($"Text importer '{importerId}' is not registered.");
             }
         }
@@ -3292,7 +3137,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="importerId">Identifier to verify.</param>
         void EnsureFontImporterExists(string importerId) {
-            if (!fontImportersById.ContainsKey(importerId)) {
+            if (!FontImportHandler.ImportersById.ContainsKey(importerId)) {
                 throw new InvalidOperationException($"Font importer '{importerId}' is not registered.");
             }
         }
@@ -3307,7 +3152,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return textImportersById.ContainsKey(importerId);
+            return TextImportHandler.ImportersById.ContainsKey(importerId);
         }
 
         /// <summary>
@@ -3320,7 +3165,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return fontImportersById.ContainsKey(importerId);
+            return FontImportHandler.ImportersById.ContainsKey(importerId);
         }
 
         /// <summary>
@@ -3329,7 +3174,7 @@ namespace helengine.editor {
         /// <param name="importerId">Identifier of the importer.</param>
         /// <returns>Importer implementation.</returns>
         IAudioImporter GetAudioImporter(string importerId) {
-            if (audioImportersById.TryGetValue(importerId, out IAudioImporter importer)) {
+            if (AudioImportHandler.ImportersById.TryGetValue(importerId, out IAudioImporter importer)) {
                 return importer;
             }
 
@@ -3341,7 +3186,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="importerId">Identifier to verify.</param>
         void EnsureAudioImporterExists(string importerId) {
-            if (!audioImportersById.ContainsKey(importerId)) {
+            if (!AudioImportHandler.ImportersById.ContainsKey(importerId)) {
                 throw new InvalidOperationException($"Audio importer '{importerId}' is not registered.");
             }
         }
@@ -3356,7 +3201,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return audioImportersById.ContainsKey(importerId);
+            return AudioImportHandler.ImportersById.ContainsKey(importerId);
         }
 
         /// <summary>
@@ -3372,9 +3217,9 @@ namespace helengine.editor {
                 throw new ArgumentException("Importer id must be provided.", nameof(importerId));
             }
 
-            if (!audioImporterIdsByExtension.TryGetValue(extension, out List<string> importerIds)) {
+            if (!AudioImportHandler.ImporterIdsByExtension.TryGetValue(extension, out List<string> importerIds)) {
                 importerIds = new List<string>();
-                audioImporterIdsByExtension.Add(extension, importerIds);
+                AudioImportHandler.ImporterIdsByExtension.Add(extension, importerIds);
             }
 
             if (!importerIds.Contains(importerId, StringComparer.OrdinalIgnoreCase)) {
@@ -3395,7 +3240,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Importer id must be provided.", nameof(importerId));
             }
 
-            if (!audioImporterIdsByExtension.TryGetValue(extension, out List<string> importerIds)) {
+            if (!AudioImportHandler.ImporterIdsByExtension.TryGetValue(extension, out List<string> importerIds)) {
                 throw new InvalidOperationException($"No audio importers are registered for '{extension}'.");
             }
 
@@ -3415,7 +3260,7 @@ namespace helengine.editor {
         /// <returns>Importer implementation.</returns>
         IModelImporter GetModelImporter(string importerId) {
             IModelImporter importer;
-            if (ModelImportersById.TryGetValue(importerId, out importer)) {
+            if (ModelImportHandler.ImportersById.TryGetValue(importerId, out importer)) {
                 return importer;
             }
 
@@ -3427,7 +3272,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="importerId">Identifier to verify.</param>
         void EnsureModelImporterExists(string importerId) {
-            if (!ModelImportersById.ContainsKey(importerId)) {
+            if (!ModelImportHandler.ImportersById.ContainsKey(importerId)) {
                 throw new InvalidOperationException($"Model importer '{importerId}' is not registered.");
             }
         }
@@ -3442,7 +3287,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            return ModelImportersById.ContainsKey(importerId);
+            return ModelImportHandler.ImportersById.ContainsKey(importerId);
         }
 
         /// <summary>
@@ -3953,7 +3798,7 @@ namespace helengine.editor {
 
             string normalizedExtension = NormalizeExtension(Path.GetExtension(sourcePath));
             List<string> importerIds;
-            if (!textureImporterIdsByExtension.TryGetValue(normalizedExtension, out importerIds)) {
+            if (!TextureImportHandler.ImporterIdsByExtension.TryGetValue(normalizedExtension, out importerIds)) {
                 return false;
             }
 
