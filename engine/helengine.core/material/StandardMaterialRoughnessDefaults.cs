@@ -20,13 +20,7 @@ namespace helengine {
         /// <returns>Sixteen-byte packed constant-buffer payload.</returns>
         [NativeOwnedReturn]
         public static byte[] CreateConstantBufferData(float roughness) {
-            float normalized = Math.Clamp(roughness, 0f, 1f);
-            byte[] data = new byte[16];
-            WriteSingle(data, 0, normalized);
-            WriteSingle(data, 4, normalized);
-            WriteSingle(data, 8, normalized);
-            WriteSingle(data, 12, normalized);
-            return data;
+            return StandardMaterialScalarDefaults.CreateConstantBufferData(roughness);
         }
 
         /// <summary>
@@ -37,26 +31,5 @@ namespace helengine {
         public static byte[] CreateDefaultConstantBufferData() {
             return CreateConstantBufferData(DefaultRoughness);
         }
-
-        /// <summary>
-        /// Writes one single-precision floating-point value into the supplied byte array using little-endian layout.
-        /// </summary>
-        /// <param name="data">Destination byte array.</param>
-        /// <param name="offset">Destination byte offset.</param>
-        /// <param name="value">Single-precision value to encode.</param>
-        static void WriteSingle(byte[] data, int offset, float value) {
-            if (data == null) {
-                throw new ArgumentNullException(nameof(data));
-            } else if (offset < 0 || offset > data.Length - 4) {
-                throw new ArgumentOutOfRangeException(nameof(offset), "Single-precision values require four writable bytes.");
-            }
-
-            int bits = BitConverter.SingleToInt32Bits(value);
-            data[offset] = (byte)bits;
-            data[offset + 1] = (byte)(bits >> 8);
-            data[offset + 2] = (byte)(bits >> 16);
-            data[offset + 3] = (byte)(bits >> 24);
-        }
-
     }
 }
