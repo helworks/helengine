@@ -34,15 +34,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Audio asset import settings must include processor platform settings.");
             }
 
-            EngineBinaryHeader header = new EngineBinaryHeader(
+            using EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
+                stream,
                 PayloadEndianness,
                 CurrentVersion,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.AudioAssetImportSettings);
-            EngineBinaryHeaderSerializer.Write(stream, header);
-
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
             writer.WriteString(settings.Importer.ImporterId);
             writer.WriteString(settings.Importer.SourceChecksum);
             writer.WriteString(settings.Importer.AssetId);
@@ -81,12 +79,16 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
-            if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.AudioAssetImportSettings) {
-                throw new InvalidOperationException($"Unexpected audio asset import settings value kind '{header.ValueKind}'.");
-            }
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)RecordKind,
+                (ushort)AssetImportSettingsBinaryValueKind.AudioAssetImportSettings,
+                CurrentVersion,
+                "audio asset import settings",
+                "audio asset import settings",
+                "Regenerate the audio import settings sidecar.",
+                out EngineBinaryHeader header);
 
             AudioAssetImportSettings settings = new AudioAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
@@ -122,23 +124,6 @@ namespace helengine.editor {
             }
 
             return settings;
-        }
-
-        /// <summary>
-        /// Validates that the provided header matches the audio asset import settings format.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            } else if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
-                throw new InvalidOperationException($"Unsupported audio asset import settings format id '{header.FormatId}'.");
-            } else if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected audio asset import settings record kind '{header.RecordKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException(
-                    $"Unsupported audio asset import settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the audio import settings sidecar.");
-            }
         }
 
         /// <summary>

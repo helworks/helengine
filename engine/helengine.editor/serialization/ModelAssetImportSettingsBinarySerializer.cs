@@ -34,15 +34,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Model asset import settings must include processor platform settings.");
             }
 
-            EngineBinaryHeader header = new EngineBinaryHeader(
+            using EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
+                stream,
                 PayloadEndianness,
                 CurrentVersion,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings);
-            EngineBinaryHeaderSerializer.Write(stream, header);
-
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
             writer.WriteString(settings.Importer.ImporterId);
             writer.WriteString(settings.Importer.SourceChecksum);
             writer.WriteString(settings.Importer.AssetId);
@@ -81,9 +79,17 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)RecordKind,
+                (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings,
+                CurrentVersion,
+                "model asset import settings",
+                "model asset import settings",
+                "Regenerate the model import settings sidecar.",
+                out EngineBinaryHeader header);
+
             ModelAssetImportSettings settings = new ModelAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
             settings.Importer.SourceChecksum = reader.ReadString();
@@ -120,25 +126,6 @@ namespace helengine.editor {
             }
 
             return settings;
-        }
-
-        /// <summary>
-        /// Validates that the provided header matches the model asset import settings format.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            } else if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
-                throw new InvalidOperationException($"Unsupported model asset import settings format id '{header.FormatId}'.");
-            } else if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected model asset import settings record kind '{header.RecordKind}'.");
-            } else if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.ModelAssetImportSettings) {
-                throw new InvalidOperationException($"Unexpected model asset import settings value kind '{header.ValueKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException(
-                    $"Unsupported model asset import settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the model import settings sidecar.");
-            }
         }
 
         /// <summary>

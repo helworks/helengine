@@ -34,15 +34,13 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Texture asset import settings must include processor platform settings.");
             }
 
-            EngineBinaryHeader header = new EngineBinaryHeader(
+            using EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(
+                stream,
                 PayloadEndianness,
                 CurrentVersion,
                 EditorAssetBinarySerializer.FormatId,
                 (ushort)RecordKind,
                 (ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings);
-            EngineBinaryHeaderSerializer.Write(stream, header);
-
-            using EngineBinaryWriter writer = EngineBinaryWriter.Create(stream, PayloadEndianness);
             writer.WriteString(settings.Importer.ImporterId);
             writer.WriteString(settings.Importer.SourceChecksum);
             writer.WriteString(settings.Importer.AssetId);
@@ -87,12 +85,16 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(stream));
             }
 
-            EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
-            ValidateHeader(header);
-            using EngineBinaryReader reader = EngineBinaryReader.Create(stream, header.Endianness);
-            if (header.ValueKind != (ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings) {
-                throw new InvalidOperationException($"Unexpected texture asset import settings value kind '{header.ValueKind}'.");
-            }
+            using EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                EditorAssetBinarySerializer.FormatId,
+                (ushort)RecordKind,
+                (ushort)AssetImportSettingsBinaryValueKind.TextureAssetImportSettings,
+                CurrentVersion,
+                "texture asset import settings",
+                "texture asset import settings",
+                "Regenerate the texture import settings sidecar.",
+                out EngineBinaryHeader header);
 
             TextureAssetImportSettings settings = new TextureAssetImportSettings();
             settings.Importer.ImporterId = reader.ReadString();
@@ -130,23 +132,6 @@ namespace helengine.editor {
             }
 
             return settings;
-        }
-
-        /// <summary>
-        /// Validates that the provided header matches the texture asset import settings format.
-        /// </summary>
-        /// <param name="header">Header metadata to validate.</param>
-        static void ValidateHeader(EngineBinaryHeader header) {
-            if (header == null) {
-                throw new ArgumentNullException(nameof(header));
-            } else if (header.FormatId != EditorAssetBinarySerializer.FormatId) {
-                throw new InvalidOperationException($"Unsupported texture asset import settings format id '{header.FormatId}'.");
-            } else if (header.RecordKind != (ushort)RecordKind) {
-                throw new InvalidOperationException($"Unexpected texture asset import settings record kind '{header.RecordKind}'.");
-            } else if (header.Version != CurrentVersion) {
-                throw new InvalidOperationException(
-                    $"Unsupported texture asset import settings binary version received '{header.Version}'; current version is '{CurrentVersion}'. Regenerate the texture import settings sidecar.");
-            }
         }
 
         /// <summary>
