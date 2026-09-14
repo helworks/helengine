@@ -2207,8 +2207,8 @@ namespace helengine.editor {
                 CreateWorkspacePanelInstance(PreviewPanelTypeId);
                 return;
             }
-            if (TryResolveWorkspaceSlotNumber(action, out int slotNumber)) {
-                if (IsWorkspaceSaveAction(action)) {
+            if (EditorWorkspacePanelCoordinator.TryResolveWorkspaceSlotNumber(action, out int slotNumber)) {
+                if (EditorWorkspacePanelCoordinator.IsWorkspaceSaveAction(action)) {
                     SaveWorkspaceSlot(slotNumber);
                     return;
                 }
@@ -2249,7 +2249,14 @@ namespace helengine.editor {
                 closeRequestedHandler);
 
             AttachWorkspacePanelInstance(instance, descriptor.DefaultSize, true);
-            controller.Dockable.Position = ResolveCenteredFloatingPanelPosition(descriptor.DefaultSize);
+            int floatingTitleBarHeight;
+            if (titleBar == null) {
+                floatingTitleBarHeight = 0;
+            } else {
+                floatingTitleBarHeight = titleBar.Height;
+            }
+
+            controller.Dockable.Position = EditorWorkspacePanelCoordinator.ResolveCenteredFloatingPanelPosition(LastLayoutWidth, LastLayoutHeight, floatingTitleBarHeight, descriptor.DefaultSize);
             InitializeWorkspacePanelInstance(instance);
             return instance;
         }
@@ -2612,7 +2619,7 @@ namespace helengine.editor {
                 }
             }
 
-            slot.DockRoot = ConvertDockSnapshotNodeToDocument(dockingManager.Layout.CaptureSnapshot(ResolveWorkspaceInstanceId).Root);
+            slot.DockRoot = EditorWorkspacePanelCoordinator.ConvertDockSnapshotNodeToDocument(dockingManager.Layout.CaptureSnapshot(ResolveWorkspaceInstanceId).Root);
             return slot;
         }
 
@@ -2648,7 +2655,7 @@ namespace helengine.editor {
 
             dockingManager.Layout.RestoreSnapshot(
                 new EditorWorkspaceDockSnapshot {
-                    Root = ConvertDockDocumentNodeToSnapshot(FilterDockDocumentNode(slot.DockRoot, restoredInstanceIds))
+                    Root = EditorWorkspacePanelCoordinator.ConvertDockDocumentNodeToSnapshot(EditorWorkspacePanelCoordinator.FilterDockDocumentNode(slot.DockRoot, restoredInstanceIds))
                 },
                 ResolveWorkspaceDockable);
             RefreshWorkspaceDockOrder();
@@ -2691,180 +2698,6 @@ namespace helengine.editor {
             }
 
             return instance.Dockable;
-        }
-
-        /// <summary>
-        /// Filters one persisted dock tree so it contains only workspace panel instances restored in the current session.
-        /// </summary>
-        /// <param name="node">Persisted dock node to filter.</param>
-        /// <param name="restoredInstanceIds">Stable panel instance identifiers restored in the current session.</param>
-        /// <returns>Filtered dock node, or null when the node no longer contains any restored panel instances.</returns>
-        EditorWorkspaceDockNodeDocument FilterDockDocumentNode(EditorWorkspaceDockNodeDocument node, HashSet<string> restoredInstanceIds) {
-            if (node == null) {
-                return null;
-            }
-
-            if (restoredInstanceIds == null) {
-                throw new ArgumentNullException(nameof(restoredInstanceIds));
-            }
-
-            if (node is EditorWorkspaceDockLeafNodeDocument leaf) {
-                List<string> filteredInstanceIds = leaf.InstanceIds
-                    .Where(instanceId => restoredInstanceIds.Contains(instanceId))
-                    .ToList();
-                if (filteredInstanceIds.Count == 0) {
-                    return null;
-                }
-
-                string activeInstanceId = filteredInstanceIds.Contains(leaf.ActiveInstanceId) ? leaf.ActiveInstanceId : filteredInstanceIds[0];
-                return new EditorWorkspaceDockLeafNodeDocument {
-                    InstanceIds = filteredInstanceIds,
-                    ActiveInstanceId = activeInstanceId
-                };
-            }
-
-            if (node is EditorWorkspaceDockSplitNodeDocument split) {
-                EditorWorkspaceDockNodeDocument first = FilterDockDocumentNode(split.First, restoredInstanceIds);
-                EditorWorkspaceDockNodeDocument second = FilterDockDocumentNode(split.Second, restoredInstanceIds);
-                if (first == null && second == null) {
-                    return null;
-                }
-                if (first == null) {
-                    return second;
-                }
-                if (second == null) {
-                    return first;
-                }
-
-                return new EditorWorkspaceDockSplitNodeDocument {
-                    IsVertical = split.IsVertical,
-                    SplitFraction = split.SplitFraction,
-                    First = first,
-                    Second = second
-                };
-            }
-
-            throw new InvalidOperationException("Unsupported workspace dock document node type.");
-        }
-
-        /// <summary>
-        /// Converts one captured dock snapshot node into its persisted document counterpart.
-        /// </summary>
-        /// <param name="node">Captured dock snapshot node.</param>
-        /// <returns>Persisted dock node document.</returns>
-        EditorWorkspaceDockNodeDocument ConvertDockSnapshotNodeToDocument(EditorWorkspaceDockNodeSnapshot node) {
-            if (node == null) {
-                return null;
-            }
-            if (node is EditorWorkspaceDockLeafSnapshot leafSnapshot) {
-                return new EditorWorkspaceDockLeafNodeDocument {
-                    ActiveInstanceId = leafSnapshot.ActiveInstanceId,
-                    InstanceIds = new List<string>(leafSnapshot.InstanceIds)
-                };
-            }
-
-            EditorWorkspaceDockSplitSnapshot splitSnapshot = node as EditorWorkspaceDockSplitSnapshot;
-            if (splitSnapshot == null) {
-                throw new InvalidOperationException("Unsupported dock snapshot node type.");
-            }
-
-            return new EditorWorkspaceDockSplitNodeDocument {
-                IsVertical = splitSnapshot.IsVertical,
-                SplitFraction = splitSnapshot.SplitFraction,
-                First = ConvertDockSnapshotNodeToDocument(splitSnapshot.First),
-                Second = ConvertDockSnapshotNodeToDocument(splitSnapshot.Second)
-            };
-        }
-
-        /// <summary>
-        /// Converts one persisted dock node document back into its runtime snapshot counterpart.
-        /// </summary>
-        /// <param name="node">Persisted dock node document.</param>
-        /// <returns>Runtime dock snapshot node.</returns>
-        EditorWorkspaceDockNodeSnapshot ConvertDockDocumentNodeToSnapshot(EditorWorkspaceDockNodeDocument node) {
-            if (node == null) {
-                return null;
-            }
-            if (node is EditorWorkspaceDockLeafNodeDocument leafDocument) {
-                return new EditorWorkspaceDockLeafSnapshot {
-                    ActiveInstanceId = leafDocument.ActiveInstanceId,
-                    InstanceIds = new List<string>(leafDocument.InstanceIds)
-                };
-            }
-
-            EditorWorkspaceDockSplitNodeDocument splitDocument = node as EditorWorkspaceDockSplitNodeDocument;
-            if (splitDocument == null) {
-                throw new InvalidOperationException("Unsupported dock document node type.");
-            }
-
-            return new EditorWorkspaceDockSplitSnapshot {
-                IsVertical = splitDocument.IsVertical,
-                SplitFraction = splitDocument.SplitFraction,
-                First = ConvertDockDocumentNodeToSnapshot(splitDocument.First),
-                Second = ConvertDockDocumentNodeToSnapshot(splitDocument.Second)
-            };
-        }
-
-        /// <summary>
-        /// Resolves the slot number associated with one UI menu action.
-        /// </summary>
-        /// <param name="action">Workspace UI menu action.</param>
-        /// <param name="slotNumber">Resolved one-based slot number when successful.</param>
-        /// <returns>True when the action maps to a slot; otherwise false.</returns>
-        bool TryResolveWorkspaceSlotNumber(EditorTitleBarUiMenuAction action, out int slotNumber) {
-            slotNumber = 0;
-            if (action == EditorTitleBarUiMenuAction.SaveSlot1 || action == EditorTitleBarUiMenuAction.LoadSlot1) {
-                slotNumber = 1;
-                return true;
-            }
-            if (action == EditorTitleBarUiMenuAction.SaveSlot2 || action == EditorTitleBarUiMenuAction.LoadSlot2) {
-                slotNumber = 2;
-                return true;
-            }
-            if (action == EditorTitleBarUiMenuAction.SaveSlot3 || action == EditorTitleBarUiMenuAction.LoadSlot3) {
-                slotNumber = 3;
-                return true;
-            }
-            if (action == EditorTitleBarUiMenuAction.SaveSlot4 || action == EditorTitleBarUiMenuAction.LoadSlot4) {
-                slotNumber = 4;
-                return true;
-            }
-            if (action == EditorTitleBarUiMenuAction.SaveSlot5 || action == EditorTitleBarUiMenuAction.LoadSlot5) {
-                slotNumber = 5;
-                return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Determines whether one workspace UI menu action saves a slot instead of loading it.
-        /// </summary>
-        /// <param name="action">Workspace UI menu action.</param>
-        /// <returns>True when the action saves a slot; otherwise false.</returns>
-        bool IsWorkspaceSaveAction(EditorTitleBarUiMenuAction action) {
-            return action == EditorTitleBarUiMenuAction.SaveSlot1 ||
-                   action == EditorTitleBarUiMenuAction.SaveSlot2 ||
-                   action == EditorTitleBarUiMenuAction.SaveSlot3 ||
-                   action == EditorTitleBarUiMenuAction.SaveSlot4 ||
-                   action == EditorTitleBarUiMenuAction.SaveSlot5;
-        }
-
-        /// <summary>
-        /// Resolves the default centered floating position for one newly created panel instance.
-        /// </summary>
-        /// <param name="panelSize">Requested panel size.</param>
-        /// <returns>Centered floating origin inside the available workspace area.</returns>
-        float3 ResolveCenteredFloatingPanelPosition(int2 panelSize) {
-            if (LastLayoutWidth <= 0 || LastLayoutHeight <= 0) {
-                return float3.Zero;
-            }
-
-            int titleBarHeight = titleBar == null ? 0 : titleBar.Height;
-            int availableHeight = Math.Max(0, LastLayoutHeight - titleBarHeight);
-            int x = Math.Max(0, (LastLayoutWidth - panelSize.X) / 2);
-            int y = titleBarHeight + Math.Max(0, (availableHeight - panelSize.Y) / 2);
-            return new float3(x, y, 0f);
         }
 
         /// <summary>
