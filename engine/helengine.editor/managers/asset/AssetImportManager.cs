@@ -124,6 +124,16 @@ namespace helengine.editor {
         readonly EditorAudioSampleProcessor AudioSampleProcessor;
 
         /// <summary>
+        /// Provides the host registration boundary for this manager.
+        /// </summary>
+        readonly AssetImporterRegistry ImporterRegistryInstance;
+
+        /// <summary>
+        /// Provides typed persistence for import settings sidecars.
+        /// </summary>
+        readonly AssetImportSettingsRepository SettingsRepositoryInstance;
+
+        /// <summary>
         /// Initializes a new asset import manager for a project.
         /// </summary>
         /// <param name="projectRootPath">Absolute path to the project root.</param>
@@ -157,6 +167,8 @@ namespace helengine.editor {
             ModelAssetProcessor = new ModelAssetProcessor();
             TextureAssetProcessor = new TextureAssetProcessor();
             AudioSampleProcessor = new EditorAudioSampleProcessor();
+            ImporterRegistryInstance = new AssetImporterRegistry(this);
+            SettingsRepositoryInstance = new AssetImportSettingsRepository(this);
             EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
             // Directory creation is deferred to the owning authoring boundary.
@@ -199,6 +211,16 @@ namespace helengine.editor {
         /// Gets the project content manager used to load source assets and importer outputs.
         /// </summary>
         public ContentManager ContentManager => AssetContentManager;
+
+        /// <summary>
+        /// Gets the host importer registration boundary for this manager.
+        /// </summary>
+        public AssetImporterRegistry ImporterRegistry => ImporterRegistryInstance;
+
+        /// <summary>
+        /// Gets the typed import settings repository for this project.
+        /// </summary>
+        public AssetImportSettingsRepository SettingsRepository => SettingsRepositoryInstance;
 
         /// <summary>
         /// Gets or sets the active project platform whose processor settings should drive model cache generation.

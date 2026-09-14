@@ -154,8 +154,10 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Host importer registrations must not contain null entries.");
                 }
 
-                importer.Register(assetImportManager);
+                importer.Register(assetImportManager.ImporterRegistry);
             }
+
+            assetImportManager.ImporterRegistry.Freeze();
         }
     }
 }

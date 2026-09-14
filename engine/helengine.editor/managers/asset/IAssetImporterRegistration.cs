@@ -1,12 +1,12 @@
 namespace helengine.editor {
     /// <summary>
-    /// Describes an asset importer registration that can be applied to a manager.
+    /// Describes an asset importer registration that can be applied to a host registry.
     /// </summary>
     public interface IAssetImporterRegistration {
         /// <summary>
-        /// Registers the importer with an asset import manager.
+        /// Registers the importer with the host importer registry.
         /// </summary>
-        /// <param name="manager">Manager to register with.</param>
-        void Register(AssetImportManager manager);
+        /// <param name="registry">Registry to register with.</param>
+        void Register(AssetImporterRegistry registry);
     }
 }
