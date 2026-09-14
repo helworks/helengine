@@ -380,29 +380,7 @@ namespace helengine {
             CollectTriggerEvents();
             ProfilerStopwatch.Stop();
             LastTriggerCollectionMillisecondsValue = ProfilerStopwatch.Elapsed.TotalMilliseconds;
-            AwakeDynamicBodyCountValue = CountAwakeDynamicBodies();
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterBepuSyncPhaseId);
-        }
-
-        /// <summary>
-        /// Counts dynamic body handles whose BEPU body remains awake after the current timestep.
-        /// </summary>
-        /// <returns>Number of awake dynamic bodies.</returns>
-        int CountAwakeDynamicBodies() {
-            int awakeDynamicBodyCount = 0;
-            IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
-            for (int index = 0; index < handles.Count; index++) {
-                BepuBodyHandle3D handle = handles[index];
-                if (!handle.HasBodyHandle || !handle.IsDynamic) {
-                    continue;
-                }
-
-                if (SimulationValue.Bodies[handle.BodyHandle].Awake) {
-                    awakeDynamicBodyCount++;
-                }
-            }
-
-            return awakeDynamicBodyCount;
         }
 
         /// <summary>
@@ -845,9 +823,11 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Copies resolved runtime transforms and velocities back into the authored entity graph.
+        /// Copies resolved runtime transforms and velocities back into the authored entity graph and records how many
+        /// dynamic bodies stayed awake, because both passes visit exactly the same handles under the same predicate.
         /// </summary>
         void SynchronizeBodiesBackToEntities() {
+            int awakeDynamicBodyCount = 0;
             IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
             for (int index = 0; index < handles.Count; index++) {
                 BepuBodyHandle3D handle = handles[index];
@@ -863,8 +843,11 @@ namespace helengine {
                     continue;
                 }
 
+                awakeDynamicBodyCount++;
                 BepuEntitySynchronization3D.CopyBodyToEntity(bodyReference, handle.Entity, handle.RigidBody);
             }
+
+            AwakeDynamicBodyCountValue = awakeDynamicBodyCount;
         }
 
         /// <summary>
@@ -877,21 +860,16 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(entity));
             }
 
-            IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
-            for (int index = 0; index < handles.Count; index++) {
-                BepuBodyHandle3D handle = handles[index];
-                if (!ReferenceEquals(handle.Entity, entity)) {
-                    continue;
-                } else if (!handle.IsKinematic) {
-                    throw new InvalidOperationException("Only kinematic BEPU bodies can be synchronized from authored transforms.");
-                } else if (!handle.HasBodyHandle) {
-                    throw new InvalidOperationException("Kinematic BEPU body synchronization requires one runtime body handle.");
-                }
-
-                return handle;
+            BepuBodyHandle3D handle = BodyRegistryValue.FindHandle(entity);
+            if (handle == null) {
+                throw new InvalidOperationException("The supplied entity is not registered as one bound kinematic BEPU body.");
+            } else if (!handle.IsKinematic) {
+                throw new InvalidOperationException("Only kinematic BEPU bodies can be synchronized from authored transforms.");
+            } else if (!handle.HasBodyHandle) {
+                throw new InvalidOperationException("Kinematic BEPU body synchronization requires one runtime body handle.");
             }
 
-            throw new InvalidOperationException("The supplied entity is not registered as one bound kinematic BEPU body.");
+            return handle;
         }
 
         /// <summary>
@@ -904,21 +882,16 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(entity));
             }
 
-            IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
-            for (int index = 0; index < handles.Count; index++) {
-                BepuBodyHandle3D handle = handles[index];
-                if (!ReferenceEquals(handle.Entity, entity)) {
-                    continue;
-                } else if (!handle.IsDynamic) {
-                    throw new InvalidOperationException("Only dynamic BEPU bodies can be synchronized through the dynamic-body transform path.");
-                } else if (!handle.HasBodyHandle) {
-                    throw new InvalidOperationException("Dynamic BEPU body synchronization requires one runtime body handle.");
-                }
-
-                return handle;
+            BepuBodyHandle3D handle = BodyRegistryValue.FindHandle(entity);
+            if (handle == null) {
+                throw new InvalidOperationException("The supplied entity is not registered as one bound dynamic BEPU body.");
+            } else if (!handle.IsDynamic) {
+                throw new InvalidOperationException("Only dynamic BEPU bodies can be synchronized through the dynamic-body transform path.");
+            } else if (!handle.HasBodyHandle) {
+                throw new InvalidOperationException("Dynamic BEPU body synchronization requires one runtime body handle.");
             }
 
-            throw new InvalidOperationException("The supplied entity is not registered as one bound dynamic BEPU body.");
+            return handle;
         }
 
         /// <summary>
