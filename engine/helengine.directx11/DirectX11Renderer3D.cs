@@ -106,14 +106,6 @@ namespace helengine.directx11 {
         /// </summary>
         Dictionary<string, List<DirectX11MaterialResource>> MaterialsByShaderAssetId;
         /// <summary>
-        /// Cache of DirectX11 constant buffers keyed by shader slot for per-material payload uploads.
-        /// </summary>
-        Dictionary<int, Buffer> MaterialConstantBuffersBySlot;
-        /// <summary>
-        /// Sampler state shared by textured 3D materials.
-        /// </summary>
-        SamplerState materialTextureSampler;
-        /// <summary>
         /// 2D renderer used for overlays and UI.
         /// </summary>
         DirectX11Renderer2D renderer2D;
@@ -122,13 +114,9 @@ namespace helengine.directx11 {
         /// </summary>
         readonly DirectX11PipelineStateCache PipelineStateCache;
         /// <summary>
-        /// Tracks the active material for the current pass.
+        /// Binds runtime materials, their texture views and their constant-buffer payloads to the pipeline.
         /// </summary>
-        DirectX11MaterialResource ActiveMaterial;
-        /// <summary>
-        /// Tracks the pixel-shader texture slots most recently assigned by material bindings so stale shader-resource views can be cleared deterministically.
-        /// </summary>
-        List<int> ActiveMaterialTextureSlots;
+        readonly DirectX11MaterialBinder MaterialBinder;
         /// <summary>
         /// World-space camera position for the active 3D camera pass.
         /// </summary>
@@ -241,8 +229,6 @@ namespace helengine.directx11 {
             ShadowResourcePlanner = new DirectX11ShadowResourcePlanner();
             ShadowShaderDataBuilder = new DirectX11ShadowShaderDataBuilder();
             PointShadowCubeResourcesValue = new List<DirectX11PointShadowCubeResources>();
-            MaterialConstantBuffersBySlot = new Dictionary<int, Buffer>();
-            ActiveMaterialTextureSlots = new List<int>();
             WindowResized += OnWindowResized;
 
             using (var factory = new DxgiFactory1()) {
@@ -261,6 +247,7 @@ namespace helengine.directx11 {
             });
             EnableImmediateContextMultithreadProtection();
             PipelineStateCache = new DirectX11PipelineStateCache(Device);
+            MaterialBinder = new DirectX11MaterialBinder(Device, PipelineStateCache);
 
             constantBuffer = new Buffer(Device, Utilities.SizeOf<StandardMeshShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
@@ -272,8 +259,6 @@ namespace helengine.directx11 {
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
             pointShadowDepthConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11PointShadowDepthShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
-
-            materialTextureSampler = CreateMaterialTextureSampler();
 
             renderer2D = new DirectX11Renderer2D(this);
             DebugInfoRegistry.Register(new DirectX11Renderer3DDebugInfoProvider(this));
@@ -361,14 +346,13 @@ namespace helengine.directx11 {
             surfaces.Clear();
             surfacesByHandle.Clear();
 
+            MaterialBinder.Dispose();
             PipelineStateCache.Dispose();
-            materialTextureSampler?.Dispose();
             pointShadowDepthConstantBuffer?.Dispose();
             shadowConstantBuffer?.Dispose();
             forwardLightConstantBuffer?.Dispose();
             customPassConstantBuffer?.Dispose();
             constantBuffer?.Dispose();
-            DisposeMaterialConstantBuffers();
             ShadowAtlasResourcesValue?.Dispose();
             ShadowDepthShaderPassValue?.Dispose();
             PointShadowDepthShaderPassValue?.Dispose();
@@ -613,9 +597,8 @@ namespace helengine.directx11 {
 
             if (material is DirectX11MaterialResource directX11Material) {
                 UnregisterMaterial(directX11Material);
-                if (ReferenceEquals(ActiveMaterial, directX11Material)) {
-                    ClearActiveMaterialTextureBindings();
-                    ActiveMaterial = null;
+                if (MaterialBinder.IsActiveMaterial(directX11Material)) {
+                    MaterialBinder.ResetActiveMaterial();
                 }
             }
 
@@ -658,8 +641,7 @@ namespace helengine.directx11 {
                 material.SetLayout(layout);
             }
 
-            ClearActiveMaterialTextureBindings();
-            ActiveMaterial = null;
+            MaterialBinder.ResetActiveMaterial();
         }
 
         /// <summary>
@@ -913,8 +895,7 @@ namespace helengine.directx11 {
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             isCustomPassActive = false;
             customColorProvider = null;
-            ClearActiveMaterialTextureBindings();
-            ActiveMaterial = null;
+            MaterialBinder.ResetActiveMaterial();
             PipelineStateCache.BindBlendState(deviceContext, null);
             deviceContext.VertexShader.SetConstantBuffer(0, constantBuffer);
             deviceContext.PixelShader.SetConstantBuffer(0, constantBuffer);
@@ -932,7 +913,7 @@ namespace helengine.directx11 {
             "Changes to DirectX11 render-target transition cleanup must also be applied to the Windows native DirectX renderer implementation.")]
         void ClearShaderResourceBindingsForRenderTargetChange() {
             renderer2D.ClearActiveTextureBindings();
-            ClearActiveMaterialTextureBindings();
+            MaterialBinder.ClearActiveMaterialTextureBindings();
         }
 
         /// <summary>
@@ -1436,7 +1417,7 @@ namespace helengine.directx11 {
         protected virtual void DrawShadowCaster(RenderFrameShadowCasterSubmission submission, float4x4 lightViewProjection) {
             if (submission?.Drawable?.Parent == null || !submission.Drawable.Parent.Enabled) {
                 return;
-            } else if (!ShouldMaterialCastShadows(submission.Material)) {
+            } else if (!MaterialBinder.ShouldMaterialCastShadows(submission.Material)) {
                 return;
             }
 
@@ -1472,7 +1453,7 @@ namespace helengine.directx11 {
         protected virtual void DrawPointShadowCaster(RenderFrameShadowCasterSubmission submission, float4x4 lightViewProjection, float3 lightPosition, float lightRange) {
             if (submission?.Drawable?.Parent == null || !submission.Drawable.Parent.Enabled) {
                 return;
-            } else if (!ShouldMaterialCastShadows(submission.Material)) {
+            } else if (!MaterialBinder.ShouldMaterialCastShadows(submission.Material)) {
                 return;
             }
 
@@ -1594,11 +1575,11 @@ namespace helengine.directx11 {
                 if (runtimeMaterial == null) {
                     DirectX11MaterialResource missingMaterial = GetMissingMaterial();
                     effectiveRuntimeMaterial = missingMaterial;
-                    ApplyMaterial(missingMaterial, missingMaterial);
+                    MaterialBinder.ApplyMaterial(missingMaterial, missingMaterial);
                 } else {
-                    effectiveRuntimeMaterial = RequireShaderRuntimeMaterial(runtimeMaterial);
-                    DirectX11MaterialResource directX11Material = ResolveDirectX11Material(effectiveRuntimeMaterial);
-                    ApplyMaterial(directX11Material, effectiveRuntimeMaterial);
+                    effectiveRuntimeMaterial = MaterialBinder.RequireShaderRuntimeMaterial(runtimeMaterial);
+                    DirectX11MaterialResource directX11Material = MaterialBinder.ResolveDirectX11Material(effectiveRuntimeMaterial);
+                    MaterialBinder.ApplyMaterial(directX11Material, effectiveRuntimeMaterial);
                 }
             }
 
@@ -1633,8 +1614,11 @@ namespace helengine.directx11 {
                 };
                 context.UpdateSubresource(ref customData, customPassConstantBuffer);
             } else {
-                effectiveRuntimeMaterial ??= RequireShaderRuntimeMaterial(runtimeMaterial);
-                ShaderRuntimeMaterial rootMaterial = RequireShaderRuntimeMaterial(effectiveRuntimeMaterial.ResolveRootMaterial());
+                if (effectiveRuntimeMaterial == null) {
+                    effectiveRuntimeMaterial = MaterialBinder.RequireShaderRuntimeMaterial(runtimeMaterial);
+                }
+
+                ShaderRuntimeMaterial rootMaterial = MaterialBinder.RequireShaderRuntimeMaterial(effectiveRuntimeMaterial.ResolveRootMaterial());
                 if (BuiltInMaterialIds.UsesStandardMeshTransform(
                     rootMaterial.Id,
                     rootMaterial.Layout.ShaderAssetId,
@@ -1844,413 +1828,6 @@ namespace helengine.directx11 {
             lastFrameTimeMs = ms;
             lastFps = ms > 0 ? 1000.0 / ms : 0;
             frameStopwatch.Restart();
-        }
-
-        /// <summary>
-        /// Creates the sampler used by textured 3D materials.
-        /// </summary>
-        /// <returns>Configured sampler state.</returns>
-        SamplerState CreateMaterialTextureSampler() {
-            var samplerDesc = new SamplerStateDescription {
-                Filter = Filter.MinMagMipPoint,
-                AddressU = TextureAddressMode.Wrap,
-                AddressV = TextureAddressMode.Wrap,
-                AddressW = TextureAddressMode.Wrap,
-                ComparisonFunction = Comparison.Never,
-                MinimumLod = 0,
-                MaximumLod = float.MaxValue
-            };
-
-            return new SamplerState(Device, samplerDesc);
-        }
-
-        /// <summary>
-        /// Applies a material to the DirectX11 pipeline if it is not already active.
-        /// </summary>
-        /// <param name="shaderMaterial">Concrete DirectX11 material that owns the shader resources.</param>
-        /// <param name="material">Resolved runtime material instance that provides render-state and texture values.</param>
-        void ApplyMaterial(DirectX11MaterialResource shaderMaterial, ShaderRuntimeMaterial material) {
-            if (shaderMaterial == null) {
-                throw new ArgumentNullException(nameof(shaderMaterial));
-            }
-
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-
-            DirectX11ShaderResource shaderResource = shaderMaterial.ShaderResource;
-            var context = Device.ImmediateContext;
-            if (!ReferenceEquals(ActiveMaterial, shaderMaterial)) {
-                ClearActiveMaterialTextureBindings();
-
-                context.InputAssembler.InputLayout = shaderResource.InputLayout;
-                context.VertexShader.Set(shaderResource.VertexShader);
-                context.PixelShader.Set(shaderResource.PixelShader);
-                ActiveMaterial = shaderMaterial;
-            }
-
-            PipelineStateCache.ApplyMaterialRenderState(context, material.RenderState);
-            ApplyMaterialConstantBufferBindings(material);
-            ClearActiveMaterialTextureBindings();
-            if (material.Layout.TextureBindings.Length > 0) {
-                List<DirectX11MaterialTextureBinding> resolvedBindings = ResolveMaterialTextureBindings(material);
-                for (int bindingIndex = 0; bindingIndex < resolvedBindings.Count; bindingIndex++) {
-                    DirectX11MaterialTextureBinding binding = resolvedBindings[bindingIndex];
-                    context.PixelShader.SetShaderResource(binding.Slot, binding.ResourceView);
-                    context.PixelShader.SetSampler(binding.Slot, materialTextureSampler);
-                    TrackActiveMaterialTextureSlot(binding.Slot);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Clears every pixel-shader texture slot that was populated by the previously applied material bindings.
-        /// </summary>
-        void ClearActiveMaterialTextureBindings() {
-            var context = Device.ImmediateContext;
-            for (int bindingIndex = 0; bindingIndex < ActiveMaterialTextureSlots.Count; bindingIndex++) {
-                int slot = ActiveMaterialTextureSlots[bindingIndex];
-                context.PixelShader.SetShaderResource(slot, null);
-                context.PixelShader.SetSampler(slot, null);
-            }
-
-            ActiveMaterialTextureSlots.Clear();
-        }
-
-        /// <summary>
-        /// Records one pixel-shader texture slot that is now owned by the active material bindings.
-        /// </summary>
-        /// <param name="slot">Pixel-shader texture slot that was populated for the current draw.</param>
-        void TrackActiveMaterialTextureSlot(int slot) {
-            if (slot < 0) {
-                throw new ArgumentOutOfRangeException(nameof(slot), "Material texture slots cannot be negative.");
-            }
-            if (ActiveMaterialTextureSlots.Contains(slot)) {
-                return;
-            }
-
-            ActiveMaterialTextureSlots.Add(slot);
-        }
-
-        /// <summary>
-        /// Applies per-material constant-buffer payloads for the current draw.
-        /// </summary>
-        /// <param name="material">Resolved runtime material instance that provides constant-buffer values.</param>
-        void ApplyMaterialConstantBufferBindings(ShaderRuntimeMaterial material) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-
-            var context = Device.ImmediateContext;
-            MaterialLayoutBinding[] layoutBindings = material.Layout.ConstantBufferBindings;
-            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
-                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
-                if (binding == null) {
-                    continue;
-                }
-
-                if (IsEngineManagedConstantBufferBinding(binding.Name)) {
-                    continue;
-                }
-
-                if (!material.TryResolveConstantBufferData(binding.Name, out _)) {
-                    context.VertexShader.SetConstantBuffer(binding.Slot, null);
-                    context.PixelShader.SetConstantBuffer(binding.Slot, null);
-                }
-            }
-
-            List<DirectX11MaterialConstantBufferBinding> resolvedBindings = ResolveMaterialConstantBufferBindings(material);
-            for (int bindingIndex = 0; bindingIndex < resolvedBindings.Count; bindingIndex++) {
-                DirectX11MaterialConstantBufferBinding binding = resolvedBindings[bindingIndex];
-                Buffer constantBuffer = GetOrCreateMaterialConstantBuffer(binding.Slot, binding.Data.Length);
-                context.UpdateSubresource(binding.Data, constantBuffer);
-                context.VertexShader.SetConstantBuffer(binding.Slot, constantBuffer);
-                context.PixelShader.SetConstantBuffer(binding.Slot, constantBuffer);
-            }
-        }
-
-        /// <summary>
-        /// Resolves the material constant-buffer payloads that should be uploaded for one draw.
-        /// </summary>
-        /// <param name="material">Resolved runtime material instance that provides constant-buffer values.</param>
-        /// <returns>Resolved DirectX11 constant-buffer payloads keyed by their shader slots.</returns>
-        List<DirectX11MaterialConstantBufferBinding> ResolveMaterialConstantBufferBindings(ShaderRuntimeMaterial material) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-
-            var resolvedBindings = new List<DirectX11MaterialConstantBufferBinding>();
-            MaterialLayoutBinding[] layoutBindings = material.Layout.ConstantBufferBindings;
-            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
-                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
-                if (!material.TryResolveConstantBufferData(binding.Name, out byte[] data)) {
-                    continue;
-                }
-
-                resolvedBindings.Add(new DirectX11MaterialConstantBufferBinding(binding.Name, binding.Slot, data));
-            }
-
-            return resolvedBindings;
-        }
-
-        /// <summary>
-        /// Resolves the material texture bindings that should be uploaded for one draw.
-        /// </summary>
-        /// <param name="material">Resolved runtime material instance that provides texture values.</param>
-        /// <returns>Resolved DirectX11 texture bindings keyed by their shader slots.</returns>
-        List<DirectX11MaterialTextureBinding> ResolveMaterialTextureBindings(ShaderRuntimeMaterial material) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-
-            var resolvedBindings = new List<DirectX11MaterialTextureBinding>();
-            MaterialLayoutBinding[] layoutBindings = material.Layout.TextureBindings;
-            for (int bindingIndex = 0; bindingIndex < layoutBindings.Length; bindingIndex++) {
-                MaterialLayoutBinding binding = layoutBindings[bindingIndex];
-                if (!TryResolveMaterialTexture(material, binding.Name, out RuntimeTexture runtimeTexture)) {
-                    continue;
-                }
-
-                resolvedBindings.Add(new DirectX11MaterialTextureBinding(ResolveDirectX11BindingSlot(binding), ResolveTextureResourceView(runtimeTexture)));
-            }
-
-            return resolvedBindings;
-        }
-
-        /// <summary>
-        /// Resolves the native DirectX11 register slot for one unified material-layout binding.
-        /// </summary>
-        /// <param name="binding">Material-layout binding whose slot should be mapped for the DirectX11 backend.</param>
-        /// <returns>Native DirectX11 register slot used when binding the resource.</returns>
-        [NativeMigrationRequired(
-            "windows.native_directx_renderer",
-            "Changes to managed DirectX11 material-slot remapping must also be applied to the Windows native DirectX renderer implementation.")]
-        static int ResolveDirectX11BindingSlot(MaterialLayoutBinding binding) {
-            if (binding == null) {
-                throw new ArgumentNullException(nameof(binding));
-            }
-
-            ShaderBindingPolicy policy = ShaderBindingPolicies.Default;
-            int shift = GetBindingShift(policy, binding.ResourceType);
-            if (shift <= 0 || binding.Slot < shift) {
-                return binding.Slot;
-            }
-
-            return binding.Slot - shift;
-        }
-
-        /// <summary>
-        /// Gets the unified-slot shift used by the shared shader binding policy for one resource class.
-        /// </summary>
-        /// <param name="policy">Binding policy that defines unified resource-class shifts.</param>
-        /// <param name="resourceType">Resource class whose shift should be resolved.</param>
-        /// <returns>Unified-slot shift for the resource class.</returns>
-        static int GetBindingShift(ShaderBindingPolicy policy, ShaderResourceType resourceType) {
-            if (policy == null) {
-                throw new ArgumentNullException(nameof(policy));
-            }
-
-            switch (resourceType) {
-                case ShaderResourceType.Texture2D:
-                case ShaderResourceType.TextureCube:
-                    return policy.TextureShift;
-                case ShaderResourceType.Sampler:
-                    return policy.SamplerShift;
-                case ShaderResourceType.Buffer:
-                case ShaderResourceType.StorageBuffer:
-                case ShaderResourceType.StorageTexture2D:
-                    return policy.StorageShift;
-                default:
-                    return policy.ConstantBufferShift;
-            }
-        }
-
-        /// <summary>
-        /// Determines whether one shader constant-buffer binding is owned by the renderer rather than by runtime material properties.
-        /// </summary>
-        /// <param name="bindingName">Shader constant-buffer binding name to classify.</param>
-        /// <returns>True when the renderer manages the binding for the active pass; otherwise false.</returns>
-        static bool IsEngineManagedConstantBufferBinding(string bindingName) {
-            if (string.IsNullOrWhiteSpace(bindingName)) {
-                return false;
-            }
-
-            return string.Equals(bindingName, "TransformBuffer", StringComparison.Ordinal)
-                || string.Equals(bindingName, "ForwardLightBuffer", StringComparison.Ordinal)
-                || string.Equals(bindingName, "ShadowBuffer", StringComparison.Ordinal);
-        }
-
-        /// <summary>
-        /// Resolves one cached DirectX11 constant buffer for a material shader slot.
-        /// </summary>
-        /// <param name="slot">DirectX11 constant-buffer slot to bind.</param>
-        /// <param name="sizeInBytes">Required constant-buffer size in bytes.</param>
-        /// <returns>Cached constant buffer that matches the requested slot and size.</returns>
-        Buffer GetOrCreateMaterialConstantBuffer(int slot, int sizeInBytes) {
-            if (slot < 0) {
-                throw new ArgumentOutOfRangeException(nameof(slot), "Constant-buffer slot cannot be negative.");
-            }
-
-            if (sizeInBytes <= 0) {
-                throw new ArgumentOutOfRangeException(nameof(sizeInBytes), "Constant-buffer size must be positive.");
-            }
-
-            if (sizeInBytes % 16 != 0) {
-                throw new InvalidOperationException($"DirectX11 constant-buffer size must be 16-byte aligned, but slot {slot} requested {sizeInBytes} bytes.");
-            }
-
-            if (MaterialConstantBuffersBySlot.TryGetValue(slot, out Buffer cachedBuffer)) {
-                if (cachedBuffer.Description.SizeInBytes == sizeInBytes) {
-                    return cachedBuffer;
-                }
-
-                cachedBuffer.Dispose();
-                MaterialConstantBuffersBySlot.Remove(slot);
-            }
-
-            Buffer constantBuffer = new Buffer(Device, sizeInBytes, ResourceUsage.Default,
-                BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
-            MaterialConstantBuffersBySlot.Add(slot, constantBuffer);
-            return constantBuffer;
-        }
-
-        /// <summary>
-        /// Resolves the DirectX11 root material that owns the concrete shader resource for one runtime material chain.
-        /// </summary>
-        /// <param name="runtimeMaterial">Runtime material whose root should be resolved.</param>
-        /// <returns>Resolved DirectX11 root material.</returns>
-        DirectX11MaterialResource ResolveDirectX11Material(ShaderRuntimeMaterial runtimeMaterial) {
-            if (runtimeMaterial == null) {
-                throw new ArgumentNullException(nameof(runtimeMaterial));
-            }
-
-            RuntimeMaterial rootMaterial = runtimeMaterial.ResolveRootMaterial();
-            if (rootMaterial is not DirectX11MaterialResource directX11Material) {
-                throw new InvalidOperationException("Drawable materials must resolve to DirectX11MaterialResource through their parent chain.");
-            }
-
-            return directX11Material;
-        }
-
-        /// <summary>
-        /// Determines whether one runtime material chain should contribute geometry to DirectX11 shadow-map passes.
-        /// </summary>
-        /// <param name="runtimeMaterial">Runtime material assigned to the drawable, or <c>null</c> for the missing-material path.</param>
-        /// <returns>True when the DirectX11 shadow passes should render the drawable.</returns>
-        bool ShouldMaterialCastShadows(RuntimeMaterial runtimeMaterial) {
-            if (runtimeMaterial == null) {
-                return true;
-            }
-
-            return ResolveDirectX11Material(RequireShaderRuntimeMaterial(runtimeMaterial)).CastsShadows;
-        }
-
-        /// <summary>
-        /// Resolves the shader resource view sampled by a textured 3D material.
-        /// </summary>
-        /// <param name="material">Material whose texture binding should be resolved.</param>
-        /// <returns>Shader resource view to bind for the material, or null when the material intentionally has no texture.</returns>
-        ShaderResourceView ResolveMaterialTextureResourceView(ShaderRuntimeMaterial material) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-
-            RuntimeTexture runtimeTexture = material.ResolveTexture();
-            if (runtimeTexture == null) {
-                return null;
-            }
-
-            return ResolveTextureResourceView(runtimeTexture);
-        }
-
-        /// <summary>
-        /// Resolves the shader resource view sampled by one runtime texture instance.
-        /// </summary>
-        /// <param name="runtimeTexture">Texture whose DirectX11 shader resource view should be resolved.</param>
-        /// <returns>Shader resource view to bind for the texture.</returns>
-        ShaderResourceView ResolveTextureResourceView(RuntimeTexture runtimeTexture) {
-            if (runtimeTexture == null) {
-                throw new ArgumentNullException(nameof(runtimeTexture));
-            }
-
-            if (runtimeTexture is DirectX11TextureResource textureResource) {
-                if (textureResource.Resource == null) {
-                    throw new InvalidOperationException("DirectX11 texture resources must expose a shader resource view.");
-                }
-
-                return textureResource.Resource;
-            } else if (runtimeTexture is DirectX11RenderTargetResource renderTargetResource) {
-                if (renderTargetResource.ShaderResourceView == null) {
-                    throw new InvalidOperationException("DirectX11 render targets used as material textures must expose a shader resource view.");
-                }
-
-                return renderTargetResource.ShaderResourceView;
-            }
-
-            throw new InvalidOperationException("3D material textures must be DirectX11 texture resources.");
-        }
-
-        /// <summary>
-        /// Resolves one named material texture from the current material or one of its shader-material parents.
-        /// </summary>
-        /// <param name="material">Material whose binding should be resolved.</param>
-        /// <param name="bindingName">Texture binding name to resolve.</param>
-        /// <param name="runtimeTexture">Resolved runtime texture when present.</param>
-        /// <returns>True when the material chain provides the requested texture binding; otherwise false.</returns>
-        bool TryResolveMaterialTexture(ShaderRuntimeMaterial material, string bindingName, out RuntimeTexture runtimeTexture) {
-            if (material == null) {
-                throw new ArgumentNullException(nameof(material));
-            }
-            if (string.IsNullOrWhiteSpace(bindingName)) {
-                runtimeTexture = null;
-                return false;
-            }
-
-            int bindingIndex = material.Layout.FindTextureBindingIndex(bindingName);
-            if (bindingIndex >= 0) {
-                runtimeTexture = material.Properties.GetTexture(bindingIndex);
-                if (runtimeTexture != null) {
-                    return true;
-                }
-            }
-
-            if (material.ParentMaterial is ShaderRuntimeMaterial parentShaderMaterial) {
-                return TryResolveMaterialTexture(parentShaderMaterial, bindingName, out runtimeTexture);
-            }
-
-            runtimeTexture = null;
-            return false;
-        }
-
-        /// <summary>
-        /// Requires one resolved runtime material to expose shader-runtime binding state for the DirectX11 backend.
-        /// </summary>
-        /// <param name="runtimeMaterial">Runtime material instance to validate.</param>
-        /// <returns>Shader runtime material view over the supplied material.</returns>
-        ShaderRuntimeMaterial RequireShaderRuntimeMaterial(RuntimeMaterial runtimeMaterial) {
-            if (runtimeMaterial == null) {
-                throw new ArgumentNullException(nameof(runtimeMaterial));
-            }
-            if (runtimeMaterial is not ShaderRuntimeMaterial shaderRuntimeMaterial) {
-                throw new InvalidOperationException("DirectX11 rendering requires shader-backed runtime materials.");
-            }
-
-            return shaderRuntimeMaterial;
-        }
-
-        /// <summary>
-        /// Disposes cached DirectX11 material constant buffers.
-        /// </summary>
-        void DisposeMaterialConstantBuffers() {
-            if (MaterialConstantBuffersBySlot == null) {
-                return;
-            }
-
-            foreach (KeyValuePair<int, Buffer> pair in MaterialConstantBuffersBySlot) {
-                pair.Value?.Dispose();
-            }
-
-            MaterialConstantBuffersBySlot.Clear();
         }
 
         /// <summary>

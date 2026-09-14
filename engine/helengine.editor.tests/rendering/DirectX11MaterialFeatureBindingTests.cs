@@ -54,15 +54,12 @@ namespace helengine.editor.tests.rendering {
             ShaderRuntimeMaterial material = CreateTexturedMaterial();
             DirectX11RenderTargetResource renderTarget = (DirectX11RenderTargetResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11RenderTargetResource));
             ShaderResourceView expectedResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
-            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
-            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialTextureResourceView", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(method);
+            DirectX11MaterialBinder binder = CreateMaterialBinder();
 
             SetAutoPropertyBackingField(renderTarget, "ShaderResourceView", expectedResourceView);
             material.Properties.SetTexture("CanvasTexture", renderTarget);
 
-            ShaderResourceView resourceView = Assert.IsType<ShaderResourceView>(method.Invoke(renderer, new object[] { material }));
+            ShaderResourceView resourceView = binder.ResolveMaterialTextureResourceView(material);
 
             Assert.Same(expectedResourceView, resourceView);
         }
@@ -104,10 +101,7 @@ namespace helengine.editor.tests.rendering {
             DirectX11RenderTargetResource roughnessTexture = (DirectX11RenderTargetResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11RenderTargetResource));
             ShaderResourceView diffuseResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
             ShaderResourceView roughnessResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
-            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
-            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialTextureBindings", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(method);
+            DirectX11MaterialBinder binder = CreateMaterialBinder();
 
             material.SetLayout(new MaterialLayout(
                 "shader/test",
@@ -126,7 +120,7 @@ namespace helengine.editor.tests.rendering {
             material.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, diffuseTexture);
             material.Properties.SetTexture(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName, roughnessTexture);
 
-            IList resolvedBindings = Assert.IsAssignableFrom<IList>(method.Invoke(renderer, new object[] { material }));
+            List<DirectX11MaterialTextureBinding> resolvedBindings = binder.ResolveMaterialTextureBindings(material);
 
             Assert.Equal(2, resolvedBindings.Count);
             AssertResolvedTextureBinding(resolvedBindings[0], 0, diffuseResourceView);
@@ -143,10 +137,7 @@ namespace helengine.editor.tests.rendering {
             DirectX11RenderTargetResource roughnessTexture = (DirectX11RenderTargetResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11RenderTargetResource));
             ShaderResourceView diffuseResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
             ShaderResourceView roughnessResourceView = (ShaderResourceView)RuntimeHelpers.GetUninitializedObject(typeof(ShaderResourceView));
-            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
-            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialTextureBindings", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(method);
+            DirectX11MaterialBinder binder = CreateMaterialBinder();
 
             material.SetLayout(new MaterialLayout(
                 "shader/test",
@@ -165,7 +156,7 @@ namespace helengine.editor.tests.rendering {
             material.Properties.SetTexture(StandardMaterialTextureBindingDefaults.DiffuseTextureBindingName, diffuseTexture);
             material.Properties.SetTexture(StandardMaterialTextureBindingDefaults.RoughnessTextureBindingName, roughnessTexture);
 
-            IList resolvedBindings = Assert.IsAssignableFrom<IList>(method.Invoke(renderer, new object[] { material }));
+            List<DirectX11MaterialTextureBinding> resolvedBindings = binder.ResolveMaterialTextureBindings(material);
 
             Assert.Equal(2, resolvedBindings.Count);
             AssertResolvedTextureBinding(resolvedBindings[0], 0, diffuseResourceView);
@@ -180,15 +171,12 @@ namespace helengine.editor.tests.rendering {
             DirectX11ShaderResource shaderResource = (DirectX11ShaderResource)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11ShaderResource));
             var rootMaterial = new DirectX11MaterialResource(shaderResource);
             TestRuntimeMaterial childMaterial = new TestRuntimeMaterial();
-            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
-            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ShouldMaterialCastShadows", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(method);
+            DirectX11MaterialBinder binder = CreateMaterialBinder();
 
             rootMaterial.CastsShadows = false;
             childMaterial.SetParentMaterial(rootMaterial);
 
-            bool castsShadows = Assert.IsType<bool>(method.Invoke(renderer, new object[] { childMaterial }));
+            bool castsShadows = binder.ShouldMaterialCastShadows(childMaterial);
 
             Assert.False(castsShadows);
         }
@@ -200,14 +188,11 @@ namespace helengine.editor.tests.rendering {
         public void ResolveMaterialConstantBufferBindings_WhenMaterialProvidesLocalPayload_ReturnsResolvedBindingData() {
             ShaderRuntimeMaterial material = CreateMaterialWithConstantBufferBinding("BaseColorBuffer", 3, 16);
             byte[] expectedData = CreateConstantBufferPayload(1f, 0.5f, 0.25f, 1f);
-            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
-            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialConstantBufferBindings", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(method);
+            DirectX11MaterialBinder binder = CreateMaterialBinder();
 
             material.Properties.SetConstantBufferData("BaseColorBuffer", expectedData);
 
-            IList resolvedBindings = Assert.IsAssignableFrom<IList>(method.Invoke(renderer, new object[] { material }));
+            List<DirectX11MaterialConstantBufferBinding> resolvedBindings = binder.ResolveMaterialConstantBufferBindings(material);
 
             Assert.Single(resolvedBindings);
             AssertResolvedConstantBufferBinding(resolvedBindings[0], "BaseColorBuffer", 3, expectedData);
@@ -222,16 +207,13 @@ namespace helengine.editor.tests.rendering {
             var rootMaterial = new DirectX11MaterialResource(shaderResource);
             TestRuntimeMaterial childMaterial = new TestRuntimeMaterial();
             byte[] expectedData = CreateConstantBufferPayload(0.1f, 0.2f, 0.3f, 1f);
-            TestDirectX11RenderManager3D renderer = TestDirectX11RenderManager3D.Create();
-            MethodInfo method = typeof(DirectX11Renderer3D).GetMethod("ResolveMaterialConstantBufferBindings", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.NotNull(method);
+            DirectX11MaterialBinder binder = CreateMaterialBinder();
 
             rootMaterial.SetLayout(CreateMaterialLayoutWithConstantBufferBinding("BaseColorBuffer", 3, 16));
             rootMaterial.Properties.SetConstantBufferData("BaseColorBuffer", expectedData);
             childMaterial.SetParentMaterial(rootMaterial);
 
-            IList resolvedBindings = Assert.IsAssignableFrom<IList>(method.Invoke(renderer, new object[] { childMaterial }));
+            List<DirectX11MaterialConstantBufferBinding> resolvedBindings = binder.ResolveMaterialConstantBufferBindings(childMaterial);
 
             Assert.Single(resolvedBindings);
             AssertResolvedConstantBufferBinding(resolvedBindings[0], "BaseColorBuffer", 3, expectedData);
@@ -258,16 +240,16 @@ namespace helengine.editor.tests.rendering {
                 },
                 Array.Empty<MaterialLayoutBinding>()));
             material.Properties.SetConstantBufferData("BaseColorBuffer", CreateConstantBufferPayload(1f, 1f, 1f, 1f));
-            MethodInfo applyMethod = typeof(DirectX11Renderer3D).GetMethod("ApplyMaterialConstantBufferBindings", BindingFlags.Instance | BindingFlags.NonPublic);
+            DirectX11MaterialBinder binder = GetPrivateFieldValue<DirectX11MaterialBinder>(renderer, "MaterialBinder");
             SharpDX.Direct3D11.Buffer forwardLightBuffer = GetPrivateFieldValue<SharpDX.Direct3D11.Buffer>(renderer, "forwardLightConstantBuffer");
             SharpDX.Direct3D11.Buffer shadowBuffer = GetPrivateFieldValue<SharpDX.Direct3D11.Buffer>(renderer, "shadowConstantBuffer");
             DeviceContext context = renderer.Device.ImmediateContext;
 
-            Assert.NotNull(applyMethod);
+            Assert.NotNull(binder);
             context.PixelShader.SetConstantBuffer(1, forwardLightBuffer);
             context.PixelShader.SetConstantBuffer(2, shadowBuffer);
 
-            applyMethod.Invoke(renderer, new object[] { material });
+            binder.ApplyMaterialConstantBufferBindings(material);
 
             SharpDX.Direct3D11.Buffer reboundForwardLightBuffer = context.PixelShader.GetConstantBuffers(1, 1)[0];
             SharpDX.Direct3D11.Buffer reboundShadowBuffer = context.PixelShader.GetConstantBuffers(2, 1)[0];
@@ -318,6 +300,14 @@ namespace helengine.editor.tests.rendering {
             StandardMeshShaderData shaderData = Assert.IsType<StandardMeshShaderData>(method.Invoke(null, new object[] { world, new float3(1f, 2f, 3f), true, false }));
 
             AssertMatrixEqual(expectedUploadedNormalMatrix, shaderData.NormalMatrix);
+        }
+
+        /// <summary>
+        /// Creates one material binder without a graphics device, for the resolution paths that never touch the device.
+        /// </summary>
+        /// <returns>Material binder suitable for pure resolution assertions.</returns>
+        static DirectX11MaterialBinder CreateMaterialBinder() {
+            return (DirectX11MaterialBinder)RuntimeHelpers.GetUninitializedObject(typeof(DirectX11MaterialBinder));
         }
 
         /// <summary>
@@ -464,47 +454,33 @@ namespace helengine.editor.tests.rendering {
         /// <summary>
         /// Verifies one reflected resolved constant-buffer binding.
         /// </summary>
-        /// <param name="resolvedBinding">Resolved binding object returned by the DirectX11 renderer.</param>
+        /// <param name="resolvedBinding">Resolved binding returned by the material binder.</param>
         /// <param name="expectedName">Expected binding name.</param>
         /// <param name="expectedSlot">Expected shader slot.</param>
         /// <param name="expectedData">Expected packed payload.</param>
-        static void AssertResolvedConstantBufferBinding(object resolvedBinding, string expectedName, int expectedSlot, byte[] expectedData) {
+        static void AssertResolvedConstantBufferBinding(DirectX11MaterialConstantBufferBinding resolvedBinding, string expectedName, int expectedSlot, byte[] expectedData) {
             if (resolvedBinding == null) {
                 throw new ArgumentNullException(nameof(resolvedBinding));
             }
 
-            Type bindingType = resolvedBinding.GetType();
-            PropertyInfo nameProperty = bindingType.GetProperty("Name");
-            PropertyInfo slotProperty = bindingType.GetProperty("Slot");
-            PropertyInfo dataProperty = bindingType.GetProperty("Data");
-
-            Assert.NotNull(nameProperty);
-            Assert.NotNull(slotProperty);
-            Assert.NotNull(dataProperty);
-            Assert.Equal(expectedName, Assert.IsType<string>(nameProperty.GetValue(resolvedBinding)));
-            Assert.Equal(expectedSlot, Assert.IsType<int>(slotProperty.GetValue(resolvedBinding)));
-            Assert.Equal(expectedData, Assert.IsType<byte[]>(dataProperty.GetValue(resolvedBinding)));
+            Assert.Equal(expectedName, resolvedBinding.Name);
+            Assert.Equal(expectedSlot, resolvedBinding.Slot);
+            Assert.Equal(expectedData, resolvedBinding.Data);
         }
 
         /// <summary>
-        /// Verifies one reflected resolved texture binding.
+        /// Verifies one resolved texture binding.
         /// </summary>
-        /// <param name="resolvedBinding">Resolved binding object returned by the DirectX11 renderer.</param>
+        /// <param name="resolvedBinding">Resolved binding returned by the material binder.</param>
         /// <param name="expectedSlot">Expected shader slot.</param>
         /// <param name="expectedResourceView">Expected DirectX11 shader resource view.</param>
-        static void AssertResolvedTextureBinding(object resolvedBinding, int expectedSlot, ShaderResourceView expectedResourceView) {
+        static void AssertResolvedTextureBinding(DirectX11MaterialTextureBinding resolvedBinding, int expectedSlot, ShaderResourceView expectedResourceView) {
             if (resolvedBinding == null) {
                 throw new ArgumentNullException(nameof(resolvedBinding));
             }
 
-            Type bindingType = resolvedBinding.GetType();
-            PropertyInfo slotProperty = bindingType.GetProperty("Slot");
-            PropertyInfo resourceViewProperty = bindingType.GetProperty("ResourceView");
-
-            Assert.NotNull(slotProperty);
-            Assert.NotNull(resourceViewProperty);
-            Assert.Equal(expectedSlot, Assert.IsType<int>(slotProperty.GetValue(resolvedBinding)));
-            Assert.Same(expectedResourceView, Assert.IsType<ShaderResourceView>(resourceViewProperty.GetValue(resolvedBinding)));
+            Assert.Equal(expectedSlot, resolvedBinding.Slot);
+            Assert.Same(expectedResourceView, resolvedBinding.ResourceView);
         }
 
         /// <summary>
