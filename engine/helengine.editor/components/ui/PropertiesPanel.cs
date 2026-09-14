@@ -1841,7 +1841,7 @@ namespace helengine.editor {
                 double pitch;
                 double yaw;
                 double roll;
-                GetOrientationDegrees(entity.Orientation, out pitch, out yaw, out roll);
+                entity.Orientation.ToEulerDegrees(out pitch, out yaw, out roll);
 
                 SetVectorFields(PositionFields, PositionTextCache, position.X, position.Y, position.Z);
                 SetVectorFields(RotationFields, RotationTextCache, pitch, yaw, roll);
@@ -1949,17 +1949,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Transform fields are not initialized.");
             }
 
-            string xText = FormatDouble(x);
-            string yText = FormatDouble(y);
-            string zText = FormatDouble(z);
-
-            fields[0].Text = xText;
-            fields[1].Text = yText;
-            fields[2].Text = zText;
-
-            cache[0] = xText;
-            cache[1] = yText;
-            cache[2] = zText;
+            PropertyFieldValueUtils.WriteVectorFields(fields, cache, x, y, z);
         }
 
         /// <summary>
@@ -2342,78 +2332,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Transform fields are not initialized.");
             }
 
-            if (!TryReadNumber(fields[0].Text, out x)) {
-                return false;
-            }
-            if (!TryReadNumber(fields[1].Text, out y)) {
-                return false;
-            }
-            if (!TryReadNumber(fields[2].Text, out z)) {
-                return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Parses a numeric string with invariant culture.
-        /// </summary>
-        /// <param name="text">Text to parse.</param>
-        /// <param name="value">Parsed value.</param>
-        /// <returns>True when parsing succeeds.</returns>
-        bool TryReadNumber(string text, out double value) {
-            if (string.IsNullOrWhiteSpace(text)) {
-                value = 0;
-                return false;
-            }
-
-            return double.TryParse(
-                text,
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out value);
-        }
-
-        /// <summary>
-        /// Converts a quaternion to pitch/yaw/roll in degrees.
-        /// </summary>
-        /// <param name="orientation">Quaternion orientation.</param>
-        /// <param name="pitch">Pitch angle in degrees.</param>
-        /// <param name="yaw">Yaw angle in degrees.</param>
-        /// <param name="roll">Roll angle in degrees.</param>
-        void GetOrientationDegrees(float4 orientation, out double pitch, out double yaw, out double roll) {
-            double x = orientation.X;
-            double y = orientation.Y;
-            double z = orientation.Z;
-            double w = orientation.W;
-
-            double sinPitch = 2.0 * (w * x - y * z);
-            if (Math.Abs(sinPitch) >= 1.0) {
-                pitch = Math.CopySign(Math.PI / 2.0, sinPitch);
-            } else {
-                pitch = Math.Asin(sinPitch);
-            }
-
-            double sinYaw = 2.0 * (w * y + x * z);
-            double cosYaw = 1.0 - 2.0 * (x * x + y * y);
-            yaw = Math.Atan2(sinYaw, cosYaw);
-
-            double sinRoll = 2.0 * (w * z + x * y);
-            double cosRoll = 1.0 - 2.0 * (y * y + z * z);
-            roll = Math.Atan2(sinRoll, cosRoll);
-
-            pitch = pitch * (180.0 / Math.PI);
-            yaw = yaw * (180.0 / Math.PI);
-            roll = roll * (180.0 / Math.PI);
-        }
-
-        /// <summary>
-        /// Formats a double value for display.
-        /// </summary>
-        /// <param name="value">Value to format.</param>
-        /// <returns>Formatted string.</returns>
-        string FormatDouble(double value) {
-            return value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+            return PropertyFieldValueUtils.TryReadVector(fields, out x, out y, out z);
         }
 
         /// <summary>

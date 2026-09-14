@@ -2685,17 +2685,8 @@ namespace helengine.editor {
                 return;
             }
 
-            string xText = FormatDouble(x);
-            string yText = FormatDouble(y);
-            string zText = FormatDouble(z);
-
             IsSynchronizing = true;
-            row.VectorFields[0].Text = xText;
-            row.VectorFields[1].Text = yText;
-            row.VectorFields[2].Text = zText;
-            row.VectorCache[0] = xText;
-            row.VectorCache[1] = yText;
-            row.VectorCache[2] = zText;
+            PropertyFieldValueUtils.WriteVectorFields(row.VectorFields, row.VectorCache, x, y, z);
             IsSynchronizing = false;
         }
 
@@ -2712,20 +2703,8 @@ namespace helengine.editor {
                 return;
             }
 
-            string xText = FormatDouble(x);
-            string yText = FormatDouble(y);
-            string zText = FormatDouble(z);
-            string wText = FormatDouble(w);
-
             IsSynchronizing = true;
-            row.Vector4Fields[0].Text = xText;
-            row.Vector4Fields[1].Text = yText;
-            row.Vector4Fields[2].Text = zText;
-            row.Vector4Fields[3].Text = wText;
-            row.Vector4Cache[0] = xText;
-            row.Vector4Cache[1] = yText;
-            row.Vector4Cache[2] = zText;
-            row.Vector4Cache[3] = wText;
+            PropertyFieldValueUtils.WriteVector4Fields(row.Vector4Fields, row.Vector4Cache, x, y, z, w);
             IsSynchronizing = false;
         }
 
@@ -2740,10 +2719,10 @@ namespace helengine.editor {
             }
 
             if (value is float floatValue) {
-                return FormatDouble(floatValue);
+                return PropertyFieldValueUtils.FormatDouble(floatValue);
             }
             if (value is double doubleValue) {
-                return FormatDouble(doubleValue);
+                return PropertyFieldValueUtils.FormatDouble(doubleValue);
             }
             if (value is bool boolValue) {
                 return boolValue ? "True" : "False";
@@ -2756,15 +2735,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Formats a double value using invariant culture.
-        /// </summary>
-        /// <param name="value">Value to format.</param>
-        /// <returns>Formatted string.</returns>
-        string FormatDouble(double value) {
-            return value.ToString("0.###", CultureInfo.InvariantCulture);
-        }
-
-        /// <summary>
         /// Attempts to parse a Vector3 from the row fields.
         /// </summary>
         /// <param name="row">Row to parse.</param>
@@ -2773,25 +2743,7 @@ namespace helengine.editor {
         /// <param name="z">Parsed Z value.</param>
         /// <returns>True when all fields parse successfully.</returns>
         bool TryReadVector(ComponentPropertyRow row, out double x, out double y, out double z) {
-            x = 0.0;
-            y = 0.0;
-            z = 0.0;
-
-            if (row.VectorFields == null || row.VectorFields.Length < 3) {
-                return false;
-            }
-
-            if (!TryReadNumber(row.VectorFields[0].Text, out x)) {
-                return false;
-            }
-            if (!TryReadNumber(row.VectorFields[1].Text, out y)) {
-                return false;
-            }
-            if (!TryReadNumber(row.VectorFields[2].Text, out z)) {
-                return false;
-            }
-
-            return true;
+            return PropertyFieldValueUtils.TryReadVector(row.VectorFields, out x, out y, out z);
         }
 
         /// <summary>
@@ -2804,29 +2756,7 @@ namespace helengine.editor {
         /// <param name="w">Parsed W value.</param>
         /// <returns>True when all fields parse successfully.</returns>
         bool TryReadVector4(ComponentPropertyRow row, out double x, out double y, out double z, out double w) {
-            x = 0.0;
-            y = 0.0;
-            z = 0.0;
-            w = 0.0;
-
-            if (row.Vector4Fields == null || row.Vector4Fields.Length < 4) {
-                return false;
-            }
-
-            if (!TryReadNumber(row.Vector4Fields[0].Text, out x)) {
-                return false;
-            }
-            if (!TryReadNumber(row.Vector4Fields[1].Text, out y)) {
-                return false;
-            }
-            if (!TryReadNumber(row.Vector4Fields[2].Text, out z)) {
-                return false;
-            }
-            if (!TryReadNumber(row.Vector4Fields[3].Text, out w)) {
-                return false;
-            }
-
-            return true;
+            return PropertyFieldValueUtils.TryReadVector4(row.Vector4Fields, out x, out y, out z, out w);
         }
 
         /// <summary>
@@ -2840,25 +2770,6 @@ namespace helengine.editor {
                 && left.Y == right.Y
                 && left.Z == right.Z
                 && left.W == right.W;
-        }
-
-        /// <summary>
-        /// Parses a numeric value using invariant culture.
-        /// </summary>
-        /// <param name="text">Text to parse.</param>
-        /// <param name="value">Parsed numeric value.</param>
-        /// <returns>True when parsing succeeds.</returns>
-        bool TryReadNumber(string text, out double value) {
-            if (string.IsNullOrWhiteSpace(text)) {
-                value = 0.0;
-                return false;
-            }
-
-            return double.TryParse(
-                text,
-                NumberStyles.Float,
-                CultureInfo.InvariantCulture,
-                out value);
         }
 
         /// <summary>
@@ -3185,7 +3096,7 @@ namespace helengine.editor {
             }
 
             double numeric;
-            if (!TryReadNumber(text, out numeric)) {
+            if (!PropertyFieldValueUtils.TryReadNumber(text, out numeric)) {
                 return false;
             }
 
