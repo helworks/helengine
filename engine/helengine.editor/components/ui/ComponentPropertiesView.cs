@@ -374,6 +374,7 @@ namespace helengine.editor {
             RegisterRowRenderer(new FontComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new ModelComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new CustomSectionComponentPropertyRowRenderer(this));
+            RegisterRowRenderer(new HeaderComponentPropertyRowRenderer(this));
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
@@ -2143,11 +2144,6 @@ namespace helengine.editor {
             ComponentPropertyRowRenderer renderer;
             if (RowRenderers.TryGetValue(row.Kind, out renderer)) {
                 renderer.Update(row);
-                RefreshRowOverrideChrome(row);
-                return;
-            }
-
-            switch (row.Kind) {
             }
 
             RefreshRowOverrideChrome(row);
@@ -3646,29 +3642,6 @@ namespace helengine.editor {
             ComponentPropertyRowRenderer renderer;
             if (RowRenderers.TryGetValue(row.Kind, out renderer)) {
                 renderer.Layout(row, contentWidth, height, labelWidth);
-                return;
-            }
-
-            switch (row.Kind) {
-                case ComponentPropertyRowKind.Header:
-                    LayoutHeaderRow(row, contentWidth, height);
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// Layouts a header row to span the full width.
-        /// </summary>
-        /// <param name="row">Header row to layout.</param>
-        /// <param name="width">Available width.</param>
-        /// <param name="height">Row height.</param>
-        void LayoutHeaderRow(ComponentPropertyRow row, int width, int height) {
-            row.Label.Size = new int2(Math.Max(0, width), row.Label.Size.Y);
-            if (row.ActionButtonHost != null && row.ActionButton != null && row.ActionButtonHost.Enabled) {
-                float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
-                row.ActionButtonHost.Position = new float3(width - PickButtonWidth, buttonY, 0.2f);
             }
         }
 
@@ -4391,12 +4364,6 @@ namespace helengine.editor {
             ComponentPropertyRowRenderer renderer;
             if (RowRenderers.TryGetValue(kind, out renderer)) {
                 renderer.Build(row, rowEntity);
-                return row;
-            }
-
-            switch (kind) {
-                default:
-                    break;
             }
 
             return row;
