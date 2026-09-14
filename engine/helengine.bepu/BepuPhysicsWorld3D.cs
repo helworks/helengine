@@ -62,12 +62,12 @@ namespace helengine {
         /// <summary>
         /// Trigger overlap pairs that remained active after the previous fixed step completed.
         /// </summary>
-        readonly List<TriggerPairKey3D> ActiveTriggerPairsValue;
+        readonly BepuTriggerPairSet3D ActiveTriggerPairsValue;
 
         /// <summary>
-        /// Trigger overlap pairs detected during the current fixed step.
+        /// Trigger overlap pairs recorded by the narrow phase during the current fixed step.
         /// </summary>
-        readonly List<TriggerPairKey3D> CurrentTriggerPairsValue;
+        readonly BepuTriggerPairSet3D CurrentTriggerPairsValue;
 
         /// <summary>
         /// Stores the configured BEPU velocity-iteration count used whenever the world recreates its simulation.
@@ -157,8 +157,8 @@ namespace helengine {
             BufferPoolValue = new BufferPool(DefaultBufferPoolBlockSize, DefaultBufferPoolResourceCount);
             BodyRegistryValue = new BepuBodyRegistry3D();
             TriggerEventsValue = new List<TriggerEvent3D>();
-            ActiveTriggerPairsValue = new List<TriggerPairKey3D>();
-            CurrentTriggerPairsValue = new List<TriggerPairKey3D>();
+            ActiveTriggerPairsValue = new BepuTriggerPairSet3D();
+            CurrentTriggerPairsValue = new BepuTriggerPairSet3D();
             ProfilerStopwatch = new Stopwatch();
             ResetSimulation();
         }
@@ -367,6 +367,8 @@ namespace helengine {
             }
 
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeBepuTimestepPhaseId);
+            // Trigger overlaps are recorded by the narrow phase inside the timestep, so the current set starts empty.
+            CurrentTriggerPairsValue.Clear();
             ProfilerStopwatch.Restart();
             SimulationValue.Timestep((float)stepSeconds);
             ProfilerStopwatch.Stop();
@@ -391,7 +393,10 @@ namespace helengine {
 
             CollidablePropertiesValue = new CollidableProperty<BepuCollidableProperties3D>(BufferPoolValue);
             GravityAccelerationsValue = new CollidableProperty<float>(BufferPoolValue);
-            HelengineBepuNarrowPhaseCallbacks narrowPhaseCallbacks = new HelengineBepuNarrowPhaseCallbacks(CollidablePropertiesValue);
+            HelengineBepuNarrowPhaseCallbacks narrowPhaseCallbacks = new HelengineBepuNarrowPhaseCallbacks(
+                CollidablePropertiesValue,
+                BodyRegistryValue,
+                CurrentTriggerPairsValue);
             HelengineBepuPoseIntegratorCallbacks poseIntegratorCallbacks = new HelengineBepuPoseIntegratorCallbacks(GravityAccelerationsValue);
             SimulationValue = Simulation.Create(
                 BufferPoolValue,
@@ -979,206 +984,31 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Collects primitive trigger overlaps for the current fixed step and emits enter, stay, and exit events.
+        /// Emits enter, stay, and exit events by comparing the trigger overlaps the narrow phase recorded during the
+        /// current fixed step against the overlaps that were still active after the previous one.
         /// </summary>
         void CollectTriggerEvents() {
             TriggerEventsValue.Clear();
-            CurrentTriggerPairsValue.Clear();
 
-            IReadOnlyList<BepuBodyHandle3D> handles = BodyRegistryValue.Handles;
-            for (int firstIndex = 0; firstIndex < handles.Count; firstIndex++) {
-                BepuBodyHandle3D first = handles[firstIndex];
-                for (int secondIndex = firstIndex + 1; secondIndex < handles.Count; secondIndex++) {
-                    BepuBodyHandle3D second = handles[secondIndex];
-                    if (!CanBodiesInteract(first, second)) {
-                        continue;
-                    }
-                    if (!IsTriggerPair(first, second)) {
-                        continue;
-                    }
-                    if (!PrimitiveTriggerBodiesOverlap(first, second)) {
-                        continue;
-                    }
-
-                    TrackTriggerPair(first, second);
-                }
-            }
-
-            FinalizeTriggerEvents();
-        }
-
-        /// <summary>
-        /// Returns whether the supplied handle pair contains at least one trigger collider.
-        /// </summary>
-        static bool IsTriggerPair(BepuBodyHandle3D first, BepuBodyHandle3D second) {
-            return GetRequiredCollider(first).IsTrigger || GetRequiredCollider(second).IsTrigger;
-        }
-
-        /// <summary>
-        /// Returns whether the supplied handle pair passes the authored collision-layer filtering.
-        /// </summary>
-        static bool CanBodiesInteract(BepuBodyHandle3D first, BepuBodyHandle3D second) {
-            Collider3DComponent firstCollider = GetRequiredCollider(first);
-            Collider3DComponent secondCollider = GetRequiredCollider(second);
-            return (firstCollider.CollisionMask & secondCollider.CollisionLayer) != 0 &&
-                (secondCollider.CollisionMask & firstCollider.CollisionLayer) != 0;
-        }
-
-        /// <summary>
-        /// Tracks one primitive trigger pair using whichever entity owns the trigger collider.
-        /// </summary>
-        void TrackTriggerPair(BepuBodyHandle3D first, BepuBodyHandle3D second) {
-            Collider3DComponent firstCollider = GetRequiredCollider(first);
-            Collider3DComponent secondCollider = GetRequiredCollider(second);
-            if (firstCollider.IsTrigger) {
-                AddCurrentTriggerPair(new TriggerPairKey3D(first.Entity, second.Entity));
-                return;
-            }
-            if (secondCollider.IsTrigger) {
-                AddCurrentTriggerPair(new TriggerPairKey3D(second.Entity, first.Entity));
-                return;
-            }
-
-            throw new InvalidOperationException("Tracked trigger overlap pair does not contain a trigger collider.");
-        }
-
-        /// <summary>
-        /// Returns whether the supplied primitive collider pair currently overlaps according to authored entity transforms.
-        /// </summary>
-        static bool PrimitiveTriggerBodiesOverlap(BepuBodyHandle3D first, BepuBodyHandle3D second) {
-            if (first.SphereCollider != null && second.SphereCollider != null) {
-                return SphereSphereOverlaps(first, second);
-            }
-            if (first.SphereCollider != null && second.BoxCollider != null) {
-                return SphereBoxOverlaps(first, second);
-            }
-            if (first.BoxCollider != null && second.SphereCollider != null) {
-                return SphereBoxOverlaps(second, first);
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Returns whether the supplied sphere pair currently overlaps.
-        /// </summary>
-        static bool SphereSphereOverlaps(BepuBodyHandle3D first, BepuBodyHandle3D second) {
-            float firstRadius = ResolveWorldSphereRadius(first);
-            float secondRadius = ResolveWorldSphereRadius(second);
-            float combinedRadius = firstRadius + secondRadius;
-            return (first.Entity.Position - second.Entity.Position).LengthSquared() <= combinedRadius * combinedRadius;
-        }
-
-        /// <summary>
-        /// Returns whether the supplied sphere overlaps the supplied box.
-        /// </summary>
-        static bool SphereBoxOverlaps(BepuBodyHandle3D sphereHandle, BepuBodyHandle3D boxHandle) {
-            float3 boxCenter = boxHandle.Entity.Position;
-            float4 inverseBoxOrientation = new float4(
-                -boxHandle.Entity.Orientation.X,
-                -boxHandle.Entity.Orientation.Y,
-                -boxHandle.Entity.Orientation.Z,
-                boxHandle.Entity.Orientation.W);
-            float3 localSphereOffset = float4.RotateVector(sphereHandle.Entity.Position - boxCenter, inverseBoxOrientation);
-            float3 halfExtents = ResolveWorldBoxHalfExtents(boxHandle);
-            float clampedX = Math.Clamp(localSphereOffset.X, -halfExtents.X, halfExtents.X);
-            float clampedY = Math.Clamp(localSphereOffset.Y, -halfExtents.Y, halfExtents.Y);
-            float clampedZ = Math.Clamp(localSphereOffset.Z, -halfExtents.Z, halfExtents.Z);
-            float3 closestPoint = new float3(clampedX, clampedY, clampedZ);
-            float3 delta = localSphereOffset - closestPoint;
-            float radius = ResolveWorldSphereRadius(sphereHandle);
-            return delta.LengthSquared() <= radius * radius;
-        }
-
-        /// <summary>
-        /// Resolves one collider from the supplied runtime handle.
-        /// </summary>
-        static Collider3DComponent GetRequiredCollider(BepuBodyHandle3D handle) {
-            if (handle == null) {
-                throw new ArgumentNullException(nameof(handle));
-            }
-            if (handle.BoxCollider != null) {
-                return handle.BoxCollider;
-            }
-            if (handle.SphereCollider != null) {
-                return handle.SphereCollider;
-            }
-            if (handle.StaticMeshCollider != null) {
-                return handle.StaticMeshCollider;
-            }
-
-            throw new InvalidOperationException("BEPU trigger inspection requires one supported collider.");
-        }
-
-        /// <summary>
-        /// Resolves one sphere collider's effective world-space radius.
-        /// </summary>
-        static float ResolveWorldSphereRadius(BepuBodyHandle3D handle) {
-            float3 scale = handle.Entity.Scale;
-            float scaleFactor = Math.Max(scale.X, Math.Max(scale.Y, scale.Z));
-            return handle.SphereCollider.Radius * scaleFactor;
-        }
-
-        /// <summary>
-        /// Resolves one box collider's effective world-space half extents.
-        /// </summary>
-        static float3 ResolveWorldBoxHalfExtents(BepuBodyHandle3D handle) {
-            float3 scale = handle.Entity.Scale;
-            float3 scaledSize = new float3(
-                handle.BoxCollider.Size.X * scale.X,
-                handle.BoxCollider.Size.Y * scale.Y,
-                handle.BoxCollider.Size.Z * scale.Z);
-            return scaledSize * 0.5f;
-        }
-
-        /// <summary>
-        /// Adds one trigger pair to the current step list when it has not already been tracked.
-        /// </summary>
-        void AddCurrentTriggerPair(TriggerPairKey3D pairKey) {
-            if (ContainsTriggerPair(CurrentTriggerPairsValue, pairKey)) {
-                return;
-            }
-
-            CurrentTriggerPairsValue.Add(pairKey);
-        }
-
-        /// <summary>
-        /// Finalizes trigger overlap lifecycle events by comparing the current step pair set against the previously active set.
-        /// </summary>
-        void FinalizeTriggerEvents() {
-            for (int index = 0; index < CurrentTriggerPairsValue.Count; index++) {
-                TriggerPairKey3D pairKey = CurrentTriggerPairsValue[index];
-                if (ContainsTriggerPair(ActiveTriggerPairsValue, pairKey)) {
+            IReadOnlyList<TriggerPairKey3D> currentPairs = CurrentTriggerPairsValue.Pairs;
+            for (int index = 0; index < currentPairs.Count; index++) {
+                TriggerPairKey3D pairKey = currentPairs[index];
+                if (ActiveTriggerPairsValue.Contains(pairKey)) {
                     TriggerEventsValue.Add(new TriggerEvent3D(TriggerEventKind3D.Stay, pairKey.TriggerEntity, pairKey.OtherEntity));
                 } else {
                     TriggerEventsValue.Add(new TriggerEvent3D(TriggerEventKind3D.Enter, pairKey.TriggerEntity, pairKey.OtherEntity));
                 }
             }
 
-            for (int index = 0; index < ActiveTriggerPairsValue.Count; index++) {
-                TriggerPairKey3D pairKey = ActiveTriggerPairsValue[index];
-                if (!ContainsTriggerPair(CurrentTriggerPairsValue, pairKey)) {
+            IReadOnlyList<TriggerPairKey3D> activePairs = ActiveTriggerPairsValue.Pairs;
+            for (int index = 0; index < activePairs.Count; index++) {
+                TriggerPairKey3D pairKey = activePairs[index];
+                if (!CurrentTriggerPairsValue.Contains(pairKey)) {
                     TriggerEventsValue.Add(new TriggerEvent3D(TriggerEventKind3D.Exit, pairKey.TriggerEntity, pairKey.OtherEntity));
                 }
             }
 
-            ActiveTriggerPairsValue.Clear();
-            for (int index = 0; index < CurrentTriggerPairsValue.Count; index++) {
-                ActiveTriggerPairsValue.Add(CurrentTriggerPairsValue[index]);
-            }
-        }
-
-        /// <summary>
-        /// Returns whether one tracked trigger-pair list already contains the supplied pair key.
-        /// </summary>
-        static bool ContainsTriggerPair(IReadOnlyList<TriggerPairKey3D> pairs, TriggerPairKey3D pairKey) {
-            for (int index = 0; index < pairs.Count; index++) {
-                if (pairs[index].Equals(pairKey)) {
-                    return true;
-                }
-            }
-
-            return false;
+            ActiveTriggerPairsValue.ReplaceWith(CurrentTriggerPairsValue);
         }
 
         /// <summary>

@@ -544,6 +544,120 @@ namespace helengine.bepu.tests {
         }
 
         /// <summary>
+        /// Ensures one box trigger volume reports a box-shaped dynamic body entering and leaving it. The managed
+        /// primitive overlap test this replaced only understood sphere pairs, so box-versus-box triggers never fired.
+        /// </summary>
+        [Fact]
+        public void Step_WithBoxTriggerOverlappingDynamicBox_CollectsEnterThenExit() {
+            Entity triggerEntity = CreateStaticBoxTriggerEntity(float3.Zero, new float3(2f, 2f, 2f));
+            Entity boxEntity = CreateRestingDynamicBoxEntity(float3.Zero, new float3(1f, 1f, 1f));
+
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            IPhysicsTriggerEventRuntime3D triggerRuntime = Assert.IsAssignableFrom<IPhysicsTriggerEventRuntime3D>(world);
+            world.BindScene(new[] { triggerEntity, boxEntity });
+
+            world.Step(1.0 / 60.0);
+
+            Assert.Single(triggerRuntime.TriggerEvents);
+            Assert.Equal(TriggerEventKind3D.Enter, triggerRuntime.TriggerEvents[0].Kind);
+            Assert.Same(triggerEntity, triggerRuntime.TriggerEvents[0].TriggerEntity);
+            Assert.Same(boxEntity, triggerRuntime.TriggerEvents[0].OtherEntity);
+            Assert.InRange(boxEntity.LocalPosition.X, -0.0001f, 0.0001f);
+            Assert.InRange(boxEntity.LocalPosition.Y, -0.0001f, 0.0001f);
+            Assert.InRange(boxEntity.LocalPosition.Z, -0.0001f, 0.0001f);
+
+            MoveRestingDynamicBody(world, boxEntity, new float3(5f, 0f, 0f));
+            world.Step(1.0 / 60.0);
+
+            Assert.Single(triggerRuntime.TriggerEvents);
+            Assert.Equal(TriggerEventKind3D.Exit, triggerRuntime.TriggerEvents[0].Kind);
+            Assert.Same(triggerEntity, triggerRuntime.TriggerEvents[0].TriggerEntity);
+            Assert.Same(boxEntity, triggerRuntime.TriggerEvents[0].OtherEntity);
+        }
+
+        /// <summary>
+        /// Ensures sphere trigger volumes still report sphere bodies entering and leaving them.
+        /// </summary>
+        [Fact]
+        public void Step_WithSphereTriggerOverlappingDynamicSphere_CollectsEnterThenExit() {
+            Entity triggerEntity = new Entity(CoreValue);
+            triggerEntity.LocalPosition = float3.Zero;
+            triggerEntity.InitComponents();
+            triggerEntity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            triggerEntity.AddComponent(new SphereCollider3DComponent {
+                Radius = 1f,
+                IsTrigger = true
+            });
+
+            Entity sphereEntity = CreateDynamicSphereEntity(new float3(0.5f, 0f, 0f), 0.5f);
+            RigidBody3DComponent sphereRigidBody = FindRequiredRigidBody(sphereEntity);
+            sphereRigidBody.UseGravity = false;
+            sphereRigidBody.LinearVelocity = float3.Zero;
+            sphereRigidBody.AngularVelocity = float3.Zero;
+
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            IPhysicsTriggerEventRuntime3D triggerRuntime = Assert.IsAssignableFrom<IPhysicsTriggerEventRuntime3D>(world);
+            world.BindScene(new[] { triggerEntity, sphereEntity });
+
+            world.Step(1.0 / 60.0);
+
+            Assert.Single(triggerRuntime.TriggerEvents);
+            Assert.Equal(TriggerEventKind3D.Enter, triggerRuntime.TriggerEvents[0].Kind);
+            Assert.Same(triggerEntity, triggerRuntime.TriggerEvents[0].TriggerEntity);
+            Assert.Same(sphereEntity, triggerRuntime.TriggerEvents[0].OtherEntity);
+
+            MoveRestingDynamicBody(world, sphereEntity, new float3(6f, 0f, 0f));
+            world.Step(1.0 / 60.0);
+
+            Assert.Single(triggerRuntime.TriggerEvents);
+            Assert.Equal(TriggerEventKind3D.Exit, triggerRuntime.TriggerEvents[0].Kind);
+        }
+
+        /// <summary>
+        /// Ensures a trigger volume whose collision mask rejects the other collider's layer never reports an overlap.
+        /// </summary>
+        [Fact]
+        public void Step_WithBoxTriggerFilteredOutByCollisionMask_CollectsNoTriggerEvents() {
+            Entity triggerEntity = CreateStaticBoxTriggerEntity(float3.Zero, new float3(2f, 2f, 2f));
+            BoxCollider3DComponent triggerCollider = FindRequiredBoxCollider(triggerEntity);
+            triggerCollider.CollisionMask = 0x0002;
+
+            Entity boxEntity = CreateRestingDynamicBoxEntity(float3.Zero, new float3(1f, 1f, 1f));
+
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            IPhysicsTriggerEventRuntime3D triggerRuntime = Assert.IsAssignableFrom<IPhysicsTriggerEventRuntime3D>(world);
+            world.BindScene(new[] { triggerEntity, boxEntity });
+
+            world.Step(1.0 / 60.0);
+
+            Assert.Empty(triggerRuntime.TriggerEvents);
+        }
+
+        /// <summary>
+        /// Ensures a trigger volume that only shares a bounding-box overlap with a nearby body reports nothing, so
+        /// trigger events follow real contact manifolds rather than the broad phase.
+        /// </summary>
+        [Fact]
+        public void Step_WithBoxTriggerOverlappingOnlyRotatedBodyBounds_CollectsNoTriggerEvents() {
+            Entity triggerEntity = CreateStaticBoxTriggerEntity(float3.Zero, new float3(1f, 1f, 1f));
+            Entity boxEntity = CreateRestingDynamicBoxEntity(new float3(0.9f, 0.9f, 0f), new float3(1f, 1f, 1f));
+            float4 rotatedOrientation;
+            float4.CreateFromYawPitchRoll(0f, 0f, (float)(Math.PI / 4d), out rotatedOrientation);
+            boxEntity.LocalOrientation = rotatedOrientation;
+
+            using BepuPhysicsWorld3D world = BepuPhysicsWorld3D.CreateDefault();
+            IPhysicsTriggerEventRuntime3D triggerRuntime = Assert.IsAssignableFrom<IPhysicsTriggerEventRuntime3D>(world);
+            world.BindScene(new[] { triggerEntity, boxEntity });
+
+            world.Step(1.0 / 60.0);
+
+            Assert.Empty(triggerRuntime.TriggerEvents);
+        }
+
+        /// <summary>
         /// Ensures one bound kinematic body can be resynchronized from an updated entity pose after scene binding.
         /// </summary>
         [Fact]
@@ -684,6 +798,75 @@ namespace helengine.bepu.tests {
                 Radius = radius
             });
             return entity;
+        }
+
+        /// <summary>
+        /// Creates one static box entity whose collider is authored as a trigger volume.
+        /// </summary>
+        /// <param name="position">Authored trigger center position.</param>
+        /// <param name="size">Full trigger box size.</param>
+        /// <returns>Configured static trigger entity.</returns>
+        Entity CreateStaticBoxTriggerEntity(float3 position, float3 size) {
+            Entity entity = new Entity(CoreValue);
+            entity.LocalPosition = position;
+            entity.InitComponents();
+            entity.AddComponent(new RigidBody3DComponent {
+                BodyKind = BodyKind3D.Static,
+                UseGravity = false
+            });
+            entity.AddComponent(new BoxCollider3DComponent {
+                Size = size,
+                IsTrigger = true
+            });
+            return entity;
+        }
+
+        /// <summary>
+        /// Creates one dynamic box entity that neither falls nor drifts, so trigger tests observe overlaps alone.
+        /// </summary>
+        /// <param name="position">Authored box center position.</param>
+        /// <param name="size">Full box size.</param>
+        /// <returns>Configured motionless dynamic box entity.</returns>
+        Entity CreateRestingDynamicBoxEntity(float3 position, float3 size) {
+            Entity entity = CreateDynamicBoxEntity(position, size);
+            RigidBody3DComponent rigidBody = FindRequiredRigidBody(entity);
+            rigidBody.UseGravity = false;
+            rigidBody.LinearVelocity = float3.Zero;
+            rigidBody.AngularVelocity = float3.Zero;
+            return entity;
+        }
+
+        /// <summary>
+        /// Teleports one motionless dynamic body and pushes the new authored pose into the running simulation.
+        /// </summary>
+        /// <param name="world">World owning the bound body.</param>
+        /// <param name="entity">Bound dynamic entity to move.</param>
+        /// <param name="position">New authored position.</param>
+        static void MoveRestingDynamicBody(BepuPhysicsWorld3D world, Entity entity, float3 position) {
+            RigidBody3DComponent rigidBody = FindRequiredRigidBody(entity);
+            entity.LocalPosition = position;
+            rigidBody.LinearVelocity = float3.Zero;
+            rigidBody.AngularVelocity = float3.Zero;
+            world.SynchronizeDynamicBody(entity);
+        }
+
+        /// <summary>
+        /// Resolves the box collider attached to one test entity.
+        /// </summary>
+        /// <param name="entity">Entity to inspect.</param>
+        /// <returns>Resolved box collider component.</returns>
+        static BoxCollider3DComponent FindRequiredBoxCollider(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            for (int index = 0; index < entity.Components.Count; index++) {
+                if (entity.Components[index] is BoxCollider3DComponent boxCollider) {
+                    return boxCollider;
+                }
+            }
+
+            throw new InvalidOperationException("Expected a box collider component on the test entity.");
         }
 
         /// <summary>

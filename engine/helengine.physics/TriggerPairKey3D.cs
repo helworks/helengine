@@ -36,5 +36,15 @@ namespace helengine {
         public override bool Equals(object obj) {
             return obj is TriggerPairKey3D other && Equals(other);
         }
+
+        /// <summary>
+        /// Gets a hash code derived from both participating entity identities so trigger pairs can key hash sets.
+        /// </summary>
+        /// <returns>Hash code combining the trigger owner and the other participant.</returns>
+        public override int GetHashCode() {
+            unchecked {
+                return (TriggerEntity.GetHashCode() * 397) ^ OtherEntity.GetHashCode();
+            }
+        }
     }
 }

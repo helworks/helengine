@@ -15,11 +15,36 @@ namespace helengine {
         public CollidableProperty<BepuCollidableProperties3D> CollidableProperties;
 
         /// <summary>
+        /// Registry used to map live collidables back to the authored entities that own them.
+        /// </summary>
+        public BepuBodyRegistry3D BodyRegistry;
+
+        /// <summary>
+        /// Trigger overlap pairs recorded for the fixed step currently being simulated.
+        /// </summary>
+        public BepuTriggerPairSet3D TriggerPairs;
+
+        /// <summary>
         /// Initializes one narrow-phase callback bundle.
         /// </summary>
         /// <param name="collidableProperties">Collidable properties aligned to the simulation handles.</param>
-        public HelengineBepuNarrowPhaseCallbacks(CollidableProperty<BepuCollidableProperties3D> collidableProperties) : this() {
+        /// <param name="bodyRegistry">Registry holding the runtime handles bound to the active scene.</param>
+        /// <param name="triggerPairs">Set that receives trigger overlaps detected during contact generation.</param>
+        public HelengineBepuNarrowPhaseCallbacks(
+            CollidableProperty<BepuCollidableProperties3D> collidableProperties,
+            BepuBodyRegistry3D bodyRegistry,
+            BepuTriggerPairSet3D triggerPairs) : this() {
+            if (collidableProperties == null) {
+                throw new ArgumentNullException(nameof(collidableProperties));
+            } else if (bodyRegistry == null) {
+                throw new ArgumentNullException(nameof(bodyRegistry));
+            } else if (triggerPairs == null) {
+                throw new ArgumentNullException(nameof(triggerPairs));
+            }
+
             CollidableProperties = collidableProperties;
+            BodyRegistry = bodyRegistry;
+            TriggerPairs = triggerPairs;
         }
 
         /// <summary>
@@ -44,10 +69,6 @@ namespace helengine {
         /// <returns>True when the pair should generate contacts.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool AllowContactGeneration(int workerIndex, CollidableReference a, CollidableReference b, ref float speculativeMargin) {
-            if (a.Mobility != CollidableMobility.Dynamic && b.Mobility != CollidableMobility.Dynamic) {
-                return false;
-            }
-
             ref BepuCollidableProperties3D firstProperties = ref GetCollidableProperties(a);
             ref BepuCollidableProperties3D secondProperties = ref GetCollidableProperties(b);
             bool collisionMasksCompatible = AreCollisionMasksCompatible(ref firstProperties, ref secondProperties);
@@ -55,9 +76,13 @@ namespace helengine {
                 return false;
             }
 
-            bool shouldGenerateContacts = !firstProperties.IsTrigger && !secondProperties.IsTrigger;
+            // Trigger volumes need a real manifold to know whether the shapes actually touch, so they keep running
+            // contact generation even against kinematic bodies; the constraint is suppressed in ConfigureContactManifold.
+            if (firstProperties.IsTrigger || secondProperties.IsTrigger) {
+                return true;
+            }
 
-            return shouldGenerateContacts;
+            return a.Mobility == CollidableMobility.Dynamic || b.Mobility == CollidableMobility.Dynamic;
         }
 
         /// <summary>
@@ -89,7 +114,58 @@ namespace helengine {
             pairMaterial.FrictionCoefficient = ResolvePairFrictionCoefficient(ref firstProperties, ref secondProperties);
             pairMaterial.MaximumRecoveryVelocity = MathF.Max(firstProperties.MaximumRecoveryVelocity, secondProperties.MaximumRecoveryVelocity);
             pairMaterial.SpringSettings = ResolvePairSpringSettings(ref firstProperties, ref secondProperties);
-            return true;
+            bool firstIsTrigger = firstProperties.IsTrigger;
+            bool secondIsTrigger = secondProperties.IsTrigger;
+            if (!firstIsTrigger && !secondIsTrigger) {
+                return true;
+            }
+
+            if (HasTouchingContact(ref manifold)) {
+                RecordTriggerPair(pair, firstIsTrigger, secondIsTrigger);
+            }
+
+            // Trigger volumes report overlaps instead of resolving them, so the pair never becomes a solid constraint.
+            return false;
+        }
+
+        /// <summary>
+        /// Records one detected trigger overlap against the authored entities behind the simulation pair.
+        /// A pair where both colliders are triggers is recorded twice so each trigger observes the other volume.
+        /// </summary>
+        /// <param name="pair">Pair whose manifold reported touching contacts.</param>
+        /// <param name="firstIsTrigger">True when the first collidable is authored as a trigger.</param>
+        /// <param name="secondIsTrigger">True when the second collidable is authored as a trigger.</param>
+        void RecordTriggerPair(CollidablePair pair, bool firstIsTrigger, bool secondIsTrigger) {
+            BepuBodyHandle3D firstHandle = BodyRegistry.FindHandleByCollidable(pair.A);
+            BepuBodyHandle3D secondHandle = BodyRegistry.FindHandleByCollidable(pair.B);
+            if (firstHandle == null || secondHandle == null) {
+                throw new InvalidOperationException("Trigger overlap detection requires both collidables to be registered runtime bodies.");
+            }
+
+            if (firstIsTrigger) {
+                TriggerPairs.Add(new TriggerPairKey3D(firstHandle.Entity, secondHandle.Entity));
+            }
+            if (secondIsTrigger) {
+                TriggerPairs.Add(new TriggerPairKey3D(secondHandle.Entity, firstHandle.Entity));
+            }
+        }
+
+        /// <summary>
+        /// Determines whether a generated manifold contains at least one contact that is actually touching.
+        /// BEPU also emits speculative contacts for shapes that are merely close, and those carry a negative depth.
+        /// </summary>
+        /// <typeparam name="TManifold">Manifold type produced by BEPU.</typeparam>
+        /// <param name="manifold">Generated manifold to inspect.</param>
+        /// <returns>True when at least one contact has non-negative penetration depth.</returns>
+        static bool HasTouchingContact<TManifold>(ref TManifold manifold) where TManifold : unmanaged, IContactManifold<TManifold> {
+            int contactCount = manifold.Count;
+            for (int index = 0; index < contactCount; index++) {
+                if (manifold.GetDepth(index) >= 0f) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
