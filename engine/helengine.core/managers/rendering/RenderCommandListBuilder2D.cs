@@ -411,8 +411,9 @@ namespace helengine {
             double offsetX = 0d;
             double offsetY = 0d;
             double lineHeight = Math.Max((double)font.LineHeight * fontScale, 1d);
-            double baseX = Math.Round(text.Parent.Position.X);
-            double baseY = Math.Round(text.Parent.Position.Y);
+            float3 ownerWorldPosition = text.Parent.Position;
+            double baseX = Math.Round(ownerWorldPosition.X);
+            double baseY = Math.Round(ownerWorldPosition.Y);
             IReadOnlyList<double> lineOffsets = BuildTextLineOffsets(text, font, content, fontScale);
             bool hasTextEffects = text.ShadowOffset.X != 0f
                 || text.ShadowOffset.Y != 0f
