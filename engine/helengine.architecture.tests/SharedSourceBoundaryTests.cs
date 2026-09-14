@@ -28,4 +28,12 @@ public sealed class SharedSourceBoundaryTests {
         Assert.DoesNotContain("GeneratedBootSceneId", source, StringComparison.Ordinal);
         Assert.Contains("GeneratedBootSceneId", File.ReadAllText(Path.Combine(root, "engine", "helengine.core", "content", "EngineSceneIdentifiers.cs")), StringComparison.Ordinal);
     }
-}
+
+    [Fact]
+    public void SharedMutationScopeContainsNoNativeImportDeclarations() {
+        string root = RepositorySourceLocator.FindRepositoryRoot();
+        string scopeSource = File.ReadAllText(Path.Combine(root, "engine", "helengine.editor", "managers", "asset", "EditorAuthoringMutationScope.cs"));
+        Assert.DoesNotContain("DllImport", scopeSource, StringComparison.Ordinal);
+        string nativeSource = File.ReadAllText(Path.Combine(root, "engine", "helengine.editor", "managers", "asset", "EditorAuthoringNativeMethods.cs"));
+        Assert.Contains("DllImport", nativeSource, StringComparison.Ordinal);
+    }}

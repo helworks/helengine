@@ -5,11 +5,20 @@ using System.Security.Cryptography;
 using System.Text;
 
 namespace helengine.editor {
+using WindowsByHandleFileInformation = helengine.editor.EditorAuthoringNativeMethods.WindowsByHandleFileInformation;
+using FileRenameInfoHeader = helengine.editor.EditorAuthoringNativeMethods.FileRenameInfoHeader;
+using WindowsFileDispositionInfoEx = helengine.editor.EditorAuthoringNativeMethods.WindowsFileDispositionInfoEx;
+using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixStat;
+
     /// <summary>
     /// Pins the directory chain used by one authoring filesystem operation and
     /// exposes no-follow leaf handles for the operation's files.
     /// </summary>
     internal sealed class EditorAuthoringMutationScope : IDisposable {
+        const int FileRenameInformation = 3;
+        const int FileDispositionInformationEx = 21;
+        const uint FileDispositionDelete = 0x00000001;
+        const uint FileDispositionPosixSemantics = 0x00000002;
         const uint GenericRead = 0x80000000;
         const uint GenericWrite = 0x40000000;
         const uint DeleteAccess = 0x00010000;
@@ -167,7 +176,7 @@ namespace helengine.editor {
                     missingDirectories.Reverse();
                     foreach (string directory in missingDirectories) {
                         EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(directory, projectRoot);
-                        if (!CreateDirectoryW(directory, IntPtr.Zero)) {
+                        if (!EditorAuthoringNativeMethods.CreateDirectoryW(directory, IntPtr.Zero)) {
                             int error = Marshal.GetLastWin32Error();
                             if (error != 183) {
                                 throw new Win32Exception(error, $"Could not create '{directory}'.");
@@ -351,7 +360,7 @@ namespace helengine.editor {
                     int destinationParentFd = destinationScope.Handles[destinationScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
                     string sourceName = Path.GetFileName(source);
                     string destinationName = Path.GetFileName(destination);
-                    if (!TryGetLinuxEntry(sourceParentFd, sourceName, out PosixStat sourceStatus)) {
+                    if (!TryGetLinuxEntry(sourceParentFd, sourceName, out LinuxPosixStat sourceStatus)) {
                         throw new FileNotFoundException($"The fixed authoring source '{source}' does not exist.");
                     }
                     string sourceStatusIdentity = new PosixEntryIdentity(sourceStatus).Describe();
@@ -366,7 +375,7 @@ namespace helengine.editor {
                         using SafeFileHandle sourceFile = OpenPosixRegularFileAt(sourceScope.Handles[sourceScope.Handles.Count - 1], sourceName);
                         VerifyExpectedHash(sourceFile, expectedSourceHash, "source");
                     }
-                    bool destinationExists = TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus);
+                    bool destinationExists = TryGetLinuxEntry(destinationParentFd, destinationName, out LinuxPosixStat destinationStatus);
                     string destinationStatusIdentity = destinationExists ? new PosixEntryIdentity(destinationStatus).Describe() : "missing";
                     if (!string.Equals(destinationStatusIdentity, destinationIdentityBefore, StringComparison.Ordinal) ||
                         (expectedDestinationIdentity != null && !string.Equals(destinationStatusIdentity, expectedDestinationIdentity, StringComparison.Ordinal))) {
@@ -425,7 +434,7 @@ namespace helengine.editor {
                         List<Exception> rollbackFailures = new List<Exception>();
                         try {
                             if (sourceQuarantine != null &&
-                                TryGetLinuxEntry(sourceParentFd, sourceQuarantine, out PosixStat quarantined) &&
+                                TryGetLinuxEntry(sourceParentFd, sourceQuarantine, out LinuxPosixStat quarantined) &&
                                 verifiedSourceIdentity.Matches(quarantined)) {
                                 VerifyExpectedHash(projectRootPath, Path.Combine(sourceParent, sourceQuarantine), expectedSourceHash, "quarantined source");
                                 RenameLinuxNoReplace(sourceParentFd, sourceQuarantine, sourceParentFd, sourceName, source, verifiedSourceIdentity);
@@ -493,7 +502,7 @@ namespace helengine.editor {
                 InvokeMutationHook($"FixedDelete.AfterSyscallBeforeFsync:{Path.GetFileName(fullPath)}");
             } else if (OperatingSystem.IsLinux()) {
                 int parentFd = scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32();
-                if (!TryGetLinuxEntry(parentFd, Path.GetFileName(fullPath), out PosixStat status)) {
+                if (!TryGetLinuxEntry(parentFd, Path.GetFileName(fullPath), out LinuxPosixStat status)) {
                     return;
                 }
                 string statusIdentity = new PosixEntryIdentity(status).Describe();
@@ -605,7 +614,7 @@ namespace helengine.editor {
                 string parentPath = Path.GetDirectoryName(fullPath);
                 using EditorAuthoringMutationScope parentScope = AcquireForMutation(projectRootPath, parentPath);
                 int parentFd = parentScope.Handles[parentScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
-                if (!TryGetLinuxEntry(parentFd, Path.GetFileName(fullPath), out PosixStat status)) {
+                if (!TryGetLinuxEntry(parentFd, Path.GetFileName(fullPath), out LinuxPosixStat status)) {
                     return;
                 }
                 string statusIdentity = new PosixEntryIdentity(status).Describe();
@@ -693,7 +702,7 @@ namespace helengine.editor {
             }
             IntPtr directoryStream = PosixFdOpenDir(duplicateFd);
             if (directoryStream == IntPtr.Zero) {
-                PosixClose(duplicateFd);
+                EditorAuthoringNativeMethods.PosixClose(duplicateFd);
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not enumerate fixed authoring directory '{directoryPath}'.");
             }
             try {
@@ -708,7 +717,7 @@ namespace helengine.editor {
                         continue;
                     }
                     string childPath = Path.Combine(directoryPath, name);
-                    if (!TryGetLinuxEntry(parentFd, name, out PosixStat status)) {
+                    if (!TryGetLinuxEntry(parentFd, name, out LinuxPosixStat status)) {
                         continue;
                     }
                     if ((status.Mode & PosixFileTypeMask) == PosixDirectoryFileType) {
@@ -733,7 +742,7 @@ namespace helengine.editor {
                     }
                 }
             } finally {
-                PosixClosedDir(directoryStream);
+                EditorAuthoringNativeMethods.PosixClosedDir(directoryStream);
             }
         }
 
@@ -809,7 +818,7 @@ namespace helengine.editor {
             EditorAuthoringMutationJournal journal = EditorAuthoringMutationJournal.CurrentValue
                 ?? throw new InvalidOperationException("A publication journal is required for Linux leaf replacement.");
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(parentFd, sourceName, false, destinationPath);
-            bool destinationExists = TryGetLinuxEntry(parentFd, destinationName, out PosixStat destinationStatus);
+            bool destinationExists = TryGetLinuxEntry(parentFd, destinationName, out LinuxPosixStat destinationStatus);
             if (destinationExists && !replaceExisting) {
                 throw new IOException($"The verified destination '{destinationPath}' already exists.");
             }
@@ -862,10 +871,10 @@ namespace helengine.editor {
                 } catch (Exception primary) {
                     List<Exception> replacementRollbackFailures = new List<Exception>();
                     try {
-                        bool newDestinationPublished = TryGetLinuxEntry(parentFd, destinationName, out PosixStat currentDestination) &&
+                        bool newDestinationPublished = TryGetLinuxEntry(parentFd, destinationName, out LinuxPosixStat currentDestination) &&
                             sourceIdentity.Matches(currentDestination);
                         if (!newDestinationPublished && destinationQuarantine != null &&
-                            TryGetLinuxEntry(parentFd, destinationQuarantine, out PosixStat quarantinedDestination) &&
+                            TryGetLinuxEntry(parentFd, destinationQuarantine, out LinuxPosixStat quarantinedDestination) &&
                             destinationIdentity.Matches(quarantinedDestination) &&
                             !TryGetLinuxEntry(parentFd, destinationName, out _)) {
                             RenameLinuxNoReplace(parentFd, destinationQuarantine, parentFd, destinationName, destinationPath, destinationIdentity);
@@ -874,10 +883,10 @@ namespace helengine.editor {
                         replacementRollbackFailures.Add(exception);
                     }
                     try {
-                        bool newDestinationPublished = TryGetLinuxEntry(parentFd, destinationName, out PosixStat currentDestination) &&
+                        bool newDestinationPublished = TryGetLinuxEntry(parentFd, destinationName, out LinuxPosixStat currentDestination) &&
                             sourceIdentity.Matches(currentDestination);
                         if (!newDestinationPublished && sourceQuarantine != null &&
-                            TryGetLinuxEntry(parentFd, sourceQuarantine, out PosixStat quarantinedSource) &&
+                            TryGetLinuxEntry(parentFd, sourceQuarantine, out LinuxPosixStat quarantinedSource) &&
                             sourceIdentity.Matches(quarantinedSource) && !TryGetLinuxEntry(parentFd, sourceName, out _)) {
                             RenameLinuxNoReplace(parentFd, sourceQuarantine, parentFd, sourceName, destinationPath, sourceIdentity);
                         }
@@ -915,7 +924,7 @@ namespace helengine.editor {
                 EditorAuthoringMutationJournal.MarkCurrentPhase("Published");
             } catch (Exception primary) {
                 try {
-                    if (published && TryGetLinuxEntry(parentFd, destinationName, out PosixStat publishedStatus) &&
+                    if (published && TryGetLinuxEntry(parentFd, destinationName, out LinuxPosixStat publishedStatus) &&
                         sourceIdentity.Matches(publishedStatus)) {
                         RenameLinuxNoReplace(parentFd, destinationName, parentFd, sourceQuarantineForCreate, destinationPath, sourceIdentity);
                     }
@@ -923,7 +932,7 @@ namespace helengine.editor {
                     rollbackFailures.Add(exception);
                 }
                 try {
-                    if (sourceQuarantineForCreate != null && TryGetLinuxEntry(parentFd, sourceQuarantineForCreate, out PosixStat ignoredSource)) {
+                    if (sourceQuarantineForCreate != null && TryGetLinuxEntry(parentFd, sourceQuarantineForCreate, out LinuxPosixStat ignoredSource)) {
                         RenameLinuxNoReplace(parentFd, sourceQuarantineForCreate, parentFd, sourceName, destinationPath, sourceIdentity);
                     }
                 } catch (Exception exception) {
@@ -942,7 +951,7 @@ namespace helengine.editor {
                 ?? throw new InvalidOperationException("A publication journal is required for Linux leaf movement.");
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, false, destinationPath);
             EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(sourceIdentity.Describe(), "missing");
-            if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
+            if (TryGetLinuxEntry(destinationParentFd, destinationName, out LinuxPosixStat destinationStatus)) {
                 EnsureLinuxEntryType(destinationStatus, false, destinationPath);
                 throw new IOException($"The verified destination '{destinationPath}' already exists.");
             }
@@ -965,7 +974,7 @@ namespace helengine.editor {
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
                 try {
-                    if (published && TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat publishedStatus) &&
+                    if (published && TryGetLinuxEntry(destinationParentFd, destinationName, out LinuxPosixStat publishedStatus) &&
                         sourceIdentity.Matches(publishedStatus)) {
                         RenameLinuxNoReplace(destinationParentFd, destinationName, sourceParentFd, sourceQuarantine, destinationPath, sourceIdentity);
                     }
@@ -973,7 +982,7 @@ namespace helengine.editor {
                     rollbackFailures.Add(exception);
                 }
                 try {
-                    if (TryGetLinuxEntry(sourceParentFd, sourceQuarantine, out PosixStat ignored)) {
+                    if (TryGetLinuxEntry(sourceParentFd, sourceQuarantine, out LinuxPosixStat ignored)) {
                         RenameLinuxNoReplace(sourceParentFd, sourceQuarantine, sourceParentFd, sourceName, destinationPath, sourceIdentity);
                     }
                 } catch (Exception exception) {
@@ -996,7 +1005,7 @@ namespace helengine.editor {
             string destinationPath) {
             PosixEntryIdentity sourceIdentity = RequireLinuxEntry(sourceParentFd, sourceName, true, destinationPath);
             EditorAuthoringMutationJournal.SetCurrentExpectedIdentities(sourceIdentity.Describe(), "missing");
-            if (TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat destinationStatus)) {
+            if (TryGetLinuxEntry(destinationParentFd, destinationName, out LinuxPosixStat destinationStatus)) {
                 EnsureLinuxEntryType(destinationStatus, true, destinationPath);
                 throw new IOException($"The verified destination '{destinationPath}' already exists.");
             }
@@ -1017,7 +1026,7 @@ namespace helengine.editor {
             } catch (Exception primary) {
                 List<Exception> rollbackFailures = new List<Exception>();
                 try {
-                    if (published && TryGetLinuxEntry(destinationParentFd, destinationName, out PosixStat publishedStatus) &&
+                    if (published && TryGetLinuxEntry(destinationParentFd, destinationName, out LinuxPosixStat publishedStatus) &&
                         sourceIdentity.Matches(publishedStatus)) {
                         RenameLinuxNoReplace(destinationParentFd, destinationName, sourceParentFd, quarantine, destinationPath, sourceIdentity);
                     }
@@ -1025,7 +1034,7 @@ namespace helengine.editor {
                     rollbackFailures.Add(exception);
                 }
                 try {
-                    if (TryGetLinuxEntry(sourceParentFd, quarantine, out PosixStat ignored)) {
+                    if (TryGetLinuxEntry(sourceParentFd, quarantine, out LinuxPosixStat ignored)) {
                         RenameLinuxNoReplace(sourceParentFd, quarantine, sourceParentFd, sourceName, destinationPath, sourceIdentity);
                     }
                 } catch (Exception exception) {
@@ -1086,7 +1095,7 @@ namespace helengine.editor {
                     return quarantine;
                 } catch {
                     try {
-                        if (TryGetLinuxEntry(parentFd, quarantine, out PosixStat ignored)) {
+                        if (TryGetLinuxEntry(parentFd, quarantine, out LinuxPosixStat ignored)) {
                             RenameLinuxNoReplace(parentFd, quarantine, parentFd, name, path, expected);
                             EditorAuthoringMutationJournal.CompleteTransient(Path.Combine(Path.GetDirectoryName(path), quarantine));
                         }
@@ -1100,14 +1109,14 @@ namespace helengine.editor {
         }
 
         static PosixEntryIdentity RequireLinuxEntry(int parentFd, string name, bool directory, string path) {
-            if (!TryGetLinuxEntry(parentFd, name, out PosixStat status)) {
+            if (!TryGetLinuxEntry(parentFd, name, out LinuxPosixStat status)) {
                 throw new FileNotFoundException($"The verified authoring entry '{path}' does not exist.");
             }
             EnsureLinuxEntryType(status, directory, path);
             return new PosixEntryIdentity(status);
         }
 
-        static bool TryGetLinuxEntry(int parentFd, string name, out PosixStat status) {
+        static bool TryGetLinuxEntry(int parentFd, string name, out LinuxPosixStat status) {
             if (PosixFStatAt(parentFd, name, out status, PosixAtSymlinkNoFollow) == 0) {
                 return true;
             }
@@ -1119,7 +1128,7 @@ namespace helengine.editor {
             throw new Win32Exception(error, $"Could not inspect authoring entry '{name}'.");
         }
 
-        static void EnsureLinuxEntryType(PosixStat status, bool directory, string path) {
+        static void EnsureLinuxEntryType(LinuxPosixStat status, bool directory, string path) {
             int type = (int)(status.Mode & PosixFileTypeMask);
             int expected = directory ? PosixDirectoryFileType : PosixRegularFileType;
             if (type != expected) {
@@ -1128,13 +1137,13 @@ namespace helengine.editor {
         }
 
         static void EnsureLinuxIdentity(int parentFd, string name, PosixEntryIdentity expected, string path) {
-            if (!TryGetLinuxEntry(parentFd, name, out PosixStat actual) || !expected.Matches(actual)) {
+            if (!TryGetLinuxEntry(parentFd, name, out LinuxPosixStat actual) || !expected.Matches(actual)) {
                 throw new InvalidDataException($"The authoring entry '{path}' changed while it was being secured.");
             }
         }
 
         static void EnsureLinuxHandleIdentity(SafeFileHandle handle, PosixEntryIdentity expected, string path) {
-            if (handle == null || handle.IsInvalid || PosixFStat(handle.DangerousGetHandle().ToInt32(), out PosixStat actual) != 0 ||
+            if (handle == null || handle.IsInvalid || PosixFStat(handle.DangerousGetHandle().ToInt32(), out LinuxPosixStat actual) != 0 ||
                 !expected.Matches(actual)) {
                 throw new InvalidDataException($"The opened authoring entry '{path}' changed before its operation began.");
             }
@@ -1433,7 +1442,7 @@ namespace helengine.editor {
 
             SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
             try {
-                if (PosixFStat(fd, out PosixStat status) != 0 || (status.Mode & PosixFileTypeMask) != PosixRegularFileType) {
+                if (PosixFStat(fd, out LinuxPosixStat status) != 0 || (status.Mode & PosixFileTypeMask) != PosixRegularFileType) {
                     throw new InvalidDataException($"The authoring cleanup entry '{name}' is not a regular file.");
                 }
                 int fileFlags = PosixFcntl(fd, PosixFGetFlags, 0);
@@ -1525,7 +1534,7 @@ namespace helengine.editor {
                 }
 
                 if (OperatingSystem.IsLinux()) {
-                    if (!TryGetLinuxEntry(scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(), Path.GetFileName(fullPath), out PosixStat status)) {
+                    if (!TryGetLinuxEntry(scope.Handles[scope.Handles.Count - 1].DangerousGetHandle().ToInt32(), Path.GetFileName(fullPath), out LinuxPosixStat status)) {
                         return "missing";
                     }
                     return new PosixEntryIdentity(status).Describe();
@@ -1735,7 +1744,7 @@ namespace helengine.editor {
         }
 
         static bool IsSupportedLinuxArchitecture() {
-            // PosixStat below matches the Linux x64 ABI. Do not bind that
+            // LinuxPosixStat below matches the Linux x64 ABI. Do not bind that
             // layout to another architecture until its native offsets are
             // supplied and verified.
             return OperatingSystem.IsLinux() && RuntimeInformation.ProcessArchitecture == Architecture.X64;
@@ -1813,7 +1822,7 @@ namespace helengine.editor {
             }
             SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
             try {
-                if (PosixFStat(fd, out PosixStat status) != 0 || (status.Mode & PosixFileTypeMask) != PosixDirectoryFileType) {
+                if (PosixFStat(fd, out LinuxPosixStat status) != 0 || (status.Mode & PosixFileTypeMask) != PosixDirectoryFileType) {
                     throw new InvalidDataException($"The POSIX authoring path '{path}' is not a directory.");
                 }
                 return handle;
@@ -1842,7 +1851,7 @@ namespace helengine.editor {
             }
             SafeFileHandle handle = new SafeFileHandle(new IntPtr(fd), true);
             try {
-                if (PosixFStat(fd, out PosixStat status) != 0) {
+                if (PosixFStat(fd, out LinuxPosixStat status) != 0) {
                     throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not inspect verified file '{leafName}'.");
                 }
                 if ((status.Mode & PosixFileTypeMask) != PosixRegularFileType) {
@@ -1865,7 +1874,7 @@ namespace helengine.editor {
                 throw new InvalidDataException($"The authoring mutation directory '{directoryPath}' is a reparse point.");
             }
 
-            SafeFileHandle handle = CreateFileW(
+            SafeFileHandle handle = EditorAuthoringNativeMethods.CreateFileW(
                 directoryPath,
                 GenericRead | (includeDelete ? DeleteAccess : 0),
                 FileShareRead | FileShareWrite,
@@ -1916,7 +1925,7 @@ namespace helengine.editor {
             if (includeDelete || share.HasFlag(FileShare.Delete)) {
                 shareMode |= FileShareDelete;
             }
-            SafeFileHandle handle = CreateFileW(
+            SafeFileHandle handle = EditorAuthoringNativeMethods.CreateFileW(
                 filePath,
                 desiredAccess,
                 shareMode,
@@ -1936,7 +1945,7 @@ namespace helengine.editor {
             try {
                 VerifyWindowsHandlePath(handle, filePath, false);
                 if (mode == FileMode.Truncate) {
-                    if (!SetFilePointerEx(handle, 0, IntPtr.Zero, 0) || !SetEndOfFile(handle)) {
+                    if (!EditorAuthoringNativeMethods.SetFilePointerEx(handle, 0, IntPtr.Zero, 0) || !EditorAuthoringNativeMethods.SetEndOfFile(handle)) {
                         throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not truncate verified file '{filePath}'.");
                     }
                 }
@@ -1948,7 +1957,7 @@ namespace helengine.editor {
         }
 
         static void VerifyWindowsHandlePath(SafeFileHandle handle, string expectedPath, bool directory) {
-            if (!GetFileInformationByHandle(handle, out ByHandleFileInformation information)) {
+            if (!EditorAuthoringNativeMethods.GetFileInformationByHandle(handle, out WindowsByHandleFileInformation information)) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not inspect verified path '{expectedPath}'.");
             }
             if ((information.FileAttributes & FileAttributeReparsePoint) != 0 ||
@@ -1958,7 +1967,7 @@ namespace helengine.editor {
             }
 
             StringBuilder finalPathBuffer = new StringBuilder(4096);
-            uint length = GetFinalPathNameByHandleW(handle, finalPathBuffer, (uint)finalPathBuffer.Capacity, 0);
+            uint length = EditorAuthoringNativeMethods.GetFinalPathNameByHandleW(handle, finalPathBuffer, (uint)finalPathBuffer.Capacity, 0);
             if (length == 0 || length >= finalPathBuffer.Capacity) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not resolve verified path '{expectedPath}'.");
             }
@@ -1970,7 +1979,7 @@ namespace helengine.editor {
         }
 
         static SafeFileHandle OpenAndVerifyWindowsEntry(string path) {
-            SafeFileHandle handle = CreateFileW(
+            SafeFileHandle handle = EditorAuthoringNativeMethods.CreateFileW(
                 path,
                 GenericRead,
                 FileShareRead | FileShareWrite | FileShareDelete,
@@ -1984,7 +1993,7 @@ namespace helengine.editor {
                 throw new Win32Exception(error, $"Could not open verified authoring entry '{path}'.");
             }
             try {
-                if (!GetFileInformationByHandle(handle, out ByHandleFileInformation information)) {
+                if (!EditorAuthoringNativeMethods.GetFileInformationByHandle(handle, out WindowsByHandleFileInformation information)) {
                     throw new Win32Exception(Marshal.GetLastWin32Error(), $"Could not inspect verified authoring entry '{path}'.");
                 }
                 bool directory = (information.FileAttributes & (uint)FileAttributes.Directory) != 0;
@@ -2009,14 +2018,14 @@ namespace helengine.editor {
         }
 
         static uint GetWindowsFileAttributes(SafeFileHandle handle) {
-            if (!GetFileInformationByHandle(handle, out ByHandleFileInformation information)) {
+            if (!EditorAuthoringNativeMethods.GetFileInformationByHandle(handle, out WindowsByHandleFileInformation information)) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not inspect verified authoring handle.");
             }
             return information.FileAttributes;
         }
 
         static string DescribeWindowsHandle(SafeFileHandle handle) {
-            if (!GetFileInformationByHandle(handle, out ByHandleFileInformation information)) {
+            if (!EditorAuthoringNativeMethods.GetFileInformationByHandle(handle, out WindowsByHandleFileInformation information)) {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not inspect verified authoring handle identity.");
             }
             if ((information.FileAttributes & FileAttributeReparsePoint) != 0) {
@@ -2058,7 +2067,7 @@ namespace helengine.editor {
                 };
                 Marshal.StructureToPtr(header, buffer, false);
                 Marshal.Copy(nameBytes, 0, IntPtr.Add(buffer, nameOffset), nameBytes.Length);
-                if (!SetFileInformationByHandle(
+                if (!EditorAuthoringNativeMethods.SetFileInformationByHandle(
                     source,
                     FileRenameInformation,
                     buffer,
@@ -2075,14 +2084,14 @@ namespace helengine.editor {
         }
 
         static void DeleteVerifiedWindowsLeaf(SafeFileHandle file) {
-            FileDispositionInfoEx disposition = new FileDispositionInfoEx {
+            WindowsFileDispositionInfoEx disposition = new WindowsFileDispositionInfoEx {
                 Flags = FileDispositionDelete | FileDispositionPosixSemantics
             };
-            if (!SetFileInformationByHandleDisposition(
+            if (!EditorAuthoringNativeMethods.SetFileInformationByHandleDisposition(
                 file,
                 FileDispositionInformationEx,
                 ref disposition,
-                (uint)Marshal.SizeOf<FileDispositionInfoEx>())) {
+                (uint)Marshal.SizeOf<WindowsFileDispositionInfoEx>())) {
                 int error = Marshal.GetLastWin32Error();
                 throw new Win32Exception(error, $"Could not delete verified authoring leaf (win32={error}).");
             }
@@ -2100,7 +2109,7 @@ namespace helengine.editor {
 
         static int PosixOpen(string path, int flags, uint mode) {
             while (true) {
-                int result = NativePosixOpen(path, flags, mode);
+                int result = EditorAuthoringNativeMethods.NativePosixOpen(path, flags, mode);
                 if (result >= 0) {
                     return NormalizePosixFileDescriptor(result);
                 }
@@ -2112,7 +2121,7 @@ namespace helengine.editor {
 
         static int PosixOpenAt(int directoryFd, string path, int flags, uint mode) {
             while (true) {
-                int result = NativePosixOpenAt(directoryFd, path, flags, mode);
+                int result = EditorAuthoringNativeMethods.NativePosixOpenAt(directoryFd, path, flags, mode);
                 if (result >= 0) {
                     return NormalizePosixFileDescriptor(result);
                 }
@@ -2128,17 +2137,17 @@ namespace helengine.editor {
             }
             int duplicate;
             while (true) {
-                duplicate = NativePosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
+                duplicate = EditorAuthoringNativeMethods.NativePosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
                 if (duplicate >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     break;
                 }
             }
-            int closeResult = PosixClose(fileDescriptor);
+            int closeResult = EditorAuthoringNativeMethods.PosixClose(fileDescriptor);
             if (duplicate < 0) {
                 return duplicate;
             }
             if (closeResult != 0) {
-                PosixClose(duplicate);
+                EditorAuthoringNativeMethods.PosixClose(duplicate);
                 throw new Win32Exception(Marshal.GetLastPInvokeError(), "Could not normalize the POSIX authoring descriptor.");
             }
             return duplicate;
@@ -2146,7 +2155,7 @@ namespace helengine.editor {
 
         static int PosixDup(int fileDescriptor) {
             while (true) {
-                int result = NativePosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
+                int result = EditorAuthoringNativeMethods.NativePosixFcntl(fileDescriptor, PosixFDupFdCloexec, 3);
                 if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2158,7 +2167,7 @@ namespace helengine.editor {
                 throw new ArgumentOutOfRangeException(nameof(directoryFd));
             }
             while (true) {
-                int result = NativePosixFsync(directoryFd);
+                int result = EditorAuthoringNativeMethods.NativePosixFsync(directoryFd);
                 if (result == 0) {
                     return;
                 }
@@ -2172,7 +2181,7 @@ namespace helengine.editor {
 
         static IntPtr PosixFdOpenDir(int fileDescriptor) {
             while (true) {
-                IntPtr result = NativePosixFdOpenDir(fileDescriptor);
+                IntPtr result = EditorAuthoringNativeMethods.NativePosixFdOpenDir(fileDescriptor);
                 if (result != IntPtr.Zero || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2181,7 +2190,7 @@ namespace helengine.editor {
 
         static int MkdirAt(int directoryFd, string path, uint mode) {
             while (true) {
-                int result = NativeMkdirAt(directoryFd, path, mode);
+                int result = EditorAuthoringNativeMethods.NativeMkdirAt(directoryFd, path, mode);
                 if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2191,7 +2200,7 @@ namespace helengine.editor {
         static int RenameAt2(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath, uint flags) {
             try {
                 while (true) {
-                    int result = NativeRenameAt2(oldDirectoryFd, oldPath, newDirectoryFd, newPath, flags);
+                    int result = EditorAuthoringNativeMethods.NativeRenameAt2(oldDirectoryFd, oldPath, newDirectoryFd, newPath, flags);
                     if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                         return result;
                     }
@@ -2205,7 +2214,7 @@ namespace helengine.editor {
 
         static int UnlinkAt(int directoryFd, string path, int flags) {
             while (true) {
-                int result = NativeUnlinkAt(directoryFd, path, flags);
+                int result = EditorAuthoringNativeMethods.NativeUnlinkAt(directoryFd, path, flags);
                 if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2214,25 +2223,25 @@ namespace helengine.editor {
 
         static int Flock(int fileDescriptor, int operation) {
             while (true) {
-                int result = NativeFlock(fileDescriptor, operation);
+                int result = EditorAuthoringNativeMethods.NativeFlock(fileDescriptor, operation);
                 if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
             }
         }
 
-        static int PosixFStatAt(int directoryFd, string path, out PosixStat status, int flags) {
+        static int PosixFStatAt(int directoryFd, string path, out LinuxPosixStat status, int flags) {
             while (true) {
-                int result = NativePosixFStatAt(directoryFd, path, out status, flags);
+                int result = EditorAuthoringNativeMethods.NativePosixFStatAt(directoryFd, path, out status, flags);
                 if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
             }
         }
 
-        static int PosixFStat(int fileDescriptor, out PosixStat status) {
+        static int PosixFStat(int fileDescriptor, out LinuxPosixStat status) {
             while (true) {
-                int result = NativePosixFStat(fileDescriptor, out status);
+                int result = EditorAuthoringNativeMethods.NativePosixFStat(fileDescriptor, out status);
                 if (result == 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2241,7 +2250,7 @@ namespace helengine.editor {
 
         static int PosixFcntl(int fileDescriptor, int command, int argument) {
             while (true) {
-                int result = NativePosixFcntl(fileDescriptor, command, argument);
+                int result = EditorAuthoringNativeMethods.NativePosixFcntl(fileDescriptor, command, argument);
                 if (result >= 0 || Marshal.GetLastPInvokeError() != PosixInterrupted) {
                     return result;
                 }
@@ -2251,7 +2260,7 @@ namespace helengine.editor {
         static IntPtr PosixReadDir(IntPtr directoryStream) {
             while (true) {
                 Marshal.SetLastPInvokeError(0);
-                IntPtr result = NativePosixReadDir(directoryStream);
+                IntPtr result = EditorAuthoringNativeMethods.NativePosixReadDir(directoryStream);
                 if (result != IntPtr.Zero) {
                     return result;
                 }
@@ -2312,144 +2321,8 @@ namespace helengine.editor {
             IsDisposed = true;
         }
 
-        [StructLayout(LayoutKind.Sequential)]
-        struct ByHandleFileInformation {
-            public uint FileAttributes;
-            public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
-            public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
-            public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
-            public uint VolumeSerialNumber;
-            public uint FileSizeHigh;
-            public uint FileSizeLow;
-            public uint NumberOfLinks;
-            public uint FileIndexHigh;
-            public uint FileIndexLow;
-        }
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        static extern SafeFileHandle CreateFileW(string fileName, uint desiredAccess, uint shareMode, IntPtr securityAttributes, uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        static extern bool CreateDirectoryW(string path, IntPtr securityAttributes);
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        static extern uint GetFinalPathNameByHandleW(SafeFileHandle file, StringBuilder filePath, uint filePathLength, uint flags);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        static extern bool GetFileInformationByHandle(SafeFileHandle handle, out ByHandleFileInformation information);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        static extern bool SetFileInformationByHandle(
-            SafeFileHandle file,
-            int fileInformationClass,
-            IntPtr fileInformation,
-            uint bufferSize);
-
-        [DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", SetLastError = true)]
-        static extern bool SetFileInformationByHandleDisposition(
-            SafeFileHandle file,
-            int fileInformationClass,
-            ref FileDispositionInfoEx fileInformation,
-            uint bufferSize);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        static extern bool SetFilePointerEx(SafeFileHandle file, long distanceToMove, IntPtr newFilePointer, uint moveMethod);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        static extern bool SetEndOfFile(SafeFileHandle file);
-
-        [DllImport("libc", EntryPoint = "open", SetLastError = true)]
-        static extern int NativePosixOpen(string path, int flags, uint mode);
-
-        [DllImport("libc", EntryPoint = "openat", SetLastError = true)]
-        static extern int NativePosixOpenAt(int directoryFd, string path, int flags, uint mode);
-
-        [DllImport("libc", EntryPoint = "mkdirat", SetLastError = true)]
-        static extern int NativeMkdirAt(int directoryFd, string path, uint mode);
-
-        [DllImport("libc", EntryPoint = "renameat2", SetLastError = true)]
-        static extern int NativeRenameAt2(int oldDirectoryFd, string oldPath, int newDirectoryFd, string newPath, uint flags);
-
-        [DllImport("libc", EntryPoint = "unlinkat", SetLastError = true)]
-        static extern int NativeUnlinkAt(int directoryFd, string path, int flags);
-
-        [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
-        static extern int NativeFlock(int fileDescriptor, int operation);
-
-        [DllImport("libc", EntryPoint = "dup", SetLastError = true)]
-        static extern int NativePosixDup(int fileDescriptor);
-
-        [DllImport("libc", EntryPoint = "close", SetLastError = true)]
-        static extern int PosixClose(int fileDescriptor);
-
-        [DllImport("libc", EntryPoint = "fsync", SetLastError = true)]
-        static extern int NativePosixFsync(int fileDescriptor);
-
-        [DllImport("libc", EntryPoint = "fdopendir", SetLastError = true)]
-        static extern IntPtr NativePosixFdOpenDir(int fileDescriptor);
-
-        [DllImport("libc", EntryPoint = "readdir", SetLastError = true)]
-        static extern IntPtr NativePosixReadDir(IntPtr directoryStream);
-
-        [DllImport("libc", EntryPoint = "closedir", SetLastError = true)]
-        static extern int PosixClosedDir(IntPtr directoryStream);
-
-        [DllImport("libc", EntryPoint = "fstatat", SetLastError = true)]
-        static extern int NativePosixFStatAt(int directoryFd, string path, out PosixStat status, int flags);
-
-        [DllImport("libc", EntryPoint = "fstat", SetLastError = true)]
-        static extern int NativePosixFStat(int fileDescriptor, out PosixStat status);
-
-        [DllImport("libc", EntryPoint = "fcntl", SetLastError = true)]
-        static extern int NativePosixFcntl(int fileDescriptor, int command, int argument);
-
-        const int FileRenameInformation = 3;
-        const int FileDispositionInformationEx = 21;
-        const uint FileDispositionDelete = 0x00000001;
-        const uint FileDispositionPosixSemantics = 0x00000002;
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct FileRenameInfoHeader {
-            public byte ReplaceIfExists;
-            public IntPtr RootDirectory;
-            public uint FileNameLength;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct FileDispositionInfoEx {
-            public uint Flags;
-        }
-
-        // Linux x64 struct stat layout. Only the file-type bits in st_mode are
-        // consumed; the complete prefix keeps native offsets intact.
-        [StructLayout(LayoutKind.Sequential)]
-        struct PosixStat {
-            public ulong Device;
-            public ulong Inode;
-            public ulong LinkCount;
-            public uint Mode;
-            public uint UserId;
-            public uint GroupId;
-            public uint Padding;
-            public ulong SpecialDevice;
-            public long Size;
-            public long BlockSize;
-            public long Blocks;
-            public long AccessTime;
-            public ulong AccessTimeNanoseconds;
-            public long ModifyTime;
-            public ulong ModifyTimeNanoseconds;
-            public long ChangeTime;
-            public ulong ChangeTimeNanoseconds;
-            public long BirthTime;
-            public ulong BirthTimeNanoseconds;
-            public int Reserved0;
-            public int Reserved1;
-            public int Reserved2;
-        }
-
         readonly struct PosixEntryIdentity {
-            internal PosixEntryIdentity(PosixStat status) {
+            internal PosixEntryIdentity(LinuxPosixStat status) {
                 Device = status.Device;
                 Inode = status.Inode;
                 Mode = status.Mode & PosixFileTypeMask;
@@ -2459,7 +2332,7 @@ namespace helengine.editor {
             readonly ulong Inode;
             readonly uint Mode;
 
-            internal bool Matches(PosixStat status) {
+            internal bool Matches(LinuxPosixStat status) {
                 return Device == status.Device && Inode == status.Inode && Mode == (status.Mode & PosixFileTypeMask);
             }
 
