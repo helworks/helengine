@@ -148,6 +148,15 @@ namespace helengine.vulkan {
         public VulkanRenderer2D Render2D { get { return renderer2D; } }
 
         /// <summary>
+        /// Gets the capability profile published by the Vulkan backend.
+        /// Without this override the renderer inherited the base-class default, which describes no particular backend and would silently misreport Vulkan the moment that default changed.
+        /// </summary>
+        /// <returns>Vulkan capability profile used by shared extraction and planning services.</returns>
+        public override RendererBackendCapabilityProfile GetCapabilityProfile() {
+            return VulkanRenderCapabilityProfile.CreateDefault();
+        }
+
+        /// <summary>
         /// Adds a window and creates a swapchain surface for it.
         /// </summary>
         /// <param name="handle">Native window handle.</param>
