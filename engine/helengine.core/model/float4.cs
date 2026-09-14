@@ -322,6 +322,45 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Decomposes this quaternion into pitch, yaw and roll angles expressed in degrees.
+        /// The decomposition is the inverse of <see cref="CreateFromYawPitchRoll(float, float, float, out float4)"/>:
+        /// pitch rotates around X, yaw around Y and roll around Z. Near the poles the pitch term saturates, so the
+        /// angle is clamped to the pole instead of feeding an out-of-range value to the arc sine.
+        /// All intermediate math runs in double precision so the angles stay stable for near-normalized inputs.
+        /// </summary>
+        /// <param name="pitch">Pitch angle around the X axis in degrees.</param>
+        /// <param name="yaw">Yaw angle around the Y axis in degrees.</param>
+        /// <param name="roll">Roll angle around the Z axis in degrees.</param>
+        public void ToEulerDegrees(out double pitch, out double yaw, out double roll) {
+            double x = X;
+            double y = Y;
+            double z = Z;
+            double w = W;
+
+            double sinPitch = 2.0 * (w * x - y * z);
+            if (sinPitch >= 1.0) {
+                pitch = Math.PI / 2.0;
+            } else if (sinPitch <= -1.0) {
+                pitch = -(Math.PI / 2.0);
+            } else {
+                pitch = Math.Asin(sinPitch);
+            }
+
+            double sinYaw = 2.0 * (w * y + x * z);
+            double cosYaw = 1.0 - 2.0 * (x * x + y * y);
+            yaw = Math.Atan2(sinYaw, cosYaw);
+
+            double sinRoll = 2.0 * (w * z + x * y);
+            double cosRoll = 1.0 - 2.0 * (y * y + z * z);
+            roll = Math.Atan2(sinRoll, cosRoll);
+
+            double radiansToDegrees = 180.0 / Math.PI;
+            pitch = pitch * radiansToDegrees;
+            yaw = yaw * radiansToDegrees;
+            roll = roll * radiansToDegrees;
+        }
+
+        /// <summary>
         /// Concatenates two quaternions.
         /// </summary>
         /// <param name="value1">First quaternion.</param>
