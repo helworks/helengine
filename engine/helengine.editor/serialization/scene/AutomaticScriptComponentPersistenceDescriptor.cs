@@ -7,6 +7,19 @@ namespace helengine.editor {
     /// </summary>
     public sealed class AutomaticScriptComponentPersistenceDescriptor : IComponentPersistenceDescriptor {
         /// <summary>
+        /// Host-facing diagnostic scope reported when the shared reflected walk rejects one editor member payload.
+        /// </summary>
+        const string WalkerDiagnosticScope = "Automatic script-component persistence";
+
+        /// <summary>
+        /// Shared reflected read walk used for every decoded member value; the editor payload layout is stateless, so one
+        /// walker instance serves every descriptor.
+        /// </summary>
+        static readonly ScenePersistenceValueWalker ValueWalker = new ScenePersistenceValueWalker(
+            new EditorScenePersistenceAssetValueReader(),
+            WalkerDiagnosticScope);
+
+        /// <summary>
         /// Reflected schema builder used for scripted component member discovery.
         /// </summary>
         readonly ScriptComponentReflectionSchemaBuilder SchemaBuilder;
@@ -477,12 +490,12 @@ namespace helengine.editor {
             if (TryWriteArrayValue(writer, valueType, value)) {
                 return;
             }
-            if (IsSupportedNestedObjectType(valueType)) {
+            if (ScenePersistenceValueWalker.IsSupportedNestedObjectType(valueType)) {
                 WriteNestedObjectValue(writer, valueType, value);
                 return;
             }
 
-            throw new InvalidOperationException($"Automatic script-component persistence does not support member type '{valueType.FullName}'.");
+            throw new InvalidOperationException($"{WalkerDiagnosticScope} does not support member type '{valueType.FullName}'.");
         }
 
         /// <summary>
@@ -492,36 +505,7 @@ namespace helengine.editor {
         /// <param name="valueType">Runtime value type expected for the payload.</param>
         /// <returns>Decoded member value.</returns>
         internal static object ReadSupportedValue(EngineBinaryReader reader, Type valueType) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            }
-            if (valueType == null) {
-                throw new ArgumentNullException(nameof(valueType));
-            }
-
-            if (TryReadEngineSerializedPayload(reader, valueType, out object payloadValue)) {
-                return payloadValue;
-            }
-            if (valueType == typeof(SceneAssetReference)) {
-                return SceneComponentBinaryFieldEncoding.ReadOptionalReference(reader);
-            }
-            if (TryReadLeafValue(reader, valueType, out object leafValue)) {
-                return leafValue;
-            }
-            if (valueType.IsEnum) {
-                return ReadEnumValue(reader, valueType);
-            }
-            if (ScenePersistenceDictionaryTypeSupport.IsDictionaryType(valueType, out Type dictionaryKeyType, out Type dictionaryValueType)) {
-                return ReadDictionaryValue(reader, valueType, dictionaryKeyType, dictionaryValueType);
-            }
-            if (TryReadArrayValue(reader, valueType, out object arrayValue)) {
-                return arrayValue;
-            }
-            if (IsSupportedNestedObjectType(valueType)) {
-                return ReadNestedObjectValue(reader, valueType);
-            }
-
-            throw new InvalidOperationException($"Automatic script-component persistence does not support member type '{valueType.FullName}'.");
+            return ValueWalker.ReadValue(reader, valueType);
         }
 
         /// <summary>
@@ -545,29 +529,6 @@ namespace helengine.editor {
             writer.WriteByte(1);
             writer.WriteString(payload.FormatId);
             writer.WriteByteArray(payload.GetSerializedBytesForPersistence());
-            return true;
-        }
-
-        /// <summary>
-        /// Attempts to read one engine-owned serialized payload member.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the value payload.</param>
-        /// <param name="valueType">Runtime value type expected for the payload.</param>
-        /// <param name="value">Decoded payload value when supported.</param>
-        /// <returns>True when the value type was handled as one engine-owned serialized payload.</returns>
-        static bool TryReadEngineSerializedPayload(EngineBinaryReader reader, Type valueType, out object value) {
-            if (valueType != typeof(EngineSerializedPayload)) {
-                value = null;
-                return false;
-            }
-            if (reader.ReadByte() == 0) {
-                value = null;
-                return true;
-            }
-
-            string formatId = reader.ReadString();
-            byte[] serializedBytes = reader.ReadByteArray();
-            value = EngineSerializedPayload.Restore(formatId, serializedBytes);
             return true;
         }
 
@@ -871,83 +832,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to read one directly supported leaf value without any recursive member traversal.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the value payload.</param>
-        /// <param name="valueType">Runtime value type expected for the payload.</param>
-        /// <param name="value">Decoded leaf value when supported.</param>
-        /// <returns>True when the value type was handled as one direct leaf value.</returns>
-        static bool TryReadLeafValue(EngineBinaryReader reader, Type valueType, out object value) {
-            if (valueType == typeof(string)) {
-                value = reader.ReadString();
-                return true;
-            }
-            if (valueType == typeof(bool)) {
-                value = reader.ReadByte() != 0;
-                return true;
-            }
-            if (valueType == typeof(byte)) {
-                value = reader.ReadByte();
-                return true;
-            }
-            if (valueType == typeof(ushort)) {
-                value = reader.ReadUInt16();
-                return true;
-            }
-            if (valueType == typeof(int)) {
-                value = reader.ReadInt32();
-                return true;
-            }
-            if (valueType == typeof(uint)) {
-                value = reader.ReadUInt32();
-                return true;
-            }
-            if (valueType == typeof(long)) {
-                value = reader.ReadInt64();
-                return true;
-            }
-            if (valueType == typeof(float)) {
-                value = reader.ReadSingle();
-                return true;
-            }
-            if (valueType == typeof(double)) {
-                value = reader.ReadDouble();
-                return true;
-            }
-            if (valueType == typeof(int2)) {
-                value = reader.ReadInt2();
-                return true;
-            }
-            if (valueType == typeof(int4)) {
-                value = reader.ReadInt4();
-                return true;
-            }
-            if (valueType == typeof(float2)) {
-                value = reader.ReadFloat2();
-                return true;
-            }
-            if (valueType == typeof(float3)) {
-                value = reader.ReadFloat3();
-                return true;
-            }
-            if (valueType == typeof(float4)) {
-                value = reader.ReadFloat4();
-                return true;
-            }
-            if (valueType == typeof(byte4)) {
-                value = SceneComponentBinaryFieldEncoding.ReadByte4(reader);
-                return true;
-            }
-            if (valueType == typeof(SceneEntityReference)) {
-                value = reader.ReadSceneEntityReference();
-                return true;
-            }
-
-            value = null;
-            return false;
-        }
-
-        /// <summary>
         /// Writes one enum member value using its declared underlying integral storage type.
         /// </summary>
         /// <param name="writer">Destination writer receiving the enum payload.</param>
@@ -957,18 +841,6 @@ namespace helengine.editor {
             Type underlyingType = Enum.GetUnderlyingType(enumType);
             object underlyingValue = Convert.ChangeType(value, underlyingType, CultureInfo.InvariantCulture);
             WriteSupportedValue(writer, underlyingType, underlyingValue);
-        }
-
-        /// <summary>
-        /// Reads one enum member value using its declared underlying integral storage type.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the enum payload.</param>
-        /// <param name="enumType">Declared enum type expected for the payload.</param>
-        /// <returns>Decoded enum value.</returns>
-        static object ReadEnumValue(EngineBinaryReader reader, Type enumType) {
-            Type underlyingType = Enum.GetUnderlyingType(enumType);
-            object underlyingValue = ReadSupportedValue(reader, underlyingType);
-            return Enum.ToObject(enumType, underlyingValue);
         }
 
         /// <summary>
@@ -1022,58 +894,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Reads one dictionary value whose key type belongs to the supported deterministic subset and whose values are already handled by reflected persistence.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the dictionary payload.</param>
-        /// <param name="dictionaryType">Declared reflected dictionary type expected by the payload.</param>
-        /// <param name="dictionaryKeyType">Declared dictionary key type.</param>
-        /// <param name="dictionaryValueType">Declared dictionary value type.</param>
-        /// <returns>Decoded dictionary instance or null when the payload omitted the dictionary.</returns>
-        static object ReadDictionaryValue(EngineBinaryReader reader, Type dictionaryType, Type dictionaryKeyType, Type dictionaryValueType) {
-            if (reader == null) {
-                throw new ArgumentNullException(nameof(reader));
-            } else if (dictionaryType == null) {
-                throw new ArgumentNullException(nameof(dictionaryType));
-            } else if (dictionaryKeyType == null) {
-                throw new ArgumentNullException(nameof(dictionaryKeyType));
-            } else if (dictionaryValueType == null) {
-                throw new ArgumentNullException(nameof(dictionaryValueType));
-            }
-            if (!ScenePersistenceDictionaryTypeSupport.IsSupportedDictionaryKeyType(dictionaryKeyType)) {
-                throw new InvalidOperationException($"Automatic script-component persistence does not support dictionary key type '{dictionaryKeyType.FullName}'.");
-            }
-
-            int count = reader.ReadInt32();
-            if (count == -1) {
-                return null;
-            }
-            if (count < -1) {
-                throw new InvalidOperationException("Dictionary entry count cannot be negative.");
-            }
-
-            object instance = Activator.CreateInstance(dictionaryType) ?? throw new InvalidOperationException($"Dictionary type '{dictionaryType.FullName}' could not be instantiated.");
-            System.Collections.IDictionary dictionary = instance as System.Collections.IDictionary;
-            if (dictionary == null) {
-                throw new InvalidOperationException($"Automatic script-component persistence expected one dictionary instance for '{dictionaryType.FullName}'.");
-            }
-
-            for (int index = 0; index < count; index++) {
-                object key = ReadSupportedValue(reader, dictionaryKeyType);
-                object dictionaryValue = ReadSupportedValue(reader, dictionaryValueType);
-                if (key == null) {
-                    throw new InvalidOperationException($"Automatic script-component persistence does not support null dictionary keys for '{dictionaryType.FullName}'.");
-                }
-                if (dictionary.Contains(key)) {
-                    throw new InvalidOperationException($"Automatic script-component persistence does not support duplicate dictionary keys for '{dictionaryType.FullName}'.");
-                }
-
-                dictionary.Add(key, dictionaryValue);
-            }
-
-            return instance;
-        }
-
-        /// <summary>
         /// Attempts to write one array value whose element type is recursively supported by automatic reflected persistence.
         /// </summary>
         /// <param name="writer">Destination writer receiving the array payload.</param>
@@ -1104,66 +924,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to read one array value whose element type is recursively supported by automatic reflected persistence.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the array payload.</param>
-        /// <param name="valueType">Runtime value type expected for the payload.</param>
-        /// <param name="value">Decoded array value when supported.</param>
-        /// <returns>True when the supplied type was an array handled by reflected persistence.</returns>
-        static bool TryReadArrayValue(EngineBinaryReader reader, Type valueType, out object value) {
-            if (!valueType.IsArray || valueType.GetArrayRank() != 1) {
-                value = null;
-                return false;
-            }
-            if (valueType == typeof(byte[])) {
-                throw new InvalidOperationException("Automatic script-component persistence does not support raw byte[] members. Use one engine-managed binary payload type instead.");
-            }
-
-            Type elementType = valueType.GetElementType() ?? throw new InvalidOperationException($"Array type '{valueType.FullName}' must expose one element type.");
-            int length = reader.ReadInt32();
-            if (length == -1) {
-                value = null;
-                return true;
-            }
-            if (length < -1) {
-                throw new InvalidOperationException("Array length cannot be negative.");
-            }
-
-            Array values = Array.CreateInstance(elementType, length);
-            for (int index = 0; index < length; index++) {
-                values.SetValue(ReadSupportedValue(reader, elementType), index);
-            }
-
-            value = values;
-            return true;
-        }
-
-        /// <summary>
-        /// Returns whether the supplied type can be serialized as one nested authored object or struct by recursively traversing writable public members.
-        /// </summary>
-        /// <param name="valueType">Runtime value type to inspect.</param>
-        /// <returns>True when the type can be serialized as one nested authored object.</returns>
-        static bool IsSupportedNestedObjectType(Type valueType) {
-            if (valueType == null) {
-                return false;
-            }
-            if (valueType == typeof(string) || valueType.IsAbstract) {
-                return false;
-            }
-            if (!valueType.IsClass && !valueType.IsValueType) {
-                return false;
-            }
-            if (typeof(Component).IsAssignableFrom(valueType) || typeof(Entity).IsAssignableFrom(valueType)) {
-                return false;
-            }
-            if (valueType.IsValueType) {
-                return true;
-            }
-
-            return valueType.GetConstructor(Type.EmptyTypes) != null;
-        }
-
-        /// <summary>
         /// Writes one nested authored object or struct by recursively serializing its writable public members in deterministic ordinal order.
         /// </summary>
         /// <param name="writer">Destination writer receiving the nested object payload.</param>
@@ -1175,109 +935,11 @@ namespace helengine.editor {
                 return;
             }
 
-            IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
+            IReadOnlyList<MemberInfo> members = ScenePersistenceValueWalker.GetSerializableMembers(valueType);
             for (int index = 0; index < members.Count; index++) {
                 MemberInfo member = members[index];
-                WriteSupportedValue(writer, GetMemberValueType(member), GetMemberValue(member, value));
+                WriteSupportedValue(writer, ScenePersistenceValueWalker.GetMemberValueType(member), GetMemberValue(member, value));
             }
-        }
-
-        /// <summary>
-        /// Reads one nested authored object or struct by recursively deserializing its writable public members in deterministic ordinal order.
-        /// </summary>
-        /// <param name="reader">Source reader positioned at the nested object payload.</param>
-        /// <param name="valueType">Runtime object type expected for the payload.</param>
-        /// <returns>Decoded nested object instance or null when the payload omitted the object.</returns>
-        static object ReadNestedObjectValue(EngineBinaryReader reader, Type valueType) {
-            if (reader.ReadByte() == 0) {
-                if (valueType != null && valueType.IsValueType) {
-                    return Activator.CreateInstance(valueType);
-                }
-
-                return null;
-            }
-
-            object value = Activator.CreateInstance(valueType) ?? throw new InvalidOperationException($"Nested authored object type '{valueType.FullName}' could not be instantiated.");
-            IReadOnlyList<MemberInfo> members = GetSerializableMembers(valueType);
-            for (int index = 0; index < members.Count; index++) {
-                MemberInfo member = members[index];
-                SetMemberValue(member, value, ReadSupportedValue(reader, GetMemberValueType(member)));
-            }
-
-            return value;
-        }
-
-        /// <summary>
-        /// Gets the deterministically ordered writable public members that participate in nested authored-object serialization.
-        /// </summary>
-        /// <param name="valueType">Runtime object type whose writable public members should be returned.</param>
-        /// <returns>Deterministically ordered writable public members.</returns>
-        static IReadOnlyList<MemberInfo> GetSerializableMembers(Type valueType) {
-            MemberInfo[] members = valueType
-                .GetMembers(BindingFlags.Instance | BindingFlags.Public)
-                .Where(IsSerializableMember)
-                .ToArray();
-
-            for (int index = 0; index < members.Length; index++) {
-                if (members[index].IsDefined(typeof(ScenePersistenceAppendAttribute), false)) {
-                    throw new InvalidOperationException(
-                        $"Nested serialized type '{valueType.FullName}' cannot use {nameof(ScenePersistenceAppendAttribute)} because nested payloads have no member-count framing.");
-                }
-            }
-
-            return members
-                .OrderBy(member => member.Name, StringComparer.Ordinal)
-                .ToArray();
-        }
-
-        /// <summary>
-        /// Returns whether one public instance member is eligible for nested authored-object serialization.
-        /// </summary>
-        /// <param name="memberInfo">Member to inspect.</param>
-        /// <returns>True when the member should participate in nested authored-object serialization.</returns>
-        static bool IsSerializableMember(MemberInfo memberInfo) {
-            if (memberInfo.IsDefined(typeof(ScenePersistenceIgnoreAttribute), false)) {
-                return false;
-            }
-
-            if (memberInfo is PropertyInfo propertyInfo) {
-                if (propertyInfo.GetMethod == null || !propertyInfo.GetMethod.IsPublic) {
-                    return false;
-                }
-                if (propertyInfo.SetMethod == null || !propertyInfo.SetMethod.IsPublic) {
-                    return false;
-                }
-                if (propertyInfo.GetIndexParameters().Length != 0) {
-                    return false;
-                }
-
-                return true;
-            }
-            if (memberInfo is FieldInfo fieldInfo) {
-                if (!fieldInfo.IsPublic || fieldInfo.IsStatic || fieldInfo.IsInitOnly) {
-                    return false;
-                }
-
-                return true;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Gets the runtime value type stored by one writable reflected member.
-        /// </summary>
-        /// <param name="memberInfo">Writable public instance member whose value type should be returned.</param>
-        /// <returns>Runtime value type stored by the member.</returns>
-        static Type GetMemberValueType(MemberInfo memberInfo) {
-            if (memberInfo is PropertyInfo propertyInfo) {
-                return propertyInfo.PropertyType;
-            }
-            if (memberInfo is FieldInfo fieldInfo) {
-                return fieldInfo.FieldType;
-            }
-
-            throw new InvalidOperationException($"Reflected member '{memberInfo?.Name}' is not a supported property or field.");
         }
 
         /// <summary>
@@ -1292,25 +954,6 @@ namespace helengine.editor {
             }
             if (memberInfo is FieldInfo fieldInfo) {
                 return fieldInfo.GetValue(instance);
-            }
-
-            throw new InvalidOperationException($"Reflected member '{memberInfo?.Name}' is not a supported property or field.");
-        }
-
-        /// <summary>
-        /// Assigns one value onto one writable reflected member.
-        /// </summary>
-        /// <param name="memberInfo">Writable public instance member that should receive the value.</param>
-        /// <param name="instance">Object instance receiving the value.</param>
-        /// <param name="value">Decoded value to assign.</param>
-        static void SetMemberValue(MemberInfo memberInfo, object instance, object value) {
-            if (memberInfo is PropertyInfo propertyInfo) {
-                propertyInfo.SetValue(instance, value);
-                return;
-            }
-            if (memberInfo is FieldInfo fieldInfo) {
-                fieldInfo.SetValue(instance, value);
-                return;
             }
 
             throw new InvalidOperationException($"Reflected member '{memberInfo?.Name}' is not a supported property or field.");
