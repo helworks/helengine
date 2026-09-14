@@ -1053,6 +1053,11 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the texture source file.</param>
         /// <param name="asset">Loaded texture asset when available.</param>
         /// <returns>True when the source can be resolved to a texture asset.</returns>
+        /// <remarks>
+        /// The handler normalizes the path again. The duplicate call is intentional: the AuthoredSourceApis source
+        /// contract requires every public authored-source entry point to normalize before any filesystem probe, and the
+        /// handler is also reachable from the manager's own already-normalized internals. Normalization is idempotent.
+        /// </remarks>
         public bool TryLoadTextureAsset(string sourcePath, out TextureAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
             return TextureImportHandler.TryLoadAsset(sourcePath, out asset);
@@ -1299,6 +1304,10 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the text source file.</param>
         /// <param name="asset">Loaded text asset when available.</param>
         /// <returns>True when the source can be resolved to a text asset.</returns>
+        /// <remarks>
+        /// The handler normalizes the path again; see <see cref="TryLoadTextureAsset"/> for why the duplicate call is
+        /// intentional.
+        /// </remarks>
         public bool TryLoadTextAsset(string sourcePath, out TextAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
             return TextImportHandler.TryLoadAsset(sourcePath, out asset);
@@ -1310,6 +1319,10 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the font source file.</param>
         /// <param name="asset">Loaded font asset when available.</param>
         /// <returns>True when the source can be resolved to a font asset.</returns>
+        /// <remarks>
+        /// The handler normalizes the path again; see <see cref="TryLoadTextureAsset"/> for why the duplicate call is
+        /// intentional.
+        /// </remarks>
         public bool TryLoadFontAsset(string sourcePath, out FontAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
             return FontImportHandler.TryLoadAsset(sourcePath, out asset);
@@ -1321,6 +1334,10 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the audio source file.</param>
         /// <param name="asset">Loaded audio asset when available.</param>
         /// <returns>True when the source can be resolved to an audio asset.</returns>
+        /// <remarks>
+        /// The handler normalizes the path again; see <see cref="TryLoadTextureAsset"/> for why the duplicate call is
+        /// intentional.
+        /// </remarks>
         public bool TryLoadAudioAsset(string sourcePath, out AudioAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
             return AudioImportHandler.TryLoadAsset(sourcePath, out asset);
@@ -1332,6 +1349,10 @@ namespace helengine.editor {
         /// <param name="sourcePath">Absolute path to the model source file.</param>
         /// <param name="asset">Loaded model asset when available.</param>
         /// <returns>True when the source can be resolved to a model asset.</returns>
+        /// <remarks>
+        /// The handler normalizes the path again; see <see cref="TryLoadTextureAsset"/> for why the duplicate call is
+        /// intentional.
+        /// </remarks>
         public bool TryLoadModelAsset(string sourcePath, out ModelAsset asset) {
             sourcePath = NormalizeAndValidateAuthoredSourcePath(sourcePath);
             return ModelImportHandler.TryLoadAsset(sourcePath, out asset);
