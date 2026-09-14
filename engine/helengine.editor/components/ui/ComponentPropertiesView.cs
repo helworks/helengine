@@ -79,7 +79,7 @@ namespace helengine.editor {
         /// <summary>
         /// Width of the material pick button.
         /// </summary>
-        const int PickButtonWidth = 80;
+        internal const int PickButtonWidth = 80;
         /// <summary>
         /// Width reserved for the row-level revert button.
         /// </summary>
@@ -87,7 +87,7 @@ namespace helengine.editor {
         /// <summary>
         /// Height of the material pick button.
         /// </summary>
-        const int PickButtonHeight = 22;
+        internal const int PickButtonHeight = 22;
         /// <summary>
         /// Height of the row-level revert button.
         /// </summary>
@@ -192,7 +192,7 @@ namespace helengine.editor {
         /// <summary>
         /// Map of scalar text fields to their owning row.
         /// </summary>
-        readonly Dictionary<TextBoxComponent, ComponentPropertyRow> ScalarFieldRows;
+        internal readonly Dictionary<TextBoxComponent, ComponentPropertyRow> ScalarFieldRows;
         /// <summary>
         /// Tracks display labels for runtime models assigned via the picker.
         /// </summary>
@@ -366,6 +366,7 @@ namespace helengine.editor {
             RowRenderers = new Dictionary<ComponentPropertyRowKind, ComponentPropertyRowRenderer>();
             RegisterRowRenderer(new VectorComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new Vector4ComponentPropertyRowRenderer(this));
+            RegisterRowRenderer(new ScalarComponentPropertyRowRenderer(this));
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
@@ -2155,9 +2156,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Boolean:
                     UpdateBooleanRow(row);
                     break;
-                case ComponentPropertyRowKind.Scalar:
-                    UpdateScalarRow(row);
-                    break;
                 case ComponentPropertyRowKind.ComboBox:
                     UpdateComboBoxRow(row);
                     break;
@@ -2351,16 +2349,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates a scalar row with the component property value.
-        /// </summary>
-        /// <param name="row">Row to update.</param>
-        void UpdateScalarRow(ComponentPropertyRow row) {
-            object rawValue = GetRowValue(row);
-            string text = FormatScalarValue(rawValue);
-            UpdateScalarField(row, text);
-        }
-
-        /// <summary>
         /// Updates a boolean row with the component property value.
         /// </summary>
         /// <param name="row">Row to update.</param>
@@ -2498,7 +2486,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row to query.</param>
         /// <returns>Effective row value or null.</returns>
-        object GetRowValue(ComponentPropertyRow row) {
+        internal object GetRowValue(ComponentPropertyRow row) {
             if (row == null) {
                 throw new ArgumentNullException(nameof(row));
             }
@@ -2629,7 +2617,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row to update.</param>
         /// <param name="text">Text to apply.</param>
-        void UpdateScalarField(ComponentPropertyRow row, string text) {
+        internal void UpdateScalarField(ComponentPropertyRow row, string text) {
             if (row.ScalarField == null) {
                 return;
             }
@@ -2695,7 +2683,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="value">Value to format.</param>
         /// <returns>Formatted text.</returns>
-        string FormatScalarValue(object value) {
+        internal string FormatScalarValue(object value) {
             if (value == null) {
                 return string.Empty;
             }
@@ -2820,7 +2808,7 @@ namespace helengine.editor {
         /// Handles submit events for scalar fields.
         /// </summary>
         /// <param name="field">Submitted text box.</param>
-        void HandleScalarSubmitted(TextBoxComponent field) {
+        internal void HandleScalarSubmitted(TextBoxComponent field) {
             if (IsSynchronizing) {
                 return;
             }
@@ -3801,9 +3789,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Boolean:
                     LayoutBooleanRow(row, contentWidth, height, labelWidth);
                     break;
-                case ComponentPropertyRowKind.Scalar:
-                    LayoutScalarRow(row, contentWidth, height, labelWidth);
-                    break;
                 case ComponentPropertyRowKind.ComboBox:
                     LayoutComboBoxRow(row, contentWidth, height, labelWidth);
                     break;
@@ -3908,31 +3893,6 @@ namespace helengine.editor {
 
             float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
             row.ActionButtonHost.Position = new float3(width - buttonWidth, buttonY, 0.2f);
-        }
-
-        /// <summary>
-        /// Layouts a scalar row with a single text field.
-        /// </summary>
-        /// <param name="row">Scalar row to layout.</param>
-        /// <param name="width">Available width.</param>
-        /// <param name="height">Row height.</param>
-        /// <param name="labelWidth">Width reserved for labels.</param>
-        void LayoutScalarRow(ComponentPropertyRow row, int width, int height, int labelWidth) {
-            if (row.ScalarField == null) {
-                return;
-            }
-
-            int actionButtonWidth = row.ActionButtonHost != null && row.ActionButton != null && row.ActionButtonHost.Enabled
-                ? PickButtonWidth + FieldSpacing
-                : 0;
-            int fieldWidth = Math.Max(48, width - labelWidth - FieldSpacing - actionButtonWidth);
-            float fieldY = (float)Math.Round((height - FieldHeight) * 0.5);
-            row.ScalarField.Parent.Position = new float3(labelWidth + FieldSpacing, fieldY, 0.2f);
-            row.ScalarField.Size = new int2(fieldWidth, FieldHeight);
-            if (row.ActionButtonHost != null && row.ActionButton != null && row.ActionButtonHost.Enabled) {
-                float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
-                row.ActionButtonHost.Position = new float3(labelWidth + FieldSpacing + fieldWidth + FieldSpacing, buttonY, 0.2f);
-            }
         }
 
         /// <summary>
@@ -4688,9 +4648,6 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.Boolean:
                     BuildBooleanRow(row, rowEntity);
                     break;
-                case ComponentPropertyRowKind.Scalar:
-                    BuildScalarRow(row, rowEntity);
-                    break;
                 case ComponentPropertyRowKind.ComboBox:
                     BuildComboBoxRow(row, rowEntity);
                     break;
@@ -4969,26 +4926,6 @@ namespace helengine.editor {
             return AssetContentManager.Load<ModelAsset>(path, EditorContentProcessorIds.ModelAsset);
         }
 
-
-        /// <summary>
-        /// Builds the scalar field controls for a row.
-        /// </summary>
-        /// <param name="row">Row to populate.</param>
-        /// <param name="rowEntity">Row root entity.</param>
-        void BuildScalarRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var fieldHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            fieldHost.LayerMask = RootEntity.LayerMask;
-            fieldHost.Position = float3.Zero;
-            rowEntity.AddChild(fieldHost);
-
-            var field = new TextBoxComponent(new int2(120, FieldHeight), Font, string.Empty);
-            field.Submitted += HandleScalarSubmitted;
-            fieldHost.AddComponent(field);
-
-            row.ScalarField = field;
-            row.ScalarCache = string.Empty;
-            ScalarFieldRows[field] = row;
-        }
 
         /// <summary>
         /// Ensures one scalar row owns a reusable scene-map action button.
