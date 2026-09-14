@@ -35,7 +35,7 @@ public sealed class AssetImportServiceBoundaryTests {
         CancellationToken token = service.CancellationToken;
 
         service.Dispose();
-
+        service.Dispose();
         Assert.True(token.IsCancellationRequested);
     }
 }

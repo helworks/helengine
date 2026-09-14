@@ -6,6 +6,7 @@ namespace helengine.editor;
 public sealed class AssetImportInvalidationService : IDisposable {
     readonly HashSet<string> InvalidatedSourcePaths = new(StringComparer.OrdinalIgnoreCase);
     readonly CancellationTokenSource CancellationSource = new();
+    bool IsDisposed;
 
     /// <summary>
     /// Raised when a source path is newly marked for import invalidation.
@@ -50,9 +51,14 @@ public sealed class AssetImportInvalidationService : IDisposable {
     /// Cancels outstanding import work and releases the invalidation owner.
     /// </summary>
     public void Dispose() {
+        if (IsDisposed) {
+            return;
+        }
+
         CancellationSource.Cancel();
         CancellationSource.Dispose();
         InvalidatedSourcePaths.Clear();
         Invalidated = null;
+        IsDisposed = true;
     }
 }
