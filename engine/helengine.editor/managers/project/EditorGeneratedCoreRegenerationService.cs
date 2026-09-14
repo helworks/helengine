@@ -628,6 +628,10 @@ namespace helengine.editor {
         /// <param name="additionalPreprocessorSymbols">Scene-derived symbols forwarded to generated-core regeneration.</param>
         /// <returns>True when physics scene features require native physics runtime sources.</returns>
         internal static bool ShouldRegeneratePhysics3DProject(IReadOnlyList<string> additionalPreprocessorSymbols) {
+            if (ShouldRegenerateHelPhysicsProject(additionalPreprocessorSymbols)) {
+                return false;
+            }
+
             if (additionalPreprocessorSymbols == null) {
                 throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
             }
@@ -1131,9 +1135,11 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="generatedCoreRootPath">Absolute generated core output root that should receive the generated files.</param>
         /// <param name="usedTypes">Runtime types used by the cooked build.</param>
+        /// <param name="physicsRuntimeBackend">Selected backend used to exclude incompatible physics registration.</param>
         internal static void EmitGeneratedRuntimeModuleRegistration(
             string generatedCoreRootPath,
-            IReadOnlyList<Type> usedTypes) {
+            IReadOnlyList<Type> usedTypes,
+            string physicsRuntimeBackend = EditorPhysicsRuntimeBackendSelectionService.BepuValue) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             } else if (usedTypes == null) {
@@ -1148,7 +1154,7 @@ namespace helengine.editor {
                 .OrderBy(assembly => assembly.FullName, StringComparer.Ordinal)
                 .ToArray();
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests = DiscoverGeneratedRuntimeModuleManifests(assemblies);
-            IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> activeManifests = ResolveActiveGeneratedRuntimeModuleManifests(manifests, usedTypes);
+            IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> activeManifests = ResolveActiveGeneratedRuntimeModuleManifests(manifests, usedTypes, physicsRuntimeBackend);
 
             File.WriteAllText(
                 Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.hpp"),
@@ -1475,10 +1481,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="manifests">Generated runtime module manifests discovered from the build closure.</param>
         /// <param name="usedTypes">Runtime types used by the cooked build.</param>
+        /// <param name="physicsRuntimeBackend">Selected backend used to exclude incompatible physics registration.</param>
         /// <returns>Deterministically ordered generated runtime module manifests activated by the supplied used-type set.</returns>
         internal static IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> ResolveActiveGeneratedRuntimeModuleManifests(
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests,
-            IReadOnlyList<Type> usedTypes) {
+            IReadOnlyList<Type> usedTypes,
+            string physicsRuntimeBackend = EditorPhysicsRuntimeBackendSelectionService.BepuValue) {
             if (manifests == null) {
                 throw new ArgumentNullException(nameof(manifests));
             } else if (usedTypes == null) {
@@ -1489,6 +1497,10 @@ namespace helengine.editor {
             List<GeneratedRuntimeModuleManifestAttribute> activeManifests = new List<GeneratedRuntimeModuleManifestAttribute>();
             for (int index = 0; index < manifests.Count; index++) {
                 GeneratedRuntimeModuleManifestAttribute manifest = manifests[index];
+                if (string.Equals(physicsRuntimeBackend, EditorPhysicsRuntimeBackendSelectionService.HelPhysicsValue, StringComparison.Ordinal)
+                    && string.Equals(manifest.ModuleId, "physics3d-runtime-module", StringComparison.Ordinal)) {
+                    continue;
+                }
                 if (manifest.ActivationTypes.Any(usedTypeSet.Contains)) {
                     activeManifests.Add(manifest);
                 }

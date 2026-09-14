@@ -44,6 +44,36 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Backend selection excludes BEPU startup registration while preserving unrelated modules.
+    /// </summary>
+    [Theory]
+    [InlineData("helphysics", 1)]
+    [InlineData("bepu", 2)]
+    public void Runtime_modules_respect_selected_physics_backend(string backend, int expectedCount) {
+        GeneratedRuntimeModuleManifestAttribute legacy = new GeneratedRuntimeModuleManifestAttribute(
+            "physics3d-runtime-module", typeof(GeneratedRuntimeModuleRegistrationTestRegistration), "Register",
+            typeof(GeneratedRuntimeModuleRegistrationTestComponent));
+        GeneratedRuntimeModuleManifestAttribute unrelated = new GeneratedRuntimeModuleManifestAttribute(
+            "unrelated-runtime-module", typeof(GeneratedRuntimeModuleRegistrationTestRegistration), "Register",
+            typeof(GeneratedRuntimeModuleRegistrationTestComponent));
+        IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> active = EditorGeneratedCoreRegenerationService.ResolveActiveGeneratedRuntimeModuleManifests(
+            [legacy, unrelated], [typeof(GeneratedRuntimeModuleRegistrationTestComponent)], backend);
+        Assert.Equal(expectedCount, active.Count);
+        Assert.Contains(active, manifest => manifest.ModuleId == "unrelated-runtime-module");
+        if (backend == "helphysics") {
+            Assert.DoesNotContain(active, manifest => manifest.ModuleId == "physics3d-runtime-module");
+        }
+    }
+    /// <summary>
+    /// HelPhysics generation must not also emit the legacy BEPU runtime project.
+    /// </summary>
+    [Fact]
+    public void HelPhysics_selection_excludes_legacy_physics_project() {
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegeneratePhysics3DProject([
+            PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol,
+            EditorPhysicsRuntimeBackendSelectionService.HelPhysicsSymbol]));
+    }
+    /// <summary>
     /// Verifies the merge helper copies portable native source files while skipping non-source support files.
     /// </summary>
     [Fact]

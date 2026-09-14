@@ -778,7 +778,8 @@ namespace helengine.editor {
                 ScriptTypeResolver);
             EditorGeneratedCoreRegenerationService.EmitGeneratedRuntimeModuleRegistration(
                 generatedCoreRootPath,
-                sceneReferencedComponentTypes);
+                sceneReferencedComponentTypes,
+                EditorPhysicsRuntimeBackendSelectionService.Resolve(selectedCodegenOptionValues));
             EditorGeneratedCoreRegenerationService.EmitCookedSceneAutomaticRuntimeComponentDeserializers(
                 generatedCoreRootPath,
                 cookedSceneAssetPaths,
