@@ -77,7 +77,7 @@ namespace helengine.editor {
             EnsureReadbackTexture(Target);
             DeviceContext context = Renderer.Device.ImmediateContext;
             context.CopyResource(Target.ColorTexture, ReadbackTexture);
-            DataBox dataBox = context.MapSubresource(ReadbackTexture, 0, MapMode.Read, MapFlags.None);
+            DataBox dataBox = context.MapSubresource(ReadbackTexture, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
             try {
                 int offset = pixel.Y * dataBox.RowPitch + pixel.X * 4;
                 byte c0 = Marshal.ReadByte(dataBox.DataPointer, offset);
