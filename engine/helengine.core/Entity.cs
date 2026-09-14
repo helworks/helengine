@@ -32,6 +32,10 @@ namespace helengine {
         /// </summary>
         [NativeOwnedMember]
         List<Entity> children;
+        /// <summary>
+        /// Caches the attached scene-entity id metadata component so per-frame diagnostics resolve the authored id with a field read instead of a component scan.
+        /// </summary>
+        SceneEntityRuntimeIdComponent CachedSceneEntityRuntimeIdComponent;
 
         /// <summary>
         /// Initializes an entity against an explicit owning core.
@@ -203,8 +207,18 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Gets the authored scene-entity id carried by the attached scene-entity id metadata component, or <c>0</c> when the entity carries no such component.
+        /// </summary>
+        public uint SceneEntityRuntimeId {
+            get {
+                if (CachedSceneEntityRuntimeIdComponent == null) {
+                    return 0u;
+                }
 
-
+                return CachedSceneEntityRuntimeIdComponent.SceneEntityId;
+            }
+        }
 
         /// <summary>
         /// Gets the list of components attached to this entity.
@@ -458,6 +472,9 @@ namespace helengine {
 
             components.Add(comp);
             comp.AttachToEntity(this);
+            if (comp is SceneEntityRuntimeIdComponent) {
+                RefreshCachedSceneEntityRuntimeIdComponent();
+            }
 
             if (ComponentExecutionPolicy.ShouldRunComponentLifecycle(comp, this)) {
                 comp.ComponentAdded(this);
@@ -513,6 +530,10 @@ namespace helengine {
                 throw new InvalidOperationException("Component could not be removed from the component collection.");
             }
 
+            if (comp is SceneEntityRuntimeIdComponent) {
+                RefreshCachedSceneEntityRuntimeIdComponent();
+            }
+
             bool shouldRunLifecycle = ComponentExecutionPolicy.ShouldRunComponentLifecycle(comp, this);
             if (IsHierarchyEnabled && shouldRunLifecycle) {
                 comp.ParentEnabledChange(false);
@@ -523,6 +544,23 @@ namespace helengine {
             }
 
             comp.DetachFromEntity();
+        }
+
+        /// <summary>
+        /// Re-resolves the cached scene-entity id metadata component by taking the first one attached, matching the lookup order diagnostics used before the cache existed.
+        /// </summary>
+        void RefreshCachedSceneEntityRuntimeIdComponent() {
+            CachedSceneEntityRuntimeIdComponent = null;
+            if (components == null) {
+                return;
+            }
+
+            for (int componentIndex = 0; componentIndex < components.Count; componentIndex++) {
+                if (components[componentIndex] is SceneEntityRuntimeIdComponent runtimeIdComponent) {
+                    CachedSceneEntityRuntimeIdComponent = runtimeIdComponent;
+                    return;
+                }
+            }
         }
 
         /// <summary>

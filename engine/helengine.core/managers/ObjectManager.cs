@@ -24,6 +24,11 @@ public class ObjectManager {
     readonly List<PendingUpdateOperation> pendingUpdateOperations;
 
     /// <summary>
+    /// Caches the stable type-name hash of every updateable type seen so far so the per-frame crash breadcrumb never re-hashes a reflected type name.
+    /// </summary>
+    static readonly Dictionary<Type, uint> StableTypeNameHashesByType = new Dictionary<Type, uint>();
+
+    /// <summary>
     /// Initializes a new object manager using the provided initialization options.
     /// </summary>
     /// <param name="settings">Initialization settings that control ordering and list sizing.</param>
@@ -615,7 +620,7 @@ public class ObjectManager {
                 IUpdateable item = Updateables[i];
                 LastUpdateableDiagnosticPass = diagnosticUpdatePassCount;
                 LastUpdateableDiagnosticIndex = i;
-                LastUpdateableDiagnosticTypeHash = ComputeStableTypeNameHash(item);
+                LastUpdateableDiagnosticTypeHash = ResolveStableTypeNameHash(item);
                 LastUpdateableDiagnosticOwnerSceneEntityId = ResolveUpdateableOwnerSceneEntityId(item);
                 if (shouldRecordUpdateStages) {
                     core.ReportSceneTransitionStage(
@@ -739,11 +744,31 @@ public class ObjectManager {
 
     /// <summary>
     /// Resolves one stable numeric hash for the current updateable type name so hard-crash diagnostics can identify the active managed object.
+    /// The hash is computed once per runtime type and then served from the shared type cache, keeping the per-frame breadcrumb free of reflection and string hashing.
     /// </summary>
     /// <param name="item">Updateable about to execute.</param>
     /// <returns>Stable non-cryptographic hash of the type name.</returns>
-    static uint ComputeStableTypeNameHash(IUpdateable item) {
-        string typeName = ResolveUpdateableTypeName(item);
+    static uint ResolveStableTypeNameHash(IUpdateable item) {
+        if (item == null) {
+            return ComputeStableNameHash(string.Empty);
+        }
+
+        Type itemType = item.GetType();
+        if (StableTypeNameHashesByType.TryGetValue(itemType, out uint cachedHash)) {
+            return cachedHash;
+        }
+
+        uint hash = ComputeStableNameHash(itemType.Name);
+        StableTypeNameHashesByType[itemType] = hash;
+        return hash;
+    }
+
+    /// <summary>
+    /// Computes the FNV-1a hash of one type name so diagnostics can compare managed objects by a stable numeric token.
+    /// </summary>
+    /// <param name="typeName">Runtime type name to hash.</param>
+    /// <returns>Stable non-cryptographic hash of the supplied name.</returns>
+    static uint ComputeStableNameHash(string typeName) {
         uint hash = 2166136261u;
         for (int index = 0; index < typeName.Length; index++) {
             hash ^= typeName[index];
@@ -755,44 +780,18 @@ public class ObjectManager {
 
     /// <summary>
     /// Resolves the authored scene entity id of the current updateable owner when the updateable is one component.
+    /// The owner entity keeps its scene-entity id metadata component cached, so this stays a field read instead of a per-frame component scan.
     /// </summary>
     /// <param name="item">Updateable about to execute.</param>
     /// <returns>Owner scene entity id, or <c>0</c> when unavailable.</returns>
     static uint ResolveUpdateableOwnerSceneEntityId(IUpdateable item) {
         if (item is Component component) {
-            return ResolveSceneEntityRuntimeIdOrZero(component.Parent);
-        }
-
-        return 0u;
-    }
-
-    /// <summary>
-    /// Resolves the concrete updateable type name when the runtime object is one component and falls back to the interface token name otherwise.
-    /// </summary>
-    /// <param name="item">Updateable about to execute.</param>
-    /// <returns>Concrete runtime type name when available.</returns>
-    static string ResolveUpdateableTypeName(IUpdateable item) {
-        if (item is Component component) {
-            return component.GetType().Name;
-        }
-
-        return item == null ? string.Empty : item.GetType().Name;
-    }
-
-    /// <summary>
-    /// Resolves the authored scene entity id attached to one runtime entity when that metadata component is present.
-    /// </summary>
-    /// <param name="entity">Entity to inspect.</param>
-    /// <returns>Authored scene entity id, or <c>0</c> when unavailable.</returns>
-    static uint ResolveSceneEntityRuntimeIdOrZero(Entity entity) {
-        if (entity == null || entity.Components == null) {
-            return 0u;
-        }
-
-        for (int componentIndex = 0; componentIndex < entity.Components.Count; componentIndex++) {
-            if (entity.Components[componentIndex] is SceneEntityRuntimeIdComponent runtimeIdComponent) {
-                return runtimeIdComponent.SceneEntityId;
+            Entity owner = component.ParentUnsafe;
+            if (owner == null) {
+                return 0u;
             }
+
+            return owner.SceneEntityRuntimeId;
         }
 
         return 0u;
