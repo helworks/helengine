@@ -966,7 +966,7 @@ public class BuildDialog : EditorDialogBase {
                 return;
             }
 
-            List<string> orderedSceneIds = BuildOrderedSceneIds(platformConfig, selectedSceneIds);
+            List<string> orderedSceneIds = EditorBuildPlatformConfigCopyService.CreateSceneIdsOrderedByOrderNumber(platformConfig, selectedSceneIds, SceneIds);
             EditorBuildPlatformConfigDefaultsService.EnsurePlatformSelectionDefaults(platformConfig, ActivePlatformSelectionModel);
             AddRequested?.Invoke(new BuildDialogAddRequest(
                 ActivePlatformId,
@@ -1082,8 +1082,8 @@ public class BuildDialog : EditorDialogBase {
                 throw new ArgumentNullException(nameof(buildConfig));
             }
 
-            CopyPlatforms(supportedPlatformIds);
-            CopyScenes(sceneIds);
+            EditorBuildPlatformConfigCopyService.CopyStringValues(supportedPlatformIds, SupportedPlatformIds);
+            EditorBuildPlatformConfigCopyService.CopyStringValues(sceneIds, SceneIds);
             CopyEnvironments(environmentIds);
             CurrentBuildConfig = buildConfig;
             ActivePlatformSelectionModel = selectionModel;
@@ -1192,12 +1192,8 @@ public class BuildDialog : EditorDialogBase {
             EditorBuildPlatformConfigDocument sourcePlatformConfig = FindPlatformConfig(sourcePlatformId);
             EditorBuildPlatformConfigDocument activePlatformConfig = FindPlatformConfig(ActivePlatformId);
 
-            activePlatformConfig.SelectedSceneIds.Clear();
-            for (int index = 0; index < sourcePlatformConfig.SelectedSceneIds.Count; index++) {
-                activePlatformConfig.SelectedSceneIds.Add(sourcePlatformConfig.SelectedSceneIds[index]);
-            }
-
-            CopySceneOrders(sourcePlatformConfig, activePlatformConfig);
+            EditorBuildPlatformConfigCopyService.CopySelectedSceneIds(sourcePlatformConfig, activePlatformConfig);
+            EditorBuildPlatformConfigCopyService.CopySceneOrders(sourcePlatformConfig, activePlatformConfig);
             RebuildActivePlatformSceneRows();
         }
 
@@ -1207,52 +1203,6 @@ public class BuildDialog : EditorDialogBase {
         void HandleCancelRequested() {
             Hide();
             CancelRequested?.Invoke();
-        }
-
-        /// <summary>
-        /// Copies the enabled platform ids into the dialog state.
-        /// </summary>
-        /// <param name="supportedPlatformIds">Platforms enabled for the project.</param>
-        void CopyPlatforms(IReadOnlyList<string> supportedPlatformIds) {
-            SupportedPlatformIds.Clear();
-            for (int index = 0; index < supportedPlatformIds.Count; index++) {
-                SupportedPlatformIds.Add(supportedPlatformIds[index]);
-            }
-        }
-
-        /// <summary>
-        /// Copies the available project scenes into the dialog state.
-        /// </summary>
-        /// <param name="sceneIds">Project-relative scene ids shown by the active tab.</param>
-        void CopyScenes(IReadOnlyList<string> sceneIds) {
-            SceneIds.Clear();
-            for (int index = 0; index < sceneIds.Count; index++) {
-                SceneIds.Add(sceneIds[index]);
-            }
-        }
-
-        /// <summary>
-        /// Copies one platform's scene-order entries into another platform configuration.
-        /// </summary>
-        /// <param name="sourcePlatformConfig">Platform configuration supplying the saved order values.</param>
-        /// <param name="destinationPlatformConfig">Platform configuration receiving the copied order values.</param>
-        void CopySceneOrders(EditorBuildPlatformConfigDocument sourcePlatformConfig, EditorBuildPlatformConfigDocument destinationPlatformConfig) {
-            if (sourcePlatformConfig == null) {
-                throw new ArgumentNullException(nameof(sourcePlatformConfig));
-            }
-
-            if (destinationPlatformConfig == null) {
-                throw new ArgumentNullException(nameof(destinationPlatformConfig));
-            }
-
-            destinationPlatformConfig.SceneOrders.Clear();
-            for (int index = 0; index < sourcePlatformConfig.SceneOrders.Count; index++) {
-                EditorBuildSceneOrderDocument sourceSceneOrder = sourcePlatformConfig.SceneOrders[index];
-                destinationPlatformConfig.SceneOrders.Add(new EditorBuildSceneOrderDocument {
-                    SceneId = sourceSceneOrder.SceneId,
-                    OrderNumber = sourceSceneOrder.OrderNumber
-                });
-            }
         }
 
         /// <summary>
@@ -1348,8 +1298,8 @@ public class BuildDialog : EditorDialogBase {
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
             EditorBuildPlatformConfigDefaultsService.EnsurePlatformSelectionDefaults(platformConfig, ActivePlatformSelectionModel);
-            EnsureSceneOrderEntries(platformConfig);
-            List<string> orderedSceneIds = BuildDisplayedSceneIds(platformConfig);
+            EditorBuildPlatformConfigCopyService.EnsureSceneOrderEntries(platformConfig, SceneIds);
+            List<string> orderedSceneIds = EditorBuildPlatformConfigCopyService.CreateSceneIdsOrderedByOrderNumber(platformConfig, SceneIds, SceneIds);
             for (int index = 0; index < orderedSceneIds.Count; index++) {
                 DisplayedSceneIds.Add(orderedSceneIds[index]);
             }
@@ -1513,7 +1463,7 @@ public class BuildDialog : EditorDialogBase {
                     row.OrderHost.Position = new float3(GetSceneListPaddingPixels(), -DialogMetrics.ScalePixels(2), 0.1f);
                     row.LabelHost.Position = new float3(GetSceneLabelX(), 0f, 0.1f);
                     row.CheckBoxHost.Position = new float3(GetSceneCheckBoxX(), -DialogMetrics.ScalePixels(2), 0.1f);
-                    row.OrderField.Text = GetSceneOrderNumber(platformConfig, sceneId).ToString();
+                    row.OrderField.Text = EditorBuildPlatformConfigCopyService.GetSceneOrderNumber(platformConfig, sceneId, SceneIds).ToString();
                     row.LabelText.Text = sceneId;
                     row.CheckBox.IsChecked = platformConfig.SelectedSceneIds.Contains(sceneId);
 
@@ -1909,7 +1859,7 @@ public class BuildDialog : EditorDialogBase {
             }
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
-            EnsureSceneOrderEntries(platformConfig);
+            EditorBuildPlatformConfigCopyService.EnsureSceneOrderEntries(platformConfig, SceneIds);
             for (int index = 0; index < SceneRows.Count; index++) {
                 BuildDialogSceneRow row = SceneRows[index];
                 if (string.IsNullOrWhiteSpace(row.SceneId)) {
@@ -1925,35 +1875,6 @@ public class BuildDialog : EditorDialogBase {
             platformConfig.OutputDirectoryPath = OutputDirectoryField.Text ?? string.Empty;
             platformConfig.DebugBuild = DebugBuildCheckBox.IsChecked;
             EditorBuildPlatformConfigDefaultsService.EnsurePlatformSelectionDefaults(platformConfig, ActivePlatformSelectionModel);
-        }
-
-        /// <summary>
-        /// Keeps the persisted scene-order entries aligned with the current project scene list.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration that stores the saved ordering values.</param>
-        void EnsureSceneOrderEntries(EditorBuildPlatformConfigDocument platformConfig) {
-            if (platformConfig.SceneOrders == null) {
-                platformConfig.SceneOrders = new List<EditorBuildSceneOrderDocument>();
-            }
-
-            for (int index = platformConfig.SceneOrders.Count - 1; index >= 0; index--) {
-                EditorBuildSceneOrderDocument sceneOrder = platformConfig.SceneOrders[index];
-                if (!SceneIds.Contains(sceneOrder.SceneId)) {
-                    platformConfig.SceneOrders.RemoveAt(index);
-                }
-            }
-
-            for (int index = 0; index < SceneIds.Count; index++) {
-                string sceneId = SceneIds[index];
-                if (FindSceneOrder(platformConfig, sceneId) != null) {
-                    continue;
-                }
-
-                platformConfig.SceneOrders.Add(new EditorBuildSceneOrderDocument {
-                    SceneId = sceneId,
-                    OrderNumber = GetNextSceneOrderNumber(platformConfig)
-                });
-            }
         }
 
         /// <summary>
@@ -1975,7 +1896,7 @@ public class BuildDialog : EditorDialogBase {
             }
 
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
-            EditorBuildSceneOrderDocument sceneOrder = FindSceneOrder(platformConfig, sceneId);
+            EditorBuildSceneOrderDocument sceneOrder = EditorBuildPlatformConfigCopyService.FindSceneOrder(platformConfig, sceneId);
             if (sceneOrder == null) {
                 return;
             }
@@ -2009,7 +1930,7 @@ public class BuildDialog : EditorDialogBase {
 
             SyncActivePlatformConfig();
             EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
-            EditorBuildSceneOrderDocument sceneOrder = FindSceneOrder(platformConfig, sceneId);
+            EditorBuildSceneOrderDocument sceneOrder = EditorBuildPlatformConfigCopyService.FindSceneOrder(platformConfig, sceneId);
             if (sceneOrder == null) {
                 return;
             }
@@ -2024,117 +1945,6 @@ public class BuildDialog : EditorDialogBase {
             RebuildActivePlatformSceneRows();
         }
 
-        /// <summary>
-        /// Finds one persisted scene-order entry for the requested scene identifier.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration containing the saved ordering values.</param>
-        /// <param name="sceneId">Project-relative scene identifier to find.</param>
-        /// <returns>Matching scene-order entry, or null when none exists.</returns>
-        EditorBuildSceneOrderDocument FindSceneOrder(EditorBuildPlatformConfigDocument platformConfig, string sceneId) {
-            for (int index = 0; index < platformConfig.SceneOrders.Count; index++) {
-                EditorBuildSceneOrderDocument sceneOrder = platformConfig.SceneOrders[index];
-                if (sceneOrder.SceneId == sceneId) {
-                    return sceneOrder;
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Returns the next available ordering number for a new scene entry.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration that stores the saved ordering values.</param>
-        /// <returns>1-based ordering number that comes after all currently saved order values.</returns>
-        int GetNextSceneOrderNumber(EditorBuildPlatformConfigDocument platformConfig) {
-            int nextOrderNumber = 1;
-            for (int index = 0; index < platformConfig.SceneOrders.Count; index++) {
-                int candidateOrderNumber = platformConfig.SceneOrders[index].OrderNumber;
-                if (candidateOrderNumber >= nextOrderNumber) {
-                    nextOrderNumber = candidateOrderNumber + 1;
-                }
-            }
-
-            return nextOrderNumber;
-        }
-
-        /// <summary>
-        /// Reads the persisted ordering number for one scene, falling back to the catalog order when needed.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration containing the saved ordering values.</param>
-        /// <param name="sceneId">Project-relative scene identifier whose order should be resolved.</param>
-        /// <returns>1-based ordering number for the requested scene.</returns>
-        int GetSceneOrderNumber(EditorBuildPlatformConfigDocument platformConfig, string sceneId) {
-            EditorBuildSceneOrderDocument sceneOrder = FindSceneOrder(platformConfig, sceneId);
-            if (sceneOrder != null && sceneOrder.OrderNumber > 0) {
-                return sceneOrder.OrderNumber;
-            }
-
-            int sceneIndex = SceneIds.IndexOf(sceneId);
-            if (sceneIndex >= 0) {
-                return sceneIndex + 1;
-            }
-
-            return int.MaxValue;
-        }
-
-        /// <summary>
-        /// Sorts one selected-scene list by the currently persisted per-scene ordering values.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration that stores the saved ordering values.</param>
-        /// <param name="selectedSceneIds">Selected scenes to sort for the queued build request.</param>
-        /// <returns>New scene-id list ordered by the saved per-scene order numbers.</returns>
-        List<string> BuildOrderedSceneIds(EditorBuildPlatformConfigDocument platformConfig, IReadOnlyList<string> selectedSceneIds) {
-            List<string> orderedSceneIds = new List<string>(selectedSceneIds.Count);
-            for (int index = 0; index < selectedSceneIds.Count; index++) {
-                orderedSceneIds.Add(selectedSceneIds[index]);
-            }
-
-            orderedSceneIds.Sort((leftSceneId, rightSceneId) => {
-                int leftOrderNumber = GetSceneOrderNumber(platformConfig, leftSceneId);
-                int rightOrderNumber = GetSceneOrderNumber(platformConfig, rightSceneId);
-                int orderComparison = leftOrderNumber.CompareTo(rightOrderNumber);
-                if (orderComparison != 0) {
-                    return orderComparison;
-                }
-
-                int leftSceneIndex = SceneIds.IndexOf(leftSceneId);
-                int rightSceneIndex = SceneIds.IndexOf(rightSceneId);
-                return leftSceneIndex.CompareTo(rightSceneIndex);
-            });
-
-            return orderedSceneIds;
-        }
-
-        /// <summary>
-        /// Builds the current scene-list row order from the saved per-scene ordering values.
-        /// </summary>
-        /// <param name="platformConfig">Platform configuration that stores the saved ordering values.</param>
-        /// <returns>Scene ids sorted for display in the build dialog.</returns>
-        List<string> BuildDisplayedSceneIds(EditorBuildPlatformConfigDocument platformConfig) {
-            List<string> orderedSceneIds = new List<string>(SceneIds.Count);
-            for (int index = 0; index < SceneIds.Count; index++) {
-                orderedSceneIds.Add(SceneIds[index]);
-            }
-
-            orderedSceneIds.Sort((leftSceneId, rightSceneId) => {
-                int leftOrderNumber = GetSceneOrderNumber(platformConfig, leftSceneId);
-                int rightOrderNumber = GetSceneOrderNumber(platformConfig, rightSceneId);
-                int orderComparison = leftOrderNumber.CompareTo(rightOrderNumber);
-                if (orderComparison != 0) {
-                    return orderComparison;
-                }
-
-                int leftSceneIndex = SceneIds.IndexOf(leftSceneId);
-                int rightSceneIndex = SceneIds.IndexOf(rightSceneId);
-                return leftSceneIndex.CompareTo(rightSceneIndex);
-            });
-
-            return orderedSceneIds;
-        }
-
-        /// <summary>
-        /// Applies or clears the invalid-selection border state on the scene-list container.
         /// </summary>
         /// <param name="isInvalid">True when the scene-list container should use the invalid border color.</param>
         void SetSceneListInvalidState(bool isInvalid) {
