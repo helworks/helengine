@@ -300,6 +300,103 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the sidecar generation pass classifies an extension claimed by both the audio and model families as a
+        /// model source, which is the texture, model, audio, text/font order the generation dispatch has always used and
+        /// which deliberately differs from the registry precedence used for importer identifier lookup.
+        /// </summary>
+        [Fact]
+        public void TryResolveImportSettingsGenerationKind_WhenAudioAndModelClaimExtension_ResolvesModel() {
+            AssetImportManager manager = CreateManager();
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), new[] { ".coclaim" }));
+            manager.RegisterModelImporter(new ModelImporterRegistration("test-model", new TestModelImporter(), new[] { ".coclaim" }));
+
+            EditorAssetImportKind kind;
+            bool resolved = manager.TryResolveImportSettingsGenerationKind(".coclaim", out kind);
+
+            Assert.True(resolved);
+            Assert.Equal(EditorAssetImportKind.Model, kind);
+        }
+
+        /// <summary>
+        /// Ensures the sidecar generation pass classifies an extension claimed by both the audio and text families as an
+        /// audio source, because the generation dispatch tests the audio family before the shared text and font branch.
+        /// </summary>
+        [Fact]
+        public void TryResolveImportSettingsGenerationKind_WhenAudioAndTextClaimExtension_ResolvesAudio() {
+            AssetImportManager manager = CreateManager();
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), new[] { ".coclaim" }));
+            manager.RegisterTextImporter(new TextImporterRegistration("test-text", new TestTextImporter(), new[] { ".coclaim" }));
+
+            EditorAssetImportKind kind;
+            bool resolved = manager.TryResolveImportSettingsGenerationKind(".coclaim", out kind);
+
+            Assert.True(resolved);
+            Assert.Equal(EditorAssetImportKind.Audio, kind);
+        }
+
+        /// <summary>
+        /// Ensures the sidecar generation pass classifies an extension claimed by both the audio and font families as an
+        /// audio source, because the generation dispatch tests the audio family before the shared text and font branch.
+        /// </summary>
+        [Fact]
+        public void TryResolveImportSettingsGenerationKind_WhenAudioAndFontClaimExtension_ResolvesAudio() {
+            AssetImportManager manager = CreateManager();
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), new[] { ".coclaim" }));
+            manager.RegisterFontImporter(new FontImporterRegistration("test-font", new TestFontImporter(), new[] { ".coclaim" }));
+
+            EditorAssetImportKind kind;
+            bool resolved = manager.TryResolveImportSettingsGenerationKind(".coclaim", out kind);
+
+            Assert.True(resolved);
+            Assert.Equal(EditorAssetImportKind.Audio, kind);
+        }
+
+        /// <summary>
+        /// Ensures the sidecar generation pass still classifies an extension claimed by both the audio and texture
+        /// families as a texture source, because the texture family leads both classification orders.
+        /// </summary>
+        [Fact]
+        public void TryResolveImportSettingsGenerationKind_WhenAudioAndTextureClaimExtension_ResolvesTexture() {
+            AssetImportManager manager = CreateManager();
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), new[] { ".coclaim" }));
+            manager.RegisterTextureImporter(new TextureImporterRegistration("coclaim-texture", new TestTextureImporter(), new[] { ".coclaim" }));
+
+            EditorAssetImportKind kind;
+            bool resolved = manager.TryResolveImportSettingsGenerationKind(".coclaim", out kind);
+
+            Assert.True(resolved);
+            Assert.Equal(EditorAssetImportKind.Texture, kind);
+        }
+
+        /// <summary>
+        /// Ensures no asset family is reported for an extension that no registered importer claims.
+        /// </summary>
+        [Fact]
+        public void TryResolveImportSettingsGenerationKind_WhenNoImporterClaimsExtension_ResolvesNothing() {
+            AssetImportManager manager = CreateManager();
+
+            EditorAssetImportKind kind;
+            bool resolved = manager.TryResolveImportSettingsGenerationKind(".unclaimed", out kind);
+
+            Assert.False(resolved);
+        }
+
+        /// <summary>
+        /// Ensures importer identifier lookup keeps its own texture, text, font, audio, model precedence, which is
+        /// intentionally different from the order the sidecar generation pass classifies extensions in.
+        /// </summary>
+        [Fact]
+        public void GetImporterIdsForExtension_WhenAudioAndTextClaimExtension_PrefersTextImporters() {
+            AssetImportManager manager = CreateManager();
+            manager.RegisterAudioImporter(new AudioImporterRegistration("test-audio", new TestAudioImporter(), new[] { ".coclaim" }));
+            manager.RegisterTextImporter(new TextImporterRegistration("test-text", new TestTextImporter(), new[] { ".coclaim" }));
+
+            IReadOnlyList<string> importerIds = manager.GetImporterIdsForExtension(".coclaim");
+
+            Assert.Equal(new[] { "test-text" }, importerIds);
+        }
+
+        /// <summary>
         /// Ensures an existing current cached texture is reused during startup import scanning.
         /// </summary>
         [Fact]
@@ -1136,6 +1233,21 @@ namespace helengine.editor.tests {
                     DurationSeconds = 1f,
                     Pcm16Bytes = new byte[] { 1, 2, 3, 4 }
                 };
+            }
+        }
+
+        /// <summary>
+        /// Provides a registrable text importer for extension classification coverage. Classification never imports, so
+        /// the import entry point rejects every call instead of returning a placeholder asset.
+        /// </summary>
+        sealed class TestTextImporter : ITextImporter {
+            /// <summary>
+            /// Rejects text import because extension classification coverage never reads source bytes.
+            /// </summary>
+            /// <param name="stream">Source stream containing authored text bytes.</param>
+            /// <returns>Never returns; the call always throws.</returns>
+            public TextAsset ImportText(Stream stream) {
+                throw new NotSupportedException("Extension classification coverage does not import text.");
             }
         }
     }

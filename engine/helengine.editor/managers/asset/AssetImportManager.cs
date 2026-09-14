@@ -65,6 +65,15 @@ namespace helengine.editor {
         readonly EditorAssetTypeImportHandler[] ImportHandlers;
 
         /// <summary>
+        /// Every asset-type handler in the separate precedence order the missing-sidecar generation pass classifies source
+        /// extensions in: texture, model, audio, then the shared text and font branch. This order is deliberately different
+        /// from <see cref="ImportHandlers"/>, which orders importer identifier lookup. The two only agree while exactly one
+        /// asset family claims an extension, and co-claims are reachable because only audio registration rejects every other
+        /// family, so the generation pass keeps its own order rather than borrowing the lookup order.
+        /// </summary>
+        readonly EditorAssetTypeImportHandler[] SettingsGenerationHandlers;
+
+        /// <summary>
         /// File hasher used to generate content checksums.
         /// </summary>
         readonly AssetFileHasher fileHasher;
@@ -140,6 +149,7 @@ namespace helengine.editor {
             AudioImportHandler = new AudioAssetTypeImportHandler(this);
             ModelImportHandler = new ModelAssetTypeImportHandler(this);
             ImportHandlers = [TextureImportHandler, TextImportHandler, FontImportHandler, AudioImportHandler, ModelImportHandler];
+            SettingsGenerationHandlers = [TextureImportHandler, ModelImportHandler, AudioImportHandler, TextImportHandler, FontImportHandler];
             TextureImportHandler.BindConflictOrder(
                 [TextImportHandler, FontImportHandler, ModelImportHandler],
                 [TextImportHandler, ModelImportHandler, FontImportHandler, AudioImportHandler]);
@@ -325,17 +335,18 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves which asset family claims one source extension by asking each asset-type handler in precedence order.
+        /// Resolves which asset family the missing-sidecar generation pass writes settings for by asking each asset-type
+        /// handler in the generation classification order: texture, model, audio, then text and font.
         /// </summary>
         /// <param name="extension">File extension to classify.</param>
         /// <param name="kind">Asset family that claims the extension when one does.</param>
         /// <returns>True when an asset-type handler claims the extension.</returns>
-        bool TryResolveImportKindForExtension(string extension, out EditorAssetImportKind kind) {
+        internal bool TryResolveImportSettingsGenerationKind(string extension, out EditorAssetImportKind kind) {
             if (!string.IsNullOrWhiteSpace(extension)) {
                 string normalized = NormalizeExtension(extension);
-                for (int index = 0; index < ImportHandlers.Length; index++) {
-                    if (ImportHandlers[index].IsNormalizedExtensionSupported(normalized)) {
-                        kind = ImportHandlers[index].Kind;
+                for (int index = 0; index < SettingsGenerationHandlers.Length; index++) {
+                    if (SettingsGenerationHandlers[index].IsNormalizedExtensionSupported(normalized)) {
+                        kind = SettingsGenerationHandlers[index].Kind;
                         return true;
                     }
                 }
@@ -888,7 +899,7 @@ namespace helengine.editor {
 
                 string extension = Path.GetExtension(sourcePath);
                 EditorAssetImportKind importKind;
-                if (!TryResolveImportKindForExtension(extension, out importKind)) {
+                if (!TryResolveImportSettingsGenerationKind(extension, out importKind)) {
                     continue;
                 }
 
