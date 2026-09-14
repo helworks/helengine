@@ -680,10 +680,14 @@ namespace helengine {
                     if (component is IDrawable2D drawable2D) {
                         entity.OwnerCore.ObjectManager.RemoveFromRender2D(drawable2D);
                         entity.OwnerCore.ObjectManager.RegisterForRender2D(drawable2D);
-                    } else if (component is IDrawable3D drawable3D) {
+                    }
+
+                    if (component is IDrawable3D drawable3D) {
                         entity.OwnerCore.ObjectManager.RemoveFromRender3D(drawable3D);
                         entity.OwnerCore.ObjectManager.RegisterForRender3D(drawable3D);
-                    } else if (component is ICamera camera) {
+                    }
+
+                    if (component is ICamera camera) {
                         entity.OwnerCore.ObjectManager.RemoveCamera(camera);
                         entity.OwnerCore.ObjectManager.RegisterCamera(camera);
                     }
