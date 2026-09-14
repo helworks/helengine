@@ -19,12 +19,11 @@ public sealed class SceneManagerSourceTests {
 
         string source = File.ReadAllText(sourcePath);
 
-        Assert.Contains("readonly Dictionary<AudioAsset, int> ActiveOwnedAudioReferenceCounts;", source, StringComparison.Ordinal);
-        Assert.Contains("public int ActiveOwnedAudioReferenceCount => ActiveOwnedAudioReferenceCounts.Count;", source, StringComparison.Ordinal);
-        Assert.Contains("RegisterOwnedAudio(ownedAssets.OwnedAudio);", source, StringComparison.Ordinal);
-        Assert.Contains("ReleaseOwnedAudio(ownedAssets.OwnedAudio);", source, StringComparison.Ordinal);
-        Assert.Contains("ActiveOwnedAudioReferenceCounts.Remove(ownedAsset);", source, StringComparison.Ordinal);
-        Assert.Contains("ReleaseOwnedAudioAsset(ownedAsset);", source, StringComparison.Ordinal);
+        Assert.Contains("readonly SceneOwnedAssetReferenceTable<AudioAsset> OwnedAudioTable;", source, StringComparison.Ordinal);
+        Assert.Contains("public int ActiveOwnedAudioReferenceCount => OwnedAudioTable.Count;", source, StringComparison.Ordinal);
+        Assert.Contains("OwnedAudioTable.Register(ownedAssets.OwnedAudio);", source, StringComparison.Ordinal);
+        Assert.Contains("OwnedAudioTable.Release(ownedAssets.OwnedAudio);", source, StringComparison.Ordinal);
+        Assert.Contains("void ReleaseOwnedAudioAsset(AudioAsset ownedAsset) {", source, StringComparison.Ordinal);
         Assert.Contains("RuntimeSceneAssetReferenceResolver.ReleaseTransientAudioAsset(ownedAsset);", source, StringComparison.Ordinal);
     }
 

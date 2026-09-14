@@ -57,27 +57,27 @@ namespace helengine {
         /// <summary>
         /// Tracks active scene-owned runtime textures and how many loaded scenes still reference each instance.
         /// </summary>
-        readonly Dictionary<RuntimeTexture, int> ActiveOwnedTextureReferenceCounts;
+        readonly SceneOwnedAssetReferenceTable<RuntimeTexture> OwnedTextureTable;
 
         /// <summary>
         /// Tracks active scene-owned font assets and how many loaded scenes still reference each instance.
         /// </summary>
-        readonly Dictionary<FontAsset, int> ActiveOwnedFontReferenceCounts;
+        readonly SceneOwnedAssetReferenceTable<FontAsset> OwnedFontTable;
 
         /// <summary>
         /// Tracks active scene-owned audio assets and how many loaded scenes still reference each instance.
         /// </summary>
-        readonly Dictionary<AudioAsset, int> ActiveOwnedAudioReferenceCounts;
+        readonly SceneOwnedAssetReferenceTable<AudioAsset> OwnedAudioTable;
 
         /// <summary>
         /// Tracks active scene-owned runtime models and how many loaded scenes still reference each instance.
         /// </summary>
-        readonly Dictionary<RuntimeModel, int> ActiveOwnedModelReferenceCounts;
+        readonly SceneOwnedAssetReferenceTable<RuntimeModel> OwnedModelTable;
 
         /// <summary>
         /// Tracks active scene-owned runtime materials and how many loaded scenes still reference each instance.
         /// </summary>
-        readonly Dictionary<RuntimeMaterial, int> ActiveOwnedMaterialReferenceCounts;
+        readonly SceneOwnedAssetReferenceTable<RuntimeMaterial> OwnedMaterialTable;
 
         /// <summary>
         /// Tracks whether deferred scene operations are currently being committed at the frame boundary.
@@ -154,11 +154,11 @@ namespace helengine {
             LoadedSceneRecords = new List<LoadedSceneRecord>();
             LoadedSceneRecordsById = new Dictionary<string, LoadedSceneRecord>(StringComparer.OrdinalIgnoreCase);
             PendingOperations = new List<PendingSceneOperation>();
-            ActiveOwnedTextureReferenceCounts = new Dictionary<RuntimeTexture, int>();
-            ActiveOwnedFontReferenceCounts = new Dictionary<FontAsset, int>();
-            ActiveOwnedAudioReferenceCounts = new Dictionary<AudioAsset, int>();
-            ActiveOwnedModelReferenceCounts = new Dictionary<RuntimeModel, int>();
-            ActiveOwnedMaterialReferenceCounts = new Dictionary<RuntimeMaterial, int>();
+            OwnedTextureTable = new SceneOwnedAssetReferenceTable<RuntimeTexture>("runtime texture", ReleaseOwnedAsset);
+            OwnedFontTable = new SceneOwnedAssetReferenceTable<FontAsset>("font asset", ReleaseOwnedFont);
+            OwnedAudioTable = new SceneOwnedAssetReferenceTable<AudioAsset>("audio asset", ReleaseOwnedAudioAsset);
+            OwnedModelTable = new SceneOwnedAssetReferenceTable<RuntimeModel>("runtime model", ReleaseOwnedModel);
+            OwnedMaterialTable = new SceneOwnedAssetReferenceTable<RuntimeMaterial>("runtime material", ReleaseOwnedMaterial);
         }
 
         /// <summary>
@@ -214,27 +214,27 @@ namespace helengine {
         /// <summary>
         /// Gets the number of scene-owned runtime textures currently tracked across all loaded scenes.
         /// </summary>
-        public int ActiveOwnedTextureReferenceCount => ActiveOwnedTextureReferenceCounts.Count;
+        public int ActiveOwnedTextureReferenceCount => OwnedTextureTable.Count;
 
         /// <summary>
         /// Gets the number of scene-owned font assets currently tracked across all loaded scenes.
         /// </summary>
-        public int ActiveOwnedFontReferenceCount => ActiveOwnedFontReferenceCounts.Count;
+        public int ActiveOwnedFontReferenceCount => OwnedFontTable.Count;
 
         /// <summary>
         /// Gets the number of scene-owned audio assets currently tracked across all loaded scenes.
         /// </summary>
-        public int ActiveOwnedAudioReferenceCount => ActiveOwnedAudioReferenceCounts.Count;
+        public int ActiveOwnedAudioReferenceCount => OwnedAudioTable.Count;
 
         /// <summary>
         /// Gets the number of scene-owned runtime models currently tracked across all loaded scenes.
         /// </summary>
-        public int ActiveOwnedModelReferenceCount => ActiveOwnedModelReferenceCounts.Count;
+        public int ActiveOwnedModelReferenceCount => OwnedModelTable.Count;
 
         /// <summary>
         /// Gets the number of scene-owned runtime materials currently tracked across all loaded scenes.
         /// </summary>
-        public int ActiveOwnedMaterialReferenceCount => ActiveOwnedMaterialReferenceCounts.Count;
+        public int ActiveOwnedMaterialReferenceCount => OwnedMaterialTable.Count;
 
         /// <summary>
         /// Returns the currently loaded scene ids in load order for diagnostics.
@@ -959,131 +959,16 @@ namespace helengine {
             }
 
             RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedTextures", sceneId);
-            RegisterOwnedTextures(ownedAssets.OwnedTextures);
+            OwnedTextureTable.Register(ownedAssets.OwnedTextures);
             RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedFonts", sceneId);
-            RegisterOwnedFonts(ownedAssets.OwnedFonts);
+            OwnedFontTable.Register(ownedAssets.OwnedFonts);
             RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedAudio", sceneId);
-            RegisterOwnedAudio(ownedAssets.OwnedAudio);
+            OwnedAudioTable.Register(ownedAssets.OwnedAudio);
             RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedModels", sceneId);
-            RegisterOwnedModels(ownedAssets.OwnedModels);
+            OwnedModelTable.Register(ownedAssets.OwnedModels);
             RecordTraceState("LoadSceneImmediateBeforeRegisterOwnedMaterials", sceneId);
-            RegisterOwnedMaterials(ownedAssets.OwnedMaterials);
+            OwnedMaterialTable.Register(ownedAssets.OwnedMaterials);
             RecordTraceState("LoadSceneImmediateAfterRegisterOwnedAssets", sceneId);
-        }
-
-        /// <summary>
-        /// Registers one scene's owned runtime textures against the active scene set.
-        /// </summary>
-        /// <param name="ownedTextures">Scene-owned runtime textures resolved during materialization.</param>
-        void RegisterOwnedTextures(IReadOnlyList<RuntimeTexture> ownedTextures) {
-            if (ownedTextures == null) {
-                throw new ArgumentNullException(nameof(ownedTextures));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedTextures.Count; assetIndex++) {
-                RuntimeTexture ownedAsset = ownedTextures[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-
-                if (ActiveOwnedTextureReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    ActiveOwnedTextureReferenceCounts[ownedAsset] = existingReferenceCount + 1;
-                } else {
-                    ActiveOwnedTextureReferenceCounts.Add(ownedAsset, 1);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Registers one scene's owned font assets against the active scene set.
-        /// </summary>
-        /// <param name="ownedFonts">Scene-owned font assets resolved during materialization.</param>
-        void RegisterOwnedFonts(IReadOnlyList<FontAsset> ownedFonts) {
-            if (ownedFonts == null) {
-                throw new ArgumentNullException(nameof(ownedFonts));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedFonts.Count; assetIndex++) {
-                FontAsset ownedAsset = ownedFonts[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-
-                if (ActiveOwnedFontReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    ActiveOwnedFontReferenceCounts[ownedAsset] = existingReferenceCount + 1;
-                } else {
-                    ActiveOwnedFontReferenceCounts.Add(ownedAsset, 1);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Registers one scene's owned audio assets against the active scene set.
-        /// </summary>
-        /// <param name="ownedAudio">Scene-owned audio assets resolved during materialization.</param>
-        void RegisterOwnedAudio(IReadOnlyList<AudioAsset> ownedAudio) {
-            if (ownedAudio == null) {
-                throw new ArgumentNullException(nameof(ownedAudio));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedAudio.Count; assetIndex++) {
-                AudioAsset ownedAsset = ownedAudio[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-
-                if (ActiveOwnedAudioReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    ActiveOwnedAudioReferenceCounts[ownedAsset] = existingReferenceCount + 1;
-                } else {
-                    ActiveOwnedAudioReferenceCounts.Add(ownedAsset, 1);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Registers one scene's owned runtime models against the active scene set.
-        /// </summary>
-        /// <param name="ownedModels">Scene-owned runtime models resolved during materialization.</param>
-        void RegisterOwnedModels(IReadOnlyList<RuntimeModel> ownedModels) {
-            if (ownedModels == null) {
-                throw new ArgumentNullException(nameof(ownedModels));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedModels.Count; assetIndex++) {
-                RuntimeModel ownedAsset = ownedModels[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-
-                if (ActiveOwnedModelReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    ActiveOwnedModelReferenceCounts[ownedAsset] = existingReferenceCount + 1;
-                } else {
-                    ActiveOwnedModelReferenceCounts.Add(ownedAsset, 1);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Registers one scene's owned runtime materials against the active scene set.
-        /// </summary>
-        /// <param name="ownedMaterials">Scene-owned runtime materials resolved during materialization.</param>
-        void RegisterOwnedMaterials(IReadOnlyList<RuntimeMaterial> ownedMaterials) {
-            if (ownedMaterials == null) {
-                throw new ArgumentNullException(nameof(ownedMaterials));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedMaterials.Count; assetIndex++) {
-                RuntimeMaterial ownedAsset = ownedMaterials[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-
-                if (ActiveOwnedMaterialReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    ActiveOwnedMaterialReferenceCounts[ownedAsset] = existingReferenceCount + 1;
-                } else {
-                    ActiveOwnedMaterialReferenceCounts.Add(ownedAsset, 1);
-                }
-            }
         }
 
         /// <summary>
@@ -1095,151 +980,11 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(ownedAssets));
             }
 
-            ReleaseOwnedFonts(ownedAssets.OwnedFonts);
-            ReleaseOwnedAudio(ownedAssets.OwnedAudio);
-            ReleaseOwnedTextures(ownedAssets.OwnedTextures);
-            ReleaseOwnedModels(ownedAssets.OwnedModels);
-            ReleaseOwnedMaterials(ownedAssets.OwnedMaterials);
-        }
-
-        /// <summary>
-        /// Releases one scene's owned font assets when no other loaded scene still references them.
-        /// </summary>
-        /// <param name="ownedFonts">Scene-owned font assets resolved during materialization.</param>
-        void ReleaseOwnedFonts(IReadOnlyList<FontAsset> ownedFonts) {
-            if (ownedFonts == null) {
-                throw new ArgumentNullException(nameof(ownedFonts));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedFonts.Count; assetIndex++) {
-                FontAsset ownedAsset = ownedFonts[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-                if (!ActiveOwnedFontReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    throw new InvalidOperationException("Scene-owned font asset was not tracked before release.");
-                }
-
-                if (existingReferenceCount > 1) {
-                    ActiveOwnedFontReferenceCounts[ownedAsset] = existingReferenceCount - 1;
-                    continue;
-                }
-
-                ActiveOwnedFontReferenceCounts.Remove(ownedAsset);
-                ReleaseOwnedFont(ownedAsset);
-            }
-        }
-
-        /// <summary>
-        /// Releases one scene's owned runtime textures when no other loaded scene still references them.
-        /// </summary>
-        /// <param name="ownedTextures">Scene-owned runtime textures resolved during materialization.</param>
-        void ReleaseOwnedTextures(IReadOnlyList<RuntimeTexture> ownedTextures) {
-            if (ownedTextures == null) {
-                throw new ArgumentNullException(nameof(ownedTextures));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedTextures.Count; assetIndex++) {
-                RuntimeTexture ownedAsset = ownedTextures[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-                if (!ActiveOwnedTextureReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    throw new InvalidOperationException("Scene-owned runtime texture was not tracked before release.");
-                }
-
-                if (existingReferenceCount > 1) {
-                    ActiveOwnedTextureReferenceCounts[ownedAsset] = existingReferenceCount - 1;
-                    continue;
-                }
-
-                ActiveOwnedTextureReferenceCounts.Remove(ownedAsset);
-                ReleaseOwnedAsset(ownedAsset);
-            }
-        }
-
-        /// <summary>
-        /// Releases one scene's owned audio assets when no other loaded scene still references them.
-        /// </summary>
-        /// <param name="ownedAudio">Scene-owned audio assets resolved during materialization.</param>
-        void ReleaseOwnedAudio(IReadOnlyList<AudioAsset> ownedAudio) {
-            if (ownedAudio == null) {
-                throw new ArgumentNullException(nameof(ownedAudio));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedAudio.Count; assetIndex++) {
-                AudioAsset ownedAsset = ownedAudio[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-                if (!ActiveOwnedAudioReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    throw new InvalidOperationException("Scene-owned audio asset was not tracked before release.");
-                }
-
-                if (existingReferenceCount > 1) {
-                    ActiveOwnedAudioReferenceCounts[ownedAsset] = existingReferenceCount - 1;
-                    continue;
-                }
-
-                ActiveOwnedAudioReferenceCounts.Remove(ownedAsset);
-                ReleaseOwnedAudioAsset(ownedAsset);
-            }
-        }
-
-        /// <summary>
-        /// Releases one scene's owned runtime models when no other loaded scene still references them.
-        /// </summary>
-        /// <param name="ownedModels">Scene-owned runtime models resolved during materialization.</param>
-        void ReleaseOwnedModels(IReadOnlyList<RuntimeModel> ownedModels) {
-            if (ownedModels == null) {
-                throw new ArgumentNullException(nameof(ownedModels));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedModels.Count; assetIndex++) {
-                RuntimeModel ownedAsset = ownedModels[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-                if (!ActiveOwnedModelReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    throw new InvalidOperationException("Scene-owned runtime model was not tracked before release.");
-                }
-
-                if (existingReferenceCount > 1) {
-                    ActiveOwnedModelReferenceCounts[ownedAsset] = existingReferenceCount - 1;
-                    continue;
-                }
-
-                ActiveOwnedModelReferenceCounts.Remove(ownedAsset);
-                ReleaseOwnedModel(ownedAsset);
-            }
-        }
-
-        /// <summary>
-        /// Releases one scene's owned runtime materials when no other loaded scene still references them.
-        /// </summary>
-        /// <param name="ownedMaterials">Scene-owned runtime materials resolved during materialization.</param>
-        void ReleaseOwnedMaterials(IReadOnlyList<RuntimeMaterial> ownedMaterials) {
-            if (ownedMaterials == null) {
-                throw new ArgumentNullException(nameof(ownedMaterials));
-            }
-
-            for (int assetIndex = 0; assetIndex < ownedMaterials.Count; assetIndex++) {
-                RuntimeMaterial ownedAsset = ownedMaterials[assetIndex];
-                if (ownedAsset == null) {
-                    continue;
-                }
-                if (!ActiveOwnedMaterialReferenceCounts.TryGetValue(ownedAsset, out int existingReferenceCount)) {
-                    throw new InvalidOperationException("Scene-owned runtime material was not tracked before release.");
-                }
-
-                if (existingReferenceCount > 1) {
-                    ActiveOwnedMaterialReferenceCounts[ownedAsset] = existingReferenceCount - 1;
-                    continue;
-                }
-
-                ActiveOwnedMaterialReferenceCounts.Remove(ownedAsset);
-                ReleaseOwnedMaterial(ownedAsset);
-            }
+            OwnedFontTable.Release(ownedAssets.OwnedFonts);
+            OwnedAudioTable.Release(ownedAssets.OwnedAudio);
+            OwnedTextureTable.Release(ownedAssets.OwnedTextures);
+            OwnedModelTable.Release(ownedAssets.OwnedModels);
+            OwnedMaterialTable.Release(ownedAssets.OwnedMaterials);
         }
 
         /// <summary>
