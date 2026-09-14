@@ -1,4 +1,4 @@
-using helengine.baseplatform.Definitions;
+﻿using helengine.baseplatform.Definitions;
 using helengine.platforms;
 using helengine.projectfile;
 
@@ -525,6 +525,10 @@ namespace helengine.editor {
         /// </summary>
         readonly SceneFileLoadService SceneFileLoadService;
         /// <summary>
+        /// Publishes the authored scene to the runtime scene manager and the attached physics runtime.
+        /// </summary>
+        EditorSceneLifecycleService SceneLifecycleService;
+        /// <summary>
         /// Absolute path to the current scene file, when one has been saved.
         /// </summary>
         string CurrentScenePath;
@@ -864,6 +868,7 @@ namespace helengine.editor {
                 buildConfigService,
                 CreateBuildExecutorRouter());
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
+            SceneLifecycleService = new EditorSceneLifecycleService(sceneCatalogService);
             saveFileDialog = new SaveFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, saveFileDialog.Dispose, saveFileDialog.DisposeAuthoringResources, saveFileDialog.Hide);
             openFileDialog = new OpenFileDialog(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
@@ -913,7 +918,7 @@ namespace helengine.editor {
             propertiesPanel.HistoryMutationService = HistoryMutationService;
             CurrentScenePath = string.Empty;
             CurrentSceneSettings = new SceneSettingsAsset();
-            CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
+            CurrentSceneOwnedAssets = EditorSceneLifecycleService.CreateEmptyOwnedAssetSet();
             sceneCanvasProfileState.ApplySceneSettings(CurrentSceneSettings);
             PendingOpenScenePath = string.Empty;
             PendingSceneTransition = SceneTransitionKind.None;
@@ -4203,7 +4208,7 @@ namespace helengine.editor {
                 UntrackCurrentSceneFromSceneManager();
                 ClearSceneSelectionBeforeTeardown();
                 ClearUserSceneEntities(existingSceneEntities);
-                CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
+                CurrentSceneOwnedAssets = EditorSceneLifecycleService.CreateEmptyOwnedAssetSet();
                 // Releasing mid-frame crashed the in-flight draw when a retiring drawable still referenced a
                 // scene-owned font; the release waits until the frame that disposed the entities has rendered.
                 DeferOwnedAssetRelease(previousOwnedAssets);
@@ -4534,7 +4539,7 @@ namespace helengine.editor {
             EditorSceneOwnedAssetReleaseService.ReleaseOwnedAssets(ownedAssets, rendererResources);
             // Keep the ownership marker until every release succeeds so a
             // failed ledger action can retry the same set without losing it.
-            CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
+            CurrentSceneOwnedAssets = EditorSceneLifecycleService.CreateEmptyOwnedAssetSet();
         }
 
         /// <summary>
@@ -4547,7 +4552,7 @@ namespace helengine.editor {
             }
 
             RuntimeSceneOwnedAssetSet ownedAssets = CurrentSceneOwnedAssets;
-            CurrentSceneOwnedAssets = CreateEmptyOwnedAssetSet();
+            CurrentSceneOwnedAssets = EditorSceneLifecycleService.CreateEmptyOwnedAssetSet();
             DeferOwnedAssetRelease(ownedAssets);
         }
 
@@ -4564,73 +4569,27 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Creates one empty scene-owned asset set used before any user scene has been loaded.
-        /// </summary>
-        /// <returns>Empty scene-owned asset set.</returns>
-        static RuntimeSceneOwnedAssetSet CreateEmptyOwnedAssetSet() {
-            return new RuntimeSceneOwnedAssetSet(
-                Array.Empty<RuntimeTexture>(),
-                Array.Empty<FontAsset>(),
-                Array.Empty<AudioAsset>(),
-                Array.Empty<RuntimeModel>(),
-                Array.Empty<RuntimeMaterial>());
-        }
-
-        /// <summary>
-        /// Tracks the current editor-authored scene in the runtime scene manager so gameplay systems can resolve loaded-scene ids and roots.
+        /// Publishes the current editor-authored scene to the runtime scene manager.
         /// </summary>
         /// <param name="rootEntities">Root entities that represent the current editor-authored scene.</param>
         /// <param name="sceneSettings">Scene settings restored from the authored scene file.</param>
         void TrackCurrentSceneInSceneManager(IReadOnlyList<Entity> rootEntities, SceneSettingsAsset sceneSettings) {
-            if (rootEntities == null) {
-                throw new ArgumentNullException(nameof(rootEntities));
-            }
-            if (core.SceneManager == null) {
-                throw new InvalidOperationException("Editor scene tracking requires one initialized runtime scene manager.");
-            }
-            if (string.IsNullOrWhiteSpace(CurrentScenePath)) {
-                throw new InvalidOperationException("Editor scene tracking requires one current scene path.");
-            }
-
-            string sceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
-            if (string.IsNullOrWhiteSpace(sceneId)) {
-                throw new InvalidOperationException($"Editor scene '{CurrentScenePath}' does not resolve to one stable project scene id.");
-            }
-
-            bool dontUnload = sceneSettings != null && sceneSettings.DontUnload;
-            core.SceneManager.TrackExternallyLoadedScene(sceneId, rootEntities, dontUnload);
+            SceneLifecycleService.TrackCurrentScene(core.SceneManager, CurrentScenePath, rootEntities, sceneSettings);
         }
 
         /// <summary>
-        /// Removes the current editor-authored scene from runtime scene-manager tracking before the editor replaces or clears the scene.
+        /// Withdraws the current editor-authored scene from runtime scene-manager tracking before the editor replaces or clears the scene.
         /// </summary>
         void UntrackCurrentSceneFromSceneManager() {
-            if (core.SceneManager == null || string.IsNullOrWhiteSpace(CurrentScenePath)) {
-                return;
-            }
-
-            string sceneId = sceneCatalogService.ResolveSceneId(CurrentScenePath);
-            if (string.IsNullOrWhiteSpace(sceneId)) {
-                return;
-            }
-
-            core.SceneManager.TryUntrackExternallyLoadedScene(sceneId);
+            SceneLifecycleService.UntrackCurrentScene(core.SceneManager, CurrentScenePath);
         }
 
         /// <summary>
-        /// Binds the current live editor scene hierarchy to the active physics runtime when the runtime supports scene binding.
+        /// Binds the current live editor scene hierarchy to the attached physics runtime.
         /// </summary>
         /// <param name="rootEntities">Current scene root entities that should define the active bound physics scene.</param>
         void BindSceneToPhysicsRuntime(IReadOnlyList<Entity> rootEntities) {
-            if (rootEntities == null) {
-                throw new ArgumentNullException(nameof(rootEntities));
-            }
-            ISceneBindablePhysicsRuntime sceneBindablePhysicsRuntime = core.PhysicsRuntime as ISceneBindablePhysicsRuntime;
-            if (sceneBindablePhysicsRuntime == null) {
-                return;
-            }
-
-            sceneBindablePhysicsRuntime.BindScene(rootEntities);
+            SceneLifecycleService.BindSceneToPhysicsRuntime(core.PhysicsRuntime, rootEntities);
         }
 
         /// <summary>
