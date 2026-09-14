@@ -62,15 +62,15 @@ namespace helengine.editor {
         public string[] Extensions => extensions;
 
         /// <summary>
-        /// Registers the importer with an asset import manager.
+        /// Registers the importer with the host importer registry.
         /// </summary>
-        /// <param name="manager">Manager to register with.</param>
-        public void Register(AssetImportManager manager) {
-            if (manager == null) {
-                throw new ArgumentNullException(nameof(manager));
+        /// <param name="registry">Registry to register with.</param>
+        public void Register(AssetImporterRegistry registry) {
+            if (registry == null) {
+                throw new ArgumentNullException(nameof(registry));
             }
 
-            manager.RegisterFontImporter(this);
+            registry.RegisterFontImporter(this);
         }
 
         /// <summary>

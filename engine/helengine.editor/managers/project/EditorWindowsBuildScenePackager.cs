@@ -644,8 +644,9 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Importer registrations must not contain null entries.");
                 }
 
-                registration.Register(AssetImportManager);
+                registration.Register(AssetImportManager.ImporterRegistry);
             }
+            AssetImportManager.ImporterRegistry.Freeze();
             FileSystemModelResolver = new EditorFileSystemModelResolver(AssetImportManager);
             ReferencedShaderDependencies = new List<PlatformShaderDependency>();
             ReferencedShaderDependencyKeys = new HashSet<string>(StringComparer.Ordinal);

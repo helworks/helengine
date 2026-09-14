@@ -6641,8 +6641,10 @@ namespace helengine.editor {
                     throw new InvalidOperationException("Importer registrations must not be null.");
                 }
 
-                registration.Register(manager);
+                registration.Register(manager.ImporterRegistry);
             }
+
+            manager.ImporterRegistry.Freeze();
         }
 
     }

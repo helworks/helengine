@@ -581,7 +581,7 @@ public sealed class EditorSessionConstructionLedgerTests {
     }
 
     sealed class ThrowingImporterRegistration : IAssetImporterRegistration {
-        public void Register(AssetImportManager manager) {
+        public void Register(AssetImporterRegistry registry) {
             throw new InvalidOperationException("registration failed");
         }
     }
