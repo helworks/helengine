@@ -99,7 +99,7 @@ namespace helengine.editor {
         /// <summary>
         /// Placeholder text for empty asset values.
         /// </summary>
-        const string EmptyAssetLabel = "None";
+        internal const string EmptyAssetLabel = "None";
         /// <summary>
         /// Placeholder text for assigned assets without a known label.
         /// </summary>
@@ -200,7 +200,7 @@ namespace helengine.editor {
         /// <summary>
         /// Tracks display labels for runtime materials assigned via the picker.
         /// </summary>
-        readonly Dictionary<RuntimeMaterial, string> MaterialLabels;
+        internal readonly Dictionary<RuntimeMaterial, string> MaterialLabels;
         /// <summary>
         /// Tracks display labels for font assets assigned via the picker.
         /// </summary>
@@ -369,6 +369,8 @@ namespace helengine.editor {
             RegisterRowRenderer(new ScalarComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new BooleanComponentPropertyRowRenderer(this));
             RegisterRowRenderer(new ComboBoxComponentPropertyRowRenderer(this));
+            RegisterRowRenderer(new ReadOnlyComponentPropertyRowRenderer(this));
+            RegisterRowRenderer(new MaterialComponentPropertyRowRenderer(this));
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
@@ -2146,17 +2148,11 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.CustomSection:
                     UpdateCustomSectionRow(row);
                     break;
-                case ComponentPropertyRowKind.Material:
-                    UpdateMaterialRow(row);
-                    break;
                 case ComponentPropertyRowKind.Font:
                     UpdateFontRow(row);
                     break;
                 case ComponentPropertyRowKind.Model:
                     UpdateModelRow(row);
-                    break;
-                case ComponentPropertyRowKind.ReadOnly:
-                    UpdateReadOnlyRow(row);
                     break;
             }
 
@@ -2361,33 +2357,6 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Updates a read-only row with the component property value.
-        /// </summary>
-        /// <param name="row">Row to update.</param>
-        void UpdateReadOnlyRow(ComponentPropertyRow row) {
-            object rawValue = GetRowValue(row);
-            row.ValueText.Text = rawValue == null ? string.Empty : rawValue.ToString();
-        }
-
-        /// <summary>
-        /// Updates a material row with the component property value.
-        /// </summary>
-        /// <param name="row">Row to update.</param>
-        void UpdateMaterialRow(ComponentPropertyRow row) {
-            object rawValue = GetPropertyValue(row);
-            if (rawValue is RuntimeMaterial material) {
-                if (MaterialLabels.TryGetValue(material, out string label) && !string.IsNullOrWhiteSpace(label)) {
-                    row.ValueText.Text = label;
-                    return;
-                }
-
-                row.ValueText.Text = string.IsNullOrWhiteSpace(material.Id) ? EmptyAssetLabel : material.Id;
-            } else {
-                row.ValueText.Text = EmptyAssetLabel;
-            }
-        }
-
-        /// <summary>
         /// Updates a font row with the component property value.
         /// </summary>
         /// <param name="row">Row to update.</param>
@@ -2429,7 +2398,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="row">Row to query.</param>
         /// <returns>Property value or null.</returns>
-        object GetPropertyValue(ComponentPropertyRow row) {
+        internal object GetPropertyValue(ComponentPropertyRow row) {
             if (row.PlatformComponentMemberDescriptor != null) {
                 return null;
             }
@@ -3406,7 +3375,7 @@ namespace helengine.editor {
         /// Requests the asset picker for a material field.
         /// </summary>
         /// <param name="row">Material row to update.</param>
-        void RequestMaterialPick(ComponentPropertyRow row) {
+        internal void RequestMaterialPick(ComponentPropertyRow row) {
             EditorSessionInteractionServices.From(RootEntity).AssetPicker.RequestPick(entry => HandleMaterialPicked(row, entry), MaterialExtension);
         }
 
@@ -3443,7 +3412,7 @@ namespace helengine.editor {
                 }
                 StorePickedAssetReference(row, entry);
                 PersistPlatformOverrideIfNeeded(row);
-                UpdateMaterialRow(row);
+                RefreshRowControls(row);
                 RecordRowMutation(row, previousEntityState);
             } catch (Exception ex) {
                 Logger.WriteError($"Material pick failed: {ex.Message}");
@@ -3684,7 +3653,7 @@ namespace helengine.editor {
         /// <param name="containerHeight">Height of the container.</param>
         /// <param name="metrics">Tight font metrics.</param>
         /// <returns>Top offset for centered text.</returns>
-        float GetTextTopOffset(int containerHeight, FontTightMetrics metrics) {
+        internal float GetTextTopOffset(int containerHeight, FontTightMetrics metrics) {
             double height = Math.Max(containerHeight, 1);
             double offset = (height - metrics.Height) * 0.5 - metrics.MinTop;
             return (float)Math.Round(offset);
@@ -3742,17 +3711,11 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.CustomSection:
                     LayoutCustomSectionRow(row, contentWidth, height);
                     break;
-                case ComponentPropertyRowKind.Material:
-                    LayoutMaterialRow(row, contentWidth, height, labelWidth);
-                    break;
                 case ComponentPropertyRowKind.Font:
                     LayoutMaterialRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Model:
                     LayoutMaterialRow(row, contentWidth, height, labelWidth);
-                    break;
-                case ComponentPropertyRowKind.ReadOnly:
-                    LayoutReadOnlyRow(row, contentWidth, height, labelWidth);
                     break;
                 default:
                     break;
@@ -3852,25 +3815,6 @@ namespace helengine.editor {
 
             float buttonY = (float)Math.Round((height - PickButtonHeight) * 0.5);
             row.ActionButtonHost.Position = new float3(width - buttonWidth, buttonY, 0.2f);
-        }
-
-        /// <summary>
-        /// Layouts a read-only row with a value label.
-        /// </summary>
-        /// <param name="row">Read-only row to layout.</param>
-        /// <param name="width">Available width.</param>
-        /// <param name="height">Row height.</param>
-        /// <param name="labelWidth">Width reserved for labels.</param>
-        void LayoutReadOnlyRow(ComponentPropertyRow row, int width, int height, int labelWidth) {
-            if (row.ValueHost == null || row.ValueText == null) {
-                return;
-            }
-
-            int valueWidth = Math.Max(0, width - labelWidth - FieldSpacing);
-            var valueMetrics = Font.MeasureTight(row.ValueText.Text ?? string.Empty);
-            float valueY = GetTextTopOffset(height, valueMetrics);
-            row.ValueHost.Position = new float3(labelWidth + FieldSpacing, valueY, 0.2f);
-            row.ValueText.Size = new int2(valueWidth, (int)Math.Ceiling(valueMetrics.Height));
         }
 
         /// <summary>
@@ -4559,17 +4503,11 @@ namespace helengine.editor {
                 case ComponentPropertyRowKind.CustomSection:
                     BuildCustomSectionRow(row, rowEntity);
                     break;
-                case ComponentPropertyRowKind.Material:
-                    BuildMaterialRow(row, rowEntity);
-                    break;
                 case ComponentPropertyRowKind.Font:
                     BuildFontRow(row, rowEntity);
                     break;
                 case ComponentPropertyRowKind.Model:
                     BuildModelRow(row, rowEntity);
-                    break;
-                case ComponentPropertyRowKind.ReadOnly:
-                    BuildReadOnlyRow(row, rowEntity);
                     break;
                 default:
                     break;
@@ -4601,39 +4539,6 @@ namespace helengine.editor {
             row.HeaderBackground = background;
             row.HeaderInteractable = interactable;
             interactable.CursorEvent += (pos, delta, state) => HandleCustomSectionCursor(row, state);
-        }
-
-        /// <summary>
-        /// Builds the material field controls for a row.
-        /// </summary>
-        /// <param name="row">Row to populate.</param>
-        /// <param name="rowEntity">Row root entity.</param>
-        void BuildMaterialRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            valueHost.LayerMask = RootEntity.LayerMask;
-            valueHost.Position = float3.Zero;
-            rowEntity.AddChild(valueHost);
-
-            var valueText = new TextComponent();
-            valueText.Font = Font;
-            valueText.Text = EmptyAssetLabel;
-            valueText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            valueText.Size = new int2(1, 1);
-            valueText.RenderOrder2D = TextOrder;
-            valueHost.AddComponent(valueText);
-
-            var buttonHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            buttonHost.LayerMask = RootEntity.LayerMask;
-            buttonHost.Position = float3.Zero;
-            rowEntity.AddChild(buttonHost);
-
-            var button = new ButtonComponent("Pick", new int2(PickButtonWidth, PickButtonHeight), Font, () => RequestMaterialPick(row), 0f);
-            buttonHost.AddComponent(button);
-
-            row.ValueHost = valueHost;
-            row.ValueText = valueText;
-            row.ActionButtonHost = buttonHost;
-            row.ActionButton = button;
         }
 
         /// <summary>
@@ -4930,29 +4835,6 @@ namespace helengine.editor {
             }
 
             draftValues[componentKey] = value ?? string.Empty;
-        }
-
-        /// <summary>
-        /// Builds the read-only value text for a row.
-        /// </summary>
-        /// <param name="row">Row to populate.</param>
-        /// <param name="rowEntity">Row root entity.</param>
-        void BuildReadOnlyRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            var valueHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-            valueHost.LayerMask = RootEntity.LayerMask;
-            valueHost.Position = float3.Zero;
-            rowEntity.AddChild(valueHost);
-
-            var valueText = new TextComponent();
-            valueText.Font = Font;
-            valueText.Text = string.Empty;
-            valueText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            valueText.Size = new int2(1, 1);
-            valueText.RenderOrder2D = TextOrder;
-            valueHost.AddComponent(valueText);
-
-            row.ValueHost = valueHost;
-            row.ValueText = valueText;
         }
     }
 }
