@@ -119,6 +119,11 @@ namespace helengine.editor {
         readonly TextureAssetProcessor TextureAssetProcessor;
 
         /// <summary>
+        /// Applies target-independent audio transforms and selects registered payload encoders.
+        /// </summary>
+        readonly EditorAudioSampleProcessor AudioSampleProcessor;
+
+        /// <summary>
         /// Initializes a new asset import manager for a project.
         /// </summary>
         /// <param name="projectRootPath">Absolute path to the project root.</param>
@@ -151,6 +156,7 @@ namespace helengine.editor {
             AssetContentManager = contentManager;
             ModelAssetProcessor = new ModelAssetProcessor();
             TextureAssetProcessor = new TextureAssetProcessor();
+            AudioSampleProcessor = new EditorAudioSampleProcessor();
             EditorContentManagerConfiguration.ConfigureProjectContentManager(AssetContentManager);
 
             // Directory creation is deferred to the owning authoring boundary.
@@ -3708,314 +3714,22 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Audio processor settings resolved to a non-positive output sample rate.");
             }
 
-            short[] samples = DecodePcm16Samples(importedAudio.Pcm16Bytes, importedAudio.Channels);
+            short[] samples = AudioSampleProcessor.DecodePcm16Samples(importedAudio.Pcm16Bytes, importedAudio.Channels);
             if (samples.Length == 0) {
                 targetDurationSeconds = 0f;
                 return Array.Empty<byte>();
             }
 
-            short[] channelAdjustedSamples = ConvertAudioChannels(samples, importedAudio.Channels, targetChannels);
-            short[] resampledSamples = ResampleAudioSamples(channelAdjustedSamples, targetChannels, importedAudio.SampleRate, targetSampleRate);
+            short[] channelAdjustedSamples = AudioSampleProcessor.ConvertAudioChannels(samples, importedAudio.Channels, targetChannels);
+            short[] resampledSamples = AudioSampleProcessor.ResampleAudioSamples(channelAdjustedSamples, targetChannels, importedAudio.SampleRate, targetSampleRate);
             int frameCount = resampledSamples.Length / targetChannels;
             targetDurationSeconds = importedAudio.DurationSeconds > 0f
                 ? importedAudio.DurationSeconds
                 : frameCount > 0 && targetSampleRate > 0
                     ? (float)(frameCount / (double)targetSampleRate)
                     : 0f;
-            return EncodeProcessedAudioPayload(resampledSamples, processorSettings.EncodingFamilyId);
+            return AudioSampleProcessor.EncodeProcessedAudioPayload(resampledSamples, processorSettings.EncodingFamilyId);
         }
-
-        /// <summary>
-        /// Encodes one processed sample buffer into the runtime payload expected by the selected encoding family.
-        /// </summary>
-        /// <param name="samples">Processed PCM16 sample values.</param>
-        /// <param name="encodingFamilyId">Encoding family that should own the serialized payload.</param>
-        /// <returns>Encoded payload bytes ready for serialization.</returns>
-        byte[] EncodeProcessedAudioPayload(short[] samples, string encodingFamilyId) {
-            if (samples == null) {
-                throw new ArgumentNullException(nameof(samples));
-            }
-
-            if (string.Equals(encodingFamilyId, "adpcm-buffered", StringComparison.OrdinalIgnoreCase)) {
-                return EncodeNintendoDsImaAdpcmSamples(samples);
-            }
-
-            return EncodePcm16Samples(samples);
-        }
-
-        /// <summary>
-        /// Decodes one PCM16 byte payload into signed sample values while validating the expected source channel layout.
-        /// </summary>
-        /// <param name="pcm16Bytes">PCM16 payload bytes emitted by the importer.</param>
-        /// <param name="sourceChannels">Expected source channel count.</param>
-        /// <returns>Decoded PCM16 sample values.</returns>
-        short[] DecodePcm16Samples(byte[] pcm16Bytes, ushort sourceChannels) {
-            if (pcm16Bytes == null) {
-                throw new ArgumentNullException(nameof(pcm16Bytes));
-            } else if (sourceChannels == 0) {
-                throw new ArgumentOutOfRangeException(nameof(sourceChannels), "Source channel count must be positive.");
-            } else if ((pcm16Bytes.Length % sizeof(short)) != 0) {
-                throw new InvalidOperationException("Audio importers must provide a PCM16 payload aligned to 16-bit sample boundaries.");
-            }
-
-            int sampleCount = pcm16Bytes.Length / sizeof(short);
-            if ((sampleCount % sourceChannels) != 0) {
-                throw new InvalidOperationException("Audio importers must provide full PCM16 frames for the declared channel count.");
-            }
-
-            short[] samples = new short[sampleCount];
-            Buffer.BlockCopy(pcm16Bytes, 0, samples, 0, pcm16Bytes.Length);
-            return samples;
-        }
-
-        /// <summary>
-        /// Converts one PCM16 sample buffer between channel layouts for platform cook output.
-        /// </summary>
-        /// <param name="sourceSamples">Decoded PCM16 sample values.</param>
-        /// <param name="sourceChannels">Source channel count.</param>
-        /// <param name="targetChannels">Requested output channel count.</param>
-        /// <returns>Channel-adjusted PCM16 sample values.</returns>
-        short[] ConvertAudioChannels(short[] sourceSamples, ushort sourceChannels, ushort targetChannels) {
-            if (sourceSamples == null) {
-                throw new ArgumentNullException(nameof(sourceSamples));
-            } else if (sourceChannels == 0) {
-                throw new ArgumentOutOfRangeException(nameof(sourceChannels), "Source channel count must be positive.");
-            } else if (targetChannels == 0) {
-                throw new ArgumentOutOfRangeException(nameof(targetChannels), "Target channel count must be positive.");
-            }
-
-            if (sourceChannels == targetChannels) {
-                return sourceSamples;
-            }
-
-            int sourceFrameCount = sourceSamples.Length / sourceChannels;
-            short[] convertedSamples = new short[sourceFrameCount * targetChannels];
-            if (targetChannels == 1) {
-                for (int frameIndex = 0; frameIndex < sourceFrameCount; frameIndex++) {
-                    int sourceFrameOffset = frameIndex * sourceChannels;
-                    int summedSample = 0;
-                    for (int channelIndex = 0; channelIndex < sourceChannels; channelIndex++) {
-                        summedSample += sourceSamples[sourceFrameOffset + channelIndex];
-                    }
-
-                    convertedSamples[frameIndex] = ClampToInt16(Math.Round(summedSample / (double)sourceChannels));
-                }
-
-                return convertedSamples;
-            }
-
-            if (sourceChannels == 1) {
-                for (int frameIndex = 0; frameIndex < sourceFrameCount; frameIndex++) {
-                    short sample = sourceSamples[frameIndex];
-                    int targetFrameOffset = frameIndex * targetChannels;
-                    for (int channelIndex = 0; channelIndex < targetChannels; channelIndex++) {
-                        convertedSamples[targetFrameOffset + channelIndex] = sample;
-                    }
-                }
-
-                return convertedSamples;
-            }
-
-            throw new InvalidOperationException($"Audio channel conversion from {sourceChannels} to {targetChannels} is not implemented.");
-        }
-
-        /// <summary>
-        /// Resamples one PCM16 sample buffer to the requested output sample rate using linear interpolation per channel.
-        /// </summary>
-        /// <param name="sourceSamples">Decoded PCM16 sample values after channel conversion.</param>
-        /// <param name="channelCount">Channel count carried by the sample buffer.</param>
-        /// <param name="sourceSampleRate">Source sample rate.</param>
-        /// <param name="targetSampleRate">Requested output sample rate.</param>
-        /// <returns>Resampled PCM16 sample values.</returns>
-        short[] ResampleAudioSamples(short[] sourceSamples, ushort channelCount, int sourceSampleRate, int targetSampleRate) {
-            if (sourceSamples == null) {
-                throw new ArgumentNullException(nameof(sourceSamples));
-            } else if (channelCount == 0) {
-                throw new ArgumentOutOfRangeException(nameof(channelCount), "Channel count must be positive.");
-            } else if (sourceSampleRate <= 0) {
-                throw new ArgumentOutOfRangeException(nameof(sourceSampleRate), "Source sample rate must be positive.");
-            } else if (targetSampleRate <= 0) {
-                throw new ArgumentOutOfRangeException(nameof(targetSampleRate), "Target sample rate must be positive.");
-            }
-
-            if (sourceSampleRate == targetSampleRate || sourceSamples.Length == 0) {
-                return sourceSamples;
-            }
-
-            int sourceFrameCount = sourceSamples.Length / channelCount;
-            if (sourceFrameCount == 0) {
-                return Array.Empty<short>();
-            }
-
-            int targetFrameCount = (int)Math.Round(sourceFrameCount * (double)targetSampleRate / sourceSampleRate);
-            if (targetFrameCount <= 0) {
-                targetFrameCount = 1;
-            }
-
-            short[] resampledSamples = new short[targetFrameCount * channelCount];
-            for (int targetFrameIndex = 0; targetFrameIndex < targetFrameCount; targetFrameIndex++) {
-                double sourceFramePosition = targetFrameIndex * (double)sourceSampleRate / targetSampleRate;
-                int leftFrameIndex = (int)Math.Floor(sourceFramePosition);
-                if (leftFrameIndex >= sourceFrameCount) {
-                    leftFrameIndex = sourceFrameCount - 1;
-                }
-
-                int rightFrameIndex = leftFrameIndex + 1;
-                if (rightFrameIndex >= sourceFrameCount) {
-                    rightFrameIndex = sourceFrameCount - 1;
-                }
-
-                double blend = sourceFramePosition - leftFrameIndex;
-                int targetFrameOffset = targetFrameIndex * channelCount;
-                int leftFrameOffset = leftFrameIndex * channelCount;
-                int rightFrameOffset = rightFrameIndex * channelCount;
-                for (int channelIndex = 0; channelIndex < channelCount; channelIndex++) {
-                    double leftSample = sourceSamples[leftFrameOffset + channelIndex];
-                    double rightSample = sourceSamples[rightFrameOffset + channelIndex];
-                    double interpolatedSample = leftSample + ((rightSample - leftSample) * blend);
-                    resampledSamples[targetFrameOffset + channelIndex] = ClampToInt16(Math.Round(interpolatedSample));
-                }
-            }
-
-            return resampledSamples;
-        }
-
-        /// <summary>
-        /// Encodes one PCM16 sample buffer back into its serialized byte payload form.
-        /// </summary>
-        /// <param name="samples">PCM16 sample values to encode.</param>
-        /// <returns>PCM16 payload bytes.</returns>
-        byte[] EncodePcm16Samples(short[] samples) {
-            if (samples == null) {
-                throw new ArgumentNullException(nameof(samples));
-            }
-
-            if (samples.Length == 0) {
-                return Array.Empty<byte>();
-            }
-
-            byte[] encodedBytes = new byte[samples.Length * sizeof(short)];
-            Buffer.BlockCopy(samples, 0, encodedBytes, 0, encodedBytes.Length);
-            return encodedBytes;
-        }
-
-        /// <summary>
-        /// Encodes one mono PCM16 sample buffer into the Nintendo DS IMA ADPCM framing consumed by libnds.
-        /// </summary>
-        /// <param name="samples">PCM16 sample values to encode.</param>
-        /// <returns>IMA ADPCM payload bytes prefixed with the native 4-byte predictor header.</returns>
-        byte[] EncodeNintendoDsImaAdpcmSamples(short[] samples) {
-            if (samples == null) {
-                throw new ArgumentNullException(nameof(samples));
-            }
-
-            if (samples.Length == 0) {
-                return Array.Empty<byte>();
-            }
-
-            int nibbleCount = Math.Max(0, samples.Length - 1);
-            byte[] encodedBytes = new byte[4 + ((nibbleCount + 1) / 2)];
-            short predictor = samples[0];
-            int stepIndex = 0;
-            encodedBytes[0] = (byte)(predictor & 0xFF);
-            encodedBytes[1] = (byte)((predictor >> 8) & 0xFF);
-            encodedBytes[2] = (byte)stepIndex;
-            encodedBytes[3] = 0;
-
-            for (int sampleIndex = 1; sampleIndex < samples.Length; sampleIndex++) {
-                byte adpcmNibble = EncodeNintendoDsImaAdpcmNibble(samples[sampleIndex], ref predictor, ref stepIndex);
-                int payloadByteIndex = 4 + ((sampleIndex - 1) / 2);
-                if (((sampleIndex - 1) & 1) == 0) {
-                    encodedBytes[payloadByteIndex] = adpcmNibble;
-                } else {
-                    encodedBytes[payloadByteIndex] |= (byte)(adpcmNibble << 4);
-                }
-            }
-
-            return encodedBytes;
-        }
-
-        /// <summary>
-        /// Encodes one PCM16 sample into one Nintendo DS IMA ADPCM nibble while updating predictor state.
-        /// </summary>
-        /// <param name="sample">PCM16 sample value to encode.</param>
-        /// <param name="predictor">Current ADPCM predictor updated in-place.</param>
-        /// <param name="stepIndex">Current ADPCM step-table index updated in-place.</param>
-        /// <returns>Encoded 4-bit IMA ADPCM nibble.</returns>
-        byte EncodeNintendoDsImaAdpcmNibble(short sample, ref short predictor, ref int stepIndex) {
-            int step = NintendoDsImaAdpcmStepTable[stepIndex];
-            int delta = sample - predictor;
-            int nibble = 0;
-            if (delta < 0) {
-                nibble = 8;
-                delta = -delta;
-            }
-
-            int diff = step >> 3;
-            if (delta >= step) {
-                nibble |= 4;
-                delta -= step;
-                diff += step;
-            }
-
-            step >>= 1;
-            if (delta >= step) {
-                nibble |= 2;
-                delta -= step;
-                diff += step;
-            }
-
-            step >>= 1;
-            if (delta >= step) {
-                nibble |= 1;
-                diff += step;
-            }
-
-            int predictorValue = predictor;
-            predictorValue += (nibble & 8) != 0 ? -diff : diff;
-            predictor = ClampToInt16(predictorValue);
-
-            stepIndex = Math.Clamp(stepIndex + NintendoDsImaAdpcmIndexTable[nibble], 0, NintendoDsImaAdpcmStepTable.Length - 1);
-            return (byte)nibble;
-        }
-
-        /// <summary>
-        /// Clamps one floating-point sample value into the signed 16-bit PCM range.
-        /// </summary>
-        /// <param name="value">Floating-point sample value.</param>
-        /// <returns>Clamped PCM16 sample value.</returns>
-        short ClampToInt16(double value) {
-            if (value < short.MinValue) {
-                return short.MinValue;
-            }
-            if (value > short.MaxValue) {
-                return short.MaxValue;
-            }
-
-            return (short)value;
-        }
-
-        static readonly int[] NintendoDsImaAdpcmIndexTable = [
-            -1, -1, -1, -1,
-             2,  4,  6,  8,
-            -1, -1, -1, -1,
-             2,  4,  6,  8
-        ];
-
-        static readonly int[] NintendoDsImaAdpcmStepTable = [
-                7,     8,     9,    10,    11,    12,    13,    14,
-               16,    17,    19,    21,    23,    25,    28,    31,
-               34,    37,    41,    45,    50,    55,    60,    66,
-               73,    80,    88,    97,   107,   118,   130,   143,
-              157,   173,   190,   209,   230,   253,   279,   307,
-              337,   371,   408,   449,   494,   544,   598,   658,
-              724,   796,   876,   963,  1060,  1166,  1282,  1411,
-             1552,  1707,  1878,  2066,  2272,  2499,  2749,  3024,
-             3327,  3660,  4026,  4428,  4871,  5358,  5894,  6484,
-             7132,  7845,  8630,  9493, 10442, 11487, 12635, 13899,
-            15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794,
-            32767
-        ];
 
         /// <summary>
         /// Builds the chunk table published on one imported audio asset.
