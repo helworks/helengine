@@ -46,6 +46,7 @@ public sealed class ProjectFileReader {
         TryReadUtcDateTime(root, "created", value => projectDocument.Created = value, errors);
         TryReadUtcDateTime(root, "lastOpened", value => projectDocument.LastOpened = value, errors);
         TryReadOptionalString(root, "description", value => projectDocument.Description = value);
+        TryReadSceneRouting(root, projectDocument, errors);
 
         if (errors.Count > 0) {
             return new ProjectFileReadResult(errors);
@@ -60,6 +61,70 @@ public sealed class ProjectFileReader {
     /// <param name="root">JSON root element representing the canonical project file.</param>
     /// <param name="projectDocument">Project document populated when validation succeeds.</param>
     /// <param name="errors">Structured error list populated when validation fails.</param>
+    /// <summary>Reads optional explicit project-owned scene routing without inferring game scene names.</summary>
+    static void TryReadSceneRouting(JsonElement root, ProjectFileDocument projectDocument, List<ProjectFileReadError> errors) {
+        if (!TryGetProperty(root, "sceneRouting", out JsonElement routingValue) || routingValue.ValueKind == JsonValueKind.Null) {
+            return;
+        }
+        if (routingValue.ValueKind != JsonValueKind.Object || !TryGetProperty(routingValue, "platforms", out JsonElement platformsValue) || platformsValue.ValueKind != JsonValueKind.Object) {
+            errors.Add(new ProjectFileReadError(ProjectFileReadErrorCode.InvalidFieldValue, "Field 'sceneRouting.platforms' must be an object of platform routing records.", "sceneRouting.platforms"));
+            return;
+        }
+
+        ProjectSceneRoutingDocument routing = new ProjectSceneRoutingDocument();
+        HashSet<string> platformIds = new(StringComparer.Ordinal);
+        foreach (JsonProperty platformProperty in platformsValue.EnumerateObject()) {
+            if (string.IsNullOrWhiteSpace(platformProperty.Name) || !platformIds.Add(platformProperty.Name)) {
+                errors.Add(new ProjectFileReadError(ProjectFileReadErrorCode.InvalidFieldValue, "Scene routing platform identifiers must be unique and non-empty.", "sceneRouting.platforms"));
+                continue;
+            }
+            if (platformProperty.Value.ValueKind != JsonValueKind.Object) {
+                errors.Add(new ProjectFileReadError(ProjectFileReadErrorCode.InvalidFieldValue, $"Scene routing record for '{platformProperty.Name}' must be an object.", $"sceneRouting.platforms.{platformProperty.Name}"));
+                continue;
+            }
+            if (!TryGetProperty(platformProperty.Value, "bootSceneId", out JsonElement bootValue) || bootValue.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(bootValue.GetString())) {
+                errors.Add(new ProjectFileReadError(ProjectFileReadErrorCode.InvalidFieldValue, $"Scene routing record for '{platformProperty.Name}' must provide a non-empty bootSceneId.", $"sceneRouting.platforms.{platformProperty.Name}.bootSceneId"));
+                continue;
+            }
+            ProjectPlatformSceneRoutingDocument platformRouting = new ProjectPlatformSceneRoutingDocument { BootSceneId = bootValue.GetString() };
+            if (TryGetProperty(platformProperty.Value, "sceneAliases", out JsonElement aliasesValue)) {
+                if (aliasesValue.ValueKind != JsonValueKind.Object) {
+                    errors.Add(new ProjectFileReadError(ProjectFileReadErrorCode.InvalidFieldValue, $"Scene aliases for '{platformProperty.Name}' must be an object.", $"sceneRouting.platforms.{platformProperty.Name}.sceneAliases"));
+                    continue;
+                }
+                HashSet<string> aliasIds = new(StringComparer.Ordinal);
+                foreach (JsonProperty aliasProperty in aliasesValue.EnumerateObject()) {
+                    if (string.IsNullOrWhiteSpace(aliasProperty.Name) || !aliasIds.Add(aliasProperty.Name) || aliasProperty.Value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(aliasProperty.Value.GetString())) {
+                        errors.Add(new ProjectFileReadError(ProjectFileReadErrorCode.InvalidFieldValue, $"Scene aliases for '{platformProperty.Name}' must contain unique non-empty string mappings.", $"sceneRouting.platforms.{platformProperty.Name}.sceneAliases"));
+                        continue;
+                    }
+                    platformRouting.SceneAliases[aliasProperty.Name] = aliasProperty.Value.GetString();
+                }
+            }
+            if (HasAliasCycle(platformRouting.SceneAliases)) {
+                errors.Add(new ProjectFileReadError(ProjectFileReadErrorCode.InvalidFieldValue, $"Scene aliases for '{platformProperty.Name}' must not contain cycles.", $"sceneRouting.platforms.{platformProperty.Name}.sceneAliases"));
+                continue;
+            }
+            routing.Platforms[platformProperty.Name] = platformRouting;
+        }
+        if (errors.Count == 0 || routing.Platforms.Count > 0) {
+            projectDocument.SceneRouting = routing;
+        }
+    }
+
+    static bool HasAliasCycle(IReadOnlyDictionary<string, string> aliases) {
+        foreach (string start in aliases.Keys) {
+            HashSet<string> visited = new(StringComparer.Ordinal);
+            string current = start;
+            while (aliases.TryGetValue(current, out string next)) {
+                if (!visited.Add(current)) {
+                    return true;
+                }
+                current = next;
+            }
+        }
+        return false;
+    }
     static void TryReadProjectFormatVersion(JsonElement root, ProjectFileDocument projectDocument, List<ProjectFileReadError> errors) {
         if (!TryGetProperty(root, "projectFormatVersion", out JsonElement propertyValue)) {
             errors.Add(new ProjectFileReadError(ProjectFileReadErrorCode.MissingRequiredField, "Missing required field 'projectFormatVersion'.", "projectFormatVersion"));

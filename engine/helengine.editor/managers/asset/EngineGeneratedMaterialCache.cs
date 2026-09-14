@@ -16,16 +16,18 @@ namespace helengine.editor {
         readonly RenderManager3D RenderManager3D;
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderLibrary;
         readonly Dictionary<string, RuntimeMaterial> RuntimeMaterials = new Dictionary<string, RuntimeMaterial>(StringComparer.Ordinal);
+        readonly IEditorMaterialInstanceFactory MaterialInstanceFactory;
         bool IsDisposed;
 
         /// <summary>Gets the explicit core that owns this cache's runtime materials.</summary>
         internal Core OwningCore => Core;
 
         /// <summary>Creates a generated-material cache bound to one explicit core and one shader library.</summary>
-        public EngineGeneratedMaterialCache(Core core, EditorBuiltInShaderAssetLibrary builtInShaderLibrary) {
+        public EngineGeneratedMaterialCache(Core core, EditorBuiltInShaderAssetLibrary builtInShaderLibrary, IEditorMaterialInstanceFactory materialInstanceFactory = null) {
             Core = core ?? throw new ArgumentNullException(nameof(core));
             RenderManager3D = core.RenderManager3D ?? throw new InvalidOperationException("The owning core must be initialized with a 3D renderer before creating generated materials.");
             BuiltInShaderLibrary = builtInShaderLibrary ?? throw new ArgumentNullException(nameof(builtInShaderLibrary));
+            MaterialInstanceFactory = materialInstanceFactory ?? new GenericEditorMaterialInstanceFactory();
         }
 
         /// <summary>Gets or creates one generated runtime material owned by this cache.</summary>
@@ -47,6 +49,19 @@ namespace helengine.editor {
         /// Loads one built-in shader through this cache's exact owning renderer
         /// and shader library.
         /// </summary>
+        /// <summary>
+        /// Creates one renderer-specific instance of a cached generated material.
+        /// </summary>
+        /// <param name="sourceMaterial">Generated material whose state should be copied.</param>
+        /// <returns>Independent material instance for editor-only visuals.</returns>
+        public RuntimeMaterial CreateRuntimeMaterialInstance(RuntimeMaterial sourceMaterial) {
+            if (sourceMaterial == null) {
+                throw new ArgumentNullException(nameof(sourceMaterial));
+            }
+
+            return MaterialInstanceFactory.CreateInstance(sourceMaterial);
+        }
+
         public ShaderAsset LoadBuiltInShaderAsset(string shaderFileName) {
             if (string.IsNullOrWhiteSpace(shaderFileName)) {
                 throw new ArgumentException("Shader file name must be provided.", nameof(shaderFileName));

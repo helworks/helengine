@@ -36,7 +36,8 @@ public sealed class ProjectFileWriter {
             SupportedPlatforms = [.. document.SupportedPlatforms],
             Created = document.Created,
             LastOpened = document.LastOpened,
-            Description = document.Description
+            Description = document.Description,
+            SceneRouting = document.SceneRouting
         };
 
         string json = JsonSerializer.Serialize(jsonModel, SerializerOptions);

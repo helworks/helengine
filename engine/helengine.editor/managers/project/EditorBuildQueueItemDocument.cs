@@ -516,8 +516,8 @@ namespace helengine.editor {
             _ = sceneCatalogService;
             if (string.Equals(platformId, "ds", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(platformId, "3ds", StringComparison.OrdinalIgnoreCase)) {
-                orderedSceneIds.RemoveAll(sceneId => string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal));
-                orderedSceneIds.Insert(0, PlatformMenuSceneResolver.GeneratedBootSceneId);
+                orderedSceneIds.RemoveAll(sceneId => string.Equals(sceneId, EngineSceneIdentifiers.GeneratedBootSceneId, StringComparison.Ordinal));
+                orderedSceneIds.Insert(0, EngineSceneIdentifiers.GeneratedBootSceneId);
             }
         }
 
@@ -545,7 +545,7 @@ namespace helengine.editor {
             }
 
             if (string.Equals(platformId, "ps2", StringComparison.OrdinalIgnoreCase)) {
-                orderedSceneIds.RemoveAll(sceneId => string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal));
+                orderedSceneIds.RemoveAll(sceneId => string.Equals(sceneId, EngineSceneIdentifiers.GeneratedBootSceneId, StringComparison.Ordinal));
             }
         }
 
@@ -563,7 +563,7 @@ namespace helengine.editor {
                 return false;
             }
 
-            if (string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal)) {
+            if (string.Equals(sceneId, EngineSceneIdentifiers.GeneratedBootSceneId, StringComparison.Ordinal)) {
                 return true;
             }
 

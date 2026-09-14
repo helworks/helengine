@@ -89,6 +89,7 @@ namespace helengine {
             ContentManagerLock = new object();
             Instance = this;
             InitializationOptions = options;
+            PerformanceOverlay = PerformanceOverlaySettings.Default;
             PhysicsSimulationIsPausedValue = false;
             Input = new InputSystem();
             StandardPlatformInput = new StandardPlatformInput(Input);
@@ -121,6 +122,10 @@ namespace helengine {
         /// </summary>
         public CoreInitializationOptions InitializationOptions { get; private set; }
 
+        /// <summary>
+        /// Gets the initialized runtime policy used to present performance overlay text.
+        /// </summary>
+        public PerformanceOverlaySettings PerformanceOverlay { get; private set; }
         /// <summary>
         /// Gets the default content manager backed by <see cref="CoreInitializationOptions.ContentStreamSource"/>.
         /// </summary>
@@ -601,6 +606,7 @@ namespace helengine {
 
             options.Normalize();
             InitializationOptions = options;
+            PerformanceOverlay = options.PerformanceOverlay;
             PhysicsSchedulerValue = CreatePhysicsScheduler(options);
             StandardPlatformInput.Configure(options.StandardPlatformInputConfiguration);
 

@@ -9,11 +9,6 @@ namespace helengine {
         static readonly List<FPSComponent> ActiveComponents = new List<FPSComponent>();
 
         /// <summary>
-        /// Runtime scale multiplier used to keep the performance overlay legible on the Nintendo 3DS screen.
-        /// </summary>
-        const float Nintendo3DsPerformanceOverlayScale = 0.5f;
-
-        /// <summary>
         /// Font used by both overlay lines.
         /// </summary>
         FontAsset font;
@@ -788,40 +783,27 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Applies the platform-appropriate text effect for FPS overlay rows, omitting duplicate shadow glyphs on the PS2 profiler path.
+        /// Applies the initialized runtime text-shadow policy to one FPS overlay row.
         /// </summary>
-        /// <param name="textComponent">Text component that should receive the FPS overlay shadow.</param>
+        /// <param name="textComponent">Text component that should receive the FPS overlay shadow settings.</param>
         void ApplyTextShadow(TextComponent textComponent) {
-            Core core = OwnerCore;
-            if (core != null
-                && core.PlatformInfo != null
-                && string.Equals(core.PlatformInfo.Name, "ps2", StringComparison.OrdinalIgnoreCase)) {
-                textComponent.ShadowOffset = new float2(0f, 0f);
-                textComponent.ShadowColor = new byte4(0, 0, 0, 0);
-                return;
-            }
-
-            textComponent.ShadowOffset = new float2(-1f, -1f);
-            textComponent.ShadowColor = new byte4(0, 0, 0, 255);
+            PerformanceOverlaySettings settings = OwnerCore == null
+                ? PerformanceOverlaySettings.Default
+                : OwnerCore.PerformanceOverlay;
+            textComponent.ShadowOffset = settings.TextShadowEnabled ? new float2(-1f, -1f) : new float2(0f, 0f);
+            textComponent.ShadowColor = settings.TextShadowEnabled ? new byte4(0, 0, 0, 255) : new byte4(0, 0, 0, 0);
         }
-
         /// <summary>
         /// Resolves the runtime text scale while preserving the authored component value for serialization and editor inspection.
         /// </summary>
         /// <returns>Effective scale used by the generated FPS text drawables.</returns>
         float ResolveEffectiveFontScale() {
-            Core core = OwnerCore;
-            if (core == null || core.PlatformInfo == null) {
+            if (OwnerCore == null) {
                 return FontScale;
             }
 
-            if (string.Equals(core.PlatformInfo.Name, "3ds", StringComparison.OrdinalIgnoreCase)) {
-                return FontScale * Nintendo3DsPerformanceOverlayScale;
-            }
-
-            return FontScale;
+            return FontScale * OwnerCore.PerformanceOverlay.FontScaleMultiplier;
         }
-
         /// <summary>
         /// Repositions the generated overlay rows using the current font metrics and font scale.
         /// </summary>

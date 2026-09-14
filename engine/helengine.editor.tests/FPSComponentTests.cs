@@ -143,10 +143,10 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures the Nintendo 3DS runtime halves the effective FPS row size without changing the authored component scale.
+        /// Ensures a platform named Nintendo 3DS keeps the authored FPS row scale until startup explicitly supplies an overlay policy.
         /// </summary>
         [Fact]
-    public void ThreeDsPlatform_WhenOverlayIsBuilt_HalvesEffectiveFontScaleForBothRows() {
+        public void ThreeDsPlatform_WhenOverlaySettingsAreNotConfigured_KeepsAuthoredFontScaleForBothRows() {
             using Core threeDsCore = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
@@ -169,16 +169,16 @@ namespace helengine.editor.tests {
             TextComponent renderText = Assert.Single(overlayHost.Children[1].Components.OfType<TextComponent>());
 
             Assert.Equal(1f, fps.FontScale);
-            Assert.Equal(0.5f, updateText.FontScale);
-            Assert.Equal(0.5f, renderText.FontScale);
-            Assert.Equal(font.LineHeight * 0.5f, overlayHost.Children[1].LocalPosition.Y);
+            Assert.Equal(1f, updateText.FontScale);
+            Assert.Equal(1f, renderText.FontScale);
+            Assert.Equal(font.LineHeight, overlayHost.Children[1].LocalPosition.Y);
         }
 
         /// <summary>
-        /// Ensures the PS2 profiling overlay does not emit an additional shadow glyph pass for every visible character.
+        /// Ensures a platform named PS2 keeps generic text shadows until startup explicitly supplies an overlay policy.
         /// </summary>
         [Fact]
-        public void Ps2Platform_WhenOverlayIsBuilt_DisablesTextShadows() {
+        public void Ps2Platform_WhenOverlaySettingsAreNotConfigured_UsesGenericTextShadows() {
             using Core ps2Core = new Core(new CoreInitializationOptions {
                 ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath)
             });
@@ -197,14 +197,88 @@ namespace helengine.editor.tests {
             TextComponent updateText = Assert.Single(overlayHost.Children[0].Components.OfType<TextComponent>());
             TextComponent renderText = Assert.Single(overlayHost.Children[1].Components.OfType<TextComponent>());
 
+            Assert.Equal(-1f, updateText.ShadowOffset.X);
+            Assert.Equal(-1f, updateText.ShadowOffset.Y);
+            Assert.Equal(255, updateText.ShadowColor.W);
+            Assert.Equal(-1f, renderText.ShadowOffset.X);
+            Assert.Equal(-1f, renderText.ShadowOffset.Y);
+            Assert.Equal(255, renderText.ShadowColor.W);
+        }
+
+        /// <summary>
+        /// Ensures performance overlay settings expose the immutable scale and shadow policy requested by the runtime host.
+        /// </summary>
+        [Fact]
+        public void PerformanceOverlaySettings_WhenCreated_ExposesConfiguredValuesAndRejectsInvalidScale() {
+            PerformanceOverlaySettings settings = new PerformanceOverlaySettings(0.5f, false);
+
+            Assert.Equal(0.5f, settings.FontScaleMultiplier);
+            Assert.False(settings.TextShadowEnabled);
+            Assert.Throws<ArgumentOutOfRangeException>(() => new PerformanceOverlaySettings(0f, true));
+        }
+
+        /// <summary>
+        /// Ensures core initialization options expose an explicit performance overlay policy for host startup composition.
+        /// </summary>
+        [Fact]
+        public void CoreInitializationOptions_ExposePerformanceOverlayPolicy() {
+            var property = typeof(CoreInitializationOptions).GetProperty("PerformanceOverlay");
+
+            Assert.NotNull(property);
+            Assert.Equal(typeof(PerformanceOverlaySettings), property.PropertyType);
+        }
+        /// <summary>
+        /// Ensures a host can disable FPS text shadows through settings without relying on its platform identity.
+        /// </summary>
+        [Fact]
+        public void OverlaySettings_WhenPlatformNameIsArbitrary_DisablesTextShadows() {
+            using Core customCore = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath),
+                PerformanceOverlay = new PerformanceOverlaySettings(1f, false)
+            });
+            customCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("custom", "test-version"));
+
+            Entity entity = new Entity(Core.Instance);
+            entity.InitComponents();
+            entity.InitChildren();
+            entity.AddComponent(new FPSComponent {
+                Font = CreateFont(24f)
+            });
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            TextComponent updateText = Assert.Single(overlayHost.Children[0].Components.OfType<TextComponent>());
             Assert.Equal(0f, updateText.ShadowOffset.X);
             Assert.Equal(0f, updateText.ShadowOffset.Y);
             Assert.Equal(0, updateText.ShadowColor.W);
-            Assert.Equal(0f, renderText.ShadowOffset.X);
-            Assert.Equal(0f, renderText.ShadowOffset.Y);
-            Assert.Equal(0, renderText.ShadowColor.W);
         }
 
+        /// <summary>
+        /// Ensures a host can scale FPS text through settings without changing the authored component font scale.
+        /// </summary>
+        [Fact]
+        public void OverlaySettings_WhenPlatformNameIsArbitrary_ScalesRuntimeTextWithoutChangingAuthoredScale() {
+            using Core customCore = new Core(new CoreInitializationOptions {
+                ContentStreamSource = new HostFileSystemContentStreamSource(TempRootPath),
+                PerformanceOverlay = new PerformanceOverlaySettings(0.5f, true)
+            });
+            customCore.Initialize(new TestRenderManager3D(), new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("custom", "test-version"));
+
+            FontAsset font = CreateFont(24f);
+            Entity entity = new Entity(Core.Instance);
+            entity.InitComponents();
+            entity.InitChildren();
+            FPSComponent fps = new FPSComponent {
+                Font = font,
+                FontScale = 2f
+            };
+            entity.AddComponent(fps);
+
+            Entity overlayHost = Assert.Single(entity.Children);
+            TextComponent updateText = Assert.Single(overlayHost.Children[0].Components.OfType<TextComponent>());
+            Assert.Equal(2f, fps.FontScale);
+            Assert.Equal(1f, updateText.FontScale);
+            Assert.Equal(font.LineHeight, overlayHost.Children[1].LocalPosition.Y);
+        }
         /// <summary>
         /// Ensures authored extra overlay text stays stored for compatibility without generating visible extra rows.
         /// </summary>

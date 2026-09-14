@@ -2,7 +2,7 @@ namespace helengine.editor {
     /// <summary>
     /// Encodes processed signed PCM16 samples into one runtime audio payload family.
     /// </summary>
-    public interface IEditorAudioPayloadEncoder {
+    public interface IEditorAudioPayloadEncoder : helengine.baseplatform.Builders.IPlatformAudioPayloadEncoder {
         /// <summary>
         /// Gets the stable encoding-family identifier selected by audio processor settings.
         /// </summary>

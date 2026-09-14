@@ -658,7 +658,8 @@ namespace helengine.editor {
             IReadOnlyList<IAssetImporterRegistration> importers,
             Func<string> browseOutputFolderResolver,
             ShaderBackendRegistry shaderBackendRegistry,
-            AvailablePlatformProviderResolver platformProviderResolver) {
+            AvailablePlatformProviderResolver platformProviderResolver,
+            IEditorMaterialInstanceFactory materialInstanceFactory = null) {
             ProjectLifecycleCoordinator = new EditorProjectLifecycleCoordinator();
             EditorSessionConstructionLedger constructionLedger = ProjectLifecycleCoordinator.Ledger;
             constructionLedger.BeforeCleanupAction = sequence => DisposalCheckpointForTests?.Invoke(sequence);
@@ -717,7 +718,7 @@ namespace helengine.editor {
             constructionLedger.Register(assetImportManager);
             generatedModelCache = new EngineGeneratedModelCache(core);
             constructionLedger.Register(generatedModelCache);
-            generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary);
+            generatedMaterialCache = new EngineGeneratedMaterialCache(core, builtInShaderAssetLibrary, materialInstanceFactory);
             constructionLedger.Register(generatedMaterialCache);
             rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, uiFont, interactionServices);
             constructionLedger.Register(rendererResources);

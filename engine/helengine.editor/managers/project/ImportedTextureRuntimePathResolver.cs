@@ -1,53 +1,38 @@
+using helengine.baseplatform.Definitions;
+
 namespace helengine.editor {
-    /// <summary>
-    /// Resolves packaged runtime paths for imported texture assets while honoring platform-specific filesystem constraints.
-    /// </summary>
+    /// <summary>Resolves packaged runtime paths for imported textures from published cook capability policy.</summary>
     static class ImportedTextureRuntimePathResolver {
-        /// <summary>
-        /// Stable cooked imported-texture directory shared by packaged runtimes.
-        /// </summary>
         const string ImportedTextureDirectoryName = "cooked/imported";
 
-        /// <summary>
-        /// Stable Nintendo DS runtime extension used for packaged imported textures.
-        /// </summary>
-        const string NintendoDsImportedTextureExtension = ".hetex";
-
-        /// <summary>
-        /// Builds one packaged runtime path for the supplied imported texture asset.
-        /// </summary>
-        /// <param name="targetPlatformId">Stable target platform identifier.</param>
-        /// <param name="assetId">Imported texture asset identifier stored in editor cache metadata.</param>
-        /// <returns>Canonical runtime-relative cooked texture path.</returns>
-        public static string BuildCookedRelativePath(string targetPlatformId, string assetId) {
+        /// <summary>Builds one packaged path using the capability's naming and extension policy.</summary>
+        public static string BuildCookedRelativePath(PlatformAssetCookCapabilityDefinition capability, string assetId) {
             if (string.IsNullOrWhiteSpace(assetId)) {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
             }
-
-            if (string.Equals(targetPlatformId, "ds", StringComparison.OrdinalIgnoreCase)) {
-                ulong runtimeAssetId = RuntimeAssetIdGenerator.Generate(assetId);
-                return string.Concat(ImportedTextureDirectoryName, "/", runtimeAssetId.ToString("x16"), NintendoDsImportedTextureExtension);
-            }
-
-            return CanonicalPackagedAssetPath.Normalize(ImportedTextureDirectoryName + "/" + assetId);
+            string extension = string.IsNullOrWhiteSpace(capability?.OutputFileExtension) ? string.Empty : NormalizeExtension(capability.OutputFileExtension);
+            string fileName = capability?.NamingPolicy == PlatformAssetNamingPolicy.RuntimeAssetIdHex16
+                ? RuntimeAssetIdGenerator.Generate(assetId).ToString("x16")
+                : assetId;
+            return CanonicalPackagedAssetPath.Normalize(string.Concat(ImportedTextureDirectoryName, "/", fileName, extension));
         }
 
-        /// <summary>
-        /// Determines whether one cooked runtime path matches the packaged location that would be generated for the supplied imported texture asset.
-        /// </summary>
-        /// <param name="targetPlatformId">Stable target platform identifier.</param>
-        /// <param name="cookedRelativePath">Cooked runtime path to compare.</param>
-        /// <param name="assetId">Imported texture asset identifier stored in editor cache metadata.</param>
-        /// <returns>True when the cooked path matches the platform-specific imported texture runtime path.</returns>
-        public static bool PathMatchesAssetId(string targetPlatformId, string cookedRelativePath, string assetId) {
+        /// <summary>Builds a compatibility path when no builder capability is available.</summary>
+        public static string BuildCookedRelativePath(string targetPlatformId, string assetId) {
+            _ = targetPlatformId;
+            return BuildCookedRelativePath((PlatformAssetCookCapabilityDefinition)null, assetId);
+        }
+        /// <summary>Determines whether a cooked path matches the capability-derived imported texture path.</summary>
+        public static bool PathMatchesAssetId(PlatformAssetCookCapabilityDefinition capability, string cookedRelativePath, string assetId) {
             if (string.IsNullOrWhiteSpace(cookedRelativePath) || string.IsNullOrWhiteSpace(assetId)) {
                 return false;
             }
+            return string.Equals(CanonicalPackagedAssetPath.Normalize(cookedRelativePath), BuildCookedRelativePath(capability, assetId), StringComparison.OrdinalIgnoreCase);
+        }
 
-            return string.Equals(
-                CanonicalPackagedAssetPath.Normalize(cookedRelativePath),
-                BuildCookedRelativePath(targetPlatformId, assetId),
-                StringComparison.OrdinalIgnoreCase);
+        static string NormalizeExtension(string extension) {
+            string normalized = extension.Trim();
+            return normalized.StartsWith(".", StringComparison.Ordinal) ? normalized : "." + normalized;
         }
     }
 }

@@ -232,7 +232,10 @@ namespace helengine.editor.app {
                 importers,
                 FolderDialog.OpenFolderDialog,
                 shaderBackendRegistry,
-                bootstrap.AvailablePlatformProviderResolver);
+                bootstrap.AvailablePlatformProviderResolver,
+                renderer3D is DirectX11Renderer3D
+                    ? new DirectX11EditorMaterialInstanceFactory()
+                    : new GenericEditorMaterialInstanceFactory());
 
             editorSession.TitleChanged += SetWindowTitle;
             editorSession.CloseRequested += HandleEditorSessionCloseRequested;

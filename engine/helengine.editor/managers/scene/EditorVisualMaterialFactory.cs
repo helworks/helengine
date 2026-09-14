@@ -6,48 +6,24 @@ namespace helengine.editor {
         /// <summary>
         /// Creates one standard-material instance that remains visible in the editor but still participates in normal scene depth.
         /// </summary>
+        /// <param name="generatedMaterialCache">Cache that owns the generated standard material and its host clone policy.</param>
         /// <returns>Runtime material instance configured for editor-only visual meshes.</returns>
         public static RuntimeMaterial CreateNonShadowCastingStandardMaterial(EngineGeneratedMaterialCache generatedMaterialCache) {
             if (generatedMaterialCache == null) {
                 throw new ArgumentNullException(nameof(generatedMaterialCache));
             }
-            RuntimeMaterial sharedStandardMaterial = generatedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId);
-            ShaderRuntimeMaterial sharedShaderMaterial = ShaderRuntimeMaterialAccess.Require(sharedStandardMaterial);
-            RuntimeMaterial resolvedRootMaterial = sharedStandardMaterial.ResolveRootMaterial();
-            if (resolvedRootMaterial is not helengine.directx11.DirectX11MaterialResource directX11StandardMaterial) {
-                var genericMaterialInstance = new ShaderRuntimeMaterial();
-                if (!string.IsNullOrWhiteSpace(sharedStandardMaterial.Id)) {
-                    genericMaterialInstance.SetId(sharedStandardMaterial.Id);
-                }
-                genericMaterialInstance.SetParentMaterial(sharedShaderMaterial);
-                genericMaterialInstance.LightingModel = sharedStandardMaterial.LightingModel;
-                genericMaterialInstance.SupportsNormalMapping = sharedStandardMaterial.SupportsNormalMapping;
-                genericMaterialInstance.SupportsEmissive = sharedStandardMaterial.SupportsEmissive;
-                ApplyEditorVisualRenderState(genericMaterialInstance);
-                return genericMaterialInstance;
-            }
 
-            var materialInstance = new helengine.directx11.DirectX11MaterialResource(
-                directX11StandardMaterial.ShaderResource,
-                directX11StandardMaterial.ShaderAssetId,
-                directX11StandardMaterial.VertexProgram,
-                directX11StandardMaterial.PixelProgram,
-                directX11StandardMaterial.Variant);
-            materialInstance.SetId(sharedStandardMaterial.Id);
-            materialInstance.SetLayout(sharedShaderMaterial.Layout);
-            materialInstance.SetRenderState(sharedStandardMaterial.RenderState);
-            materialInstance.Properties.CopyMatchingValuesFrom(sharedShaderMaterial.Properties);
-            materialInstance.LightingModel = sharedStandardMaterial.LightingModel;
-            materialInstance.SupportsNormalMapping = sharedStandardMaterial.SupportsNormalMapping;
-            materialInstance.SupportsEmissive = sharedStandardMaterial.SupportsEmissive;
-            ApplyEditorVisualRenderState(materialInstance);
-            return materialInstance;
+            RuntimeMaterial material = generatedMaterialCache.CreateRuntimeMaterialInstance(
+                generatedMaterialCache.GetRuntimeMaterial(EngineGeneratedMaterialCache.StandardAssetId));
+            ApplyEditorVisualRenderState(material);
+            return material;
         }
 
         /// <summary>
         /// Creates one standard-material instance that behaves like overlay geometry for editor icons that must remain visible on top.
         /// </summary>
-        /// <returns>Runtime material instance configured for editor-only overlay visuals.</returns>
+        /// <param name="generatedMaterialCache">Cache that owns the generated standard material and its host clone policy.</param>
+        /// <returns>Runtime material configured for editor-only overlay visuals.</returns>
         public static RuntimeMaterial CreateOverlayStandardMaterial(EngineGeneratedMaterialCache generatedMaterialCache) {
             RuntimeMaterial material = CreateNonShadowCastingStandardMaterial(generatedMaterialCache);
             ApplyEditorOverlayRenderState(material);

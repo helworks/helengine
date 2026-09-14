@@ -1,3 +1,4 @@
+using helengine.projectfile;
 namespace helengine.editor {
     /// <summary>
     /// Ensures generated boot-scene assets exist for platforms that route runtime scene loads through SceneMapComponent.
@@ -32,6 +33,7 @@ namespace helengine.editor {
         /// Generated boot-scene asset factory used to write the helper scene.
         /// </summary>
         readonly GeneratedBootSceneAssetFactory BootSceneAssetFactory;
+        readonly EditorProjectSceneRoutingResolver SceneRoutingResolver;
 
         /// <summary>
         /// Initializes one generated boot-scene preparation service for the supplied project root.
@@ -44,6 +46,7 @@ namespace helengine.editor {
 
             ProjectRootPath = Path.GetFullPath(projectRootPath);
             BootSceneAssetFactory = new GeneratedBootSceneAssetFactory();
+            SceneRoutingResolver = new EditorProjectSceneRoutingResolver();
         }
 
         /// <summary>
@@ -55,7 +58,7 @@ namespace helengine.editor {
             TryWritePreparedScene(
                 platformId,
                 sceneIds,
-                Path.Combine("Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen"));
+                Path.Combine("Scenes", EngineSceneIdentifiers.GeneratedBootSceneId + ".helen"));
         }
 
         /// <summary>
@@ -65,7 +68,21 @@ namespace helengine.editor {
         /// <param name="sceneIds">Stable scene ids selected for the build.</param>
         /// <param name="relativeScenePath">Project-relative asset path that should receive the generated boot scene.</param>
         /// <returns><c>true</c> when a generated boot scene was written; otherwise <c>false</c>.</returns>
+        /// <summary>Writes one generated boot scene using explicit project-owned scene routing.</summary>
+        public bool TryWritePreparedScene(ProjectFileDocument project, string platformId, IReadOnlyList<string> sceneIds, string relativeScenePath) {
+            if (project == null) {
+                throw new ArgumentNullException(nameof(project));
+            }
+            ProjectPlatformSceneRoutingDocument routing = SceneRoutingResolver.Resolve(project, platformId, sceneIds);
+            return TryWritePreparedScene(platformId, sceneIds, relativeScenePath, routing);
+        }
+
+        /// <summary>Writes one generated boot scene through the legacy compatibility route.</summary>
         public bool TryWritePreparedScene(string platformId, IReadOnlyList<string> sceneIds, string relativeScenePath) {
+            return TryWritePreparedScene(platformId, sceneIds, relativeScenePath, null);
+        }
+
+        bool TryWritePreparedScene(string platformId, IReadOnlyList<string> sceneIds, string relativeScenePath, ProjectPlatformSceneRoutingDocument explicitRouting) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
@@ -76,18 +93,17 @@ namespace helengine.editor {
                 throw new ArgumentException("Relative scene path must be provided.", nameof(relativeScenePath));
             }
 
-            Dictionary<string, string> mappings = BuildMappings(platformId, sceneIds);
+            Dictionary<string, string> mappings = explicitRouting == null
+                ? BuildMappings(platformId, sceneIds)
+                : new Dictionary<string, string>(explicitRouting.SceneAliases ?? new Dictionary<string, string>(), StringComparer.Ordinal);
             if (mappings == null) {
                 return false;
             }
 
             string normalizedRelativeScenePath = NormalizeRelativeScenePath(relativeScenePath);
             string scenePath = ResolveProjectAssetPath(normalizedRelativeScenePath);
-            string initialSceneId = ResolveInitialSceneId(platformId, sceneIds);
-            SceneAsset sceneAsset = BootSceneAssetFactory.BuildSceneAsset(
-                normalizedRelativeScenePath,
-                initialSceneId,
-                mappings);
+            string initialSceneId = explicitRouting?.BootSceneId ?? ResolveInitialSceneId(platformId, sceneIds);
+            SceneAsset sceneAsset = BootSceneAssetFactory.BuildSceneAsset(normalizedRelativeScenePath, initialSceneId, mappings);
             string directoryPath = Path.GetDirectoryName(scenePath)
                 ?? throw new InvalidOperationException("Generated boot scene path did not include a writable directory.");
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
@@ -97,13 +113,6 @@ namespace helengine.editor {
             EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, scenePath, stream.ToArray());
             return true;
         }
-
-        /// <summary>
-        /// Resolves the startup scene id that should be written into the generated boot scene for the current build.
-        /// </summary>
-        /// <param name="platformId">Target platform identifier.</param>
-        /// <param name="sceneIds">Stable scene ids selected for the build.</param>
-        /// <returns>Startup scene id that should be requested after the generated boot scene loads.</returns>
         static string ResolveInitialSceneId(string platformId, IReadOnlyList<string> sceneIds) {
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
@@ -129,7 +138,7 @@ namespace helengine.editor {
             for (int index = 0; index < sceneIds.Count; index++) {
                 string sceneId = sceneIds[index];
                 if (string.IsNullOrWhiteSpace(sceneId)
-                    || string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.OrdinalIgnoreCase)) {
+                    || string.Equals(sceneId, EngineSceneIdentifiers.GeneratedBootSceneId, StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
 
@@ -152,7 +161,7 @@ namespace helengine.editor {
             if (sceneIds == null) {
                 throw new ArgumentNullException(nameof(sceneIds));
             }
-            if (!ContainsSceneId(sceneIds, PlatformMenuSceneResolver.GeneratedBootSceneId)) {
+            if (!ContainsSceneId(sceneIds, EngineSceneIdentifiers.GeneratedBootSceneId)) {
                 return null;
             }
 

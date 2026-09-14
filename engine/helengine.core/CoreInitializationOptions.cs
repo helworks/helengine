@@ -65,6 +65,11 @@ namespace helengine {
         public IRuntimeDiagnosticsProvider RuntimeDiagnosticsProvider { get; set; }
 
         /// <summary>
+        /// Gets or sets the runtime policy that controls performance overlay text scaling and shadows.
+        /// Unconfigured hosts use the generic overlay presentation settings.
+        /// </summary>
+        public PerformanceOverlaySettings PerformanceOverlay { get; set; } = PerformanceOverlaySettings.Default;
+        /// <summary>
         /// Gets or sets the configured engine-owned platform-standard input actions that should be registered during startup.
         /// </summary>
         public StandardPlatformInputConfiguration StandardPlatformInputConfiguration { get; set; } = StandardPlatformInputConfiguration.Empty;
@@ -119,6 +124,9 @@ namespace helengine {
                 throw new InvalidOperationException("PhysicsMaxStepsPerUpdate must be at least 1.");
             }
 
+            if (PerformanceOverlay == null) {
+                PerformanceOverlay = PerformanceOverlaySettings.Default;
+            }
             if (StandardPlatformInputConfiguration == null) {
                 throw new InvalidOperationException("StandardPlatformInputConfiguration must be provided.");
             }

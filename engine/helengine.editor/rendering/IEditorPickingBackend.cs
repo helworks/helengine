@@ -1,5 +1,3 @@
-using SharpDX;
-
 namespace helengine.editor {
     /// <summary>
     /// Executes one editor picking pass and exposes its pixel readback without exposing native graphics resources.

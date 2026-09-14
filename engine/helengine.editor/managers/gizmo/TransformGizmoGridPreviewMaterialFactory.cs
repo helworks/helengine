@@ -80,11 +80,8 @@ namespace helengine.editor {
             if (render3D == null) {
                 throw new ArgumentNullException(nameof(render3D));
             }
-
-            if (render3D is helengine.directx11.DirectX11Renderer3D) {
-                return ShaderCompileTarget.DirectX11;
-            } else if (render3D is helengine.vulkan.VulkanRenderer3D) {
-                return ShaderCompileTarget.Vulkan;
+            if (render3D is IShaderCompileTargetProvider targetProvider) {
+                return targetProvider.ShaderCompileTarget;
             }
 
             throw new InvalidOperationException("Unsupported renderer backend for transform-gizmo grid previews.");

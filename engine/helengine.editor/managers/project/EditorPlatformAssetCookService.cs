@@ -389,7 +389,7 @@ namespace helengine.editor {
         /// <param name="canonicalScenePath">Canonical authored scene path resolved from the project catalog.</param>
         /// <returns>Packaged scene identity path used to derive the cooked runtime asset path.</returns>
         static string ResolvePackagedSceneIdentityPath(string sceneId, string canonicalScenePath) {
-            if (string.Equals(sceneId, PlatformMenuSceneResolver.GeneratedBootSceneId, StringComparison.Ordinal)) {
+            if (string.Equals(sceneId, EngineSceneIdentifiers.GeneratedBootSceneId, StringComparison.Ordinal)) {
                 return sceneId;
             }
 

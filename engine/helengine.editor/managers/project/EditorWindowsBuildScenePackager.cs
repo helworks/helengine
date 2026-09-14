@@ -1782,16 +1782,18 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(audioAsset));
             }
 
-            if (!string.Equals(TargetPlatformId, "ds", StringComparison.OrdinalIgnoreCase)) {
+            PlatformAssetCookCapabilityDefinition capability = ResolvePlatformCookCapability("audio");
+            PlatformAudioLimits limits = capability?.AudioLimits;
+            if (limits == null) {
                 return;
             }
 
-            if (audioAsset.SampleRate > 22050) {
-                throw new InvalidOperationException($"Audio '{relativePath}' exceeds ds sample rate limit of 22050 Hz.");
+            if (audioAsset.SampleRate > limits.MaximumSampleRate) {
+                throw new InvalidOperationException($"Audio '{relativePath}' exceeds {TargetPlatformId} sample rate limit of {limits.MaximumSampleRate} Hz.");
             }
 
-            if (audioAsset.Channels > 1) {
-                throw new InvalidOperationException($"Audio '{relativePath}' exceeds ds channel count limit of 1.");
+            if (audioAsset.Channels > limits.MaximumChannels) {
+                throw new InvalidOperationException($"Audio '{relativePath}' exceeds {TargetPlatformId} channel count limit of {limits.MaximumChannels}.");
             }
         }
 
@@ -2148,7 +2150,7 @@ namespace helengine.editor {
                 fieldValues.TryGetValue("texture-relative-path", out string textureRelativePath) &&
                 !string.IsNullOrWhiteSpace(textureRelativePath)) {
                 if (!string.IsNullOrWhiteSpace(materialAsset.DiffuseTextureAssetId) &&
-                    ImportedTextureRuntimePathResolver.PathMatchesAssetId(TargetPlatformId, textureRelativePath, materialAsset.DiffuseTextureAssetId)) {
+                    ImportedTextureRuntimePathResolver.PathMatchesAssetId(ResolveBuilderOwnedPlatformCookCapability("texture"), textureRelativePath, materialAsset.DiffuseTextureAssetId)) {
                     return materialAsset.DiffuseTextureAssetId;
                 }
             }
@@ -2237,7 +2239,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Imported texture asset id must be provided.", nameof(assetId));
             }
 
-            return ImportedTextureRuntimePathResolver.BuildCookedRelativePath(TargetPlatformId, assetId);
+            return ImportedTextureRuntimePathResolver.BuildCookedRelativePath(ResolveBuilderOwnedPlatformCookCapability("texture"), assetId);
         }
 
         /// <summary>
@@ -2374,6 +2376,32 @@ namespace helengine.editor {
         /// <param name="materialAssetPath">Absolute path to the authored material asset.</param>
         /// <param name="materialRelativePath">Project-relative material asset path used in diagnostics.</param>
         /// <returns>Deserialized material settings sidecar.</returns>
+        PlatformAssetCookCapabilityDefinition ResolvePlatformCookCapability(string sourceAssetKind) {
+            if (PlatformDefinition == null || string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                return null;
+            }
+            PlatformAssetCookCapabilityDefinition[] capabilities = PlatformDefinition.AssetCookCapabilities ?? [];
+            for (int index = 0; index < capabilities.Length; index++) {
+                PlatformAssetCookCapabilityDefinition capability = capabilities[index];
+                if (capability != null && string.Equals(capability.SourceAssetKind, sourceAssetKind, StringComparison.OrdinalIgnoreCase)) {
+                    return capability;
+                }
+            }
+            return null;
+        }
+        PlatformAssetCookCapabilityDefinition ResolveBuilderOwnedPlatformCookCapability(string sourceAssetKind) {
+            if (PlatformDefinition == null || string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                return null;
+            }
+            PlatformAssetCookCapabilityDefinition[] capabilities = PlatformDefinition.AssetCookCapabilities ?? [];
+            for (int index = 0; index < capabilities.Length; index++) {
+                PlatformAssetCookCapabilityDefinition capability = capabilities[index];
+                if (capability != null && capability.OwnershipKind == PlatformAssetCookOwnershipKind.BuilderOwned && string.Equals(capability.SourceAssetKind, sourceAssetKind, StringComparison.OrdinalIgnoreCase)) {
+                    return capability;
+                }
+            }
+            return null;
+        }
         MaterialAssetImportSettings LoadMaterialSettingsForCook(string materialAssetPath, string materialRelativePath, ShaderMaterialAsset materialAsset) {
             if (string.IsNullOrWhiteSpace(materialAssetPath)) {
                 throw new ArgumentException("Material asset path must be provided.", nameof(materialAssetPath));

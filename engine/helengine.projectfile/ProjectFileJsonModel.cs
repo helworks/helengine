@@ -43,4 +43,6 @@ sealed class ProjectFileJsonModel {
     /// Gets or sets the optional project description displayed by tools such as the launcher.
     /// </summary>
     public string Description { get; set; }
+    /// <summary>Gets or sets optional explicit project scene routing.</summary>
+    public ProjectSceneRoutingDocument SceneRouting { get; set; }
 }
