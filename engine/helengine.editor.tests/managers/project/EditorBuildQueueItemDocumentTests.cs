@@ -157,7 +157,7 @@ namespace helengine.editor.tests {
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = "ps2",
                 SelectedSceneIds = [
-                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    EngineSceneIdentifiers.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.DesktopMainMenuSceneId,
                     "cube_test"
                 ]
@@ -190,7 +190,7 @@ namespace helengine.editor.tests {
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = platformId,
                 SelectedSceneIds = [
-                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    EngineSceneIdentifiers.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.DesktopMainMenuSceneId,
                     "cube_test"
                 ]
@@ -201,7 +201,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    EngineSceneIdentifiers.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test"
                 ],
@@ -232,7 +232,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    EngineSceneIdentifiers.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test"
                 ],
@@ -256,14 +256,14 @@ namespace helengine.editor.tests {
             EditorBuildPlatformConfigDocument platformConfig = new EditorBuildPlatformConfigDocument {
                 PlatformId = platformId,
                 SelectedSceneIds = [
-                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    EngineSceneIdentifiers.GeneratedBootSceneId,
                     "DemoDiscMainMenuDs",
                     "cube_test_ds",
                     "colored_cube_grid_ds"
                 ],
                 SceneOrders = [
                     new EditorBuildSceneOrderDocument {
-                        SceneId = PlatformMenuSceneResolver.GeneratedBootSceneId,
+                        SceneId = EngineSceneIdentifiers.GeneratedBootSceneId,
                         OrderNumber = 1
                     },
                     new EditorBuildSceneOrderDocument {
@@ -286,7 +286,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    EngineSceneIdentifiers.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test",
                     "colored_cube_grid"
@@ -315,7 +315,7 @@ namespace helengine.editor.tests {
             EditorPlatformBuildSelectionModel selectionModel = EditorPlatformBuildSelectionModel.From(CreateSelectionModel());
             EditorBuildQueueItemDocument queueItem = EditorBuildQueueItemDocument.Create(sceneCatalogService, platformConfig, selectionModel, Path.Combine(TempProjectRootPath, "Build"));
 
-            Assert.Equal([PlatformMenuSceneResolver.GeneratedBootSceneId, "tilt_trial_ds"], queueItem.SelectedSceneIds);
+            Assert.Equal([EngineSceneIdentifiers.GeneratedBootSceneId, "tilt_trial_ds"], queueItem.SelectedSceneIds);
         }
 
         /// <summary>
@@ -364,7 +364,7 @@ namespace helengine.editor.tests {
 
             Assert.Equal(
                 [
-                    PlatformMenuSceneResolver.GeneratedBootSceneId,
+                    EngineSceneIdentifiers.GeneratedBootSceneId,
                     PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                     "cube_test"
                 ],

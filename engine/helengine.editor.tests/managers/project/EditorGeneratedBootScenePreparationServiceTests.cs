@@ -43,12 +43,12 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         service.EnsurePrepared(
             "windows",
             [
-                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                EngineSceneIdentifiers.GeneratedBootSceneId,
                 PlatformMenuSceneResolver.DesktopMainMenuSceneId,
                 "test_scene_static_mesh_showcase"
             ]);
 
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", EngineSceneIdentifiers.GeneratedBootSceneId + ".helen");
         Assert.True(File.Exists(scenePath));
 
         using FileStream stream = File.OpenRead(scenePath);
@@ -71,7 +71,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => service.EnsurePrepared(
             "windows",
             [
-                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                EngineSceneIdentifiers.GeneratedBootSceneId,
                 PlatformMenuSceneResolver.DesktopMainMenuSceneId
             ]));
 
@@ -88,13 +88,13 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         service.EnsurePrepared(
             "ds",
             [
-                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                EngineSceneIdentifiers.GeneratedBootSceneId,
                 PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                 "cube_test_ds",
                 "axis_test_ds"
             ]);
 
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", EngineSceneIdentifiers.GeneratedBootSceneId + ".helen");
         Assert.True(File.Exists(scenePath));
 
         using FileStream stream = File.OpenRead(scenePath);
@@ -122,12 +122,12 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         service.EnsurePrepared(
             "ds",
             [
-                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                EngineSceneIdentifiers.GeneratedBootSceneId,
                 PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                 "cube_test_ds"
             ]);
 
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", EngineSceneIdentifiers.GeneratedBootSceneId + ".helen");
         Assert.True(File.Exists(scenePath));
 
         using FileStream stream = File.OpenRead(scenePath);
@@ -154,12 +154,12 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         service.EnsurePrepared(
             platformId,
             [
-                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                EngineSceneIdentifiers.GeneratedBootSceneId,
                 "tilt_trial_ds",
                 PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId
             ]);
 
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", EngineSceneIdentifiers.GeneratedBootSceneId + ".helen");
         using FileStream stream = File.OpenRead(scenePath);
         SceneAsset sceneAsset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
         SceneEntityAsset rootEntity = Assert.Single(sceneAsset.RootEntities);
@@ -178,12 +178,12 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         service.EnsurePrepared(
             "3ds",
             [
-                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                EngineSceneIdentifiers.GeneratedBootSceneId,
                 PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                 "cube_test_ds"
             ]);
 
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", EngineSceneIdentifiers.GeneratedBootSceneId + ".helen");
         Assert.True(File.Exists(scenePath));
 
         using FileStream stream = File.OpenRead(scenePath);
@@ -203,10 +203,10 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     /// </summary>
     [Fact]
     public void EnsurePrepared_WhenGeneratedBootSceneAlreadyExists_RewritesMappingsFromNintendoDsSceneSelection() {
-        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen");
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", EngineSceneIdentifiers.GeneratedBootSceneId + ".helen");
         GeneratedBootSceneAssetFactory factory = new GeneratedBootSceneAssetFactory();
         SceneAsset existingSceneAsset = factory.BuildSceneAsset(
-            "Scenes/" + PlatformMenuSceneResolver.GeneratedBootSceneId + ".helen",
+            "Scenes/" + EngineSceneIdentifiers.GeneratedBootSceneId + ".helen",
             PlatformMenuSceneResolver.DesktopMainMenuSceneId,
             new Dictionary<string, string>(StringComparer.Ordinal));
         using (FileStream stream = File.Create(scenePath)) {
@@ -218,7 +218,7 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
         service.EnsurePrepared(
             "ds",
             [
-                PlatformMenuSceneResolver.GeneratedBootSceneId,
+                EngineSceneIdentifiers.GeneratedBootSceneId,
                 PlatformMenuSceneResolver.NintendoHandheldMainMenuSceneId,
                 "cube_test_ds",
                 "axis_test_ds"

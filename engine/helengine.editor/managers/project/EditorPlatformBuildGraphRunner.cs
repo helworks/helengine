@@ -531,7 +531,7 @@ namespace helengine.editor {
 
             Dictionary<string, string> scenePathOverrides = new Dictionary<string, string>(StringComparer.Ordinal);
             if (queueItem.SelectedSceneIds == null
-                || !queueItem.SelectedSceneIds.Contains(PlatformMenuSceneResolver.GeneratedBootSceneId)) {
+                || !queueItem.SelectedSceneIds.Contains(EngineSceneIdentifiers.GeneratedBootSceneId)) {
                 return scenePathOverrides;
             }
 
@@ -541,7 +541,7 @@ namespace helengine.editor {
                 queueItem.SelectedSceneIds,
                 relativeScenePath);
             if (wroteScene) {
-                scenePathOverrides.Add(PlatformMenuSceneResolver.GeneratedBootSceneId, relativeScenePath);
+                scenePathOverrides.Add(EngineSceneIdentifiers.GeneratedBootSceneId, relativeScenePath);
             }
 
             return scenePathOverrides;
@@ -578,7 +578,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(queueItem));
             }
 
-            string fileName = PlatformMenuSceneResolver.GeneratedBootSceneId + "_" + queueItem.QueueItemId + ".helen";
+            string fileName = EngineSceneIdentifiers.GeneratedBootSceneId + "_" + queueItem.QueueItemId + ".helen";
             return ".generated-build/" + queueItem.PlatformId + "/" + queueItem.QueueItemId + "/" + fileName;
         }
 

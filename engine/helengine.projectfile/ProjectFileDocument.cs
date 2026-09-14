@@ -48,4 +48,8 @@ public sealed class ProjectFileDocument {
     /// Gets or sets the optional project description displayed by tools such as the launcher.
     /// </summary>
     public string Description { get; set; }
+    /// <summary>
+    /// Gets or sets explicit project-owned scene routing. Missing routing preserves selected-scene order.
+    /// </summary>
+    public ProjectSceneRoutingDocument SceneRouting { get; set; }
 }
