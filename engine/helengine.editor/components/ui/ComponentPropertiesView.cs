@@ -71,11 +71,11 @@ namespace helengine.editor {
         /// <summary>
         /// Height of text fields.
         /// </summary>
-        const int FieldHeight = 22;
+        internal const int FieldHeight = 22;
         /// <summary>
         /// Spacing between fields in vector rows.
         /// </summary>
-        const int FieldSpacing = 6;
+        internal const int FieldSpacing = 6;
         /// <summary>
         /// Width of the material pick button.
         /// </summary>
@@ -136,7 +136,7 @@ namespace helengine.editor {
         /// <summary>
         /// Font used for labels and values.
         /// </summary>
-        readonly FontAsset Font;
+        internal readonly FontAsset Font;
         /// <summary>
         /// Content manager used to load serialized editor assets.
         /// </summary>
@@ -160,7 +160,7 @@ namespace helengine.editor {
         /// <summary>
         /// Root entity that hosts the component property rows.
         /// </summary>
-        readonly EditorEntity RootEntity;
+        internal readonly EditorEntity RootEntity;
         /// <summary>
         /// Pool of inactive rows that can be reused.
         /// </summary>
@@ -178,9 +178,13 @@ namespace helengine.editor {
         /// </summary>
         readonly List<ComponentSectionView> ActiveSections;
         /// <summary>
+        /// Presentation renderers registered per row kind; each owns the create, refresh and layout behaviour for its kind.
+        /// </summary>
+        readonly Dictionary<ComponentPropertyRowKind, ComponentPropertyRowRenderer> RowRenderers;
+        /// <summary>
         /// Map of vector text fields to their owning row.
         /// </summary>
-        readonly Dictionary<TextBoxComponent, ComponentPropertyRow> VectorFieldRows;
+        internal readonly Dictionary<TextBoxComponent, ComponentPropertyRow> VectorFieldRows;
         /// <summary>
         /// Map of Vector4 text fields to their owning row.
         /// </summary>
@@ -359,6 +363,8 @@ namespace helengine.editor {
             ActiveRows = new List<ComponentPropertyRow>(16);
             SectionPool = new List<ComponentSectionView>(8);
             ActiveSections = new List<ComponentSectionView>(8);
+            RowRenderers = new Dictionary<ComponentPropertyRowKind, ComponentPropertyRowRenderer>();
+            RegisterRowRenderer(new VectorComponentPropertyRowRenderer(this));
             VectorFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             Vector4FieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
             ScalarFieldRows = new Dictionary<TextBoxComponent, ComponentPropertyRow>();
@@ -2125,12 +2131,16 @@ namespace helengine.editor {
                 return;
             }
 
+            ComponentPropertyRowRenderer renderer;
+            if (RowRenderers.TryGetValue(row.Kind, out renderer)) {
+                renderer.Update(row);
+                RefreshRowOverrideChrome(row);
+                return;
+            }
+
             switch (row.Kind) {
                 case ComponentPropertyRowKind.CustomSection:
                     UpdateCustomSectionRow(row);
-                    break;
-                case ComponentPropertyRowKind.Vector3:
-                    UpdateVectorRow(row);
                     break;
                 case ComponentPropertyRowKind.Vector4:
                     UpdateVector4Row(row);
@@ -2340,19 +2350,6 @@ namespace helengine.editor {
             }
 
             UpdateCustomSectionVisual(row, false);
-        }
-
-        /// <summary>
-        /// Updates a Vector3 row with the component property value.
-        /// </summary>
-        /// <param name="row">Row to update.</param>
-        void UpdateVectorRow(ComponentPropertyRow row) {
-            if (!TryGetVectorValue(row, out float3 value)) {
-                SetVectorFields(row, 0.0, 0.0, 0.0);
-                return;
-            }
-
-            SetVectorFields(row, value.X, value.Y, value.Z);
         }
 
         /// <summary>
@@ -2614,7 +2611,7 @@ namespace helengine.editor {
         /// <param name="row">Row to query.</param>
         /// <param name="value">Vector value when available.</param>
         /// <returns>True when a Vector3 value was read.</returns>
-        bool TryGetVectorValue(ComponentPropertyRow row, out float3 value) {
+        internal bool TryGetVectorValue(ComponentPropertyRow row, out float3 value) {
             value = float3.Zero;
             object rawValue = GetRowValue(row);
             if (rawValue is float3 vector) {
@@ -2680,7 +2677,7 @@ namespace helengine.editor {
         /// <param name="x">X value.</param>
         /// <param name="y">Y value.</param>
         /// <param name="z">Z value.</param>
-        void SetVectorFields(ComponentPropertyRow row, double x, double y, double z) {
+        internal void SetVectorFields(ComponentPropertyRow row, double x, double y, double z) {
             if (row.VectorFields == null || row.VectorCache == null) {
                 return;
             }
@@ -2776,7 +2773,7 @@ namespace helengine.editor {
         /// Handles submit events for vector fields.
         /// </summary>
         /// <param name="field">Submitted text box.</param>
-        void HandleVectorSubmitted(TextBoxComponent field) {
+        internal void HandleVectorSubmitted(TextBoxComponent field) {
             if (IsSynchronizing) {
                 return;
             }
@@ -3794,12 +3791,15 @@ namespace helengine.editor {
             row.LabelHost.Position = new float3(0, labelY, 0.2f);
             row.Label.Size = new int2(labelWidth, (int)Math.Ceiling(labelMetrics.Height));
 
+            ComponentPropertyRowRenderer renderer;
+            if (RowRenderers.TryGetValue(row.Kind, out renderer)) {
+                renderer.Layout(row, contentWidth, height, labelWidth);
+                return;
+            }
+
             switch (row.Kind) {
                 case ComponentPropertyRowKind.Header:
                     LayoutHeaderRow(row, contentWidth, height);
-                    break;
-                case ComponentPropertyRowKind.Vector3:
-                    LayoutVectorRow(row, contentWidth, height, labelWidth);
                     break;
                 case ComponentPropertyRowKind.Vector4:
                     LayoutVector4Row(row, contentWidth, height, labelWidth);
@@ -3902,30 +3902,6 @@ namespace helengine.editor {
                 float revertButtonY = (float)Math.Round((SectionHeaderHeight - SectionRevertButtonHeight) * 0.5);
                 int revertButtonX = Math.Max(0, safeWidth - SectionRevertButtonWidth);
                 section.RevertButtonHost.Position = new float3(revertButtonX, revertButtonY, 0.2f);
-            }
-        }
-
-        /// <summary>
-        /// Layouts a Vector3 row with three text fields.
-        /// </summary>
-        /// <param name="row">Vector3 row to layout.</param>
-        /// <param name="width">Available width.</param>
-        /// <param name="height">Row height.</param>
-        /// <param name="labelWidth">Width reserved for labels.</param>
-        void LayoutVectorRow(ComponentPropertyRow row, int width, int height, int labelWidth) {
-            if (row.VectorFieldHosts == null || row.VectorFields == null) {
-                return;
-            }
-
-            int available = Math.Max(0, width - labelWidth - (FieldSpacing * 2));
-            int fieldWidth = Math.Max(48, available / 3);
-            float fieldY = (float)Math.Round((height - FieldHeight) * 0.5);
-
-            int fieldX = labelWidth + FieldSpacing;
-            for (int i = 0; i < row.VectorFieldHosts.Length; i++) {
-                row.VectorFieldHosts[i].Position = new float3(fieldX, fieldY, 0.2f);
-                row.VectorFields[i].Size = new int2(fieldWidth, FieldHeight);
-                fieldX += fieldWidth + FieldSpacing;
             }
         }
 
@@ -4647,10 +4623,26 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Retrieves or creates a row of the requested kind.
+        /// Registers the presentation renderer that owns one row kind, rejecting a second registration for the same
+        /// kind so a duplicated wiring surfaces immediately instead of silently replacing the first renderer.
+        /// </summary>
+        /// <param name="renderer">Renderer to register for its declared kind.</param>
+        void RegisterRowRenderer(ComponentPropertyRowRenderer renderer) {
+            if (renderer == null) {
+                throw new ArgumentNullException(nameof(renderer));
+            }
+            if (RowRenderers.ContainsKey(renderer.Kind)) {
+                throw new InvalidOperationException("A property row renderer is already registered for kind " + renderer.Kind + ".");
+            }
+
+            RowRenderers[renderer.Kind] = renderer;
+        }
+
+        /// <summary>
+        /// Takes a pooled row of the requested kind or creates a new one.
         /// </summary>
         /// <param name="kind">Row layout kind.</param>
-        /// <returns>Prepared row instance.</returns>
+        /// <returns>Row ready to be bound.</returns>
         ComponentPropertyRow AcquireRow(ComponentPropertyRowKind kind) {
             for (int i = 0; i < RowPool.Count; i++) {
                 ComponentPropertyRow row = RowPool[i];
@@ -4716,10 +4708,13 @@ namespace helengine.editor {
             row.RevertButtonHost = revertButtonHost;
             row.RevertButton = revertButton;
 
+            ComponentPropertyRowRenderer renderer;
+            if (RowRenderers.TryGetValue(kind, out renderer)) {
+                renderer.Build(row, rowEntity);
+                return row;
+            }
+
             switch (kind) {
-                case ComponentPropertyRowKind.Vector3:
-                    BuildVectorRow(row, rowEntity);
-                    break;
                 case ComponentPropertyRowKind.Vector4:
                     BuildVector4Row(row, rowEntity);
                     break;
@@ -4804,33 +4799,6 @@ namespace helengine.editor {
             row.HeaderBackground = background;
             row.HeaderInteractable = interactable;
             interactable.CursorEvent += (pos, delta, state) => HandleCustomSectionCursor(row, state);
-        }
-
-        /// <summary>
-        /// Builds the Vector3 field controls for a row.
-        /// </summary>
-        /// <param name="row">Row to populate.</param>
-        /// <param name="rowEntity">Row root entity.</param>
-        void BuildVectorRow(ComponentPropertyRow row, EditorEntity rowEntity) {
-            row.VectorFieldHosts = new EditorEntity[3];
-            row.VectorFields = new TextBoxComponent[3];
-            row.VectorCache = new string[3];
-
-            string[] placeholders = new[] { "X", "Y", "Z" };
-            for (int i = 0; i < row.VectorFieldHosts.Length; i++) {
-                var fieldHost = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices);
-                fieldHost.LayerMask = RootEntity.LayerMask;
-                fieldHost.Position = float3.Zero;
-                rowEntity.AddChild(fieldHost);
-
-                var field = new TextBoxComponent(new int2(60, FieldHeight), Font, placeholders[i]);
-                field.Submitted += HandleVectorSubmitted;
-                fieldHost.AddComponent(field);
-
-                row.VectorFieldHosts[i] = fieldHost;
-                row.VectorFields[i] = field;
-                VectorFieldRows[field] = row;
-            }
         }
 
         /// <summary>
