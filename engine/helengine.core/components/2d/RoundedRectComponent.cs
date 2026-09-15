@@ -3,21 +3,21 @@ namespace helengine {
     /// Renders a rounded rectangle shape using the 2D render manager.
     /// </summary>
     public class RoundedRectComponent : Component, IRoundedRectDrawable2D, IAnchorSizeProvider {
-        byte renderOrder2D;
+        byte RenderOrder2DValue;
 
         /// <summary>
         /// Gets or sets the render order for this shape.
         /// </summary>
         public byte RenderOrder2D {
-            get { return renderOrder2D; }
+            get { return RenderOrder2DValue; }
             set {
-                if (renderOrder2D != value) {
+                if (RenderOrder2DValue != value) {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
                         OwnerCore.ObjectManager.RemoveFromRender2D(this);
-                        renderOrder2D = value;
+                        RenderOrder2DValue = value;
                         OwnerCore.ObjectManager.RegisterForRender2D(this);
                     } else {
-                        renderOrder2D = value;
+                        RenderOrder2DValue = value;
                     }
                 }
             }

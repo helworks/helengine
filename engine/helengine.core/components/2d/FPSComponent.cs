@@ -11,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Font used by both overlay lines.
         /// </summary>
-        FontAsset font;
+        FontAsset FontValue;
 
         /// <summary>
         /// Uniform font scale applied to both overlay lines.
@@ -87,13 +87,13 @@ namespace helengine {
         /// Gets or sets the sampling interval used before refreshing the visible FPS values.
         /// </summary>
         public double RefreshIntervalSeconds {
-            get { return refreshIntervalSeconds; }
+            get { return RefreshIntervalSecondsValue; }
             set {
                 if (value < 0d) {
                     throw new ArgumentOutOfRangeException(nameof(value), "Refresh interval must be zero or greater.");
                 }
 
-                refreshIntervalSeconds = value;
+                RefreshIntervalSecondsValue = value;
             }
         }
 
@@ -101,9 +101,9 @@ namespace helengine {
         /// Gets or sets the overlay padding applied from the top-left viewport edge.
         /// </summary>
         public int2 Padding {
-            get { return padding; }
+            get { return PaddingValue; }
             set {
-                padding = value;
+                PaddingValue = value;
                 ApplyPadding();
             }
         }
@@ -112,13 +112,13 @@ namespace helengine {
         /// Gets or sets the render order used by the overlay text.
         /// </summary>
         public byte RenderOrder2D {
-            get { return renderOrder2D; }
+            get { return RenderOrder2DValue; }
             set {
-                if (renderOrder2D == value) {
+                if (RenderOrder2DValue == value) {
                     return;
                 }
 
-                renderOrder2D = value;
+                RenderOrder2DValue = value;
                 ApplyRenderOrder();
             }
         }
@@ -127,13 +127,13 @@ namespace helengine {
         /// Gets or sets the font used by both overlay lines.
         /// </summary>
         public FontAsset Font {
-            get { return font; }
+            get { return FontValue; }
             set {
-                if (ReferenceEquals(font, value)) {
+                if (ReferenceEquals(FontValue, value)) {
                     return;
                 }
 
-                font = value;
+                FontValue = value;
                 RefreshOverlayActivation();
             }
         }
@@ -199,17 +199,17 @@ namespace helengine {
         /// <summary>
         /// Stores the current refresh interval.
         /// </summary>
-        double refreshIntervalSeconds = 0.5d;
+        double RefreshIntervalSecondsValue = 0.5d;
 
         /// <summary>
         /// Stores the current overlay padding.
         /// </summary>
-        int2 padding = new int2(8, 6);
+        int2 PaddingValue = new int2(8, 6);
 
         /// <summary>
         /// Stores the current render order used by both overlay text rows.
         /// </summary>
-        byte renderOrder2D = 250;
+        byte RenderOrder2DValue = 250;
 
         /// <summary>
         /// Creates a new FPS overlay with no implicit font fallback.
@@ -428,7 +428,7 @@ namespace helengine {
                 return;
             }
 
-            OverlayHost.LocalPosition = new float3(padding.X, padding.Y, 0f);
+            OverlayHost.LocalPosition = new float3(PaddingValue.X, PaddingValue.Y, 0f);
         }
 
         /// <summary>
@@ -569,7 +569,7 @@ namespace helengine {
 
             Core core = OwnerCore;
             double elapsedSeconds = core.TotalElapsedSeconds - LastSampleElapsedSeconds;
-            if (refreshIntervalSeconds > 0d && elapsedSeconds < refreshIntervalSeconds) {
+            if (RefreshIntervalSecondsValue > 0d && elapsedSeconds < RefreshIntervalSecondsValue) {
                 return;
             }
 

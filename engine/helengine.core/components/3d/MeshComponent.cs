@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Stores the render ordering key currently registered with the 3D object manager.
         /// </summary>
-        byte renderOrder3D;
+        byte RenderOrder3DValue;
         /// <summary>
         /// Stores the material-slot array owned by this component while each referenced runtime material remains scene-owned.
         /// </summary>
@@ -39,15 +39,15 @@ namespace helengine {
         /// Gets or sets the render order for this mesh.
         /// </summary>
         public byte RenderOrder3D {
-            get { return renderOrder3D; }
+            get { return RenderOrder3DValue; }
             set {
-                if (renderOrder3D != value) {
+                if (RenderOrder3DValue != value) {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
                         OwnerCore.ObjectManager.RemoveFromRender3D(this);
-                        renderOrder3D = value;
+                        RenderOrder3DValue = value;
                         OwnerCore.ObjectManager.RegisterForRender3D(this);
                     } else {
-                        renderOrder3D = value;
+                        RenderOrder3DValue = value;
                     }
                 }
             }

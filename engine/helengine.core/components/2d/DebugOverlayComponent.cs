@@ -5,12 +5,12 @@ namespace helengine {
     /// Renders a toggleable debug overlay showing registered debug info categories.
     /// </summary>
     public class DebugOverlayComponent : UpdateComponent {
-        Entity bgEntity;
-        Entity textEntity;
-        RoundedRectComponent bg;
-        TextComponent text;
-        FontAsset font;
-        bool initialized;
+        Entity BgEntity;
+        Entity TextEntity;
+        RoundedRectComponent Bg;
+        TextComponent Text;
+        FontAsset Font;
+        bool Initialized;
 
         /// <summary>
         /// Gets a value indicating whether the overlay is currently visible.
@@ -39,7 +39,7 @@ namespace helengine {
         /// </summary>
         /// <param name="font">Font used for overlay text.</param>
         public DebugOverlayComponent(FontAsset font) {
-            this.font = font;
+            this.Font = font;
         }
 
         /// <summary>
@@ -49,47 +49,47 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (initialized) {
+            if (Initialized) {
                 return;
             }
 
-            initialized = true;
+            Initialized = true;
 
             entity.InitChildren();
-            bgEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Debug overlay requires an owning core."));
-            bgEntity.LayerMask = entity.LayerMask;
-            bgEntity.InitComponents();
-            entity.AddChild(bgEntity);
+            BgEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Debug overlay requires an owning core."));
+            BgEntity.LayerMask = entity.LayerMask;
+            BgEntity.InitComponents();
+            entity.AddChild(BgEntity);
 
-            bg = new RoundedRectComponent();
-            bg.Size = new int2(200, 80);
-            bg.Radius = 6f;
-            bg.BorderThickness = 1f;
-            bg.FillColor = new byte4(0, 0, 0, 160);
-            bg.BorderColor = new byte4(255, 255, 255, 64);
-            bg.RenderOrder2D = RenderOrder2D;
-            bgEntity.AddComponent(bg);
+            Bg = new RoundedRectComponent();
+            Bg.Size = new int2(200, 80);
+            Bg.Radius = 6f;
+            Bg.BorderThickness = 1f;
+            Bg.FillColor = new byte4(0, 0, 0, 160);
+            Bg.BorderColor = new byte4(255, 255, 255, 64);
+            Bg.RenderOrder2D = RenderOrder2D;
+            BgEntity.AddComponent(Bg);
 
-            textEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Debug overlay requires an owning core."));
-            textEntity.LayerMask = entity.LayerMask;
-            textEntity.InitComponents();
-            entity.AddChild(textEntity);
+            TextEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Debug overlay requires an owning core."));
+            TextEntity.LayerMask = entity.LayerMask;
+            TextEntity.InitComponents();
+            entity.AddChild(TextEntity);
 
-            text = new TextComponent();
-            text.Font = font;
-            text.Color = new byte4(230, 230, 230, 255);
-            text.RenderOrder2D = (byte)(RenderOrder2D + 1);
-            textEntity.AddComponent(text);
+            Text = new TextComponent();
+            Text.Font = Font;
+            Text.Color = new byte4(230, 230, 230, 255);
+            Text.RenderOrder2D = (byte)(RenderOrder2D + 1);
+            TextEntity.AddComponent(Text);
 
-            bgEntity.Enabled = false;
-            textEntity.Enabled = false;
+            BgEntity.Enabled = false;
+            TextEntity.Enabled = false;
         }
 
         /// <summary>
         /// Updates overlay visibility, handles input toggle, and rebuilds text.
         /// </summary>
         public override void Update() {
-            if (!initialized) {
+            if (!Initialized) {
                 return;
             }
 
@@ -102,8 +102,8 @@ namespace helengine {
             }
 #endif
 
-            bgEntity.Enabled = Visible;
-            textEntity.Enabled = Visible;
+            BgEntity.Enabled = Visible;
+            TextEntity.Enabled = Visible;
 
             if (!Visible) {
                 return;
@@ -128,7 +128,7 @@ namespace helengine {
                     string headerLine = "[" + cat + "]";
                     string headerLineWithBreak = headerLine + "\n";
                     sb.Append(headerLineWithBreak);
-                    FontTightMetrics headerMetrics = font.MeasureTight(headerLine);
+                    FontTightMetrics headerMetrics = Font.MeasureTight(headerLine);
                     if (headerMetrics.Width > maxW) {
                         maxW = headerMetrics.Width;
                     }
@@ -142,7 +142,7 @@ namespace helengine {
                     sb.Append('\n');
                 }
 
-                FontTightMetrics valueMetrics = font.MeasureTight(valueLine);
+                FontTightMetrics valueMetrics = Font.MeasureTight(valueLine);
                 if (valueMetrics.Width > maxW) {
                     maxW = valueMetrics.Width;
                 }
@@ -150,17 +150,17 @@ namespace helengine {
             }
 
             string textStr = sb.ToString();
-            text.Text = textStr;
+            Text.Text = textStr;
 
             if (lineCount == 0) {
                 lineCount = 1;
             }
 
             int w = (int)Math.Ceiling(maxW) + Padding.X * 2;
-            int h = (int)Math.Ceiling(lineCount * font.LineHeight) + Padding.Y * 2;
+            int h = (int)Math.Ceiling(lineCount * Font.LineHeight) + Padding.Y * 2;
 
-            bg.Size = new int2(w, h);
-            textEntity.Position = new float3(Padding.X, Padding.Y, 0.1f);
+            Bg.Size = new int2(w, h);
+            TextEntity.Position = new float3(Padding.X, Padding.Y, 0.1f);
         }
     }
 }
