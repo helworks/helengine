@@ -76,6 +76,31 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Ensures opening the generated solution delegates to the configured launcher after generating files.
         /// </summary>
+        /// <summary>
+        /// Ensures generation also writes a production-only solution filter next to the solution, excluding sibling test projects.
+        /// </summary>
+        [Fact]
+        public void GenerateSolutionFiles_WhenTestSurfaceExists_WritesProductionSolutionFilterWithoutTestProjects() {
+            string testFolderPath = Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests");
+            Directory.CreateDirectory(testFolderPath);
+            File.WriteAllText(Path.Combine(testFolderPath, "PlayerTests.cs"), "public sealed class PlayerTests { }");
+            EditorGameSolutionService service = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+
+            string solutionPath = service.GenerateSolutionFiles();
+
+            string filterPath = Path.Combine(TempProjectRootPath, "SkyRider.production.slnf");
+            Assert.Equal(filterPath, service.GeneratedProductionSolutionFilterFilePath);
+            Assert.True(File.Exists(filterPath));
+
+            string solutionContents = File.ReadAllText(solutionPath);
+            string filterContents = File.ReadAllText(filterPath);
+
+            Assert.Contains("gameplay.tests.csproj", solutionContents);
+            Assert.Contains("\"path\": \"SkyRider.sln\"", filterContents);
+            Assert.Contains("user_settings/generated_code/projects/gameplay/gameplay.csproj", filterContents);
+            Assert.DoesNotContain("gameplay.tests.csproj", filterContents);
+        }
+
         [Fact]
         public void OpenSolutionInIde_WhenInvoked_UsesTheConfiguredLauncher() {
             TestIdeLauncher launcher = new TestIdeLauncher();

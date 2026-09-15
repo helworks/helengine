@@ -41,7 +41,7 @@ namespace helengine.editor.tests {
             EditorBuildExecutionResult result = service.BuildAndReload();
 
             Assert.True(result.Succeeded);
-            Assert.Equal(Path.Combine(TempProjectRootPath, "SkyRider.sln"), buildTool.SolutionPath);
+            Assert.Equal(Path.Combine(TempProjectRootPath, "SkyRider.production.slnf"), buildTool.SolutionPath);
             Assert.Single(assemblyHost.Assemblies);
             Assert.Equal("gameplay", assemblyHost.Assemblies[0].ModuleId);
             Assert.Equal(solutionService.GeneratedOutputDirectoryPath, assemblyHost.Assemblies[0].OutputDirectoryPath);
@@ -101,7 +101,7 @@ namespace helengine.editor.tests {
 
             Assert.False(result.Succeeded);
             Assert.Equal(0, assemblyHost.ReloadCount);
-            Assert.Equal(Path.Combine(TempProjectRootPath, "SkyRider.sln"), buildTool.SolutionPath);
+            Assert.Equal(Path.Combine(TempProjectRootPath, "SkyRider.production.slnf"), buildTool.SolutionPath);
         }
 
         /// <summary>
@@ -169,6 +169,27 @@ namespace helengine.editor.tests {
             Assert.True(service.BuildAndReload().Succeeded);
 
             Assert.Equal(2, buildTool.BuildCount);
+        }
+
+        /// <summary>
+        /// Ensures editing a sibling test project's source after a successful build does not rebuild the production scripts.
+        /// </summary>
+        [Fact]
+        public void BuildAndReload_WhenTestSourceChangesAfterBuild_DoesNotRebuildProductionScripts() {
+            string testFolderPath = Path.Combine(TempProjectRootPath, "assets", "codebase", "gameplay.tests");
+            Directory.CreateDirectory(testFolderPath);
+            File.WriteAllText(Path.Combine(testFolderPath, "PlayerTests.cs"), "public sealed class PlayerTests { }");
+            EditorGameSolutionService solutionService = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+            TestScriptBuildTool buildTool = new TestScriptBuildTool(EditorBuildExecutionResult.Success("build ok")) {
+                OutputFilePathToCreate = solutionService.GeneratedOutputAssemblyPath
+            };
+            EditorGameScriptHotReloadService service = new EditorGameScriptHotReloadService(solutionService, buildTool, new TestScriptAssemblyHost());
+
+            Assert.True(service.BuildAndReload().Succeeded);
+            File.WriteAllText(Path.Combine(testFolderPath, "PlayerTests.cs"), "public sealed class PlayerTests { public void Broken() { undefined(); } }");
+            Assert.True(service.BuildAndReload().Succeeded);
+
+            Assert.Equal(1, buildTool.BuildCount);
         }
 
         /// <summary>

@@ -69,6 +69,29 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures source files under an excluded nested folder do not affect the fingerprint.
+        /// </summary>
+        [Fact]
+        public void Compute_WhenExcludedNestedSourceChanges_ReturnsSameValue() {
+            EditorScriptBuildInputs baseInputs = CreateInputs();
+            string excludedPath = Path.Combine(TempRootPath, "src", "gameplay.tests");
+            Directory.CreateDirectory(excludedPath);
+            File.WriteAllText(Path.Combine(excludedPath, "PlayerTests.cs"), "public sealed class PlayerTests { }");
+            EditorScriptBuildInputs inputs = new EditorScriptBuildInputs(
+                baseInputs.GeneratedFilePaths,
+                baseInputs.SourceDirectoryPaths,
+                baseInputs.ReferencedAssemblyPaths,
+                baseInputs.Tokens,
+                new[] { excludedPath });
+            string before = EditorScriptBuildFingerprint.Compute(inputs);
+
+            File.WriteAllText(Path.Combine(excludedPath, "PlayerTests.cs"), "public sealed class PlayerTests { public void Changed() { } }");
+
+            Assert.Equal(before, EditorScriptBuildFingerprint.Compute(inputs));
+            Assert.NotEqual(before, EditorScriptBuildFingerprint.Compute(baseInputs));
+        }
+
+        /// <summary>
         /// Ensures non-C# files under the source folder do not affect the fingerprint.
         /// </summary>
         [Fact]

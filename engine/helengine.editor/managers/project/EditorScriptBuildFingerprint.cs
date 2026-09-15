@@ -38,6 +38,7 @@ namespace helengine.editor {
                 }
             }
 
+            string[] excludedDirectoryPrefixes = BuildDirectoryPrefixes(inputs.ExcludedSourceDirectoryPaths);
             string[] sourceDirectoryPaths = SortPaths(inputs.SourceDirectoryPaths);
             for (int index = 0; index < sourceDirectoryPaths.Length; index++) {
                 AppendLine(hash, "dir|" + sourceDirectoryPaths[index]);
@@ -49,6 +50,10 @@ namespace helengine.editor {
                 string[] sourceFilePaths = Directory.GetFiles(sourceDirectoryPaths[index], SourceFilePattern, SearchOption.AllDirectories);
                 Array.Sort(sourceFilePaths, StringComparer.Ordinal);
                 for (int fileIndex = 0; fileIndex < sourceFilePaths.Length; fileIndex++) {
+                    if (IsUnderAny(sourceFilePaths[fileIndex], excludedDirectoryPrefixes)) {
+                        continue;
+                    }
+
                     AppendFileStamp(hash, "src", sourceFilePaths[fileIndex]);
                 }
             }
@@ -125,6 +130,33 @@ namespace helengine.editor {
         static void AppendLine(IncrementalHash hash, string line) {
             hash.AppendData(Encoding.UTF8.GetBytes(line));
             hash.AppendData(new byte[] { (byte)'\n' });
+        }
+
+        /// <summary>
+        /// Normalizes directories into full paths ending with a separator, for prefix matching.
+        /// </summary>
+        static string[] BuildDirectoryPrefixes(IReadOnlyList<string> directoryPaths) {
+            string[] prefixes = new string[directoryPaths.Count];
+            for (int index = 0; index < directoryPaths.Count; index++) {
+                string fullPath = Path.GetFullPath(directoryPaths[index]).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                prefixes[index] = fullPath + Path.DirectorySeparatorChar;
+            }
+
+            return prefixes;
+        }
+
+        /// <summary>
+        /// Determines whether a file lies under any of the supplied directory prefixes.
+        /// </summary>
+        static bool IsUnderAny(string filePath, string[] directoryPrefixes) {
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            for (int index = 0; index < directoryPrefixes.Length; index++) {
+                if (filePath.StartsWith(directoryPrefixes[index], comparison)) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

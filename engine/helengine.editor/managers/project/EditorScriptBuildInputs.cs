@@ -10,16 +10,24 @@ namespace helengine.editor {
         /// <param name="sourceDirectoryPaths">Absolute source directories whose C# files are compiled.</param>
         /// <param name="referencedAssemblyPaths">Absolute paths of engine assemblies referenced by the generated projects.</param>
         /// <param name="tokens">Additional configuration values, such as the compilation mode, that select the build output.</param>
+        /// <param name="excludedSourceDirectoryPaths">Absolute directories under the source directories whose files are not compiled, such as nested module or test folders.</param>
         public EditorScriptBuildInputs(
             IReadOnlyList<string> generatedFilePaths,
             IReadOnlyList<string> sourceDirectoryPaths,
             IReadOnlyList<string> referencedAssemblyPaths,
-            IReadOnlyList<string> tokens) {
+            IReadOnlyList<string> tokens,
+            IReadOnlyList<string> excludedSourceDirectoryPaths = null) {
             GeneratedFilePaths = generatedFilePaths ?? throw new ArgumentNullException(nameof(generatedFilePaths));
             SourceDirectoryPaths = sourceDirectoryPaths ?? throw new ArgumentNullException(nameof(sourceDirectoryPaths));
             ReferencedAssemblyPaths = referencedAssemblyPaths ?? throw new ArgumentNullException(nameof(referencedAssemblyPaths));
             Tokens = tokens ?? throw new ArgumentNullException(nameof(tokens));
+            ExcludedSourceDirectoryPaths = excludedSourceDirectoryPaths ?? Array.Empty<string>();
         }
+
+        /// <summary>
+        /// Gets the directories under the source directories whose files are not compiled.
+        /// </summary>
+        public IReadOnlyList<string> ExcludedSourceDirectoryPaths { get; }
 
         /// <summary>
         /// Gets the generated metadata files whose contents feed the build.

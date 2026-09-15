@@ -50,7 +50,9 @@ namespace helengine.editor {
                 }
 
                 using EditorGeneratedCodeWorkspaceLease workspaceLease = GameSolutionService.AcquireWorkspaceLease();
-                string solutionPath = GameSolutionService.GenerateSolutionFiles(workspaceLease);
+                GameSolutionService.GenerateSolutionFiles(workspaceLease);
+                // Build the production-only filter so test project compile errors never block script loading.
+                string solutionPath = GameSolutionService.GeneratedProductionSolutionFilterFilePath;
                 List<EditorScriptAssemblyDescriptor> assemblies = DescribeModuleAssemblies();
                 string fingerprintFilePath = Path.Combine(GameSolutionService.GeneratedMetadataDirectoryPath, EditorScriptBuildFingerprint.FileName);
                 string fingerprint = EditorScriptBuildFingerprint.Compute(GameSolutionService.DescribeBuildInputs());

@@ -16,6 +16,11 @@ namespace helengine.editor {
         const string SolutionFileExtension = ".sln";
 
         /// <summary>
+        /// Suffix of the generated solution filter that contains only production module projects.
+        /// </summary>
+        const string ProductionSolutionFilterSuffix = ".production.slnf";
+
+        /// <summary>
         /// SDK-style project type GUID used by Visual Studio solutions for C# projects.
         /// </summary>
         const string CSharpProjectTypeGuid = "FAE04EC0-301F-11D3-BF4B-00C04F79EFBC";
@@ -420,6 +425,14 @@ namespace helengine.editor {
         public string GeneratedSolutionFilePath => SolutionFilePath;
 
         /// <summary>
+        /// Gets the absolute path to the generated solution filter that lists only production module projects.
+        /// Editor script builds use it so test project compile errors never block loading gameplay scripts.
+        /// </summary>
+        public string GeneratedProductionSolutionFilterFilePath => Path.Combine(
+            Path.GetDirectoryName(SolutionFilePath) ?? ProjectRootPath,
+            ProjectIdentifier + ProductionSolutionFilterSuffix);
+
+        /// <summary>
         /// Gets the output directory where the generated scripting project writes compiled binaries.
         /// </summary>
         public string GeneratedOutputDirectoryPath {
@@ -454,12 +467,15 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Generated file paths, source directories, referenced assemblies, and configuration tokens.</returns>
         public EditorScriptBuildInputs DescribeBuildInputs() {
-            IReadOnlyList<EditorGeneratedCodeModuleProject> projects = GeneratedProjects;
-            List<string> generatedFilePaths = new List<string>(projects.Count * 2 + 2) {
+            // Only production projects are built by the editor, so test project sources must not affect the fingerprint.
+            IReadOnlyList<EditorGeneratedCodeModuleProject> projects = GeneratedModuleProjects;
+            List<string> generatedFilePaths = new List<string>(projects.Count * 2 + 3) {
                 SolutionFilePath,
+                GeneratedProductionSolutionFilterFilePath,
                 Path.Combine(GeneratedMetadataDirectoryPath, GeneratedBuildPropertiesFileName)
             };
             List<string> sourceDirectoryPaths = new List<string>(projects.Count);
+            List<string> excludedSourceDirectoryPaths = new List<string>();
             HashSet<string> referencedAssemblyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             List<string> tokens = new List<string>(projects.Count + 1) {
                 "mode=" + CompilationMode
@@ -470,6 +486,9 @@ namespace helengine.editor {
                 generatedFilePaths.Add(project.ProjectFilePath);
                 generatedFilePaths.Add(project.GeneratedGlobalUsingsFilePath);
                 sourceDirectoryPaths.Add(ResolveProjectPath(project.SourceFolderPath));
+                for (int nestedIndex = 0; nestedIndex < project.NestedSourceFolderPaths.Count; nestedIndex++) {
+                    excludedSourceDirectoryPaths.Add(ResolveProjectPath(project.NestedSourceFolderPaths[nestedIndex]));
+                }
                 tokens.Add("out|" + project.ModuleId + "|" + project.OutputDirectoryPath);
 
                 IReadOnlyList<KeyValuePair<string, string>> references = ResolveAssemblyReferences(project);
@@ -482,7 +501,8 @@ namespace helengine.editor {
                 generatedFilePaths,
                 sourceDirectoryPaths,
                 referencedAssemblyPaths.ToArray(),
-                tokens);
+                tokens,
+                excludedSourceDirectoryPaths);
         }
 
         /// <summary>
@@ -586,7 +606,44 @@ namespace helengine.editor {
             }
 
             WriteTextIfChanged(SolutionFilePath, BuildSolutionFileContents(GeneratedCodeSolutionValue));
+            WriteTextIfChanged(GeneratedProductionSolutionFilterFilePath, BuildProductionSolutionFilterContents(GeneratedCodeSolutionValue));
             return SolutionFilePath;
+        }
+
+        /// <summary>
+        /// Builds a solution filter (.slnf) that selects only the production module projects of the generated solution.
+        /// </summary>
+        /// <param name="generatedCodeSolution">Generated solution whose production projects should be listed.</param>
+        /// <returns>Solution filter JSON contents.</returns>
+        string BuildProductionSolutionFilterContents(EditorGeneratedCodeSolution generatedCodeSolution) {
+            if (generatedCodeSolution == null) {
+                throw new ArgumentNullException(nameof(generatedCodeSolution));
+            }
+
+            string filterDirectoryPath = Path.GetDirectoryName(GeneratedProductionSolutionFilterFilePath) ?? ProjectRootPath;
+            StringBuilder builder = new StringBuilder();
+            builder.AppendLine("{");
+            builder.AppendLine("  \"solution\": {");
+            builder.AppendLine("    \"path\": \"" + EscapeJson(Path.GetRelativePath(filterDirectoryPath, SolutionFilePath).Replace('\\', '/')) + "\",");
+            builder.AppendLine("    \"projects\": [");
+            for (int index = 0; index < generatedCodeSolution.ModuleProjects.Count; index++) {
+                string relativeProjectPath = Path.GetRelativePath(filterDirectoryPath, generatedCodeSolution.ModuleProjects[index].ProjectFilePath).Replace('\\', '/');
+                string separator = index < generatedCodeSolution.ModuleProjects.Count - 1 ? "," : string.Empty;
+                builder.AppendLine("      \"" + EscapeJson(relativeProjectPath) + "\"" + separator);
+            }
+            builder.AppendLine("    ]");
+            builder.AppendLine("  }");
+            builder.AppendLine("}");
+            return builder.ToString();
+        }
+
+        /// <summary>
+        /// Escapes one text value for inclusion in a JSON string literal.
+        /// </summary>
+        /// <param name="value">Raw text.</param>
+        /// <returns>Escaped text without surrounding quotes.</returns>
+        static string EscapeJson(string value) {
+            return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         /// <summary>
