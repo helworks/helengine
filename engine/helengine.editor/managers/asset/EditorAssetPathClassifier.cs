@@ -142,6 +142,12 @@ namespace helengine.editor {
 
             // Imported model material settings remain hidden from the browser, but generated
             // scenes still need to resolve them through the same public identity contract.
+            // Only .hasset files can carry that header; probing hidden sidecars such as .hmeta
+            // would read every JSON metadata file in the project on each reconcile.
+            if (!string.Equals(Path.GetExtension(fullPath), ImportSettingsExtension, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
             AssetEntryKind hiddenKind;
             return TryClassifyHassetFile(fullPath, out hiddenKind) && hiddenKind == AssetEntryKind.Material;
         }
@@ -197,7 +203,11 @@ namespace helengine.editor {
                 using MemoryStream stream = new MemoryStream(
                     EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(filePath), filePath),
                     writable: false);
-                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                // Probe without throwing: every .hasset in the project passes through here on each boot.
+                if (!EngineBinaryHeaderSerializer.TryRead(stream, out EngineBinaryHeader header)) {
+                    entryKind = AssetEntryKind.Unknown;
+                    return false;
+                }
                 if (header.FormatId != global::helengine.files.EditorAssetBinarySerializer.FormatId) {
                     entryKind = AssetEntryKind.File;
                     return true;

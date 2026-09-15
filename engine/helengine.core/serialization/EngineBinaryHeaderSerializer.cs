@@ -59,6 +59,58 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Source stream positioned at the byte to read.</param>
         /// <returns>The next byte from the stream.</returns>
+        /// <summary>
+        /// Reads a HELE header without throwing, for callers that probe arbitrary files.
+        /// </summary>
+        /// <param name="stream">Stream positioned at the start of the payload.</param>
+        /// <param name="header">Parsed header when the payload starts with a valid HELE header.</param>
+        /// <returns>True when a complete, valid header was read; false when the payload is too short, lacks the magic, or has an unsupported endianness.</returns>
+        public static bool TryRead([NativeNoEscape] Stream stream, out EngineBinaryHeader header) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            header = null;
+            if (stream.ReadByte() != (byte)'H' ||
+                stream.ReadByte() != (byte)'E' ||
+                stream.ReadByte() != (byte)'L' ||
+                stream.ReadByte() != (byte)'E') {
+                return false;
+            }
+
+            int endiannessValue = stream.ReadByte();
+            if (endiannessValue != (int)EngineBinaryEndianness.LittleEndian &&
+                endiannessValue != (int)EngineBinaryEndianness.BigEndian) {
+                return false;
+            }
+
+            int version = stream.ReadByte();
+            if (version < 0) {
+                return false;
+            }
+
+            if (!TryReadUInt16LittleEndian(stream, out ushort formatId) ||
+                !TryReadUInt16LittleEndian(stream, out ushort recordKind) ||
+                !TryReadUInt16LittleEndian(stream, out ushort valueKind)) {
+                return false;
+            }
+
+            header = new EngineBinaryHeader((EngineBinaryEndianness)endiannessValue, (byte)version, formatId, recordKind, valueKind);
+            return true;
+        }
+
+        static bool TryReadUInt16LittleEndian([NativeNoEscape] Stream stream, out ushort value) {
+            int low = stream.ReadByte();
+            int high = stream.ReadByte();
+            if (low < 0 || high < 0) {
+                value = 0;
+                return false;
+            }
+
+            value = (ushort)(low | (high << 8));
+            return true;
+        }
+
         static byte ReadRequiredByte([NativeNoEscape] Stream stream) {
             int value = stream.ReadByte();
             if (value < 0) {
