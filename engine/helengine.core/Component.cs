@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Tracks whether the component has completed disposal and should reject further use.
         /// </summary>
-        bool isDisposed;
+        bool IsDisposedValue;
         /// <summary>
         /// Stores synthetic string members populated by platform-extended runtime payloads; stays null until the first value is set so ordinary components allocate no bag.
         /// </summary>
@@ -52,7 +52,7 @@ namespace helengine {
         /// <summary>
         /// Gets whether disposal has completed and the component should reject further use.
         /// </summary>
-        internal bool IsDisposed => isDisposed;
+        internal bool IsDisposed => IsDisposedValue;
 
         /// <summary>
         /// Stores one synthetic string member value on the component.
@@ -227,7 +227,7 @@ namespace helengine {
         /// Throws when the component was already disposed and can no longer participate in runtime ownership flows.
         /// </summary>
         protected internal void ThrowIfDisposed() {
-            if (isDisposed) {
+            if (IsDisposedValue) {
                 throw new InvalidOperationException("Disposed components cannot be used.");
             }
         }
@@ -271,7 +271,7 @@ namespace helengine {
         /// Releases runtime-owned resources held directly by the component before the native backend deletes the component instance.
         /// </summary>
         public virtual void Dispose() {
-            isDisposed = true;
+            IsDisposedValue = true;
         }
     }
 }

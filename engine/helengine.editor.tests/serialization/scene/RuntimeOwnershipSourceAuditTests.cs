@@ -14,10 +14,10 @@ namespace helengine.editor.tests.serialization.scene {
             string entitySource = ReadSource("helengine.core", "Entity.cs");
 
             Assert.Contains("public virtual void Dispose()", componentSource);
-            Assert.Contains("NativeOwnership.DisposeAndDelete(children[children.Count - 1]);", entitySource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(ChildrenValue[ChildrenValue.Count - 1]);", entitySource);
             Assert.Contains("NativeOwnership.DisposeAndDelete(detachedComponents[i]);", entitySource);
-            Assert.Contains("NativeOwnership.Release(ref components);", entitySource);
-            Assert.Contains("NativeOwnership.Release(ref children);", entitySource);
+            Assert.Contains("NativeOwnership.Release(ref ComponentsValue);", entitySource);
+            Assert.Contains("NativeOwnership.Release(ref ChildrenValue);", entitySource);
         }
 
         /// <summary>
@@ -68,8 +68,8 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Contains("public override void ComponentRemoved(Entity entity)", cameraComponentSource);
             Assert.Contains("OwnerCore.ObjectManager.RemoveCamera(this);", cameraComponentSource);
             Assert.Contains("public override void Dispose()", cameraComponentSource);
-            Assert.Contains("NativeOwnership.DisposeAndDelete(renderList2D);", cameraComponentSource);
-            Assert.Contains("NativeOwnership.DisposeAndDelete(renderList3D);", cameraComponentSource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(RenderList2D);", cameraComponentSource);
+            Assert.Contains("NativeOwnership.DisposeAndDelete(RenderList3D);", cameraComponentSource);
             Assert.Contains("NativeOwnership.Delete(RenderSettingsValue);", cameraComponentSource);
             Assert.Contains("public sealed class RenderList2D : IRenderQueue2D, IDisposable", renderList2DSource);
             Assert.Contains("NativeOwnership.Delete(Items);", renderList2DSource);
