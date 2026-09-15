@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Selects the wording used when a versioned HELE binary payload fails strict version validation, so every serializer migrated onto <see cref="VersionedBinaryPayload"/> keeps publishing the exact diagnostic its callers and tests already expect.
+    /// Selects the wording used when a versioned HELE binary payload fails strict version validation, so every serializer built on <see cref="VersionedBinaryPayload"/> keeps publishing the exact diagnostic its callers and tests already expect.
     /// </summary>
     public enum VersionedBinaryVersionMismatchStyle {
         /// <summary>

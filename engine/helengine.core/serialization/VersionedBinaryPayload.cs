@@ -226,7 +226,7 @@ namespace helengine {
         }
 
         /// <summary>
-        /// Throws the standardized version-mismatch exception for one versioned binary payload using the wording style the migrated serializer published before.
+        /// Throws the standardized version-mismatch exception for one versioned binary payload using the wording style that serializer published before.
         /// </summary>
         /// <param name="actualVersion">Serializer version decoded from the payload header.</param>
         /// <param name="expectedVersion">Serializer version the payload was required to match.</param>
