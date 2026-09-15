@@ -24,96 +24,96 @@ namespace helengine {
         /// Backing list of items displayed by the combo box.
         /// </summary>
         [NativeOwnedMember]
-        List<string> items;
+        List<string> ItemsValue;
         /// <summary>
         /// Cached visuals for each item row.
         /// </summary>
         [NativeOwnedMember]
-        List<ComboBoxItemVisual> itemVisuals;
+        List<ComboBoxItemVisual> ItemVisuals;
         /// <summary>
         /// Tracks whether custom render orders were supplied for the combo-box visuals.
         /// </summary>
-        bool hasRenderOrderOverrides;
+        bool HasRenderOrderOverrides;
 
         /// <summary>
         /// Font used to render text in the control.
         /// </summary>
-        FontAsset font;
+        FontAsset FontValue;
         /// <summary>
         /// Cached size of the combo box control.
         /// </summary>
-        int2 size;
+        int2 SizeValue;
         /// <summary>
         /// Height of each item row.
         /// </summary>
-        int itemHeight;
+        int ItemHeight;
         /// <summary>
         /// Index of the currently selected item.
         /// </summary>
-        int selectedIndex;
+        int SelectedIndexValue;
         /// <summary>
         /// Tracks whether the drop-down list is open.
         /// </summary>
-        bool isOpen;
+        bool IsOpenValue;
         /// <summary>
         /// Tracks whether the main control is hovered.
         /// </summary>
-        bool isHovering;
+        bool IsHovering;
         /// <summary>
         /// Tracks whether the main control is pressed.
         /// </summary>
-        bool isPressed;
+        bool IsPressed;
 
         /// <summary>
         /// Background shape for the main control.
         /// </summary>
-        RoundedRectComponent background;
+        RoundedRectComponent Background;
         /// <summary>
         /// Text component for the selected item label.
         /// </summary>
-        TextComponent labelText;
+        TextComponent LabelText;
         /// <summary>
         /// Text component for the arrow glyph.
         /// </summary>
-        TextComponent arrowText;
+        TextComponent ArrowText;
         /// <summary>
         /// Interactable region for the main control.
         /// </summary>
-        InteractableComponent interactable;
+        InteractableComponent Interactable;
 
         /// <summary>
         /// Entity hosting the selected item label.
         /// </summary>
-        Entity labelEntity;
+        Entity LabelEntity;
         /// <summary>
         /// Entity hosting the arrow glyph.
         /// </summary>
-        Entity arrowEntity;
+        Entity ArrowEntity;
         /// <summary>
         /// Root entity for the drop-down list.
         /// </summary>
-        Entity listRoot;
+        Entity ListRoot;
         /// <summary>
         /// Background for the drop-down list.
         /// </summary>
-        RoundedRectComponent listBackground;
+        RoundedRectComponent ListBackground;
 
         /// <summary>
         /// Render order for the main background.
         /// </summary>
-        byte backgroundOrder;
+        byte BackgroundOrder;
         /// <summary>
         /// Render order for the main text elements.
         /// </summary>
-        byte textOrder;
+        byte TextOrder;
         /// <summary>
         /// Render order for the list background.
         /// </summary>
-        byte listBackgroundOrder;
+        byte ListBackgroundOrder;
         /// <summary>
         /// Render order for item labels.
         /// </summary>
-        byte listTextOrder;
+        byte ListTextOrder;
 
         /// <summary>
         /// Raised when a new item is selected.
@@ -136,28 +136,28 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(items));
             }
 
-            this.size = size;
-            this.font = font;
-            this.items = new List<string>(items.Count);
-            itemVisuals = new List<ComboBoxItemVisual>(items.Count);
-            itemHeight = size.Y;
+            this.SizeValue = size;
+            this.FontValue = font;
+            this.ItemsValue = new List<string>(items.Count);
+            ItemVisuals = new List<ComboBoxItemVisual>(items.Count);
+            ItemHeight = size.Y;
 
             CopyItems(items);
-            this.selectedIndex = ValidateSelectedIndex(this.items.Count, selectedIndex);
+            this.SelectedIndexValue = ValidateSelectedIndex(this.ItemsValue.Count, selectedIndex);
         }
 
         /// <summary>
         /// Gets or sets the size of the combo box control.
         /// </summary>
         public int2 Size {
-            get { return size; }
+            get { return SizeValue; }
             set {
                 if (value.X <= 0 || value.Y <= 0) {
                     throw new ArgumentOutOfRangeException(nameof(value), "ComboBox size must be positive.");
                 }
 
-                size = value;
-                itemHeight = size.Y;
+                SizeValue = value;
+                ItemHeight = SizeValue.Y;
                 UpdateLayout();
             }
         }
@@ -166,13 +166,13 @@ namespace helengine {
         /// Gets or sets the font used to render labels.
         /// </summary>
         public FontAsset Font {
-            get { return font; }
+            get { return FontValue; }
             set {
                 if (value == null) {
                     throw new ArgumentNullException(nameof(value));
                 }
 
-                font = value;
+                FontValue = value;
                 UpdateLabelText();
                 UpdateLayout();
             }
@@ -182,18 +182,18 @@ namespace helengine {
         /// Gets or sets a value indicating whether the drop-down list is open.
         /// </summary>
         public bool IsOpen {
-            get { return isOpen; }
+            get { return IsOpenValue; }
             set {
-                if (value && items.Count == 0) {
-                    isOpen = false;
+                if (value && ItemsValue.Count == 0) {
+                    IsOpenValue = false;
                     UpdateDropdownVisibility();
                     return;
                 }
-                if (isOpen == value) {
+                if (IsOpenValue == value) {
                     return;
                 }
 
-                isOpen = value;
+                IsOpenValue = value;
                 UpdateDropdownVisibility();
             }
         }
@@ -201,18 +201,18 @@ namespace helengine {
         /// <summary>
         /// Gets the current list of items.
         /// </summary>
-        public IReadOnlyList<string> Items => items;
+        public IReadOnlyList<string> Items => ItemsValue;
 
         /// <summary>
         /// Gets a value indicating whether the combo box has a selection.
         /// </summary>
-        public bool HasSelection => selectedIndex >= 0 && selectedIndex < items.Count;
+        public bool HasSelection => SelectedIndexValue >= 0 && SelectedIndexValue < ItemsValue.Count;
 
         /// <summary>
         /// Gets or sets the selected index, or -1 for no selection.
         /// </summary>
         public int SelectedIndex {
-            get { return selectedIndex; }
+            get { return SelectedIndexValue; }
             set { SetSelectedIndexInternal(value, true); }
         }
 
@@ -224,11 +224,11 @@ namespace helengine {
         /// <param name="listBackgroundOrder">Render order for the drop-down background and item backgrounds.</param>
         /// <param name="listTextOrder">Render order for the drop-down item labels.</param>
         public void SetRenderOrders(byte backgroundOrder, byte textOrder, byte listBackgroundOrder, byte listTextOrder) {
-            hasRenderOrderOverrides = true;
-            this.backgroundOrder = backgroundOrder;
-            this.textOrder = textOrder;
-            this.listBackgroundOrder = listBackgroundOrder;
-            this.listTextOrder = listTextOrder;
+            HasRenderOrderOverrides = true;
+            this.BackgroundOrder = backgroundOrder;
+            this.TextOrder = textOrder;
+            this.ListBackgroundOrder = listBackgroundOrder;
+            this.ListTextOrder = listTextOrder;
             ApplyRenderOrders();
         }
 
@@ -255,7 +255,7 @@ namespace helengine {
                     throw new InvalidOperationException("ComboBox has no selected item.");
                 }
 
-                return items[selectedIndex];
+                return ItemsValue[SelectedIndexValue];
             }
         }
 
@@ -277,7 +277,7 @@ namespace helengine {
         /// <summary>
         /// Gets whether this combo box can currently receive keyboard focus.
         /// </summary>
-        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && interactable != null;
+        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && Interactable != null;
 
         /// <summary>
         /// Gets a value indicating whether the main combo-box control is currently keyboard-focused.
@@ -296,16 +296,16 @@ namespace helengine {
 
             ValidateItems(items);
             int validatedIndex = ValidateSelectedIndex(items.Count, selectedIndex);
-            bool selectionChanged = this.selectedIndex != validatedIndex;
+            bool selectionChanged = this.SelectedIndexValue != validatedIndex;
 
-            this.items.Clear();
+            this.ItemsValue.Clear();
             for (int i = 0; i < items.Count; i++) {
-                this.items.Add(items[i]);
+                this.ItemsValue.Add(items[i]);
             }
 
-            this.selectedIndex = validatedIndex;
-            if (this.items.Count == 0 && isOpen) {
-                isOpen = false;
+            this.SelectedIndexValue = validatedIndex;
+            if (this.ItemsValue.Count == 0 && IsOpenValue) {
+                IsOpenValue = false;
             }
 
             UpdateLabelText();
@@ -313,7 +313,7 @@ namespace helengine {
             UpdateDropdownVisibility();
 
             if (selectionChanged && HasSelection && SelectionChanged != null) {
-                SelectionChanged(this.selectedIndex, this.items[this.selectedIndex]);
+                SelectionChanged(this.SelectedIndexValue, this.ItemsValue[this.SelectedIndexValue]);
             }
         }
 
@@ -324,70 +324,70 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (!hasRenderOrderOverrides) {
+            if (!HasRenderOrderOverrides) {
                 UsePanelPresentation();
             }
 
-            background = new RoundedRectComponent();
-            background.Size = size;
-            background.Radius = GetCornerRadius(size);
-            background.BorderThickness = 2f;
-            background.FillColor = ThemeManager.Colors.SurfaceInput;
-            background.BorderColor = ThemeManager.Colors.AccentTertiary;
-            background.RenderOrder2D = backgroundOrder;
-            entity.AddComponent(background);
+            Background = new RoundedRectComponent();
+            Background.Size = SizeValue;
+            Background.Radius = GetCornerRadius(SizeValue);
+            Background.BorderThickness = 2f;
+            Background.FillColor = ThemeManager.Colors.SurfaceInput;
+            Background.BorderColor = ThemeManager.Colors.AccentTertiary;
+            Background.RenderOrder2D = BackgroundOrder;
+            entity.AddComponent(Background);
 
-            interactable = new InteractableComponent();
-            interactable.Size = size;
-            interactable.CursorEvent += HandleMainCursorEvent;
-            entity.AddComponent(interactable);
+            Interactable = new InteractableComponent();
+            Interactable.Size = SizeValue;
+            Interactable.CursorEvent += HandleMainCursorEvent;
+            entity.AddComponent(Interactable);
 
             if (entity.Children == null) {
                 entity.InitChildren();
             }
 
-            labelEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
-            labelEntity.LayerMask = entity.LayerMask;
-            labelEntity.Enabled = true;
-            labelEntity.InitComponents();
-            entity.AddChild(labelEntity);
+            LabelEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
+            LabelEntity.LayerMask = entity.LayerMask;
+            LabelEntity.Enabled = true;
+            LabelEntity.InitComponents();
+            entity.AddChild(LabelEntity);
 
-            labelText = new TextComponent();
-            labelText.Font = font;
-            labelText.Color = ThemeManager.Colors.InputForegroundPrimary;
-            labelText.RenderOrder2D = textOrder;
-            labelEntity.AddComponent(labelText);
+            LabelText = new TextComponent();
+            LabelText.Font = FontValue;
+            LabelText.Color = ThemeManager.Colors.InputForegroundPrimary;
+            LabelText.RenderOrder2D = TextOrder;
+            LabelEntity.AddComponent(LabelText);
 
-            arrowEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
-            arrowEntity.LayerMask = entity.LayerMask;
-            arrowEntity.Enabled = true;
-            arrowEntity.InitComponents();
-            entity.AddChild(arrowEntity);
+            ArrowEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
+            ArrowEntity.LayerMask = entity.LayerMask;
+            ArrowEntity.Enabled = true;
+            ArrowEntity.InitComponents();
+            entity.AddChild(ArrowEntity);
 
-            arrowText = new TextComponent();
-            arrowText.Font = font;
-            arrowText.Color = ThemeManager.Colors.InputForegroundSecondary;
-            arrowText.RenderOrder2D = textOrder;
-            arrowEntity.AddComponent(arrowText);
+            ArrowText = new TextComponent();
+            ArrowText.Font = FontValue;
+            ArrowText.Color = ThemeManager.Colors.InputForegroundSecondary;
+            ArrowText.RenderOrder2D = TextOrder;
+            ArrowEntity.AddComponent(ArrowText);
 
-            listRoot = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
-            listRoot.LayerMask = entity.LayerMask;
-            listRoot.InitComponents();
-            listRoot.InitChildren();
-            entity.AddChild(listRoot);
+            ListRoot = new Entity(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."));
+            ListRoot.LayerMask = entity.LayerMask;
+            ListRoot.InitComponents();
+            ListRoot.InitChildren();
+            entity.AddChild(ListRoot);
 
-            listBackground = new RoundedRectComponent();
-            listBackground.RenderOrder2D = listBackgroundOrder;
-            listBackground.BorderThickness = 1f;
-            listBackground.FillColor = ThemeManager.Colors.SurfacePrimary;
-            listBackground.BorderColor = ThemeManager.Colors.AccentTertiary;
-            listRoot.AddComponent(listBackground);
+            ListBackground = new RoundedRectComponent();
+            ListBackground.RenderOrder2D = ListBackgroundOrder;
+            ListBackground.BorderThickness = 1f;
+            ListBackground.FillColor = ThemeManager.Colors.SurfacePrimary;
+            ListBackground.BorderColor = ThemeManager.Colors.AccentTertiary;
+            ListRoot.AddComponent(ListBackground);
 
             var updateComponent = new ComboBoxUpdateComponent(this);
             updateComponent.UpdateOrder = OwnerCore.ObjectManager.GetUpdateOrderForLayer(1);
             entity.AddComponent(updateComponent);
 
-            EnsureItemVisuals(items.Count);
+            EnsureItemVisuals(ItemsValue.Count);
             UpdateLabelText();
             UpdateLayout();
             UpdateDropdownVisibility();
@@ -397,26 +397,26 @@ namespace helengine {
         /// Applies the currently configured render orders to all constructed visuals.
         /// </summary>
         void ApplyRenderOrders() {
-            if (background != null) {
-                background.RenderOrder2D = backgroundOrder;
+            if (Background != null) {
+                Background.RenderOrder2D = BackgroundOrder;
             }
 
-            if (labelText != null) {
-                labelText.RenderOrder2D = textOrder;
+            if (LabelText != null) {
+                LabelText.RenderOrder2D = TextOrder;
             }
 
-            if (arrowText != null) {
-                arrowText.RenderOrder2D = textOrder;
+            if (ArrowText != null) {
+                ArrowText.RenderOrder2D = TextOrder;
             }
 
-            if (listBackground != null) {
-                listBackground.RenderOrder2D = listBackgroundOrder;
+            if (ListBackground != null) {
+                ListBackground.RenderOrder2D = ListBackgroundOrder;
             }
 
-            for (int i = 0; i < itemVisuals.Count; i++) {
-                ComboBoxItemVisual entry = itemVisuals[i];
-                entry.Background.RenderOrder2D = listBackgroundOrder;
-                entry.Label.RenderOrder2D = listTextOrder;
+            for (int i = 0; i < ItemVisuals.Count; i++) {
+                ComboBoxItemVisual entry = ItemVisuals[i];
+                entry.Background.RenderOrder2D = ListBackgroundOrder;
+                entry.Label.RenderOrder2D = ListTextOrder;
             }
         }
 
@@ -428,8 +428,8 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (!newEnabled) {
-                isHovering = false;
-                isPressed = false;
+                IsHovering = false;
+                IsPressed = false;
                 ResetItemStates();
                 SetTargetFocused(false);
             }
@@ -442,8 +442,8 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
 
-            isHovering = false;
-            isPressed = false;
+            IsHovering = false;
+            IsPressed = false;
             ResetItemStates();
             SetTargetFocused(false);
         }
@@ -452,20 +452,20 @@ namespace helengine {
         /// Releases item-visual wrappers and list containers owned by this combo-box component.
         /// </summary>
         public override void Dispose() {
-            if (itemVisuals != null) {
-                for (int itemIndex = 0; itemIndex < itemVisuals.Count; itemIndex++) {
-                    itemVisuals[itemIndex].CursorEvent -= HandleItemCursorEvent;
-                    NativeOwnership.Delete(itemVisuals[itemIndex]);
+            if (ItemVisuals != null) {
+                for (int itemIndex = 0; itemIndex < ItemVisuals.Count; itemIndex++) {
+                    ItemVisuals[itemIndex].CursorEvent -= HandleItemCursorEvent;
+                    NativeOwnership.Delete(ItemVisuals[itemIndex]);
                 }
 
-                itemVisuals.Clear();
+                ItemVisuals.Clear();
             }
-            NativeOwnership.Release(ref itemVisuals);
+            NativeOwnership.Release(ref ItemVisuals);
 
-            if (items != null) {
-                items.Clear();
+            if (ItemsValue != null) {
+                ItemsValue.Clear();
             }
-            NativeOwnership.Release(ref items);
+            NativeOwnership.Release(ref ItemsValue);
 
             base.Dispose();
         }
@@ -490,7 +490,7 @@ namespace helengine {
             ValidateItems(source);
 
             for (int i = 0; i < source.Count; i++) {
-                items.Add(source[i]);
+                ItemsValue.Add(source[i]);
             }
         }
 
@@ -514,17 +514,17 @@ namespace helengine {
         /// <param name="index">New selected index.</param>
         /// <param name="raiseEvent">True to raise the selection changed event.</param>
         void SetSelectedIndexInternal(int index, bool raiseEvent) {
-            int validated = ValidateSelectedIndex(items.Count, index);
-            if (selectedIndex == validated) {
+            int validated = ValidateSelectedIndex(ItemsValue.Count, index);
+            if (SelectedIndexValue == validated) {
                 return;
             }
 
-            selectedIndex = validated;
+            SelectedIndexValue = validated;
             UpdateLabelText();
             UpdateAllItemStates();
 
             if (raiseEvent && HasSelection && SelectionChanged != null) {
-                SelectionChanged(selectedIndex, items[selectedIndex]);
+                SelectionChanged(SelectedIndexValue, ItemsValue[SelectedIndexValue]);
             }
         }
 
@@ -532,18 +532,18 @@ namespace helengine {
         /// Updates the selected item label and arrow glyph text.
         /// </summary>
         void UpdateLabelText() {
-            if (labelText == null || arrowText == null) {
+            if (LabelText == null || ArrowText == null) {
                 return;
             }
 
-            string displayText = HasSelection ? items[selectedIndex] : string.Empty;
-            labelText.Text = displayText;
-            labelText.Color = HasSelection
+            string displayText = HasSelection ? ItemsValue[SelectedIndexValue] : string.Empty;
+            LabelText.Text = displayText;
+            LabelText.Color = HasSelection
                 ? ThemeManager.Colors.InputForegroundPrimary
                 : ThemeManager.Colors.InputForegroundSecondary;
 
-            arrowText.Text = ArrowGlyph;
-            arrowText.Color = ThemeManager.Colors.InputForegroundSecondary;
+            ArrowText.Text = ArrowGlyph;
+            ArrowText.Color = ThemeManager.Colors.InputForegroundSecondary;
 
             UpdateLabelLayout();
         }
@@ -553,7 +553,7 @@ namespace helengine {
         /// </summary>
         public void Update() {
 #if DESKTOP_PLATFORM
-            if (!isOpen || Parent == null || listRoot == null) {
+            if (!IsOpenValue || Parent == null || ListRoot == null) {
                 return;
             }
 
@@ -585,9 +585,9 @@ namespace helengine {
 
             float3 origin = Parent.Position;
             return x >= origin.X &&
-                   x < origin.X + size.X &&
+                   x < origin.X + SizeValue.X &&
                    y >= origin.Y &&
-                   y < origin.Y + size.Y;
+                   y < origin.Y + SizeValue.Y;
         }
 
         /// <summary>
@@ -596,7 +596,7 @@ namespace helengine {
         /// <param name="isFocused">True when the combo box should render as focused.</param>
         public void SetTargetFocused(bool isFocused) {
             IsKeyboardFocused = isFocused;
-            if (!isFocused && isOpen) {
+            if (!isFocused && IsOpenValue) {
                 IsOpen = false;
             }
 
@@ -618,11 +618,11 @@ namespace helengine {
         /// </summary>
         /// <param name="key">Activation key routed to the combo box.</param>
         public void ActivateFromKey(Keys key) {
-            if (!CanActivateWithKey(key) || items.Count == 0) {
+            if (!CanActivateWithKey(key) || ItemsValue.Count == 0) {
                 return;
             }
 
-            IsOpen = !isOpen;
+            IsOpen = !IsOpenValue;
         }
 #endif
 
@@ -638,13 +638,13 @@ namespace helengine {
         /// Updates the layout of the main control visuals.
         /// </summary>
         void UpdateMainLayout() {
-            if (background == null || interactable == null) {
+            if (Background == null || Interactable == null) {
                 return;
             }
 
-            background.Size = size;
-            background.Radius = GetCornerRadius(size);
-            interactable.Size = size;
+            Background.Size = SizeValue;
+            Background.Radius = GetCornerRadius(SizeValue);
+            Interactable.Size = SizeValue;
             UpdateLabelLayout();
         }
 
@@ -652,70 +652,70 @@ namespace helengine {
         /// Positions and sizes the selected label and arrow glyph.
         /// </summary>
         void UpdateLabelLayout() {
-            if (labelEntity == null || labelText == null || arrowEntity == null || arrowText == null || font == null) {
+            if (LabelEntity == null || LabelText == null || ArrowEntity == null || ArrowText == null || FontValue == null) {
                 return;
             }
 
-            double lineHeight = Math.Max((double)font.LineHeight, 1.0);
-            double labelY = Math.Round((size.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
+            double lineHeight = Math.Max((double)FontValue.LineHeight, 1.0);
+            double labelY = Math.Round((SizeValue.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
 
-            FontTightMetrics labelMetrics = font.MeasureTight(labelText.Text);
+            FontTightMetrics labelMetrics = FontValue.MeasureTight(LabelText.Text);
             int labelWidth = (int)Math.Ceiling(labelMetrics.Width);
             int labelHeight = (int)Math.Ceiling(Math.Max((double)labelMetrics.Height, 1.0));
-            labelText.Size = new int2(labelWidth, labelHeight);
-            labelEntity.Position = new float3(TextPaddingX, (float)labelY, 0.1f);
+            LabelText.Size = new int2(labelWidth, labelHeight);
+            LabelEntity.Position = new float3(TextPaddingX, (float)labelY, 0.1f);
 
-            FontTightMetrics arrowMetrics = font.MeasureTight(ArrowGlyph);
+            FontTightMetrics arrowMetrics = FontValue.MeasureTight(ArrowGlyph);
             int arrowWidth = (int)Math.Ceiling(arrowMetrics.Width);
             int arrowHeight = (int)Math.Ceiling(Math.Max((double)arrowMetrics.Height, 1.0));
-            arrowText.Size = new int2(arrowWidth, arrowHeight);
+            ArrowText.Size = new int2(arrowWidth, arrowHeight);
 
-            double arrowX = size.X - ArrowPaddingX - arrowMetrics.Width;
+            double arrowX = SizeValue.X - ArrowPaddingX - arrowMetrics.Width;
             if (arrowX < TextPaddingX) {
                 arrowX = TextPaddingX;
             }
             arrowX = Math.Round(arrowX, MidpointRounding.AwayFromZero);
-            arrowEntity.Position = new float3((float)arrowX, (float)labelY, 0.1f);
+            ArrowEntity.Position = new float3((float)arrowX, (float)labelY, 0.1f);
         }
 
         /// <summary>
         /// Updates the layout of the drop-down list and its items.
         /// </summary>
         void UpdateListLayout() {
-            if (listRoot == null || listBackground == null) {
+            if (ListRoot == null || ListBackground == null) {
                 return;
             }
 
-            int listHeight = itemHeight * items.Count;
+            int listHeight = ItemHeight * ItemsValue.Count;
             if (listHeight <= 0) {
                 listHeight = 1;
             }
 
             // Open upward when the downward list would leave the nearest ancestor clip region: clipped list
             // items are both invisible and rejected by pointer hit-testing, so they could never be selected.
-            float listOffsetY = size.Y + ListGap;
+            float listOffsetY = SizeValue.Y + ListGap;
             if (Parent != null && TryFindNearestAncestorClipRect(out float4 clipRect)) {
                 float3 comboOrigin = Parent.Position;
-                bool overflowsBelow = comboOrigin.Y + size.Y + ListGap + listHeight > clipRect.Y + clipRect.W;
+                bool overflowsBelow = comboOrigin.Y + SizeValue.Y + ListGap + listHeight > clipRect.Y + clipRect.W;
                 bool fitsAbove = comboOrigin.Y - ListGap - listHeight >= clipRect.Y;
                 if (overflowsBelow && fitsAbove) {
                     listOffsetY = -(ListGap + listHeight);
                 }
             }
 
-            listRoot.Position = new float3(0f, listOffsetY, 0.2f);
-            listBackground.Size = new int2(size.X, listHeight);
-            if (background != null) {
-                listBackground.Radius = background.Radius;
+            ListRoot.Position = new float3(0f, listOffsetY, 0.2f);
+            ListBackground.Size = new int2(SizeValue.X, listHeight);
+            if (Background != null) {
+                ListBackground.Radius = Background.Radius;
             }
 
-            EnsureItemVisuals(items.Count);
+            EnsureItemVisuals(ItemsValue.Count);
 
-            double lineHeight = Math.Max((double)font.LineHeight, 1.0);
-            bool shouldShow = isOpen && items.Count > 0;
-            for (int i = 0; i < itemVisuals.Count; i++) {
-                ComboBoxItemVisual entry = itemVisuals[i];
-                bool isActive = i < items.Count;
+            double lineHeight = Math.Max((double)FontValue.LineHeight, 1.0);
+            bool shouldShow = IsOpenValue && ItemsValue.Count > 0;
+            for (int i = 0; i < ItemVisuals.Count; i++) {
+                ComboBoxItemVisual entry = ItemVisuals[i];
+                bool isActive = i < ItemsValue.Count;
                 bool isVisible = isActive && shouldShow;
                 entry.Root.Enabled = isVisible;
                 entry.LabelHost.Enabled = isVisible;
@@ -732,26 +732,26 @@ namespace helengine {
                 }
 
                 entry.Index = i;
-                entry.Root.Position = new float3(0f, itemHeight * i, 0.1f);
-                entry.Background.Size = new int2(size.X, itemHeight);
+                entry.Root.Position = new float3(0f, ItemHeight * i, 0.1f);
+                entry.Background.Size = new int2(SizeValue.X, ItemHeight);
                 entry.Background.Radius = 0f;
                 entry.Background.BorderColor = ThemeManager.Colors.AccentTertiary;
-                entry.Interactable.Size = new int2(size.X, itemHeight);
+                entry.Interactable.Size = new int2(SizeValue.X, ItemHeight);
 
-                string itemText = items[i];
+                string itemText = ItemsValue[i];
                 entry.Label.Text = itemText;
-                entry.Label.Font = font;
+                entry.Label.Font = FontValue;
                 entry.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
 
-                FontTightMetrics itemMetrics = font.MeasureTight(itemText);
+                FontTightMetrics itemMetrics = FontValue.MeasureTight(itemText);
                 entry.Label.Size = new int2(
                     (int)Math.Ceiling(itemMetrics.Width),
                     (int)Math.Ceiling(Math.Max((double)itemMetrics.Height, 1.0))
                 );
 
-                double textY = Math.Round((itemHeight - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
+                double textY = Math.Round((ItemHeight - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
                 entry.LabelHost.Position = new float3(TextPaddingX, (float)textY, 0.1f);
-                UpdateItemVisualState(entry, i == selectedIndex);
+                UpdateItemVisualState(entry, i == SelectedIndexValue);
             }
         }
 
@@ -760,11 +760,11 @@ namespace helengine {
         /// </summary>
         /// <param name="count">Number of visuals required.</param>
         void EnsureItemVisuals(int count) {
-            if (listRoot == null) {
+            if (ListRoot == null) {
                 return;
             }
 
-            for (int i = itemVisuals.Count; i < count; i++) {
+            for (int i = ItemVisuals.Count; i < count; i++) {
                 AppendItemVisual();
             }
         }
@@ -775,7 +775,7 @@ namespace helengine {
         void AppendItemVisual() {
             ComboBoxItemVisual entry = CreateItemVisual();
             entry.CursorEvent += HandleItemCursorEvent;
-            listRoot.AddChild(entry.Root);
+            ListRoot.AddChild(entry.Root);
             AddOwnedItemVisual(entry);
         }
 
@@ -784,7 +784,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entry">Item-visual wrapper whose cleanup responsibility moves to this component.</param>
         void AddOwnedItemVisual([NativeTakesOwnership] ComboBoxItemVisual entry) {
-            itemVisuals.Add(entry);
+            ItemVisuals.Add(entry);
         }
 
         /// <summary>
@@ -792,7 +792,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Newly created item visual.</returns>
         ComboBoxItemVisual CreateItemVisual() {
-            ComboBoxItemVisual entry = new ComboBoxItemVisual(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."), font, listRoot.LayerMask, listBackgroundOrder, listTextOrder);
+            ComboBoxItemVisual entry = new ComboBoxItemVisual(OwnerCore ?? throw new InvalidOperationException("Combo-box visuals require an owning core."), FontValue, ListRoot.LayerMask, ListBackgroundOrder, ListTextOrder);
             entry.Background.FillColor = ThemeManager.Colors.SurfaceInput;
             entry.Background.BorderColor = ThemeManager.Colors.AccentTertiary;
             entry.Label.Color = ThemeManager.Colors.InputForegroundPrimary;
@@ -803,9 +803,9 @@ namespace helengine {
         /// Updates the visuals for all active item rows.
         /// </summary>
         void UpdateAllItemStates() {
-            int count = Math.Min(items.Count, itemVisuals.Count);
+            int count = Math.Min(ItemsValue.Count, ItemVisuals.Count);
             for (int i = 0; i < count; i++) {
-                UpdateItemVisualState(itemVisuals[i], i == selectedIndex);
+                UpdateItemVisualState(ItemVisuals[i], i == SelectedIndexValue);
             }
         }
 
@@ -830,12 +830,12 @@ namespace helengine {
         /// Updates visibility and state for the drop-down list.
         /// </summary>
         void UpdateDropdownVisibility() {
-            if (listRoot == null) {
+            if (ListRoot == null) {
                 return;
             }
 
-            bool shouldShow = isOpen && items.Count > 0;
-            listRoot.Enabled = shouldShow;
+            bool shouldShow = IsOpenValue && ItemsValue.Count > 0;
+            ListRoot.Enabled = shouldShow;
             UpdateListLayout();
             if (!shouldShow) {
                 HideItemVisuals();
@@ -849,8 +849,8 @@ namespace helengine {
         /// Resets hover and press state for all items.
         /// </summary>
         void ResetItemStates() {
-            for (int i = 0; i < itemVisuals.Count; i++) {
-                ComboBoxItemVisual entry = itemVisuals[i];
+            for (int i = 0; i < ItemVisuals.Count; i++) {
+                ComboBoxItemVisual entry = ItemVisuals[i];
                 entry.IsHovering = false;
                 entry.IsPressed = false;
             }
@@ -860,8 +860,8 @@ namespace helengine {
         /// Disables item visuals and clears their label content.
         /// </summary>
         void HideItemVisuals() {
-            for (int i = 0; i < itemVisuals.Count; i++) {
-                ComboBoxItemVisual entry = itemVisuals[i];
+            for (int i = 0; i < ItemVisuals.Count; i++) {
+                ComboBoxItemVisual entry = ItemVisuals[i];
                 entry.Root.Enabled = false;
                 entry.LabelHost.Enabled = false;
                 entry.Label.Text = string.Empty;
@@ -873,23 +873,23 @@ namespace helengine {
         /// Updates the main control fill color based on interaction state.
         /// </summary>
         void UpdateMainVisual() {
-            if (background == null) {
+            if (Background == null) {
                 return;
             }
 
-            background.BorderColor = IsKeyboardFocused
+            Background.BorderColor = IsKeyboardFocused
                 ? ThemeManager.Colors.AccentPrimary
                 : ThemeManager.Colors.AccentTertiary;
-            if (listBackground != null) {
-                listBackground.BorderColor = background.BorderColor;
+            if (ListBackground != null) {
+                ListBackground.BorderColor = Background.BorderColor;
             }
 
-            if (isPressed || isOpen) {
-                background.FillColor = ThemeManager.Colors.AccentSecondary;
-            } else if (isHovering) {
-                background.FillColor = ThemeManager.Colors.AccentPrimary;
+            if (IsPressed || IsOpenValue) {
+                Background.FillColor = ThemeManager.Colors.AccentSecondary;
+            } else if (IsHovering) {
+                Background.FillColor = ThemeManager.Colors.AccentPrimary;
             } else {
-                background.FillColor = ThemeManager.Colors.SurfaceInput;
+                Background.FillColor = ThemeManager.Colors.SurfaceInput;
             }
         }
 
@@ -902,27 +902,27 @@ namespace helengine {
         void HandleMainCursorEvent(int2 relPos, int2 delta, PointerInteraction state) {
             switch (state) {
                 case PointerInteraction.Hover:
-                    if (!isHovering) {
-                        isHovering = true;
+                    if (!IsHovering) {
+                        IsHovering = true;
                         UpdateMainVisual();
                     }
                     break;
                 case PointerInteraction.Press:
-                    isPressed = true;
+                    IsPressed = true;
                     UpdateMainVisual();
                     break;
                 case PointerInteraction.Release:
-                    bool shouldToggle = isPressed && isHovering;
-                    isPressed = false;
+                    bool shouldToggle = IsPressed && IsHovering;
+                    IsPressed = false;
                     UpdateMainVisual();
-                    if (shouldToggle && items.Count > 0) {
-                        IsOpen = !isOpen;
+                    if (shouldToggle && ItemsValue.Count > 0) {
+                        IsOpen = !IsOpenValue;
                     }
                     break;
                 case PointerInteraction.Leave:
-                    if (isHovering || isPressed) {
-                        isHovering = false;
-                        isPressed = false;
+                    if (IsHovering || IsPressed) {
+                        IsHovering = false;
+                        IsPressed = false;
                         UpdateMainVisual();
                     }
                     break;
@@ -942,16 +942,16 @@ namespace helengine {
             switch (state) {
                 case PointerInteraction.Hover:
                     entry.IsHovering = true;
-                    UpdateItemVisualState(entry, entry.Index == selectedIndex);
+                    UpdateItemVisualState(entry, entry.Index == SelectedIndexValue);
                     break;
                 case PointerInteraction.Press:
                     entry.IsPressed = true;
-                    UpdateItemVisualState(entry, entry.Index == selectedIndex);
+                    UpdateItemVisualState(entry, entry.Index == SelectedIndexValue);
                     break;
                 case PointerInteraction.Release:
                     bool shouldSelect = entry.IsPressed && entry.IsHovering;
                     entry.IsPressed = false;
-                    UpdateItemVisualState(entry, entry.Index == selectedIndex);
+                    UpdateItemVisualState(entry, entry.Index == SelectedIndexValue);
                     if (shouldSelect) {
                         SetSelectedIndexInternal(entry.Index, true);
                         IsOpen = false;
@@ -960,7 +960,7 @@ namespace helengine {
                 case PointerInteraction.Leave:
                     entry.IsHovering = false;
                     entry.IsPressed = false;
-                    UpdateItemVisualState(entry, entry.Index == selectedIndex);
+                    UpdateItemVisualState(entry, entry.Index == SelectedIndexValue);
                     break;
                 case PointerInteraction.None:
                     break;
@@ -1008,7 +1008,7 @@ namespace helengine {
         /// <param name="mouseY">Pointer Y coordinate in window space.</param>
         /// <returns>True when the pointer is inside the combo box bounds.</returns>
         bool IsPointerInsideCombo(int mouseX, int mouseY) {
-            if (interactable == null) {
+            if (Interactable == null) {
                 return false;
             }
 
@@ -1021,25 +1021,25 @@ namespace helengine {
             // viewport directly: panel-content cameras position their world content at screen coordinates, so
             // a raw viewport subtraction misjudged clicks inside the open list as outside and closed the
             // drop-down on press before the item release could apply the selection.
-            PointerInteractableHitResolver.GetRelativePointerForInteractable(interactable, mouseX, mouseY, camera, out int relativeX, out int relativeY);
-            if (relativeX >= 0 && relativeX < size.X && relativeY >= 0 && relativeY < size.Y) {
+            PointerInteractableHitResolver.GetRelativePointerForInteractable(Interactable, mouseX, mouseY, camera, out int relativeX, out int relativeY);
+            if (relativeX >= 0 && relativeX < SizeValue.X && relativeY >= 0 && relativeY < SizeValue.Y) {
                 return true;
             }
 
-            if (!isOpen) {
+            if (!IsOpenValue) {
                 return false;
             }
 
-            int listHeight = itemHeight * items.Count;
+            int listHeight = ItemHeight * ItemsValue.Count;
             if (listHeight <= 0) {
                 return false;
             }
 
             float3 comboOrigin = Parent.Position;
-            float3 listOrigin = listRoot.Position;
+            float3 listOrigin = ListRoot.Position;
             double listRelativeX = relativeX - (listOrigin.X - comboOrigin.X);
             double listRelativeY = relativeY - (listOrigin.Y - comboOrigin.Y);
-            return listRelativeX >= 0 && listRelativeX < size.X && listRelativeY >= 0 && listRelativeY < listHeight;
+            return listRelativeX >= 0 && listRelativeX < SizeValue.X && listRelativeY >= 0 && listRelativeY < listHeight;
         }
 
         /// <summary>
