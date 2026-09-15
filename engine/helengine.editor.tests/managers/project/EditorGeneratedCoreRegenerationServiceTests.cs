@@ -1002,6 +1002,8 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
 
         string registrationSource = File.ReadAllText(registrationSourcePath);
         Assert.Contains("RegisterGeneratedRuntimeComponentDeserializers(::RuntimeComponentRegistry* registry)", registrationSource, StringComparison.Ordinal);
+        Assert.Contains("he_cpp_raise(ArgumentNullException(\"registry\"));", registrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("throw new ArgumentNullException", registrationSource, StringComparison.Ordinal);
         Assert.DoesNotContain("registry->Register(new ::", registrationSource, StringComparison.Ordinal);
     }
 
@@ -1696,8 +1698,11 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
             Assert.True(File.Exists(headerPath));
             Assert.True(File.Exists(sourcePath));
             Assert.Contains("void RegisterGeneratedRuntimeModules(Core* core);", File.ReadAllText(headerPath), StringComparison.Ordinal);
-            Assert.Contains("void RegisterGeneratedRuntimeModules(Core* core)", File.ReadAllText(sourcePath), StringComparison.Ordinal);
-            Assert.DoesNotContain("::Register(core);", File.ReadAllText(sourcePath), StringComparison.Ordinal);
+            string source = File.ReadAllText(sourcePath);
+            Assert.Contains("void RegisterGeneratedRuntimeModules(Core* core)", source, StringComparison.Ordinal);
+            Assert.Contains("he_cpp_raise(ArgumentNullException(\"core\"));", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("throw new ArgumentNullException", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("::Register(core);", source, StringComparison.Ordinal);
         } finally {
             DeleteDirectoryIfPresent(generatedCoreRootPath);
         }

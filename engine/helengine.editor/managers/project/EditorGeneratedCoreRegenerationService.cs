@@ -1576,7 +1576,7 @@ namespace helengine.editor {
             builder.AppendLine("{");
             builder.AppendLine("    if (core == nullptr)");
             builder.AppendLine("    {");
-            builder.AppendLine("throw new ArgumentNullException(\"core\");");
+            builder.AppendLine("        he_cpp_raise(ArgumentNullException(\"core\"));");
             builder.AppendLine("    }");
             for (int index = 0; index < manifests.Count; index++) {
                 builder.AppendLine($"{manifests[index].RegistrationType.Name}::{manifests[index].RegistrationMethodName}(core);");
@@ -1631,7 +1631,7 @@ namespace helengine.editor {
             builder.AppendLine("{");
             builder.AppendLine("    if (registry == nullptr)");
             builder.AppendLine("    {");
-            builder.AppendLine("throw new ArgumentNullException(\"registry\");");
+            builder.AppendLine("        he_cpp_raise(ArgumentNullException(\"registry\"));");
             builder.AppendLine("    }");
             for (int index = 0; index < schemas.Count; index++) {
                 builder.AppendLine($"registry->Register(new ::{generator.BuildNativeDeserializerClassName(schemas[index])}());");
