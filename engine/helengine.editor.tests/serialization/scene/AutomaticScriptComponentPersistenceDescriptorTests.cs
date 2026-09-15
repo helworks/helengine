@@ -798,6 +798,31 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures repeated lookups against an assembly that is not loaded throw at most one first-chance exception instead of one per lookup.
+        /// </summary>
+        [Fact]
+        public void PersistedComponentTypeResolver_WhenAssemblyIsMissing_DoesNotThrowOnEveryLookup() {
+            string componentTypeId = "missing.scripts.Player, helengine.tests.missing." + Guid.NewGuid().ToString("N");
+            int fileNotFoundCount = 0;
+            EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, args) => {
+                if (args.Exception is FileNotFoundException) {
+                    fileNotFoundCount++;
+                }
+            };
+
+            AppDomain.CurrentDomain.FirstChanceException += handler;
+            try {
+                for (int index = 0; index < 50; index++) {
+                    Assert.Null(PersistedComponentTypeResolver.TryResolve(componentTypeId));
+                }
+            } finally {
+                AppDomain.CurrentDomain.FirstChanceException -= handler;
+            }
+
+            Assert.True(fileNotFoundCount <= 1, $"Expected at most one FileNotFoundException, saw {fileNotFoundCount}.");
+        }
+
+        /// <summary>
         /// Ensures an assembly-qualified type name is not treated as a current stable persisted id without explicit registration.
         /// </summary>
         [Fact]

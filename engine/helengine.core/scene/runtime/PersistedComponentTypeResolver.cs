@@ -21,8 +21,12 @@ namespace helengine {
                     return null;
                 }
 
+                Assembly assembly = TryLoadAssembly(assemblyName);
+                if (assembly == null) {
+                    return null;
+                }
+
                 try {
-                    Assembly assembly = Assembly.Load(new AssemblyName(assemblyName));
                     Type componentType = assembly.GetType(typeName, false, false);
                     return componentType != null && typeof(Component).IsAssignableFrom(componentType)
                         ? componentType
@@ -38,18 +42,77 @@ namespace helengine {
             }
 
             if (componentTypeId.StartsWith("helengine.", StringComparison.Ordinal)) {
-                try {
-                    Assembly physicsAssembly = Assembly.Load(new AssemblyName("helengine.physics"));
+                // The optional physics assembly is not present in every core-only host.
+                Assembly physicsAssembly = TryLoadAssembly(PhysicsAssemblyName);
+                if (physicsAssembly != null) {
                     Type physicsComponentType = physicsAssembly.GetType(componentTypeId, false, false);
                     if (physicsComponentType != null && typeof(Component).IsAssignableFrom(physicsComponentType)) {
                         return physicsComponentType;
                     }
-                } catch (Exception) {
-                    // The optional physics assembly is not present in every core-only host.
                 }
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Simple name of the optional physics assembly.
+        /// </summary>
+        const string PhysicsAssemblyName = "helengine.physics";
+
+        /// <summary>
+        /// Simple names of assemblies that failed to load, remembered until any new assembly loads into the domain.
+        /// </summary>
+        static readonly HashSet<string> UnloadableAssemblyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Guards the unloadable assembly name set.
+        /// </summary>
+        static readonly object UnloadableAssemblyNamesLock = new object();
+
+        /// <summary>
+        /// Forgets failed assembly loads whenever a new assembly enters the domain, so a later load is retried once.
+        /// </summary>
+        static PersistedComponentTypeResolver() {
+            AppDomain.CurrentDomain.AssemblyLoad += (sender, args) => {
+                lock (UnloadableAssemblyNamesLock) {
+                    UnloadableAssemblyNames.Clear();
+                }
+            };
+        }
+
+        /// <summary>
+        /// Returns an already-loaded non-collectible assembly by simple name, or loads it once; a failed load is remembered
+        /// so scenes that reference an assembly that is not present do not throw on every component lookup.
+        /// </summary>
+        /// <param name="assemblyName">Simple assembly name to resolve.</param>
+        /// <returns>Resolved assembly, or null when it cannot be loaded.</returns>
+        static Assembly TryLoadAssembly(string assemblyName) {
+            Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+            for (int index = 0; index < loadedAssemblies.Length; index++) {
+                Assembly loadedAssembly = loadedAssemblies[index];
+                if (loadedAssembly.IsCollectible) {
+                    continue;
+                }
+                if (string.Equals(loadedAssembly.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase)) {
+                    return loadedAssembly;
+                }
+            }
+
+            lock (UnloadableAssemblyNamesLock) {
+                if (UnloadableAssemblyNames.Contains(assemblyName)) {
+                    return null;
+                }
+            }
+
+            try {
+                return Assembly.Load(new AssemblyName(assemblyName));
+            } catch (Exception) {
+                lock (UnloadableAssemblyNamesLock) {
+                    UnloadableAssemblyNames.Add(assemblyName);
+                }
+                return null;
+            }
         }
 
         /// <summary>
@@ -77,8 +140,12 @@ namespace helengine {
                 return true;
             }
 
+            Assembly physicsAssembly = TryLoadAssembly(PhysicsAssemblyName);
+            if (physicsAssembly == null) {
+                return false;
+            }
+
             try {
-                Assembly physicsAssembly = Assembly.Load(new AssemblyName("helengine.physics"));
                 Type physicsComponentType = physicsAssembly.GetType(typeName, false, false);
                 return physicsComponentType != null && typeof(Component).IsAssignableFrom(physicsComponentType);
             } catch (Exception) {
