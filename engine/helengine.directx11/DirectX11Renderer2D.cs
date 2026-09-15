@@ -87,7 +87,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="parentRenderer">Owning 3D renderer.</param>
         public DirectX11Renderer2D(DirectX11Renderer3D parentRenderer) {
-            this.ParentRenderer = parentRenderer;
+            ParentRenderer = parentRenderer;
             Device = parentRenderer.Device;
             ClipScissorStack = new DirectX11ClipScissorStack(Device);
             ActiveTextureSlots = new List<int>();

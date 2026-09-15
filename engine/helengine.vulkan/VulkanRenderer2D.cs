@@ -140,7 +140,7 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="context">Shared Vulkan context.</param>
         public VulkanRenderer2D(VulkanContext context) {
-            this.Context = context;
+            Context = context;
             QuadIndices = new uint[] { 0, 1, 2, 2, 3, 0 };
             ClipScissorStack = new VulkanClipScissorStack(this);
 
