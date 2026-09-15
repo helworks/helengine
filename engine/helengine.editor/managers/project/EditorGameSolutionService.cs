@@ -439,6 +439,53 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Gets the directory holding generated build metadata such as the props file and the build fingerprint.
+        /// </summary>
+        public string GeneratedMetadataDirectoryPath {
+            get {
+                return string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
+                    ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
+                    : GeneratedWorkspaceRootPath;
+            }
+        }
+
+        /// <summary>
+        /// Describes every input that feeds the generated solution build, for fingerprinting after generation.
+        /// </summary>
+        /// <returns>Generated file paths, source directories, referenced assemblies, and configuration tokens.</returns>
+        public EditorScriptBuildInputs DescribeBuildInputs() {
+            IReadOnlyList<EditorGeneratedCodeModuleProject> projects = GeneratedProjects;
+            List<string> generatedFilePaths = new List<string>(projects.Count * 2 + 2) {
+                SolutionFilePath,
+                Path.Combine(GeneratedMetadataDirectoryPath, GeneratedBuildPropertiesFileName)
+            };
+            List<string> sourceDirectoryPaths = new List<string>(projects.Count);
+            HashSet<string> referencedAssemblyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            List<string> tokens = new List<string>(projects.Count + 1) {
+                "mode=" + CompilationMode
+            };
+
+            for (int index = 0; index < projects.Count; index++) {
+                EditorGeneratedCodeModuleProject project = projects[index];
+                generatedFilePaths.Add(project.ProjectFilePath);
+                generatedFilePaths.Add(project.GeneratedGlobalUsingsFilePath);
+                sourceDirectoryPaths.Add(ResolveProjectPath(project.SourceFolderPath));
+                tokens.Add("out|" + project.ModuleId + "|" + project.OutputDirectoryPath);
+
+                IReadOnlyList<KeyValuePair<string, string>> references = ResolveAssemblyReferences(project);
+                for (int referenceIndex = 0; referenceIndex < references.Count; referenceIndex++) {
+                    referencedAssemblyPaths.Add(references[referenceIndex].Value);
+                }
+            }
+
+            return new EditorScriptBuildInputs(
+                generatedFilePaths,
+                sourceDirectoryPaths,
+                referencedAssemblyPaths.ToArray(),
+                tokens);
+        }
+
+        /// <summary>
         /// Gets the invocation-specific compiler-output root, when this service was configured for isolated execution.
         /// </summary>
         internal string GeneratedExecutionOutputRootPath => GeneratedOutputRootPath;
@@ -809,29 +856,36 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(moduleProject));
             }
 
+            IReadOnlyList<KeyValuePair<string, string>> references = ResolveAssemblyReferences(moduleProject);
             builder.AppendLine("  <ItemGroup>");
-            builder.AppendLine("    <Reference Include=\"helengine.core\">");
-            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(Core).Assembly.Location) + "</HintPath>");
-            builder.AppendLine("    </Reference>");
-            builder.AppendLine("    <Reference Include=\"helengine.shader\">");
-            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(ShaderRuntimeMaterial).Assembly.Location) + "</HintPath>");
-            builder.AppendLine("    </Reference>");
-            builder.AppendLine("    <Reference Include=\"helengine.shader.compilation\">");
-            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(ShaderCompileService).Assembly.Location) + "</HintPath>");
-            builder.AppendLine("    </Reference>");
-            builder.AppendLine("    <Reference Include=\"helengine.input\">");
-            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(InputSystem).Assembly.Location) + "</HintPath>");
-            builder.AppendLine("    </Reference>");
-            builder.AppendLine("    <Reference Include=\"helengine.nativeownership\">");
-            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(NativeBorrowedReturnAttribute).Assembly.Location) + "</HintPath>");
-            builder.AppendLine("    </Reference>");
-            builder.AppendLine("    <Reference Include=\"helengine.physics\">");
-            builder.AppendLine("      <HintPath>" + EscapeXml(typeof(RigidBody3DComponent).Assembly.Location) + "</HintPath>");
-            builder.AppendLine("    </Reference>");
-            if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
-                builder.AppendLine("    <Reference Include=\"helengine.editor\">");
-                builder.AppendLine("      <HintPath>" + EscapeXml(typeof(EditorGameSolutionService).Assembly.Location) + "</HintPath>");
+            for (int index = 0; index < references.Count; index++) {
+                builder.AppendLine("    <Reference Include=\"" + EscapeXml(references[index].Key) + "\">");
+                builder.AppendLine("      <HintPath>" + EscapeXml(references[index].Value) + "</HintPath>");
                 builder.AppendLine("    </Reference>");
+            }
+            builder.AppendLine("  </ItemGroup>");
+        }
+
+        /// <summary>
+        /// Resolves the engine assemblies one generated project references, as assembly name and absolute path pairs.
+        /// </summary>
+        /// <param name="moduleProject">Generated module project whose references should be resolved.</param>
+        /// <returns>Ordered reference name and hint path pairs.</returns>
+        static IReadOnlyList<KeyValuePair<string, string>> ResolveAssemblyReferences(EditorGeneratedCodeModuleProject moduleProject) {
+            if (moduleProject == null) {
+                throw new ArgumentNullException(nameof(moduleProject));
+            }
+
+            List<KeyValuePair<string, string>> references = new List<KeyValuePair<string, string>> {
+                new KeyValuePair<string, string>("helengine.core", typeof(Core).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.shader", typeof(ShaderRuntimeMaterial).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.shader.compilation", typeof(ShaderCompileService).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.input", typeof(InputSystem).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.nativeownership", typeof(NativeBorrowedReturnAttribute).Assembly.Location),
+                new KeyValuePair<string, string>("helengine.physics", typeof(RigidBody3DComponent).Assembly.Location)
+            };
+            if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
+                references.Add(new KeyValuePair<string, string>("helengine.editor", typeof(EditorGameSolutionService).Assembly.Location));
                 string editorAssemblyDirectoryPath = Path.GetDirectoryName(typeof(EditorGameSolutionService).Assembly.Location);
                 if (string.IsNullOrWhiteSpace(editorAssemblyDirectoryPath)) {
                     throw new InvalidOperationException("The deployed HelEngine editor assembly directory could not be resolved.");
@@ -840,11 +894,10 @@ namespace helengine.editor {
                 if (!File.Exists(assimpNetterAssemblyPath)) {
                     throw new FileNotFoundException("The deployed AssimpNetter editor dependency was not found.", assimpNetterAssemblyPath);
                 }
-                builder.AppendLine("    <Reference Include=\"AssimpNetter\">");
-                builder.AppendLine("      <HintPath>" + EscapeXml(assimpNetterAssemblyPath) + "</HintPath>");
-                builder.AppendLine("    </Reference>");
+                references.Add(new KeyValuePair<string, string>("AssimpNetter", assimpNetterAssemblyPath));
             }
-            builder.AppendLine("  </ItemGroup>");
+
+            return references;
         }
 
         /// <summary>

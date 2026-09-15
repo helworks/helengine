@@ -132,6 +132,98 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a second build with unchanged inputs and existing outputs reloads without invoking the build tool.
+        /// </summary>
+        [Fact]
+        public void BuildAndReload_WhenInputsAreUnchangedAndOutputsExist_SkipsBuildAndReloads() {
+            EditorGameSolutionService solutionService = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+            TestScriptBuildTool buildTool = new TestScriptBuildTool(EditorBuildExecutionResult.Success("build ok")) {
+                OutputFilePathToCreate = solutionService.GeneratedOutputAssemblyPath
+            };
+            TestScriptAssemblyHost assemblyHost = new TestScriptAssemblyHost();
+            EditorGameScriptHotReloadService service = new EditorGameScriptHotReloadService(solutionService, buildTool, assemblyHost);
+
+            Assert.True(service.BuildAndReload().Succeeded);
+            EditorBuildExecutionResult second = service.BuildAndReload();
+
+            Assert.True(second.Succeeded);
+            Assert.Equal(1, buildTool.BuildCount);
+            Assert.Equal(2, assemblyHost.ReloadCount);
+            Assert.Contains("up to date", second.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(solutionService.GeneratedOutputAssemblyPath, assemblyHost.Assemblies[0].AssemblyPath);
+        }
+
+        /// <summary>
+        /// Ensures editing a script source file after a successful build triggers a rebuild.
+        /// </summary>
+        [Fact]
+        public void BuildAndReload_WhenSourceChangesAfterBuild_RebuildsScripts() {
+            EditorGameSolutionService solutionService = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+            TestScriptBuildTool buildTool = new TestScriptBuildTool(EditorBuildExecutionResult.Success("build ok")) {
+                OutputFilePathToCreate = solutionService.GeneratedOutputAssemblyPath
+            };
+            EditorGameScriptHotReloadService service = new EditorGameScriptHotReloadService(solutionService, buildTool, new TestScriptAssemblyHost());
+
+            Assert.True(service.BuildAndReload().Succeeded);
+            File.WriteAllText(Path.Combine(TempProjectRootPath, "assets", "Scripts", "Player.cs"), "public sealed class Player { public int Health; }");
+            Assert.True(service.BuildAndReload().Succeeded);
+
+            Assert.Equal(2, buildTool.BuildCount);
+        }
+
+        /// <summary>
+        /// Ensures a forced build ignores a matching fingerprint.
+        /// </summary>
+        [Fact]
+        public void BuildAndReload_WhenForced_RebuildsDespiteMatchingFingerprint() {
+            EditorGameSolutionService solutionService = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+            TestScriptBuildTool buildTool = new TestScriptBuildTool(EditorBuildExecutionResult.Success("build ok")) {
+                OutputFilePathToCreate = solutionService.GeneratedOutputAssemblyPath
+            };
+            EditorGameScriptHotReloadService service = new EditorGameScriptHotReloadService(solutionService, buildTool, new TestScriptAssemblyHost());
+
+            Assert.True(service.BuildAndReload().Succeeded);
+            Assert.True(service.BuildAndReload(forceBuild: true).Succeeded);
+
+            Assert.Equal(2, buildTool.BuildCount);
+        }
+
+        /// <summary>
+        /// Ensures a matching fingerprint does not skip the build when the module DLL is missing.
+        /// </summary>
+        [Fact]
+        public void BuildAndReload_WhenOutputIsMissing_RebuildsDespiteMatchingFingerprint() {
+            EditorGameSolutionService solutionService = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+            TestScriptBuildTool buildTool = new TestScriptBuildTool(EditorBuildExecutionResult.Success("build ok")) {
+                OutputFilePathToCreate = solutionService.GeneratedOutputAssemblyPath
+            };
+            EditorGameScriptHotReloadService service = new EditorGameScriptHotReloadService(solutionService, buildTool, new TestScriptAssemblyHost());
+
+            Assert.True(service.BuildAndReload().Succeeded);
+            File.Delete(solutionService.GeneratedOutputAssemblyPath);
+            Assert.True(service.BuildAndReload().Succeeded);
+
+            Assert.Equal(2, buildTool.BuildCount);
+        }
+
+        /// <summary>
+        /// Ensures a failed build leaves no fingerprint behind, so the next attempt builds again.
+        /// </summary>
+        [Fact]
+        public void BuildAndReload_WhenBuildFails_DoesNotRecordFingerprint() {
+            EditorGameSolutionService solutionService = new EditorGameSolutionService(TempProjectRootPath, "SkyRider", new TestIdeLauncher());
+            TestScriptBuildTool buildTool = new TestScriptBuildTool(EditorBuildExecutionResult.Failure("build failed"));
+            EditorGameScriptHotReloadService service = new EditorGameScriptHotReloadService(solutionService, buildTool, new TestScriptAssemblyHost());
+
+            Assert.False(service.BuildAndReload().Succeeded);
+            Directory.CreateDirectory(Path.GetDirectoryName(solutionService.GeneratedOutputAssemblyPath));
+            File.WriteAllBytes(solutionService.GeneratedOutputAssemblyPath, new byte[] { 1 });
+            Assert.False(service.BuildAndReload().Succeeded);
+
+            Assert.Equal(2, buildTool.BuildCount);
+        }
+
+        /// <summary>
         /// Minimal build tool used to verify scripting hot-reload orchestration without invoking `dotnet`.
         /// </summary>
         sealed class TestScriptBuildTool : IEditorScriptBuildToolWithOutputRoot {
@@ -154,6 +246,16 @@ namespace helengine.editor.tests {
             public string SolutionPath { get; private set; }
 
             /// <summary>
+            /// Gets the number of build requests received by the fake tool.
+            /// </summary>
+            public int BuildCount { get; private set; }
+
+            /// <summary>
+            /// Gets or sets an optional file the fake tool writes on each successful build, standing in for the module DLL.
+            /// </summary>
+            public string OutputFilePathToCreate { get; set; }
+
+            /// <summary>
             /// Gets the invocation-specific compiler-output root passed by isolated hot-reload orchestration.
             /// </summary>
             public string ExecutionOutputRootPath { get; private set; }
@@ -165,7 +267,21 @@ namespace helengine.editor.tests {
             /// <returns>Fixed build result configured for the test.</returns>
             public EditorBuildExecutionResult Build(string solutionPath) {
                 SolutionPath = solutionPath;
+                BuildCount++;
+                WriteOutputFile();
                 return Result;
+            }
+
+            /// <summary>
+            /// Writes the stand-in module DLL when one is configured and the fixed result is a success.
+            /// </summary>
+            void WriteOutputFile() {
+                if (!Result.Succeeded || string.IsNullOrWhiteSpace(OutputFilePathToCreate)) {
+                    return;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(OutputFilePathToCreate));
+                File.WriteAllBytes(OutputFilePathToCreate, new byte[] { (byte)BuildCount });
             }
 
             /// <summary>
@@ -177,6 +293,8 @@ namespace helengine.editor.tests {
             public EditorBuildExecutionResult Build(string solutionPath, string executionOutputRootPath) {
                 SolutionPath = solutionPath;
                 ExecutionOutputRootPath = executionOutputRootPath;
+                BuildCount++;
+                WriteOutputFile();
                 return Result;
             }
         }

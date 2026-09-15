@@ -3371,7 +3371,8 @@ namespace helengine.editor {
         /// Builds the generated scripting solution and reloads the resulting assembly.
         /// </summary>
         void HandleBuildScriptsRequested() {
-            EditorBuildExecutionResult result = scriptHotReloadService.BuildAndReload();
+            // The manual command is the escape hatch for changes the build fingerprint cannot see, so it always builds.
+            EditorBuildExecutionResult result = scriptHotReloadService.BuildAndReload(forceBuild: true);
             if (!result.Succeeded) {
                 Logger.WriteError(result.Message);
                 return;

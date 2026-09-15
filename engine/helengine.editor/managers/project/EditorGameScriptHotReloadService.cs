@@ -31,10 +31,19 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Generates, builds, and imports the current game scripting assembly.
+        /// Generates, builds when inputs changed, and imports the current game scripting assembly.
         /// </summary>
         /// <returns>Structured result describing the build-and-reload outcome.</returns>
         public EditorBuildExecutionResult BuildAndReload() {
+            return BuildAndReload(false);
+        }
+
+        /// <summary>
+        /// Generates, builds, and imports the current game scripting assembly.
+        /// </summary>
+        /// <param name="forceBuild">True to run the build tool even when the recorded build fingerprint still matches.</param>
+        /// <returns>Structured result describing the build-and-reload outcome.</returns>
+        public EditorBuildExecutionResult BuildAndReload(bool forceBuild) {
             try {
                 if (!GameSolutionService.HasCodeModules) {
                     return EditorBuildExecutionResult.Success("Script hot reload skipped: the project declares no code modules.");
@@ -42,6 +51,16 @@ namespace helengine.editor {
 
                 using EditorGeneratedCodeWorkspaceLease workspaceLease = GameSolutionService.AcquireWorkspaceLease();
                 string solutionPath = GameSolutionService.GenerateSolutionFiles(workspaceLease);
+                List<EditorScriptAssemblyDescriptor> assemblies = DescribeModuleAssemblies();
+                string fingerprintFilePath = Path.Combine(GameSolutionService.GeneratedMetadataDirectoryPath, EditorScriptBuildFingerprint.FileName);
+                string fingerprint = EditorScriptBuildFingerprint.Compute(GameSolutionService.DescribeBuildInputs());
+                if (!forceBuild
+                    && EditorScriptBuildFingerprint.MatchesStored(fingerprintFilePath, fingerprint)
+                    && AllAssembliesExist(assemblies)) {
+                    AssemblyHost.Reload(assemblies);
+                    return EditorBuildExecutionResult.Success($"Scripts up to date, reloaded without rebuilding: {GameSolutionService.GeneratedOutputAssemblyPath}");
+                }
+
                 EditorBuildExecutionResult buildResult;
                 if (BuildTool is IEditorScriptBuildToolWithWorkspaceLease leasedBuildTool) {
                     buildResult = leasedBuildTool.Build(
@@ -60,22 +79,47 @@ namespace helengine.editor {
                     return buildResult;
                 }
 
-                List<EditorScriptAssemblyDescriptor> assemblies = new List<EditorScriptAssemblyDescriptor>(GameSolutionService.GeneratedModuleProjects.Count);
-                for (int index = 0; index < GameSolutionService.GeneratedModuleProjects.Count; index++) {
-                    EditorGeneratedCodeModuleProject moduleProject = GameSolutionService.GeneratedModuleProjects[index];
-                    assemblies.Add(new EditorScriptAssemblyDescriptor(
-                        moduleProject.ModuleId,
-                        moduleProject.OutputDirectoryPath,
-                        Path.Combine(moduleProject.OutputDirectoryPath, moduleProject.ModuleId + ".dll"),
-                        moduleProject.ModuleKind));
-                }
-
+                EditorScriptBuildFingerprint.WriteStored(fingerprintFilePath, fingerprint);
                 AssemblyHost.Reload(assemblies);
 
                 return EditorBuildExecutionResult.Success($"Scripts hot-reloaded: {GameSolutionService.GeneratedOutputAssemblyPath}");
             } catch (Exception ex) {
                 return EditorBuildExecutionResult.Failure($"Script hot reload failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Describes the module assemblies the current generated solution produces.
+        /// </summary>
+        /// <returns>One descriptor per generated production module.</returns>
+        List<EditorScriptAssemblyDescriptor> DescribeModuleAssemblies() {
+            IReadOnlyList<EditorGeneratedCodeModuleProject> moduleProjects = GameSolutionService.GeneratedModuleProjects;
+            List<EditorScriptAssemblyDescriptor> assemblies = new List<EditorScriptAssemblyDescriptor>(moduleProjects.Count);
+            for (int index = 0; index < moduleProjects.Count; index++) {
+                EditorGeneratedCodeModuleProject moduleProject = moduleProjects[index];
+                assemblies.Add(new EditorScriptAssemblyDescriptor(
+                    moduleProject.ModuleId,
+                    moduleProject.OutputDirectoryPath,
+                    Path.Combine(moduleProject.OutputDirectoryPath, moduleProject.ModuleId + ".dll"),
+                    moduleProject.ModuleKind));
+            }
+
+            return assemblies;
+        }
+
+        /// <summary>
+        /// Determines whether every module assembly from a previous build is still present on disk.
+        /// </summary>
+        /// <param name="assemblies">Module assembly descriptors to check.</param>
+        /// <returns>True when every assembly file exists.</returns>
+        static bool AllAssembliesExist(List<EditorScriptAssemblyDescriptor> assemblies) {
+            for (int index = 0; index < assemblies.Count; index++) {
+                if (!File.Exists(assemblies[index].AssemblyPath)) {
+                    return false;
+                }
+            }
+
+            return assemblies.Count > 0;
         }
 
         /// <summary>
