@@ -3,575 +3,576 @@ using System.Text.Json;
 using helengine.baseplatform.Definitions;
 using helengine.baseplatform.Manifest;
 
-namespace helengine.editor;
-
-/// <summary>
-/// Creates builder-owned platform cook work items from editor-resolved source assets and processor settings.
-/// </summary>
-internal static class EditorPlatformCookWorkItemFactory {
-    /// <summary>
-    /// Creates one builder-owned texture cook work item when the selected platform publishes that capability.
-    /// </summary>
-    /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
-    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
-    /// <param name="projectRootPath">Absolute project root that owns the source asset.</param>
-    /// <param name="sourceRelativePath">Project-relative source asset path.</param>
-    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
-    /// <param name="settings">Resolved texture import settings for the source asset.</param>
-    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
-    /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
-    public static PlatformCookWorkItem CreateTextureWorkItem(
-        PlatformDefinition platformDefinition,
-        string targetPlatformId,
-        string projectRootPath,
-        string sourceRelativePath,
-        string outputRelativePath,
-        TextureAssetImportSettings settings,
-        AssetFileHasher fileHasher) {
-        if (settings == null) {
-            throw new ArgumentNullException(nameof(settings));
-        }
-
-        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
-        if (capability == null) {
-            return null;
-        }
-
-        TextureAssetProcessorSettings processorSettings = ResolveTextureProcessorSettings(targetPlatformId, settings.Processor?.Platforms, capability);
-        return CreateWorkItem(
-            capability,
-            targetPlatformId,
-            projectRootPath,
-            sourceRelativePath,
-            "texture",
-            outputRelativePath,
-            settings.Importer?.AssetId ?? sourceRelativePath,
-            processorSettings,
-            fileHasher);
-    }
+namespace helengine.editor {
 
     /// <summary>
-    /// Creates one builder-owned generated-texture cook work item when the selected platform publishes that capability.
+    /// Creates builder-owned platform cook work items from editor-resolved source assets and processor settings.
     /// </summary>
-    /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
-    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
-    /// <param name="sourceAssetPath">Absolute generated texture source path that the builder should cook from.</param>
-    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
-    /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
-    /// <param name="processorSettings">Resolved texture processor settings for the generated texture.</param>
-    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
-    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
-    /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
-    public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
-        PlatformDefinition platformDefinition,
-        string targetPlatformId,
-        string sourceAssetPath,
-        string outputRelativePath,
-        string sourceAssetId,
-        TextureAssetProcessorSettings processorSettings,
-        AssetFileHasher fileHasher,
-        string generatedSourceRootPath) {
-        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
-            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
-        } else if (processorSettings == null) {
-            throw new ArgumentNullException(nameof(processorSettings));
-        } else if (fileHasher == null) {
-            throw new ArgumentNullException(nameof(fileHasher));
-        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
-            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
-        }
+    internal static class EditorPlatformCookWorkItemFactory {
+        /// <summary>
+        /// Creates one builder-owned texture cook work item when the selected platform publishes that capability.
+        /// </summary>
+        /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
+        /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+        /// <param name="projectRootPath">Absolute project root that owns the source asset.</param>
+        /// <param name="sourceRelativePath">Project-relative source asset path.</param>
+        /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+        /// <param name="settings">Resolved texture import settings for the source asset.</param>
+        /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+        /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
+        public static PlatformCookWorkItem CreateTextureWorkItem(
+            PlatformDefinition platformDefinition,
+            string targetPlatformId,
+            string projectRootPath,
+            string sourceRelativePath,
+            string outputRelativePath,
+            TextureAssetImportSettings settings,
+            AssetFileHasher fileHasher) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
 
-        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
-        if (capability == null) {
-            return null;
-        }
-
-        return CreateGeneratedWorkItem(
-            capability,
-            targetPlatformId,
-            sourceAssetPath,
-            "texture",
-            outputRelativePath,
-            sourceAssetId,
-            processorSettings,
-            fileHasher,
-            generatedSourceRootPath);
-    }
-
-    /// <summary>
-    /// Creates one builder-owned generated font-atlas cook work item when the selected platform publishes that capability and the generated source should use the platform default font-atlas settings contract.
-    /// </summary>
-    /// <param name="platformDefinition">Platform definition that may publish builder-owned font-atlas cooking.</param>
-    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
-    /// <param name="sourceAssetPath">Absolute generated font-atlas source path that the builder should cook from.</param>
-    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
-    /// <param name="sourceAssetId">Stable identifier of the generated font-atlas asset.</param>
-    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
-    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
-    /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
-    public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
-        PlatformDefinition platformDefinition,
-        string targetPlatformId,
-        string sourceAssetPath,
-        string outputRelativePath,
-        string sourceAssetId,
-        AssetFileHasher fileHasher,
-        string generatedSourceRootPath) {
-        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
-            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
-        } else if (fileHasher == null) {
-            throw new ArgumentNullException(nameof(fileHasher));
-        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
-            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
-        }
-
-        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture")
-            ?? ResolveBuilderOwnedCapability(platformDefinition, "texture");
-        if (capability == null) {
-            return null;
-        }
-
-        return CreateGeneratedWorkItem(
-            capability,
-            targetPlatformId,
-            sourceAssetPath,
-            capability.SourceAssetKind,
-            outputRelativePath,
-            sourceAssetId,
-            ResolveDefaultTextureProcessorSettings(capability),
-            fileHasher,
-            generatedSourceRootPath);
-    }
-
-    /// <summary>
-    /// Creates one builder-owned generated-texture cook work item when the selected platform publishes that capability and the generated source should use the platform default texture settings contract.
-    /// </summary>
-    /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
-    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
-    /// <param name="sourceAssetPath">Absolute generated texture source path that the builder should cook from.</param>
-    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
-    /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
-    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
-    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
-    /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
-    public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
-        PlatformDefinition platformDefinition,
-        string targetPlatformId,
-        string sourceAssetPath,
-        string outputRelativePath,
-        string sourceAssetId,
-        AssetFileHasher fileHasher,
-        string generatedSourceRootPath) {
-        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
-            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
-        } else if (fileHasher == null) {
-            throw new ArgumentNullException(nameof(fileHasher));
-        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
-            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
-        }
-
-        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
-        if (capability == null) {
-            return null;
-        }
-
-        return CreateGeneratedWorkItem(
-            capability,
-            targetPlatformId,
-            sourceAssetPath,
-            "texture",
-            outputRelativePath,
-            sourceAssetId,
-            ResolveDefaultTextureProcessorSettings(capability),
-            fileHasher,
-            generatedSourceRootPath);
-    }
-
-    /// <summary>
-    /// Creates one builder-owned generated-texture cook work item when the selected platform publishes that capability and the generated source reuses generic asset import settings.
-    /// </summary>
-    /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
-    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
-    /// <param name="sourceAssetPath">Absolute generated texture source path that the builder should cook from.</param>
-    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
-    /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
-    /// <param name="settings">Resolved import settings whose texture processor data should drive the generated texture cook contract.</param>
-    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
-    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
-    /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
-    public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
-        PlatformDefinition platformDefinition,
-        string targetPlatformId,
-        string sourceAssetPath,
-        string outputRelativePath,
-        string sourceAssetId,
-        AssetImportSettings settings,
-        AssetFileHasher fileHasher,
-        string generatedSourceRootPath) {
-        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
-            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
-        } else if (settings == null) {
-            throw new ArgumentNullException(nameof(settings));
-        } else if (fileHasher == null) {
-            throw new ArgumentNullException(nameof(fileHasher));
-        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
-            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
-        }
-
-        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
-        if (capability == null) {
-            return null;
-        }
-
-        TextureAssetProcessorSettings processorSettings = ResolveTextureProcessorSettings(targetPlatformId, settings.Processor?.Platforms, capability);
-        return CreateGeneratedWorkItem(
-            capability,
-            targetPlatformId,
-            sourceAssetPath,
-            "texture",
-            outputRelativePath,
-            sourceAssetId,
-            processorSettings,
-            fileHasher,
-            generatedSourceRootPath);
-    }
-
-    /// <summary>
-    /// Creates one builder-owned generated font-atlas cook work item when the selected platform publishes that capability and the generated source reuses generic asset import settings.
-    /// </summary>
-    /// <param name="platformDefinition">Platform definition that may publish builder-owned font-atlas cooking.</param>
-    /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
-    /// <param name="sourceAssetPath">Absolute generated font-atlas source path that the builder should cook from.</param>
-    /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
-    /// <param name="sourceAssetId">Stable identifier of the generated font-atlas asset.</param>
-    /// <param name="settings">Resolved import settings whose texture processor data should drive the generated font-atlas cook contract.</param>
-    /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
-    /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
-    /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
-    public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
-        PlatformDefinition platformDefinition,
-        string targetPlatformId,
-        string sourceAssetPath,
-        string outputRelativePath,
-        string sourceAssetId,
-        AssetImportSettings settings,
-        AssetFileHasher fileHasher,
-        string generatedSourceRootPath) {
-        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
-            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
-        } else if (settings == null) {
-            throw new ArgumentNullException(nameof(settings));
-        } else if (fileHasher == null) {
-            throw new ArgumentNullException(nameof(fileHasher));
-        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
-            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
-        }
-
-        PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture")
-            ?? ResolveBuilderOwnedCapability(platformDefinition, "texture");
-        if (capability == null) {
-            return null;
-        }
-
-        TextureAssetProcessorSettings processorSettings = ResolveTextureProcessorSettings(targetPlatformId, settings.Processor?.Platforms, capability);
-        return CreateGeneratedWorkItem(
-            capability,
-            targetPlatformId,
-            sourceAssetPath,
-            capability.SourceAssetKind,
-            outputRelativePath,
-            sourceAssetId,
-            processorSettings,
-            fileHasher,
-            generatedSourceRootPath);
-    }
-
-    static PlatformCookWorkItem CreateWorkItem(
-        PlatformAssetCookCapabilityDefinition capability,
-        string targetPlatformId,
-        string projectRootPath,
-        string sourceRelativePath,
-        string sourceAssetKind,
-        string outputRelativePath,
-        string sourceAssetId,
-        TextureAssetProcessorSettings processorSettings,
-        AssetFileHasher fileHasher) {
-        if (capability == null) {
-            throw new ArgumentNullException(nameof(capability));
-        } else if (string.IsNullOrWhiteSpace(targetPlatformId)) {
-            throw new ArgumentException("Target platform id must be provided.", nameof(targetPlatformId));
-        } else if (string.IsNullOrWhiteSpace(projectRootPath)) {
-            throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
-        } else if (string.IsNullOrWhiteSpace(sourceRelativePath)) {
-            throw new ArgumentException("Source relative path must be provided.", nameof(sourceRelativePath));
-        } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
-            throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
-        } else if (string.IsNullOrWhiteSpace(outputRelativePath)) {
-            throw new ArgumentException("Output relative path must be provided.", nameof(outputRelativePath));
-        } else if (processorSettings == null) {
-            throw new ArgumentNullException(nameof(processorSettings));
-        } else if (fileHasher == null) {
-            throw new ArgumentNullException(nameof(fileHasher));
-        }
-
-        string normalizedSourceRelativePath = sourceRelativePath.Replace('\\', '/');
-        string normalizedOutputRelativePath = outputRelativePath.Replace('\\', '/');
-        string fullSourcePath = Path.GetFullPath(Path.Combine(projectRootPath, "assets", normalizedSourceRelativePath.Replace('/', Path.DirectorySeparatorChar)));
-        if (!File.Exists(fullSourcePath)) {
-            throw new InvalidOperationException($"Builder-owned platform cook source '{fullSourcePath}' was not found for asset kind '{sourceAssetKind}'.");
-        }
-        string serializedSettings = SerializeTextureSettings(processorSettings);
-        string settingsHash = ComputeStringHash(fileHasher, serializedSettings);
-        string sourceHash = fileHasher.ComputeHash(fullSourcePath);
-        string workItemId = string.Concat(targetPlatformId, ":", sourceAssetKind, ":", normalizedOutputRelativePath);
-
-        return new PlatformCookWorkItem(
-            workItemId,
-            fullSourcePath,
-            sourceAssetKind,
-            targetPlatformId,
-            capability.TargetArtifactKind,
-            normalizedOutputRelativePath,
-            string.Concat(capability.TargetArtifactKind, ":", normalizedOutputRelativePath),
-            sourceHash,
-            settingsHash,
-            serializedSettings,
-            [
-                new PlatformCookWorkItemMetadata("source-asset-id", sourceAssetId ?? normalizedSourceRelativePath),
-                new PlatformCookWorkItemMetadata("settings-contract-id", capability.SettingsContractId)
-            ]);
-    }
-
-    static PlatformCookWorkItem CreateGeneratedWorkItem(
-        PlatformAssetCookCapabilityDefinition capability,
-        string targetPlatformId,
-        string sourceAssetPath,
-        string sourceAssetKind,
-        string outputRelativePath,
-        string sourceAssetId,
-        TextureAssetProcessorSettings processorSettings,
-        AssetFileHasher fileHasher,
-        string generatedSourceRootPath) {
-        if (capability == null) {
-            throw new ArgumentNullException(nameof(capability));
-        } else if (string.IsNullOrWhiteSpace(targetPlatformId)) {
-            throw new ArgumentException("Target platform id must be provided.", nameof(targetPlatformId));
-        } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
-            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
-        } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
-            throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
-        } else if (string.IsNullOrWhiteSpace(outputRelativePath)) {
-            throw new ArgumentException("Output relative path must be provided.", nameof(outputRelativePath));
-        } else if (processorSettings == null) {
-            throw new ArgumentNullException(nameof(processorSettings));
-        } else if (fileHasher == null) {
-            throw new ArgumentNullException(nameof(fileHasher));
-        } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
-            throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
-        }
-
-        string fullSourcePath = Path.GetFullPath(sourceAssetPath);
-        if (!File.Exists(fullSourcePath)) {
-            throw new InvalidOperationException($"Builder-owned generated texture source '{fullSourcePath}' was not found.");
-        }
-
-        string normalizedOutputRelativePath = outputRelativePath.Replace('\\', '/');
-        string serializedSettings = SerializeTextureSettings(processorSettings);
-        string settingsHash = ComputeStringHash(fileHasher, serializedSettings);
-        string sourceHash = new AssetFileHasher(generatedSourceRootPath).ComputeHash(fullSourcePath);
-        string workItemId = string.Concat(targetPlatformId, ":", sourceAssetKind, ":", normalizedOutputRelativePath);
-
-        return new PlatformCookWorkItem(
-            workItemId,
-            fullSourcePath,
-            sourceAssetKind,
-            targetPlatformId,
-            capability.TargetArtifactKind,
-            normalizedOutputRelativePath,
-            string.Concat(capability.TargetArtifactKind, ":", normalizedOutputRelativePath),
-            sourceHash,
-            settingsHash,
-            serializedSettings,
-            [
-                new PlatformCookWorkItemMetadata("source-asset-id", string.IsNullOrWhiteSpace(sourceAssetId) ? normalizedOutputRelativePath : sourceAssetId),
-                new PlatformCookWorkItemMetadata("settings-contract-id", capability.SettingsContractId)
-            ]);
-    }
-
-    static PlatformAssetCookCapabilityDefinition ResolveBuilderOwnedCapability(PlatformDefinition platformDefinition, string sourceAssetKind) {
-        if (platformDefinition == null) {
-            throw new ArgumentNullException(nameof(platformDefinition));
-        } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
-            throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
-        }
-
-        PlatformAssetCookCapabilityDefinition[] capabilities = platformDefinition.AssetCookCapabilities ?? [];
-        for (int index = 0; index < capabilities.Length; index++) {
-            PlatformAssetCookCapabilityDefinition capability = capabilities[index];
+            PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
             if (capability == null) {
-                continue;
+                return null;
             }
-            if (!string.Equals(capability.SourceAssetKind, sourceAssetKind, StringComparison.OrdinalIgnoreCase)) {
-                continue;
+
+            TextureAssetProcessorSettings processorSettings = ResolveTextureProcessorSettings(targetPlatformId, settings.Processor?.Platforms, capability);
+            return CreateWorkItem(
+                capability,
+                targetPlatformId,
+                projectRootPath,
+                sourceRelativePath,
+                "texture",
+                outputRelativePath,
+                settings.Importer?.AssetId ?? sourceRelativePath,
+                processorSettings,
+                fileHasher);
+        }
+
+        /// <summary>
+        /// Creates one builder-owned generated-texture cook work item when the selected platform publishes that capability.
+        /// </summary>
+        /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
+        /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+        /// <param name="sourceAssetPath">Absolute generated texture source path that the builder should cook from.</param>
+        /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+        /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
+        /// <param name="processorSettings">Resolved texture processor settings for the generated texture.</param>
+        /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+        /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
+        /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
+        public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
+            PlatformDefinition platformDefinition,
+            string targetPlatformId,
+            string sourceAssetPath,
+            string outputRelativePath,
+            string sourceAssetId,
+            TextureAssetProcessorSettings processorSettings,
+            AssetFileHasher fileHasher,
+            string generatedSourceRootPath) {
+            if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            } else if (fileHasher == null) {
+                throw new ArgumentNullException(nameof(fileHasher));
+            } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+                throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
             }
-            if (capability.OwnershipKind == PlatformAssetCookOwnershipKind.BuilderOwned) {
-                return capability;
+
+            PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
+            if (capability == null) {
+                return null;
             }
+
+            return CreateGeneratedWorkItem(
+                capability,
+                targetPlatformId,
+                sourceAssetPath,
+                "texture",
+                outputRelativePath,
+                sourceAssetId,
+                processorSettings,
+                fileHasher,
+                generatedSourceRootPath);
         }
 
-        return null;
-    }
-
-    static TextureAssetProcessorSettings ResolveTextureProcessorSettings(
-        string targetPlatformId,
-        IDictionary<string, TextureAssetProcessorSettings> platformSettingsById,
-        PlatformAssetCookCapabilityDefinition capability) {
-        if (!string.IsNullOrWhiteSpace(targetPlatformId)
-            && platformSettingsById != null
-            && platformSettingsById.TryGetValue(targetPlatformId, out TextureAssetProcessorSettings platformSettings)
-            && platformSettings != null) {
-            return platformSettings;
-        }
-
-        return ResolveDefaultTextureProcessorSettings(capability);
-    }
-
-    static TextureAssetProcessorSettings ResolveTextureProcessorSettings(
-        string targetPlatformId,
-        IDictionary<string, AssetPlatformProcessorSettings> platformSettingsById,
-        PlatformAssetCookCapabilityDefinition capability) {
-        if (!string.IsNullOrWhiteSpace(targetPlatformId)
-            && platformSettingsById != null
-            && platformSettingsById.TryGetValue(targetPlatformId, out AssetPlatformProcessorSettings platformSettings)
-            && platformSettings != null) {
-            TextureAssetProcessorSettings selectedSettings = ResolveExplicitTextureProcessorSettings(platformSettings, capability);
-            if (selectedSettings != null) {
-                return selectedSettings;
+        /// <summary>
+        /// Creates one builder-owned generated font-atlas cook work item when the selected platform publishes that capability and the generated source should use the platform default font-atlas settings contract.
+        /// </summary>
+        /// <param name="platformDefinition">Platform definition that may publish builder-owned font-atlas cooking.</param>
+        /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+        /// <param name="sourceAssetPath">Absolute generated font-atlas source path that the builder should cook from.</param>
+        /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+        /// <param name="sourceAssetId">Stable identifier of the generated font-atlas asset.</param>
+        /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+        /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
+        /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
+        public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
+            PlatformDefinition platformDefinition,
+            string targetPlatformId,
+            string sourceAssetPath,
+            string outputRelativePath,
+            string sourceAssetId,
+            AssetFileHasher fileHasher,
+            string generatedSourceRootPath) {
+            if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+            } else if (fileHasher == null) {
+                throw new ArgumentNullException(nameof(fileHasher));
+            } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+                throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
             }
+
+            PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture")
+                ?? ResolveBuilderOwnedCapability(platformDefinition, "texture");
+            if (capability == null) {
+                return null;
+            }
+
+            return CreateGeneratedWorkItem(
+                capability,
+                targetPlatformId,
+                sourceAssetPath,
+                capability.SourceAssetKind,
+                outputRelativePath,
+                sourceAssetId,
+                ResolveDefaultTextureProcessorSettings(capability),
+                fileHasher,
+                generatedSourceRootPath);
         }
 
-        return ResolveDefaultTextureProcessorSettings(capability);
-    }
+        /// <summary>
+        /// Creates one builder-owned generated-texture cook work item when the selected platform publishes that capability and the generated source should use the platform default texture settings contract.
+        /// </summary>
+        /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
+        /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+        /// <param name="sourceAssetPath">Absolute generated texture source path that the builder should cook from.</param>
+        /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+        /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
+        /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+        /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
+        /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
+        public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
+            PlatformDefinition platformDefinition,
+            string targetPlatformId,
+            string sourceAssetPath,
+            string outputRelativePath,
+            string sourceAssetId,
+            AssetFileHasher fileHasher,
+            string generatedSourceRootPath) {
+            if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+            } else if (fileHasher == null) {
+                throw new ArgumentNullException(nameof(fileHasher));
+            } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+                throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
+            }
 
-    /// <summary>
-    /// Resolves the explicitly-authored asset-platform texture settings section that matches one builder-owned cook capability.
-    /// </summary>
-    /// <param name="platformSettings">Asset-platform settings document that may expose multiple texture-derived sections.</param>
-    /// <param name="capability">Builder-owned cook capability that determines which texture section should be used.</param>
-    /// <returns>Matching explicit texture settings section, or <c>null</c> when the capability has no authored platform override.</returns>
-    static TextureAssetProcessorSettings ResolveExplicitTextureProcessorSettings(
-        AssetPlatformProcessorSettings platformSettings,
-        PlatformAssetCookCapabilityDefinition capability) {
-        if (platformSettings == null) {
-            throw new ArgumentNullException(nameof(platformSettings));
-        } else if (capability == null) {
-            throw new ArgumentNullException(nameof(capability));
+            PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
+            if (capability == null) {
+                return null;
+            }
+
+            return CreateGeneratedWorkItem(
+                capability,
+                targetPlatformId,
+                sourceAssetPath,
+                "texture",
+                outputRelativePath,
+                sourceAssetId,
+                ResolveDefaultTextureProcessorSettings(capability),
+                fileHasher,
+                generatedSourceRootPath);
         }
 
-        if (string.Equals(capability.SourceAssetKind, "font-atlas-texture", StringComparison.OrdinalIgnoreCase)) {
-            return ResolveExplicitTextureProcessorSettings(platformSettings, FontAtlasTextureAssetPlatformSettingsSectionDefinition.SectionIdValue);
+        /// <summary>
+        /// Creates one builder-owned generated-texture cook work item when the selected platform publishes that capability and the generated source reuses generic asset import settings.
+        /// </summary>
+        /// <param name="platformDefinition">Platform definition that may publish builder-owned texture cooking.</param>
+        /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+        /// <param name="sourceAssetPath">Absolute generated texture source path that the builder should cook from.</param>
+        /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+        /// <param name="sourceAssetId">Stable identifier of the generated texture asset.</param>
+        /// <param name="settings">Resolved import settings whose texture processor data should drive the generated texture cook contract.</param>
+        /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+        /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
+        /// <returns>Resolved work item when the platform owns texture cooking; otherwise null.</returns>
+        public static PlatformCookWorkItem CreateGeneratedTextureWorkItem(
+            PlatformDefinition platformDefinition,
+            string targetPlatformId,
+            string sourceAssetPath,
+            string outputRelativePath,
+            string sourceAssetId,
+            AssetImportSettings settings,
+            AssetFileHasher fileHasher,
+            string generatedSourceRootPath) {
+            if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (fileHasher == null) {
+                throw new ArgumentNullException(nameof(fileHasher));
+            } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+                throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
+            }
+
+            PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "texture");
+            if (capability == null) {
+                return null;
+            }
+
+            TextureAssetProcessorSettings processorSettings = ResolveTextureProcessorSettings(targetPlatformId, settings.Processor?.Platforms, capability);
+            return CreateGeneratedWorkItem(
+                capability,
+                targetPlatformId,
+                sourceAssetPath,
+                "texture",
+                outputRelativePath,
+                sourceAssetId,
+                processorSettings,
+                fileHasher,
+                generatedSourceRootPath);
         }
 
-        return ResolveExplicitTextureProcessorSettings(platformSettings, TextureAssetPlatformSettingsSectionDefinition.SectionIdValue);
-    }
+        /// <summary>
+        /// Creates one builder-owned generated font-atlas cook work item when the selected platform publishes that capability and the generated source reuses generic asset import settings.
+        /// </summary>
+        /// <param name="platformDefinition">Platform definition that may publish builder-owned font-atlas cooking.</param>
+        /// <param name="targetPlatformId">Target platform identifier used to resolve platform settings.</param>
+        /// <param name="sourceAssetPath">Absolute generated font-atlas source path that the builder should cook from.</param>
+        /// <param name="outputRelativePath">Runtime-relative output path the builder must produce.</param>
+        /// <param name="sourceAssetId">Stable identifier of the generated font-atlas asset.</param>
+        /// <param name="settings">Resolved import settings whose texture processor data should drive the generated font-atlas cook contract.</param>
+        /// <param name="fileHasher">Hasher used to compute source and settings hashes.</param>
+        /// <param name="generatedSourceRootPath">Trusted containing root for the generated source file.</param>
+        /// <returns>Resolved work item when the platform owns font-atlas cooking; otherwise null.</returns>
+        public static PlatformCookWorkItem CreateGeneratedFontAtlasTextureWorkItem(
+            PlatformDefinition platformDefinition,
+            string targetPlatformId,
+            string sourceAssetPath,
+            string outputRelativePath,
+            string sourceAssetId,
+            AssetImportSettings settings,
+            AssetFileHasher fileHasher,
+            string generatedSourceRootPath) {
+            if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+            } else if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            } else if (fileHasher == null) {
+                throw new ArgumentNullException(nameof(fileHasher));
+            } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+                throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
+            }
 
-    /// <summary>
-    /// Resolves one explicitly-authored texture settings section by section identifier without materializing registry defaults.
-    /// </summary>
-    /// <param name="platformSettings">Asset-platform settings document that owns the section map.</param>
-    /// <param name="sectionId">Registered section identifier to resolve.</param>
-    /// <returns>Explicitly-authored texture settings section, or <c>null</c> when no payload has been stored.</returns>
-    static TextureAssetProcessorSettings ResolveExplicitTextureProcessorSettings(
-        AssetPlatformProcessorSettings platformSettings,
-        string sectionId) {
-        if (platformSettings == null) {
-            throw new ArgumentNullException(nameof(platformSettings));
-        } else if (string.IsNullOrWhiteSpace(sectionId)) {
-            throw new ArgumentException("Section id must be provided.", nameof(sectionId));
+            PlatformAssetCookCapabilityDefinition capability = ResolveBuilderOwnedCapability(platformDefinition, "font-atlas-texture")
+                ?? ResolveBuilderOwnedCapability(platformDefinition, "texture");
+            if (capability == null) {
+                return null;
+            }
+
+            TextureAssetProcessorSettings processorSettings = ResolveTextureProcessorSettings(targetPlatformId, settings.Processor?.Platforms, capability);
+            return CreateGeneratedWorkItem(
+                capability,
+                targetPlatformId,
+                sourceAssetPath,
+                capability.SourceAssetKind,
+                outputRelativePath,
+                sourceAssetId,
+                processorSettings,
+                fileHasher,
+                generatedSourceRootPath);
         }
 
-        if (!platformSettings.Sections.TryGetValue(sectionId, out AssetPlatformSettingsSection section) || section?.Settings == null) {
+        static PlatformCookWorkItem CreateWorkItem(
+            PlatformAssetCookCapabilityDefinition capability,
+            string targetPlatformId,
+            string projectRootPath,
+            string sourceRelativePath,
+            string sourceAssetKind,
+            string outputRelativePath,
+            string sourceAssetId,
+            TextureAssetProcessorSettings processorSettings,
+            AssetFileHasher fileHasher) {
+            if (capability == null) {
+                throw new ArgumentNullException(nameof(capability));
+            } else if (string.IsNullOrWhiteSpace(targetPlatformId)) {
+                throw new ArgumentException("Target platform id must be provided.", nameof(targetPlatformId));
+            } else if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            } else if (string.IsNullOrWhiteSpace(sourceRelativePath)) {
+                throw new ArgumentException("Source relative path must be provided.", nameof(sourceRelativePath));
+            } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
+            } else if (string.IsNullOrWhiteSpace(outputRelativePath)) {
+                throw new ArgumentException("Output relative path must be provided.", nameof(outputRelativePath));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            } else if (fileHasher == null) {
+                throw new ArgumentNullException(nameof(fileHasher));
+            }
+
+            string normalizedSourceRelativePath = sourceRelativePath.Replace('\\', '/');
+            string normalizedOutputRelativePath = outputRelativePath.Replace('\\', '/');
+            string fullSourcePath = Path.GetFullPath(Path.Combine(projectRootPath, "assets", normalizedSourceRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            if (!File.Exists(fullSourcePath)) {
+                throw new InvalidOperationException($"Builder-owned platform cook source '{fullSourcePath}' was not found for asset kind '{sourceAssetKind}'.");
+            }
+            string serializedSettings = SerializeTextureSettings(processorSettings);
+            string settingsHash = ComputeStringHash(fileHasher, serializedSettings);
+            string sourceHash = fileHasher.ComputeHash(fullSourcePath);
+            string workItemId = string.Concat(targetPlatformId, ":", sourceAssetKind, ":", normalizedOutputRelativePath);
+
+            return new PlatformCookWorkItem(
+                workItemId,
+                fullSourcePath,
+                sourceAssetKind,
+                targetPlatformId,
+                capability.TargetArtifactKind,
+                normalizedOutputRelativePath,
+                string.Concat(capability.TargetArtifactKind, ":", normalizedOutputRelativePath),
+                sourceHash,
+                settingsHash,
+                serializedSettings,
+                [
+                    new PlatformCookWorkItemMetadata("source-asset-id", sourceAssetId ?? normalizedSourceRelativePath),
+                    new PlatformCookWorkItemMetadata("settings-contract-id", capability.SettingsContractId)
+                ]);
+        }
+
+        static PlatformCookWorkItem CreateGeneratedWorkItem(
+            PlatformAssetCookCapabilityDefinition capability,
+            string targetPlatformId,
+            string sourceAssetPath,
+            string sourceAssetKind,
+            string outputRelativePath,
+            string sourceAssetId,
+            TextureAssetProcessorSettings processorSettings,
+            AssetFileHasher fileHasher,
+            string generatedSourceRootPath) {
+            if (capability == null) {
+                throw new ArgumentNullException(nameof(capability));
+            } else if (string.IsNullOrWhiteSpace(targetPlatformId)) {
+                throw new ArgumentException("Target platform id must be provided.", nameof(targetPlatformId));
+            } else if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+                throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+            } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
+            } else if (string.IsNullOrWhiteSpace(outputRelativePath)) {
+                throw new ArgumentException("Output relative path must be provided.", nameof(outputRelativePath));
+            } else if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            } else if (fileHasher == null) {
+                throw new ArgumentNullException(nameof(fileHasher));
+            } else if (string.IsNullOrWhiteSpace(generatedSourceRootPath)) {
+                throw new ArgumentException("Generated source root path must be provided.", nameof(generatedSourceRootPath));
+            }
+
+            string fullSourcePath = Path.GetFullPath(sourceAssetPath);
+            if (!File.Exists(fullSourcePath)) {
+                throw new InvalidOperationException($"Builder-owned generated texture source '{fullSourcePath}' was not found.");
+            }
+
+            string normalizedOutputRelativePath = outputRelativePath.Replace('\\', '/');
+            string serializedSettings = SerializeTextureSettings(processorSettings);
+            string settingsHash = ComputeStringHash(fileHasher, serializedSettings);
+            string sourceHash = new AssetFileHasher(generatedSourceRootPath).ComputeHash(fullSourcePath);
+            string workItemId = string.Concat(targetPlatformId, ":", sourceAssetKind, ":", normalizedOutputRelativePath);
+
+            return new PlatformCookWorkItem(
+                workItemId,
+                fullSourcePath,
+                sourceAssetKind,
+                targetPlatformId,
+                capability.TargetArtifactKind,
+                normalizedOutputRelativePath,
+                string.Concat(capability.TargetArtifactKind, ":", normalizedOutputRelativePath),
+                sourceHash,
+                settingsHash,
+                serializedSettings,
+                [
+                    new PlatformCookWorkItemMetadata("source-asset-id", string.IsNullOrWhiteSpace(sourceAssetId) ? normalizedOutputRelativePath : sourceAssetId),
+                    new PlatformCookWorkItemMetadata("settings-contract-id", capability.SettingsContractId)
+                ]);
+        }
+
+        static PlatformAssetCookCapabilityDefinition ResolveBuilderOwnedCapability(PlatformDefinition platformDefinition, string sourceAssetKind) {
+            if (platformDefinition == null) {
+                throw new ArgumentNullException(nameof(platformDefinition));
+            } else if (string.IsNullOrWhiteSpace(sourceAssetKind)) {
+                throw new ArgumentException("Source asset kind must be provided.", nameof(sourceAssetKind));
+            }
+
+            PlatformAssetCookCapabilityDefinition[] capabilities = platformDefinition.AssetCookCapabilities ?? [];
+            for (int index = 0; index < capabilities.Length; index++) {
+                PlatformAssetCookCapabilityDefinition capability = capabilities[index];
+                if (capability == null) {
+                    continue;
+                }
+                if (!string.Equals(capability.SourceAssetKind, sourceAssetKind, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (capability.OwnershipKind == PlatformAssetCookOwnershipKind.BuilderOwned) {
+                    return capability;
+                }
+            }
+
             return null;
-        } else if (section.Settings is not TextureAssetProcessorSettings) {
-            throw new InvalidOperationException($"Asset-platform settings section '{sectionId}' stored one '{section.Settings.GetType().Name}' payload instead of '{nameof(TextureAssetProcessorSettings)}'.");
         }
 
-        return (TextureAssetProcessorSettings)section.Settings;
-    }
+        static TextureAssetProcessorSettings ResolveTextureProcessorSettings(
+            string targetPlatformId,
+            IDictionary<string, TextureAssetProcessorSettings> platformSettingsById,
+            PlatformAssetCookCapabilityDefinition capability) {
+            if (!string.IsNullOrWhiteSpace(targetPlatformId)
+                && platformSettingsById != null
+                && platformSettingsById.TryGetValue(targetPlatformId, out TextureAssetProcessorSettings platformSettings)
+                && platformSettings != null) {
+                return platformSettings;
+            }
 
-    static TextureAssetProcessorSettings ResolveDefaultTextureProcessorSettings(PlatformAssetCookCapabilityDefinition capability) {
-        if (capability == null) {
-            throw new ArgumentNullException(nameof(capability));
+            return ResolveDefaultTextureProcessorSettings(capability);
         }
 
-        if (!string.IsNullOrWhiteSpace(capability.DefaultSerializedPlatformSettings)) {
-            return DeserializeTextureSettings(capability.DefaultSerializedPlatformSettings);
+        static TextureAssetProcessorSettings ResolveTextureProcessorSettings(
+            string targetPlatformId,
+            IDictionary<string, AssetPlatformProcessorSettings> platformSettingsById,
+            PlatformAssetCookCapabilityDefinition capability) {
+            if (!string.IsNullOrWhiteSpace(targetPlatformId)
+                && platformSettingsById != null
+                && platformSettingsById.TryGetValue(targetPlatformId, out AssetPlatformProcessorSettings platformSettings)
+                && platformSettings != null) {
+                TextureAssetProcessorSettings selectedSettings = ResolveExplicitTextureProcessorSettings(platformSettings, capability);
+                if (selectedSettings != null) {
+                    return selectedSettings;
+                }
+            }
+
+            return ResolveDefaultTextureProcessorSettings(capability);
         }
 
-        return new TextureAssetProcessorSettings {
-            MaxResolution = 0,
-            ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),
-            AlphaPrecision = TextureAssetAlphaPrecision.A8,
-            IndexingMethodId = string.Empty
-        };
-    }
+        /// <summary>
+        /// Resolves the explicitly-authored asset-platform texture settings section that matches one builder-owned cook capability.
+        /// </summary>
+        /// <param name="platformSettings">Asset-platform settings document that may expose multiple texture-derived sections.</param>
+        /// <param name="capability">Builder-owned cook capability that determines which texture section should be used.</param>
+        /// <returns>Matching explicit texture settings section, or <c>null</c> when the capability has no authored platform override.</returns>
+        static TextureAssetProcessorSettings ResolveExplicitTextureProcessorSettings(
+            AssetPlatformProcessorSettings platformSettings,
+            PlatformAssetCookCapabilityDefinition capability) {
+            if (platformSettings == null) {
+                throw new ArgumentNullException(nameof(platformSettings));
+            } else if (capability == null) {
+                throw new ArgumentNullException(nameof(capability));
+            }
 
-    static TextureAssetProcessorSettings DeserializeTextureSettings(string serializedSettings) {
-        if (string.IsNullOrWhiteSpace(serializedSettings)) {
-            throw new ArgumentException("Serialized settings must be provided.", nameof(serializedSettings));
+            if (string.Equals(capability.SourceAssetKind, "font-atlas-texture", StringComparison.OrdinalIgnoreCase)) {
+                return ResolveExplicitTextureProcessorSettings(platformSettings, FontAtlasTextureAssetPlatformSettingsSectionDefinition.SectionIdValue);
+            }
+
+            return ResolveExplicitTextureProcessorSettings(platformSettings, TextureAssetPlatformSettingsSectionDefinition.SectionIdValue);
         }
 
-        using JsonDocument document = JsonDocument.Parse(serializedSettings);
-        JsonElement root = document.RootElement;
-        int maxResolution = root.TryGetProperty("maxResolution", out JsonElement maxResolutionElement)
-            ? maxResolutionElement.GetInt32()
-            : 0;
-        string colorFormatId = root.TryGetProperty("colorFormat", out JsonElement colorFormatElement)
-            ? colorFormatElement.GetString() ?? TextureAssetColorFormat.Rgba32.ToString()
-            : TextureAssetColorFormat.Rgba32.ToString();
-        string alphaPrecisionName = root.TryGetProperty("alphaPrecision", out JsonElement alphaPrecisionElement)
-            ? alphaPrecisionElement.GetString() ?? TextureAssetAlphaPrecision.A8.ToString()
-            : TextureAssetAlphaPrecision.A8.ToString();
-        string indexingMethodId = root.TryGetProperty("indexingMethod", out JsonElement indexingMethodElement)
-            ? indexingMethodElement.GetString() ?? string.Empty
-            : string.Empty;
+        /// <summary>
+        /// Resolves one explicitly-authored texture settings section by section identifier without materializing registry defaults.
+        /// </summary>
+        /// <param name="platformSettings">Asset-platform settings document that owns the section map.</param>
+        /// <param name="sectionId">Registered section identifier to resolve.</param>
+        /// <returns>Explicitly-authored texture settings section, or <c>null</c> when no payload has been stored.</returns>
+        static TextureAssetProcessorSettings ResolveExplicitTextureProcessorSettings(
+            AssetPlatformProcessorSettings platformSettings,
+            string sectionId) {
+            if (platformSettings == null) {
+                throw new ArgumentNullException(nameof(platformSettings));
+            } else if (string.IsNullOrWhiteSpace(sectionId)) {
+                throw new ArgumentException("Section id must be provided.", nameof(sectionId));
+            }
 
-        if (!Enum.TryParse(alphaPrecisionName, ignoreCase: true, out TextureAssetAlphaPrecision alphaPrecision)) {
-            throw new InvalidOperationException($"Unsupported texture alpha precision '{alphaPrecisionName}'.");
+            if (!platformSettings.Sections.TryGetValue(sectionId, out AssetPlatformSettingsSection section) || section?.Settings == null) {
+                return null;
+            } else if (section.Settings is not TextureAssetProcessorSettings) {
+                throw new InvalidOperationException($"Asset-platform settings section '{sectionId}' stored one '{section.Settings.GetType().Name}' payload instead of '{nameof(TextureAssetProcessorSettings)}'.");
+            }
+
+            return (TextureAssetProcessorSettings)section.Settings;
         }
 
-        return new TextureAssetProcessorSettings {
-            MaxResolution = maxResolution,
-            ColorFormatId = colorFormatId,
-            AlphaPrecision = alphaPrecision,
-            IndexingMethodId = indexingMethodId
-        };
-    }
+        static TextureAssetProcessorSettings ResolveDefaultTextureProcessorSettings(PlatformAssetCookCapabilityDefinition capability) {
+            if (capability == null) {
+                throw new ArgumentNullException(nameof(capability));
+            }
 
-    static string SerializeTextureSettings(TextureAssetProcessorSettings processorSettings) {
-        if (processorSettings == null) {
-            throw new ArgumentNullException(nameof(processorSettings));
+            if (!string.IsNullOrWhiteSpace(capability.DefaultSerializedPlatformSettings)) {
+                return DeserializeTextureSettings(capability.DefaultSerializedPlatformSettings);
+            }
+
+            return new TextureAssetProcessorSettings {
+                MaxResolution = 0,
+                ColorFormatId = TextureAssetColorFormat.Rgba32.ToString(),
+                AlphaPrecision = TextureAssetAlphaPrecision.A8,
+                IndexingMethodId = string.Empty
+            };
         }
 
-        string indexingMethodId = processorSettings.UsesIndexedColorFormat()
-            ? processorSettings.ResolveIndexingMethod().ToString()
-            : string.Empty;
-        return JsonSerializer.Serialize(new Dictionary<string, object> {
-            ["maxResolution"] = processorSettings.MaxResolution,
-            ["colorFormat"] = processorSettings.ColorFormatId,
-            ["alphaPrecision"] = processorSettings.AlphaPrecision.ToString(),
-            ["indexingMethod"] = indexingMethodId
-        });
-    }
+        static TextureAssetProcessorSettings DeserializeTextureSettings(string serializedSettings) {
+            if (string.IsNullOrWhiteSpace(serializedSettings)) {
+                throw new ArgumentException("Serialized settings must be provided.", nameof(serializedSettings));
+            }
 
-    static string ComputeStringHash(AssetFileHasher fileHasher, string value) {
-        if (fileHasher == null) {
-            throw new ArgumentNullException(nameof(fileHasher));
-        } else if (value == null) {
-            throw new ArgumentNullException(nameof(value));
+            using JsonDocument document = JsonDocument.Parse(serializedSettings);
+            JsonElement root = document.RootElement;
+            int maxResolution = root.TryGetProperty("maxResolution", out JsonElement maxResolutionElement)
+                ? maxResolutionElement.GetInt32()
+                : 0;
+            string colorFormatId = root.TryGetProperty("colorFormat", out JsonElement colorFormatElement)
+                ? colorFormatElement.GetString() ?? TextureAssetColorFormat.Rgba32.ToString()
+                : TextureAssetColorFormat.Rgba32.ToString();
+            string alphaPrecisionName = root.TryGetProperty("alphaPrecision", out JsonElement alphaPrecisionElement)
+                ? alphaPrecisionElement.GetString() ?? TextureAssetAlphaPrecision.A8.ToString()
+                : TextureAssetAlphaPrecision.A8.ToString();
+            string indexingMethodId = root.TryGetProperty("indexingMethod", out JsonElement indexingMethodElement)
+                ? indexingMethodElement.GetString() ?? string.Empty
+                : string.Empty;
+
+            if (!Enum.TryParse(alphaPrecisionName, ignoreCase: true, out TextureAssetAlphaPrecision alphaPrecision)) {
+                throw new InvalidOperationException($"Unsupported texture alpha precision '{alphaPrecisionName}'.");
+            }
+
+            return new TextureAssetProcessorSettings {
+                MaxResolution = maxResolution,
+                ColorFormatId = colorFormatId,
+                AlphaPrecision = alphaPrecision,
+                IndexingMethodId = indexingMethodId
+            };
         }
 
-        using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(value));
-        return fileHasher.ComputeHash(stream);
+        static string SerializeTextureSettings(TextureAssetProcessorSettings processorSettings) {
+            if (processorSettings == null) {
+                throw new ArgumentNullException(nameof(processorSettings));
+            }
+
+            string indexingMethodId = processorSettings.UsesIndexedColorFormat()
+                ? processorSettings.ResolveIndexingMethod().ToString()
+                : string.Empty;
+            return JsonSerializer.Serialize(new Dictionary<string, object> {
+                ["maxResolution"] = processorSettings.MaxResolution,
+                ["colorFormat"] = processorSettings.ColorFormatId,
+                ["alphaPrecision"] = processorSettings.AlphaPrecision.ToString(),
+                ["indexingMethod"] = indexingMethodId
+            });
+        }
+
+        static string ComputeStringHash(AssetFileHasher fileHasher, string value) {
+            if (fileHasher == null) {
+                throw new ArgumentNullException(nameof(fileHasher));
+            } else if (value == null) {
+                throw new ArgumentNullException(nameof(value));
+            }
+
+            using MemoryStream stream = new MemoryStream(Encoding.UTF8.GetBytes(value));
+            return fileHasher.ComputeHash(stream);
+        }
     }
 }

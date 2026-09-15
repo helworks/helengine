@@ -120,7 +120,7 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         string typeForwardersSource = File.ReadAllText(Path.Combine(inputRootPath, "TypeForwarders.cs"))
             .Replace("\r\n", "\n", StringComparison.Ordinal);
 
-        Assert.Contains("#if DESKTOP_PLATFORM\n    /// <summary>\n    /// Gets or sets the captured keyboard state", inputFrameStateSource, StringComparison.Ordinal);
+        Assert.Contains("#if DESKTOP_PLATFORM\n        /// <summary>\n        /// Gets or sets the captured keyboard state", inputFrameStateSource, StringComparison.Ordinal);
         Assert.Contains("#if DESKTOP_PLATFORM", keyboardStateSource, StringComparison.Ordinal);
         Assert.Contains("#if DESKTOP_PLATFORM", mouseStateSource, StringComparison.Ordinal);
         Assert.Contains("#if DESKTOP_PLATFORM", keysSource, StringComparison.Ordinal);

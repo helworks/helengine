@@ -1,21 +1,22 @@
-namespace helengine.baseplatform.Definitions;
-
-/// <summary>
-/// Identifies how one platform handles one serialized component type.
-/// </summary>
-public enum PlatformComponentSupportKind {
-    /// <summary>
-    /// The serialized component record can be emitted unchanged.
-    /// </summary>
-    PassThrough,
+namespace helengine.baseplatform.Definitions {
 
     /// <summary>
-    /// The serialized component record should be rewritten before packaging.
+    /// Identifies how one platform handles one serialized component type.
     /// </summary>
-    Transform,
+    public enum PlatformComponentSupportKind {
+        /// <summary>
+        /// The serialized component record can be emitted unchanged.
+        /// </summary>
+        PassThrough,
 
-    /// <summary>
-    /// The platform cannot package the component.
-    /// </summary>
-    Unsupported
+        /// <summary>
+        /// The serialized component record should be rewritten before packaging.
+        /// </summary>
+        Transform,
+
+        /// <summary>
+        /// The platform cannot package the component.
+        /// </summary>
+        Unsupported
+    }
 }

@@ -5,30 +5,31 @@
 //
 // Additional modifications and work by Helena.
 
-namespace helengine;
-
-/// <summary>
-/// Defines a button state for buttons of mouse, gamepad or joystick.
-/// </summary>
-public enum ButtonState {
-    /// <summary>
-    /// The button is released.
-    /// </summary>
-    Released,
+namespace helengine {
 
     /// <summary>
-    /// The button is pressed.
+    /// Defines a button state for buttons of mouse, gamepad or joystick.
     /// </summary>
-    Pressed,
+    public enum ButtonState {
+        /// <summary>
+        /// The button is released.
+        /// </summary>
+        Released,
 
-    /// <summary>
-    /// The button transitioned from pressed to released this frame.
-    /// </summary>
-    JustReleased,
+        /// <summary>
+        /// The button is pressed.
+        /// </summary>
+        Pressed,
 
-    /// <summary>
-    /// The button transitioned from released to pressed this frame.
-    /// </summary>
-    JustPressed
-}
+        /// <summary>
+        /// The button transitioned from pressed to released this frame.
+        /// </summary>
+        JustReleased,
+
+        /// <summary>
+        /// The button transitioned from released to pressed this frame.
+        /// </summary>
+        JustPressed
+    }
 #endif
+}

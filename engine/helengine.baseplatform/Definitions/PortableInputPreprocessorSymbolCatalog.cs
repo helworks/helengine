@@ -1,16 +1,17 @@
-namespace helengine.baseplatform.Definitions;
-
-/// <summary>
-/// Publishes stable portable-input preprocessor symbols that platform builders can request for generated-core source selection.
-/// </summary>
-public static class PortableInputPreprocessorSymbolCatalog {
-    /// <summary>
-    /// Selects the GameCube/Wii GX matrix ABI branch owned by helengine source.
-    /// </summary>
-    public const string MatrixAbiGxGameCubeWiiSymbol = "HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII";
+namespace helengine.baseplatform.Definitions {
 
     /// <summary>
-    /// Selects the classic broadphase update path for runtimes where the incremental broadphase update is not currently viable.
+    /// Publishes stable portable-input preprocessor symbols that platform builders can request for generated-core source selection.
     /// </summary>
-    public const string BepuUseClassicBroadPhaseUpdateSymbol = "HELENGINE_CODEGEN_BEPU_USE_CLASSIC_BROAD_PHASE_UPDATE";
+    public static class PortableInputPreprocessorSymbolCatalog {
+        /// <summary>
+        /// Selects the GameCube/Wii GX matrix ABI branch owned by helengine source.
+        /// </summary>
+        public const string MatrixAbiGxGameCubeWiiSymbol = "HELENGINE_CODEGEN_MATRIX_ABI_GX_GAMECUBE_WII";
+
+        /// <summary>
+        /// Selects the classic broadphase update path for runtimes where the incremental broadphase update is not currently viable.
+        /// </summary>
+        public const string BepuUseClassicBroadPhaseUpdateSymbol = "HELENGINE_CODEGEN_BEPU_USE_CLASSIC_BROAD_PHASE_UPDATE";
+    }
 }
