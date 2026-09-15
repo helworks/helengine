@@ -26,7 +26,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing the packaged font payload.</param>
         /// <returns>Deserialized font asset.</returns>
-        public FontAsset Read(Stream stream) {
+        public FontAsset Read([NativeNoEscape] Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -39,7 +39,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing the packaged font payload.</param>
         /// <returns>Deserialized font asset boxed as an object.</returns>
-        object IContentProcessor.ReadObject(Stream stream) {
+        object IContentProcessor.ReadObject([NativeNoEscape] Stream stream) {
             return Read(stream);
         }
 

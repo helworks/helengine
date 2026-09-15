@@ -14,7 +14,7 @@ namespace helengine {
         /// <param name="stream">Stream containing the source data to parse.</param>
         /// <returns>Processed content value whose cleanup responsibility transfers to the caller.</returns>
         [NativeOwnedReturn]
-        object ReadObject(Stream stream);
+        object ReadObject([NativeNoEscape] Stream stream);
     }
 
     /// <summary>
@@ -28,6 +28,6 @@ namespace helengine {
         /// <param name="stream">Stream containing the source data to parse.</param>
         /// <returns>Processed content value whose cleanup responsibility transfers to the caller.</returns>
         [NativeOwnedReturn]
-        T Read(Stream stream);
+        T Read([NativeNoEscape] Stream stream);
     }
 }

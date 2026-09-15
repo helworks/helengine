@@ -13,7 +13,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing UTF-8 text data.</param>
         /// <returns>Decoded text content.</returns>
-        public TextContent Read(Stream stream) {
+        public TextContent Read([NativeNoEscape] Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -29,7 +29,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing UTF-8 text data.</param>
         /// <returns>Decoded text content boxed as an object.</returns>
-        object IContentProcessor.ReadObject(Stream stream) {
+        object IContentProcessor.ReadObject([NativeNoEscape] Stream stream) {
             return Read(stream);
         }
     }

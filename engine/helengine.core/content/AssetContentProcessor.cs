@@ -14,7 +14,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing serialized asset data.</param>
         /// <returns>Deserialized asset instance.</returns>
-        public TAsset Read(Stream stream) {
+        public TAsset Read([NativeNoEscape] Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -37,7 +37,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing serialized asset data.</param>
         /// <returns>Deserialized asset instance boxed as an object.</returns>
-        object IContentProcessor.ReadObject(Stream stream) {
+        object IContentProcessor.ReadObject([NativeNoEscape] Stream stream) {
             return Read(stream);
         }
     }

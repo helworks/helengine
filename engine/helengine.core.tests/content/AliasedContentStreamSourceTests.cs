@@ -4,6 +4,19 @@ namespace helengine.core.tests.content {
     /// </summary>
     public sealed class AliasedContentStreamSourceTests {
         /// <summary>
+        /// Ensures every generated-core content-source boundary declares that
+        /// the returned stream is owned by the caller.
+        /// </summary>
+        [Fact]
+        public void OpenRead_DeclaresOwnedNativeReturn() {
+            System.Reflection.MethodInfo method = typeof(AliasedContentStreamSource).GetMethod(nameof(AliasedContentStreamSource.OpenRead), [typeof(string)]);
+            Assert.NotNull(method);
+            Assert.NotEmpty(method.GetCustomAttributes(typeof(NativeOwnedReturnAttribute), false));
+            Assert.NotEmpty(typeof(IContentStreamSource).GetMethod(nameof(IContentStreamSource.OpenRead))!.GetCustomAttributes(typeof(NativeOwnedReturnAttribute), false));
+            Assert.NotEmpty(typeof(HostFileSystemContentStreamSource).GetMethod(nameof(HostFileSystemContentStreamSource.OpenRead), [typeof(string)])!.GetCustomAttributes(typeof(NativeOwnedReturnAttribute), false));
+        }
+
+        /// <summary>
         /// Ensures a logical path is mapped exactly once before the underlying source reads it.
         /// </summary>
         [Fact]

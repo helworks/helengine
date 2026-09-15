@@ -13,7 +13,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing raw file bytes.</param>
         /// <returns>Loaded raw byte content.</returns>
-        public RawByteContent Read(Stream stream) {
+        public RawByteContent Read([NativeNoEscape] Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -30,7 +30,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing raw file bytes.</param>
         /// <returns>Loaded raw byte content boxed as an object.</returns>
-        object IContentProcessor.ReadObject(Stream stream) {
+        object IContentProcessor.ReadObject([NativeNoEscape] Stream stream) {
             return Read(stream);
         }
     }
