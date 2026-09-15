@@ -1,4 +1,4 @@
-﻿// MIT License - Copyright (C) The Mono.Xna Team
+// MIT License - Copyright (C) The Mono.Xna Team
 // Portions of this file are based on work by The Mono.Xna Team and are subject to
 // the terms and conditions defined in file 'LICENSE.txt', which is part of this source code package.
 //
@@ -77,7 +77,7 @@ namespace helengine {
         /// <summary>
         /// Backing field for the identity matrix value.
         /// </summary>
-        private static float4x4 identity = new float4x4(1f, 0f, 0f, 0f,
+        private static float4x4 IdentityValue = new float4x4(1f, 0f, 0f, 0f,
                                             0f, 1f, 0f, 0f,
                                             0f, 0f, 1f, 0f,
                                             0f, 0f, 0f, 1f);
@@ -125,7 +125,7 @@ namespace helengine {
         /// Returns the identity matrix.
         /// </summary>
         public static float4x4 Identity {
-            get { return identity; }
+            get { return IdentityValue; }
         }
 
         /// <summary>

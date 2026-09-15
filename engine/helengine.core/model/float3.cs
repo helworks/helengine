@@ -12,23 +12,23 @@ namespace helengine {
         /// <summary>
         /// Zero vector (0, 0, 0).
         /// </summary>
-        private static readonly float3 zero = new float3(0f, 0f, 0f);
+        private static readonly float3 ZeroValue = new float3(0f, 0f, 0f);
         /// <summary>
         /// Unit vector with all components set to one.
         /// </summary>
-        private static readonly float3 one = new float3(1f, 1f, 1f);
+        private static readonly float3 OneValue = new float3(1f, 1f, 1f);
         /// <summary>
         /// Unit vector aligned with the X axis.
         /// </summary>
-        private static readonly float3 unitX = new float3(1f, 0f, 0f);
+        private static readonly float3 UnitXValue = new float3(1f, 0f, 0f);
         /// <summary>
         /// Unit vector aligned with the Y axis.
         /// </summary>
-        private static readonly float3 unitY = new float3(0f, 1f, 0f);
+        private static readonly float3 UnitYValue = new float3(0f, 1f, 0f);
         /// <summary>
         /// Unit vector aligned with the Z axis.
         /// </summary>
-        private static readonly float3 unitZ = new float3(0f, 0f, 1f);
+        private static readonly float3 UnitZValue = new float3(0f, 0f, 1f);
 
         /// <summary>
         /// X component of the vector.
@@ -82,35 +82,35 @@ namespace helengine {
         /// Gets a zero vector.
         /// </summary>
         public static float3 Zero {
-            get { return zero; }
+            get { return ZeroValue; }
         }
 
         /// <summary>
         /// Gets a vector with all components set to one.
         /// </summary>
         public static float3 One {
-            get { return one; }
+            get { return OneValue; }
         }
 
         /// <summary>
         /// Gets the unit vector aligned with the X axis.
         /// </summary>
         public static float3 UnitX {
-            get { return unitX; }
+            get { return UnitXValue; }
         }
 
         /// <summary>
         /// Gets the unit vector aligned with the Y axis.
         /// </summary>
         public static float3 UnitY {
-            get { return unitY; }
+            get { return UnitYValue; }
         }
 
         /// <summary>
         /// Gets the unit vector aligned with the Z axis.
         /// </summary>
         public static float3 UnitZ {
-            get { return unitZ; }
+            get { return UnitZValue; }
         }
 
         /// <summary>

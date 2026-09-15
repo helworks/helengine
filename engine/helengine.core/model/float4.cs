@@ -12,17 +12,17 @@ namespace helengine {
         /// <summary>
         /// Zero value with all components set to 0.
         /// </summary>
-        private static readonly float4 zero = new float4(0, 0, 0, 0);
+        private static readonly float4 ZeroValue = new float4(0, 0, 0, 0);
 
         /// <summary>
         /// Identity quaternion representing no rotation.
         /// </summary>
-        private static readonly float4 identity = new float4(0, 0, 0, 1);
+        private static readonly float4 IdentityValue = new float4(0, 0, 0, 1);
 
         /// <summary>
         /// Value with all components set to one.
         /// </summary>
-        private static readonly float4 one = new float4(1, 1, 1, 1);
+        private static readonly float4 OneValue = new float4(1, 1, 1, 1);
 
         /// <summary>
         /// X component of the quaternion.
@@ -85,21 +85,21 @@ namespace helengine {
         /// Returns a quaternion representing no rotation.
         /// </summary>
         public static float4 Identity {
-            get { return identity; }
+            get { return IdentityValue; }
         }
 
         /// <summary>
         /// Returns a zero value with all components cleared.
         /// </summary>
         public static float4 Zero {
-            get { return zero; }
+            get { return ZeroValue; }
         }
 
         /// <summary>
         /// Returns a value with all components set to one.
         /// </summary>
         public static float4 One {
-            get { return one; }
+            get { return OneValue; }
         }
 
         /// <summary>

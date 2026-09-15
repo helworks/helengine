@@ -12,7 +12,7 @@ namespace helengine {
         /// <summary>
         /// Identity-like vector with W set to one.
         /// </summary>
-        private static readonly int4 identity = new int4(0, 0, 0, 1);
+        private static readonly int4 IdentityValue = new int4(0, 0, 0, 1);
 
         /// <summary>
         /// X component of the vector.
@@ -52,7 +52,7 @@ namespace helengine {
         /// Gets a vector representing no rotation (identity).
         /// </summary>
         public static int4 Identity {
-            get { return identity; }
+            get { return IdentityValue; }
         }
 
         /// <summary>
