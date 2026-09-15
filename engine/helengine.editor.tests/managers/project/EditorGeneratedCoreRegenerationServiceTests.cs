@@ -588,6 +588,22 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a shader-capable platform skips the shader project when its selected codegen options force the shader feature off.
+    /// </summary>
+    [Fact]
+    public void Should_regenerate_shader_project_honors_selected_forced_disabled_feature() {
+        PlatformDefinition definition = CreatePlatformDefinition("dc", runtimeGenerationContract: null);
+        Dictionary<string, string> options = new(StringComparer.OrdinalIgnoreCase) {
+            [PlatformCodegenSettingIds.ForcedDisabledFeatures] = "debug_overlay;shaders"
+        };
+
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(definition, options));
+        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(
+            definition,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
     /// Ensures generated-core regeneration submits the shader runtime project without submitting the managed compiler project.
     /// </summary>
     [Fact]

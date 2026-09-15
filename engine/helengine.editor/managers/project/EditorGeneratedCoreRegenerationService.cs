@@ -87,7 +87,7 @@ namespace helengine.editor {
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
-            bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(platformDefinition);
+            bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(platformDefinition, selectedCodegenOptionValues);
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
 
             if (!File.Exists(helengineCoreProjectPath)) {
@@ -532,12 +532,41 @@ namespace helengine.editor {
         /// <param name="platformDefinition">Target platform definition being regenerated.</param>
         /// <returns>True when the target runtime supports the generated shader subsystem.</returns>
         internal static bool ShouldRegenerateShaderProject(PlatformDefinition platformDefinition) {
+            return ShouldRegenerateShaderProject(
+                platformDefinition,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Determines whether the selected codegen feature set requires generated shader runtime sources.
+        /// </summary>
+        /// <param name="platformDefinition">Target platform definition being regenerated.</param>
+        /// <param name="selectedCodegenOptionValues">Selected codegen options, including forced-disabled features.</param>
+        /// <returns>True when the target runtime supports and has enabled the generated shader subsystem.</returns>
+        internal static bool ShouldRegenerateShaderProject(
+            PlatformDefinition platformDefinition,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
             }
+            if (selectedCodegenOptionValues == null) {
+                throw new ArgumentNullException(nameof(selectedCodegenOptionValues));
+            }
 
-            return !string.Equals(platformDefinition.PlatformId, "ps2", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(platformDefinition.PlatformId, "psp", StringComparison.OrdinalIgnoreCase);
+            if (string.Equals(platformDefinition.PlatformId, "ps2", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(platformDefinition.PlatformId, "psp", StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            if (selectedCodegenOptionValues.TryGetValue(
+                    PlatformCodegenSettingIds.ForcedDisabledFeatures,
+                    out string forcedDisabledFeatures)
+                && forcedDisabledFeatures.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Any(feature => string.Equals(feature, "shaders", StringComparison.OrdinalIgnoreCase))) {
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
