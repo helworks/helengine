@@ -24,6 +24,20 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures native helper declarations have a declaration for their generated binary-reader pointer type.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerHeader_WhenSchemaNeedsNestedReaderHelper_DeclaresEngineBinaryReader() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(AmbientLightComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+
+            Assert.Contains("class EngineBinaryReader;", header, StringComparison.Ordinal);
+            Assert.Contains("::EngineBinaryReader* reader", header, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// Ensures generated managed and native ordinal readers identify current payload requirements when version, count, or member bytes are missing or invalid.
         /// </summary>
         [Fact]

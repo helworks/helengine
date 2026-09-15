@@ -141,6 +141,7 @@ namespace helengine.editor {
             builder.AppendLine();
             builder.AppendLine("class IRuntimeComponentDeserializer;");
             builder.AppendLine("class Component;");
+            builder.AppendLine("class EngineBinaryReader;");
             builder.AppendLine("class SceneComponentAssetRecord;");
             builder.AppendLine("class RuntimeSceneAssetReferenceResolver;");
             builder.AppendLine();
