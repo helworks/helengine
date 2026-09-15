@@ -17,7 +17,7 @@ namespace helengine.editor.tests {
             Dictionary<IntPtr, DirectX11SwapChainSurface> surfacesByHandle = new Dictionary<IntPtr, DirectX11SwapChainSurface> {
                 [IntPtr.Zero] = new DirectX11SwapChainSurface()
             };
-            SetPrivateField(renderer, "surfacesByHandle", surfacesByHandle);
+            SetPrivateField(renderer, "SurfacesByHandle", surfacesByHandle);
             MethodInfo resizeMethod = typeof(DirectX11Renderer3D).GetMethod("OnWindowResized", BindingFlags.Instance | BindingFlags.NonPublic);
             if (resizeMethod == null) {
                 throw new InvalidOperationException("Expected DirectX11 resize handler was not found.");

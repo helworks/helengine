@@ -241,8 +241,8 @@ namespace helengine.editor.tests.rendering {
                 Array.Empty<MaterialLayoutBinding>()));
             material.Properties.SetConstantBufferData("BaseColorBuffer", CreateConstantBufferPayload(1f, 1f, 1f, 1f));
             DirectX11MaterialBinder binder = GetPrivateFieldValue<DirectX11MaterialBinder>(renderer, "MaterialBinder");
-            SharpDX.Direct3D11.Buffer forwardLightBuffer = GetPrivateFieldValue<SharpDX.Direct3D11.Buffer>(renderer, "forwardLightConstantBuffer");
-            SharpDX.Direct3D11.Buffer shadowBuffer = GetPrivateFieldValue<SharpDX.Direct3D11.Buffer>(renderer, "shadowConstantBuffer");
+            SharpDX.Direct3D11.Buffer forwardLightBuffer = GetPrivateFieldValue<SharpDX.Direct3D11.Buffer>(renderer, "ForwardLightConstantBuffer");
+            SharpDX.Direct3D11.Buffer shadowBuffer = GetPrivateFieldValue<SharpDX.Direct3D11.Buffer>(renderer, "ShadowConstantBuffer");
             DeviceContext context = renderer.Device.ImmediateContext;
 
             Assert.NotNull(binder);
@@ -276,8 +276,8 @@ namespace helengine.editor.tests.rendering {
                 false,
                 new RenderFrameBatchingMetadata(false, false, false));
 
-            SetPrivateFieldValue(renderer, "currentViewProjection", float4x4.Identity);
-            SetPrivateFieldValue(renderer, "currentCameraPosition", float3.Zero);
+            SetPrivateFieldValue(renderer, "CurrentViewProjection", float4x4.Identity);
+            SetPrivateFieldValue(renderer, "CurrentCameraPosition", float3.Zero);
 
             Exception exception = Record.Exception(() => renderer.VisitSubmission(submission));
 

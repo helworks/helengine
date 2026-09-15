@@ -44,59 +44,59 @@ namespace helengine.directx11 {
         /// <summary>
         /// Tracks elapsed time for frame statistics.
         /// </summary>
-        Stopwatch frameStopwatch = Stopwatch.StartNew();
+        Stopwatch FrameStopwatch = Stopwatch.StartNew();
         /// <summary>
         /// Draw call count accumulated during the current frame.
         /// </summary>
-        int drawCallsThisFrame;
+        int DrawCallsThisFrame;
         /// <summary>
         /// Draw call count from the previous frame.
         /// </summary>
-        int lastDrawCalls;
+        int LastDrawCallsValue;
         /// <summary>
         /// Visible light count selected for the previous extracted camera frame.
         /// </summary>
-        int lastSelectedLightCount;
+        int LastSelectedLightCountValue;
         /// <summary>
         /// Shadow-enabled light count selected for the previous extracted camera frame.
         /// </summary>
-        int lastSelectedShadowLightCount;
+        int LastSelectedShadowLightCountValue;
         /// <summary>
         /// Frames per second measured on the previous frame.
         /// </summary>
-        double lastFps;
+        double LastFpsValue;
         /// <summary>
         /// Frame time in milliseconds measured on the previous frame.
         /// </summary>
-        double lastFrameTimeMs;
+        double LastFrameTimeMsValue;
         /// <summary>
         /// Swapchain surfaces tracked by this renderer.
         /// </summary>
-        List<DirectX11SwapChainSurface> surfaces;
+        List<DirectX11SwapChainSurface> Surfaces;
         /// <summary>
         /// Lookup of swapchain surfaces by native window handle.
         /// </summary>
-        Dictionary<IntPtr, DirectX11SwapChainSurface> surfacesByHandle;
+        Dictionary<IntPtr, DirectX11SwapChainSurface> SurfacesByHandle;
         /// <summary>
         /// Constant buffer for the built-in standard mesh transform data.
         /// </summary>
-        Buffer constantBuffer;
+        Buffer ConstantBuffer;
         /// <summary>
         /// Constant buffer used for custom effect shader data.
         /// </summary>
-        Buffer customPassConstantBuffer;
+        Buffer CustomPassConstantBuffer;
         /// <summary>
         /// Constant buffer used for packed forward-light shader data.
         /// </summary>
-        Buffer forwardLightConstantBuffer;
+        Buffer ForwardLightConstantBuffer;
         /// <summary>
         /// Constant buffer used for packed atlas-shadow shader data.
         /// </summary>
-        Buffer shadowConstantBuffer;
+        Buffer ShadowConstantBuffer;
         /// <summary>
         /// Constant buffer used by the built-in point-shadow depth shader.
         /// </summary>
-        Buffer pointShadowDepthConstantBuffer;
+        Buffer PointShadowDepthConstantBuffer;
         /// <summary>
         /// Cache of compiled DirectX11 shader resources.
         /// </summary>
@@ -108,7 +108,7 @@ namespace helengine.directx11 {
         /// <summary>
         /// 2D renderer used for overlays and UI.
         /// </summary>
-        DirectX11Renderer2D renderer2D;
+        DirectX11Renderer2D Renderer2D;
         /// <summary>
         /// Owns the shared default pipeline states, the per-material state caches and the record of what is currently bound.
         /// </summary>
@@ -120,7 +120,7 @@ namespace helengine.directx11 {
         /// <summary>
         /// World-space camera position for the active 3D camera pass.
         /// </summary>
-        float3 currentCameraPosition;
+        float3 CurrentCameraPosition;
         /// <summary>
         /// Stores the fallback material used when a drawable has no material.
         /// </summary>
@@ -128,19 +128,19 @@ namespace helengine.directx11 {
         /// <summary>
         /// Tracks whether the current pass is a custom shader render.
         /// </summary>
-        bool isCustomPassActive;
+        bool IsCustomPassActive;
         /// <summary>
         /// Provides per-draw colors for the active custom pass.
         /// </summary>
-        Func<IDrawable3D, byte4> customColorProvider;
+        Func<IDrawable3D, byte4> CustomColorProvider;
         /// <summary>
         /// Stores custom shader pass requests keyed by camera.
         /// </summary>
-        Dictionary<ICamera, DirectX11CustomPassRequest> customPassRequests;
+        Dictionary<ICamera, DirectX11CustomPassRequest> CustomPassRequests;
         /// <summary>
         /// Caches compiled shader passes by a composite key.
         /// </summary>
-        Dictionary<string, DirectX11ShaderPass> shaderPassCache;
+        Dictionary<string, DirectX11ShaderPass> ShaderPassCache;
         /// <summary>
         /// Default vertex shader entry point for custom passes.
         /// </summary>
@@ -152,11 +152,11 @@ namespace helengine.directx11 {
         /// <summary>
         /// Cached view-projection matrix for the active camera render pass.
         /// </summary>
-        float4x4 currentViewProjection;
+        float4x4 CurrentViewProjection;
         /// <summary>
         /// Tracks whether the renderer is traversing and presenting a frame.
         /// </summary>
-        bool frameActive;
+        bool FrameActive;
         /// <summary>
         /// Shared extraction service used to build backend-neutral render frames.
         /// </summary>
@@ -214,10 +214,10 @@ namespace helengine.directx11 {
         /// Initializes the DirectX11 device and default pipelines.
         /// </summary>
         public DirectX11Renderer3D() {
-            surfaces = new List<DirectX11SwapChainSurface>();
-            surfacesByHandle = new Dictionary<IntPtr, DirectX11SwapChainSurface>();
-            customPassRequests = new Dictionary<ICamera, DirectX11CustomPassRequest>();
-            shaderPassCache = new Dictionary<string, DirectX11ShaderPass>(StringComparer.Ordinal);
+            Surfaces = new List<DirectX11SwapChainSurface>();
+            SurfacesByHandle = new Dictionary<IntPtr, DirectX11SwapChainSurface>();
+            CustomPassRequests = new Dictionary<ICamera, DirectX11CustomPassRequest>();
+            ShaderPassCache = new Dictionary<string, DirectX11ShaderPass>(StringComparer.Ordinal);
             ShaderResourceCache = new Dictionary<string, DirectX11ShaderResource>(StringComparer.Ordinal);
             MaterialsByShaderAssetId = new Dictionary<string, List<DirectX11MaterialResource>>(StringComparer.OrdinalIgnoreCase);
             FrameExtractionService = new RenderFrameExtractionService();
@@ -249,18 +249,18 @@ namespace helengine.directx11 {
             PipelineStateCache = new DirectX11PipelineStateCache(Device);
             MaterialBinder = new DirectX11MaterialBinder(Device, PipelineStateCache);
 
-            constantBuffer = new Buffer(Device, Utilities.SizeOf<StandardMeshShaderData>(), ResourceUsage.Default,
+            ConstantBuffer = new Buffer(Device, Utilities.SizeOf<StandardMeshShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
-            customPassConstantBuffer = new Buffer(Device, Utilities.SizeOf<CustomEffectShaderData>(), ResourceUsage.Default,
+            CustomPassConstantBuffer = new Buffer(Device, Utilities.SizeOf<CustomEffectShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
-            forwardLightConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11ForwardLightShaderData>(), ResourceUsage.Default,
+            ForwardLightConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11ForwardLightShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
-            shadowConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11ShadowShaderData>(), ResourceUsage.Default,
+            ShadowConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11ShadowShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
-            pointShadowDepthConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11PointShadowDepthShaderData>(), ResourceUsage.Default,
+            PointShadowDepthConstantBuffer = new Buffer(Device, Utilities.SizeOf<DirectX11PointShadowDepthShaderData>(), ResourceUsage.Default,
                 BindFlags.ConstantBuffer, CpuAccessFlags.None, ResourceOptionFlags.None, 0);
 
-            renderer2D = new DirectX11Renderer2D(this);
+            Renderer2D = new DirectX11Renderer2D(this);
             DebugInfoRegistry.Register(new DirectX11Renderer3DDebugInfoProvider(this));
         }
 
@@ -272,7 +272,7 @@ namespace helengine.directx11 {
         /// <summary>
         /// Gets whether the DirectX11 renderer is traversing an active frame.
         /// </summary>
-        internal bool IsFrameActive { get { return frameActive; } }
+        internal bool IsFrameActive { get { return FrameActive; } }
 
         /// <summary>
         /// Gets the DXGI adapter used by the device.
@@ -282,7 +282,7 @@ namespace helengine.directx11 {
         /// <summary>
         /// Gets the 2D renderer used for overlay/UI rendering.
         /// </summary>
-        public RenderManager2D Render2D => renderer2D;
+        public RenderManager2D Render2D => Renderer2D;
 
         /// <summary>
         /// Enables Direct3D11 immediate-context multithread protection so cross-thread renderer access is serialized by the runtime.
@@ -305,32 +305,32 @@ namespace helengine.directx11 {
         /// <summary>
         /// Gets the last recorded frames-per-second value.
         /// </summary>
-        internal double LastFps => lastFps;
+        internal double LastFps => LastFpsValue;
 
         /// <summary>
         /// Gets the draw call count from the previous frame.
         /// </summary>
-        internal int LastDrawCalls => lastDrawCalls;
+        internal int LastDrawCalls => LastDrawCallsValue;
 
         /// <summary>
         /// Gets the draw-call count recorded by the most recent completed draw.
         /// </summary>
-        public override int LastDrawCallCount => lastDrawCalls;
+        public override int LastDrawCallCount => LastDrawCallsValue;
 
         /// <summary>
         /// Gets the last frame time in milliseconds.
         /// </summary>
-        internal double LastFrameTimeMs => lastFrameTimeMs;
+        internal double LastFrameTimeMs => LastFrameTimeMsValue;
 
         /// <summary>
         /// Gets the visible light count selected for the previous extracted camera frame.
         /// </summary>
-        internal int LastSelectedLightCount => lastSelectedLightCount;
+        internal int LastSelectedLightCount => LastSelectedLightCountValue;
 
         /// <summary>
         /// Gets the shadow-enabled light count selected for the previous extracted camera frame.
         /// </summary>
-        internal int LastSelectedShadowLightCount => lastSelectedShadowLightCount;
+        internal int LastSelectedShadowLightCount => LastSelectedShadowLightCountValue;
 
         /// <summary>
         /// Releases GPU resources and detaches from window events.
@@ -338,21 +338,21 @@ namespace helengine.directx11 {
         public override void Dispose() {
             WindowResized -= OnWindowResized;
 
-            renderer2D.Dispose();
+            Renderer2D.Dispose();
 
-            for (int i = 0; i < surfaces.Count; i++) {
-                surfaces[i].Dispose();
+            for (int i = 0; i < Surfaces.Count; i++) {
+                Surfaces[i].Dispose();
             }
-            surfaces.Clear();
-            surfacesByHandle.Clear();
+            Surfaces.Clear();
+            SurfacesByHandle.Clear();
 
             MaterialBinder.Dispose();
             PipelineStateCache.Dispose();
-            pointShadowDepthConstantBuffer?.Dispose();
-            shadowConstantBuffer?.Dispose();
-            forwardLightConstantBuffer?.Dispose();
-            customPassConstantBuffer?.Dispose();
-            constantBuffer?.Dispose();
+            PointShadowDepthConstantBuffer?.Dispose();
+            ShadowConstantBuffer?.Dispose();
+            ForwardLightConstantBuffer?.Dispose();
+            CustomPassConstantBuffer?.Dispose();
+            ConstantBuffer?.Dispose();
             ShadowAtlasResourcesValue?.Dispose();
             ShadowDepthShaderPassValue?.Dispose();
             PointShadowDepthShaderPassValue?.Dispose();
@@ -378,8 +378,8 @@ namespace helengine.directx11 {
 
             using (var factory = Adapter.GetParent<Factory>()) {
                 var surface = new DirectX11SwapChainSurface();
-                surfaces.Add(surface);
-                surfacesByHandle.Add(handle, surface);
+                Surfaces.Add(surface);
+                SurfacesByHandle.Add(handle, surface);
 
                 surface.Width = width;
                 surface.Height = height;
@@ -431,7 +431,7 @@ namespace helengine.directx11 {
                 return;
             }
 
-            if (!surfacesByHandle.TryGetValue(handle, out var surface)) {
+            if (!SurfacesByHandle.TryGetValue(handle, out var surface)) {
                 return;
             }
 
@@ -581,7 +581,7 @@ namespace helengine.directx11 {
             material.CastsShadows = materialAsset.CastsShadows;
             material.ReceivesShadows = materialAsset.ReceivesShadows;
             material.ApplyConstantBufferDefaults(materialAsset.ConstantBuffers ?? Array.Empty<MaterialConstantBufferAsset>());
-            StandardMaterialTextureBindingDefaults.Apply(material, renderer2D);
+            StandardMaterialTextureBindingDefaults.Apply(material, Renderer2D);
             RegisterMaterial(material);
             return material;
         }
@@ -686,22 +686,22 @@ namespace helengine.directx11 {
             string pixelEntry,
             Func<IDrawable3D, byte4> colorProvider) {
             var request = new DirectX11CustomPassRequest(camera, renderQueue, shaderPath, vertexEntry, pixelEntry, colorProvider);
-            customPassRequests[camera] = request;
+            CustomPassRequests[camera] = request;
         }
 
         /// <summary>
         /// Renders all queued custom shader passes before the main surface rendering.
         /// </summary>
         void RenderCustomPasses() {
-            if (customPassRequests.Count == 0) {
+            if (CustomPassRequests.Count == 0) {
                 return;
             }
 
-            foreach (var entry in customPassRequests) {
+            foreach (var entry in CustomPassRequests) {
                 RenderCustomPass(entry.Value);
             }
 
-            customPassRequests.Clear();
+            CustomPassRequests.Clear();
         }
 
         /// <summary>
@@ -758,7 +758,7 @@ namespace helengine.directx11 {
 
             float4x4 view;
             float3 cameraPos = camera.Parent.Position;
-            currentCameraPosition = cameraPos;
+            CurrentCameraPosition = cameraPos;
             float4 cameraOrientation = camera.Parent.Orientation;
             float3 cameraForward = float4.RotateVector(DefaultForward, cameraOrientation);
             float3 cameraUp = float4.RotateVector(DefaultUp, cameraOrientation);
@@ -770,20 +770,20 @@ namespace helengine.directx11 {
 
             float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)Math.PI / 4.0f, viewport.Z / viewport.W);
 
-            float4x4.Multiply(ref view, ref projection, out currentViewProjection);
+            float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
-            isCustomPassActive = true;
-            customColorProvider = request.ColorProvider;
+            IsCustomPassActive = true;
+            CustomColorProvider = request.ColorProvider;
             try {
                 context.VertexShader.Set(shaderPass.VertexShader);
                 context.PixelShader.Set(shaderPass.PixelShader);
-                context.VertexShader.SetConstantBuffer(0, customPassConstantBuffer);
-                context.PixelShader.SetConstantBuffer(0, customPassConstantBuffer);
+                context.VertexShader.SetConstantBuffer(0, CustomPassConstantBuffer);
+                context.PixelShader.SetConstantBuffer(0, CustomPassConstantBuffer);
 
                 request.RenderQueue.VisitOrdered(this);
             } finally {
-                isCustomPassActive = false;
-                customColorProvider = null;
+                IsCustomPassActive = false;
+                CustomColorProvider = null;
             }
         }
 
@@ -809,9 +809,9 @@ namespace helengine.directx11 {
                 capabilityProfile);
             RenderFrame frame = extractionResult.Frames[0];
             RenderFrameLightSubmission[] selectedLights = LightSelectionService.SelectVisibleLights(frame.LightSubmissions, capabilityProfile.MaximumVisibleLights);
-            lastSelectedLightCount = selectedLights.Length;
+            LastSelectedLightCountValue = selectedLights.Length;
             DirectX11ShadowResourceSet shadowResourceSet = ShadowResourcePlanner.PlanResources(selectedLights, capabilityProfile.MaximumShadowedLights);
-            lastSelectedShadowLightCount = shadowResourceSet.SelectedShadowLights.Count;
+            LastSelectedShadowLightCountValue = shadowResourceSet.SelectedShadowLights.Count;
             CurrentShadowResourceSet = shadowResourceSet;
             RenderPlan plan = RenderPlanBuilder.Build(frame, extractionResult.BackendCapabilities);
             DirectX11RenderPassExecutionContext context = new DirectX11RenderPassExecutionContext(
@@ -890,15 +890,15 @@ namespace helengine.directx11 {
 
             float4x4 projection = CameraProjectionUtils.CreatePerspectiveProjection(camera, (float)Math.PI / 4.0f, viewport.Z / viewport.W);
 
-            float4x4.Multiply(ref view, ref projection, out currentViewProjection);
+            float4x4.Multiply(ref view, ref projection, out CurrentViewProjection);
 
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            isCustomPassActive = false;
-            customColorProvider = null;
+            IsCustomPassActive = false;
+            CustomColorProvider = null;
             MaterialBinder.ResetActiveMaterial();
             PipelineStateCache.BindBlendState(deviceContext, null);
-            deviceContext.VertexShader.SetConstantBuffer(0, constantBuffer);
-            deviceContext.PixelShader.SetConstantBuffer(0, constantBuffer);
+            deviceContext.VertexShader.SetConstantBuffer(0, ConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(0, ConstantBuffer);
             UpdateShadowShaderData(new DirectX11ShadowShaderData());
             UpdateShadowAtlasBindings(false);
             UpdatePointShadowBindings(0);
@@ -912,7 +912,7 @@ namespace helengine.directx11 {
             "windows.native_directx_renderer",
             "Changes to DirectX11 render-target transition cleanup must also be applied to the Windows native DirectX renderer implementation.")]
         void ClearShaderResourceBindingsForRenderTargetChange() {
-            renderer2D.ClearActiveTextureBindings();
+            Renderer2D.ClearActiveTextureBindings();
             MaterialBinder.ClearActiveMaterialTextureBindings();
         }
 
@@ -1070,10 +1070,10 @@ namespace helengine.directx11 {
             float4 viewport = ResolveCameraViewport(camera, context.Surface);
             deviceContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            deviceContext.VertexShader.SetConstantBuffer(0, constantBuffer);
-            deviceContext.PixelShader.SetConstantBuffer(0, constantBuffer);
-            deviceContext.PixelShader.SetConstantBuffer(1, forwardLightConstantBuffer);
-            deviceContext.PixelShader.SetConstantBuffer(2, shadowConstantBuffer);
+            deviceContext.VertexShader.SetConstantBuffer(0, ConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(0, ConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(1, ForwardLightConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(2, ShadowConstantBuffer);
         }
 
         /// <summary>
@@ -1133,7 +1133,7 @@ namespace helengine.directx11 {
                 throw new ArgumentNullException(nameof(context));
             }
 
-            renderer2D.RenderCamera(context.Frame.Camera);
+            Renderer2D.RenderCamera(context.Frame.Camera);
         }
 
         /// <summary>
@@ -1194,8 +1194,8 @@ namespace helengine.directx11 {
         /// <param name="data">Packed atlas-shadow shader data prepared for the current frame.</param>
         protected virtual void UpdateShadowShaderData(DirectX11ShadowShaderData data) {
             var context = Device.ImmediateContext;
-            context.UpdateSubresource(ref data, shadowConstantBuffer);
-            context.PixelShader.SetConstantBuffer(2, shadowConstantBuffer);
+            context.UpdateSubresource(ref data, ShadowConstantBuffer);
+            context.PixelShader.SetConstantBuffer(2, ShadowConstantBuffer);
         }
 
         /// <summary>
@@ -1253,8 +1253,8 @@ namespace helengine.directx11 {
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             deviceContext.VertexShader.Set(pointShadowPass.VertexShader);
             deviceContext.PixelShader.Set(pointShadowPass.PixelShader);
-            deviceContext.VertexShader.SetConstantBuffer(0, pointShadowDepthConstantBuffer);
-            deviceContext.PixelShader.SetConstantBuffer(0, pointShadowDepthConstantBuffer);
+            deviceContext.VertexShader.SetConstantBuffer(0, PointShadowDepthConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(0, PointShadowDepthConstantBuffer);
 
             for (int resourceIndex = 0; resourceIndex < shadowResourceSet.PointShadowResources.Count; resourceIndex++) {
                 DirectX11PointShadowResource pointShadowResource = shadowResourceSet.PointShadowResources[resourceIndex];
@@ -1391,8 +1391,8 @@ namespace helengine.directx11 {
             deviceContext.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
             deviceContext.VertexShader.Set(shadowPass.VertexShader);
             deviceContext.PixelShader.Set(shadowPass.PixelShader);
-            deviceContext.VertexShader.SetConstantBuffer(0, customPassConstantBuffer);
-            deviceContext.PixelShader.SetConstantBuffer(0, customPassConstantBuffer);
+            deviceContext.VertexShader.SetConstantBuffer(0, CustomPassConstantBuffer);
+            deviceContext.PixelShader.SetConstantBuffer(0, CustomPassConstantBuffer);
 
             for (int allocationIndex = 0; allocationIndex < shadowResourceSet.AtlasAllocations.Count; allocationIndex++) {
                 DirectX11ShadowAtlasAllocation allocation = shadowResourceSet.AtlasAllocations[allocationIndex];
@@ -1439,7 +1439,7 @@ namespace helengine.directx11 {
                 worldViewProj = worldLightViewProjectionTransposed,
                 color = new float4(0f, 0f, 0f, 0f)
             };
-            deviceContext.UpdateSubresource(ref shadowData, customPassConstantBuffer);
+            deviceContext.UpdateSubresource(ref shadowData, CustomPassConstantBuffer);
             DrawSubmesh(data, ResolveSubmesh(data, submission.SubmeshIndex));
         }
 
@@ -1478,7 +1478,7 @@ namespace helengine.directx11 {
                 WorldViewProj = worldLightViewProjectionTransposed,
                 LightPositionAndRange = new float4(lightPosition.X, lightPosition.Y, lightPosition.Z, lightRange)
             };
-            deviceContext.UpdateSubresource(ref shadowData, pointShadowDepthConstantBuffer);
+            deviceContext.UpdateSubresource(ref shadowData, PointShadowDepthConstantBuffer);
             DrawSubmesh(data, ResolveSubmesh(data, submission.SubmeshIndex));
         }
 
@@ -1501,8 +1501,8 @@ namespace helengine.directx11 {
         /// <param name="data">Packed forward-light shader data prepared for the current frame.</param>
         protected virtual void UpdateForwardLightShaderData(DirectX11ForwardLightShaderData data) {
             var context = Device.ImmediateContext;
-            context.UpdateSubresource(ref data, forwardLightConstantBuffer);
-            context.PixelShader.SetConstantBuffer(1, forwardLightConstantBuffer);
+            context.UpdateSubresource(ref data, ForwardLightConstantBuffer);
+            context.PixelShader.SetConstantBuffer(1, ForwardLightConstantBuffer);
         }
 
         /// <summary>
@@ -1571,7 +1571,7 @@ namespace helengine.directx11 {
             IDrawable3D drawable = submission.Drawable;
             RuntimeMaterial runtimeMaterial = submission.Material;
             ShaderRuntimeMaterial effectiveRuntimeMaterial = null;
-            if (!isCustomPassActive) {
+            if (!IsCustomPassActive) {
                 if (runtimeMaterial == null) {
                     DirectX11MaterialResource missingMaterial = GetMissingMaterial();
                     effectiveRuntimeMaterial = missingMaterial;
@@ -1595,24 +1595,24 @@ namespace helengine.directx11 {
             float4x4 world = parent.WorldTransformMatrix;
 
             float4x4 worldViewProj;
-            float4x4.Multiply(ref world, ref currentViewProjection, out worldViewProj);
+            float4x4.Multiply(ref world, ref CurrentViewProjection, out worldViewProj);
 
             float4x4 worldTransposed;
             float4x4.Transpose(ref world, out worldTransposed);
             float4x4 worldViewProjTransposed;
             float4x4.Transpose(ref worldViewProj, out worldViewProjTransposed);
 
-            if (isCustomPassActive) {
-                if (customColorProvider == null) {
+            if (IsCustomPassActive) {
+                if (CustomColorProvider == null) {
                     throw new InvalidOperationException("Custom pass color provider must be set before rendering.");
                 }
 
-                byte4 customColor = customColorProvider(drawable);
+                byte4 customColor = CustomColorProvider(drawable);
                 var customData = new CustomEffectShaderData {
                     worldViewProj = worldViewProjTransposed,
                     color = new float4(customColor.X / 255f, customColor.Y / 255f, customColor.Z / 255f, customColor.W / 255f)
                 };
-                context.UpdateSubresource(ref customData, customPassConstantBuffer);
+                context.UpdateSubresource(ref customData, CustomPassConstantBuffer);
             } else {
                 if (effectiveRuntimeMaterial == null) {
                     effectiveRuntimeMaterial = MaterialBinder.RequireShaderRuntimeMaterial(runtimeMaterial);
@@ -1624,12 +1624,12 @@ namespace helengine.directx11 {
                     rootMaterial.Layout.ShaderAssetId,
                     rootMaterial.Layout.VertexProgram,
                     rootMaterial.Layout.PixelProgram)) {
-                    StandardMeshShaderData standardData = BuildStandardMeshShaderData(world, currentCameraPosition, effectiveRuntimeMaterial.ReceivesShadows, effectiveRuntimeMaterial.SupportsEmissive);
+                    StandardMeshShaderData standardData = BuildStandardMeshShaderData(world, CurrentCameraPosition, effectiveRuntimeMaterial.ReceivesShadows, effectiveRuntimeMaterial.SupportsEmissive);
                     standardData.World = worldTransposed;
                     standardData.WorldViewProj = worldViewProjTransposed;
-                    context.UpdateSubresource(ref standardData, constantBuffer);
+                    context.UpdateSubresource(ref standardData, ConstantBuffer);
                 } else {
-                    context.UpdateSubresource(ref worldViewProjTransposed, constantBuffer);
+                    context.UpdateSubresource(ref worldViewProjTransposed, ConstantBuffer);
                 }
             }
 
@@ -1720,7 +1720,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="backend">Backend to use for rounded rectangles.</param>
         public void SetRoundedRectBackend(RoundedRectBackend backend) {
-            renderer2D.SetRoundedRectBackend(backend);
+            Renderer2D.SetRoundedRectBackend(backend);
         }
 
         /// <summary>
@@ -1728,7 +1728,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="count">Number of draw calls to add.</param>
         internal void IncrementDrawCalls(int count) {
-            drawCallsThisFrame += count;
+            DrawCallsThisFrame += count;
         }
 
         /// <summary>
@@ -1737,11 +1737,11 @@ namespace helengine.directx11 {
         public override void Draw() {
             base.Draw();
 
-            if (surfaces.Count == 0) {
+            if (Surfaces.Count == 0) {
                 return;
             }
 
-            frameActive = true;
+            FrameActive = true;
             try {
                 UpdateFrameStats();
 
@@ -1750,8 +1750,8 @@ namespace helengine.directx11 {
                 Core ownerCore = OwnerCore ?? throw new InvalidOperationException("DirectX11 renderer is not attached to an owning Core.");
                 var cameras = ownerCore.ObjectManager.Cameras;
 
-                for (int i = 0; i < surfaces.Count; i++) {
-                    var surface = surfaces[i];
+                for (int i = 0; i < Surfaces.Count; i++) {
+                    var surface = Surfaces[i];
 
                     for (int j = 0; j < cameras.Count; j++) {
                         ICamera camera = cameras[j];
@@ -1765,7 +1765,7 @@ namespace helengine.directx11 {
                     surface.SwapChain.Present(0, PresentFlags.None);
                 }
             } finally {
-                frameActive = false;
+                FrameActive = false;
             }
         }
 
@@ -1821,13 +1821,13 @@ namespace helengine.directx11 {
         /// Updates FPS and draw call statistics for the current frame.
         /// </summary>
         void UpdateFrameStats() {
-            lastDrawCalls = drawCallsThisFrame;
-            drawCallsThisFrame = 0;
+            LastDrawCallsValue = DrawCallsThisFrame;
+            DrawCallsThisFrame = 0;
 
-            double ms = frameStopwatch.Elapsed.TotalMilliseconds;
-            lastFrameTimeMs = ms;
-            lastFps = ms > 0 ? 1000.0 / ms : 0;
-            frameStopwatch.Restart();
+            double ms = FrameStopwatch.Elapsed.TotalMilliseconds;
+            LastFrameTimeMsValue = ms;
+            LastFpsValue = ms > 0 ? 1000.0 / ms : 0;
+            FrameStopwatch.Restart();
         }
 
         /// <summary>
@@ -2214,12 +2214,12 @@ namespace helengine.directx11 {
             }
 
             string cacheKey = GetShaderCacheKey(shaderPath, vertexEntry, pixelEntry);
-            if (shaderPassCache.TryGetValue(cacheKey, out DirectX11ShaderPass cachedPass)) {
+            if (ShaderPassCache.TryGetValue(cacheKey, out DirectX11ShaderPass cachedPass)) {
                 return cachedPass;
             }
 
             var shaderPass = new DirectX11ShaderPass(Device, shaderPath, vertexEntry, pixelEntry);
-            shaderPassCache[cacheKey] = shaderPass;
+            ShaderPassCache[cacheKey] = shaderPass;
             return shaderPass;
         }
 
@@ -2238,11 +2238,11 @@ namespace helengine.directx11 {
         /// Disposes and clears cached shader passes.
         /// </summary>
         void DisposeShaderPassCache() {
-            foreach (var shaderPass in shaderPassCache.Values) {
+            foreach (var shaderPass in ShaderPassCache.Values) {
                 shaderPass.Dispose();
             }
 
-            shaderPassCache.Clear();
+            ShaderPassCache.Clear();
         }
 
         /// <summary>

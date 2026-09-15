@@ -352,7 +352,7 @@ namespace helengine.editor.windows.tests.rendering {
             DirectX11TextureResource texture = Assert.IsType<DirectX11TextureResource>(
                 renderer.Render2D.BuildTextureFromRaw(CreateBlackTextureAsset()));
             FieldInfo frameActiveField = typeof(DirectX11Renderer3D).GetField(
-                "frameActive",
+                "FrameActive",
                 BindingFlags.Instance | BindingFlags.NonPublic);
 
             try {
