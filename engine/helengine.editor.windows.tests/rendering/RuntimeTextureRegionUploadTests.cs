@@ -261,7 +261,7 @@ namespace helengine.editor.windows.tests.rendering {
             VulkanTextureResource texture = Assert.IsType<VulkanTextureResource>(
                 renderer.Render2D.BuildTextureFromRaw(CreateBlackTextureAsset()));
             FieldInfo frameActiveField = typeof(VulkanRenderer2D).GetField(
-                "frameActive",
+                "FrameActive",
                 BindingFlags.Instance | BindingFlags.NonPublic);
 
             try {
@@ -290,7 +290,7 @@ namespace helengine.editor.windows.tests.rendering {
             VulkanTextureResource texture = Assert.IsType<VulkanTextureResource>(
                 renderer.Render2D.BuildTextureFromRaw(CreateBlackTextureAsset()));
             FieldInfo frameActiveField = typeof(VulkanRenderer2D).GetField(
-                "frameActive",
+                "FrameActive",
                 BindingFlags.Instance | BindingFlags.NonPublic);
 
             try {
@@ -322,7 +322,7 @@ namespace helengine.editor.windows.tests.rendering {
         public void Vulkan_surface_submission_exception_ends_2d_frame() {
             using VulkanRenderer3D renderer = CreateVulkanRendererOrSkip();
             FieldInfo frameActiveField = typeof(VulkanRenderer2D).GetField(
-                "frameActive",
+                "FrameActive",
                 BindingFlags.Instance | BindingFlags.NonPublic);
             MethodInfo executeSurfaceFrameMethod = typeof(VulkanRenderer3D).GetMethod(
                 "ExecuteSurfaceFrame",

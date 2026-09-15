@@ -29,59 +29,59 @@ namespace helengine.vulkan {
         /// <summary>
         /// Shared Vulkan context for device access.
         /// </summary>
-        readonly VulkanContext context;
+        readonly VulkanContext Context;
         /// <summary>
         /// Static quad index buffer data.
         /// </summary>
-        readonly uint[] quadIndices;
+        readonly uint[] QuadIndices;
         /// <summary>
         /// Descriptor set layout for sampled textures.
         /// </summary>
-        DescriptorSetLayout descriptorSetLayout;
+        DescriptorSetLayout DescriptorSetLayoutValue;
         /// <summary>
         /// Pipeline layout used for UI rendering.
         /// </summary>
-        PipelineLayout pipelineLayout;
+        PipelineLayout PipelineLayoutValue;
         /// <summary>
         /// Graphics pipeline used for sprite rendering.
         /// </summary>
-        Pipeline pipeline;
+        Pipeline PipelineValue;
         /// <summary>
         /// Render pass the pipeline was created against.
         /// </summary>
-        RenderPass pipelineRenderPass;
+        RenderPass PipelineRenderPass;
         /// <summary>
         /// Swapchain version used to build the current pipeline.
         /// </summary>
-        int pipelineSwapchainVersion;
+        int PipelineSwapchainVersion;
         /// <summary>
         /// Vertex shader module for sprites.
         /// </summary>
-        ShaderModule vertexShader;
+        ShaderModule VertexShader;
         /// <summary>
         /// Fragment shader module for sprites.
         /// </summary>
-        ShaderModule fragmentShader;
+        ShaderModule FragmentShader;
         /// <summary>
         /// Descriptor pool used to allocate texture descriptor sets.
         /// </summary>
-        DescriptorPool descriptorPool;
+        DescriptorPool DescriptorPoolValue;
         /// <summary>
         /// Sampler shared across all textures.
         /// </summary>
-        Sampler sampler;
+        Sampler SamplerValue;
         /// <summary>
         /// Vertex buffer for per-quad updates.
         /// </summary>
-        VulkanGpuBuffer vertexBuffer = null!;
+        VulkanGpuBuffer VertexBuffer = null!;
         /// <summary>
         /// Index buffer storing the quad indices.
         /// </summary>
-        VulkanGpuBuffer indexBuffer = null!;
+        VulkanGpuBuffer IndexBuffer = null!;
         /// <summary>
         /// White texture used for solid-color primitives.
         /// </summary>
-        VulkanTextureResource whiteTexture = null!;
+        VulkanTextureResource WhiteTexture = null!;
         /// <summary>
         /// Runtime textures created by this renderer and therefore safe to update.
         /// </summary>
@@ -97,35 +97,35 @@ namespace helengine.vulkan {
         /// <summary>
         /// Surface currently being rendered.
         /// </summary>
-        VulkanSwapchainSurface currentSurface = null!;
+        VulkanSwapchainSurface CurrentSurface = null!;
         /// <summary>
         /// Command buffer currently recording draw calls.
         /// </summary>
-        CommandBuffer currentCommandBuffer;
+        CommandBuffer CurrentCommandBuffer;
         /// <summary>
         /// Width of the active camera viewport in logical units.
         /// </summary>
-        double currentViewportWidth;
+        double CurrentViewportWidth;
         /// <summary>
         /// Height of the active camera viewport in logical units.
         /// </summary>
-        double currentViewportHeight;
+        double CurrentViewportHeight;
         /// <summary>
         /// X offset of the active viewport in logical units.
         /// </summary>
-        double currentViewportOffsetX;
+        double CurrentViewportOffsetX;
         /// <summary>
         /// Y offset of the active viewport in logical units.
         /// </summary>
-        double currentViewportOffsetY;
+        double CurrentViewportOffsetY;
         /// <summary>
         /// Tracks whether a frame is active for drawing.
         /// </summary>
-        bool frameActive;
+        bool FrameActive;
         /// <summary>
         /// Tracks how many quads have been written into the dynamic vertex buffer for the current frame.
         /// </summary>
-        int recordedQuadCount;
+        int RecordedQuadCount;
         /// <summary>
         /// Tracks nested clip regions during traversal and applies them to the Vulkan dynamic scissor state.
         /// </summary>
@@ -133,15 +133,15 @@ namespace helengine.vulkan {
         /// <summary>
         /// Tracks whether the renderer has been disposed.
         /// </summary>
-        bool disposed;
+        bool Disposed;
 
         /// <summary>
         /// Initializes the Vulkan 2D renderer.
         /// </summary>
         /// <param name="context">Shared Vulkan context.</param>
         public VulkanRenderer2D(VulkanContext context) {
-            this.context = context;
-            quadIndices = new uint[] { 0, 1, 2, 2, 3, 0 };
+            this.Context = context;
+            QuadIndices = new uint[] { 0, 1, 2, 2, 3, 0 };
             ClipScissorStack = new VulkanClipScissorStack(this);
 
             CreateDescriptorSetLayout();
@@ -175,10 +175,10 @@ namespace helengine.vulkan {
         /// <param name="surface">Surface to render into.</param>
         /// <param name="commandBuffer">Command buffer to record.</param>
         public void BeginFrame(VulkanSwapchainSurface surface, CommandBuffer commandBuffer) {
-            currentSurface = surface;
-            currentCommandBuffer = commandBuffer;
-            frameActive = true;
-            recordedQuadCount = 0;
+            CurrentSurface = surface;
+            CurrentCommandBuffer = commandBuffer;
+            FrameActive = true;
+            RecordedQuadCount = 0;
 
             EnsurePipeline(surface);
         }
@@ -187,13 +187,13 @@ namespace helengine.vulkan {
         /// Ends the current 2D frame.
         /// </summary>
         public void EndFrame() {
-            frameActive = false;
-            currentCommandBuffer = default;
-            currentViewportWidth = 0;
-            currentViewportHeight = 0;
-            currentViewportOffsetX = 0;
-            currentViewportOffsetY = 0;
-            recordedQuadCount = 0;
+            FrameActive = false;
+            CurrentCommandBuffer = default;
+            CurrentViewportWidth = 0;
+            CurrentViewportHeight = 0;
+            CurrentViewportOffsetX = 0;
+            CurrentViewportOffsetY = 0;
+            RecordedQuadCount = 0;
             ClipScissorStack.SetCameraScissor(0, 0, 0, 0);
             ClipScissorStack.Clear();
         }
@@ -203,26 +203,26 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="camera">Camera supplying the render queue.</param>
         public void RenderCamera(ICamera camera) {
-            if (!frameActive) {
+            if (!FrameActive) {
                 throw new InvalidOperationException("Cannot render 2D camera outside of an active frame.");
             }
 
             ClipScissorStack.Clear();
 
-            float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, currentSurface.LogicalWidth, currentSurface.LogicalHeight);
+            float4 viewport = CameraViewportResolver.ResolveViewport(camera.Viewport, CurrentSurface.LogicalWidth, CurrentSurface.LogicalHeight);
             double offsetX = viewport.X;
             double offsetY = viewport.Y;
             double width = viewport.Z;
             double height = viewport.W;
-            double logicalSurfaceWidth = currentSurface.LogicalWidth;
-            double logicalSurfaceHeight = currentSurface.LogicalHeight;
+            double logicalSurfaceWidth = CurrentSurface.LogicalWidth;
+            double logicalSurfaceHeight = CurrentSurface.LogicalHeight;
 
             if (width <= 0.0 || height <= 0.0) {
                 return;
             }
 
-            double pixelScaleX = currentSurface.Extent.Width / logicalSurfaceWidth;
-            double pixelScaleY = currentSurface.Extent.Height / logicalSurfaceHeight;
+            double pixelScaleX = CurrentSurface.Extent.Width / logicalSurfaceWidth;
+            double pixelScaleY = CurrentSurface.Extent.Height / logicalSurfaceHeight;
             double pixelOffsetX = offsetX * pixelScaleX;
             double pixelOffsetY = offsetY * pixelScaleY;
             double pixelWidth = width * pixelScaleX;
@@ -232,12 +232,12 @@ namespace helengine.vulkan {
             double snappedPixelWidth = Math.Max(1.0, Math.Round(pixelWidth));
             double snappedPixelHeight = Math.Max(1.0, Math.Round(pixelHeight));
 
-            currentViewportOffsetX = snappedPixelOffsetX / pixelScaleX;
-            currentViewportOffsetY = snappedPixelOffsetY / pixelScaleY;
-            currentViewportWidth = snappedPixelWidth / pixelScaleX;
-            currentViewportHeight = snappedPixelHeight / pixelScaleY;
+            CurrentViewportOffsetX = snappedPixelOffsetX / pixelScaleX;
+            CurrentViewportOffsetY = snappedPixelOffsetY / pixelScaleY;
+            CurrentViewportWidth = snappedPixelWidth / pixelScaleX;
+            CurrentViewportHeight = snappedPixelHeight / pixelScaleY;
             ClipScissorStack.SetClipViewport(
-                new float4((float)currentViewportOffsetX, (float)currentViewportOffsetY, (float)currentViewportWidth, (float)currentViewportHeight),
+                new float4((float)CurrentViewportOffsetX, (float)CurrentViewportOffsetY, (float)CurrentViewportWidth, (float)CurrentViewportHeight),
                 pixelScaleX,
                 pixelScaleY);
             ClipScissorStack.SetCameraScissor((int)snappedPixelOffsetX, (int)snappedPixelOffsetY, (int)snappedPixelWidth, (int)snappedPixelHeight);
@@ -317,7 +317,7 @@ namespace helengine.vulkan {
             int rowBytes = checked(width * 4);
             int sourceBytes = checked(sourceRowPitch * (height - 1) + rowBytes);
             VulkanGpuBuffer stagingBuffer = new VulkanGpuBuffer(
-                context,
+                Context,
                 (ulong)sourceBytes,
                 BufferUsageFlags.BufferUsageTransferSrcBit,
                 MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
@@ -357,7 +357,7 @@ namespace helengine.vulkan {
                 throw new ArgumentException("Runtime texture was not created by the Vulkan 2D renderer.", nameof(texture));
             }
 
-            if (frameActive) {
+            if (FrameActive) {
                 throw new InvalidOperationException("Cannot release a Vulkan texture while a 2D frame is recording.");
             }
 
@@ -377,7 +377,7 @@ namespace helengine.vulkan {
                 return;
             }
 
-            if (!frameActive) {
+            if (!FrameActive) {
                 throw new InvalidOperationException("Cannot draw sprites outside of an active frame.");
             }
 
@@ -410,7 +410,7 @@ namespace helengine.vulkan {
                 return;
             }
 
-            if (!frameActive) {
+            if (!FrameActive) {
                 throw new InvalidOperationException("Cannot draw text outside of an active frame.");
             }
 
@@ -492,7 +492,7 @@ namespace helengine.vulkan {
                 return;
             }
 
-            if (!frameActive) {
+            if (!FrameActive) {
                 throw new InvalidOperationException("Cannot draw shapes outside of an active frame.");
             }
 
@@ -505,7 +505,7 @@ namespace helengine.vulkan {
             double borderThickness = Math.Max(shape.BorderThickness, 0.0f);
 
             if (borderThickness > 0.0) {
-                DrawQuad(whiteTexture, position.X, position.Y, size.X, size.Y, new float4(0, 0, 1, 1), shape.BorderColor, 0f);
+                DrawQuad(WhiteTexture, position.X, position.Y, size.X, size.Y, new float4(0, 0, 1, 1), shape.BorderColor, 0f);
             }
 
             double innerX = position.X + borderThickness;
@@ -514,7 +514,7 @@ namespace helengine.vulkan {
             double innerH = size.Y - (borderThickness * 2.0);
 
             if (innerW > 0.0 && innerH > 0.0) {
-                DrawQuad(whiteTexture, innerX, innerY, innerW, innerH, new float4(0, 0, 1, 1), shape.FillColor, 0f);
+                DrawQuad(WhiteTexture, innerX, innerY, innerW, innerH, new float4(0, 0, 1, 1), shape.FillColor, 0f);
             }
         }
 
@@ -522,11 +522,11 @@ namespace helengine.vulkan {
         /// Releases Vulkan resources owned by the 2D renderer.
         /// </summary>
         public override void Dispose() {
-            if (disposed) {
+            if (Disposed) {
                 return;
             }
 
-            if (frameActive) {
+            if (FrameActive) {
                 throw new InvalidOperationException("Cannot dispose the Vulkan 2D renderer while a frame is recording or being submitted.");
             }
 
@@ -538,38 +538,38 @@ namespace helengine.vulkan {
                 ReleaseTexture(ownedTextureSnapshot[index]);
             }
             OwnedTextures.Clear();
-            whiteTexture = null!;
+            WhiteTexture = null!;
 
-            vertexBuffer.Dispose();
-            indexBuffer.Dispose();
+            VertexBuffer.Dispose();
+            IndexBuffer.Dispose();
 
             DestroyPipeline();
 
-            if (sampler.Handle != 0) {
-                context.Api.DestroySampler(context.Device, sampler, null);
+            if (SamplerValue.Handle != 0) {
+                Context.Api.DestroySampler(Context.Device, SamplerValue, null);
             }
 
-            if (descriptorPool.Handle != 0) {
-                context.Api.DestroyDescriptorPool(context.Device, descriptorPool, null);
+            if (DescriptorPoolValue.Handle != 0) {
+                Context.Api.DestroyDescriptorPool(Context.Device, DescriptorPoolValue, null);
             }
 
-            if (pipelineLayout.Handle != 0) {
-                context.Api.DestroyPipelineLayout(context.Device, pipelineLayout, null);
+            if (PipelineLayoutValue.Handle != 0) {
+                Context.Api.DestroyPipelineLayout(Context.Device, PipelineLayoutValue, null);
             }
 
-            if (descriptorSetLayout.Handle != 0) {
-                context.Api.DestroyDescriptorSetLayout(context.Device, descriptorSetLayout, null);
+            if (DescriptorSetLayoutValue.Handle != 0) {
+                Context.Api.DestroyDescriptorSetLayout(Context.Device, DescriptorSetLayoutValue, null);
             }
 
-            if (vertexShader.Handle != 0) {
-                context.Api.DestroyShaderModule(context.Device, vertexShader, null);
+            if (VertexShader.Handle != 0) {
+                Context.Api.DestroyShaderModule(Context.Device, VertexShader, null);
             }
 
-            if (fragmentShader.Handle != 0) {
-                context.Api.DestroyShaderModule(context.Device, fragmentShader, null);
+            if (FragmentShader.Handle != 0) {
+                Context.Api.DestroyShaderModule(Context.Device, FragmentShader, null);
             }
 
-            disposed = true;
+            Disposed = true;
         }
 
         /// <summary>
@@ -577,16 +577,16 @@ namespace helengine.vulkan {
         /// </summary>
         /// <param name="surface">Surface to render into.</param>
         void EnsurePipeline(VulkanSwapchainSurface surface) {
-            if (pipeline.Handle != 0 &&
-                pipelineRenderPass.Handle == surface.RenderPass.Handle &&
-                pipelineSwapchainVersion == surface.SwapchainVersion) {
+            if (PipelineValue.Handle != 0 &&
+                PipelineRenderPass.Handle == surface.RenderPass.Handle &&
+                PipelineSwapchainVersion == surface.SwapchainVersion) {
                 return;
             }
 
             DestroyPipeline();
             CreatePipeline(surface);
-            pipelineRenderPass = surface.RenderPass;
-            pipelineSwapchainVersion = surface.SwapchainVersion;
+            PipelineRenderPass = surface.RenderPass;
+            PipelineSwapchainVersion = surface.SwapchainVersion;
         }
 
         /// <summary>
@@ -606,7 +606,7 @@ namespace helengine.vulkan {
                 PBindings = &samplerLayoutBinding
             };
 
-            Result result = context.Api.CreateDescriptorSetLayout(context.Device, layoutInfo, null, out descriptorSetLayout);
+            Result result = Context.Api.CreateDescriptorSetLayout(Context.Device, layoutInfo, null, out DescriptorSetLayoutValue);
             if (result != Result.Success) {
                 throw new InvalidOperationException($"Failed to create descriptor set layout: {result}.");
             }
@@ -616,16 +616,16 @@ namespace helengine.vulkan {
         /// Creates the pipeline layout for sprite rendering.
         /// </summary>
         unsafe void CreatePipelineLayout() {
-            DescriptorSetLayout* layouts = stackalloc DescriptorSetLayout[] { descriptorSetLayout };
+            DescriptorSetLayout* layouts = stackalloc DescriptorSetLayout[] { DescriptorSetLayoutValue };
             PipelineLayoutCreateInfo pipelineLayoutInfo = new PipelineLayoutCreateInfo {
                 SType = StructureType.PipelineLayoutCreateInfo,
                 SetLayoutCount = 1,
                 PSetLayouts = layouts
             };
 
-            Result result = context.Api.CreatePipelineLayout(context.Device, pipelineLayoutInfo, null, out pipelineLayout);
+            Result result = Context.Api.CreatePipelineLayout(Context.Device, pipelineLayoutInfo, null, out PipelineLayoutValue);
             if (result != Result.Success) {
-                throw new InvalidOperationException($"Failed to create pipeline layout: {result}.");
+                throw new InvalidOperationException($"Failed to create PipelineValue layout: {result}.");
             }
         }
 
@@ -646,7 +646,7 @@ namespace helengine.vulkan {
                 MaxSets = MaxDescriptorSets
             };
 
-            Result result = context.Api.CreateDescriptorPool(context.Device, poolInfo, null, out descriptorPool);
+            Result result = Context.Api.CreateDescriptorPool(Context.Device, poolInfo, null, out DescriptorPoolValue);
             if (result != Result.Success) {
                 throw new InvalidOperationException($"Failed to create descriptor pool: {result}.");
             }
@@ -673,9 +673,9 @@ namespace helengine.vulkan {
                 MaxLod = 0
             };
 
-            Result result = context.Api.CreateSampler(context.Device, samplerInfo, null, out sampler);
+            Result result = Context.Api.CreateSampler(Context.Device, samplerInfo, null, out SamplerValue);
             if (result != Result.Success) {
-                throw new InvalidOperationException($"Failed to create Vulkan sampler: {result}.");
+                throw new InvalidOperationException($"Failed to create Vulkan SamplerValue: {result}.");
             }
         }
 
@@ -683,8 +683,8 @@ namespace helengine.vulkan {
         /// Creates shader modules for sprite rendering.
         /// </summary>
         void CreateShaderModules() {
-            vertexShader = CompileShaderModule(GetVertexShaderSource(), ShaderKind.VertexShader, "sprite.vert");
-            fragmentShader = CompileShaderModule(GetFragmentShaderSource(), ShaderKind.FragmentShader, "sprite.frag");
+            VertexShader = CompileShaderModule(GetVertexShaderSource(), ShaderKind.VertexShader, "sprite.vert");
+            FragmentShader = CompileShaderModule(GetFragmentShaderSource(), ShaderKind.FragmentShader, "sprite.frag");
         }
 
         /// <summary>
@@ -692,19 +692,19 @@ namespace helengine.vulkan {
         /// </summary>
         void CreateQuadBuffers() {
             ulong vertexSize = (ulong)(VulkanSpriteVertex.SizeInBytes * QuadVertexCount * MaxQuadsPerFrame);
-            vertexBuffer = new VulkanGpuBuffer(
-                context,
+            VertexBuffer = new VulkanGpuBuffer(
+                Context,
                 vertexSize,
                 BufferUsageFlags.BufferUsageVertexBufferBit,
                 MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
 
             ulong indexSize = (ulong)(sizeof(uint) * QuadIndexCount);
-            indexBuffer = new VulkanGpuBuffer(
-                context,
+            IndexBuffer = new VulkanGpuBuffer(
+                Context,
                 indexSize,
                 BufferUsageFlags.BufferUsageIndexBufferBit,
                 MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
-            indexBuffer.Update(quadIndices);
+            IndexBuffer.Update(QuadIndices);
         }
 
         /// <summary>
@@ -717,8 +717,8 @@ namespace helengine.vulkan {
                 Colors = new byte[] { 255, 255, 255, 255 }
             };
 
-            whiteTexture = CreateTextureResource(asset);
-            OwnedTextures.Add(whiteTexture);
+            WhiteTexture = CreateTextureResource(asset);
+            OwnedTextures.Add(WhiteTexture);
         }
 
         /// <summary>
@@ -730,13 +730,13 @@ namespace helengine.vulkan {
             shaderStages[0] = new PipelineShaderStageCreateInfo {
                 SType = StructureType.PipelineShaderStageCreateInfo,
                 Stage = ShaderStageFlags.ShaderStageVertexBit,
-                Module = vertexShader,
+                Module = VertexShader,
                 PName = (byte*)SilkMarshal.StringToPtr("main")
             };
             shaderStages[1] = new PipelineShaderStageCreateInfo {
                 SType = StructureType.PipelineShaderStageCreateInfo,
                 Stage = ShaderStageFlags.ShaderStageFragmentBit,
-                Module = fragmentShader,
+                Module = FragmentShader,
                 PName = (byte*)SilkMarshal.StringToPtr("main")
             };
 
@@ -852,17 +852,17 @@ namespace helengine.vulkan {
                 PDepthStencilState = &depthStencil,
                 PColorBlendState = &colorBlending,
                 PDynamicState = &dynamicState,
-                Layout = pipelineLayout,
+                Layout = PipelineLayoutValue,
                 RenderPass = surface.RenderPass,
                 Subpass = 0
             };
 
-            Result result = context.Api.CreateGraphicsPipelines(context.Device, default, 1, pipelineInfo, null, out pipeline);
+            Result result = Context.Api.CreateGraphicsPipelines(Context.Device, default, 1, pipelineInfo, null, out PipelineValue);
             SilkMarshal.Free((nint)shaderStages[0].PName);
             SilkMarshal.Free((nint)shaderStages[1].PName);
 
             if (result != Result.Success) {
-                throw new InvalidOperationException($"Failed to create Vulkan graphics pipeline: {result}.");
+                throw new InvalidOperationException($"Failed to create Vulkan graphics PipelineValue: {result}.");
             }
         }
 
@@ -870,9 +870,9 @@ namespace helengine.vulkan {
         /// Destroys the active graphics pipeline.
         /// </summary>
         void DestroyPipeline() {
-            if (pipeline.Handle != 0) {
-                context.Api.DestroyPipeline(context.Device, pipeline, null);
-                pipeline = default;
+            if (PipelineValue.Handle != 0) {
+                Context.Api.DestroyPipeline(Context.Device, PipelineValue, null);
+                PipelineValue = default;
             }
         }
 
@@ -951,7 +951,7 @@ namespace helengine.vulkan {
                 PCode = (uint*)codePtr
             };
 
-            Result result = context.Api.CreateShaderModule(context.Device, createInfo, null, out ShaderModule module);
+            Result result = Context.Api.CreateShaderModule(Context.Device, createInfo, null, out ShaderModule module);
             SilkMarshal.Free(codePtr);
 
             if (result != Result.Success) {
@@ -969,7 +969,7 @@ namespace helengine.vulkan {
         VulkanTextureResource CreateTextureResource(TextureAsset data) {
             ulong imageSize = (ulong)data.Colors.Length;
             VulkanGpuBuffer stagingBuffer = new VulkanGpuBuffer(
-                context,
+                Context,
                 imageSize,
                 BufferUsageFlags.BufferUsageTransferSrcBit,
                 MemoryPropertyFlags.MemoryPropertyHostVisibleBit | MemoryPropertyFlags.MemoryPropertyHostCoherentBit);
@@ -1026,9 +1026,9 @@ namespace helengine.vulkan {
 
             if (texture.DescriptorSet.Handle != 0) {
                 DescriptorSet descriptorSet = texture.DescriptorSet;
-                Result freeDescriptorResult = context.Api.FreeDescriptorSets(
-                    context.Device,
-                    descriptorPool,
+                Result freeDescriptorResult = Context.Api.FreeDescriptorSets(
+                    Context.Device,
+                    DescriptorPoolValue,
                     1,
                     in descriptorSet);
                 if (freeDescriptorResult != Result.Success) {
@@ -1038,17 +1038,17 @@ namespace helengine.vulkan {
             texture.DescriptorSet = default;
 
             if (texture.ImageView.Handle != 0) {
-                context.Api.DestroyImageView(context.Device, texture.ImageView, null);
+                Context.Api.DestroyImageView(Context.Device, texture.ImageView, null);
             }
             texture.ImageView = default;
 
             if (texture.Image.Handle != 0) {
-                context.Api.DestroyImage(context.Device, texture.Image, null);
+                Context.Api.DestroyImage(Context.Device, texture.Image, null);
             }
             texture.Image = default;
 
             if (texture.Memory.Handle != 0) {
-                context.Api.FreeMemory(context.Device, texture.Memory, null);
+                Context.Api.FreeMemory(Context.Device, texture.Memory, null);
             }
             texture.Memory = default;
             texture.DescriptorSet = default;
@@ -1060,22 +1060,22 @@ namespace helengine.vulkan {
         /// <param name="imageView">Image view to sample.</param>
         /// <returns>Allocated descriptor set.</returns>
         unsafe DescriptorSet AllocateTextureDescriptorSet(ImageView imageView) {
-            DescriptorSetLayout* layouts = stackalloc DescriptorSetLayout[] { descriptorSetLayout };
+            DescriptorSetLayout* layouts = stackalloc DescriptorSetLayout[] { DescriptorSetLayoutValue };
             DescriptorSetAllocateInfo allocInfo = new DescriptorSetAllocateInfo {
                 SType = StructureType.DescriptorSetAllocateInfo,
-                DescriptorPool = descriptorPool,
+                DescriptorPool = DescriptorPoolValue,
                 DescriptorSetCount = 1,
                 PSetLayouts = layouts
             };
 
             DescriptorSet descriptorSet;
-            Result allocResult = context.Api.AllocateDescriptorSets(context.Device, allocInfo, out descriptorSet);
+            Result allocResult = Context.Api.AllocateDescriptorSets(Context.Device, allocInfo, out descriptorSet);
             if (allocResult != Result.Success) {
                 throw new InvalidOperationException($"Failed to allocate descriptor set: {allocResult}.");
             }
 
             DescriptorImageInfo imageInfo = new DescriptorImageInfo {
-                Sampler = sampler,
+                Sampler = SamplerValue,
                 ImageView = imageView,
                 ImageLayout = ImageLayout.ShaderReadOnlyOptimal
             };
@@ -1090,7 +1090,7 @@ namespace helengine.vulkan {
             };
 
             WriteDescriptorSet* descriptorWrites = stackalloc WriteDescriptorSet[] { descriptorWrite };
-            context.Api.UpdateDescriptorSets(context.Device, 1, descriptorWrites, 0, null);
+            Context.Api.UpdateDescriptorSets(Context.Device, 1, descriptorWrites, 0, null);
             return descriptorSet;
         }
 
@@ -1118,31 +1118,31 @@ namespace helengine.vulkan {
                 Samples = SampleCountFlags.SampleCount1Bit
             };
 
-            Result imageResult = context.Api.CreateImage(context.Device, imageInfo, null, out image);
+            Result imageResult = Context.Api.CreateImage(Context.Device, imageInfo, null, out image);
             if (imageResult != Result.Success) {
                 throw new InvalidOperationException($"Failed to create Vulkan image: {imageResult}.");
             }
 
             MemoryRequirements memoryRequirements;
-            context.Api.GetImageMemoryRequirements(context.Device, image, out memoryRequirements);
+            Context.Api.GetImageMemoryRequirements(Context.Device, image, out memoryRequirements);
 
             MemoryAllocateInfo allocInfo = new MemoryAllocateInfo {
                 SType = StructureType.MemoryAllocateInfo,
                 AllocationSize = memoryRequirements.Size,
-                MemoryTypeIndex = context.FindMemoryType(memoryRequirements.MemoryTypeBits, MemoryPropertyFlags.MemoryPropertyDeviceLocalBit)
+                MemoryTypeIndex = Context.FindMemoryType(memoryRequirements.MemoryTypeBits, MemoryPropertyFlags.MemoryPropertyDeviceLocalBit)
             };
 
-            Result allocResult = context.Api.AllocateMemory(context.Device, allocInfo, null, out memory);
+            Result allocResult = Context.Api.AllocateMemory(Context.Device, allocInfo, null, out memory);
             if (allocResult != Result.Success) {
-                context.Api.DestroyImage(context.Device, image, null);
+                Context.Api.DestroyImage(Context.Device, image, null);
                 image = default;
                 throw new InvalidOperationException($"Failed to allocate Vulkan image memory: {allocResult}.");
             }
 
-            Result bindResult = context.Api.BindImageMemory(context.Device, image, memory, 0);
+            Result bindResult = Context.Api.BindImageMemory(Context.Device, image, memory, 0);
             if (bindResult != Result.Success) {
-                context.Api.FreeMemory(context.Device, memory, null);
-                context.Api.DestroyImage(context.Device, image, null);
+                Context.Api.FreeMemory(Context.Device, memory, null);
+                Context.Api.DestroyImage(Context.Device, image, null);
                 image = default;
                 memory = default;
                 throw new InvalidOperationException($"Failed to bind Vulkan image memory: {bindResult}.");
@@ -1170,7 +1170,7 @@ namespace helengine.vulkan {
                 }
             };
 
-            Result result = context.Api.CreateImageView(context.Device, viewInfo, null, out ImageView imageView);
+            Result result = Context.Api.CreateImageView(Context.Device, viewInfo, null, out ImageView imageView);
             if (result != Result.Success) {
                 throw new InvalidOperationException($"Failed to create Vulkan image view: {result}.");
             }
@@ -1193,7 +1193,7 @@ namespace helengine.vulkan {
                 out AccessFlags destinationAccess,
                 out PipelineStageFlags sourceStage,
                 out PipelineStageFlags destinationStage);
-            CommandBuffer commandBuffer = context.BeginSingleTimeCommands();
+            CommandBuffer commandBuffer = Context.BeginSingleTimeCommands();
             try {
                 RecordImageLayoutTransition(
                     commandBuffer,
@@ -1204,9 +1204,9 @@ namespace helengine.vulkan {
                     destinationAccess,
                     sourceStage,
                     destinationStage);
-                context.EndSingleTimeCommands(commandBuffer);
+                Context.EndSingleTimeCommands(commandBuffer);
             } catch {
-                context.AbortSingleTimeCommands(commandBuffer);
+                Context.AbortSingleTimeCommands(commandBuffer);
                 throw;
             }
         }
@@ -1285,7 +1285,7 @@ namespace helengine.vulkan {
                 }
             };
 
-            context.Api.CmdPipelineBarrier(
+            Context.Api.CmdPipelineBarrier(
                 commandBuffer,
                 sourceStage,
                 destinationStage,
@@ -1310,7 +1310,7 @@ namespace helengine.vulkan {
             Image image,
             uint width,
             uint height) {
-            CommandBuffer commandBuffer = context.BeginSingleTimeCommands();
+            CommandBuffer commandBuffer = Context.BeginSingleTimeCommands();
 
             BufferImageCopy region = new BufferImageCopy {
                 BufferOffset = 0,
@@ -1327,10 +1327,10 @@ namespace helengine.vulkan {
             };
 
             try {
-                context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
-                context.EndSingleTimeCommands(commandBuffer);
+                Context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
+                Context.EndSingleTimeCommands(commandBuffer);
             } catch {
-                context.AbortSingleTimeCommands(commandBuffer);
+                Context.AbortSingleTimeCommands(commandBuffer);
                 throw;
             }
         }
@@ -1368,7 +1368,7 @@ namespace helengine.vulkan {
                 out PipelineStageFlags toShaderReadSourceStage,
                 out PipelineStageFlags toShaderReadDestinationStage);
 
-            CommandBuffer commandBuffer = context.BeginSingleTimeCommands();
+            CommandBuffer commandBuffer = Context.BeginSingleTimeCommands();
             ImageLayout recordedLayout = ImageLayout.ShaderReadOnlyOptimal;
             bool submissionStarted = false;
             try {
@@ -1396,7 +1396,7 @@ namespace helengine.vulkan {
                     ImageOffset = new Offset3D(imageOffsetX, imageOffsetY, 0),
                     ImageExtent = new Extent3D(width, height, 1)
                 };
-                context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
+                Context.Api.CmdCopyBufferToImage(commandBuffer, buffer, image, ImageLayout.TransferDstOptimal, 1, in region);
 
                 RecordImageLayoutTransition(
                     commandBuffer,
@@ -1410,7 +1410,7 @@ namespace helengine.vulkan {
                 recordedLayout = ImageLayout.ShaderReadOnlyOptimal;
 
                 submissionStarted = true;
-                context.EndSingleTimeCommands(commandBuffer);
+                Context.EndSingleTimeCommands(commandBuffer);
             } catch (VulkanQueueWaitException) {
                 // Queue submission succeeded, so the command buffer and staging source remain retained by their owners.
                 throw;
@@ -1432,7 +1432,7 @@ namespace helengine.vulkan {
                         // Preserve the original recording failure; no submitted command can have changed the image layout.
                     }
                 }
-                context.AbortSingleTimeCommands(commandBuffer);
+                Context.AbortSingleTimeCommands(commandBuffer);
                 throw;
             }
         }
@@ -1441,7 +1441,7 @@ namespace helengine.vulkan {
         /// Waits for all submitted work to complete before releasing resources used by it.
         /// </summary>
         void WaitForDeviceIdle() {
-            context.WaitForDeviceIdle();
+            Context.WaitForDeviceIdle();
 
             for (int index = 0; index < PendingStagingBuffers.Count; index++) {
                 PendingStagingBuffers[index].Dispose();
@@ -1464,7 +1464,7 @@ namespace helengine.vulkan {
         /// <param name="byteCount">Number of source bytes required by the upload.</param>
         void UpdateStagingBuffer(VulkanGpuBuffer stagingBuffer, byte[] rgba8, int byteCount) {
             void* mapped;
-            Result mapResult = context.Api.MapMemory(context.Device, stagingBuffer.Memory, 0, (ulong)byteCount, 0, &mapped);
+            Result mapResult = Context.Api.MapMemory(Context.Device, stagingBuffer.Memory, 0, (ulong)byteCount, 0, &mapped);
             if (mapResult != Result.Success) {
                 throw new InvalidOperationException($"Failed to map Vulkan texture staging memory: {mapResult}.");
             }
@@ -1474,7 +1474,7 @@ namespace helengine.vulkan {
                     System.Buffer.MemoryCopy(source, mapped, (ulong)byteCount, (ulong)byteCount);
                 }
             } finally {
-                context.Api.UnmapMemory(context.Device, stagingBuffer.Memory);
+                Context.Api.UnmapMemory(Context.Device, stagingBuffer.Memory);
             }
         }
 
@@ -1491,8 +1491,8 @@ namespace helengine.vulkan {
             int viewportWidth = Math.Max(1, (int)Math.Round(width));
             int viewportHeight = Math.Max(1, (int)Math.Round(height));
 
-            int maxWidth = (int)currentSurface.Extent.Width;
-            int maxHeight = (int)currentSurface.Extent.Height;
+            int maxWidth = (int)CurrentSurface.Extent.Width;
+            int maxHeight = (int)CurrentSurface.Extent.Height;
             if (viewportX < 0) {
                 viewportWidth += viewportX;
                 viewportX = 0;
@@ -1523,8 +1523,8 @@ namespace helengine.vulkan {
 
             Viewport* viewports = stackalloc Viewport[] { vkViewport };
             Rect2D* scissors = stackalloc Rect2D[] { scissor };
-            context.Api.CmdSetViewport(currentCommandBuffer, 0, 1, viewports);
-            context.Api.CmdSetScissor(currentCommandBuffer, 0, 1, scissors);
+            Context.Api.CmdSetViewport(CurrentCommandBuffer, 0, 1, viewports);
+            Context.Api.CmdSetScissor(CurrentCommandBuffer, 0, 1, scissors);
         }
 
         /// <summary>
@@ -1541,7 +1541,7 @@ namespace helengine.vulkan {
             };
 
             Rect2D* scissors = stackalloc Rect2D[] { scissor };
-            context.Api.CmdSetScissor(currentCommandBuffer, 0, 1, scissors);
+            Context.Api.CmdSetScissor(CurrentCommandBuffer, 0, 1, scissors);
         }
 
         /// <summary>
@@ -1556,11 +1556,11 @@ namespace helengine.vulkan {
         /// <param name="color">Vertex color modulation.</param>
         /// <param name="rotation">Rotation, in radians, applied around the quad center.</param>
         unsafe void DrawQuad(VulkanTextureResource texture, double x, double y, double width, double height, float4 uvRect, byte4 color, float rotation) {
-            if (currentViewportWidth <= 0.0 || currentViewportHeight <= 0.0) {
+            if (CurrentViewportWidth <= 0.0 || CurrentViewportHeight <= 0.0) {
                 return;
             }
 
-            if (recordedQuadCount >= MaxQuadsPerFrame) {
+            if (RecordedQuadCount >= MaxQuadsPerFrame) {
                 throw new InvalidOperationException("Exceeded the Vulkan 2D per-frame quad capacity.");
             }
 
@@ -1611,24 +1611,24 @@ namespace helengine.vulkan {
             vertices[2] = new VulkanSpriteVertex(new float2(ndcBottomRightX, ndcBottomRightY), new float2(u1, v1), colorVector);
             vertices[3] = new VulkanSpriteVertex(new float2(ndcBottomLeftX, ndcBottomLeftY), new float2(u0, v1), colorVector);
 
-            int quadIndex = recordedQuadCount;
+            int quadIndex = RecordedQuadCount;
             ulong vertexByteOffset = (ulong)(quadIndex * QuadVertexCount * VulkanSpriteVertex.SizeInBytes);
-            vertexBuffer.Update(vertices, vertexByteOffset);
-            recordedQuadCount++;
+            VertexBuffer.Update(vertices, vertexByteOffset);
+            RecordedQuadCount++;
 
-            context.Api.CmdBindPipeline(currentCommandBuffer, PipelineBindPoint.Graphics, pipeline);
+            Context.Api.CmdBindPipeline(CurrentCommandBuffer, PipelineBindPoint.Graphics, PipelineValue);
 
             DescriptorSet descriptorSet = texture.DescriptorSet;
             DescriptorSet* descriptorSets = stackalloc DescriptorSet[] { descriptorSet };
-            context.Api.CmdBindDescriptorSets(currentCommandBuffer, PipelineBindPoint.Graphics, pipelineLayout, 0, 1, descriptorSets, 0, null);
+            Context.Api.CmdBindDescriptorSets(CurrentCommandBuffer, PipelineBindPoint.Graphics, PipelineLayoutValue, 0, 1, descriptorSets, 0, null);
 
             ulong offset = vertexByteOffset;
-            VkBuffer* vertexBuffers = stackalloc VkBuffer[] { vertexBuffer.Handle };
+            VkBuffer* vertexBuffers = stackalloc VkBuffer[] { VertexBuffer.Handle };
             ulong* offsets = stackalloc ulong[] { offset };
-            context.Api.CmdBindVertexBuffers(currentCommandBuffer, 0, 1, vertexBuffers, offsets);
-            context.Api.CmdBindIndexBuffer(currentCommandBuffer, indexBuffer.Handle, 0, IndexType.Uint32);
+            Context.Api.CmdBindVertexBuffers(CurrentCommandBuffer, 0, 1, vertexBuffers, offsets);
+            Context.Api.CmdBindIndexBuffer(CurrentCommandBuffer, IndexBuffer.Handle, 0, IndexType.Uint32);
 
-            context.Api.CmdDrawIndexed(currentCommandBuffer, QuadIndexCount, 1, 0, 0, 0);
+            Context.Api.CmdDrawIndexed(CurrentCommandBuffer, QuadIndexCount, 1, 0, 0, 0);
         }
 
         /// <summary>
@@ -1637,7 +1637,7 @@ namespace helengine.vulkan {
         /// <param name="pixelX">Logical pixel coordinate.</param>
         /// <returns>Normalized device coordinate.</returns>
         double ComputeNdcX(double pixelX) {
-            return ((pixelX - currentViewportOffsetX) / currentViewportWidth) * 2.0 - 1.0;
+            return ((pixelX - CurrentViewportOffsetX) / CurrentViewportWidth) * 2.0 - 1.0;
         }
 
         /// <summary>
@@ -1646,7 +1646,7 @@ namespace helengine.vulkan {
         /// <param name="pixelY">Logical pixel coordinate.</param>
         /// <returns>Normalized device coordinate.</returns>
         double ComputeNdcY(double pixelY) {
-            return ((pixelY - currentViewportOffsetY) / currentViewportHeight) * 2.0 - 1.0;
+            return ((pixelY - CurrentViewportOffsetY) / CurrentViewportHeight) * 2.0 - 1.0;
         }
 
         /// <summary>
