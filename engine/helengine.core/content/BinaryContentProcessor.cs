@@ -27,7 +27,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing serialized data.</param>
         /// <returns>Deserialized value.</returns>
-        public T Read(Stream stream) {
+        public T Read([NativeNoEscape] Stream stream) {
             if (stream == null) {
                 throw new ArgumentNullException(nameof(stream));
             }
@@ -40,7 +40,7 @@ namespace helengine {
         /// </summary>
         /// <param name="stream">Stream containing serialized data.</param>
         /// <returns>Deserialized value boxed as an object.</returns>
-        object IContentProcessor.ReadObject(Stream stream) {
+        object IContentProcessor.ReadObject([NativeNoEscape] Stream stream) {
             return Read(stream);
         }
     }

@@ -32,6 +32,7 @@ namespace helengine {
         /// </summary>
         /// <param name="assetPath">Relative, absolute, or virtual-rooted asset path.</param>
         /// <returns>Readable stream for the resolved asset path.</returns>
+        [NativeOwnedReturn]
         public Stream OpenRead(string assetPath) {
             string fullPath = ResolveContentPath(assetPath);
             return File.OpenRead(fullPath);
