@@ -409,6 +409,11 @@ namespace helengine.editor.app {
                     double frameStartSeconds = loopStopwatch.Elapsed.TotalSeconds;
                     try {
                         Invoke(() => {
+                            // A frame queued before OnClosed ran still arrives after the session is disposed.
+                            if (closed) {
+                                return;
+                            }
+
                             if (UpdateMinimumWindowSize()) {
                                 return;
                             }
