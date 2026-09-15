@@ -61,7 +61,7 @@ namespace helengine {
 
             if (ReferenceEquals(Highlighted, interactable)) {
                 Highlighted = null;
-                capturedCamera = null;
+                CapturedCamera = null;
             }
         }
 
@@ -83,7 +83,7 @@ namespace helengine {
             if (Highlighted != null) {
                 int pointerX;
                 int pointerY;
-                PointerInteractableHitResolver.GetRelativePointerForInteractable(Highlighted, Input.GetPointerX(), Input.GetPointerY(), capturedCamera, out pointerX, out pointerY);
+                PointerInteractableHitResolver.GetRelativePointerForInteractable(Highlighted, Input.GetPointerX(), Input.GetPointerY(), CapturedCamera, out pointerX, out pointerY);
                 int deltaX = Input.GetPointerDeltaX();
                 int deltaY = Input.GetPointerDeltaY();
                 if (interaction == PointerInteraction.None && (deltaX != 0 || deltaY != 0)) {
@@ -95,7 +95,7 @@ namespace helengine {
                 Highlighted.OnCursor(pointer, delta, interaction);
                 if (interaction == PointerInteraction.Release) {
                     Highlighted = null;
-                    capturedCamera = null;
+                    CapturedCamera = null;
                 }
 
                 return;
@@ -138,7 +138,7 @@ namespace helengine {
                 }
 
                 Highlighted = Hovering;
-                capturedCamera = hitCamera;
+                CapturedCamera = hitCamera;
                 int2 pressPointer = new int2(currentPointerX, currentPointerY);
                 int2 pressDelta = new int2(currentDeltaX, currentDeltaY);
                 Hovering.OnCursor(pressPointer, pressDelta, PointerInteraction.Press);
@@ -263,6 +263,6 @@ namespace helengine {
         /// <summary>
         /// Cached camera captured at the start of a press interaction.
         /// </summary>
-        ICamera capturedCamera;
+        ICamera CapturedCamera;
     }
 }

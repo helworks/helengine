@@ -3,7 +3,7 @@ namespace helengine {
     /// Abstract base for 3D rendering backends.
     /// </summary>
     public abstract class RenderManager3D : IDisposable {
-        private bool setOneWindow;
+        private bool SetOneWindow;
 
         /// <summary>
         /// Core that owns this renderer. Renderers must use this explicit owner
@@ -29,11 +29,11 @@ namespace helengine {
         /// <param name="width">Window width.</param>
         /// <param name="height">Window height.</param>
         public virtual void AddWindow(IntPtr handle, int width, int height) {
-            if (!setOneWindow) {
+            if (!SetOneWindow) {
                 MainWindowSize = new int2(width, height);
             }
 
-            setOneWindow = true;
+            SetOneWindow = true;
         }
 
         /// <summary>
@@ -183,7 +183,7 @@ namespace helengine {
         /// <param name="newWidth">New width.</param>
         /// <param name="newHeight">New height.</param>
         public virtual void OnWindowResize(IntPtr handle, int newWidth, int newHeight) {
-            if (!setOneWindow || (MainWindowSize.X == 0 && MainWindowSize.Y == 0)) {
+            if (!SetOneWindow || (MainWindowSize.X == 0 && MainWindowSize.Y == 0)) {
                 MainWindowSize = new int2(newWidth, newHeight);
             }
 

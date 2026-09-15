@@ -11,17 +11,17 @@ public class ObjectManager {
     /// <summary>
     /// Indicates whether the update loop is actively iterating updateables.
     /// </summary>
-    bool updateLoopActive;
+    bool UpdateLoopActive;
 
     /// <summary>
     /// Tracks the number of update passes executed so early-frame crash diagnostics can be correlated with one specific pass.
     /// </summary>
-    int diagnosticUpdatePassCount;
+    int DiagnosticUpdatePassCount;
 
     /// <summary>
     /// Holds update list changes requested during the active update loop.
     /// </summary>
-    readonly List<PendingUpdateOperation> pendingUpdateOperations;
+    readonly List<PendingUpdateOperation> PendingUpdateOperations;
 
     /// <summary>
     /// Caches the stable type-name hash of every updateable type seen so far so the per-frame crash breadcrumb never re-hashes a reflected type name.
@@ -44,7 +44,7 @@ public class ObjectManager {
 
         Entities = new List<Entity>();
         Updateables = new List<IUpdateable>(settings.UpdateListInitialCapacity);
-        pendingUpdateOperations = new List<PendingUpdateOperation>();
+        PendingUpdateOperations = new List<PendingUpdateOperation>();
 
         Drawables2D = new List<IDrawable2D>(settings.RenderList2DInitialCapacity);
         Drawables3D = new List<IDrawable3D>(settings.RenderList3DInitialCapacity);
@@ -100,7 +100,7 @@ public class ObjectManager {
     /// <summary>
     /// Gets whether the object manager is currently iterating the update list.
     /// </summary>
-    public bool IsUpdateLoopActive => updateLoopActive;
+    public bool IsUpdateLoopActive => UpdateLoopActive;
 
     /// <summary>
     /// Gets the number of update order layers available for helper methods.
@@ -255,12 +255,12 @@ public class ObjectManager {
     /// <summary>
     /// Gets the number of pending update operations waiting for the active update loop to finish.
     /// </summary>
-    public int PendingUpdateOperationCount => pendingUpdateOperations.Count;
+    public int PendingUpdateOperationCount => PendingUpdateOperations.Count;
 
     /// <summary>
     /// Gets the current pending-update-operation list capacity reserved by the manager.
     /// </summary>
-    public int PendingUpdateOperationCapacity => pendingUpdateOperations.Capacity;
+    public int PendingUpdateOperationCapacity => PendingUpdateOperations.Capacity;
 
     /// <summary>
     /// Computes a render order value that maps to a desired 3D layer.
@@ -329,7 +329,7 @@ public class ObjectManager {
             return;
         }
 
-        if (updateLoopActive) {
+        if (UpdateLoopActive) {
             QueueUpdateOperation(entity, true);
             return;
         }
@@ -347,7 +347,7 @@ public class ObjectManager {
             return;
         }
 
-        if (updateLoopActive) {
+        if (UpdateLoopActive) {
             QueueUpdateOperation(entity, false);
             return;
         }
@@ -607,18 +607,18 @@ public class ObjectManager {
     public virtual void Update() {
         Core core = OwnerCore;
         bool shouldRecordUpdateStages = core != null && core.HasUpdateStageDiagnostics;
-        diagnosticUpdatePassCount++;
-        LastUpdateableDiagnosticPass = diagnosticUpdatePassCount;
+        DiagnosticUpdatePassCount++;
+        LastUpdateableDiagnosticPass = DiagnosticUpdatePassCount;
         LastUpdateableDiagnosticIndex = -1;
         LastUpdateableDiagnosticTypeHash = 0u;
         LastUpdateableDiagnosticOwnerSceneEntityId = 0u;
 
         try {
-            updateLoopActive = true;
+            UpdateLoopActive = true;
 
             for (int i = 0; i < Updateables.Count; i++) {
                 IUpdateable item = Updateables[i];
-                LastUpdateableDiagnosticPass = diagnosticUpdatePassCount;
+                LastUpdateableDiagnosticPass = DiagnosticUpdatePassCount;
                 LastUpdateableDiagnosticIndex = i;
                 LastUpdateableDiagnosticTypeHash = ResolveStableTypeNameHash(item);
                 LastUpdateableDiagnosticOwnerSceneEntityId = ResolveUpdateableOwnerSceneEntityId(item);
@@ -637,7 +637,7 @@ public class ObjectManager {
                 }
             }
         } finally {
-            updateLoopActive = false;
+            UpdateLoopActive = false;
         }
 
         ApplyPendingUpdateOperations();
@@ -666,19 +666,19 @@ public class ObjectManager {
     /// <param name="entity">Updateable to modify.</param>
     /// <param name="isAdd">True for registration, false for removal.</param>
     void QueueUpdateOperation(IUpdateable entity, bool isAdd) {
-        pendingUpdateOperations.Add(new PendingUpdateOperation(entity, isAdd));
+        PendingUpdateOperations.Add(new PendingUpdateOperation(entity, isAdd));
     }
 
     /// <summary>
     /// Applies queued update operations after the update loop completes.
     /// </summary>
     void ApplyPendingUpdateOperations() {
-        if (pendingUpdateOperations.Count == 0) {
+        if (PendingUpdateOperations.Count == 0) {
             return;
         }
 
-        for (int i = 0; i < pendingUpdateOperations.Count; i++) {
-            PendingUpdateOperation op = pendingUpdateOperations[i];
+        for (int i = 0; i < PendingUpdateOperations.Count; i++) {
+            PendingUpdateOperation op = PendingUpdateOperations[i];
             if (op.IsAdd) {
                 AddUpdateableToList(op.Entity);
             } else {
@@ -686,7 +686,7 @@ public class ObjectManager {
             }
         }
 
-        pendingUpdateOperations.Clear();
+        PendingUpdateOperations.Clear();
     }
 
     /// <summary>
