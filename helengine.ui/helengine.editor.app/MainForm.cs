@@ -175,9 +175,11 @@ namespace helengine.editor.app {
         /// Sets up rendering, input, cameras, UI chrome, and the initial layout.
         /// </summary>
         private void InitializeEditor() {
+            EditorBootTimeline.Start();
             EditorCore core = new EditorCore(null);
             string projectRootPath = ResolveProjectRootPath(projectPath);
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(projectRootPath);
+            EditorBootTimeline.Mark("project bootstrap");
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
             uiScaleController = new EditorUiScaleController(new EditorPreferencesService(ResolveEditorPreferencesRootPath()));
             EditorPreferencesSettings initialEditorPreferences = uiScaleController.LoadPreferences();
@@ -219,6 +221,7 @@ namespace helengine.editor.app {
             };
             PlatformInfo platformInfo = ResolveEditorPlatformInfo(projectPath);
             core.Initialize(renderer3D, renderer2D, inputBackend, platformInfo, initOptions);
+            EditorBootTimeline.Mark("renderer and core initialization");
             core.SetTextClipboardService(new SystemTextClipboardService());
             BepuRuntimeComponentRegistration.Register(core);
             BepuPhysicsWorld3D physicsWorld = BepuRuntimeComponentRegistration.CreateRuntimeWorld(core);
@@ -235,6 +238,7 @@ namespace helengine.editor.app {
             RuntimeTexture titleBarIcon = EditorToolbarIconLoader.LoadTitleBarIcon(contentManager, AppContext.BaseDirectory, renderer2D);
             IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault(renderer2D);
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
+            EditorBootTimeline.Mark("fonts, icons, importers, and platform shader backends");
             editorSession = new EditorSession(
                 core,
                 projectPath,
@@ -257,6 +261,7 @@ namespace helengine.editor.app {
                     ? new DirectX11EditorMaterialInstanceFactory()
                     : new GenericEditorMaterialInstanceFactory());
 
+            EditorBootTimeline.Mark("editor session construction");
             editorSession.TitleChanged += SetWindowTitle;
             editorSession.CloseRequested += HandleEditorSessionCloseRequested;
             editorSession.PreferencesChanged += HandleEditorPreferencesChanged;

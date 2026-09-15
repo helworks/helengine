@@ -714,6 +714,7 @@ namespace helengine.editor {
             constructionLedger.Register(generatedMaterialCache);
             rendererResources = new EditorSessionRendererResources(core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory, core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, uiFont, interactionServices);
             constructionLedger.Register(rendererResources);
+            EditorBootTimeline.Mark("asset import manager and generated caches");
             EditorProjectAuthoringSession concreteAuthoringSession = EditorProjectAuthoringSession.CreateFromManager(
                 assetImportManager,
                 generatedAssetProviderRegistry,
@@ -731,6 +732,7 @@ namespace helengine.editor {
             AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
             authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
             generatedAssetProviderRegistry.Register(new EngineGeneratedAssetProvider(generatedModelCache, generatedMaterialCache));
+            EditorBootTimeline.Mark("project authoring session (identity index, hash cache, write services)");
             materialAssetSettingsService = new MaterialAssetSettingsService(this.projectPath);
 
             sceneCanvasProfileState = new EditorSceneCanvasProfileState();
@@ -831,6 +833,7 @@ namespace helengine.editor {
             RegisterScaleSensitiveDialogCleanup(constructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
             meshModifierPickerModal = new MeshModifierPickerModal(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
+            EditorBootTimeline.Mark("panels, dialogs, and workspace");
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
             scriptHotReloadService = new EditorGameScriptHotReloadService(
@@ -1011,6 +1014,7 @@ namespace helengine.editor {
             if (!startupProjectLibraryLoadResult.Succeeded) {
                 Logger.WriteError(startupProjectLibraryLoadResult.Message);
             }
+            EditorBootTimeline.Mark("script build and reload");
 
             sceneHierarchyPanel.Size = new int2(280, 600);
             assetBrowserPanel.Size = new int2(500, 240);
@@ -1060,6 +1064,7 @@ namespace helengine.editor {
             UpdateLayout(renderWidth, renderHeight);
             PromptForPlatformSelectionIfRequired();
             ConstructionCheckpointForTests?.Invoke("late");
+            EditorBootTimeline.Mark("session finalization");
             ConstructionCompleted = true;
             // Register teardown operations individually. They remain in the
             // same ledger after ownership transfer and therefore retry only
@@ -1456,6 +1461,7 @@ namespace helengine.editor {
             if (!startupSceneRestoreAttempted) {
                 startupSceneRestoreAttempted = true;
                 RestoreLastOpenScene();
+                EditorBootTimeline.Mark("startup scene restore (first frame)");
             }
             ProcessPendingShaderBuildNotifications();
             Update();
