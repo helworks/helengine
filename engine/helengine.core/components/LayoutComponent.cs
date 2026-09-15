@@ -61,7 +61,7 @@ namespace helengine {
         /// <summary>
         /// Tracks the currently subscribed ancestor bounds provider.
         /// </summary>
-        IAnchorBoundsProvider anchorBoundsProvider;
+        IAnchorBoundsProvider AnchorBoundsProvider;
 
         /// <summary>
         /// Tracks whether the component is currently subscribed to the fallback window resize event.
@@ -376,16 +376,16 @@ namespace helengine {
         void RefreshSubscriptions() {
             IAnchorBoundsProvider newProvider = ResolveAnchorBoundsProvider();
 
-            if (!ReferenceEquals(anchorBoundsProvider, newProvider)) {
+            if (!ReferenceEquals(AnchorBoundsProvider, newProvider)) {
                 DetachFromBoundsProvider();
-                anchorBoundsProvider = newProvider;
+                AnchorBoundsProvider = newProvider;
 
-                if (anchorBoundsProvider != null) {
-                    anchorBoundsProvider.AnchorBoundsChanged += HandleAnchorBoundsChanged;
+                if (AnchorBoundsProvider != null) {
+                    AnchorBoundsProvider.AnchorBoundsChanged += HandleAnchorBoundsChanged;
                 }
             }
 
-            if (anchorBoundsProvider == null && LayoutSpaceValue != ParentLayoutRectSpace) {
+            if (AnchorBoundsProvider == null && LayoutSpaceValue != ParentLayoutRectSpace) {
                 AttachToWindowResize();
             } else {
                 DetachFromWindowResize();
@@ -396,9 +396,9 @@ namespace helengine {
         /// Disconnects the current bounds-provider subscription.
         /// </summary>
         void DetachFromBoundsProvider() {
-            if (anchorBoundsProvider != null) {
-                anchorBoundsProvider.AnchorBoundsChanged -= HandleAnchorBoundsChanged;
-                anchorBoundsProvider = null;
+            if (AnchorBoundsProvider != null) {
+                AnchorBoundsProvider.AnchorBoundsChanged -= HandleAnchorBoundsChanged;
+                AnchorBoundsProvider = null;
             }
         }
 
@@ -458,8 +458,8 @@ namespace helengine {
         /// <returns>Resolved anchor space in local pixels.</returns>
         AnchorSpace GetAnchorSpace() {
             if (LayoutSpaceValue == ParentLayoutRectSpace) {
-                if (anchorBoundsProvider != null) {
-                    return anchorBoundsProvider.AnchorSpace;
+                if (AnchorBoundsProvider != null) {
+                    return AnchorBoundsProvider.AnchorSpace;
                 }
 
                 int2 parentSize = ResolveImmediateParentAnchorSize();
@@ -467,12 +467,12 @@ namespace helengine {
                 return ParentAnchorSpaceValue;
             }
 
-            if (LayoutSpaceValue == CameraViewportLayoutSpace && anchorBoundsProvider is ViewportComponent viewportComponent) {
+            if (LayoutSpaceValue == CameraViewportLayoutSpace && AnchorBoundsProvider is ViewportComponent viewportComponent) {
                 return viewportComponent.ViewportAnchorSpace;
             }
 
-            if (anchorBoundsProvider != null) {
-                return anchorBoundsProvider.AnchorSpace;
+            if (AnchorBoundsProvider != null) {
+                return AnchorBoundsProvider.AnchorSpace;
             }
 
             FallbackAnchorSpaceValue.Update(OwnerCore.RenderManager3D.MainWindowSize, new float2(0f, 0f));

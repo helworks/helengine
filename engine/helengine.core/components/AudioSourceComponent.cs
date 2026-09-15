@@ -3,57 +3,57 @@ namespace helengine {
     /// Plays one authored audio clip through the shared runtime audio manager.
     /// </summary>
     public sealed class AudioSourceComponent : UpdateComponent {
-        AudioAsset clip;
-        bool playOnStart = true;
-        bool loop;
-        string busId = "master";
-        float gain = 1f;
-        int activeVoiceId = -1;
+        AudioAsset ClipValue;
+        bool PlayOnStartValue = true;
+        bool LoopValue;
+        string BusIdValue = "master";
+        float GainValue = 1f;
+        int ActiveVoiceIdValue = -1;
 
         /// <summary>
         /// Gets or sets the authored clip referenced by this source.
         /// </summary>
         public AudioAsset Clip {
-            get { return clip; }
-            set { clip = value; }
+            get { return ClipValue; }
+            set { ClipValue = value; }
         }
 
         /// <summary>
         /// Gets or sets whether playback should begin automatically once the component joins an initialized hierarchy.
         /// </summary>
         public bool PlayOnStart {
-            get { return playOnStart; }
-            set { playOnStart = value; }
+            get { return PlayOnStartValue; }
+            set { PlayOnStartValue = value; }
         }
 
         /// <summary>
         /// Gets or sets whether playback should loop regardless of the clip default.
         /// </summary>
         public bool Loop {
-            get { return loop; }
-            set { loop = value; }
+            get { return LoopValue; }
+            set { LoopValue = value; }
         }
 
         /// <summary>
         /// Gets or sets the target mixer bus identifier.
         /// </summary>
         public string BusId {
-            get { return busId; }
-            set { busId = string.IsNullOrWhiteSpace(value) ? "master" : value; }
+            get { return BusIdValue; }
+            set { BusIdValue = string.IsNullOrWhiteSpace(value) ? "master" : value; }
         }
 
         /// <summary>
         /// Gets or sets the linear gain multiplier applied to playback.
         /// </summary>
         public float Gain {
-            get { return gain; }
-            set { gain = value; }
+            get { return GainValue; }
+            set { GainValue = value; }
         }
 
         /// <summary>
         /// Gets the backend-owned voice identifier for the most recent automatic playback, or -1 when idle.
         /// </summary>
-        public int ActiveVoiceId => activeVoiceId;
+        public int ActiveVoiceId => ActiveVoiceIdValue;
 
         /// <summary>
         /// Starts authored playback when the component is attached to an enabled entity.
@@ -87,7 +87,7 @@ namespace helengine {
         /// </summary>
         /// <returns>Backend-owned voice identifier.</returns>
         public int Play() {
-            if (clip == null) {
+            if (ClipValue == null) {
                 throw new InvalidOperationException("AudioSourceComponent requires one Clip asset before playback can begin.");
             }
 
@@ -96,35 +96,35 @@ namespace helengine {
                 return -1;
             }
 
-            activeVoiceId = audioManager.Play(clip, new AudioPlaybackRequest {
-                BusId = busId,
-                Loop = loop || clip.DefaultLoop,
-                Gain = gain
+            ActiveVoiceIdValue = audioManager.Play(ClipValue, new AudioPlaybackRequest {
+                BusId = BusIdValue,
+                Loop = LoopValue || ClipValue.DefaultLoop,
+                Gain = GainValue
             });
-            return activeVoiceId;
+            return ActiveVoiceIdValue;
         }
 
         /// <summary>
         /// Stops the current playback voice when one is active.
         /// </summary>
         public void Stop() {
-            if (activeVoiceId < 0) {
+            if (ActiveVoiceIdValue < 0) {
                 return;
             }
 
             AudioManager audioManager = OwnerCore?.AudioManager;
             if (audioManager != null) {
-                audioManager.Stop(activeVoiceId);
+                audioManager.Stop(ActiveVoiceIdValue);
             }
 
-            activeVoiceId = -1;
+            ActiveVoiceIdValue = -1;
         }
 
         /// <summary>
         /// Starts authored playback exactly once when the component is configured for automatic playback.
         /// </summary>
         void TryPlayConfiguredClip() {
-            if (!playOnStart || clip == null || activeVoiceId >= 0) {
+            if (!PlayOnStartValue || ClipValue == null || ActiveVoiceIdValue >= 0) {
                 return;
             }
 

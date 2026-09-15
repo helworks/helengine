@@ -3,84 +3,84 @@ namespace helengine {
     /// Plays one animation clip at a time against the owning entity's local transform channels.
     /// </summary>
     public class AnimationPlayerComponent : UpdateComponent {
-        AnimationClipAsset clip;
-        AnimationClipAsset currentClip;
-        float currentTime;
-        bool isPlaying;
-        bool isPaused;
-        bool loop;
-        bool playAutomatically;
-        bool shouldLoop;
-        float frameDeltaTime;
-        float3 baseLocalPosition;
-        float3 baseLocalScale;
-        float4 baseLocalOrientation;
+        AnimationClipAsset ClipValue;
+        AnimationClipAsset CurrentClipValue;
+        float CurrentTimeValue;
+        bool IsPlayingValue;
+        bool IsPausedValue;
+        bool Loop;
+        bool PlayAutomaticallyValue;
+        bool ShouldLoopValue;
+        float FrameDeltaTimeValue;
+        float3 BaseLocalPosition;
+        float3 BaseLocalScale;
+        float4 BaseLocalOrientation;
 
         /// <summary>
         /// Initializes a new player with a fallback frame delta used only when no active core timing state is available.
         /// </summary>
         public AnimationPlayerComponent() {
-            frameDeltaTime = 1f / 60f;
+            FrameDeltaTimeValue = 1f / 60f;
         }
 
         /// <summary>
         /// Gets or sets the authored clip that can be started automatically when the component joins an entity hierarchy.
         /// </summary>
         public AnimationClipAsset Clip {
-            get { return clip; }
-            set { clip = value; }
+            get { return ClipValue; }
+            set { ClipValue = value; }
         }
 
         /// <summary>
         /// Gets or sets a value indicating whether the authored clip should begin automatically during component lifecycle initialization.
         /// </summary>
         public bool PlayAutomatically {
-            get { return playAutomatically; }
-            set { playAutomatically = value; }
+            get { return PlayAutomaticallyValue; }
+            set { PlayAutomaticallyValue = value; }
         }
 
         /// <summary>
         /// Gets or sets a value indicating whether automatic playback of the authored clip should loop.
         /// </summary>
         public bool ShouldLoop {
-            get { return shouldLoop; }
-            set { shouldLoop = value; }
+            get { return ShouldLoopValue; }
+            set { ShouldLoopValue = value; }
         }
 
         /// <summary>
         /// Gets the clip currently assigned to the player, if any.
         /// </summary>
         public AnimationClipAsset CurrentClip {
-            get { return currentClip; }
+            get { return CurrentClipValue; }
         }
 
         /// <summary>
         /// Gets the current playback time in seconds.
         /// </summary>
         public float CurrentTime {
-            get { return currentTime; }
+            get { return CurrentTimeValue; }
         }
 
         /// <summary>
         /// Gets a value indicating whether the player is actively advancing playback time.
         /// </summary>
         public bool IsPlaying {
-            get { return isPlaying; }
+            get { return IsPlayingValue; }
         }
 
         /// <summary>
         /// Gets a value indicating whether playback is paused while keeping the current clip assigned.
         /// </summary>
         public bool IsPaused {
-            get { return isPaused; }
+            get { return IsPausedValue; }
         }
 
         /// <summary>
         /// Gets or sets the fallback delta time applied only when the component updates without one active core timing source.
         /// </summary>
         public float FrameDeltaTime {
-            get { return frameDeltaTime; }
-            set { frameDeltaTime = value; }
+            get { return FrameDeltaTimeValue; }
+            set { FrameDeltaTimeValue = value; }
         }
 
         /// <summary>
@@ -115,16 +115,16 @@ namespace helengine {
 
             ValidateClip(clip);
 
-            currentClip = clip;
-            currentTime = 0f;
-            loop = shouldLoop;
-            isPlaying = true;
-            isPaused = false;
-            baseLocalPosition = Parent.LocalPosition;
-            baseLocalScale = Parent.LocalScale;
-            baseLocalOrientation = Parent.LocalOrientation;
+            CurrentClipValue = clip;
+            CurrentTimeValue = 0f;
+            Loop = shouldLoop;
+            IsPlayingValue = true;
+            IsPausedValue = false;
+            BaseLocalPosition = Parent.LocalPosition;
+            BaseLocalScale = Parent.LocalScale;
+            BaseLocalOrientation = Parent.LocalOrientation;
             ApplyCurrentPose();
-            if (currentClip.Duration <= 0f) {
+            if (CurrentClipValue.Duration <= 0f) {
                 CompletePlayback();
             }
         }
@@ -134,40 +134,40 @@ namespace helengine {
         /// </summary>
         public void Stop() {
             if (Parent != null) {
-                Parent.LocalPosition = baseLocalPosition;
-                Parent.LocalScale = baseLocalScale;
-                Parent.LocalOrientation = baseLocalOrientation;
+                Parent.LocalPosition = BaseLocalPosition;
+                Parent.LocalScale = BaseLocalScale;
+                Parent.LocalOrientation = BaseLocalOrientation;
             }
 
-            currentClip = null;
-            currentTime = 0f;
-            isPlaying = false;
-            isPaused = false;
-            loop = false;
+            CurrentClipValue = null;
+            CurrentTimeValue = 0f;
+            IsPlayingValue = false;
+            IsPausedValue = false;
+            Loop = false;
         }
 
         /// <summary>
         /// Pauses playback without clearing the current clip assignment.
         /// </summary>
         public void Pause() {
-            if (currentClip == null) {
+            if (CurrentClipValue == null) {
                 throw new InvalidOperationException("Cannot pause animation playback when no clip is active.");
             }
 
-            isPaused = true;
-            isPlaying = false;
+            IsPausedValue = true;
+            IsPlayingValue = false;
         }
 
         /// <summary>
         /// Resumes playback from the current time after a pause.
         /// </summary>
         public void Resume() {
-            if (currentClip == null) {
+            if (CurrentClipValue == null) {
                 throw new InvalidOperationException("Cannot resume animation playback when no clip is active.");
             }
 
-            isPaused = false;
-            isPlaying = true;
+            IsPausedValue = false;
+            IsPlayingValue = true;
         }
 
         /// <summary>
@@ -175,11 +175,11 @@ namespace helengine {
         /// </summary>
         /// <param name="time">Target playback time in seconds.</param>
         public void Seek(float time) {
-            if (currentClip == null) {
+            if (CurrentClipValue == null) {
                 throw new InvalidOperationException("Cannot seek animation playback when no clip is active.");
             }
 
-            currentTime = ResolvePlaybackTime(time);
+            CurrentTimeValue = ResolvePlaybackTime(time);
             ApplyCurrentPose();
         }
 
@@ -187,25 +187,25 @@ namespace helengine {
         /// Recomputes the captured playback base from the entity's current local transform while preserving the currently sampled pose.
         /// </summary>
         public void RebaseCurrentPoseToLocalTransform() {
-            if (Parent == null || currentClip == null) {
+            if (Parent == null || CurrentClipValue == null) {
                 return;
             }
 
-            if (currentClip.PositionTracks.Length == 0) {
+            if (CurrentClipValue.PositionTracks.Length == 0) {
                 float3 rebasedPosition = Parent.LocalPosition;
-                if (currentClip.PositionOffsetTracks.Length == 1) {
-                    rebasedPosition -= AnimationClipEvaluator.EvaluatePositionTrack(currentClip.PositionOffsetTracks[0], currentTime);
+                if (CurrentClipValue.PositionOffsetTracks.Length == 1) {
+                    rebasedPosition -= AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionOffsetTracks[0], CurrentTimeValue);
                 }
 
-                baseLocalPosition = rebasedPosition;
+                BaseLocalPosition = rebasedPosition;
             }
 
-            if (currentClip.ScaleTracks.Length == 0) {
-                baseLocalScale = Parent.LocalScale;
+            if (CurrentClipValue.ScaleTracks.Length == 0) {
+                BaseLocalScale = Parent.LocalScale;
             }
 
-            if (currentClip.RotationTracks.Length == 0) {
-                baseLocalOrientation = Parent.LocalOrientation;
+            if (CurrentClipValue.RotationTracks.Length == 0) {
+                BaseLocalOrientation = Parent.LocalOrientation;
             }
         }
 
@@ -214,19 +214,19 @@ namespace helengine {
         /// </summary>
         /// <param name="deltaTime">Time step in seconds.</param>
         public void Advance(float deltaTime) {
-            if (!isPlaying || isPaused || currentClip == null) {
+            if (!IsPlayingValue || IsPausedValue || CurrentClipValue == null) {
                 return;
             }
 
-            float nextTime = currentTime + deltaTime;
-            if (!loop && nextTime >= currentClip.Duration) {
-                currentTime = currentClip.Duration;
+            float nextTime = CurrentTimeValue + deltaTime;
+            if (!Loop && nextTime >= CurrentClipValue.Duration) {
+                CurrentTimeValue = CurrentClipValue.Duration;
                 ApplyCurrentPose();
                 CompletePlayback();
                 return;
             }
 
-            currentTime = ResolvePlaybackTime(nextTime);
+            CurrentTimeValue = ResolvePlaybackTime(nextTime);
             ApplyCurrentPose();
         }
 
@@ -241,7 +241,7 @@ namespace helengine {
                 return;
             }
 
-            Advance(frameDeltaTime);
+            Advance(FrameDeltaTimeValue);
         }
 
         /// <summary>
@@ -250,10 +250,10 @@ namespace helengine {
         /// <param name="time">Requested playback time in seconds.</param>
         /// <returns>Clamped or wrapped playback time.</returns>
         float ResolvePlaybackTime(float time) {
-            if (currentClip == null || currentClip.Duration <= 0f) {
+            if (CurrentClipValue == null || CurrentClipValue.Duration <= 0f) {
                 return 0f;
-            } else if (loop) {
-                double duration = currentClip.Duration;
+            } else if (Loop) {
+                double duration = CurrentClipValue.Duration;
                 double wrapped = time % duration;
                 if (wrapped < 0d) {
                     wrapped += duration;
@@ -262,8 +262,8 @@ namespace helengine {
                 return (float)wrapped;
             } else if (time <= 0f) {
                 return 0f;
-            } else if (time >= currentClip.Duration) {
-                return currentClip.Duration;
+            } else if (time >= CurrentClipValue.Duration) {
+                return CurrentClipValue.Duration;
             }
 
             return time;
@@ -273,27 +273,27 @@ namespace helengine {
         /// Applies the current clip pose to the owning entity's local transform.
         /// </summary>
         void ApplyCurrentPose() {
-            if (Parent == null || currentClip == null) {
+            if (Parent == null || CurrentClipValue == null) {
                 return;
             }
 
-            float3 resolvedPosition = baseLocalPosition;
-            if (currentClip.PositionTracks.Length == 1) {
-                resolvedPosition = AnimationClipEvaluator.EvaluatePositionTrack(currentClip.PositionTracks[0], currentTime);
+            float3 resolvedPosition = BaseLocalPosition;
+            if (CurrentClipValue.PositionTracks.Length == 1) {
+                resolvedPosition = AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionTracks[0], CurrentTimeValue);
             }
 
-            if (currentClip.PositionOffsetTracks.Length == 1) {
-                resolvedPosition += AnimationClipEvaluator.EvaluatePositionTrack(currentClip.PositionOffsetTracks[0], currentTime);
+            if (CurrentClipValue.PositionOffsetTracks.Length == 1) {
+                resolvedPosition += AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.PositionOffsetTracks[0], CurrentTimeValue);
             }
 
-            float3 resolvedScale = baseLocalScale;
-            if (currentClip.ScaleTracks.Length == 1) {
-                resolvedScale = AnimationClipEvaluator.EvaluatePositionTrack(currentClip.ScaleTracks[0], currentTime);
+            float3 resolvedScale = BaseLocalScale;
+            if (CurrentClipValue.ScaleTracks.Length == 1) {
+                resolvedScale = AnimationClipEvaluator.EvaluatePositionTrack(CurrentClipValue.ScaleTracks[0], CurrentTimeValue);
             }
 
-            float4 resolvedOrientation = baseLocalOrientation;
-            if (currentClip.RotationTracks.Length == 1) {
-                resolvedOrientation = AnimationClipEvaluator.EvaluateRotationTrack(currentClip.RotationTracks[0], currentTime);
+            float4 resolvedOrientation = BaseLocalOrientation;
+            if (CurrentClipValue.RotationTracks.Length == 1) {
+                resolvedOrientation = AnimationClipEvaluator.EvaluateRotationTrack(CurrentClipValue.RotationTracks[0], CurrentTimeValue);
             }
 
             Parent.LocalPosition = resolvedPosition;
@@ -305,13 +305,13 @@ namespace helengine {
         /// Starts authored automatic playback when the component was configured to do so.
         /// </summary>
         void TryPlayConfiguredClip() {
-            if (!playAutomatically) {
+            if (!PlayAutomaticallyValue) {
                 return;
-            } else if (clip == null) {
+            } else if (ClipValue == null) {
                 throw new InvalidOperationException("AnimationPlayerComponent requires one authored Clip asset before automatic playback can begin.");
             }
 
-            Play(clip, shouldLoop);
+            Play(ClipValue, ShouldLoopValue);
         }
 
         /// <summary>
@@ -330,8 +330,8 @@ namespace helengine {
         /// Finishes playback after a non-looping clip reaches its end while keeping the evaluated final pose applied.
         /// </summary>
         void CompletePlayback() {
-            isPlaying = false;
-            isPaused = false;
+            IsPlayingValue = false;
+            IsPausedValue = false;
         }
     }
 }

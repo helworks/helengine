@@ -6,21 +6,21 @@ namespace helengine {
         /// <summary>
         /// Stores the update order used for sequencing.
         /// </summary>
-        byte updateOrder;
+        byte UpdateOrderValue;
 
         /// <summary>
         /// Gets or sets the update order for this component.
         /// </summary>
         public byte UpdateOrder {
-            get { return updateOrder; }
+            get { return UpdateOrderValue; }
             set {
-                if (updateOrder != value) {
+                if (UpdateOrderValue != value) {
                     if (Parent != null && Parent.IsInitialized && Parent.IsHierarchyEnabled && ComponentExecutionPolicy.ShouldRunComponentLifecycle(this, Parent)) {
-                        OwnerCore.ObjectManager.RemoveFromUpdate(this, updateOrder);
-                        updateOrder = value;
+                        OwnerCore.ObjectManager.RemoveFromUpdate(this, UpdateOrderValue);
+                        UpdateOrderValue = value;
                         OwnerCore.ObjectManager.RegisterForUpdate(this);
                     } else {
-                        updateOrder = value;
+                        UpdateOrderValue = value;
                     }
                 }
             }
@@ -59,7 +59,7 @@ namespace helengine {
             if (newEnabled) {
                 OwnerCore.ObjectManager.RegisterForUpdate(this);
             } else {
-                OwnerCore.ObjectManager.RemoveFromUpdate(this, updateOrder);
+                OwnerCore.ObjectManager.RemoveFromUpdate(this, UpdateOrderValue);
             }
         }
 

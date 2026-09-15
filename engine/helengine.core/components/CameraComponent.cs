@@ -6,17 +6,17 @@ namespace helengine {
         /// <summary>
         /// Cached camera draw order value.
         /// </summary>
-        byte cameraDrawOrder;
+        byte CameraDrawOrderValue;
 
         /// <summary>
         /// Cached layer mask used to decide which drawables are registered to this camera.
         /// </summary>
-        ushort layerMask;
+        ushort LayerMaskValue;
 
         /// <summary>
         /// Cached viewport rectangle used by render backends and editor previews.
         /// </summary>
-        float4 viewportValue;
+        float4 ViewportValue;
 
         /// <summary>
         /// Cached authored render intent resolved by active backends.
@@ -36,12 +36,12 @@ namespace helengine {
         /// <summary>
         /// 2D render list for this camera.
         /// </summary>
-        RenderList2D renderList2D;
+        RenderList2D RenderList2D;
 
         /// <summary>
         /// 3D render list for this camera.
         /// </summary>
-        RenderList3D renderList3D;
+        RenderList3D RenderList3D;
 
         /// <summary>
         /// Raised whenever the authored viewport rectangle changes.
@@ -53,7 +53,7 @@ namespace helengine {
         /// </summary>
         public CameraComponent() {
             LayerMask = 0b11111111;
-            viewportValue = new float4(0, 0, 1, 1);
+            ViewportValue = new float4(0, 0, 1, 1);
             NearPlaneDistanceValue = 0.1f;
             FarPlaneDistanceValue = 100f;
             ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
@@ -68,15 +68,15 @@ namespace helengine {
         [EditorPropertyDisplayName("Draw Order")]
         [EditorPropertyOrder(0)]
         public byte CameraDrawOrder {
-            get { return cameraDrawOrder; }
+            get { return CameraDrawOrderValue; }
             set {
-                if (cameraDrawOrder != value) {
+                if (CameraDrawOrderValue != value) {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
                         OwnerCore.ObjectManager.RemoveCamera(this);
-                        cameraDrawOrder = value;
+                        CameraDrawOrderValue = value;
                         RegisterWithObjectManagerIfNeeded();
                     } else {
-                        cameraDrawOrder = value;
+                        CameraDrawOrderValue = value;
                     }
                 }
             }
@@ -87,10 +87,10 @@ namespace helengine {
         /// </summary>
         [EditorPropertyHidden]
         public float4 Viewport {
-            get { return viewportValue; }
+            get { return ViewportValue; }
             set {
-                if (viewportValue.X != value.X || viewportValue.Y != value.Y || viewportValue.Z != value.Z || viewportValue.W != value.W) {
-                    viewportValue = value;
+                if (ViewportValue.X != value.X || ViewportValue.Y != value.Y || ViewportValue.Z != value.Z || ViewportValue.W != value.W) {
+                    ViewportValue = value;
                     RaiseViewportChanged();
                 }
             }
@@ -153,13 +153,13 @@ namespace helengine {
         /// Gets the 2D render queue registered for this camera.
         /// </summary>
         [EditorPropertyHidden]
-        public IRenderQueue2D RenderQueue2D { get { return renderList2D; } }
+        public IRenderQueue2D RenderQueue2D { get { return RenderList2D; } }
 
         /// <summary>
         /// Gets the 3D render queue registered for this camera.
         /// </summary>
         [EditorPropertyHidden]
-        public IRenderQueue3D RenderQueue3D { get { return renderList3D; } }
+        public IRenderQueue3D RenderQueue3D { get { return RenderList3D; } }
 
         /// <summary>
         /// Gets or sets the layer mask this camera renders.
@@ -167,15 +167,15 @@ namespace helengine {
         [EditorPropertyDisplayName("Layer Mask")]
         [EditorPropertyOrder(1)]
         public ushort LayerMask {
-            get { return layerMask; }
+            get { return LayerMaskValue; }
             set {
-                if (layerMask != value) {
+                if (LayerMaskValue != value) {
                     if (Parent != null && Parent.IsHierarchyEnabled) {
                         OwnerCore.ObjectManager.RemoveCamera(this);
-                        layerMask = value;
+                        LayerMaskValue = value;
                         RegisterWithObjectManagerIfNeeded();
                     } else {
-                        layerMask = value;
+                        LayerMaskValue = value;
                     }
                 }
             }
@@ -188,8 +188,8 @@ namespace helengine {
             if (OwnerCore == null) {
                 // Components may be configured before attachment. The owning entity
                 // supplies the authoritative capacities when lifecycle registration runs.
-                renderList2D = new RenderList2D(0);
-                renderList3D = new RenderList3D(0);
+                RenderList2D = new RenderList2D(0);
+                RenderList3D = new RenderList3D(0);
                 return;
             }
             if (OwnerCore.InitializationOptions == null) {
@@ -200,23 +200,23 @@ namespace helengine {
             settings.Normalize();
             int renderList2DInitialCapacity = settings.RenderList2DInitialCapacity;
             int renderList3DInitialCapacity = settings.RenderList3DInitialCapacity;
-            if (renderList2D == null) {
-                renderList2D = new RenderList2D(renderList2DInitialCapacity);
-            } else if (renderList2D.Capacity < renderList2DInitialCapacity) {
-                RenderList2D previous = renderList2D;
-                renderList2D = new RenderList2D(renderList2DInitialCapacity);
+            if (RenderList2D == null) {
+                RenderList2D = new RenderList2D(renderList2DInitialCapacity);
+            } else if (RenderList2D.Capacity < renderList2DInitialCapacity) {
+                RenderList2D previous = RenderList2D;
+                RenderList2D = new RenderList2D(renderList2DInitialCapacity);
                 for (int index = 0; index < previous.Count; index++) {
-                    renderList2D.Add(previous[index]);
+                    RenderList2D.Add(previous[index]);
                 }
                 previous.Dispose();
             }
-            if (renderList3D == null) {
-                renderList3D = new RenderList3D(renderList3DInitialCapacity);
-            } else if (renderList3D.Capacity < renderList3DInitialCapacity) {
-                RenderList3D previous = renderList3D;
-                renderList3D = new RenderList3D(renderList3DInitialCapacity);
+            if (RenderList3D == null) {
+                RenderList3D = new RenderList3D(renderList3DInitialCapacity);
+            } else if (RenderList3D.Capacity < renderList3DInitialCapacity) {
+                RenderList3D previous = RenderList3D;
+                RenderList3D = new RenderList3D(renderList3DInitialCapacity);
                 for (int index = 0; index < previous.Count; index++) {
-                    renderList3D.Add(previous[index]);
+                    RenderList3D.Add(previous[index]);
                 }
                 previous.Dispose();
             }
@@ -301,11 +301,11 @@ namespace helengine {
         /// Releases per-camera render queues and render settings owned by this camera component.
         /// </summary>
         public override void Dispose() {
-            NativeOwnership.DisposeAndDelete(renderList2D);
-            NativeOwnership.DisposeAndDelete(renderList3D);
+            NativeOwnership.DisposeAndDelete(RenderList2D);
+            NativeOwnership.DisposeAndDelete(RenderList3D);
             NativeOwnership.Delete(RenderSettingsValue);
-            renderList2D = null;
-            renderList3D = null;
+            RenderList2D = null;
+            RenderList3D = null;
             RenderSettingsValue = null;
             RenderTarget = null;
             base.Dispose();
