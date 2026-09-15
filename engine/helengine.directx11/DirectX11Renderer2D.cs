@@ -37,33 +37,33 @@ namespace helengine.directx11 {
     internal class DirectX11Renderer2D : RenderManager2D, IRenderVisitor2D {
         const int InitialGeometryVertexCapacity = 1024;
 
-        readonly DirectX11Renderer3D parentRenderer;
+        readonly DirectX11Renderer3D ParentRenderer;
         readonly HashSet<DirectX11TextureResource> OwnedTextures = new();
-        Buffer spriteQuadBuffer = null!;
-        InputLayout spriteInputLayout = null!;
-        InputLayout uiShapeInputLayout = null!;
-        InputLayout basicColorInputLayout = null!;
-        VertexShader spriteVertexShader = null!;
-        PixelShader spritePixelShader = null!;
-        VertexShader uiShapeVertexShader = null!;
-        PixelShader uiShapePixelShader = null!;
-        VertexShader basicColorVertexShader = null!;
-        PixelShader basicColorPixelShader = null!;
-        SamplerState spriteSampler = null!;
-        Buffer spriteConstantBuffer = null!;
-        Buffer uiShapeConstantBuffer = null!;
-        Buffer basicColorConstantBuffer = null!;
+        Buffer SpriteQuadBuffer = null!;
+        InputLayout SpriteInputLayout = null!;
+        InputLayout UiShapeInputLayout = null!;
+        InputLayout BasicColorInputLayout = null!;
+        VertexShader SpriteVertexShader = null!;
+        PixelShader SpritePixelShader = null!;
+        VertexShader UiShapeVertexShader = null!;
+        PixelShader UiShapePixelShader = null!;
+        VertexShader BasicColorVertexShader = null!;
+        PixelShader BasicColorPixelShader = null!;
+        SamplerState SpriteSampler = null!;
+        Buffer SpriteConstantBuffer = null!;
+        Buffer UiShapeConstantBuffer = null!;
+        Buffer BasicColorConstantBuffer = null!;
         /// <summary>
         /// Blend state used for alpha-blended 2D UI rendering.
         /// </summary>
-        BlendState alphaBlendState2D = null!;
-        Buffer geometryVertexBuffer = null!;
-        int geometryVertexCapacity;
-        float4x4 projectionMatrix2D;
-        RasterizerState rasterizerState2D;
-        DepthStencilState depthStencilState2D;
-        RoundedRectBackend roundedRectBackend = RoundedRectBackend.Sdf;
-        Dictionary<(int Radius, int Border), NineSliceCacheEntry> nineSliceCache = new();
+        BlendState AlphaBlendState2D = null!;
+        Buffer GeometryVertexBuffer = null!;
+        int GeometryVertexCapacity;
+        float4x4 ProjectionMatrix2D;
+        RasterizerState RasterizerState2D;
+        DepthStencilState DepthStencilState2D;
+        RoundedRectBackend RoundedRectBackendValue = RoundedRectBackend.Sdf;
+        Dictionary<(int Radius, int Border), NineSliceCacheEntry> NineSliceCache = new();
         /// <summary>
         /// Tracks nested clip regions during traversal and applies them to the DirectX scissor state.
         /// </summary>
@@ -75,7 +75,7 @@ namespace helengine.directx11 {
         /// <summary>
         /// Tracks whether the released-font-atlas skip diagnostic was already logged this session.
         /// </summary>
-        bool hasLoggedReleasedFontAtlasSkip;
+        bool HasLoggedReleasedFontAtlasSkip;
         /// <summary>
         /// Computes CPU-side boundary and tile geometry for the rounded-rect nine-slice and
         /// procedural-geometry rendering paths.
@@ -87,7 +87,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="parentRenderer">Owning 3D renderer.</param>
         public DirectX11Renderer2D(DirectX11Renderer3D parentRenderer) {
-            this.parentRenderer = parentRenderer;
+            this.ParentRenderer = parentRenderer;
             Device = parentRenderer.Device;
             ClipScissorStack = new DirectX11ClipScissorStack(Device);
             ActiveTextureSlots = new List<int>();
@@ -101,14 +101,14 @@ namespace helengine.directx11 {
                 IsDepthClipEnabled = false,
                 IsScissorEnabled = true
             };
-            rasterizerState2D = new RasterizerState(Device, rasterizerDesc);
+            RasterizerState2D = new RasterizerState(Device, rasterizerDesc);
 
             var depthStencilDesc = new DepthStencilStateDescription {
                 IsDepthEnabled = false,
                 DepthWriteMask = DepthWriteMask.Zero,
                 DepthComparison = Comparison.Always
             };
-            depthStencilState2D = new DepthStencilState(Device, depthStencilDesc);
+            DepthStencilState2D = new DepthStencilState(Device, depthStencilDesc);
 
             DebugInfoRegistry.Register(new DirectX11Renderer2DDebugInfoProvider(this));
         }
@@ -121,14 +121,14 @@ namespace helengine.directx11 {
         /// <summary>
         /// Gets the currently selected rounded-rect backend.
         /// </summary>
-        internal RoundedRectBackend CurrentRoundedRectBackend => roundedRectBackend;
+        internal RoundedRectBackend CurrentRoundedRectBackend => RoundedRectBackendValue;
 
         /// <summary>
         /// Sets the rendering backend used for rounded rectangles.
         /// </summary>
         /// <param name="backend">Backend to use.</param>
         internal void SetRoundedRectBackend(RoundedRectBackend backend) {
-            roundedRectBackend = backend;
+            RoundedRectBackendValue = backend;
         }
 
         /// <summary>
@@ -136,7 +136,7 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="camera">Camera supplying the render queue.</param>
         internal void RenderCamera(ICamera camera) {
-            ConfigureSpritePipeline(spriteInputLayout);
+            ConfigureSpritePipeline(SpriteInputLayout);
 
             float4 viewport = ResolveCameraViewport(camera);
             Device.ImmediateContext.Rasterizer.SetViewport(viewport.X, viewport.Y, viewport.Z, viewport.W);
@@ -149,7 +149,7 @@ namespace helengine.directx11 {
                 -viewport.Y,
                 -10,
                 10,
-                out projectionMatrix2D);
+                out ProjectionMatrix2D);
 
             IRenderQueue2D renderQueue = camera.RenderQueue2D;
             renderQueue.VisitOrdered(this);
@@ -170,7 +170,7 @@ namespace helengine.directx11 {
                 return CameraViewportResolver.ResolveViewport(camera.Viewport, renderTarget.Width, renderTarget.Height);
             }
 
-            int2 mainWindowSize = parentRenderer.MainWindowSize;
+            int2 mainWindowSize = ParentRenderer.MainWindowSize;
             return CameraViewportResolver.ResolveViewport(camera.Viewport, mainWindowSize.X, mainWindowSize.Y);
         }
 
@@ -196,7 +196,7 @@ namespace helengine.directx11 {
                 return;
             }
 
-            ConfigureSpritePipeline(spriteInputLayout);
+            ConfigureSpritePipeline(SpriteInputLayout);
 
             if (drawable.Texture == null) {
                 return;
@@ -219,7 +219,7 @@ namespace helengine.directx11 {
             }
 
             context.PixelShader.SetShaderResource(0, resourceView);
-            context.PixelShader.SetSampler(0, spriteSampler);
+            context.PixelShader.SetSampler(0, SpriteSampler);
             TrackActiveTextureSlot(0);
 
             int2 size = drawable.Size;
@@ -236,10 +236,10 @@ namespace helengine.directx11 {
             byte4 color = drawable.Color;
 
             float4x4 transposedWorld;
-            float4x4.Transpose(ref projectionMatrix2D, out transposedWorld);
+            float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
 
-            context.VertexShader.SetConstantBuffer(0, spriteConstantBuffer);
-            context.PixelShader.SetConstantBuffer(0, spriteConstantBuffer);
+            context.VertexShader.SetConstantBuffer(0, SpriteConstantBuffer);
+            context.PixelShader.SetConstantBuffer(0, SpriteConstantBuffer);
 
             var shaderData = new SpriteShaderData {
                 worldViewProj = transposedWorld,
@@ -248,10 +248,10 @@ namespace helengine.directx11 {
                 spriteTransform = new float4(rotation, 0f, 0f, 0f),
                 color = new float4(color.X / 255.0f, color.Y / 255.0f, color.Z / 255.0f, color.W / 255.0f)
             };
-            context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
+            context.UpdateSubresource(ref shaderData, SpriteConstantBuffer);
 
             context.Draw(4, 0);
-            parentRenderer.IncrementDrawCalls(1);
+            ParentRenderer.IncrementDrawCalls(1);
         }
 
         /// <summary>
@@ -263,29 +263,29 @@ namespace helengine.directx11 {
             if (font == null || font.Texture is not DirectX11TextureResource data || data.Resource == null) {
                 // A released font atlas must not crash the in-flight frame; skip the drawable and surface one
                 // diagnostic so the stale text registration can be tracked down.
-                if (!hasLoggedReleasedFontAtlasSkip) {
-                    hasLoggedReleasedFontAtlasSkip = true;
+                if (!HasLoggedReleasedFontAtlasSkip) {
+                    HasLoggedReleasedFontAtlasSkip = true;
                     Logger.WriteError($"Text drawable skipped: its font atlas texture was released while the drawable was still registered (text '{drawable.Text}').");
                 }
                 return;
             }
 
-            ConfigureSpritePipeline(spriteInputLayout);
+            ConfigureSpritePipeline(SpriteInputLayout);
 
             var context = Device.ImmediateContext;
 
             context.PixelShader.SetShaderResource(0, data.Resource);
-            context.PixelShader.SetSampler(0, spriteSampler);
+            context.PixelShader.SetSampler(0, SpriteSampler);
             TrackActiveTextureSlot(0);
 
             float3 pos = drawable.Parent.Position;
             List<TextRenderEffectPass> effectPasses = TextRenderEffectPassBuilder.Build(drawable);
 
             float4x4 transposedWorld;
-            float4x4.Transpose(ref projectionMatrix2D, out transposedWorld);
+            float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
 
-            context.VertexShader.SetConstantBuffer(0, spriteConstantBuffer);
-            context.PixelShader.SetConstantBuffer(0, spriteConstantBuffer);
+            context.VertexShader.SetConstantBuffer(0, SpriteConstantBuffer);
+            context.PixelShader.SetConstantBuffer(0, SpriteConstantBuffer);
 
             var shaderData = new SpriteShaderData {
                 worldViewProj = transposedWorld
@@ -352,9 +352,9 @@ namespace helengine.directx11 {
                         (float)pixelH
                     );
 
-                    context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
+                    context.UpdateSubresource(ref shaderData, SpriteConstantBuffer);
                     context.Draw(4, 0);
-                    parentRenderer.IncrementDrawCalls(1);
+                    ParentRenderer.IncrementDrawCalls(1);
                 }
             }
         }
@@ -364,12 +364,12 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="shape">Rounded rectangle drawable.</param>
         public override void DrawRoundedRect(IRoundedRectDrawable2D shape) {
-            if (roundedRectBackend != RoundedRectBackend.Sdf && shape.Corners != RoundedRectCorners.All) {
+            if (RoundedRectBackendValue != RoundedRectBackend.Sdf && shape.Corners != RoundedRectCorners.All) {
                 DrawRoundedRectSdf(shape);
                 return;
             }
 
-            switch (roundedRectBackend) {
+            switch (RoundedRectBackendValue) {
                 case RoundedRectBackend.Sdf:
                     DrawRoundedRectSdf(shape);
                     return;
@@ -481,7 +481,7 @@ namespace helengine.directx11 {
                 !OwnedTextures.Contains(directX11TextureResource)) {
                 throw new ArgumentException("Runtime texture was not created by the DirectX11 2D renderer.", nameof(texture));
             }
-            if (parentRenderer.IsFrameActive) {
+            if (ParentRenderer.IsFrameActive) {
                 throw new InvalidOperationException("Cannot release a DirectX11 texture while a frame is being rendered.");
             }
 
@@ -504,24 +504,24 @@ namespace helengine.directx11 {
             }
             OwnedTextures.Clear();
 
-            spriteQuadBuffer?.Dispose();
-            spriteInputLayout?.Dispose();
-            uiShapeInputLayout?.Dispose();
-            basicColorInputLayout?.Dispose();
-            spriteVertexShader?.Dispose();
-            spritePixelShader?.Dispose();
-            uiShapeVertexShader?.Dispose();
-            uiShapePixelShader?.Dispose();
-            basicColorVertexShader?.Dispose();
-            basicColorPixelShader?.Dispose();
-            spriteSampler?.Dispose();
-            spriteConstantBuffer?.Dispose();
-            uiShapeConstantBuffer?.Dispose();
-            basicColorConstantBuffer?.Dispose();
-            alphaBlendState2D?.Dispose();
-            geometryVertexBuffer?.Dispose();
-            rasterizerState2D?.Dispose();
-            depthStencilState2D?.Dispose();
+            SpriteQuadBuffer?.Dispose();
+            SpriteInputLayout?.Dispose();
+            UiShapeInputLayout?.Dispose();
+            BasicColorInputLayout?.Dispose();
+            SpriteVertexShader?.Dispose();
+            SpritePixelShader?.Dispose();
+            UiShapeVertexShader?.Dispose();
+            UiShapePixelShader?.Dispose();
+            BasicColorVertexShader?.Dispose();
+            BasicColorPixelShader?.Dispose();
+            SpriteSampler?.Dispose();
+            SpriteConstantBuffer?.Dispose();
+            UiShapeConstantBuffer?.Dispose();
+            BasicColorConstantBuffer?.Dispose();
+            AlphaBlendState2D?.Dispose();
+            GeometryVertexBuffer?.Dispose();
+            RasterizerState2D?.Dispose();
+            DepthStencilState2D?.Dispose();
         }
 
         /// <summary>
@@ -530,13 +530,13 @@ namespace helengine.directx11 {
         /// <param name="inputLayout">Input layout to use.</param>
         void ConfigureSpritePipeline(InputLayout inputLayout) {
             var context = Device.ImmediateContext;
-            context.Rasterizer.State = rasterizerState2D;
-            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
-            context.OutputMerger.SetBlendState(alphaBlendState2D);
+            context.Rasterizer.State = RasterizerState2D;
+            context.OutputMerger.SetDepthStencilState(DepthStencilState2D, 0);
+            context.OutputMerger.SetBlendState(AlphaBlendState2D);
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
-            context.VertexShader.Set(spriteVertexShader);
-            context.PixelShader.Set(spritePixelShader);
-            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(spriteQuadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
+            context.VertexShader.Set(SpriteVertexShader);
+            context.PixelShader.Set(SpritePixelShader);
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(SpriteQuadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
             context.InputAssembler.InputLayout = inputLayout;
         }
 
@@ -545,14 +545,14 @@ namespace helengine.directx11 {
         /// </summary>
         void ConfigureUiShapePipeline() {
             var context = Device.ImmediateContext;
-            context.Rasterizer.State = rasterizerState2D;
-            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
-            context.OutputMerger.SetBlendState(alphaBlendState2D);
+            context.Rasterizer.State = RasterizerState2D;
+            context.OutputMerger.SetDepthStencilState(DepthStencilState2D, 0);
+            context.OutputMerger.SetBlendState(AlphaBlendState2D);
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleStrip;
-            context.VertexShader.Set(uiShapeVertexShader);
-            context.PixelShader.Set(uiShapePixelShader);
-            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(spriteQuadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
-            context.InputAssembler.InputLayout = uiShapeInputLayout;
+            context.VertexShader.Set(UiShapeVertexShader);
+            context.PixelShader.Set(UiShapePixelShader);
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(SpriteQuadBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
+            context.InputAssembler.InputLayout = UiShapeInputLayout;
         }
 
         /// <summary>
@@ -560,14 +560,14 @@ namespace helengine.directx11 {
         /// </summary>
         void ConfigureBasicColorPipeline() {
             var context = Device.ImmediateContext;
-            context.Rasterizer.State = rasterizerState2D;
-            context.OutputMerger.SetDepthStencilState(depthStencilState2D, 0);
-            context.OutputMerger.SetBlendState(alphaBlendState2D);
+            context.Rasterizer.State = RasterizerState2D;
+            context.OutputMerger.SetDepthStencilState(DepthStencilState2D, 0);
+            context.OutputMerger.SetBlendState(AlphaBlendState2D);
             context.InputAssembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
-            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(geometryVertexBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
-            context.InputAssembler.InputLayout = basicColorInputLayout;
-            context.VertexShader.Set(basicColorVertexShader);
-            context.PixelShader.Set(basicColorPixelShader);
+            context.InputAssembler.SetVertexBuffers(0, new VertexBufferBinding(GeometryVertexBuffer, Utilities.SizeOf<VertexPositionUV>(), 0));
+            context.InputAssembler.InputLayout = BasicColorInputLayout;
+            context.VertexShader.Set(BasicColorVertexShader);
+            context.PixelShader.Set(BasicColorPixelShader);
         }
 
         /// <summary>
@@ -613,42 +613,42 @@ namespace helengine.directx11 {
                 new VertexPositionUV(new float3(0.5f, 0.5f, 0), new float2(1, 0))
             };
 
-            spriteQuadBuffer = Buffer.Create(Device, BindFlags.VertexBuffer, vertices);
+            SpriteQuadBuffer = Buffer.Create(Device, BindFlags.VertexBuffer, vertices);
 
             using (var spriteVs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\SpriteShader.fx", "VS", "vs_4_0")) {
-                spriteVertexShader = new VertexShader(Device, spriteVs);
-                spriteInputLayout = new InputLayout(Device, spriteVs, new[] {
+                SpriteVertexShader = new VertexShader(Device, spriteVs);
+                SpriteInputLayout = new InputLayout(Device, spriteVs, new[] {
                     new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
                     new InputElement("TEXCOORD", 0, Format.R32G32_Float, 12, 0)
                 });
             }
 
             using (var spritePs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\SpriteShader.fx", "PS", "ps_4_0")) {
-                spritePixelShader = new PixelShader(Device, spritePs);
+                SpritePixelShader = new PixelShader(Device, spritePs);
             }
 
             using (var uiVs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\UIShapeShader.fx", "VS", "vs_4_0")) {
-                uiShapeVertexShader = new VertexShader(Device, uiVs);
-                uiShapeInputLayout = new InputLayout(Device, uiVs, new[] {
+                UiShapeVertexShader = new VertexShader(Device, uiVs);
+                UiShapeInputLayout = new InputLayout(Device, uiVs, new[] {
                     new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
                     new InputElement("TEXCOORD", 0, Format.R32G32_Float, 12, 0)
                 });
             }
 
             using (var uiPs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\UIShapeShader.fx", "PS", "ps_4_0")) {
-                uiShapePixelShader = new PixelShader(Device, uiPs);
+                UiShapePixelShader = new PixelShader(Device, uiPs);
             }
 
             using (var colVs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\BasicColorShader.fx", "VS", "vs_4_0")) {
-                basicColorVertexShader = new VertexShader(Device, colVs);
-                basicColorInputLayout = new InputLayout(Device, colVs, new[] {
+                BasicColorVertexShader = new VertexShader(Device, colVs);
+                BasicColorInputLayout = new InputLayout(Device, colVs, new[] {
                     new InputElement("POSITION", 0, Format.R32G32B32_Float, 0, 0),
                     new InputElement("TEXCOORD", 0, Format.R32G32_Float, 12, 0)
                 });
             }
 
             using (var colPs = DirectX11ShaderSourceCompiler.CompileFromContent("shaders\\BasicColorShader.fx", "PS", "ps_4_0")) {
-                basicColorPixelShader = new PixelShader(Device, colPs);
+                BasicColorPixelShader = new PixelShader(Device, colPs);
             }
 
             var samplerDesc = new SamplerStateDescription {
@@ -661,9 +661,9 @@ namespace helengine.directx11 {
                 MaximumLod = float.MaxValue
             };
 
-            spriteSampler = new SamplerState(Device, samplerDesc);
+            SpriteSampler = new SamplerState(Device, samplerDesc);
 
-            alphaBlendState2D = new BlendState(Device, new BlendStateDescription {
+            AlphaBlendState2D = new BlendState(Device, new BlendStateDescription {
                 AlphaToCoverageEnable = false,
                 IndependentBlendEnable = false,
                 RenderTarget = {
@@ -680,7 +680,7 @@ namespace helengine.directx11 {
                 }
             });
 
-            spriteConstantBuffer = new Buffer(Device, new BufferDescription(
+            SpriteConstantBuffer = new Buffer(Device, new BufferDescription(
                 Marshal.SizeOf<SpriteShaderData>(),
                 ResourceUsage.Default,
                 BindFlags.ConstantBuffer,
@@ -689,7 +689,7 @@ namespace helengine.directx11 {
                 0
             ));
 
-            uiShapeConstantBuffer = new Buffer(Device, new BufferDescription(
+            UiShapeConstantBuffer = new Buffer(Device, new BufferDescription(
                 Marshal.SizeOf<UIShapeShaderData>(),
                 ResourceUsage.Default,
                 BindFlags.ConstantBuffer,
@@ -698,7 +698,7 @@ namespace helengine.directx11 {
                 0
             ));
 
-            basicColorConstantBuffer = new Buffer(Device, new BufferDescription(
+            BasicColorConstantBuffer = new Buffer(Device, new BufferDescription(
                 Marshal.SizeOf<BasicColorShaderData>(),
                 ResourceUsage.Default,
                 BindFlags.ConstantBuffer,
@@ -707,9 +707,9 @@ namespace helengine.directx11 {
                 0
             ));
 
-            geometryVertexCapacity = InitialGeometryVertexCapacity;
-            geometryVertexBuffer = new Buffer(Device, new BufferDescription(
-                Utilities.SizeOf<VertexPositionUV>() * geometryVertexCapacity,
+            GeometryVertexCapacity = InitialGeometryVertexCapacity;
+            GeometryVertexBuffer = new Buffer(Device, new BufferDescription(
+                Utilities.SizeOf<VertexPositionUV>() * GeometryVertexCapacity,
                 ResourceUsage.Dynamic,
                 BindFlags.VertexBuffer,
                 CpuAccessFlags.Write,
@@ -728,7 +728,7 @@ namespace helengine.directx11 {
 
             float3 pos = shape.Parent.Position;
             float4x4 transposedWorld;
-            float4x4.Transpose(ref projectionMatrix2D, out transposedWorld);
+            float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
 
             var shaderData = new UIShapeShaderData {
                 worldViewProj = transposedWorld,
@@ -748,12 +748,12 @@ namespace helengine.directx11 {
                 )
             };
 
-            context.VertexShader.SetConstantBuffer(0, uiShapeConstantBuffer);
-            context.PixelShader.SetConstantBuffer(0, uiShapeConstantBuffer);
-            context.UpdateSubresource(ref shaderData, uiShapeConstantBuffer);
+            context.VertexShader.SetConstantBuffer(0, UiShapeConstantBuffer);
+            context.PixelShader.SetConstantBuffer(0, UiShapeConstantBuffer);
+            context.UpdateSubresource(ref shaderData, UiShapeConstantBuffer);
 
             context.Draw(4, 0);
-            parentRenderer.IncrementDrawCalls(1);
+            ParentRenderer.IncrementDrawCalls(1);
         }
 
         /// <summary>
@@ -765,7 +765,7 @@ namespace helengine.directx11 {
             int radius = (int)MathF.Round(shape.Radius);
             int border = (int)MathF.Round(shape.BorderThickness);
             var key = (radius, border);
-            if (!nineSliceCache.TryGetValue(key, out var atlas)) {
+            if (!NineSliceCache.TryGetValue(key, out var atlas)) {
                 var coreAtlas = helengine.NineSliceAtlas.Generate(radius, border, aaPx: 1, padding: 2);
                 Core ownerCore = OwnerCore ?? throw new InvalidOperationException("DirectX11 renderer is not attached to an owning Core.");
                 var rt = ownerCore.RenderManager2D.BuildTextureFromRaw(coreAtlas.Texture);
@@ -775,7 +775,7 @@ namespace helengine.directx11 {
                     BorderUv = coreAtlas.BorderUV,
                     CornerSize = coreAtlas.CornerSize
                 };
-                nineSliceCache[key] = atlas;
+                NineSliceCache[key] = atlas;
             }
             return atlas;
         }
@@ -790,10 +790,10 @@ namespace helengine.directx11 {
 
             var sdata = (DirectX11TextureResource)atlas.Texture;
             context.PixelShader.SetShaderResource(0, sdata.Resource);
-            context.PixelShader.SetSampler(0, spriteSampler);
+            context.PixelShader.SetSampler(0, SpriteSampler);
             TrackActiveTextureSlot(0);
 
-            ConfigureSpritePipeline(spriteInputLayout);
+            ConfigureSpritePipeline(SpriteInputLayout);
 
             float3 pos = shape.Parent.Position;
             float x = pos.X;
@@ -803,14 +803,14 @@ namespace helengine.directx11 {
             int s = atlas.CornerSize;
 
             float4x4 transposedWorld;
-            float4x4.Transpose(ref projectionMatrix2D, out transposedWorld);
+            float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
             var shaderData = new SpriteShaderData {
                 worldViewProj = transposedWorld,
                 color = new float4(shape.FillColor.X / 255f, shape.FillColor.Y / 255f, shape.FillColor.Z / 255f, shape.FillColor.W / 255f)
             };
 
-            context.VertexShader.SetConstantBuffer(0, spriteConstantBuffer);
-            context.PixelShader.SetConstantBuffer(0, spriteConstantBuffer);
+            context.VertexShader.SetConstantBuffer(0, SpriteConstantBuffer);
+            context.PixelShader.SetConstantBuffer(0, SpriteConstantBuffer);
 
             float4[] tileRects = RoundedRectGeometryBuilder.BuildNineSliceTileRects(x, y, w, h, s);
             for (int tileIndex = 0; tileIndex < tileRects.Length; tileIndex++) {
@@ -836,9 +836,9 @@ namespace helengine.directx11 {
         void DrawNineSliceTile(DeviceContext context, ref SpriteShaderData shaderData, float4 sourceUv, float4 destinationRect) {
             shaderData.sourceRect = sourceUv;
             shaderData.destRect = destinationRect;
-            context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
+            context.UpdateSubresource(ref shaderData, SpriteConstantBuffer);
             context.Draw(4, 0);
-            parentRenderer.IncrementDrawCalls(1);
+            ParentRenderer.IncrementDrawCalls(1);
         }
 
         /// <summary>
@@ -846,19 +846,19 @@ namespace helengine.directx11 {
         /// </summary>
         /// <param name="needed">Required vertex capacity.</param>
         void EnsureGeometryCapacity(int needed) {
-            if (needed <= geometryVertexCapacity) {
+            if (needed <= GeometryVertexCapacity) {
                 return;
             }
 
-            int newCap = geometryVertexCapacity;
+            int newCap = GeometryVertexCapacity;
             while (newCap < needed) {
                 newCap *= 2;
             }
 
-            geometryVertexBuffer.Dispose();
-            geometryVertexCapacity = newCap;
-            geometryVertexBuffer = new Buffer(Device, new BufferDescription(
-                Utilities.SizeOf<VertexPositionUV>() * geometryVertexCapacity,
+            GeometryVertexBuffer.Dispose();
+            GeometryVertexCapacity = newCap;
+            GeometryVertexBuffer = new Buffer(Device, new BufferDescription(
+                Utilities.SizeOf<VertexPositionUV>() * GeometryVertexCapacity,
                 ResourceUsage.Dynamic,
                 BindFlags.VertexBuffer,
                 CpuAccessFlags.Write,
@@ -882,7 +882,7 @@ namespace helengine.directx11 {
             int totalVerts = fillVerts + borderVerts;
             EnsureGeometryCapacity(totalVerts);
 
-            var dataBox = context.MapSubresource(geometryVertexBuffer, 0, MapMode.WriteDiscard, SharpDX.Direct3D11.MapFlags.None);
+            var dataBox = context.MapSubresource(GeometryVertexBuffer, 0, MapMode.WriteDiscard, SharpDX.Direct3D11.MapFlags.None);
             var ptr = dataBox.DataPointer;
 
             float3 pos = shape.Parent.Position;
@@ -903,12 +903,12 @@ namespace helengine.directx11 {
                 WriteGeometryVertices(borderPoints, ref ptr);
             }
 
-            context.UnmapSubresource(geometryVertexBuffer, 0);
+            context.UnmapSubresource(GeometryVertexBuffer, 0);
 
             ConfigureBasicColorPipeline();
 
             float4x4 transposedWorld;
-            float4x4.Transpose(ref projectionMatrix2D, out transposedWorld);
+            float4x4.Transpose(ref ProjectionMatrix2D, out transposedWorld);
 
             var colorData = new BasicColorShaderData {
                 worldViewProj = transposedWorld,
@@ -920,12 +920,12 @@ namespace helengine.directx11 {
                 )
             };
 
-            context.VertexShader.SetConstantBuffer(0, basicColorConstantBuffer);
-            context.PixelShader.SetConstantBuffer(0, basicColorConstantBuffer);
-            context.UpdateSubresource(ref colorData, basicColorConstantBuffer);
+            context.VertexShader.SetConstantBuffer(0, BasicColorConstantBuffer);
+            context.PixelShader.SetConstantBuffer(0, BasicColorConstantBuffer);
+            context.UpdateSubresource(ref colorData, BasicColorConstantBuffer);
 
             context.Draw(fillVerts, 0);
-            parentRenderer.IncrementDrawCalls(1);
+            ParentRenderer.IncrementDrawCalls(1);
 
             if (borderVerts > 0) {
                 colorData.color = new float4(
@@ -934,9 +934,9 @@ namespace helengine.directx11 {
                     shape.BorderColor.Z / 255.0f,
                     shape.BorderColor.W / 255.0f
                 );
-                context.UpdateSubresource(ref colorData, basicColorConstantBuffer);
+                context.UpdateSubresource(ref colorData, BasicColorConstantBuffer);
                 context.Draw(borderVerts, fillVerts);
-                parentRenderer.IncrementDrawCalls(1);
+                ParentRenderer.IncrementDrawCalls(1);
             }
         }
 
