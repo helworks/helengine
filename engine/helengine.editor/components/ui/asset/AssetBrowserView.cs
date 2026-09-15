@@ -42,6 +42,10 @@ namespace helengine.editor {
         /// Height of the toolbar up button.
         /// </summary>
         const int UpButtonHeight = 22;
+        /// <summary>
+        /// Informational text shown in the up-button slot at the root assets directory.
+        /// </summary>
+        const string TopLabelText = "TOP";
 
         /// <summary>
         /// Font used for toolbar and row labels.
@@ -83,6 +87,22 @@ namespace helengine.editor {
         /// Button component used to navigate up the folder tree.
         /// </summary>
         readonly ButtonComponent UpButton;
+        /// <summary>
+        /// Entity hosting the informational TOP label shown at the root assets directory.
+        /// </summary>
+        readonly EditorEntity TopLabelHost;
+        /// <summary>
+        /// Bordered background drawn behind the TOP label so it matches the up-button footprint.
+        /// </summary>
+        readonly RoundedRectComponent TopLabelBackground;
+        /// <summary>
+        /// Child entity that positions the TOP text inside its background.
+        /// </summary>
+        readonly EditorEntity TopLabelTextHost;
+        /// <summary>
+        /// Text component that shows TOP in place of the up button at the root.
+        /// </summary>
+        readonly TextComponent TopLabel;
         /// <summary>
         /// Root entity hosting the list rows.
         /// </summary>
@@ -325,13 +345,44 @@ namespace helengine.editor {
                 EditorSessionInteractionServices.From(Root).KeyboardFocus.RegisterTarget(UpButton);
             }
 
+            float lineHeight = MathF.Max(font.LineHeight, 1f);
+
+            TopLabelHost = new EditorEntity(ownerCore, interactionServices) {
+                LayerMask = layerMask,
+                Position = float3.Zero
+            };
+            ToolbarRoot.AddChild(TopLabelHost);
+
+            TopLabelBackground = new RoundedRectComponent {
+                Size = GetUpButtonSize(),
+                Corners = RoundedRectCorners.All,
+                FillColor = ThemeManager.Colors.AccentTertiary,
+                BorderColor = ThemeManager.Colors.AccentSecondary,
+                RenderOrder2D = RenderOrder2D.PanelSurface
+            };
+            TopLabelHost.AddComponent(TopLabelBackground);
+
+            TopLabelTextHost = new EditorEntity(ownerCore, interactionServices) {
+                LayerMask = layerMask,
+                Position = float3.Zero
+            };
+            TopLabelHost.AddChild(TopLabelTextHost);
+
+            TopLabel = new TextComponent {
+                Font = font,
+                Text = TopLabelText,
+                Color = ThemeManager.Colors.TextSecondary,
+                Size = new int2(1, (int)MathF.Ceiling(lineHeight)),
+                RenderOrder2D = RenderOrder2D.PanelForeground
+            };
+            TopLabelTextHost.AddComponent(TopLabel);
+
             PathTextHost = new EditorEntity(ownerCore, interactionServices) {
                 LayerMask = layerMask,
                 Position = float3.Zero
             };
             ToolbarRoot.AddChild(PathTextHost);
 
-            float lineHeight = MathF.Max(font.LineHeight, 1f);
             PathText = new TextComponent {
                 Font = font,
                 Text = string.Empty,
@@ -405,6 +456,8 @@ namespace helengine.editor {
         /// <param name="textOrder">Render order used for the button label.</param>
         public void SetToolbarButtonRenderOrders(byte backgroundOrder, byte textOrder) {
             UpButton.SetRenderOrders(backgroundOrder, textOrder);
+            TopLabelBackground.RenderOrder2D = backgroundOrder;
+            TopLabel.RenderOrder2D = textOrder;
         }
 
         /// <summary>
@@ -512,6 +565,7 @@ namespace helengine.editor {
             Font = font;
             Metrics = metrics;
             PathText.Font = font;
+            TopLabel.Font = font;
             UpButton.Font = font;
             UpButton.SetSize(GetUpButtonSize());
 
@@ -560,10 +614,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Shows the up button only when the browser is not at the root assets directory.
+        /// Shows the TOP label at the root assets directory and the up button inside sub-folders.
         /// </summary>
         void UpdateUpButtonVisibility() {
-            UpButtonHost.Enabled = !DataSource.IsAtRoot;
+            bool isAtRoot = DataSource.IsAtRoot;
+            UpButtonHost.Enabled = !isAtRoot;
+            TopLabelHost.Enabled = isAtRoot;
         }
 
         /// <summary>
@@ -697,6 +753,17 @@ namespace helengine.editor {
 
             float buttonY = MathF.Round((toolbarHeight - upButtonSize.Y) * 0.5f);
             UpButtonHost.Position = new float3(toolbarPadding, buttonY, 0.2f);
+
+            TopLabelHost.Position = new float3(toolbarPadding, buttonY, 0.2f);
+            TopLabelBackground.Size = upButtonSize;
+            TopLabelBackground.Radius = MathF.Min(upButtonSize.X, upButtonSize.Y) * 0.15f;
+            TopLabelBackground.BorderThickness = Metrics.ScalePixels(1);
+
+            var topMetrics = Font.MeasureTight(TopLabel.Text);
+            float topX = MathF.Round((upButtonSize.X - topMetrics.Width) * 0.5f);
+            float topY = GetTextTopOffset(upButtonSize.Y, topMetrics);
+            TopLabelTextHost.Position = new float3(topX, topY, 0.1f);
+            TopLabel.Size = new int2((int)MathF.Ceiling(topMetrics.Width), (int)MathF.Ceiling(topMetrics.Height));
 
             float pathX = toolbarPadding + upButtonSize.X + toolbarSpacing;
             var pathMetrics = Font.MeasureTight(PathText.Text);

@@ -200,6 +200,55 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the toolbar shows an informational TOP label at the assets root and the up button inside sub-folders.
+        /// </summary>
+        [Fact]
+        public void AssetBrowserView_WhenAtRoot_ShowsTopLabelInsteadOfUpButton() {
+            string projectRoot = CreateProjectRoot();
+            Directory.CreateDirectory(Path.Combine(projectRoot, "assets", "Folder"));
+
+            InitializeCore(projectRoot);
+
+            AssetBrowserView browserView = new AssetBrowserView(CoreValue, InteractionServices,
+                CreateFont(),
+                projectRoot,
+                EditorLayerMasks.EditorUi,
+                1,
+                2,
+                3,
+                4,
+                true,
+                null,
+                GeneratedAssetProviders);
+
+            browserView.UpdateLayout(320, 240);
+
+            EditorEntity upButtonHost = GetPrivateField<EditorEntity>(browserView, "UpButtonHost");
+            EditorEntity topLabelHost = GetPrivateField<EditorEntity>(browserView, "TopLabelHost");
+            TextComponent topLabel = GetPrivateField<TextComponent>(browserView, "TopLabel");
+
+            RoundedRectComponent topLabelBackground = GetPrivateField<RoundedRectComponent>(browserView, "TopLabelBackground");
+            ButtonComponent upButton = GetPrivateField<ButtonComponent>(browserView, "UpButton");
+
+            Assert.Equal("TOP", topLabel.Text);
+            Assert.False(upButtonHost.Enabled);
+            Assert.True(topLabelHost.Enabled);
+            Assert.Equal(0, topLabelHost.Components.OfType<InteractableComponent>().Count());
+            Assert.Equal(upButton.Size, topLabelBackground.Size);
+            Assert.True(topLabelBackground.BorderThickness > 0f);
+
+            Assert.True(browserView.TryNavigateTo("Folder"));
+
+            Assert.True(upButtonHost.Enabled);
+            Assert.False(topLabelHost.Enabled);
+
+            InvokePrivate(browserView, "NavigateUp");
+
+            Assert.False(upButtonHost.Enabled);
+            Assert.True(topLabelHost.Enabled);
+        }
+
+        /// <summary>
         /// Creates a temporary project root with an assets directory.
         /// </summary>
         /// <returns>Path to the new project root.</returns>
@@ -237,6 +286,20 @@ namespace helengine.editor.tests {
 
             object value = field.GetValue(target);
             return Assert.IsType<T>(value);
+        }
+
+        /// <summary>
+        /// Invokes one non-public parameterless instance method.
+        /// </summary>
+        /// <param name="target">Object that owns the method.</param>
+        /// <param name="methodName">Name of the method to invoke.</param>
+        void InvokePrivate(object target, string methodName) {
+            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method == null) {
+                throw new InvalidOperationException("Expected private method was not found.");
+            }
+
+            method.Invoke(target, null);
         }
 
         /// <summary>
