@@ -625,7 +625,7 @@ namespace helengine.vulkan {
 
             Result result = Context.Api.CreatePipelineLayout(Context.Device, pipelineLayoutInfo, null, out PipelineLayoutValue);
             if (result != Result.Success) {
-                throw new InvalidOperationException($"Failed to create PipelineValue layout: {result}.");
+                throw new InvalidOperationException($"Failed to create pipeline layout: {result}.");
             }
         }
 
@@ -675,7 +675,7 @@ namespace helengine.vulkan {
 
             Result result = Context.Api.CreateSampler(Context.Device, samplerInfo, null, out SamplerValue);
             if (result != Result.Success) {
-                throw new InvalidOperationException($"Failed to create Vulkan SamplerValue: {result}.");
+                throw new InvalidOperationException($"Failed to create Vulkan sampler: {result}.");
             }
         }
 
@@ -862,7 +862,7 @@ namespace helengine.vulkan {
             SilkMarshal.Free((nint)shaderStages[1].PName);
 
             if (result != Result.Success) {
-                throw new InvalidOperationException($"Failed to create Vulkan graphics PipelineValue: {result}.");
+                throw new InvalidOperationException($"Failed to create Vulkan graphics pipeline: {result}.");
             }
         }
 
