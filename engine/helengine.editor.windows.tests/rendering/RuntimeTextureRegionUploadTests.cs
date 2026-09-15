@@ -446,7 +446,7 @@ namespace helengine.editor.windows.tests.rendering {
         }
 
         static VulkanContext GetVulkanContext(VulkanRenderer3D renderer) {
-            FieldInfo contextField = typeof(VulkanRenderer3D).GetField("context", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo contextField = typeof(VulkanRenderer3D).GetField("Context", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(contextField);
             return Assert.IsType<VulkanContext>(contextField.GetValue(renderer));
         }
@@ -504,7 +504,7 @@ namespace helengine.editor.windows.tests.rendering {
         }
 
         static byte[] ReadVulkanTexture(VulkanRenderer3D renderer, VulkanTextureResource texture) {
-            FieldInfo contextField = typeof(VulkanRenderer3D).GetField("context", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo contextField = typeof(VulkanRenderer3D).GetField("Context", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.NotNull(contextField);
             VulkanContext context = Assert.IsType<VulkanContext>(contextField.GetValue(renderer));
 
