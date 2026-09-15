@@ -62,6 +62,29 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Excludes the supplied entity subtree from the requested target platforms while preserving existing overrides for every other platform.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute or relative project root whose supported platform list should drive the authored overrides.</param>
+        /// <param name="rootEntity">Root entity whose entire subtree should be excluded.</param>
+        /// <param name="excludedPlatformIds">Platform identifiers that should prune the subtree.</param>
+        public void ExcludeEntitySubtreeFromPlatformsPreservingExisting(
+            string projectRootPath,
+            EditorEntity rootEntity,
+            IReadOnlyList<string> excludedPlatformIds) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            } else if (rootEntity == null) {
+                throw new ArgumentNullException(nameof(rootEntity));
+            } else if (excludedPlatformIds == null) {
+                throw new ArgumentNullException(nameof(excludedPlatformIds));
+            }
+
+            HashSet<string> excludedPlatformSet = BuildIncludedPlatformSet(excludedPlatformIds);
+            IReadOnlyList<string> supportedPlatformIds = LoadSupportedPlatformIds(projectRootPath);
+            ApplyEntitySubtreePlatformExclusionsPreservingExisting(rootEntity, supportedPlatformIds, excludedPlatformSet);
+        }
+
+        /// <summary>
         /// Restricts one common live component so it exists only on the requested target platforms and is removed everywhere else.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative project root whose supported platform list should drive the authored overrides.</param>
@@ -196,6 +219,43 @@ namespace helengine.editor {
             for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
                 if (entity.Children[childIndex] is EditorEntity childEntity) {
                     ApplyEntitySubtreePlatformExclusions(childEntity, supportedPlatformIds, excludedPlatformSet);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Applies only the requested entity subtree exclusions so unrelated authored platform overrides remain intact.
+        /// </summary>
+        /// <param name="entity">Current subtree entity.</param>
+        /// <param name="supportedPlatformIds">Supported project platform identifiers.</param>
+        /// <param name="excludedPlatformSet">Normalized platform identifiers that should prune the subtree.</param>
+        void ApplyEntitySubtreePlatformExclusionsPreservingExisting(
+            EditorEntity entity,
+            IReadOnlyList<string> supportedPlatformIds,
+            HashSet<string> excludedPlatformSet) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            } else if (supportedPlatformIds == null) {
+                throw new ArgumentNullException(nameof(supportedPlatformIds));
+            } else if (excludedPlatformSet == null) {
+                throw new ArgumentNullException(nameof(excludedPlatformSet));
+            }
+
+            EntitySaveComponent saveComponent = EnsureEntitySaveComponent(entity);
+            for (int index = 0; index < supportedPlatformIds.Count; index++) {
+                string supportedPlatformId = supportedPlatformIds[index];
+                if (excludedPlatformSet.Contains(supportedPlatformId)) {
+                    EntityExistenceEditingService.SetExists(saveComponent, supportedPlatformId, false);
+                }
+            }
+
+            if (entity.Children == null) {
+                return;
+            }
+
+            for (int childIndex = 0; childIndex < entity.Children.Count; childIndex++) {
+                if (entity.Children[childIndex] is EditorEntity childEntity) {
+                    ApplyEntitySubtreePlatformExclusionsPreservingExisting(childEntity, supportedPlatformIds, excludedPlatformSet);
                 }
             }
         }

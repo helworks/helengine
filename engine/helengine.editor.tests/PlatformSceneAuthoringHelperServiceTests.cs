@@ -91,6 +91,32 @@ public sealed class PlatformSceneAuthoringHelperServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures handheld augmentation can add its exclusions without clearing an authored exclusion for another platform.
+    /// </summary>
+    [Fact]
+    public void ExcludeEntitySubtreeFromPlatformsPreservingExisting_WhenN64WasAlreadyExcluded_PreservesN64AndAddsHandheldExclusions() {
+        new EditorProjectPlatformsService(TempProjectRootPath).Save(new EditorProjectPlatformsDocument {
+            SupportedPlatforms = ["windows", "n64", "ds", "3ds"]
+        });
+        PlatformSceneAuthoringHelperService service = new PlatformSceneAuthoringHelperService();
+        EditorEntity rootEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+            Name = "DesktopRoot"
+        };
+
+        service.ExcludeEntitySubtreeFromPlatforms(TempProjectRootPath, rootEntity, ["n64"]);
+        service.ExcludeEntitySubtreeFromPlatformsPreservingExisting(TempProjectRootPath, rootEntity, ["ds", "3ds"]);
+
+        EntitySaveComponent saveComponent = GetSaveComponent(rootEntity);
+        Assert.True(saveComponent.TryGetExistencePlatformOverride("n64", out SceneEntityPlatformExistenceOverrideAsset n64Override));
+        Assert.False(n64Override.Exists);
+        Assert.True(saveComponent.TryGetExistencePlatformOverride("ds", out SceneEntityPlatformExistenceOverrideAsset dsOverride));
+        Assert.False(dsOverride.Exists);
+        Assert.True(saveComponent.TryGetExistencePlatformOverride("3ds", out SceneEntityPlatformExistenceOverrideAsset nintendo3DsOverride));
+        Assert.False(nintendo3DsOverride.Exists);
+        Assert.False(saveComponent.TryGetExistencePlatformOverride("windows", out _));
+    }
+
+    /// <summary>
     /// Retrieves the hidden save component attached to one editor entity.
     /// </summary>
     /// <param name="entity">Entity whose save component should be returned.</param>
