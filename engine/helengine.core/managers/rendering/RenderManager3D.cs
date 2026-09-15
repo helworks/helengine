@@ -3,7 +3,11 @@ namespace helengine {
     /// Abstract base for 3D rendering backends.
     /// </summary>
     public abstract class RenderManager3D : IDisposable {
-        private bool SetOneWindow;
+        /// <summary>
+        /// Tracks whether a window has already been added, so the first window's size seeds
+        /// <see cref="MainWindowSize"/> while later windows only update it through resize events.
+        /// </summary>
+        bool SetOneWindow;
 
         /// <summary>
         /// Core that owns this renderer. Renderers must use this explicit owner
