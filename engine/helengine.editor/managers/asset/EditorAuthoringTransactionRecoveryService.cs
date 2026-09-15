@@ -713,12 +713,11 @@ namespace helengine.editor {
             }
 
             while (true) {
-                try {
-                    if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) {
-                        throw new InvalidDataException($"The authoring transaction path '{path}' traverses a reparse point.");
-                    }
-                } catch (FileNotFoundException) {
-                } catch (DirectoryNotFoundException) {
+                // FileInfo.Attributes reports an invalid marker for a missing path instead of
+                // throwing, so probing not-yet-created ancestors raises no exceptions.
+                FileAttributes attributes = new FileInfo(current).Attributes;
+                if ((int)attributes != -1 && (attributes & FileAttributes.ReparsePoint) != 0) {
+                    throw new InvalidDataException($"The authoring transaction path '{path}' traverses a reparse point.");
                 }
                 // Continue through the complete existing ancestor chain. A
                 // linked parent above the textual project root can redirect a

@@ -125,7 +125,11 @@ namespace helengine.editor {
             DirectoryInfo current = new DirectoryInfo(directoryPath);
             while (current != null) {
                 try {
-                    DirectoryInfo resolved = current.ResolveLinkTarget(true) as DirectoryInfo;
+                    // LinkTarget is null for ordinary directories and never throws, whereas
+                    // ResolveLinkTarget throws DirectoryNotFoundException at the drive root.
+                    DirectoryInfo resolved = current.LinkTarget != null
+                        ? current.ResolveLinkTarget(true) as DirectoryInfo
+                        : null;
                     if (resolved != null) {
                         string canonicalDirectory = resolved.FullName;
                         for (int index = suffix.Count - 1; index >= 0; index--) {

@@ -19,6 +19,33 @@ public sealed class EditorProjectWriteLockTests : IDisposable {
         }
     }
 
+    /// <summary>
+    /// Ensures acquiring the lock on an ordinary directory tree raises no first-chance exceptions while canonicalizing ancestors up to the drive root.
+    /// </summary>
+    [Fact]
+    public void Acquire_WhenProjectHasNoLinkedAncestors_DoesNotRaiseDirectoryExceptions() {
+        int directoryNotFoundCount = 0;
+        string firstStackTrace = string.Empty;
+        EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, args) => {
+            if (args.Exception is DirectoryNotFoundException) {
+                directoryNotFoundCount++;
+                if (string.IsNullOrEmpty(firstStackTrace)) {
+                    firstStackTrace = args.Exception.Message + Environment.NewLine + Environment.StackTrace;
+                }
+            }
+        };
+
+        AppDomain.CurrentDomain.FirstChanceException += handler;
+        try {
+            using EditorProjectWriteLock acquired = EditorProjectWriteLock.Acquire(ProjectRootPath);
+            Assert.NotNull(acquired);
+        } finally {
+            AppDomain.CurrentDomain.FirstChanceException -= handler;
+        }
+
+        Assert.True(directoryNotFoundCount == 0, $"Saw {directoryNotFoundCount} DirectoryNotFoundException(s). First:{Environment.NewLine}{firstStackTrace}");
+    }
+
     [Fact]
     public async Task Acquire_WhenLockIsHeldForSeveralSeconds_WaitsAndSucceeds() {
         using EditorProjectWriteLock heldLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
