@@ -59,10 +59,10 @@ namespace helengine.editor.tests {
 
             comboBox.UseModalPresentation();
 
-            Assert.Equal(RenderOrder2D.ModalBackground, GetPrivateField<byte>(comboBox, "backgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalForeground, GetPrivateField<byte>(comboBox, "textOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(comboBox, "listBackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(comboBox, "listTextOrder"));
+            Assert.Equal(RenderOrder2D.ModalBackground, GetPrivateField<byte>(comboBox, "BackgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalForeground, GetPrivateField<byte>(comboBox, "TextOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(comboBox, "ListBackgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(comboBox, "ListTextOrder"));
         }
 
         /// <summary>

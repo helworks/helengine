@@ -193,8 +193,8 @@ namespace helengine.editor.tests {
             dialog.Show(document, new List<string> { "windows", "ps2" }, "windows", CreateSelectionModel());
 
             ComboBoxComponent platformComboBox = GetPrivateField<ComboBoxComponent>(dialog, "PlatformComboBox");
-            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(platformComboBox, "background");
-            RoundedRectComponent listBackground = GetPrivateField<RoundedRectComponent>(platformComboBox, "listBackground");
+            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(platformComboBox, "Background");
+            RoundedRectComponent listBackground = GetPrivateField<RoundedRectComponent>(platformComboBox, "ListBackground");
 
             Assert.Equal(RenderOrder2D.ModalBackground, background.RenderOrder2D);
             Assert.Equal(RenderOrder2D.ModalOverlayBackground, listBackground.RenderOrder2D);

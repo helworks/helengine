@@ -166,8 +166,8 @@ namespace helengine.editor.tests {
             InitializeCore();
             EditorViewport viewport = CreateViewport();
             TextBoxComponent[] snapValueTextBoxes = GetPrivateField<TextBoxComponent[]>(viewport, "SnapValueTextBoxes");
-            RoundedRectComponent firstBackground = GetPrivateField<RoundedRectComponent>(snapValueTextBoxes[0], "backgroundSprite");
-            RoundedRectComponent secondBackground = GetPrivateField<RoundedRectComponent>(snapValueTextBoxes[1], "backgroundSprite");
+            RoundedRectComponent firstBackground = GetPrivateField<RoundedRectComponent>(snapValueTextBoxes[0], "BackgroundSprite");
+            RoundedRectComponent secondBackground = GetPrivateField<RoundedRectComponent>(snapValueTextBoxes[1], "BackgroundSprite");
 
             Assert.Equal(0f, firstBackground.BorderThickness);
             Assert.Equal(0f, secondBackground.BorderThickness);

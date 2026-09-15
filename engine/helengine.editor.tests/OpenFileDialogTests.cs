@@ -237,8 +237,8 @@ namespace helengine.editor.tests {
             dialog.UpdateLayout(1280, 720);
 
             ButtonComponent openButton = GetPrivateField<ButtonComponent>(dialog, "OpenButton");
-            TextComponent openText = GetPrivateField<TextComponent>(openButton, "textComponent");
-            RoundedRectComponent openBackground = GetPrivateField<RoundedRectComponent>(openButton, "roundedRect");
+            TextComponent openText = GetPrivateField<TextComponent>(openButton, "TextComponent");
+            RoundedRectComponent openBackground = GetPrivateField<RoundedRectComponent>(openButton, "RoundedRect");
 
             int textIndex = CoreValue.ObjectManager.Drawables2D.IndexOf(openText);
             int backgroundIndex = CoreValue.ObjectManager.Drawables2D.IndexOf(openBackground);

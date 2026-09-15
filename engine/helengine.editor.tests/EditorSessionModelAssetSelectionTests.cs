@@ -688,7 +688,7 @@ namespace helengine.editor.tests {
         /// <param name="button">Button whose label should be read.</param>
         /// <returns>Configured label text.</returns>
         string ReadButtonText(ButtonComponent button) {
-            FieldInfo textField = typeof(ButtonComponent).GetField("text", BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo textField = typeof(ButtonComponent).GetField("Text", BindingFlags.Instance | BindingFlags.NonPublic);
             return Assert.IsType<string>(textField.GetValue(button));
         }
 

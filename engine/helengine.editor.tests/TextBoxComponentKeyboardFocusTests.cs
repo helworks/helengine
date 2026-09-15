@@ -98,12 +98,12 @@ namespace helengine.editor.tests {
 
             TextBoxEditState editState = GetPrivateField<TextBoxEditState>(textBox, "EditState");
             editState.CursorPosition = -1;
-            SetPrivateField(textBox, "isFocused", true);
-            SetPrivateField(textBox, "cursorVisible", true);
+            SetPrivateField(textBox, "IsFocusedValue", true);
+            SetPrivateField(textBox, "CursorVisible", true);
 
             InvokePrivate(textBox, "UpdateTextDisplay");
 
-            TextComponent textComponent = GetPrivateField<TextComponent>(textBox, "textComponent");
+            TextComponent textComponent = GetPrivateField<TextComponent>(textBox, "TextComponent");
 
             Assert.Equal("|abc", textComponent.Text);
         }
@@ -289,7 +289,7 @@ namespace helengine.editor.tests {
         /// </summary>
         /// <returns>Currently focused text box, or null when none are focused.</returns>
         TextBoxComponent GetFocusedTextBox() {
-            FieldInfo field = typeof(TextBoxComponent).GetField("focusedTextBox", BindingFlags.Static | BindingFlags.NonPublic);
+            FieldInfo field = typeof(TextBoxComponent).GetField("FocusedTextBox", BindingFlags.Static | BindingFlags.NonPublic);
             object value = field.GetValue(null);
             if (value == null) {
                 return null;

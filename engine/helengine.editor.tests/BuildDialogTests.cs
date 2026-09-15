@@ -573,7 +573,7 @@ namespace helengine.editor.tests {
                 });
 
             TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
-            RoundedRectComponent backgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "backgroundSprite");
+            RoundedRectComponent backgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "BackgroundSprite");
             EditorEntity outputFieldHost = GetPrivateField<EditorEntity>(dialog, "OutputFieldHost");
             float3 originalPosition = outputFieldHost.LocalPosition;
             outputDirectoryField.Text = "";
@@ -631,7 +631,7 @@ namespace helengine.editor.tests {
                 });
 
             TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
-            RoundedRectComponent outputBackgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "backgroundSprite");
+            RoundedRectComponent outputBackgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "BackgroundSprite");
             RoundedRectComponent sceneListBackground = GetPrivateField<RoundedRectComponent>(dialog, "SceneListBackground");
             List<CheckBoxComponent> mapCheckBoxes = GetPrivateField<List<CheckBoxComponent>>(dialog, "MapCheckBoxes");
             EditorEntity outputFieldHost = GetPrivateField<EditorEntity>(dialog, "OutputFieldHost");
@@ -1373,7 +1373,7 @@ namespace helengine.editor.tests {
             ButtonComponent removeButton = Assert.Single(queueItemRemoveButtons);
             EditorEntity removeButtonHost = Assert.Single(queueItemRemoveButtonHosts);
 
-            Assert.Equal("X", GetPrivateField<string>(removeButton, "text"));
+            Assert.Equal("X", GetPrivateField<string>(removeButton, "Text"));
             Assert.True(removeButtonHost.LocalPosition.X > queueCardBackground.Size.X - 48);
 
             InvokePrivate(dialog, "HandleQueueItemRemoveClicked", "queue-1");
@@ -2158,7 +2158,7 @@ namespace helengine.editor.tests {
 
             Assert.InRange(copySettingsButtonHost.LocalPosition.Y, 0f, BuildDialog.PanelHeight - BuildDialog.HeaderHeight - BuildDialog.PanelPadding);
             Assert.True(copySettingsButtonHost.LocalPosition.Y + copySettingsButton.Size.Y <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
-            Assert.Equal("Copy settings from...", GetPrivateField<string>(copySettingsButton, "text"));
+            Assert.Equal("Copy settings from...", GetPrivateField<string>(copySettingsButton, "Text"));
             Assert.Equal(BuildDialog.FooterButtonHeight, copySettingsButton.Size.Y);
             Assert.True(outputFieldHost.LocalPosition.Y + outputDirectoryField.Size.Y <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
             Assert.True(addToBuildButtonHost.LocalPosition.Y + BuildDialog.FooterButtonHeight <= BuildDialog.PanelHeight - BuildDialog.HeaderHeight);
@@ -2195,13 +2195,13 @@ namespace helengine.editor.tests {
             ButtonComponent buildQueueButton = GetPrivateField<ButtonComponent>(dialog, "BuildQueueButton");
             EditorEntity addToBuildButtonHost = GetPrivateField<EditorEntity>(dialog, "AddToBuildButtonHost");
             EditorEntity buildQueueButtonHost = GetPrivateField<EditorEntity>(dialog, "BuildQueueButtonHost");
-            int2 browseButtonSize = GetPrivateField<int2>(browseOutputFolderButton, "size");
-            int2 addToBuildButtonSize = GetPrivateField<int2>(addToBuildButton, "size");
-            int2 buildQueueButtonSize = GetPrivateField<int2>(buildQueueButton, "size");
+            int2 browseButtonSize = GetPrivateField<int2>(browseOutputFolderButton, "SizeValue");
+            int2 addToBuildButtonSize = GetPrivateField<int2>(addToBuildButton, "SizeValue");
+            int2 buildQueueButtonSize = GetPrivateField<int2>(buildQueueButton, "SizeValue");
 
             Assert.True(outputDirectoryField.Size.X < BuildDialog.PanelWidth - BuildDialog.QueueColumnWidth - (BuildDialog.PanelPadding * 3));
             Assert.True(browseOutputFolderButtonHost.LocalPosition.X > outputFieldHost.LocalPosition.X);
-            Assert.Equal("Browse", GetPrivateField<string>(browseOutputFolderButton, "text"));
+            Assert.Equal("Browse", GetPrivateField<string>(browseOutputFolderButton, "Text"));
             Assert.Equal(BuildDialog.FooterButtonHeight, browseButtonSize.Y);
             Assert.Equal(buildQueueButtonSize.Y, addToBuildButtonSize.Y);
             Assert.Equal(buildQueueButtonHost.LocalPosition.Y, addToBuildButtonHost.LocalPosition.Y);
@@ -2232,8 +2232,8 @@ namespace helengine.editor.tests {
                 });
 
             TextBoxComponent outputDirectoryField = GetPrivateField<TextBoxComponent>(dialog, "OutputDirectoryField");
-            RoundedRectComponent backgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "backgroundSprite");
-            TextComponent textComponent = GetPrivateField<TextComponent>(outputDirectoryField, "textComponent");
+            RoundedRectComponent backgroundSprite = GetPrivateField<RoundedRectComponent>(outputDirectoryField, "BackgroundSprite");
+            TextComponent textComponent = GetPrivateField<TextComponent>(outputDirectoryField, "TextComponent");
 
             Assert.Equal(RenderOrder2D.ModalBackground, backgroundSprite.RenderOrder2D);
             Assert.Equal(RenderOrder2D.ModalForeground, textComponent.RenderOrder2D);

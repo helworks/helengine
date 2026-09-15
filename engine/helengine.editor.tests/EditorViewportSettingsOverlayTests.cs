@@ -262,7 +262,7 @@ namespace helengine.editor.tests {
             TextBoxComponent valueTextBox = overlayComponent.NearPlaneValueTextBox;
             int pointerX = (int)Math.Round(valueTextBox.Parent.Position.X + 4f);
             int pointerY = (int)Math.Round(valueTextBox.Parent.Position.Y + 8f);
-            InteractableComponent textBoxInteractable = GetPrivateField<InteractableComponent>(valueTextBox, "interactableComponent");
+            InteractableComponent textBoxInteractable = GetPrivateField<InteractableComponent>(valueTextBox, "InteractableComponent");
             IInteractable2D hit = PointerInteractableHitResolver.ResolveTopInteractableAt(
                 CoreValue.ObjectManager.Interactables,
                 CoreValue.ObjectManager.Drawables2D,

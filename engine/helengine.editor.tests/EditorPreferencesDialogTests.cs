@@ -69,12 +69,12 @@ namespace helengine.editor.tests {
             ComboBoxComponent scaleModeComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ScaleModeComboBox");
             ComboBoxComponent scalePercentComboBox = GetPrivateField<ComboBoxComponent>(dialog, "ScalePercentComboBox");
 
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(themeComboBox, "listBackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(themeComboBox, "listTextOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(scaleModeComboBox, "listBackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(scaleModeComboBox, "listTextOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(scalePercentComboBox, "listBackgroundOrder"));
-            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(scalePercentComboBox, "listTextOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(themeComboBox, "ListBackgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(themeComboBox, "ListTextOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(scaleModeComboBox, "ListBackgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(scaleModeComboBox, "ListTextOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayBackground, GetPrivateField<byte>(scalePercentComboBox, "ListBackgroundOrder"));
+            Assert.Equal(RenderOrder2D.ModalOverlayForeground, GetPrivateField<byte>(scalePercentComboBox, "ListTextOrder"));
         }
 
         /// <summary>

@@ -107,8 +107,8 @@ namespace helengine.editor.tests {
             List<EditorEntity> tabHosts = GetPrivateField<List<EditorEntity>>(tabStrip, "TabHosts");
             EditorEntity firstTabHost = Assert.IsType<EditorEntity>(tabHosts[0]);
             TabComponent firstTab = Assert.Single(firstTabHost.Components.OfType<TabComponent>());
-            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(firstTab, "roundedRect");
-            Entity textEntity = GetPrivateField<Entity>(firstTab, "textEntity");
+            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(firstTab, "RoundedRect");
+            Entity textEntity = GetPrivateField<Entity>(firstTab, "TextEntity");
             TextComponent label = Assert.IsType<TextComponent>(Assert.Single(textEntity.Components));
 
             Assert.NotNull(background);

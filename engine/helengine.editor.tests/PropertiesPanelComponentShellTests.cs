@@ -648,9 +648,9 @@ namespace helengine.editor.tests {
             panel.ShowEntityProperties(entity);
 
             ButtonComponent button = GetPrivateField<ButtonComponent>(panel, "AddComponentButton");
-            Entity textEntity = GetPrivateField<Entity>(button, "textEntity");
-            InteractableComponent interactable = GetPrivateField<InteractableComponent>(button, "interactableComponent");
-            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(button, "roundedRect");
+            Entity textEntity = GetPrivateField<Entity>(button, "TextEntity");
+            InteractableComponent interactable = GetPrivateField<InteractableComponent>(button, "InteractableComponent");
+            RoundedRectComponent background = GetPrivateField<RoundedRectComponent>(button, "RoundedRect");
 
             Assert.Equal(panel.Size.X - 16, button.Size.X);
             Assert.Equal(PointerCursorKind.Hand, interactable.HoverCursor);

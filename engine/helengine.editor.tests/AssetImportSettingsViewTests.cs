@@ -327,8 +327,8 @@ namespace helengine.editor.tests {
 
             ComboBoxComponent colorComboBox = GetPrivateField<ComboBoxComponent>(view, "TextureColorFormatComboBox");
             ComboBoxComponent alphaComboBox = GetPrivateField<ComboBoxComponent>(view, "TextureAlphaPrecisionComboBox");
-            List<string> colorItems = GetPrivateField<List<string>>(colorComboBox, "items");
-            List<string> alphaItems = GetPrivateField<List<string>>(alphaComboBox, "items");
+            List<string> colorItems = GetPrivateField<List<string>>(colorComboBox, "ItemsValue");
+            List<string> alphaItems = GetPrivateField<List<string>>(alphaComboBox, "ItemsValue");
 
             Assert.Equal([TextureAssetColorFormat.Rgba4444.ToString(), TextureAssetColorFormat.Indexed8.ToString()], colorItems);
             Assert.Equal([TextureAssetAlphaPrecision.A4.ToString(), TextureAssetAlphaPrecision.A8.ToString()], alphaItems);
@@ -360,8 +360,8 @@ namespace helengine.editor.tests {
 
             ComboBoxComponent colorComboBox = GetPrivateField<ComboBoxComponent>(view, "TextureColorFormatComboBox");
             ComboBoxComponent alphaComboBox = GetPrivateField<ComboBoxComponent>(view, "TextureAlphaPrecisionComboBox");
-            List<string> colorItems = GetPrivateField<List<string>>(colorComboBox, "items");
-            List<string> alphaItems = GetPrivateField<List<string>>(alphaComboBox, "items");
+            List<string> colorItems = GetPrivateField<List<string>>(colorComboBox, "ItemsValue");
+            List<string> alphaItems = GetPrivateField<List<string>>(alphaComboBox, "ItemsValue");
 
             Assert.Equal([TextureAssetColorFormat.Indexed4.ToString(), TextureAssetColorFormat.Indexed8.ToString()], colorItems);
             Assert.Equal([TextureAssetAlphaPrecision.Binary.ToString(), TextureAssetAlphaPrecision.A8.ToString()], alphaItems);

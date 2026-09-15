@@ -21,7 +21,7 @@ namespace helengine.editor.tests.components.ui {
 
             Assert.Equal("#336699", control.HexTextBoxControl.Text);
 
-            RoundedRectComponent swatchBackground = GetPrivateField<RoundedRectComponent>(control.SwatchButtonControl, "roundedRect");
+            RoundedRectComponent swatchBackground = GetPrivateField<RoundedRectComponent>(control.SwatchButtonControl, "RoundedRect");
             Assert.Equal(new byte4(0x33, 0x66, 0x99, 0xff), swatchBackground.FillColor);
         }
 
@@ -37,7 +37,7 @@ namespace helengine.editor.tests.components.ui {
 
             bool requested = false;
             control.PickerRequested += () => requested = true;
-            InteractableComponent interactable = GetPrivateField<InteractableComponent>(control.SwatchButtonControl, "interactableComponent");
+            InteractableComponent interactable = GetPrivateField<InteractableComponent>(control.SwatchButtonControl, "InteractableComponent");
             interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Hover);
             interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Press);
             interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Release);

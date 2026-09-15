@@ -155,7 +155,7 @@ public sealed class MaterialAssetViewTests : IDisposable {
         Dictionary<string, MaterialAssetPlatformPanel> panels = GetPrivateField<Dictionary<string, MaterialAssetPlatformPanel>>(view, "PlatformPanels");
         MaterialAssetPlatformPanel windowsPanel = panels["windows"];
         MaterialAssetFieldEditorRow colorRow = Assert.Single(windowsPanel.FieldRows, row => row.FieldId == "base-color");
-        InteractableComponent interactable = GetPrivateField<InteractableComponent>(colorRow.ColorControl.SwatchButtonControl, "interactableComponent");
+        InteractableComponent interactable = GetPrivateField<InteractableComponent>(colorRow.ColorControl.SwatchButtonControl, "InteractableComponent");
         interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Hover);
         interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Press);
         interactable.OnCursor(new int2(4, 4), new int2(0, 0), PointerInteraction.Release);
