@@ -11,7 +11,7 @@ namespace helengine {
         /// <summary>
         /// Full track bounds in pixels; X is the bar thickness, Y is the track length.
         /// </summary>
-        int2 size;
+        int2 SizeValue;
         /// <summary>
         /// Tracks whether custom render orders were supplied for the track and thumb visuals.
         /// </summary>
@@ -28,22 +28,22 @@ namespace helengine {
         /// <summary>
         /// Scroll controller this scrollbar reflects and drives.
         /// </summary>
-        ScrollComponent target;
+        ScrollComponent TargetValue;
         /// <summary>
         /// Tracks whether the pointer is currently hovering the scrollbar.
         /// </summary>
-        bool isHovering;
+        bool IsHovering;
         /// <summary>
         /// Tracks whether the pointer is currently dragging the thumb.
         /// </summary>
-        bool isDragging;
+        bool IsDragging;
 
         // Child entities and components
-        Entity visualsRoot;
-        RoundedRectComponent track;
-        InteractableComponent interactableComponent;
-        Entity thumbHost;
-        RoundedRectComponent thumb;
+        Entity VisualsRoot;
+        RoundedRectComponent Track;
+        InteractableComponent InteractableComponent;
+        Entity ThumbHost;
+        RoundedRectComponent Thumb;
 
         /// <summary>
         /// Creates one vertical scrollbar with the supplied track bounds.
@@ -54,27 +54,27 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(size), "Scrollbar size must be positive.");
             }
 
-            this.size = size;
+            this.SizeValue = size;
         }
 
         /// <summary>
         /// Gets or sets the full track bounds; X is the bar thickness, Y is the track length.
         /// </summary>
         public int2 Size {
-            get { return size; }
+            get { return SizeValue; }
             set {
                 if (value.X < 1 || value.Y < 1) {
                     throw new ArgumentOutOfRangeException(nameof(value), "Scrollbar size must be positive.");
                 }
 
-                size = value;
+                SizeValue = value;
 
-                if (track != null) {
-                    track.Size = size;
+                if (Track != null) {
+                    Track.Size = SizeValue;
                 }
 
-                if (interactableComponent != null) {
-                    interactableComponent.Size = size;
+                if (InteractableComponent != null) {
+                    InteractableComponent.Size = SizeValue;
                 }
 
                 Refresh();
@@ -85,20 +85,20 @@ namespace helengine {
         /// Gets or sets the scroll controller this scrollbar reflects and drives.
         /// </summary>
         public ScrollComponent Target {
-            get { return target; }
+            get { return TargetValue; }
             set {
-                if (ReferenceEquals(target, value)) {
+                if (ReferenceEquals(TargetValue, value)) {
                     return;
                 }
 
-                if (target != null) {
-                    target.ScrollOffsetChanged -= HandleTargetScrollOffsetChanged;
+                if (TargetValue != null) {
+                    TargetValue.ScrollOffsetChanged -= HandleTargetScrollOffsetChanged;
                 }
 
-                target = value;
+                TargetValue = value;
 
-                if (target != null) {
-                    target.ScrollOffsetChanged += HandleTargetScrollOffsetChanged;
+                if (TargetValue != null) {
+                    TargetValue.ScrollOffsetChanged += HandleTargetScrollOffsetChanged;
                 }
 
                 Refresh();
@@ -108,7 +108,7 @@ namespace helengine {
         /// <summary>
         /// Gets whether the track and thumb are currently rendered because the bound target overflows.
         /// </summary>
-        public bool IsVisible => visualsRoot != null && visualsRoot.Enabled;
+        public bool IsVisible => VisualsRoot != null && VisualsRoot.Enabled;
 
         /// <summary>
         /// Overrides the render order used for the track and thumb visuals.
@@ -120,12 +120,12 @@ namespace helengine {
             TrackRenderOrder = trackOrder;
             ThumbRenderOrder = thumbOrder;
 
-            if (track != null) {
-                track.RenderOrder2D = trackOrder;
+            if (Track != null) {
+                Track.RenderOrder2D = trackOrder;
             }
 
-            if (thumb != null) {
-                thumb.RenderOrder2D = thumbOrder;
+            if (Thumb != null) {
+                Thumb.RenderOrder2D = thumbOrder;
             }
         }
 
@@ -147,50 +147,50 @@ namespace helengine {
                 thumbOrder = ThumbRenderOrder;
             }
 
-            visualsRoot = new Entity(OwnerCore ?? throw new InvalidOperationException("Scroll-bar visuals require an owning core."));
-            visualsRoot.LayerMask = entity.LayerMask;
-            visualsRoot.Enabled = true;
-            visualsRoot.InitComponents();
+            VisualsRoot = new Entity(OwnerCore ?? throw new InvalidOperationException("Scroll-bar visuals require an owning core."));
+            VisualsRoot.LayerMask = entity.LayerMask;
+            VisualsRoot.Enabled = true;
+            VisualsRoot.InitComponents();
 
             if (entity.Children == null) {
                 entity.InitChildren();
             }
-            entity.AddChild(visualsRoot);
+            entity.AddChild(VisualsRoot);
 
-            track = new RoundedRectComponent {
-                Size = size,
-                Radius = size.X * 0.5f,
+            Track = new RoundedRectComponent {
+                Size = SizeValue,
+                Radius = SizeValue.X * 0.5f,
                 BorderThickness = 0f,
                 FillColor = ThemeManager.Colors.SurfaceInput,
                 BorderColor = ThemeManager.Colors.SurfaceInput,
                 RenderOrder2D = trackOrder
             };
-            visualsRoot.AddComponent(track);
+            VisualsRoot.AddComponent(Track);
 
-            interactableComponent = new InteractableComponent {
-                Size = size,
+            InteractableComponent = new InteractableComponent {
+                Size = SizeValue,
                 HoverCursor = PointerCursorKind.Hand
             };
-            interactableComponent.CursorEvent += HandleCursorEvent;
-            visualsRoot.AddComponent(interactableComponent);
+            InteractableComponent.CursorEvent += HandleCursorEvent;
+            VisualsRoot.AddComponent(InteractableComponent);
 
-            thumbHost = new Entity(OwnerCore ?? throw new InvalidOperationException("Scroll-bar visuals require an owning core."));
-            thumbHost.LayerMask = entity.LayerMask;
-            thumbHost.Enabled = true;
-            thumbHost.InitComponents();
+            ThumbHost = new Entity(OwnerCore ?? throw new InvalidOperationException("Scroll-bar visuals require an owning core."));
+            ThumbHost.LayerMask = entity.LayerMask;
+            ThumbHost.Enabled = true;
+            ThumbHost.InitComponents();
 
-            if (visualsRoot.Children == null) {
-                visualsRoot.InitChildren();
+            if (VisualsRoot.Children == null) {
+                VisualsRoot.InitChildren();
             }
-            visualsRoot.AddChild(thumbHost);
+            VisualsRoot.AddChild(ThumbHost);
 
-            thumb = new RoundedRectComponent {
-                Size = new int2(size.X, MinimumThumbLengthPixels),
-                Radius = size.X * 0.5f,
+            Thumb = new RoundedRectComponent {
+                Size = new int2(SizeValue.X, MinimumThumbLengthPixels),
+                Radius = SizeValue.X * 0.5f,
                 BorderThickness = 0f,
                 RenderOrder2D = thumbOrder
             };
-            thumbHost.AddComponent(thumb);
+            ThumbHost.AddComponent(Thumb);
 
             Refresh();
         }
@@ -203,8 +203,8 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (!newEnabled) {
-                isHovering = false;
-                isDragging = false;
+                IsHovering = false;
+                IsDragging = false;
             }
         }
 
@@ -215,38 +215,38 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
 
-            if (target != null) {
-                target.ScrollOffsetChanged -= HandleTargetScrollOffsetChanged;
+            if (TargetValue != null) {
+                TargetValue.ScrollOffsetChanged -= HandleTargetScrollOffsetChanged;
             }
 
-            isHovering = false;
-            isDragging = false;
+            IsHovering = false;
+            IsDragging = false;
         }
 
         /// <summary>
         /// Recomputes thumb size and position from the bound target, hiding the scrollbar when nothing overflows.
         /// </summary>
         public void Refresh() {
-            if (visualsRoot == null) {
+            if (VisualsRoot == null) {
                 return;
             }
 
-            bool hasOverflow = target != null && target.MaximumScrollOffset > 0;
-            visualsRoot.Enabled = hasOverflow;
+            bool hasOverflow = TargetValue != null && TargetValue.MaximumScrollOffset > 0;
+            VisualsRoot.Enabled = hasOverflow;
             if (!hasOverflow) {
-                isHovering = false;
-                isDragging = false;
+                IsHovering = false;
+                IsDragging = false;
                 return;
             }
 
             int thumbLength = ComputeThumbLengthPixels();
-            int travel = Math.Max(0, size.Y - thumbLength);
-            int thumbY = target.MaximumScrollOffset > 0
-                ? (int)Math.Round(travel * (target.ScrollOffset / (double)target.MaximumScrollOffset))
+            int travel = Math.Max(0, SizeValue.Y - thumbLength);
+            int thumbY = TargetValue.MaximumScrollOffset > 0
+                ? (int)Math.Round(travel * (TargetValue.ScrollOffset / (double)TargetValue.MaximumScrollOffset))
                 : 0;
 
-            thumb.Size = new int2(size.X, thumbLength);
-            thumbHost.Position = new float3(0f, thumbY, 0.1f);
+            Thumb.Size = new int2(SizeValue.X, thumbLength);
+            ThumbHost.Position = new float3(0f, thumbY, 0.1f);
             UpdateThumbColor();
         }
 
@@ -266,34 +266,34 @@ namespace helengine {
         /// <param name="delta">Pointer movement delta.</param>
         /// <param name="state">Pointer interaction state.</param>
         void HandleCursorEvent(int2 relPos, int2 delta, PointerInteraction state) {
-            if (target == null) {
+            if (TargetValue == null) {
                 return;
             }
 
             switch (state) {
                 case PointerInteraction.Hover:
-                    isHovering = true;
-                    if (isDragging) {
+                    IsHovering = true;
+                    if (IsDragging) {
                         ApplyNormalizedPosition(relPos.Y);
                     }
                     break;
 
                 case PointerInteraction.Press:
-                    isHovering = true;
-                    isDragging = true;
+                    IsHovering = true;
+                    IsDragging = true;
                     ApplyNormalizedPosition(relPos.Y);
                     break;
 
                 case PointerInteraction.Release:
-                    if (isDragging) {
+                    if (IsDragging) {
                         ApplyNormalizedPosition(relPos.Y);
                     }
-                    isDragging = false;
+                    IsDragging = false;
                     break;
 
                 case PointerInteraction.Leave:
-                    isHovering = false;
-                    isDragging = false;
+                    IsHovering = false;
+                    IsDragging = false;
                     break;
 
                 case PointerInteraction.None:
@@ -308,17 +308,17 @@ namespace helengine {
         /// </summary>
         /// <param name="pointerY">Pointer Y position relative to the scrollbar track.</param>
         void ApplyNormalizedPosition(int pointerY) {
-            int maximumOffset = target.MaximumScrollOffset;
+            int maximumOffset = TargetValue.MaximumScrollOffset;
             if (maximumOffset <= 0) {
                 return;
             }
 
             int thumbLength = ComputeThumbLengthPixels();
-            int travel = Math.Max(1, size.Y - thumbLength);
+            int travel = Math.Max(1, SizeValue.Y - thumbLength);
             double normalizedCenter = (pointerY - (thumbLength * 0.5)) / travel;
             normalizedCenter = Math.Clamp(normalizedCenter, 0.0, 1.0);
             int scrollOffset = (int)Math.Round(normalizedCenter * maximumOffset);
-            target.ScrollTo(scrollOffset);
+            TargetValue.ScrollTo(scrollOffset);
         }
 
         /// <summary>
@@ -326,34 +326,34 @@ namespace helengine {
         /// </summary>
         /// <returns>Thumb length in pixels, clamped to the track bounds.</returns>
         int ComputeThumbLengthPixels() {
-            if (target == null || target.ItemCount <= 0) {
-                return size.Y;
+            if (TargetValue == null || TargetValue.ItemCount <= 0) {
+                return SizeValue.Y;
             }
 
-            double proportion = Math.Clamp(target.VisibleItemCount / (double)target.ItemCount, 0.0, 1.0);
-            int length = (int)Math.Round(size.Y * proportion);
-            return Math.Clamp(length, Math.Min(MinimumThumbLengthPixels, size.Y), size.Y);
+            double proportion = Math.Clamp(TargetValue.VisibleItemCount / (double)TargetValue.ItemCount, 0.0, 1.0);
+            int length = (int)Math.Round(SizeValue.Y * proportion);
+            return Math.Clamp(length, Math.Min(MinimumThumbLengthPixels, SizeValue.Y), SizeValue.Y);
         }
 
         /// <summary>
         /// Updates the thumb fill and border color from the current hover and drag state.
         /// </summary>
         void UpdateThumbColor() {
-            if (thumb == null) {
+            if (Thumb == null) {
                 return;
             }
 
             byte4 color;
-            if (isDragging) {
+            if (IsDragging) {
                 color = ThemeManager.Colors.AccentTertiary;
-            } else if (isHovering) {
+            } else if (IsHovering) {
                 color = ThemeManager.Colors.AccentSecondary;
             } else {
                 color = ThemeManager.Colors.AccentPrimary;
             }
 
-            thumb.FillColor = color;
-            thumb.BorderColor = color;
+            Thumb.FillColor = color;
+            Thumb.BorderColor = color;
         }
     }
 }

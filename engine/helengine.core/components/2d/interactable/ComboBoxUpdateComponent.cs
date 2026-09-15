@@ -6,7 +6,7 @@ namespace helengine {
         /// <summary>
         /// Combo box that receives forwarded update calls.
         /// </summary>
-        readonly ComboBoxComponent comboBox;
+        readonly ComboBoxComponent ComboBox;
 
         /// <summary>
         /// Creates an update component that drives the provided combo box.
@@ -17,14 +17,14 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(comboBox));
             }
 
-            this.comboBox = comboBox;
+            this.ComboBox = comboBox;
         }
 
         /// <summary>
         /// Forwards the update call to the combo box.
         /// </summary>
         public override void Update() {
-            comboBox.Update();
+            ComboBox.Update();
         }
     }
 }

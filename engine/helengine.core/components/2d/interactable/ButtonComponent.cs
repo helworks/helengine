@@ -3,11 +3,11 @@ namespace helengine {
     /// Simple interactable button that renders rounded rect styling and invokes a click action.
     /// </summary>
     public class ButtonComponent : Component, IFocusTarget, IAnchorSizeProvider {
-        string text;
-        FontAsset font;
-        int2 size;
-        Action onClickAction;
-        readonly float borderThickness;
+        string Text;
+        FontAsset FontValue;
+        int2 SizeValue;
+        Action OnClickAction;
+        readonly float BorderThickness;
         /// <summary>
         /// Tracks whether custom render orders were supplied for the button visuals.
         /// </summary>
@@ -70,14 +70,14 @@ namespace helengine {
         byte4 FocusedBorderColor;
 
         // Child entities and components
-        Entity textEntity;
-        RoundedRectComponent roundedRect;
-        TextComponent textComponent;
-        InteractableComponent interactableComponent;
+        Entity TextEntity;
+        RoundedRectComponent RoundedRect;
+        TextComponent TextComponent;
+        InteractableComponent InteractableComponent;
 
         // Current state
-        bool isHovering;
-        bool isPressed;
+        bool IsHovering;
+        bool IsPressed;
 
         /// <summary>
         /// Gets or sets the focus group that owns this button during keyboard traversal.
@@ -97,7 +97,7 @@ namespace helengine {
         /// <summary>
         /// Gets whether this button can currently receive keyboard focus.
         /// </summary>
-        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && interactableComponent != null;
+        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && InteractableComponent != null;
 
         /// <summary>
         /// Gets a value indicating whether this button is currently keyboard-focused.
@@ -107,21 +107,21 @@ namespace helengine {
         /// <summary>
         /// Gets the current button size.
         /// </summary>
-        public int2 Size => size;
+        public int2 Size => SizeValue;
 
         /// <summary>
         /// Gets or sets the font used to render the button label.
         /// </summary>
         public FontAsset Font {
-            get { return font; }
+            get { return FontValue; }
             set {
                 if (value == null) {
                     throw new ArgumentNullException(nameof(value));
                 }
 
-                font = value;
-                if (textComponent != null) {
-                    textComponent.Font = font;
+                FontValue = value;
+                if (TextComponent != null) {
+                    TextComponent.Font = FontValue;
                 }
 
                 ApplyTextLayout();
@@ -131,7 +131,7 @@ namespace helengine {
         /// <summary>
         /// Gets the size used by anchor components when the button host is pinned to a layout edge.
         /// </summary>
-        public int2 AnchorSize => size;
+        public int2 AnchorSize => SizeValue;
 
         /// <summary>
         /// Raised when the pointer first enters the button during a hover interaction.
@@ -153,11 +153,11 @@ namespace helengine {
             Action onClickAction = null,
             float borderThickness = 2f) {
 
-            this.text = text;
-            this.size = size;
-            this.font = font;
-            this.onClickAction = onClickAction;
-            this.borderThickness = borderThickness;
+            this.Text = text;
+            this.SizeValue = size;
+            this.FontValue = font;
+            this.OnClickAction = onClickAction;
+            this.BorderThickness = borderThickness;
             ButtonTextColor = ThemeManager.Colors.TextOnAccent;
             IdleFillColor = ThemeManager.Colors.AccentSecondary;
             HoverFillColor = ThemeManager.Colors.AccentPrimary;
@@ -179,12 +179,12 @@ namespace helengine {
             BackgroundRenderOrder = backgroundOrder;
             TextRenderOrder = textOrder;
 
-            if (roundedRect != null) {
-                roundedRect.RenderOrder2D = backgroundOrder;
+            if (RoundedRect != null) {
+                RoundedRect.RenderOrder2D = backgroundOrder;
             }
 
-            if (textComponent != null) {
-                textComponent.RenderOrder2D = textOrder;
+            if (TextComponent != null) {
+                TextComponent.RenderOrder2D = textOrder;
             }
         }
 
@@ -203,8 +203,8 @@ namespace helengine {
         public void SetHoverCursor(PointerCursorKind cursor) {
             HoverCursorKind = cursor;
 
-            if (interactableComponent != null) {
-                interactableComponent.HoverCursor = cursor;
+            if (InteractableComponent != null) {
+                InteractableComponent.HoverCursor = cursor;
             }
         }
 
@@ -215,8 +215,8 @@ namespace helengine {
         public void SetTextColor(byte4 color) {
             ButtonTextColor = color;
 
-            if (textComponent != null) {
-                textComponent.Color = color;
+            if (TextComponent != null) {
+                TextComponent.Color = color;
             }
         }
 
@@ -225,10 +225,10 @@ namespace helengine {
         /// </summary>
         /// <param name="newText">New label text to render.</param>
         public void SetText(string newText) {
-            text = newText ?? string.Empty;
+            Text = newText ?? string.Empty;
 
-            if (textComponent != null) {
-                textComponent.Text = text;
+            if (TextComponent != null) {
+                TextComponent.Text = Text;
             }
         }
 
@@ -264,9 +264,9 @@ namespace helengine {
             Corners = RoundedRectCorners.None;
             CornerRadius = 0f;
 
-            if (roundedRect != null) {
-                roundedRect.Corners = Corners;
-                roundedRect.Radius = CornerRadius;
+            if (RoundedRect != null) {
+                RoundedRect.Corners = Corners;
+                RoundedRect.Radius = CornerRadius;
             }
         }
 
@@ -277,9 +277,9 @@ namespace helengine {
             Corners = (RoundedRectCorners)((int)RoundedRectCorners.TopLeft + (int)RoundedRectCorners.TopRight);
             UpdateCornerRadius();
 
-            if (roundedRect != null) {
-                roundedRect.Corners = Corners;
-                roundedRect.Radius = CornerRadius;
+            if (RoundedRect != null) {
+                RoundedRect.Corners = Corners;
+                RoundedRect.Radius = CornerRadius;
             }
         }
 
@@ -294,8 +294,8 @@ namespace helengine {
 
             CornerRadius = cornerRadius;
 
-            if (roundedRect != null) {
-                roundedRect.Radius = CornerRadius;
+            if (RoundedRect != null) {
+                RoundedRect.Radius = CornerRadius;
             }
         }
 
@@ -308,23 +308,23 @@ namespace helengine {
                 throw new ArgumentOutOfRangeException(nameof(newSize), "Button size must be positive.");
             }
 
-            size = newSize;
+            SizeValue = newSize;
             if (Corners != RoundedRectCorners.None) {
                 UpdateCornerRadius();
             }
 
-            if (roundedRect != null) {
-                roundedRect.Size = size;
-                roundedRect.Corners = Corners;
-                roundedRect.Radius = CornerRadius;
+            if (RoundedRect != null) {
+                RoundedRect.Size = SizeValue;
+                RoundedRect.Corners = Corners;
+                RoundedRect.Radius = CornerRadius;
             }
 
-            if (interactableComponent != null) {
-                interactableComponent.Size = size;
-                interactableComponent.HoverCursor = HoverCursorKind;
+            if (InteractableComponent != null) {
+                InteractableComponent.Size = SizeValue;
+                InteractableComponent.HoverCursor = HoverCursorKind;
             }
 
-            if (textEntity == null || textComponent == null) {
+            if (TextEntity == null || TextComponent == null) {
                 return;
             }
 
@@ -340,7 +340,7 @@ namespace helengine {
         public override void ComponentAdded(Entity entity) {
             base.ComponentAdded(entity);
 
-            if (roundedRect != null) return;
+            if (RoundedRect != null) return;
 
             byte backgroundOrder = RenderOrder2D.PanelSurface;
             byte textOrder = RenderOrder2D.PanelForeground;
@@ -350,43 +350,43 @@ namespace helengine {
             }
 
             // Create rounded rectangle background
-            roundedRect = new RoundedRectComponent();
-            roundedRect.Size = size;
-            roundedRect.Corners = Corners;
-            roundedRect.Radius = CornerRadius;
-            roundedRect.BorderThickness = borderThickness;
-            roundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
-            roundedRect.BorderColor = ThemeManager.Colors.AccentTertiary;
-            roundedRect.RenderOrder2D = backgroundOrder;
-            entity.AddComponent(roundedRect);
+            RoundedRect = new RoundedRectComponent();
+            RoundedRect.Size = SizeValue;
+            RoundedRect.Corners = Corners;
+            RoundedRect.Radius = CornerRadius;
+            RoundedRect.BorderThickness = BorderThickness;
+            RoundedRect.FillColor = ThemeManager.Colors.AccentSecondary;
+            RoundedRect.BorderColor = ThemeManager.Colors.AccentTertiary;
+            RoundedRect.RenderOrder2D = backgroundOrder;
+            entity.AddComponent(RoundedRect);
             UpdateButtonColor();
 
             // Create interactable component for mouse events
-            interactableComponent = new InteractableComponent();
-            interactableComponent.Size = size;
-            interactableComponent.HoverCursor = HoverCursorKind;
-            interactableComponent.CursorEvent += OnCursorEvent;
-            entity.AddComponent(interactableComponent);
+            InteractableComponent = new InteractableComponent();
+            InteractableComponent.Size = SizeValue;
+            InteractableComponent.HoverCursor = HoverCursorKind;
+            InteractableComponent.CursorEvent += OnCursorEvent;
+            entity.AddComponent(InteractableComponent);
 
             // Create text entity as child
-            textEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Button text requires an owning core."));
-            textEntity.LayerMask = entity.LayerMask;
-            textEntity.Enabled = true;
-            textEntity.InitComponents();
+            TextEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Button text requires an owning core."));
+            TextEntity.LayerMask = entity.LayerMask;
+            TextEntity.Enabled = true;
+            TextEntity.InitComponents();
 
             if (entity.Children == null) {
                 entity.InitChildren();
             }
-            entity.AddChild(textEntity);
+            entity.AddChild(TextEntity);
 
             // Create text component
-            textComponent = new TextComponent();
-            textComponent.Text = text;
-            textComponent.Font = font;
-            textComponent.Color = ButtonTextColor;
-            textComponent.Size = new int2(1, 1);
-            textComponent.RenderOrder2D = textOrder;
-            textEntity.AddComponent(textComponent);
+            TextComponent = new TextComponent();
+            TextComponent.Text = Text;
+            TextComponent.Font = FontValue;
+            TextComponent.Color = ButtonTextColor;
+            TextComponent.Size = new int2(1, 1);
+            TextComponent.RenderOrder2D = textOrder;
+            TextEntity.AddComponent(TextComponent);
 
             ApplyTextLayout();
         }
@@ -399,8 +399,8 @@ namespace helengine {
             base.ParentEnabledChange(newEnabled);
 
             if (!newEnabled) {
-                isHovering = false;
-                isPressed = false;
+                IsHovering = false;
+                IsPressed = false;
                 SetTargetFocused(false);
             }
         }
@@ -412,8 +412,8 @@ namespace helengine {
         public override void ComponentRemoved(Entity entity) {
             base.ComponentRemoved(entity);
 
-            isHovering = false;
-            isPressed = false;
+            IsHovering = false;
+            IsPressed = false;
             SetTargetFocused(false);
         }
 
@@ -430,9 +430,9 @@ namespace helengine {
 
             float3 position = Parent.Position;
             return x >= position.X &&
-                   x < position.X + size.X &&
+                   x < position.X + SizeValue.X &&
                    y >= position.Y &&
-                   y < position.Y + size.Y;
+                   y < position.Y + SizeValue.Y;
         }
 
         /// <summary>
@@ -468,7 +468,7 @@ namespace helengine {
                 return;
             }
 
-            onClickAction?.Invoke();
+            OnClickAction?.Invoke();
         }
 #endif
 
@@ -481,32 +481,32 @@ namespace helengine {
         void OnCursorEvent(int2 relPos, int2 delta, PointerInteraction state) {
             switch (state) {
                 case PointerInteraction.Hover:
-                    if (!isHovering) {
-                        isHovering = true;
+                    if (!IsHovering) {
+                        IsHovering = true;
                         UpdateButtonColor();
                         RaiseHovered();
                     }
                     break;
 
                 case PointerInteraction.Press:
-                    isPressed = true;
+                    IsPressed = true;
                     UpdateButtonColor();
                     break;
 
                 case PointerInteraction.Release:
-                    if (isPressed && isHovering) {
+                    if (IsPressed && IsHovering) {
                         // Trigger click action
-                        onClickAction?.Invoke();
+                        OnClickAction?.Invoke();
                     }
-                    isPressed = false;
+                    IsPressed = false;
                     UpdateButtonColor();
                     break;
 
                 case PointerInteraction.Leave:
                     // Pointer left the button's bounds
-                    if (isHovering || isPressed) {
-                        isHovering = false;
-                        isPressed = false;
+                    if (IsHovering || IsPressed) {
+                        IsHovering = false;
+                        IsPressed = false;
                         UpdateButtonColor();
                     }
                     break;
@@ -521,20 +521,20 @@ namespace helengine {
         /// Updates the button fill color based on hover/pressed state.
         /// </summary>
         void UpdateButtonColor() {
-            if (roundedRect == null) return;
+            if (RoundedRect == null) return;
 
-            roundedRect.BorderColor = IsKeyboardFocused
+            RoundedRect.BorderColor = IsKeyboardFocused
                 ? FocusedBorderColor
                 : GetIdleBorderColor();
 
-            if (isPressed) {
-                roundedRect.FillColor = PressedFillColor;
-            } else if (isHovering) {
-                roundedRect.FillColor = HoverFillColor;
+            if (IsPressed) {
+                RoundedRect.FillColor = PressedFillColor;
+            } else if (IsHovering) {
+                RoundedRect.FillColor = HoverFillColor;
             } else if (IsKeyboardFocused) {
-                roundedRect.FillColor = FocusedFillColor;
+                RoundedRect.FillColor = FocusedFillColor;
             } else {
-                roundedRect.FillColor = GetIdleFillColor();
+                RoundedRect.FillColor = GetIdleFillColor();
             }
         }
 
@@ -566,7 +566,7 @@ namespace helengine {
         /// Recomputes the shared corner radius from the current button size.
         /// </summary>
         void UpdateCornerRadius() {
-            CornerRadius = (float)(Math.Min((double)size.X, (double)size.Y) * 0.15d);
+            CornerRadius = (float)(Math.Min((double)SizeValue.X, (double)SizeValue.Y) * 0.15d);
         }
 
         /// <summary>
@@ -582,20 +582,20 @@ namespace helengine {
         /// Recomputes the label size and position for the current button bounds.
         /// </summary>
         void ApplyTextLayout() {
-            if (textEntity == null || textComponent == null) {
+            if (TextEntity == null || TextComponent == null) {
                 return;
             }
 
-            var tight = font.MeasureTight(text);
-            double lineHeight = Math.Max((double)font.LineHeight, 1d);
+            var tight = FontValue.MeasureTight(Text);
+            double lineHeight = Math.Max((double)FontValue.LineHeight, 1d);
 
-            double px = ((double)size.X - tight.Width) / 2d;
-            double py = ((double)size.Y - lineHeight) / 2d;
+            double px = ((double)SizeValue.X - tight.Width) / 2d;
+            double py = ((double)SizeValue.Y - lineHeight) / 2d;
             px = Math.Round(px);
             py = Math.Round(py);
 
-            textEntity.Position = new float3((float)px, (float)py, 0.1f);
-            textComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
+            TextEntity.Position = new float3((float)px, (float)py, 0.1f);
+            TextComponent.Size = new int2((int)Math.Ceiling(tight.Width), (int)Math.Ceiling(lineHeight));
         }
     }
 }
