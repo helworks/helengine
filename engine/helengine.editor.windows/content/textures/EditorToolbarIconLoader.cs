@@ -117,6 +117,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Resolves the absolute path of the title-bar icon PNG so hosts can reuse it for the native window icon.
+        /// </summary>
+        /// <param name="applicationRootPath">Absolute application root path used to resolve built-in editor content.</param>
+        /// <returns>Absolute path to the title-bar icon PNG.</returns>
+        public static string GetTitleBarIconPath(string applicationRootPath) {
+            return ResolveApplicationContentPath(applicationRootPath, TitleBarIconPath);
+        }
+
+        /// <summary>
         /// Loads one PNG file from disk and uploads it into the active 2D renderer.
         /// </summary>
         /// <param name="content">Content manager used to decode the PNG data.</param>

@@ -80,6 +80,10 @@ namespace helengine.editor.app {
         /// Controller that resolves persisted editor UI scale settings against the current monitor DPI.
         /// </summary>
         EditorUiScaleController uiScaleController;
+        /// <summary>
+        /// Native window icon built from the same PNG the editor title bar draws; owned and disposed by this form.
+        /// </summary>
+        Icon windowIcon;
 
         /// <summary>
         /// Gets a value indicating whether border-resize behavior remains enabled for the current window state.
@@ -141,6 +145,22 @@ namespace helengine.editor.app {
             InitializeComponent();
             ControlBox = false;
             FormBorderStyle = FormBorderStyle.None;
+            ApplyWindowIcon();
+        }
+
+        /// <summary>
+        /// Assigns the native window icon from the title-bar PNG so the taskbar and task switcher match the in-editor title bar.
+        /// </summary>
+        void ApplyWindowIcon() {
+            string iconPath = EditorToolbarIconLoader.GetTitleBarIconPath(AppContext.BaseDirectory);
+            try {
+                byte[] icoBytes = EditorWindowIconBuilder.BuildIconFromPng(File.ReadAllBytes(iconPath));
+                using MemoryStream icoStream = new MemoryStream(icoBytes, false);
+                windowIcon = new Icon(icoStream);
+                Icon = windowIcon;
+            } catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException) {
+                Logger.WriteWarning($"Failed to load the window icon from '{iconPath}': {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -584,6 +604,12 @@ namespace helengine.editor.app {
             editorSession.CloseRequested -= HandleEditorSessionCloseRequested;
             editorSession.PreferencesChanged -= HandleEditorPreferencesChanged;
             editorSession.Dispose();
+
+            if (windowIcon != null) {
+                Icon = null;
+                windowIcon.Dispose();
+                windowIcon = null;
+            }
         }
 
         /// <summary>
