@@ -5,6 +5,21 @@ namespace helengine.core.tests.serialization {
     /// Verifies the shared header-write, header-read, already-decoded-header validation, and strict version-validation ceremony used by the engine's versioned HELE binary payload serializers.
     /// </summary>
     public sealed class VersionedBinaryPayloadTests {
+        /// <summary>
+        /// Ensures each helper that returns a stream-backed reader or writer leaves its stream parameter eligible for the returned wrapper to retain.
+        /// </summary>
+        [Theory]
+        [InlineData("WriteHeader")]
+        [InlineData("ReadHeader")]
+        [InlineData("ReadHeaderWithDispatchedValueKind")]
+        [InlineData("ValidateHeader")]
+        [InlineData("ValidateHeaderWithDispatchedValueKind")]
+        public void ReturnedStreamWrapperMethods_DoNotDeclareStreamNoEscape(string methodName) {
+            System.Reflection.ParameterInfo stream = typeof(VersionedBinaryPayload).GetMethod(methodName).GetParameters()[0];
+
+            Assert.Empty(stream.GetCustomAttributes(typeof(NativeNoEscapeAttribute), false));
+        }
+
         [Fact]
         public void WriteHeader_ThenReadHeader_RoundTripsThePayload() {
             using MemoryStream stream = new MemoryStream();

@@ -109,20 +109,18 @@ namespace helengine {
             }
 
             MemoryStream stream = new MemoryStream(SerializedBytesValue, false);
-            EngineBinaryHeader header;
+            bool readerOwnsStream = false;
             try {
-                header = EngineBinaryHeaderSerializer.Read(stream);
-            } catch {
-                stream.Dispose();
-                throw;
-            }
-
-            try {
+                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 ValidateHeader(header, expectedBinaryFormatId, expectedVersion);
-                return EngineBinaryReader.CreateOwned(stream, header.Endianness);
-            } catch {
-                stream.Dispose();
-                throw;
+                EngineBinaryReader reader = EngineBinaryReader.CreateOwned(stream, header.Endianness);
+                readerOwnsStream = true;
+                stream = null;
+                return reader;
+            } finally {
+                if (!readerOwnsStream && stream != null) {
+                    stream.Dispose();
+                }
             }
         }
 

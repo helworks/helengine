@@ -14,7 +14,7 @@ namespace helengine {
         /// <param name="valueKind">Concrete value type stored in the payload.</param>
         /// <returns>Writer configured for the header's endianness, positioned immediately after the written header.</returns>
         public static EngineBinaryWriter WriteHeader(
-            [NativeNoEscape] Stream stream,
+            Stream stream,
             EngineBinaryEndianness endianness,
             byte version,
             ushort formatId,
@@ -44,7 +44,7 @@ namespace helengine {
         /// <param name="regenerateInstruction">Trailing guidance appended to the version mismatch message describing how to recover; ignored by <see cref="VersionedBinaryVersionMismatchStyle.ReceivedVersionOnly"/>.</param>
         /// <returns>Reader configured for the header's endianness, positioned immediately after the header.</returns>
         public static EngineBinaryReader ReadHeader(
-            [NativeNoEscape] Stream stream,
+            Stream stream,
             ushort expectedFormatId,
             ushort expectedRecordKind,
             ushort expectedValueKind,
@@ -88,7 +88,7 @@ namespace helengine {
         /// <param name="header">Receives the decoded and validated header so the caller can dispatch on its value kind.</param>
         /// <returns>Reader configured for the header's endianness, positioned immediately after the header.</returns>
         public static EngineBinaryReader ReadHeaderWithDispatchedValueKind(
-            [NativeNoEscape] Stream stream,
+            Stream stream,
             ushort expectedFormatId,
             ushort expectedRecordKind,
             byte expectedVersion,
@@ -132,7 +132,7 @@ namespace helengine {
         /// <param name="regenerateInstruction">Trailing guidance appended to the version mismatch message describing how to recover; ignored by <see cref="VersionedBinaryVersionMismatchStyle.ReceivedVersionOnly"/>.</param>
         /// <returns>Reader configured for the header's endianness, positioned at the payload body.</returns>
         public static EngineBinaryReader ValidateHeader(
-            [NativeNoEscape] Stream stream,
+            Stream stream,
             [NativeNoEscape] EngineBinaryHeader header,
             ushort expectedFormatId,
             ushort expectedRecordKind,
@@ -172,7 +172,7 @@ namespace helengine {
         /// <param name="regenerateInstruction">Trailing guidance appended to the version mismatch message describing how to recover; ignored by <see cref="VersionedBinaryVersionMismatchStyle.ReceivedVersionOnly"/>.</param>
         /// <returns>Reader configured for the header's endianness, positioned at the payload body.</returns>
         public static EngineBinaryReader ValidateHeaderWithDispatchedValueKind(
-            [NativeNoEscape] Stream stream,
+            Stream stream,
             [NativeNoEscape] EngineBinaryHeader header,
             ushort expectedFormatId,
             ushort expectedRecordKind,
