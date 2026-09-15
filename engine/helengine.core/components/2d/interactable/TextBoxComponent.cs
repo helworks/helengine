@@ -24,18 +24,18 @@ namespace helengine {
         /// </summary>
         const float ShakeFrequencyHz = 16f;
 
-        static TextBoxComponent focusedTextBox;
+        static TextBoxComponent FocusedTextBox;
         readonly TextBoxEditState EditState;
-        string placeholder = "";
-        FontAsset font;
-        int2 size;
-        bool isFocused;
-        bool cursorVisible = true;
-        double cursorBlinkElapsedSeconds;
-        bool hasRenderOrderOverrides;
-        byte backgroundRenderOrder;
-        byte textRenderOrder;
-        bool isInvalid;
+        string PlaceholderValue = "";
+        FontAsset FontValue;
+        int2 SizeValue;
+        bool IsFocusedValue;
+        bool CursorVisible = true;
+        double CursorBlinkElapsedSeconds;
+        bool HasRenderOrderOverrides;
+        byte BackgroundRenderOrder;
+        byte TextRenderOrder;
+        bool IsInvalid;
         /// <summary>
         /// True when the text box hides its border while it is neither focused nor invalid.
         /// </summary>
@@ -43,25 +43,25 @@ namespace helengine {
         /// <summary>
         /// Tracks whether the mouse is currently dragging a text selection inside the textbox.
         /// </summary>
-        bool isSelectingText;
-        bool isShakeActive;
-        float shakeElapsedSeconds;
-        float currentShakeOffsetX;
-        float3 shakeBaseLocalPosition;
+        bool IsSelectingText;
+        bool IsShakeActive;
+        float ShakeElapsedSeconds;
+        float CurrentShakeOffsetXValue;
+        float3 ShakeBaseLocalPosition;
 
         // Child components
-        RoundedRectComponent backgroundSprite;
+        RoundedRectComponent BackgroundSprite;
         /// <summary>
         /// Hosts the translucent rectangle used to visualize the active text selection.
         /// </summary>
-        Entity selectionEntity;
+        Entity SelectionEntity;
         /// <summary>
         /// Draws the active text-selection highlight behind the caret and glyphs.
         /// </summary>
-        RoundedRectComponent selectionSprite;
-        Entity textEntity;
-        TextComponent textComponent;
-        InteractableComponent interactableComponent;
+        RoundedRectComponent SelectionSprite;
+        Entity TextEntity;
+        TextComponent TextComponent;
+        InteractableComponent InteractableComponent;
 
         /// <summary>
         /// Raised when the text box submits its value.
@@ -96,7 +96,7 @@ namespace helengine {
         /// <summary>
         /// Gets whether this text box can currently receive keyboard focus.
         /// </summary>
-        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && interactableComponent != null;
+        public bool CanReceiveFocus => Parent != null && Parent.IsHierarchyEnabled && InteractableComponent != null;
 
         /// <summary>
         /// Gets or sets the text content.
@@ -117,9 +117,9 @@ namespace helengine {
         /// Gets or sets placeholder text shown when empty and not focused.
         /// </summary>
         public string Placeholder {
-            get { return placeholder; }
+            get { return PlaceholderValue; }
             set {
-                placeholder = value ?? "";
+                PlaceholderValue = value ?? "";
                 UpdateTextDisplay();
             }
         }
@@ -128,11 +128,11 @@ namespace helengine {
         /// Gets or sets the font used for rendering text.
         /// </summary>
         public FontAsset Font {
-            get { return font; }
+            get { return FontValue; }
             set {
-                font = value;
-                if (textComponent != null) {
-                    textComponent.Font = font;
+                FontValue = value;
+                if (TextComponent != null) {
+                    TextComponent.Font = FontValue;
                 }
 
                 UpdateTextLayout();
@@ -143,12 +143,12 @@ namespace helengine {
         /// Gets or sets the size of the text box.
         /// </summary>
         public int2 Size {
-            get { return size; }
+            get { return SizeValue; }
             set {
-                size = value;
-                if (backgroundSprite != null) backgroundSprite.Size = size;
-                if (interactableComponent != null) {
-                    interactableComponent.Size = size;
+                SizeValue = value;
+                if (BackgroundSprite != null) BackgroundSprite.Size = SizeValue;
+                if (InteractableComponent != null) {
+                    InteractableComponent.Size = SizeValue;
                 }
 
                 UpdateTextLayout();
@@ -159,7 +159,7 @@ namespace helengine {
         /// Gets or sets a value indicating whether the text box has input focus.
         /// </summary>
         public bool IsFocused {
-            get { return isFocused; }
+            get { return IsFocusedValue; }
             set { SetFocusedState(value, true); }
         }
 
@@ -178,7 +178,7 @@ namespace helengine {
         /// Gets the transient horizontal shake offset currently applied for invalid-input feedback.
         /// Layout systems can use this to preserve the shake during host relayout.
         /// </summary>
-        public float CurrentShakeOffsetX => currentShakeOffsetX;
+        public float CurrentShakeOffsetX => CurrentShakeOffsetXValue;
 
         /// <summary>
         /// Overrides the render order used for the textbox background and text.
@@ -186,16 +186,16 @@ namespace helengine {
         /// <param name="backgroundOrder">Render order for the textbox background.</param>
         /// <param name="textOrder">Render order for textbox text.</param>
         public void SetRenderOrders(byte backgroundOrder, byte textOrder) {
-            hasRenderOrderOverrides = true;
-            backgroundRenderOrder = backgroundOrder;
-            textRenderOrder = textOrder;
+            HasRenderOrderOverrides = true;
+            BackgroundRenderOrder = backgroundOrder;
+            TextRenderOrder = textOrder;
 
-            if (backgroundSprite != null) {
-                backgroundSprite.RenderOrder2D = backgroundOrder;
+            if (BackgroundSprite != null) {
+                BackgroundSprite.RenderOrder2D = backgroundOrder;
             }
 
-            if (textComponent != null) {
-                textComponent.RenderOrder2D = textOrder;
+            if (TextComponent != null) {
+                TextComponent.RenderOrder2D = textOrder;
             }
         }
 
@@ -204,7 +204,7 @@ namespace helengine {
         /// </summary>
         /// <param name="isInvalid">True when the text box should use the invalid border color.</param>
         public void SetInvalidState(bool isInvalid) {
-            this.isInvalid = isInvalid;
+            this.IsInvalid = isInvalid;
             UpdateFocusVisual();
         }
 
@@ -216,14 +216,14 @@ namespace helengine {
                 throw new InvalidOperationException("Text boxes must be attached to an entity before they can animate invalid-input feedback.");
             }
 
-            if (isShakeActive) {
-                Parent.LocalPosition = shakeBaseLocalPosition;
-                currentShakeOffsetX = 0f;
+            if (IsShakeActive) {
+                Parent.LocalPosition = ShakeBaseLocalPosition;
+                CurrentShakeOffsetXValue = 0f;
             }
 
-            shakeBaseLocalPosition = Parent.LocalPosition;
-            shakeElapsedSeconds = 0f;
-            isShakeActive = true;
+            ShakeBaseLocalPosition = Parent.LocalPosition;
+            ShakeElapsedSeconds = 0f;
+            IsShakeActive = true;
         }
 
         /// <summary>
@@ -233,9 +233,9 @@ namespace helengine {
         /// <param name="font">Font used to render text.</param>
         /// <param name="placeholder">Placeholder string.</param>
         public TextBoxComponent(int2 size, FontAsset font, string placeholder = "") {
-            this.size = size;
-            this.font = font;
-            this.placeholder = placeholder;
+            this.SizeValue = size;
+            this.FontValue = font;
+            this.PlaceholderValue = placeholder;
             EditState = new TextBoxEditState();
         }
 
@@ -248,67 +248,67 @@ namespace helengine {
 
             byte backgroundOrder = RenderOrder2D.PanelSurface;
             byte textOrder = RenderOrder2D.PanelForeground;
-            if (hasRenderOrderOverrides) {
-                backgroundOrder = backgroundRenderOrder;
-                textOrder = textRenderOrder;
+            if (HasRenderOrderOverrides) {
+                backgroundOrder = BackgroundRenderOrder;
+                textOrder = TextRenderOrder;
             }
 
             // Create rounded background
-            backgroundSprite = new RoundedRectComponent();
-            backgroundSprite.Size = size;
-            backgroundSprite.Radius = MathF.Min(size.X, size.Y) * 0.15f;
-            backgroundSprite.BorderThickness = 2f;
-            backgroundSprite.FillColor = ThemeManager.Colors.SurfaceInput;
-            backgroundSprite.BorderColor = ThemeManager.Colors.AccentTertiary;
-            backgroundSprite.RenderOrder2D = backgroundOrder;
-            entity.AddComponent(backgroundSprite);
+            BackgroundSprite = new RoundedRectComponent();
+            BackgroundSprite.Size = SizeValue;
+            BackgroundSprite.Radius = MathF.Min(SizeValue.X, SizeValue.Y) * 0.15f;
+            BackgroundSprite.BorderThickness = 2f;
+            BackgroundSprite.FillColor = ThemeManager.Colors.SurfaceInput;
+            BackgroundSprite.BorderColor = ThemeManager.Colors.AccentTertiary;
+            BackgroundSprite.RenderOrder2D = backgroundOrder;
+            entity.AddComponent(BackgroundSprite);
 
             // Create selection highlight so dragged text can be shown behind the caret and text.
-            selectionEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Text-box visuals require an owning core."));
-            selectionEntity.LayerMask = entity.LayerMask;
-            selectionEntity.Enabled = true;
-            selectionEntity.InitComponents();
+            SelectionEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Text-box visuals require an owning core."));
+            SelectionEntity.LayerMask = entity.LayerMask;
+            SelectionEntity.Enabled = true;
+            SelectionEntity.InitComponents();
             if (entity.Children == null) {
                 entity.InitChildren();
             }
 
-            entity.AddChild(selectionEntity);
+            entity.AddChild(SelectionEntity);
 
-            selectionSprite = new RoundedRectComponent();
-            selectionSprite.Radius = 2f;
-            selectionSprite.BorderThickness = 0f;
-            selectionSprite.FillColor = new byte4(
+            SelectionSprite = new RoundedRectComponent();
+            SelectionSprite.Radius = 2f;
+            SelectionSprite.BorderThickness = 0f;
+            SelectionSprite.FillColor = new byte4(
                 ThemeManager.Colors.AccentPrimary.X,
                 ThemeManager.Colors.AccentPrimary.Y,
                 ThemeManager.Colors.AccentPrimary.Z,
                 96);
-            selectionSprite.BorderColor = selectionSprite.FillColor;
-            selectionSprite.RenderOrder2D = textOrder;
-            selectionEntity.AddComponent(selectionSprite);
+            SelectionSprite.BorderColor = SelectionSprite.FillColor;
+            SelectionSprite.RenderOrder2D = textOrder;
+            SelectionEntity.AddComponent(SelectionSprite);
 
             // Create text component
-            textEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Text-box visuals require an owning core."));
-            textEntity.LayerMask = entity.LayerMask;
-            textEntity.Enabled = true;
-            textEntity.InitComponents();
+            TextEntity = new Entity(OwnerCore ?? throw new InvalidOperationException("Text-box visuals require an owning core."));
+            TextEntity.LayerMask = entity.LayerMask;
+            TextEntity.Enabled = true;
+            TextEntity.InitComponents();
             if (entity.Children == null) {
                 entity.InitChildren();
             }
 
-            entity.AddChild(textEntity);
+            entity.AddChild(TextEntity);
 
-            textComponent = new TextComponent();
-            textComponent.Font = font;
-            textComponent.Color = new byte4(255, 255, 255, 255);
-            textComponent.RenderOrder2D = textOrder;
-            textEntity.AddComponent(textComponent);
+            TextComponent = new TextComponent();
+            TextComponent.Font = FontValue;
+            TextComponent.Color = new byte4(255, 255, 255, 255);
+            TextComponent.RenderOrder2D = textOrder;
+            TextEntity.AddComponent(TextComponent);
 
             // Create interactable component for mouse clicks
-            interactableComponent = new InteractableComponent();
-            interactableComponent.HoverCursor = PointerCursorKind.Text;
-            interactableComponent.Size = size;
-            interactableComponent.CursorEvent += OnCursorEvent;
-            entity.AddComponent(interactableComponent);
+            InteractableComponent = new InteractableComponent();
+            InteractableComponent.HoverCursor = PointerCursorKind.Text;
+            InteractableComponent.Size = SizeValue;
+            InteractableComponent.CursorEvent += OnCursorEvent;
+            entity.AddComponent(InteractableComponent);
 
             // Create a custom update component for keyboard input
             var updateComponent = new TextBoxUpdateComponent(this);
@@ -324,18 +324,18 @@ namespace helengine {
         /// </summary>
         void OnCursorEvent(int2 relPos, int2 delta, PointerInteraction state) {
             if (state == PointerInteraction.Press) {
-                if (focusedTextBox != null && focusedTextBox != this) {
-                    focusedTextBox.IsFocused = false;
+                if (FocusedTextBox != null && FocusedTextBox != this) {
+                    FocusedTextBox.IsFocused = false;
                 }
                 IsFocused = true;
                 int cursorPosition = ResolveCursorPositionFromClick(relPos.X);
                 EditState.SetSelection(cursorPosition, cursorPosition);
-                isSelectingText = true;
+                IsSelectingText = true;
                 UpdateTextDisplay();
-            } else if (state == PointerInteraction.Hover && isSelectingText) {
+            } else if (state == PointerInteraction.Hover && IsSelectingText) {
 #if DESKTOP_PLATFORM
                 if (OwnerCore.Input.GetMouseLeftButtonState() != ButtonState.Pressed) {
-                    isSelectingText = false;
+                    IsSelectingText = false;
                 } else {
 #endif
                     EditState.SetSelection(EditState.SelectionAnchorPosition, ResolveCursorPositionFromClick(relPos.X));
@@ -345,7 +345,7 @@ namespace helengine {
 
                 UpdateTextDisplay();
             } else if (state == PointerInteraction.Release) {
-                isSelectingText = false;
+                IsSelectingText = false;
                 UpdateTextDisplay();
             }
         }
@@ -356,7 +356,7 @@ namespace helengine {
         public void Update() {
             UpdateShakeAnimation();
 
-            if (!isFocused) return;
+            if (!IsFocusedValue) return;
 
             Core core = OwnerCore;
             if (core == null) {
@@ -364,10 +364,10 @@ namespace helengine {
             }
 
             // Handle cursor blinking
-            cursorBlinkElapsedSeconds += core.DeltaTime;
-            if (cursorBlinkElapsedSeconds >= 0.5d) {
-                cursorVisible = !cursorVisible;
-                cursorBlinkElapsedSeconds = 0d;
+            CursorBlinkElapsedSeconds += core.DeltaTime;
+            if (CursorBlinkElapsedSeconds >= 0.5d) {
+                CursorVisible = !CursorVisible;
+                CursorBlinkElapsedSeconds = 0d;
                 UpdateTextDisplay();
             }
 
@@ -392,28 +392,28 @@ namespace helengine {
         /// Advances the short invalid-input shake effect and restores the original layout position when it finishes.
         /// </summary>
         void UpdateShakeAnimation() {
-            if (!isShakeActive || Parent == null) {
+            if (!IsShakeActive || Parent == null) {
                 return;
             }
 
-            shakeElapsedSeconds += EffectFrameDeltaSeconds;
-            if (shakeElapsedSeconds >= ShakeDurationSeconds) {
-                Parent.LocalPosition = shakeBaseLocalPosition;
-                currentShakeOffsetX = 0f;
-                isShakeActive = false;
+            ShakeElapsedSeconds += EffectFrameDeltaSeconds;
+            if (ShakeElapsedSeconds >= ShakeDurationSeconds) {
+                Parent.LocalPosition = ShakeBaseLocalPosition;
+                CurrentShakeOffsetXValue = 0f;
+                IsShakeActive = false;
                 return;
             }
 
-            double progress = shakeElapsedSeconds / ShakeDurationSeconds;
+            double progress = ShakeElapsedSeconds / ShakeDurationSeconds;
             double amplitude = ShakeAmplitudePixels * (1d - progress);
-            double angle = shakeElapsedSeconds * ShakeFrequencyHz * Math.PI * 2d;
+            double angle = ShakeElapsedSeconds * ShakeFrequencyHz * Math.PI * 2d;
             double offset = Math.Sin(angle) * amplitude;
 
-            currentShakeOffsetX = (float)offset;
+            CurrentShakeOffsetXValue = (float)offset;
             Parent.LocalPosition = new float3(
-                shakeBaseLocalPosition.X + currentShakeOffsetX,
-                shakeBaseLocalPosition.Y,
-                shakeBaseLocalPosition.Z);
+                ShakeBaseLocalPosition.X + CurrentShakeOffsetXValue,
+                ShakeBaseLocalPosition.Y,
+                ShakeBaseLocalPosition.Z);
         }
 
 #if DESKTOP_PLATFORM
@@ -614,25 +614,25 @@ namespace helengine {
         /// Updates displayed text, placeholder coloring, and cursor.
         /// </summary>
         void UpdateTextDisplay() {
-            if (textComponent == null) return;
+            if (TextComponent == null) return;
 
             // Display text or placeholder; hide placeholder when focused
-            bool showPlaceholder = string.IsNullOrEmpty(EditState.Text) && !isFocused;
-            string displayText = showPlaceholder ? placeholder : EditState.Text;
+            bool showPlaceholder = string.IsNullOrEmpty(EditState.Text) && !IsFocusedValue;
+            string displayText = showPlaceholder ? PlaceholderValue : EditState.Text;
 
             // Add cursor if focused and visible
-            if (isFocused && cursorVisible) {
+            if (IsFocusedValue && CursorVisible) {
                 int cursorIndex = Math.Max(0, Math.Min(EditState.CursorPosition, displayText.Length));
                 displayText = displayText.Insert(cursorIndex, "|");
             }
 
-            textComponent.Text = displayText;
+            TextComponent.Text = displayText;
 
             // Set color based on whether it's placeholder or real text
             if (showPlaceholder) {
-                textComponent.Color = new byte4(150, 150, 150, 255); // Gray for placeholder
+                TextComponent.Color = new byte4(150, 150, 150, 255); // Gray for placeholder
             } else {
-                textComponent.Color = new byte4(255, 255, 255, 255); // White for text
+                TextComponent.Color = new byte4(255, 255, 255, 255); // White for text
             }
 
             UpdateTextLayout();
@@ -696,15 +696,15 @@ namespace helengine {
         /// Positions the textbox text host with shared left padding and vertically centers it using the font line height.
         /// </summary>
         void UpdateTextLayout() {
-            if (textEntity == null || textComponent == null || font == null) {
+            if (TextEntity == null || TextComponent == null || FontValue == null) {
                 return;
             }
 
-            double lineHeight = Math.Max((double)font.LineHeight, 1.0);
-            double textY = Math.Round((size.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
-            FontTightMetrics textMetrics = font.MeasureTight(textComponent.Text);
-            textEntity.Position = new float3(TextPaddingX, (float)textY, 0.1f);
-            textComponent.Size = new int2(
+            double lineHeight = Math.Max((double)FontValue.LineHeight, 1.0);
+            double textY = Math.Round((SizeValue.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
+            FontTightMetrics textMetrics = FontValue.MeasureTight(TextComponent.Text);
+            TextEntity.Position = new float3(TextPaddingX, (float)textY, 0.1f);
+            TextComponent.Size = new int2(
                 (int)Math.Ceiling(textMetrics.Width),
                 (int)Math.Ceiling(lineHeight));
             UpdateSelectionVisual(textY, lineHeight);
@@ -717,12 +717,12 @@ namespace helengine {
         public override void ParentEnabledChange(bool newEnabled) {
             base.ParentEnabledChange(newEnabled);
 
-            if (!newEnabled && isFocused) {
+            if (!newEnabled && IsFocusedValue) {
                 IsFocused = false;
             }
 
-            if (textEntity != null) {
-                textEntity.Enabled = newEnabled;
+            if (TextEntity != null) {
+                TextEntity.Enabled = newEnabled;
             }
         }
 
@@ -748,9 +748,9 @@ namespace helengine {
 
             float3 worldPosition = Parent.Position;
             return x >= worldPosition.X &&
-                   x < worldPosition.X + size.X &&
+                   x < worldPosition.X + SizeValue.X &&
                    y >= worldPosition.Y &&
-                   y < worldPosition.Y + size.Y;
+                   y < worldPosition.Y + SizeValue.Y;
         }
 
         /// <summary>
@@ -776,7 +776,7 @@ namespace helengine {
         /// </summary>
         /// <param name="key">Activation key routed to the text box.</param>
         public void ActivateFromKey(Keys key) {
-            if (!CanActivateWithKey(key) || !isFocused) {
+            if (!CanActivateWithKey(key) || !IsFocusedValue) {
                 return;
             }
 
@@ -790,9 +790,9 @@ namespace helengine {
         /// <param name="value">Focused state to apply.</param>
         /// <param name="submitOnBlur">True when losing focus should submit the text value.</param>
         void SetFocusedState(bool value, bool submitOnBlur) {
-            if (isFocused == value) {
+            if (IsFocusedValue == value) {
                 if (!value) {
-                    isSelectingText = false;
+                    IsSelectingText = false;
                     EditState.ClearSelection();
                     UpdateSelectionVisual();
                 }
@@ -800,22 +800,22 @@ namespace helengine {
                 return;
             }
 
-            isFocused = value;
-            if (isFocused) {
+            IsFocusedValue = value;
+            if (IsFocusedValue) {
                 EditState.SetCursorToEnd();
-                focusedTextBox = this;
-            } else if (focusedTextBox == this) {
-                focusedTextBox = null;
-                isSelectingText = false;
+                FocusedTextBox = this;
+            } else if (FocusedTextBox == this) {
+                FocusedTextBox = null;
+                IsSelectingText = false;
                 EditState.ClearSelection();
             }
 
-            cursorVisible = true;
-            cursorBlinkElapsedSeconds = 0d;
+            CursorVisible = true;
+            CursorBlinkElapsedSeconds = 0d;
             UpdateTextDisplay();
             UpdateFocusVisual();
-            FocusChanged?.Invoke(this, isFocused);
-            if (!isFocused && submitOnBlur) {
+            FocusChanged?.Invoke(this, IsFocusedValue);
+            if (!IsFocusedValue && submitOnBlur) {
                 Submitted?.Invoke(this);
             }
         }
@@ -824,18 +824,18 @@ namespace helengine {
         /// Updates the text-box outline to reflect whether it currently has keyboard focus.
         /// </summary>
         void UpdateFocusVisual() {
-            if (backgroundSprite == null) {
+            if (BackgroundSprite == null) {
                 return;
             }
 
-            backgroundSprite.BorderThickness = UseFocusedBorderOnlyValue && !isFocused && !isInvalid ? 0f : 2f;
+            BackgroundSprite.BorderThickness = UseFocusedBorderOnlyValue && !IsFocusedValue && !IsInvalid ? 0f : 2f;
 
-            if (isInvalid) {
-                backgroundSprite.BorderColor = ThemeManager.Colors.StateDanger;
+            if (IsInvalid) {
+                BackgroundSprite.BorderColor = ThemeManager.Colors.StateDanger;
                 return;
             }
 
-            backgroundSprite.BorderColor = isFocused
+            BackgroundSprite.BorderColor = IsFocusedValue
                 ? ThemeManager.Colors.AccentPrimary
                 : ThemeManager.Colors.AccentTertiary;
         }
@@ -846,31 +846,31 @@ namespace helengine {
         /// <param name="textY">Vertical offset used for the textbox text host.</param>
         /// <param name="lineHeight">Current text line height.</param>
         void UpdateSelectionVisual(double textY, double lineHeight) {
-            if (selectionEntity == null || selectionSprite == null || font == null) {
+            if (SelectionEntity == null || SelectionSprite == null || FontValue == null) {
                 return;
             }
 
-            if (!isFocused || !EditState.HasSelection || string.IsNullOrEmpty(EditState.Text)) {
-                selectionSprite.Size = new int2(0, 0);
-                selectionSprite.FillColor = new byte4(
+            if (!IsFocusedValue || !EditState.HasSelection || string.IsNullOrEmpty(EditState.Text)) {
+                SelectionSprite.Size = new int2(0, 0);
+                SelectionSprite.FillColor = new byte4(
                     ThemeManager.Colors.AccentPrimary.X,
                     ThemeManager.Colors.AccentPrimary.Y,
                     ThemeManager.Colors.AccentPrimary.Z,
                     0);
-                selectionEntity.Position = new float3(TextPaddingX, (float)textY, 0.05f);
+                SelectionEntity.Position = new float3(TextPaddingX, (float)textY, 0.05f);
                 return;
             }
 
             double selectionStartX = ResolveTextWidth(0, EditState.SelectionStart);
             double selectionWidth = ResolveTextWidth(EditState.SelectionStart, EditState.SelectionEnd);
-            selectionEntity.Position = new float3(
+            SelectionEntity.Position = new float3(
                 TextPaddingX + (float)selectionStartX,
                 (float)textY,
                 0.05f);
-            selectionSprite.Size = new int2(
+            SelectionSprite.Size = new int2(
                 (int)Math.Ceiling(selectionWidth),
                 (int)Math.Ceiling(lineHeight));
-            selectionSprite.FillColor = new byte4(
+            SelectionSprite.FillColor = new byte4(
                 ThemeManager.Colors.AccentPrimary.X,
                 ThemeManager.Colors.AccentPrimary.Y,
                 ThemeManager.Colors.AccentPrimary.Z,
@@ -881,12 +881,12 @@ namespace helengine {
         /// Updates the selection highlight using the current text layout metrics.
         /// </summary>
         void UpdateSelectionVisual() {
-            if (font == null) {
+            if (FontValue == null) {
                 return;
             }
 
-            double lineHeight = Math.Max((double)font.LineHeight, 1.0);
-            double textY = Math.Round((size.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
+            double lineHeight = Math.Max((double)FontValue.LineHeight, 1.0);
+            double textY = Math.Round((SizeValue.Y - lineHeight) / 2.0, MidpointRounding.AwayFromZero);
             UpdateSelectionVisual(textY, lineHeight);
         }
 
@@ -917,24 +917,24 @@ namespace helengine {
     /// Helper update component that forwards updates to its owning text box.
     /// </summary>
     class TextBoxUpdateComponent : UpdateComponent {
-        TextBoxComponent textBox;
+        TextBoxComponent TextBox;
 
         /// <summary>
         /// Creates a forwarding update component for the given text box.
         /// </summary>
         /// <param name="textBox">Text box to drive.</param>
         public TextBoxUpdateComponent(TextBoxComponent textBox) {
-            this.textBox = textBox;
+            this.TextBox = textBox;
         }
 
         /// <summary>
         /// Forwards update calls to the text box.
         /// </summary>
         public override void Update() {
-            textBox.Update();
+            TextBox.Update();
 
 #if DESKTOP_PLATFORM
-            if (!textBox.IsFocused) {
+            if (!TextBox.IsFocused) {
                 return;
             }
 
@@ -945,8 +945,8 @@ namespace helengine {
 
             int pointerX = input.GetMouseX();
             int pointerY = input.GetMouseY();
-            if (!textBox.ContainsScreenPoint(pointerX, pointerY)) {
-                textBox.IsFocused = false;
+            if (!TextBox.ContainsScreenPoint(pointerX, pointerY)) {
+                TextBox.IsFocused = false;
             }
 #endif
         }
