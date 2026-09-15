@@ -76,6 +76,11 @@ namespace helengine.directx11 {
         /// Tracks whether the released-font-atlas skip diagnostic was already logged this session.
         /// </summary>
         bool hasLoggedReleasedFontAtlasSkip;
+        /// <summary>
+        /// Computes CPU-side boundary and tile geometry for the rounded-rect nine-slice and
+        /// procedural-geometry rendering paths.
+        /// </summary>
+        readonly RoundedRectGeometryBuilder RoundedRectGeometryBuilder;
 
         /// <summary>
         /// Initializes the 2D renderer and builds the required GPU resources.
@@ -86,6 +91,7 @@ namespace helengine.directx11 {
             Device = parentRenderer.Device;
             ClipScissorStack = new DirectX11ClipScissorStack(Device);
             ActiveTextureSlots = new List<int>();
+            RoundedRectGeometryBuilder = new RoundedRectGeometryBuilder();
 
             InitializeSpritePipeline();
 
@@ -795,12 +801,6 @@ namespace helengine.directx11 {
             float w = shape.Size.X;
             float h = shape.Size.Y;
             int s = atlas.CornerSize;
-            int lw = s;
-            int rw = s;
-            int mw = Math.Max(1, (int)w - lw - rw);
-            int th = s;
-            int bh = s;
-            int mh = Math.Max(1, (int)h - th - bh);
 
             float4x4 transposedWorld;
             float4x4.Transpose(ref projectionMatrix2D, out transposedWorld);
@@ -812,46 +812,33 @@ namespace helengine.directx11 {
             context.VertexShader.SetConstantBuffer(0, spriteConstantBuffer);
             context.PixelShader.SetConstantBuffer(0, spriteConstantBuffer);
 
-            void DrawTile(int idx, float dx, float dy, float dw, float dh) {
-                var uv = atlas.FillUv[idx];
-                shaderData.sourceRect = uv;
-                shaderData.destRect = new float4(dx, dy, dw, dh);
-                context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
-                context.Draw(4, 0);
-                parentRenderer.IncrementDrawCalls(1);
+            float4[] tileRects = RoundedRectGeometryBuilder.BuildNineSliceTileRects(x, y, w, h, s);
+            for (int tileIndex = 0; tileIndex < tileRects.Length; tileIndex++) {
+                DrawNineSliceTile(context, ref shaderData, atlas.FillUv[tileIndex], tileRects[tileIndex]);
             }
-
-            DrawTile(0, x, y, lw, th);
-            DrawTile(1, x + lw, y, mw, th);
-            DrawTile(2, x + lw + mw, y, rw, th);
-            DrawTile(3, x, y + th, lw, mh);
-            DrawTile(4, x + lw, y + th, mw, mh);
-            DrawTile(5, x + lw + mw, y + th, rw, mh);
-            DrawTile(6, x, y + th + mh, lw, bh);
-            DrawTile(7, x + lw, y + th + mh, mw, bh);
-            DrawTile(8, x + lw + mw, y + th + mh, rw, bh);
 
             if (shape.BorderThickness > 0) {
                 shaderData.color = new float4(shape.BorderColor.X / 255f, shape.BorderColor.Y / 255f, shape.BorderColor.Z / 255f, shape.BorderColor.W / 255f);
-                void DrawBorderTile(int idx, float dx, float dy, float dw, float dh) {
-                    var uv = atlas.BorderUv[idx];
-                    shaderData.sourceRect = uv;
-                    shaderData.destRect = new float4(dx, dy, dw, dh);
-                    context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
-                    context.Draw(4, 0);
-                    parentRenderer.IncrementDrawCalls(1);
+                for (int tileIndex = 0; tileIndex < tileRects.Length; tileIndex++) {
+                    DrawNineSliceTile(context, ref shaderData, atlas.BorderUv[tileIndex], tileRects[tileIndex]);
                 }
-
-                DrawBorderTile(0, x, y, lw, th);
-                DrawBorderTile(1, x + lw, y, mw, th);
-                DrawBorderTile(2, x + lw + mw, y, rw, th);
-                DrawBorderTile(3, x, y + th, lw, mh);
-                DrawBorderTile(4, x + lw, y + th, mw, mh);
-                DrawBorderTile(5, x + lw + mw, y + th, rw, mh);
-                DrawBorderTile(6, x, y + th + mh, lw, bh);
-                DrawBorderTile(7, x + lw, y + th + mh, mw, bh);
-                DrawBorderTile(8, x + lw + mw, y + th + mh, rw, bh);
             }
+        }
+
+        /// <summary>
+        /// Draws a single nine-slice tile quad, sourcing pixels from the given atlas UV rectangle
+        /// and mapping them to the given destination rectangle.
+        /// </summary>
+        /// <param name="context">Immediate device context to issue the draw call on.</param>
+        /// <param name="shaderData">Shader constant data reused across tile draws; its source and destination rectangles are overwritten before each draw.</param>
+        /// <param name="sourceUv">Source UV rectangle within the atlas texture.</param>
+        /// <param name="destinationRect">Destination rectangle, in shape-local pixel space.</param>
+        void DrawNineSliceTile(DeviceContext context, ref SpriteShaderData shaderData, float4 sourceUv, float4 destinationRect) {
+            shaderData.sourceRect = sourceUv;
+            shaderData.destRect = destinationRect;
+            context.UpdateSubresource(ref shaderData, spriteConstantBuffer);
+            context.Draw(4, 0);
+            parentRenderer.IncrementDrawCalls(1);
         }
 
         /// <summary>
@@ -905,69 +892,15 @@ namespace helengine.directx11 {
             float cx = pos.X + w * 0.5f;
             float cy = pos.Y + h * 0.5f;
 
-            void WriteVertex(float x, float y) {
-                var v = new VertexPositionUV(new float3(x, y, 0), new float2(0, 0));
-                Utilities.Write(ptr, ref v);
-                ptr += Utilities.SizeOf<VertexPositionUV>();
-            }
-
-            void OuterAt(float angle, out float ox, out float oy) {
-                float x = MathF.Cos(angle);
-                float y = MathF.Sin(angle);
-                ox = MathF.Sign(x) * MathF.Max(MathF.Abs(w * 0.5f - r), MathF.Abs(w * 0.5f * x)) + cx;
-                oy = MathF.Sign(y) * MathF.Max(MathF.Abs(h * 0.5f - r), MathF.Abs(h * 0.5f * y)) + cy;
-                if (MathF.Abs(ox - cx) > (w * 0.5f - r) && MathF.Abs(oy - cy) > (h * 0.5f - r)) {
-                    float cornerCx = cx + MathF.Sign(x) * (w * 0.5f - r);
-                    float cornerCy = cy + MathF.Sign(y) * (h * 0.5f - r);
-                    ox = cornerCx + r * MathF.Sign(x) * MathF.Abs(x);
-                    oy = cornerCy + r * MathF.Sign(y) * MathF.Abs(y);
-                }
-            }
-
-            void InnerAt(float angle, float ir, float iw, float ih, out float ix, out float iy) {
-                float x = MathF.Cos(angle);
-                float y = MathF.Sin(angle);
-                float icx = cx;
-                float icy = cy;
-                ix = MathF.Sign(x) * MathF.Max(MathF.Abs(iw * 0.5f - ir), MathF.Abs(iw * 0.5f * x)) + icx;
-                iy = MathF.Sign(y) * MathF.Max(MathF.Abs(ih * 0.5f - ir), MathF.Abs(ih * 0.5f * y)) + icy;
-                if (MathF.Abs(ix - icx) > (iw * 0.5f - ir) && MathF.Abs(iy - icy) > (ih * 0.5f - ir)) {
-                    float cornerCx2 = icx + MathF.Sign(x) * (iw * 0.5f - ir);
-                    float cornerCy2 = icy + MathF.Sign(y) * (ih * 0.5f - ir);
-                    ix = cornerCx2 + ir * MathF.Sign(x) * MathF.Abs(x);
-                    iy = cornerCy2 + ir * MathF.Sign(y) * MathF.Abs(y);
-                }
-            }
-
-            for (int i = 0; i < steps; i++) {
-                float a0 = (i / (float)steps) * MathF.PI * 2.0f;
-                float a1 = ((i + 1) % steps) / (float)steps * MathF.PI * 2.0f;
-                OuterAt(a0, out float ox0, out float oy0);
-                OuterAt(a1, out float ox1, out float oy1);
-                WriteVertex(cx, cy);
-                WriteVertex(ox0, oy0);
-                WriteVertex(ox1, oy1);
-            }
+            float2[] fillPoints = RoundedRectGeometryBuilder.BuildFillRingVertices(steps, w, h, r, cx, cy);
+            WriteGeometryVertices(fillPoints, ref ptr);
 
             if (shape.BorderThickness > 0) {
                 float ir = Math.Max(0, r - shape.BorderThickness);
                 float iw = Math.Max(0, w - shape.BorderThickness * 2);
                 float ih = Math.Max(0, h - shape.BorderThickness * 2);
-                for (int i = 0; i < steps; i++) {
-                    float a0 = (i / (float)steps) * MathF.PI * 2.0f;
-                    float a1 = ((i + 1) % steps) / (float)steps * MathF.PI * 2.0f;
-                    OuterAt(a0, out float ox0, out float oy0);
-                    OuterAt(a1, out float ox1, out float oy1);
-                    InnerAt(a0, ir, iw, ih, out float ix0, out float iy0);
-                    InnerAt(a1, ir, iw, ih, out float ix1, out float iy1);
-
-                    WriteVertex(ox0, oy0);
-                    WriteVertex(ox1, oy1);
-                    WriteVertex(ix1, iy1);
-                    WriteVertex(ox0, oy0);
-                    WriteVertex(ix1, iy1);
-                    WriteVertex(ix0, iy0);
-                }
+                float2[] borderPoints = RoundedRectGeometryBuilder.BuildBorderRingVertices(steps, w, h, r, iw, ih, ir, cx, cy);
+                WriteGeometryVertices(borderPoints, ref ptr);
             }
 
             context.UnmapSubresource(geometryVertexBuffer, 0);
@@ -1004,6 +937,21 @@ namespace helengine.directx11 {
                 context.UpdateSubresource(ref colorData, basicColorConstantBuffer);
                 context.Draw(borderVerts, fillVerts);
                 parentRenderer.IncrementDrawCalls(1);
+            }
+        }
+
+        /// <summary>
+        /// Writes each vertex position in the given array to the mapped geometry vertex buffer at
+        /// the given pointer, advancing the pointer past each written vertex. UV coordinates are
+        /// left at zero, since the procedural-geometry rendering path is a solid-color fill.
+        /// </summary>
+        /// <param name="points">Vertex positions to write, in the order they should appear in the vertex buffer.</param>
+        /// <param name="ptr">Pointer into the mapped vertex buffer; advanced by one vertex per written point.</param>
+        void WriteGeometryVertices(float2[] points, ref IntPtr ptr) {
+            for (int i = 0; i < points.Length; i++) {
+                var vertex = new VertexPositionUV(new float3(points[i].X, points[i].Y, 0), new float2(0, 0));
+                Utilities.Write(ptr, ref vertex);
+                ptr += Utilities.SizeOf<VertexPositionUV>();
             }
         }
 
