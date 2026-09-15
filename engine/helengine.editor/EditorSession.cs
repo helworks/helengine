@@ -1057,12 +1057,16 @@ namespace helengine.editor {
             ConstructionCheckpointForTests?.Invoke("after-shader-package-initialized");
             RegisterDetacher(constructionLedger, () => shaderModuleManager.ShaderBuilt -= HandleShaderBuilt);
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
+            EditorBootTimeline.Mark("finalization: shader module manager and package service");
             shaderModuleManager.Start();
+            EditorBootTimeline.Mark("finalization: shader module manager start");
             BuildStartScene();
             RefreshHierarchy();
+            EditorBootTimeline.Mark("finalization: start scene and hierarchy");
 
             UpdateLayout(renderWidth, renderHeight);
             PromptForPlatformSelectionIfRequired();
+            EditorBootTimeline.Mark("finalization: layout and platform prompt");
             ConstructionCheckpointForTests?.Invoke("late");
             EditorBootTimeline.Mark("session finalization");
             ConstructionCompleted = true;

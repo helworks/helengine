@@ -1485,9 +1485,19 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         /// <summary>Reads a regular-file leaf through a verified handle.</summary>
         internal static byte[] ReadAllBytes(string projectRootPath, string filePath) {
             string fullPath = Path.GetFullPath(filePath);
-            using EditorAuthoringMutationScope scope = AcquireForMutation(
-                projectRootPath,
-                Path.GetDirectoryName(fullPath));
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            // An active read batch keeps one verified scope per directory, so bulk reads such as the
+            // boot-time identity reconcile do not re-verify the directory chain for every file.
+            EditorAuthoringMutationScope batchScope = EditorAuthoringReadBatch.TryGetScope(projectRootPath, directoryPath);
+            if (batchScope != null) {
+                return ReadAllBytes(batchScope, fullPath);
+            }
+
+            using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, directoryPath);
+            return ReadAllBytes(scope, fullPath);
+        }
+
+        static byte[] ReadAllBytes(EditorAuthoringMutationScope scope, string fullPath) {
             using EditorAuthoringVerifiedFile file = scope.OpenVerifiedFile(
                 fullPath,
                 FileMode.Open,

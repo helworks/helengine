@@ -253,6 +253,8 @@ namespace helengine.editor {
                 ValidateNoReparseTraversal(AssetsRootPath);
 
                 MissingMetadataPaths.Clear();
+                // One verified scope per directory for the whole read pass; released before repairs write.
+                EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(ProjectRootPath);
                 List<string> sourcePaths = FileCatalog.EnumerateFiles(AssetsRootPath)
                     .Select(Path.GetFullPath)
                     .OrderBy(path => NormalizeRelativePath(path), PathComparer)
@@ -261,6 +263,7 @@ namespace helengine.editor {
                 List<EditorAssetIdentityEntry> loadedEntries = new List<EditorAssetIdentityEntry>();
                 Dictionary<string, AssetIdentityMetadataDocument> documentsByPath = new Dictionary<string, AssetIdentityMetadataDocument>(PathComparer);
                 List<PendingIdentityRepair> pendingRepairs = new List<PendingIdentityRepair>();
+                try {
                 for (int index = 0; index < sourcePaths.Count; index++) {
                     string fullPath = sourcePaths[index];
                     ValidateNoReparseTraversal(fullPath);
@@ -287,6 +290,9 @@ namespace helengine.editor {
                                 "Created missing external asset identity metadata.")));
                     }
                     loadedEntries.Add(CreateEntry(fullPath, document));
+                }
+                } finally {
+                    readBatch.Dispose();
                 }
 
                 Dictionary<string, List<EditorAssetIdentityEntry>> duplicateGroups = GroupByCurrentAssetId(loadedEntries);

@@ -345,7 +345,10 @@ namespace helengine.editor {
         void InitializeObservedState() {
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
             LastObservedGeneration = 0;
-            ReconcileIfGenerationChanged();
+            // Replaying the full change log re-hashes every recorded path; share verified scopes across it.
+            using (EditorAuthoringReadBatch.Begin(ProjectRootPath)) {
+                ReconcileIfGenerationChanged();
+            }
             long currentGeneration = ChangeLog.CurrentGeneration;
             if (currentGeneration > LastObservedGeneration) {
                 LastObservedGeneration = currentGeneration;
