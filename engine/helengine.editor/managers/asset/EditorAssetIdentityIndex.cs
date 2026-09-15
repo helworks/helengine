@@ -242,8 +242,15 @@ namespace helengine.editor {
         /// <summary>
         /// Reconciles the current authored-file snapshot and rebuilds all lookup maps.
         /// </summary>
+        /// <summary>
+        /// Gets the write-log generation current when the last full reconcile began. Changes at or below it are
+        /// already reflected by the reconcile; only later ones need incremental registration.
+        /// </summary>
+        internal long ReconciledGeneration { get; private set; }
+
         void ReconcileCore() {
             EnsurePublicationAvailableUnderLock();
+            ReconciledGeneration = EditorProjectWriteGeneration.Read(ProjectRootPath);
             HashSet<string> previousMissingMetadataPaths = new HashSet<string>(MissingMetadataPaths, PathComparer);
             Dictionary<string, string> previousOwners = new Dictionary<string, string>(PreviousOwners, StringComparer.Ordinal);
             try {

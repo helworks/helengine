@@ -348,7 +348,7 @@ namespace helengine.editor {
             // The full change log replays on a fresh session; share verified scopes across it and
             // let stamp-validated cache entries stand rather than re-hashing every recorded path.
             using (EditorAuthoringReadBatch.Begin(ProjectRootPath)) {
-                ReconcileIfGenerationChanged(forceRehash: false);
+                ReconcileIfGenerationChanged(freshSession: true);
             }
             long currentGeneration = ChangeLog.CurrentGeneration;
             if (currentGeneration > LastObservedGeneration) {
@@ -957,6 +957,18 @@ namespace helengine.editor {
         void ValidateNoReparseTraversal(string fullPath) {
             string rootPath = Path.GetFullPath(AssetsRootPath);
             string currentPath = fullPath;
+            string containingDirectoryPath = Path.GetDirectoryName(Path.GetFullPath(fullPath));
+            string assetsPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!string.IsNullOrWhiteSpace(containingDirectoryPath)
+                && (string.Equals(containingDirectoryPath, rootPath, PathComparison) || containingDirectoryPath.StartsWith(assetsPrefix, PathComparison))
+                && EditorAuthoringReadBatch.TryPinDirectory(ProjectRootPath, containingDirectoryPath)) {
+                // The batch verified and pinned the directory chain with open handles; only the leaf remains.
+                if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
+                    throw new InvalidOperationException($"Native asset destination '{fullPath}' traverses a reparse point.");
+                }
+                return;
+            }
+
             while (true) {
                 if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
                     throw new InvalidOperationException($"Native asset destination '{fullPath}' traverses a reparse point.");
@@ -977,7 +989,15 @@ namespace helengine.editor {
         /// <summary>
         /// Reconciles one publication generation observed from another authoring session.
         /// </summary>
-        void ReconcileIfGenerationChanged(bool forceRehash = true) {
+        /// <summary>
+        /// Replays write changes published since the last observed generation.
+        /// </summary>
+        /// <param name="freshSession">
+        /// True on the first observation of a new session, when the identity index has just been reconciled from
+        /// disk: registration is then redundant and only the hash cache is brought up to date. False for live
+        /// replays, which also re-register paths and force a re-hash.
+        /// </param>
+        void ReconcileIfGenerationChanged(bool freshSession = false) {
             IReadOnlyList<EditorProjectWriteChange> changes = ChangeLog.ReadAfter(LastObservedGeneration);
             if (changes.Count == 0) {
                 return;
@@ -988,11 +1008,15 @@ namespace helengine.editor {
                 EditorProjectWriteChange change = changes[index];
                 string fullPath = ResolveDestination(change.RelativePath, out _);
                 ValidateNoReparseTraversal(fullPath);
+                // A change published after the index reconciled is not reflected yet, even on a fresh session.
+                bool alreadyReconciled = freshSession && change.Generation <= IdentityIndex.ReconciledGeneration;
                 if (File.Exists(fullPath) && classifier.IsAuthoredAsset(fullPath)) {
-                    bool metadataWasMissing = IdentityIndex.WasMetadataMissing(fullPath);
-                    IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
-                    if (metadataWasMissing) {
-                        IdentityIndex.MarkMetadataMissingUnderLock(fullPath);
+                    if (!alreadyReconciled) {
+                        bool metadataWasMissing = IdentityIndex.WasMetadataMissing(fullPath);
+                        IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
+                        if (metadataWasMissing) {
+                            IdentityIndex.MarkMetadataMissingUnderLock(fullPath);
+                        }
                     }
                     // Recompute the replayed path immediately instead of
                     // removing its cache entry and waiting for an arbitrary
@@ -1006,12 +1030,14 @@ namespace helengine.editor {
                     // The fresh-session pass over the whole log trusts the
                     // length and last-write stamp instead, so boot does not
                     // re-hash every asset ever written.
-                    if (forceRehash) {
+                    if (!alreadyReconciled) {
                         HashCache.InvalidateContentHash(fullPath);
                     }
                     HashCache.GetContentHash(fullPath);
                 } else {
-                    IdentityIndex.RemoveUnderLock(fullPath);
+                    if (!alreadyReconciled) {
+                        IdentityIndex.RemoveUnderLock(fullPath);
+                    }
                     HashCache.InvalidateContentHash(fullPath);
                 }
                 LastObservedGeneration = change.Generation;
