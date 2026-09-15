@@ -345,9 +345,10 @@ namespace helengine.editor {
         void InitializeObservedState() {
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
             LastObservedGeneration = 0;
-            // Replaying the full change log re-hashes every recorded path; share verified scopes across it.
+            // The full change log replays on a fresh session; share verified scopes across it and
+            // let stamp-validated cache entries stand rather than re-hashing every recorded path.
             using (EditorAuthoringReadBatch.Begin(ProjectRootPath)) {
-                ReconcileIfGenerationChanged();
+                ReconcileIfGenerationChanged(forceRehash: false);
             }
             long currentGeneration = ChangeLog.CurrentGeneration;
             if (currentGeneration > LastObservedGeneration) {
@@ -976,17 +977,18 @@ namespace helengine.editor {
         /// <summary>
         /// Reconciles one publication generation observed from another authoring session.
         /// </summary>
-        void ReconcileIfGenerationChanged() {
+        void ReconcileIfGenerationChanged(bool forceRehash = true) {
             IReadOnlyList<EditorProjectWriteChange> changes = ChangeLog.ReadAfter(LastObservedGeneration);
             if (changes.Count == 0) {
                 return;
             }
 
+            EditorAssetPathClassifier classifier = new EditorAssetPathClassifier(ProjectRootPath);
             for (int index = 0; index < changes.Count; index++) {
                 EditorProjectWriteChange change = changes[index];
                 string fullPath = ResolveDestination(change.RelativePath, out _);
                 ValidateNoReparseTraversal(fullPath);
-                if (File.Exists(fullPath) && new EditorAssetPathClassifier(ProjectRootPath).IsAuthoredAsset(fullPath)) {
+                if (File.Exists(fullPath) && classifier.IsAuthoredAsset(fullPath)) {
                     bool metadataWasMissing = IdentityIndex.WasMetadataMissing(fullPath);
                     IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
                     if (metadataWasMissing) {
@@ -998,7 +1000,15 @@ namespace helengine.editor {
                     // a prior publication before it reads every generated
                     // output; retaining the complete cache document is part
                     // of deterministic no-op authoring.
-                    HashCache.InvalidateContentHash(fullPath);
+                    //
+                    // A live replay forces the re-hash because another session
+                    // may have rewritten the file within the stamp resolution.
+                    // The fresh-session pass over the whole log trusts the
+                    // length and last-write stamp instead, so boot does not
+                    // re-hash every asset ever written.
+                    if (forceRehash) {
+                        HashCache.InvalidateContentHash(fullPath);
+                    }
                     HashCache.GetContentHash(fullPath);
                 } else {
                     IdentityIndex.RemoveUnderLock(fullPath);
