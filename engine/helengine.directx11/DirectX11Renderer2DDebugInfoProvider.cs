@@ -24,8 +24,8 @@ namespace helengine.directx11 {
         /// Appends 2D renderer debug information to the list.
         /// </summary>
         /// <param name="items">List to append debug entries to.</param>
-        public void AppendInfo(List<(string Key, string Value)> items) {
-            items.Add(("UI Backend", renderer.CurrentRoundedRectBackend.ToString()));
+        public void AppendInfo(List<DebugInfoEntry> items) {
+            items.Add(new DebugInfoEntry(Category, "UI Backend", renderer.CurrentRoundedRectBackend.ToString()));
         }
     }
 }

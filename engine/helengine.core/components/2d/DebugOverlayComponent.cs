@@ -109,17 +109,17 @@ namespace helengine {
                 return;
             }
 
-            var rows = DebugInfoRegistry.Snapshot();
+            List<DebugInfoEntry> rows = DebugInfoRegistry.Snapshot();
             StringBuilder sb = new StringBuilder(256);
             string current = string.Empty;
             float maxW = 0f;
             int lineCount = 0;
 
             for (int i = 0; i < rows.Count; i++) {
-                var row = rows[i];
-                string cat = row.Item1;
-                string key = row.Item2;
-                string value = row.Item3;
+                DebugInfoEntry row = rows[i];
+                string cat = row.Category;
+                string key = row.Key;
+                string value = row.Value;
                 if (cat != current) {
                     if (!string.IsNullOrEmpty(current)) {
                         sb.Append('\n');
