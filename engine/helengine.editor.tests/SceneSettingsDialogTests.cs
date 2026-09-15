@@ -85,8 +85,8 @@ namespace helengine.editor.tests {
         /// <param name="expectedBackgroundOrder">Expected render order for the textbox background.</param>
         /// <param name="expectedTextOrder">Expected render order for the textbox text.</param>
         void AssertTextBoxRenderOrders(TextBoxComponent textBox, byte expectedBackgroundOrder, byte expectedTextOrder) {
-            RoundedRectComponent backgroundSprite = GetNonPublicField<RoundedRectComponent>(textBox, "backgroundSprite");
-            TextComponent textComponent = GetNonPublicField<TextComponent>(textBox, "textComponent");
+            RoundedRectComponent backgroundSprite = GetNonPublicField<RoundedRectComponent>(textBox, "BackgroundSprite");
+            TextComponent textComponent = GetNonPublicField<TextComponent>(textBox, "TextComponent");
 
             Assert.Equal(expectedBackgroundOrder, backgroundSprite.RenderOrder2D);
             Assert.Equal(expectedTextOrder, textComponent.RenderOrder2D);
