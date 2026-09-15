@@ -87,7 +87,10 @@ namespace helengine.editor {
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
-            bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(platformDefinition, selectedCodegenOptionValues);
+            bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(
+                platformDefinition,
+                codegenProfile,
+                selectedCodegenOptionValues);
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
 
             if (!File.Exists(helengineCoreProjectPath)) {
@@ -567,6 +570,25 @@ namespace helengine.editor {
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Determines shader regeneration from the profile defaults and editor overrides used by the actual codegen invocation.
+        /// </summary>
+        /// <param name="platformDefinition">Target platform definition being regenerated.</param>
+        /// <param name="codegenProfile">Active codegen profile whose defaults are forwarded to codegen.</param>
+        /// <param name="selectedCodegenOptionValues">Selected codegen option overrides.</param>
+        /// <returns>True when the effective codegen feature set requires shader runtime sources.</returns>
+        internal static bool ShouldRegenerateShaderProject(
+            PlatformDefinition platformDefinition,
+            PlatformCodegenProfileDefinition codegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            if (codegenProfile == null) {
+                throw new ArgumentNullException(nameof(codegenProfile));
+            }
+            return ShouldRegenerateShaderProject(
+                platformDefinition,
+                ResolveEffectiveCodegenOptionValues(codegenProfile, selectedCodegenOptionValues));
         }
 
         /// <summary>

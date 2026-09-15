@@ -604,6 +604,32 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures profile defaults are included when deciding whether the shader project is required.
+    /// </summary>
+    [Fact]
+    public void Should_regenerate_shader_project_honors_profile_default_forced_disabled_feature() {
+        PlatformDefinition definition = CreatePlatformDefinition("dc", runtimeGenerationContract: null);
+        PlatformCodegenProfileDefinition profile = new(
+            "default",
+            "Default",
+            "Default codegen profile",
+            PlatformCodegenLanguage.Cpp,
+            PlatformSerializationEndianness.LittleEndian,
+            [new(
+                PlatformCodegenSettingIds.ForcedDisabledFeatures,
+                "Forced Disabled Features",
+                PlatformSettingKind.Text,
+                "shaders",
+                true,
+                [])]);
+
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(
+            definition,
+            profile,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
     /// Ensures generated-core regeneration submits the shader runtime project without submitting the managed compiler project.
     /// </summary>
     [Fact]
