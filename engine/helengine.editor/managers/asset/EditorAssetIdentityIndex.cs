@@ -1162,13 +1162,8 @@ namespace helengine.editor {
             string rootPath = Path.GetFullPath(AssetsRootPath);
             string currentPath = Path.GetFullPath(fullPath);
             while (true) {
-                try {
-                    FileAttributes attributes = File.GetAttributes(currentPath);
-                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
-                        throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
-                    }
-                } catch (FileNotFoundException) {
-                } catch (DirectoryNotFoundException) {
+                if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
+                    throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
                 }
 
                 if (string.Equals(currentPath, rootPath, PathComparison)) {

@@ -3444,12 +3444,7 @@ namespace helengine.editor {
                     // pathname walk could follow a linked directory before
                     // its reparse point is observed.
                     EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(entryPath, projectRootPath);
-                    FileAttributes attributes;
-                    try {
-                        attributes = File.GetAttributes(entryPath);
-                    } catch (FileNotFoundException) {
-                        continue;
-                    } catch (DirectoryNotFoundException) {
+                    if (!EditorFileAttributesProbe.TryGetAttributes(entryPath, out FileAttributes attributes)) {
                         continue;
                     }
 

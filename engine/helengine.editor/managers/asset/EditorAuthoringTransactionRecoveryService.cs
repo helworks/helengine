@@ -713,10 +713,7 @@ namespace helengine.editor {
             }
 
             while (true) {
-                // FileInfo.Attributes reports an invalid marker for a missing path instead of
-                // throwing, so probing not-yet-created ancestors raises no exceptions.
-                FileAttributes attributes = new FileInfo(current).Attributes;
-                if ((int)attributes != -1 && (attributes & FileAttributes.ReparsePoint) != 0) {
+                if (EditorFileAttributesProbe.IsReparsePoint(current)) {
                     throw new InvalidDataException($"The authoring transaction path '{path}' traverses a reparse point.");
                 }
                 // Continue through the complete existing ancestor chain. A
