@@ -1,10 +1,20 @@
 using helengine;
+using System.Reflection;
 
 namespace helengine.core.tests.serialization {
     /// <summary>
     /// Verifies the shared header-write, header-read, already-decoded-header validation, and strict version-validation ceremony used by the engine's versioned HELE binary payload serializers.
     /// </summary>
     public sealed class VersionedBinaryPayloadTests {
+        [Fact]
+        public void StreamReturningEntryPoints_LeaveBorrowedStreamOwnershipToInference() {
+            AssertStreamOwnershipIsInferred(nameof(VersionedBinaryPayload.WriteHeader));
+            AssertStreamOwnershipIsInferred(nameof(VersionedBinaryPayload.ReadHeader));
+            AssertStreamOwnershipIsInferred(nameof(VersionedBinaryPayload.ReadHeaderWithDispatchedValueKind));
+            AssertStreamOwnershipIsInferred(nameof(VersionedBinaryPayload.ValidateHeader));
+            AssertStreamOwnershipIsInferred(nameof(VersionedBinaryPayload.ValidateHeaderWithDispatchedValueKind));
+        }
+
         [Fact]
         public void WriteHeader_ThenReadHeader_RoundTripsThePayload() {
             using MemoryStream stream = new MemoryStream();
@@ -26,6 +36,33 @@ namespace helengine.core.tests.serialization {
                 "Regenerate the test payload.");
 
             Assert.Equal(1234, reader.ReadInt32());
+        }
+
+        [Fact]
+        public void ReadHeader_ReturnedReaderRetainsBorrowedStreamWithoutClosingIt() {
+            using MemoryStream stream = new MemoryStream();
+            using (EngineBinaryWriter writer = VersionedBinaryPayload.WriteHeader(stream, EngineBinaryEndianness.LittleEndian, 3, 7, 11, 42)) {
+                writer.WriteInt32(2468);
+            }
+
+            stream.Position = 0;
+            EngineBinaryReader reader = VersionedBinaryPayload.ReadHeader(
+                stream,
+                7,
+                11,
+                42,
+                3,
+                "test payload",
+                "test payload",
+                "test payload",
+                VersionedBinaryVersionMismatchStyle.CurrentVersionSuffix,
+                "Regenerate the test payload.");
+
+            Assert.Equal(2468, reader.ReadInt32());
+            reader.Dispose();
+            Assert.True(stream.CanRead);
+            stream.Position = 0;
+            Assert.True(stream.Length > 0);
         }
 
         [Fact]
@@ -225,6 +262,17 @@ namespace helengine.core.tests.serialization {
 
             Assert.Equal((ushort)99, header.ValueKind);
             Assert.Equal(777, reader.ReadInt32());
+        }
+
+        static void AssertStreamOwnershipIsInferred(string methodName) {
+            MethodInfo method = typeof(VersionedBinaryPayload).GetMethod(
+                methodName,
+                BindingFlags.Public | BindingFlags.Static);
+
+            Assert.NotNull(method);
+            ParameterInfo stream = Assert.Single(method.GetParameters(), parameter => parameter.ParameterType == typeof(Stream));
+            Assert.False(stream.IsDefined(typeof(NativeNoEscapeAttribute), false));
+            Assert.False(stream.IsDefined(typeof(NativeRetainsBorrowAttribute), false));
         }
     }
 }
