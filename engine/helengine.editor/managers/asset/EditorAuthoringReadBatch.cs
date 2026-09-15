@@ -80,6 +80,17 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Pins a directory through the active batch, verifying and holding its whole chain once, so callers can
+        /// limit their own reparse checks to the leaf entry.
+        /// </summary>
+        /// <param name="projectRootPath">Project root the directory belongs to.</param>
+        /// <param name="directoryPath">Full directory to pin.</param>
+        /// <returns>True when a matching batch is active and the directory chain is now verified and pinned.</returns>
+        internal static bool TryPinDirectory(string projectRootPath, string directoryPath) {
+            return TryGetScope(projectRootPath, directoryPath) != null;
+        }
+
+        /// <summary>
         /// Releases every cached scope and restores the previously active batch.
         /// </summary>
         public void Dispose() {

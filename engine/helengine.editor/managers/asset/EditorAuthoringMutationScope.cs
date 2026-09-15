@@ -223,7 +223,11 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             if (!string.Equals(parent, TargetDirectoryPath, PathComparison)) {
                 throw new InvalidDataException($"The verified leaf '{filePath}' is not directly beneath the pinned mutation directory.");
             }
-            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, ProjectRootPath);
+            // The directory chain was verified and pinned by open handles when this scope was acquired,
+            // so only the leaf needs a pre-open check; the opened handle is verified again afterwards.
+            if (EditorFileAttributesProbe.IsReparsePoint(fullPath)) {
+                throw new InvalidDataException($"The authoring transaction path '{fullPath}' traverses a reparse point.");
+            }
             SafeFileHandle handle = OperatingSystem.IsWindows()
                 ? OpenAndVerifyWindowsFile(fullPath, mode, access, share, includeDelete)
                 : OperatingSystem.IsLinux()

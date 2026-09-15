@@ -1167,6 +1167,18 @@ namespace helengine.editor {
         void ValidateNoReparseTraversal(string fullPath) {
             string rootPath = Path.GetFullPath(AssetsRootPath);
             string currentPath = Path.GetFullPath(fullPath);
+            string containingDirectoryPath = Path.GetDirectoryName(currentPath);
+            string assetsPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!string.IsNullOrWhiteSpace(containingDirectoryPath)
+                && (string.Equals(containingDirectoryPath, rootPath, PathComparison) || containingDirectoryPath.StartsWith(assetsPrefix, PathComparison))
+                && EditorAuthoringReadBatch.TryPinDirectory(ProjectRootPath, containingDirectoryPath)) {
+                // The batch verified and pinned the directory chain with open handles; only the leaf remains.
+                if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
+                    throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
+                }
+                return;
+            }
+
             while (true) {
                 if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
                     throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
