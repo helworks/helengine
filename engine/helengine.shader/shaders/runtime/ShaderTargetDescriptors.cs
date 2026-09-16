@@ -32,6 +32,7 @@ namespace helengine {
         /// </summary>
         /// <param name="target">Compile target to look up.</param>
         /// <returns>Descriptor registered for the target.</returns>
+        [NativeBorrowedReturn]
         public static ShaderTargetDescriptor Get(ShaderCompileTarget target) {
             ShaderTargetDescriptor descriptor;
             if (!DescriptorsByTarget.TryGetValue(target, out descriptor)) {

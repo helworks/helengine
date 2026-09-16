@@ -4,6 +4,14 @@ namespace helengine.editor.tests;
 /// Verifies the shared shader target descriptor table stays complete and round-trips every compile target through its persisted name.
 /// </summary>
 public sealed class ShaderTargetDescriptorTests {
+    /// <summary>Native callers borrow the shared descriptor instead of taking cleanup responsibility for it.</summary>
+    [Fact]
+    public void Get_declares_borrowed_return_for_shared_descriptors() {
+        Assert.True(typeof(ShaderTargetDescriptors).GetMethod(nameof(ShaderTargetDescriptors.Get)).IsDefined(typeof(NativeBorrowedReturnAttribute), false));
+        foreach (ShaderTargetDescriptor descriptor in ShaderTargetDescriptors.All) {
+            Assert.Same(descriptor, ShaderTargetDescriptors.Get(descriptor.Target));
+        }
+    }
     /// <summary>
     /// Ensures every declared compile target has a descriptor so no target can silently fall through to an unsupported-target throw.
     /// </summary>
