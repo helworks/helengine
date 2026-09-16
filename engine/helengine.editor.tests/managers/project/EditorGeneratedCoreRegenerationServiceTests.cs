@@ -588,6 +588,25 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures a platform that force-disables the shaders feature skips shader project regeneration regardless of its id,
+    /// while platforms that keep shaders enabled still regenerate it.
+    /// </summary>
+    [Fact]
+    public void Should_regenerate_shader_project_returns_false_when_shaders_feature_is_disabled() {
+        string disabledShadersSymbol = EditorPlatformPreprocessorSymbolService.BuildDisabledFeatureSymbol("shaders");
+
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(
+            CreatePlatformDefinition("ps1", runtimeGenerationContract: null),
+            [disabledShadersSymbol, "HELENGINE_CODEGEN_FEATURE_DISABLED_DEBUG_OVERLAY"]));
+        Assert.True(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(
+            CreatePlatformDefinition("ps1", runtimeGenerationContract: null),
+            ["HELENGINE_CODEGEN_FEATURE_DISABLED_DEBUG_OVERLAY"]));
+        Assert.False(EditorGeneratedCoreRegenerationService.ShouldRegenerateShaderProject(
+            CreatePlatformDefinition("ps2", runtimeGenerationContract: null),
+            []));
+    }
+
+    /// <summary>
     /// Ensures generated-core regeneration submits the shader runtime project without submitting the managed compiler project.
     /// </summary>
     [Fact]

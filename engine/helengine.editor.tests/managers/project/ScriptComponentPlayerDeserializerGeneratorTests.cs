@@ -180,10 +180,52 @@ namespace helengine.editor.tests.managers.project {
 
             string source = generator.GenerateNativeDeserializerSource(schema);
 
-            Assert.Contains("throw new InvalidOperationException();", source, StringComparison.Ordinal);
+            Assert.Contains("he_cpp_raise(InvalidOperationException());", source, StringComparison.Ordinal);
             Assert.DoesNotContain("String::ToJoinString(version)", source, StringComparison.Ordinal);
             Assert.DoesNotContain("String::ToJoinString(MemberCount)", source, StringComparison.Ordinal);
             Assert.DoesNotContain("String::ToJoinString(memberCount)", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures native deserializers use the runtime's configurable string type and raise policy instead of
+        /// hosted std::string and pointer throws, so the same emission compiles on freestanding console runtimes.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializer_UsesRuntimeStringTypeAndRaisePolicy() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ClipRectComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string header = generator.GenerateNativeDeserializerHeader(schema);
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.DoesNotContain("std::string", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("std::string", source, StringComparison.Ordinal);
+            Assert.Contains("const HeCppString& get_ComponentTypeId();", header, StringComparison.Ordinal);
+            Assert.Contains("static HeCppString ComponentType;", header, StringComparison.Ordinal);
+            Assert.DoesNotContain("throw new", source, StringComparison.Ordinal);
+            Assert.Contains("he_cpp_raise(ArgumentNullException(\"record\"));", source, StringComparison.Ordinal);
+            Assert.Contains("he_cpp_raise(InvalidOperationException(", source, StringComparison.Ordinal);
+            Assert.Contains("catch (const EndOfStreamException&)", source, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Ensures a runtime without C++ exceptions receives no try/catch: truncated payloads surface through the
+        /// reader's own fatal raise while version, member-count and trailing-data validation still raise explicitly.
+        /// </summary>
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenNativeExceptionsDisabled_OmitsExceptionRecovery() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(ClipRectComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator(useCompactNativeExceptionMessages: true, useNativeExceptions: false);
+
+            string source = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.DoesNotContain("try", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("catch (", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("throw", source, StringComparison.Ordinal);
+            Assert.Contains("if (version != CurrentVersion)", source, StringComparison.Ordinal);
+            Assert.Contains("if (memberCount != MemberCount)", source, StringComparison.Ordinal);
+            Assert.Contains("if (stream->Position() != stream->Length())", source, StringComparison.Ordinal);
+            Assert.Contains("he_cpp_raise(InvalidOperationException());", source, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -231,8 +273,8 @@ namespace helengine.editor.tests.managers.project {
             string header = generator.GenerateNativeDeserializerHeader(schema);
             string source = generator.GenerateNativeDeserializerSource(schema);
 
-            Assert.Contains("const std::string& get_ComponentTypeId();", header, StringComparison.Ordinal);
-            Assert.Contains("const std::string& GeneratedRuntimeClipRectComponentDeserializer::get_ComponentTypeId()", source, StringComparison.Ordinal);
+            Assert.Contains("const HeCppString& get_ComponentTypeId();", header, StringComparison.Ordinal);
+            Assert.Contains("const HeCppString& GeneratedRuntimeClipRectComponentDeserializer::get_ComponentTypeId()", source, StringComparison.Ordinal);
         }
 
         /// <summary>

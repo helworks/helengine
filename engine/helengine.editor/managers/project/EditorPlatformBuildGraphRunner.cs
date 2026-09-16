@@ -793,6 +793,10 @@ namespace helengine.editor {
                 EditorGeneratedCoreRegenerationService.UsesCompactNativeExceptionMessages(
                     selectedBuildProfile,
                     selectedCodegenProfile,
+                    selectedCodegenOptionValues),
+                EditorGeneratedCoreRegenerationService.UsesNativeExceptions(
+                    selectedBuildProfile,
+                    selectedCodegenProfile,
                     selectedCodegenOptionValues));
             EditorGeneratedCoreRegenerationService.WriteGeneratedCoreTranslationUnit(generatedCoreRootPath);
         }

@@ -87,7 +87,7 @@ namespace helengine.editor {
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
             string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
-            bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(platformDefinition);
+            bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(platformDefinition, additionalPreprocessorSymbols);
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
 
             if (!File.Exists(helengineCoreProjectPath)) {
@@ -532,8 +532,29 @@ namespace helengine.editor {
         /// <param name="platformDefinition">Target platform definition being regenerated.</param>
         /// <returns>True when the target runtime supports the generated shader subsystem.</returns>
         internal static bool ShouldRegenerateShaderProject(PlatformDefinition platformDefinition) {
+            return ShouldRegenerateShaderProject(platformDefinition, []);
+        }
+
+        /// <summary>
+        /// Determines whether the current platform requires generated shader runtime sources, honoring a
+        /// force-disabled shaders feature so shaderless consoles never transpile the shader project.
+        /// </summary>
+        /// <param name="platformDefinition">Target platform definition being regenerated.</param>
+        /// <param name="additionalPreprocessorSymbols">Preprocessor symbols selected for the regeneration, including disabled-feature symbols.</param>
+        /// <returns>True when the target runtime supports the generated shader subsystem.</returns>
+        internal static bool ShouldRegenerateShaderProject(PlatformDefinition platformDefinition, IReadOnlyList<string> additionalPreprocessorSymbols) {
             if (platformDefinition == null) {
                 throw new ArgumentNullException(nameof(platformDefinition));
+            }
+            if (additionalPreprocessorSymbols == null) {
+                throw new ArgumentNullException(nameof(additionalPreprocessorSymbols));
+            }
+
+            string disabledShadersSymbol = EditorPlatformPreprocessorSymbolService.BuildDisabledFeatureSymbol("shaders");
+            for (int index = 0; index < additionalPreprocessorSymbols.Count; index++) {
+                if (string.Equals(additionalPreprocessorSymbols[index], disabledShadersSymbol, StringComparison.Ordinal)) {
+                    return false;
+                }
             }
 
             return !string.Equals(platformDefinition.PlatformId, "ps2", StringComparison.OrdinalIgnoreCase)
@@ -1106,13 +1127,14 @@ namespace helengine.editor {
             string generatedCoreRootPath,
             IReadOnlyList<Type> additionalComponentTypes = null,
             PlatformDefinition platformDefinition = null,
-            bool useCompactNativeExceptionMessages = false) {
+            bool useCompactNativeExceptionMessages = false,
+            bool useNativeExceptions = true) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
 
             Directory.CreateDirectory(generatedCoreRootPath);
-            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator(useCompactNativeExceptionMessages);
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator(useCompactNativeExceptionMessages, useNativeExceptions);
             ScriptComponentReflectionSchemaBuilder schemaBuilder = new ScriptComponentReflectionSchemaBuilder();
             IReadOnlyList<ScriptComponentReflectionSchema> schemas = DiscoverAutomaticRuntimeComponentSchemas(schemaBuilder, generator, additionalComponentTypes, platformDefinition);
             DeleteGeneratedAutomaticRuntimeComponentDeserializerFiles(generatedCoreRootPath);
@@ -1148,7 +1170,8 @@ namespace helengine.editor {
             IReadOnlyList<string> cookedSceneAssetPaths,
             IScriptTypeResolver scriptTypeResolver,
             PlatformDefinition platformDefinition = null,
-            bool useCompactNativeExceptionMessages = false) {
+            bool useCompactNativeExceptionMessages = false,
+            bool useNativeExceptions = true) {
             if (string.IsNullOrWhiteSpace(generatedCoreRootPath)) {
                 throw new ArgumentException("Generated core root path must be provided.", nameof(generatedCoreRootPath));
             }
@@ -1160,7 +1183,34 @@ namespace helengine.editor {
                 generatedCoreRootPath,
                 DiscoverAutomaticRuntimeComponentTypesFromCookedScenes(cookedSceneAssetPaths, scriptTypeResolver),
                 platformDefinition,
-                useCompactNativeExceptionMessages);
+                useCompactNativeExceptionMessages,
+                useNativeExceptions);
+        }
+
+        /// <summary>
+        /// Resolves whether the selected codegen configuration compiles generated native code with C++ exception unwinding.
+        /// Runtimes that disable it receive deserializers without exception recovery.
+        /// </summary>
+        /// <param name="buildProfile">Selected build profile whose codegen-setting default overrides apply before the shared codegen profile defaults.</param>
+        /// <param name="codegenProfile">Selected codegen profile whose default setting values apply when neither the editor nor the active build profile provide an explicit override.</param>
+        /// <param name="selectedCodegenOptionValues">Selected codegen option values persisted by the editor for the active build.</param>
+        /// <returns>True unless the codegen-use-exceptions option resolves to false.</returns>
+        internal static bool UsesNativeExceptions(
+            PlatformBuildProfileDefinition buildProfile,
+            PlatformCodegenProfileDefinition codegenProfile,
+            IReadOnlyDictionary<string, string> selectedCodegenOptionValues) {
+            const string useExceptionsSettingId = "codegen-use-exceptions";
+            if (selectedCodegenOptionValues != null &&
+                selectedCodegenOptionValues.TryGetValue(useExceptionsSettingId, out string selectedValue) &&
+                bool.TryParse(selectedValue, out bool parsedSelectedValue)) {
+                return parsedSelectedValue;
+            }
+
+            string defaultValue = EditorBuildProfileDefaultResolver.ResolveCodegenSettingDefaultValue(
+                buildProfile,
+                codegenProfile,
+                useExceptionsSettingId);
+            return !bool.TryParse(defaultValue, out bool parsedDefaultValue) || parsedDefaultValue;
         }
 
         /// <summary>

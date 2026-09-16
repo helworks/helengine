@@ -192,8 +192,19 @@ public sealed class EditorRuntimeNativeManifestWriter {
             StringBuilder builder = new();
             builder.AppendLine("#include \"runtime/runtime_scene_catalog_manifest.hpp\"");
             builder.AppendLine();
-            builder.AppendLine("#include <cstring>");
-            builder.AppendLine("#include <stdexcept>");
+            builder.AppendLine("#include \"runtime/native_exceptions.hpp\"");
+            builder.AppendLine();
+            builder.AppendLine("// Freestanding console runtimes ship no libc, so manifest lookups compare ids in place.");
+            builder.AppendLine("static bool HeRuntimeManifestStringEquals(const char* left, const char* right) {");
+            builder.AppendLine("    if (left == nullptr || right == nullptr) {");
+            builder.AppendLine("        return left == right;");
+            builder.AppendLine("    }");
+            builder.AppendLine("    while (*left != '\\0' && *left == *right) {");
+            builder.AppendLine("        ++left;");
+            builder.AppendLine("        ++right;");
+            builder.AppendLine("    }");
+            builder.AppendLine("    return *left == *right;");
+            builder.AppendLine("}");
             builder.AppendLine();
             builder.AppendLine("static const HERuntimeSceneCatalogEntry kRuntimeSceneCatalogEntries[] = {");
             for (int index = 0; index < cookedManifest.Scenes.Length; index++) {
@@ -219,17 +230,17 @@ public sealed class EditorRuntimeNativeManifestWriter {
             builder.AppendLine();
             builder.AppendLine("const char* he_runtime_scene_cooked_relative_path(const char* sceneId) {");
             builder.AppendLine("    if (sceneId == nullptr || sceneId[0] == '\\0') {");
-            builder.AppendLine("        throw std::invalid_argument(\"Runtime scene id is required.\");");
+            builder.AppendLine("        he_cpp_raise(ArgumentException(\"Runtime scene id is required.\"));");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.AppendLine("    for (std::size_t index = 0; index < kRuntimeSceneCatalogEntryCount; index++) {");
             builder.AppendLine("        const HERuntimeSceneCatalogEntry& entry = kRuntimeSceneCatalogEntries[index];");
-            builder.AppendLine("        if (std::strcmp(entry.SceneId, sceneId) == 0) {");
+            builder.AppendLine("        if (HeRuntimeManifestStringEquals(entry.SceneId, sceneId)) {");
             builder.AppendLine("            return entry.CookedRelativePath;");
             builder.AppendLine("        }");
             builder.AppendLine("    }");
             builder.AppendLine();
-            builder.AppendLine("    throw std::runtime_error(\"Runtime scene id was not found in the scene catalog manifest.\");");
+            builder.AppendLine("    he_cpp_raise(InvalidOperationException(\"Runtime scene id was not found in the scene catalog manifest.\"));");
             builder.AppendLine("}");
             return builder.ToString();
         }
@@ -316,8 +327,19 @@ public sealed class EditorRuntimeNativeManifestWriter {
             StringBuilder builder = new();
             builder.AppendLine("#include \"runtime/runtime_code_module_manifest.hpp\"");
             builder.AppendLine();
-            builder.AppendLine("#include <cstring>");
-            builder.AppendLine("#include <stdexcept>");
+            builder.AppendLine("#include \"runtime/native_exceptions.hpp\"");
+            builder.AppendLine();
+            builder.AppendLine("// Freestanding console runtimes ship no libc, so manifest lookups compare ids in place.");
+            builder.AppendLine("static bool HeRuntimeManifestStringEquals(const char* left, const char* right) {");
+            builder.AppendLine("    if (left == nullptr || right == nullptr) {");
+            builder.AppendLine("        return left == right;");
+            builder.AppendLine("    }");
+            builder.AppendLine("    while (*left != '\\0' && *left == *right) {");
+            builder.AppendLine("        ++left;");
+            builder.AppendLine("        ++right;");
+            builder.AppendLine("    }");
+            builder.AppendLine("    return *left == *right;");
+            builder.AppendLine("}");
             builder.AppendLine();
 
             if (codeModules != null) {
@@ -384,17 +406,17 @@ public sealed class EditorRuntimeNativeManifestWriter {
             builder.AppendLine();
             builder.AppendLine("HERuntimeCodeModuleLoadState he_runtime_code_module_load_state(const char* moduleId) {");
             builder.AppendLine("    if (moduleId == nullptr || moduleId[0] == '\\0') {");
-            builder.AppendLine("        throw std::invalid_argument(\"Runtime code module id is required.\");");
+            builder.AppendLine("        he_cpp_raise(ArgumentException(\"Runtime code module id is required.\"));");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.AppendLine("    for (std::size_t index = 0; index < kRuntimeCodeModuleEntryCount; index++) {");
             builder.AppendLine("        const HERuntimeCodeModuleEntry& entry = kRuntimeCodeModuleEntries[index];");
-            builder.AppendLine("        if (std::strcmp(entry.ModuleId, moduleId) == 0) {");
+            builder.AppendLine("        if (HeRuntimeManifestStringEquals(entry.ModuleId, moduleId)) {");
             builder.AppendLine("            return entry.LoadState;");
             builder.AppendLine("        }");
             builder.AppendLine("    }");
             builder.AppendLine();
-            builder.AppendLine("    throw std::runtime_error(\"Runtime code module was not found in the residency manifest.\");");
+            builder.AppendLine("    he_cpp_raise(InvalidOperationException(\"Runtime code module was not found in the residency manifest.\"));");
             builder.AppendLine("}");
             builder.AppendLine();
             builder.AppendLine("bool he_runtime_code_module_can_unload(const char* moduleId) {");
@@ -416,8 +438,19 @@ public sealed class EditorRuntimeNativeManifestWriter {
             StringBuilder builder = new();
             builder.AppendLine("#include \"runtime/runtime_physics3d_scene_feature_manifest.hpp\"");
             builder.AppendLine();
-            builder.AppendLine("#include <cstring>");
-            builder.AppendLine("#include <stdexcept>");
+            builder.AppendLine("#include \"runtime/native_exceptions.hpp\"");
+            builder.AppendLine();
+            builder.AppendLine("// Freestanding console runtimes ship no libc, so manifest lookups compare ids in place.");
+            builder.AppendLine("static bool HeRuntimeManifestStringEquals(const char* left, const char* right) {");
+            builder.AppendLine("    if (left == nullptr || right == nullptr) {");
+            builder.AppendLine("        return left == right;");
+            builder.AppendLine("    }");
+            builder.AppendLine("    while (*left != '\\0' && *left == *right) {");
+            builder.AppendLine("        ++left;");
+            builder.AppendLine("        ++right;");
+            builder.AppendLine("    }");
+            builder.AppendLine("    return *left == *right;");
+            builder.AppendLine("}");
             builder.AppendLine();
 
             if (cookedManifest.Scenes == null || cookedManifest.Scenes.Length == 0) {
@@ -450,17 +483,17 @@ public sealed class EditorRuntimeNativeManifestWriter {
             builder.AppendLine();
             builder.AppendLine("std::uint32_t he_runtime_physics3d_scene_feature_flags(const char* sceneId) {");
             builder.AppendLine("    if (sceneId == nullptr || sceneId[0] == '\\0') {");
-            builder.AppendLine("        throw std::invalid_argument(\"Runtime scene id is required.\");");
+            builder.AppendLine("        he_cpp_raise(ArgumentException(\"Runtime scene id is required.\"));");
             builder.AppendLine("    }");
             builder.AppendLine();
             builder.AppendLine("    for (std::size_t index = 0; index < kRuntimePhysics3DSceneFeatureEntryCount; index++) {");
             builder.AppendLine("        const HERuntimePhysics3DSceneFeatureEntry& entry = kRuntimePhysics3DSceneFeatureEntries[index];");
-            builder.AppendLine("        if (std::strcmp(entry.SceneId, sceneId) == 0) {");
+            builder.AppendLine("        if (HeRuntimeManifestStringEquals(entry.SceneId, sceneId)) {");
             builder.AppendLine("            return entry.FeatureFlags;");
             builder.AppendLine("        }");
             builder.AppendLine("    }");
             builder.AppendLine();
-            builder.AppendLine("    throw std::runtime_error(\"Runtime scene id was not found in the physics feature manifest.\");");
+            builder.AppendLine("    he_cpp_raise(InvalidOperationException(\"Runtime scene id was not found in the physics feature manifest.\"));");
             builder.AppendLine("}");
             return builder.ToString();
         }

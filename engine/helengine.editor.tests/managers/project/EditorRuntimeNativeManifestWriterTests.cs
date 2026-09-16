@@ -134,6 +134,19 @@ public sealed class EditorRuntimeNativeManifestWriterTests : IDisposable {
         Assert.Contains("kRuntimeStandardPlatformActionEntryCount", standardPlatformInputSource);
         Assert.Contains("0, 0, 0, 0, 0", standardPlatformInputSource);
         Assert.Contains("1, 0, 0, 0, 3", standardPlatformInputSource);
+
+        // Freestanding console runtimes have no hosted libc or <stdexcept>; the emitted sources must
+        // compare strings themselves and report failures through the shared runtime raise policy.
+        foreach (string source in new[] { sceneCatalogSource, codeModuleSource, physicsSource }) {
+            Assert.DoesNotContain("#include <cstring>", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("#include <stdexcept>", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("std::strcmp", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("throw std::", source, StringComparison.Ordinal);
+            Assert.Contains("#include \"runtime/native_exceptions.hpp\"", source, StringComparison.Ordinal);
+            Assert.Contains("he_cpp_raise(ArgumentException(", source, StringComparison.Ordinal);
+            Assert.Contains("he_cpp_raise(InvalidOperationException(", source, StringComparison.Ordinal);
+            Assert.Contains("HeRuntimeManifestStringEquals(", source, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>

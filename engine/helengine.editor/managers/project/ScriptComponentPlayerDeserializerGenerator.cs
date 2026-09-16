@@ -22,11 +22,19 @@ namespace helengine.editor {
         readonly bool UseCompactNativeExceptionMessages;
 
         /// <summary>
+        /// Stores whether the target runtime supports C++ exception recovery. Without it the generated deserializer emits no try/catch:
+        /// validation failures raise through the runtime failure policy and truncated payloads stop inside the binary reader.
+        /// </summary>
+        readonly bool UseNativeExceptions;
+
+        /// <summary>
         /// Initializes one scripted-component player deserializer generator with the requested native exception emission policy.
         /// </summary>
-        /// <param name="useCompactNativeExceptionMessages">True when generated native deserializer validation throws should omit detailed message formatting and rely on the compact native exception defaults.</param>
-        public ScriptComponentPlayerDeserializerGenerator(bool useCompactNativeExceptionMessages = false) {
+        /// <param name="useCompactNativeExceptionMessages">True when generated native deserializer validation raises should omit detailed message formatting and rely on the compact native exception defaults.</param>
+        /// <param name="useNativeExceptions">True when the target runtime unwinds C++ exceptions and the generated deserializer may recover from a truncated payload.</param>
+        public ScriptComponentPlayerDeserializerGenerator(bool useCompactNativeExceptionMessages = false, bool useNativeExceptions = true) {
             UseCompactNativeExceptionMessages = useCompactNativeExceptionMessages;
+            UseNativeExceptions = useNativeExceptions;
         }
 
         /// <summary>
@@ -160,11 +168,11 @@ namespace helengine.editor {
             builder.AppendLine("public:");
             builder.AppendLine($"    virtual ~{className}() = default;");
             builder.AppendLine();
-            builder.AppendLine("    const std::string& get_ComponentTypeId();");
+            builder.AppendLine("    const HeCppString& get_ComponentTypeId();");
             builder.AppendLine();
             builder.AppendLine("    ::Component* Deserialize(::SceneComponentAssetRecord* record, ::RuntimeSceneAssetReferenceResolver* referenceResolver);");
             builder.AppendLine("private:");
-            builder.AppendLine("    static std::string ComponentType;");
+            builder.AppendLine("    static HeCppString ComponentType;");
             builder.AppendLine();
             builder.AppendLine("    static uint8_t CurrentVersion;");
             builder.AppendLine();
@@ -215,7 +223,7 @@ namespace helengine.editor {
                 }
             }
             builder.AppendLine();
-            builder.AppendLine($"const std::string& {className}::get_ComponentTypeId()");
+            builder.AppendLine($"const HeCppString& {className}::get_ComponentTypeId()");
             builder.AppendLine("{");
             builder.AppendLine("return ComponentType;");
             builder.AppendLine("}");
@@ -224,7 +232,7 @@ namespace helengine.editor {
             builder.AppendLine("{");
             builder.AppendLine("    if (record == nullptr)");
             builder.AppendLine("    {");
-            builder.AppendLine("throw new ArgumentNullException(\"record\");");
+            builder.AppendLine("he_cpp_raise(ArgumentNullException(\"record\"));");
             builder.AppendLine("    }");
             builder.AppendLine("{");
             builder.AppendLine("::MemoryStream *stream = ([&]() {");
@@ -253,7 +261,9 @@ namespace helengine.editor {
             builder.AppendLine("bool hasReceivedVersion = false;");
             builder.AppendLine("int32_t receivedMemberCount = 0;");
             builder.AppendLine("bool hasReceivedMemberCount = false;");
-            builder.AppendLine("try");
+            // Without C++ exceptions the payload block is a plain scope: validation raises through the
+            // runtime failure policy and a truncated payload stops inside the binary reader.
+            builder.AppendLine(UseNativeExceptions ? "try" : "// payload decode scope");
             builder.AppendLine("{");
             builder.AppendLine("const uint8_t version = reader->ReadByte();");
             builder.AppendLine("receivedVersion = version;");
@@ -261,8 +271,8 @@ namespace helengine.editor {
             builder.AppendLine("    if (version != CurrentVersion)");
             builder.AppendLine("    {");
             builder.AppendLine(UseCompactNativeExceptionMessages
-                ? "throw new InvalidOperationException();"
-                : "throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload received version '\") + String::ToJoinString(version) + std::string(\"'; current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"' is required. Regenerate/rebuild the asset in the current format.\"));");
+                ? "he_cpp_raise(InvalidOperationException());"
+                : "he_cpp_raise(InvalidOperationException(HeCppString(\"Unsupported automatic scripted component payload received version '\") + String::ToJoinString(version) + HeCppString(\"'; current version '\") + String::ToJoinString(CurrentVersion) + HeCppString(\"' is required. Regenerate/rebuild the asset in the current format.\")));");
             builder.AppendLine("    }");
             builder.AppendLine("const int32_t memberCount = reader->ReadInt32();");
             builder.AppendLine("receivedMemberCount = memberCount;");
@@ -270,8 +280,8 @@ namespace helengine.editor {
             builder.AppendLine("    if (memberCount != MemberCount)");
             builder.AppendLine("    {");
             builder.AppendLine(UseCompactNativeExceptionMessages
-                ? "throw new InvalidOperationException();"
-                : "throw new InvalidOperationException(std::string(\"Unsupported automatic scripted component payload received member count '\") + String::ToJoinString(memberCount) + std::string(\"'; current member count '\") + String::ToJoinString(MemberCount) + std::string(\"' is required. Regenerate/rebuild the asset in the current format.\"));");
+                ? "he_cpp_raise(InvalidOperationException());"
+                : "he_cpp_raise(InvalidOperationException(HeCppString(\"Unsupported automatic scripted component payload received member count '\") + String::ToJoinString(memberCount) + HeCppString(\"'; current member count '\") + String::ToJoinString(MemberCount) + HeCppString(\"' is required. Regenerate/rebuild the asset in the current format.\")));");
             builder.AppendLine("    }");
             builder.AppendLine($"::{schema.ComponentType.Name} *component = new ::{schema.ComponentType.Name}();");
             Dictionary<Type, string> nativeNestedHelperNames = BuildNativeNestedHelperMap(schema);
@@ -283,17 +293,24 @@ namespace helengine.editor {
             builder.AppendLine("if (stream->Position() != stream->Length())");
             builder.AppendLine("{");
             builder.AppendLine(UseCompactNativeExceptionMessages
-                ? "throw new InvalidOperationException();"
-                : "throw new InvalidOperationException(\"Automatic scripted component payload contains trailing data after the current schema. Regenerate/rebuild the asset in the current format.\");");
+                ? "he_cpp_raise(InvalidOperationException());"
+                : "he_cpp_raise(InvalidOperationException(\"Automatic scripted component payload contains trailing data after the current schema. Regenerate/rebuild the asset in the current format.\"));");
             builder.AppendLine("}");
             builder.AppendLine("return component;");
             builder.AppendLine("}");
-            builder.AppendLine("catch (const EndOfStreamException&)");
-            builder.AppendLine("{");
-            builder.AppendLine(UseCompactNativeExceptionMessages
-                ? "throw new InvalidOperationException();"
-                : "std::string versionText = hasReceivedVersion ? std::string(\"received version '\") + String::ToJoinString(receivedVersion) + std::string(\"', current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"'\") : std::string(\"received version unavailable, current version '\") + String::ToJoinString(CurrentVersion) + std::string(\"'\");\nstd::string memberCountText = hasReceivedMemberCount ? std::string(\"received member count '\") + String::ToJoinString(receivedMemberCount) + std::string(\"', current member count '\") + String::ToJoinString(MemberCount) + std::string(\"'\") : std::string(\"received member count unavailable, current member count '\") + String::ToJoinString(MemberCount) + std::string(\"'\");\nthrow new InvalidOperationException(std::string(\"Automatic scripted component payload is truncated (\") + versionText + std::string(\"; \") + memberCountText + std::string(\"). Regenerate/rebuild the asset in the current format.\"));");
-            builder.AppendLine("}");
+            if (UseNativeExceptions) {
+                builder.AppendLine("catch (const EndOfStreamException&)");
+                builder.AppendLine("{");
+                builder.AppendLine(UseCompactNativeExceptionMessages
+                    ? "he_cpp_raise(InvalidOperationException());"
+                    : "HeCppString versionText = hasReceivedVersion ? HeCppString(\"received version '\") + String::ToJoinString(receivedVersion) + HeCppString(\"', current version '\") + String::ToJoinString(CurrentVersion) + HeCppString(\"'\") : HeCppString(\"received version unavailable, current version '\") + String::ToJoinString(CurrentVersion) + HeCppString(\"'\");\nHeCppString memberCountText = hasReceivedMemberCount ? HeCppString(\"received member count '\") + String::ToJoinString(receivedMemberCount) + HeCppString(\"', current member count '\") + String::ToJoinString(MemberCount) + HeCppString(\"'\") : HeCppString(\"received member count unavailable, current member count '\") + String::ToJoinString(MemberCount) + HeCppString(\"'\");\nhe_cpp_raise(InvalidOperationException(HeCppString(\"Automatic scripted component payload is truncated (\") + versionText + HeCppString(\"; \") + memberCountText + HeCppString(\"). Regenerate/rebuild the asset in the current format.\")));");
+                builder.AppendLine("}");
+            } else {
+                builder.AppendLine("(void)receivedVersion;");
+                builder.AppendLine("(void)hasReceivedVersion;");
+                builder.AppendLine("(void)receivedMemberCount;");
+                builder.AppendLine("(void)hasReceivedMemberCount;");
+            }
             builder.AppendLine("}");
             builder.AppendLine("}");
             builder.AppendLine("}");
@@ -302,7 +319,7 @@ namespace helengine.editor {
                 builder.Append(BuildNativeNestedHelperMethodSource(className, helperEntry.Key, helperEntry.Value));
             }
             builder.AppendLine();
-            builder.AppendLine($"std::string {className}::ComponentType = \"{EscapeForCppString(componentTypeId)}\";");
+            builder.AppendLine($"HeCppString {className}::ComponentType = \"{EscapeForCppString(componentTypeId)}\";");
             builder.AppendLine();
             builder.AppendLine($"uint8_t {className}::CurrentVersion = 1;");
             builder.AppendLine();
@@ -505,7 +522,7 @@ namespace helengine.editor {
             if (valueType == typeof(EngineSerializedPayload)) {
                 expression = "([&]() { "
                     + "if (" + readerVariableName + "->ReadByte() == 0) { return static_cast<::EngineSerializedPayload*>(nullptr); } "
-                    + "std::string formatId = " + readerVariableName + "->ReadString(); "
+                    + "HeCppString formatId = " + readerVariableName + "->ReadString(); "
                     + "Array<uint8_t>* serializedBytes = "
                     + BuildNativeInlineArrayExpression(typeof(byte), readerVariableName, nativeNestedHelperNames)
                     + "; "
@@ -601,7 +618,7 @@ namespace helengine.editor {
             return "([&]() { "
                 + "const int32_t length = " + readerVariableName + "->ReadInt32(); "
                 + "if (length == -1) { return static_cast<Array<" + elementValueTypeName + ">*>(nullptr); } "
-                + "if (length < -1) { throw new InvalidOperationException(\"Array length cannot be negative.\"); } "
+                + "if (length < -1) { he_cpp_raise(InvalidOperationException(\"Array length cannot be negative.\")); } "
                 + "if (length == 0) { return Array<" + elementValueTypeName + ">::Empty(); } "
                 + "Array<" + elementValueTypeName + "> *values = new Array<" + elementValueTypeName + ">(length); "
                 + "for (int32_t index = 0; index < length; index++) { (*values)[index] = " + elementReadExpression + "; } "
@@ -662,11 +679,11 @@ namespace helengine.editor {
             return "([&]() { "
                 + "const int32_t entryCount = " + readerVariableName + "->ReadInt32(); "
                 + "if (entryCount == -1) { return static_cast<" + dictionaryValueTypeName + ">(nullptr); } "
-                + "if (entryCount < -1) { throw new InvalidOperationException(\"Dictionary entry count cannot be negative.\"); } "
+                + "if (entryCount < -1) { he_cpp_raise(InvalidOperationException(\"Dictionary entry count cannot be negative.\")); } "
                 + dictionaryValueTypeName + " dictionary = new " + dictionaryInstanceTypeName + "(); "
                 + "for (int32_t index = 0; index < entryCount; index++) { "
                 + dictionaryKeyTypeName + " key = " + keyReadExpression + "; "
-                + "if (dictionary->ContainsKey(key)) { throw new InvalidOperationException(\"Dictionary payload contains duplicate keys.\"); } "
+                + "if (dictionary->ContainsKey(key)) { he_cpp_raise(InvalidOperationException(\"Dictionary payload contains duplicate keys.\")); } "
                 + dictionaryElementValueTypeName + " value = " + valueReadExpression + "; "
                 + "dictionary->Add(key, value); "
                 + "} "
@@ -772,7 +789,7 @@ namespace helengine.editor {
                 + "::SceneAssetReference* reference = " + BuildNativeOptionalReferenceReadExpression(readerVariableName) + "; "
                 + "if (reference == nullptr) { return static_cast<" + nativeValueTypeName + ">(nullptr); } "
                 + "auto cleanup = he_cpp_make_scope_exit([&]() { delete reference; }); "
-                + "if (referenceResolver == nullptr) { throw new InvalidOperationException(\"Runtime scene asset reference resolver is required.\"); } "
+                + "if (referenceResolver == nullptr) { he_cpp_raise(InvalidOperationException(\"Runtime scene asset reference resolver is required.\")); } "
                 + "return referenceResolver->" + resolverMethodName + "(reference); "
                 + "})()";
         }
@@ -919,7 +936,7 @@ namespace helengine.editor {
             builder.AppendLine("{");
             builder.AppendLine("    if (reader == nullptr)");
             builder.AppendLine("    {");
-            builder.AppendLine("throw new ArgumentNullException(\"reader\");");
+            builder.AppendLine("he_cpp_raise(ArgumentNullException(\"reader\"));");
             builder.AppendLine("    }");
             builder.AppendLine("    if (reader->ReadByte() == 0)");
             builder.AppendLine("    {");
