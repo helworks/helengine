@@ -242,8 +242,199 @@ namespace helengine.editor {
         /// <summary>
         /// Reconciles the current authored-file snapshot and rebuilds all lookup maps.
         /// </summary>
+        /// <summary>
+        /// Gets the write-log generation current when the last full reconcile began. Changes at or below it are
+        /// already reflected by the reconcile; only later ones need incremental registration.
+        /// </summary>
+        internal long ReconciledGeneration { get; private set; }
+
+        /// <summary>
+        /// Reports whether a path is currently indexed as an authored asset, without touching the file.
+        /// </summary>
+        /// <param name="fullPath">Absolute path under the assets root.</param>
+        /// <returns>True when the reconcile indexed the path.</returns>
+        internal bool ContainsPathUnderLock(string fullPath) {
+            EnsureNotDisposed();
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                return false;
+            }
+
+            string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, Path.GetFullPath(fullPath)));
+            return EntriesByPath.ContainsKey(relativePath);
+        }
+
+        /// <summary>
+        /// Gets how many files the last reconcile took from the snapshot without opening them.
+        /// </summary>
+        internal int LastReconcileReusedSnapshotFileCount { get; private set; }
+
+        /// <summary>
+        /// Store for the identity snapshot that lets a boot skip unchanged files.
+        /// </summary>
+        EditorAssetIdentitySnapshotStore SnapshotStore => snapshotStore ??= new EditorAssetIdentitySnapshotStore(ProjectRootPath);
+        EditorAssetIdentitySnapshotStore snapshotStore;
+
+        /// <summary>
+        /// Length and last-write stamp of one file, or a missing marker.
+        /// </summary>
+        readonly struct EditorAssetIdentityFileStamp {
+            public EditorAssetIdentityFileStamp(bool exists, long length, long lastWriteUtcTicks) {
+                Exists = exists;
+                Length = length;
+                LastWriteUtcTicks = lastWriteUtcTicks;
+            }
+
+            public bool Exists { get; }
+            public long Length { get; }
+            public long LastWriteUtcTicks { get; }
+
+            public static EditorAssetIdentityFileStamp Read(string fullPath) {
+                FileInfo fileInfo = new FileInfo(fullPath);
+                return fileInfo.Exists
+                    ? new EditorAssetIdentityFileStamp(true, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks)
+                    : new EditorAssetIdentityFileStamp(false, 0, 0);
+            }
+        }
+
+        /// <summary>
+        /// Logs boot timing for the first reconcile only; later external reconciles stay quiet.
+        /// </summary>
+        void MarkFirstReconcile(string phase) {
+            if (!IsInitialized) {
+                EditorBootTimeline.Mark(phase);
+            }
+        }
+
+        static bool IsSidecarPath(string fullPath) {
+            return fullPath.EndsWith(".hmeta", StringComparison.OrdinalIgnoreCase);
+        }
+
+        Dictionary<string, EditorAssetIdentitySnapshotFile> LoadSnapshotByRelativePath() {
+            Dictionary<string, EditorAssetIdentitySnapshotFile> byRelativePath = new Dictionary<string, EditorAssetIdentitySnapshotFile>(PathComparer);
+            EditorAssetIdentitySnapshotDocument document = SnapshotStore.Load();
+            if (document == null) {
+                return byRelativePath;
+            }
+
+            for (int index = 0; index < document.Files.Count; index++) {
+                EditorAssetIdentitySnapshotFile file = document.Files[index];
+                if (file != null && !string.IsNullOrWhiteSpace(file.RelativePath)) {
+                    byRelativePath[file.RelativePath] = file;
+                }
+            }
+
+            return byRelativePath;
+        }
+
+        /// <summary>
+        /// Reuses a snapshot record when the file, and its sidecar for external identity, carry the stamps the
+        /// snapshot recorded, so the file is not opened at all.
+        /// </summary>
+        bool TryReuseSnapshotFile(
+            Dictionary<string, EditorAssetIdentitySnapshotFile> snapshotByRelativePath,
+            Dictionary<string, EditorAssetIdentityFileStamp> stampsByPath,
+            string fullPath,
+            string relativePath,
+            out EditorAssetIdentitySnapshotFile snapshotFile) {
+            if (!snapshotByRelativePath.TryGetValue(relativePath, out snapshotFile)) {
+                return false;
+            }
+            if (!stampsByPath.TryGetValue(fullPath, out EditorAssetIdentityFileStamp stamp)
+                || !stamp.Exists
+                || stamp.Length != snapshotFile.Length
+                || stamp.LastWriteUtcTicks != snapshotFile.LastWriteUtcTicks) {
+                return false;
+            }
+            if (snapshotFile.Authored && !snapshotFile.EmbeddedIdentity) {
+                if (!stampsByPath.TryGetValue(fullPath + ".hmeta", out EditorAssetIdentityFileStamp sidecarStamp)
+                    || !sidecarStamp.Exists
+                    || sidecarStamp.Length != snapshotFile.SidecarLength
+                    || sidecarStamp.LastWriteUtcTicks != snapshotFile.SidecarLastWriteUtcTicks) {
+                    return false;
+                }
+            }
+            if (snapshotFile.Authored && string.IsNullOrWhiteSpace(snapshotFile.AssetId)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Writes the snapshot describing the state this reconcile observed. Failure to persist never fails the
+        /// reconcile; the next boot simply runs a full one.
+        /// </summary>
+        void PersistSnapshot(
+            List<EditorAssetIdentityEntry> loadedEntries,
+            List<string> nonAuthoredPaths,
+            Dictionary<string, EditorAssetIdentityFileStamp> stampsByPath,
+            Dictionary<string, bool> embeddedIdentityByPath,
+            List<PendingIdentityRepair> pendingRepairs) {
+            try {
+                HashSet<string> repairedPaths = new HashSet<string>(pendingRepairs.Select(repair => repair.FullPath), PathComparer);
+                EditorAssetIdentitySnapshotDocument document = new EditorAssetIdentitySnapshotDocument();
+                for (int index = 0; index < nonAuthoredPaths.Count; index++) {
+                    string fullPath = nonAuthoredPaths[index];
+                    if (!stampsByPath.TryGetValue(fullPath, out EditorAssetIdentityFileStamp stamp) || !stamp.Exists) {
+                        continue;
+                    }
+
+                    document.Files.Add(new EditorAssetIdentitySnapshotFile {
+                        RelativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, fullPath)),
+                        Length = stamp.Length,
+                        LastWriteUtcTicks = stamp.LastWriteUtcTicks,
+                        Authored = false
+                    });
+                }
+
+                for (int index = 0; index < loadedEntries.Count; index++) {
+                    EditorAssetIdentityEntry entry = loadedEntries[index];
+                    if (!stampsByPath.TryGetValue(entry.FullPath, out EditorAssetIdentityFileStamp stamp) || !stamp.Exists) {
+                        continue;
+                    }
+
+                    bool embedded = embeddedIdentityByPath.TryGetValue(entry.FullPath, out bool embeddedValue) && embeddedValue;
+                    EditorAssetIdentityFileStamp sidecarStamp = default;
+                    if (!embedded) {
+                        string sidecarPath = entry.FullPath + ".hmeta";
+                        // Repairs rewrote sidecars after the stamps were taken; and repaired embedded payloads
+                        // changed the asset file itself, which the stamp check below also covers.
+                        sidecarStamp = repairedPaths.Contains(entry.FullPath) || !stampsByPath.TryGetValue(sidecarPath, out sidecarStamp)
+                            ? EditorAssetIdentityFileStamp.Read(sidecarPath)
+                            : sidecarStamp;
+                        if (!sidecarStamp.Exists) {
+                            continue;
+                        }
+                    } else if (repairedPaths.Contains(entry.FullPath)) {
+                        stamp = EditorAssetIdentityFileStamp.Read(entry.FullPath);
+                        if (!stamp.Exists) {
+                            continue;
+                        }
+                    }
+
+                    document.Files.Add(new EditorAssetIdentitySnapshotFile {
+                        RelativePath = entry.RelativePath,
+                        Length = stamp.Length,
+                        LastWriteUtcTicks = stamp.LastWriteUtcTicks,
+                        Authored = true,
+                        EntryKind = entry.EntryKind.ToString(),
+                        EmbeddedIdentity = embedded,
+                        SidecarLength = embedded ? 0 : sidecarStamp.Length,
+                        SidecarLastWriteUtcTicks = embedded ? 0 : sidecarStamp.LastWriteUtcTicks,
+                        AssetId = entry.AssetId,
+                        FormerAssetIds = new List<string>(entry.FormerAssetIds)
+                    });
+                }
+
+                SnapshotStore.Save(document);
+            } catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is InvalidDataException || exception is InvalidOperationException) {
+                Logger.WriteWarning($"Asset identity snapshot was not written: {exception.Message}");
+            }
+        }
+
         void ReconcileCore() {
             EnsurePublicationAvailableUnderLock();
+            ReconciledGeneration = EditorProjectWriteGeneration.Read(ProjectRootPath);
             HashSet<string> previousMissingMetadataPaths = new HashSet<string>(MissingMetadataPaths, PathComparer);
             Dictionary<string, string> previousOwners = new Dictionary<string, string>(PreviousOwners, StringComparer.Ordinal);
             try {
@@ -253,23 +444,68 @@ namespace helengine.editor {
                 ValidateNoReparseTraversal(AssetsRootPath);
 
                 MissingMetadataPaths.Clear();
-                List<string> sourcePaths = FileCatalog.EnumerateFiles(AssetsRootPath)
-                    .Select(Path.GetFullPath)
+                // One verified scope per directory for the whole read pass; released before repairs write.
+                EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(ProjectRootPath);
+                // Stamps for every enumerated file come from the listing itself; the snapshot compares
+                // against these and the next snapshot is written from them.
+                Dictionary<string, EditorAssetIdentityFileStamp> stampsByPath = new Dictionary<string, EditorAssetIdentityFileStamp>(PathComparer);
+                List<string> sourcePaths = new List<string>();
+                foreach (EditorAssetFileStampedPath stampedPath in FileCatalog.EnumerateFileStamps(AssetsRootPath)) {
+                    string fullPath = Path.GetFullPath(stampedPath.FullPath);
+                    sourcePaths.Add(fullPath);
+                    stampsByPath[fullPath] = new EditorAssetIdentityFileStamp(stampedPath.Exists, stampedPath.Length, stampedPath.LastWriteUtcTicks);
+                }
+                sourcePaths = sourcePaths
                     .OrderBy(path => NormalizeRelativePath(path), PathComparer)
                     .ThenBy(path => NormalizeRelativePath(path), StringComparer.Ordinal)
                     .ToList();
                 List<EditorAssetIdentityEntry> loadedEntries = new List<EditorAssetIdentityEntry>();
                 Dictionary<string, AssetIdentityMetadataDocument> documentsByPath = new Dictionary<string, AssetIdentityMetadataDocument>(PathComparer);
                 List<PendingIdentityRepair> pendingRepairs = new List<PendingIdentityRepair>();
+                MarkFirstReconcile("reconcile: enumerate and stamp files");
+                Dictionary<string, EditorAssetIdentitySnapshotFile> snapshotByRelativePath = LoadSnapshotByRelativePath();
+                MarkFirstReconcile("reconcile: snapshot load");
+                Dictionary<string, bool> embeddedIdentityByPath = new Dictionary<string, bool>(PathComparer);
+                List<string> nonAuthoredPaths = new List<string>();
+                int reusedCount = 0;
+                try {
                 for (int index = 0; index < sourcePaths.Count; index++) {
                     string fullPath = sourcePaths[index];
                     ValidateNoReparseTraversal(fullPath);
+                    if (IsSidecarPath(fullPath)) {
+                        continue;
+                    }
+
+                    string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, fullPath));
+                    if (TryReuseSnapshotFile(snapshotByRelativePath, stampsByPath, fullPath, relativePath, out EditorAssetIdentitySnapshotFile snapshotFile)) {
+                        reusedCount++;
+                        if (!snapshotFile.Authored) {
+                            nonAuthoredPaths.Add(fullPath);
+                            continue;
+                        }
+
+                        AssetIdentityMetadataDocument snapshotDocument = new AssetIdentityMetadataDocument {
+                            AssetId = snapshotFile.AssetId,
+                            FormerAssetIds = new List<string>(snapshotFile.FormerAssetIds ?? new List<string>())
+                        };
+                        documentsByPath[fullPath] = snapshotDocument;
+                        embeddedIdentityByPath[fullPath] = snapshotFile.EmbeddedIdentity;
+                        loadedEntries.Add(new EditorAssetIdentityEntry(
+                            fullPath,
+                            relativePath,
+                            Enum.TryParse(snapshotFile.EntryKind, out AssetEntryKind snapshotKind) ? snapshotKind : AssetEntryKind.Unknown,
+                            snapshotDocument));
+                        continue;
+                    }
+
                     if (!PathClassifier.IsAuthoredAsset(fullPath)) {
+                        nonAuthoredPaths.Add(fullPath);
                         continue;
                     }
                     bool metadataCreated;
                     AssetIdentityMetadataDocument document = LoadIdentityMetadataForReconciliation(fullPath, out metadataCreated);
                     documentsByPath[fullPath] = document;
+                    embeddedIdentityByPath[fullPath] = PathClassifier.UsesEmbeddedIdentity(fullPath);
                     if (metadataCreated) {
                         MissingMetadataPaths.Add(fullPath);
                         pendingRepairs.Add(new PendingIdentityRepair(
@@ -288,6 +524,11 @@ namespace helengine.editor {
                     }
                     loadedEntries.Add(CreateEntry(fullPath, document));
                 }
+                } finally {
+                    readBatch.Dispose();
+                }
+                LastReconcileReusedSnapshotFileCount = reusedCount;
+                MarkFirstReconcile("reconcile: scan files");
 
                 Dictionary<string, List<EditorAssetIdentityEntry>> duplicateGroups = GroupByCurrentAssetId(loadedEntries);
                 HashSet<string> usedIds = new HashSet<string>(loadedEntries.Select(entry => entry.AssetId), StringComparer.Ordinal);
@@ -353,6 +594,10 @@ namespace helengine.editor {
                         PreviousOwners[entry.AssetId] = entry.RelativePath;
                     }
                 }
+
+                MarkFirstReconcile("reconcile: repairs and commit");
+                PersistSnapshot(loadedEntries, nonAuthoredPaths, stampsByPath, embeddedIdentityByPath, pendingRepairs);
+                MarkFirstReconcile("reconcile: snapshot write");
             } catch {
                 MissingMetadataPaths.Clear();
                 foreach (string path in previousMissingMetadataPaths) {
@@ -1161,14 +1406,21 @@ namespace helengine.editor {
         void ValidateNoReparseTraversal(string fullPath) {
             string rootPath = Path.GetFullPath(AssetsRootPath);
             string currentPath = Path.GetFullPath(fullPath);
+            string containingDirectoryPath = Path.GetDirectoryName(currentPath);
+            string assetsPrefix = rootPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!string.IsNullOrWhiteSpace(containingDirectoryPath)
+                && (string.Equals(containingDirectoryPath, rootPath, PathComparison) || containingDirectoryPath.StartsWith(assetsPrefix, PathComparison))
+                && EditorAuthoringReadBatch.TryPinDirectory(ProjectRootPath, containingDirectoryPath)) {
+                // The batch verified and pinned the directory chain with open handles; only the leaf remains.
+                if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
+                    throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
+                }
+                return;
+            }
+
             while (true) {
-                try {
-                    FileAttributes attributes = File.GetAttributes(currentPath);
-                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
-                        throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
-                    }
-                } catch (FileNotFoundException) {
-                } catch (DirectoryNotFoundException) {
+                if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
+                    throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
                 }
 
                 if (string.Equals(currentPath, rootPath, PathComparison)) {

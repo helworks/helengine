@@ -985,13 +985,8 @@ namespace helengine.editor {
             string canonicalRootPath = Path.GetFullPath(rootPath);
             string currentPath = Path.GetFullPath(fullPath);
             while (true) {
-                try {
-                    FileAttributes attributes = File.GetAttributes(currentPath);
-                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
-                        throw new InvalidOperationException($"Imported texture asset path '{fullPath}' traverses a reparse point.");
-                    }
-                } catch (FileNotFoundException) {
-                } catch (DirectoryNotFoundException) {
+                if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
+                    throw new InvalidOperationException($"Imported texture asset path '{fullPath}' traverses a reparse point.");
                 }
 
                 if (string.Equals(currentPath, canonicalRootPath, PathComparison)) {

@@ -174,10 +174,9 @@ namespace helengine.editor {
             }
 
             try {
-                using MemoryStream stream = new MemoryStream(
-                    EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(fullPath), fullPath),
-                    writable: false);
-                EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
+                if (!TryReadHassetHeader(fullPath, out EngineBinaryHeader header)) {
+                    return false;
+                }
                 return header.FormatId == global::helengine.files.EditorAssetBinarySerializer.FormatId &&
                      (header.RecordKind == (ushort)EditorBinaryRecordKind.Asset ||
                      (header.RecordKind == (ushort)EditorBinaryRecordKind.AssetImportSettings &&
@@ -185,6 +184,57 @@ namespace helengine.editor {
             } catch {
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Header of one `.hasset` file together with the file stamp it was read at.
+        /// </summary>
+        sealed class HassetHeaderCacheEntry {
+            public long Length;
+            public long LastWriteUtcTicks;
+            public EngineBinaryHeader Header;
+        }
+
+        /// <summary>
+        /// Headers already read this session, keyed by full path. A boot reconcile classifies each `.hasset`
+        /// two or three times; the stamp check keeps the entry honest when the file changes.
+        /// </summary>
+        readonly Dictionary<string, HassetHeaderCacheEntry> HassetHeadersByPath = new Dictionary<string, HassetHeaderCacheEntry>(
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+        /// <summary>
+        /// Reads a `.hasset` file's HELE header through the verified read path, reusing a cached header while the
+        /// file's length and last-write time are unchanged.
+        /// </summary>
+        /// <param name="filePath">Absolute `.hasset` path.</param>
+        /// <param name="header">Parsed header, or null when the file lacks a valid HELE header.</param>
+        /// <returns>True when a header was parsed.</returns>
+        bool TryReadHassetHeader(string filePath, out EngineBinaryHeader header) {
+            string fullPath = Path.GetFullPath(filePath);
+            FileInfo fileInfo = new FileInfo(fullPath);
+            if (!fileInfo.Exists) {
+                HassetHeadersByPath.Remove(fullPath);
+                header = null;
+                return false;
+            }
+
+            if (HassetHeadersByPath.TryGetValue(fullPath, out HassetHeaderCacheEntry cached)
+                && cached.Length == fileInfo.Length
+                && cached.LastWriteUtcTicks == fileInfo.LastWriteTimeUtc.Ticks) {
+                header = cached.Header;
+                return header != null;
+            }
+
+            using MemoryStream stream = new MemoryStream(
+                EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(fullPath), fullPath),
+                writable: false);
+            bool read = EngineBinaryHeaderSerializer.TryRead(stream, out header);
+            HassetHeadersByPath[fullPath] = new HassetHeaderCacheEntry {
+                Length = fileInfo.Length,
+                LastWriteUtcTicks = fileInfo.LastWriteTimeUtc.Ticks,
+                Header = read ? header : null
+            };
+            return read;
         }
 
         /// <summary>
@@ -200,11 +250,8 @@ namespace helengine.editor {
             }
 
             try {
-                using MemoryStream stream = new MemoryStream(
-                    EditorAuthoringMutationScope.ReadAllBytes(ResolveProjectRootPath(filePath), filePath),
-                    writable: false);
                 // Probe without throwing: every .hasset in the project passes through here on each boot.
-                if (!EngineBinaryHeaderSerializer.TryRead(stream, out EngineBinaryHeader header)) {
+                if (!TryReadHassetHeader(filePath, out EngineBinaryHeader header)) {
                     entryKind = AssetEntryKind.Unknown;
                     return false;
                 }

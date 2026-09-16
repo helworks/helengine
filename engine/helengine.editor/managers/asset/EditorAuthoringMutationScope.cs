@@ -223,7 +223,11 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             if (!string.Equals(parent, TargetDirectoryPath, PathComparison)) {
                 throw new InvalidDataException($"The verified leaf '{filePath}' is not directly beneath the pinned mutation directory.");
             }
-            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(fullPath, ProjectRootPath);
+            // The directory chain was verified and pinned by open handles when this scope was acquired,
+            // so only the leaf needs a pre-open check; the opened handle is verified again afterwards.
+            if (EditorFileAttributesProbe.IsReparsePoint(fullPath)) {
+                throw new InvalidDataException($"The authoring transaction path '{fullPath}' traverses a reparse point.");
+            }
             SafeFileHandle handle = OperatingSystem.IsWindows()
                 ? OpenAndVerifyWindowsFile(fullPath, mode, access, share, includeDelete)
                 : OperatingSystem.IsLinux()
@@ -1485,9 +1489,68 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         /// <summary>Reads a regular-file leaf through a verified handle.</summary>
         internal static byte[] ReadAllBytes(string projectRootPath, string filePath) {
             string fullPath = Path.GetFullPath(filePath);
-            using EditorAuthoringMutationScope scope = AcquireForMutation(
-                projectRootPath,
-                Path.GetDirectoryName(fullPath));
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            // An active read batch keeps one verified scope per directory, so bulk reads such as the
+            // boot-time identity reconcile do not re-verify the directory chain for every file.
+            EditorAuthoringMutationScope batchScope = EditorAuthoringReadBatch.TryGetScope(projectRootPath, directoryPath);
+            if (batchScope != null) {
+                return ReadAllBytes(batchScope, fullPath);
+            }
+
+            using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, directoryPath);
+            return ReadAllBytes(scope, fullPath);
+        }
+
+        /// <summary>
+        /// Reads at most the leading bytes of a file through the verified read path, for header probes that
+        /// must not pull whole cached payloads into memory.
+        /// </summary>
+        /// <param name="projectRootPath">Project root the file belongs to.</param>
+        /// <param name="filePath">File to read.</param>
+        /// <param name="maximumCount">Maximum number of leading bytes to return.</param>
+        /// <returns>The leading bytes, shorter than requested when the file is smaller.</returns>
+        internal static byte[] ReadLeadingBytes(string projectRootPath, string filePath, int maximumCount) {
+            if (maximumCount <= 0) {
+                throw new ArgumentOutOfRangeException(nameof(maximumCount));
+            }
+
+            string fullPath = Path.GetFullPath(filePath);
+            string directoryPath = Path.GetDirectoryName(fullPath);
+            EditorAuthoringMutationScope batchScope = EditorAuthoringReadBatch.TryGetScope(projectRootPath, directoryPath);
+            if (batchScope != null) {
+                return ReadLeadingBytes(batchScope, fullPath, maximumCount);
+            }
+
+            using EditorAuthoringMutationScope scope = AcquireForMutation(projectRootPath, directoryPath);
+            return ReadLeadingBytes(scope, fullPath, maximumCount);
+        }
+
+        static byte[] ReadLeadingBytes(EditorAuthoringMutationScope scope, string fullPath, int maximumCount) {
+            using EditorAuthoringVerifiedFile file = scope.OpenVerifiedFile(
+                fullPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite);
+            byte[] buffer = new byte[maximumCount];
+            int total = 0;
+            while (total < maximumCount) {
+                int read = file.Stream.Read(buffer, total, maximumCount - total);
+                if (read <= 0) {
+                    break;
+                }
+                total += read;
+            }
+
+            if (total == maximumCount) {
+                return buffer;
+            }
+
+            byte[] trimmed = new byte[total];
+            Array.Copy(buffer, trimmed, total);
+            return trimmed;
+        }
+
+        static byte[] ReadAllBytes(EditorAuthoringMutationScope scope, string fullPath) {
             using EditorAuthoringVerifiedFile file = scope.OpenVerifiedFile(
                 fullPath,
                 FileMode.Open,

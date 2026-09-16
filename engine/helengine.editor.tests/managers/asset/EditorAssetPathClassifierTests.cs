@@ -58,6 +58,34 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
+        /// Ensures a cached .hasset header is refreshed when the file changes on disk.
+        /// </summary>
+        [Fact]
+        public void Classify_WhenHassetChangesAfterFirstClassification_ReflectsNewHeader() {
+            string hassetPath = Path.Combine(TempRootPath, "assets", "thing.hasset");
+            File.WriteAllText(hassetPath, "not a hele payload at all");
+            EditorAssetPathClassifier classifier = new EditorAssetPathClassifier(TempRootPath);
+
+            AssetEntryKind before = classifier.Classify(hassetPath);
+
+            using (FileStream stream = File.Create(hassetPath)) {
+                EngineBinaryHeaderSerializer.Write(stream, new EngineBinaryHeader(
+                    EngineBinaryEndianness.LittleEndian,
+                    1,
+                    global::helengine.files.EditorAssetBinarySerializer.FormatId,
+                    (ushort)EditorBinaryRecordKind.AssetImportSettings,
+                    (ushort)AssetImportSettingsBinaryValueKind.MaterialAssetCommonSettingsDocument));
+                stream.Write(new byte[64]);
+            }
+            File.SetLastWriteTimeUtc(hassetPath, DateTime.UtcNow.AddSeconds(5));
+
+            AssetEntryKind after = classifier.Classify(hassetPath);
+
+            Assert.Equal(AssetEntryKind.File, before);
+            Assert.Equal(AssetEntryKind.Material, after);
+        }
+
+        /// <summary>
         /// Ensures identity metadata sidecars are rejected as authored assets without being read or raising exceptions.
         /// </summary>
         [Fact]

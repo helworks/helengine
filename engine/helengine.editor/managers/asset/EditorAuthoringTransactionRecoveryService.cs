@@ -712,13 +712,23 @@ namespace helengine.editor {
                 throw new InvalidDataException($"The authoring transaction path '{path}' escapes its containing root.");
             }
 
+            // Inside a read batch the containing directory chain is verified once and pinned with
+            // open handles, so bulk walkers only need the leaf checked here.
+            string containingDirectory = Path.GetDirectoryName(current);
+            if (!string.IsNullOrWhiteSpace(containingDirectory)
+                && !string.Equals(current, canonicalRoot, comparison)
+                && (string.Equals(containingDirectory, canonicalRoot, comparison) || containingDirectory.StartsWith(prefix, comparison))
+                && Directory.Exists(containingDirectory)
+                && EditorAuthoringReadBatch.TryPinDirectory(canonicalRoot, containingDirectory)) {
+                if (EditorFileAttributesProbe.IsReparsePoint(current)) {
+                    throw new InvalidDataException($"The authoring transaction path '{path}' traverses a reparse point.");
+                }
+                return;
+            }
+
             while (true) {
-                try {
-                    if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) {
-                        throw new InvalidDataException($"The authoring transaction path '{path}' traverses a reparse point.");
-                    }
-                } catch (FileNotFoundException) {
-                } catch (DirectoryNotFoundException) {
+                if (EditorFileAttributesProbe.IsReparsePoint(current)) {
+                    throw new InvalidDataException($"The authoring transaction path '{path}' traverses a reparse point.");
                 }
                 // Continue through the complete existing ancestor chain. A
                 // linked parent above the textual project root can redirect a

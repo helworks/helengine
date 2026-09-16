@@ -687,13 +687,8 @@ namespace helengine.editor {
                 ? StringComparison.OrdinalIgnoreCase
                 : StringComparison.Ordinal;
             while (true) {
-                try {
-                    FileAttributes attributes = File.GetAttributes(currentPath);
-                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
-                        throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
-                    }
-                } catch (FileNotFoundException) {
-                } catch (DirectoryNotFoundException) {
+                if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
+                    throw new InvalidOperationException($"Path '{fullPath}' traverses a reparse point.");
                 }
 
                 if (string.Equals(currentPath, rootPath, comparison)) {

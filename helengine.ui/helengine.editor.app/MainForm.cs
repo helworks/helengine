@@ -175,9 +175,11 @@ namespace helengine.editor.app {
         /// Sets up rendering, input, cameras, UI chrome, and the initial layout.
         /// </summary>
         private void InitializeEditor() {
+            EditorBootTimeline.Start();
             EditorCore core = new EditorCore(null);
             string projectRootPath = ResolveProjectRootPath(projectPath);
             EditorProjectBootstrapContext bootstrap = EditorProjectBootstrapper.Create(projectRootPath);
+            EditorBootTimeline.Mark("project bootstrap");
             string projectAssetsRootPath = ResolveAssetsRootPath(projectRootPath);
             uiScaleController = new EditorUiScaleController(new EditorPreferencesService(ResolveEditorPreferencesRootPath()));
             EditorPreferencesSettings initialEditorPreferences = uiScaleController.LoadPreferences();
@@ -219,6 +221,7 @@ namespace helengine.editor.app {
             };
             PlatformInfo platformInfo = ResolveEditorPlatformInfo(projectPath);
             core.Initialize(renderer3D, renderer2D, inputBackend, platformInfo, initOptions);
+            EditorBootTimeline.Mark("renderer and core initialization");
             core.SetTextClipboardService(new SystemTextClipboardService());
             BepuRuntimeComponentRegistration.Register(core);
             BepuPhysicsWorld3D physicsWorld = BepuRuntimeComponentRegistration.CreateRuntimeWorld(core);
@@ -235,6 +238,7 @@ namespace helengine.editor.app {
             RuntimeTexture titleBarIcon = EditorToolbarIconLoader.LoadTitleBarIcon(contentManager, AppContext.BaseDirectory, renderer2D);
             IReadOnlyList<IAssetImporterRegistration> importers = EditorHostImporterFactory.CreateDefault(renderer2D);
             ShaderBackendRegistry shaderBackendRegistry = CreateShaderBackendRegistry(bootstrap.PlatformCatalogService);
+            EditorBootTimeline.Mark("fonts, icons, importers, and platform shader backends");
             editorSession = new EditorSession(
                 core,
                 projectPath,
@@ -257,6 +261,7 @@ namespace helengine.editor.app {
                     ? new DirectX11EditorMaterialInstanceFactory()
                     : new GenericEditorMaterialInstanceFactory());
 
+            EditorBootTimeline.Mark("editor session construction");
             editorSession.TitleChanged += SetWindowTitle;
             editorSession.CloseRequested += HandleEditorSessionCloseRequested;
             editorSession.PreferencesChanged += HandleEditorPreferencesChanged;
@@ -395,12 +400,6 @@ namespace helengine.editor.app {
             TimeBeginPeriod(1);
             try {
                 System.Diagnostics.Stopwatch loopStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                double telemetryWindowStartSeconds = 0.0;
-                double telemetryFrameCostSumSeconds = 0.0;
-                double telemetryFrameCostMaxSeconds = 0.0;
-                double telemetrySleepSumSeconds = 0.0;
-                int telemetryFrameCount = 0;
-                const double telemetryWindowSeconds = 5.0;
                 for (; ; ) {
                     if (closed) {
                         break;
@@ -433,28 +432,7 @@ namespace helengine.editor.app {
                     // messages, so a loop that never sleeps starves mouse and scroll input entirely once a frame
                     // costs more than the frame budget.
                     int sleepMilliseconds = Math.Max(1, (int)(remainingSeconds * 1000.0));
-                    double sleepStartSeconds = loopStopwatch.Elapsed.TotalSeconds;
                     Thread.Sleep(sleepMilliseconds);
-
-                    telemetryFrameCostSumSeconds += frameCostSeconds;
-                    telemetryFrameCostMaxSeconds = Math.Max(telemetryFrameCostMaxSeconds, frameCostSeconds);
-                    telemetrySleepSumSeconds += loopStopwatch.Elapsed.TotalSeconds - sleepStartSeconds;
-                    telemetryFrameCount++;
-                    double telemetryElapsedSeconds = loopStopwatch.Elapsed.TotalSeconds - telemetryWindowStartSeconds;
-                    if (telemetryElapsedSeconds >= telemetryWindowSeconds && telemetryFrameCount > 0) {
-                        sessionLogListener(new LogEntry(
-                            LogLevel.Info,
-                            $"Editor loop: {telemetryFrameCount / telemetryElapsedSeconds:0.#} FPS, " +
-                            $"avg frame {telemetryFrameCostSumSeconds * 1000.0 / telemetryFrameCount:0.##} ms, " +
-                            $"max frame {telemetryFrameCostMaxSeconds * 1000.0:0.##} ms, " +
-                            $"avg sleep {telemetrySleepSumSeconds * 1000.0 / telemetryFrameCount:0.##} ms.",
-                            0d));
-                        telemetryWindowStartSeconds = loopStopwatch.Elapsed.TotalSeconds;
-                        telemetryFrameCostSumSeconds = 0.0;
-                        telemetryFrameCostMaxSeconds = 0.0;
-                        telemetrySleepSumSeconds = 0.0;
-                        telemetryFrameCount = 0;
-                    }
                 }
             } finally {
                 TimeEndPeriod(1);

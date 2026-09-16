@@ -10,6 +10,18 @@ namespace helengine.editor {
         const int RetryDelayMilliseconds = 10;
         [ThreadStatic]
         static Dictionary<string, EditorProjectWriteLock> HeldLocks;
+        /// <summary>
+        /// Per-thread ownership versions keyed by normalized project root. Each owning acquisition gets a fresh
+        /// version, so callers can memoize checks that only hold while this exact acquisition is alive.
+        /// </summary>
+        [ThreadStatic]
+        static Dictionary<string, long> HeldVersionsByProjectRoot;
+        [ThreadStatic]
+        static long nextHeldVersion;
+        /// <summary>
+        /// Normalized project root registered in <see cref="HeldVersionsByProjectRoot"/> by an owning lock.
+        /// </summary>
+        string HeldProjectRootKey;
         readonly FileStream LockStream;
         readonly EditorAuthoringVerifiedFile VerifiedLockFile;
         readonly EditorAuthoringMutationScope MutationScope;
@@ -90,6 +102,9 @@ namespace helengine.editor {
                             true);
                         (HeldLocks ??= new Dictionary<string, EditorProjectWriteLock>(
                             OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))[canonicalLockPath] = acquiredLock;
+                        acquiredLock.HeldProjectRootKey = NormalizeProjectRootKey(fullProjectRootPath);
+                        (HeldVersionsByProjectRoot ??= new Dictionary<string, long>(
+                            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))[acquiredLock.HeldProjectRootKey] = ++nextHeldVersion;
                         verifiedLockFile = null;
                         mutationScope = null;
                         return acquiredLock;
@@ -125,7 +140,11 @@ namespace helengine.editor {
             DirectoryInfo current = new DirectoryInfo(directoryPath);
             while (current != null) {
                 try {
-                    DirectoryInfo resolved = current.ResolveLinkTarget(true) as DirectoryInfo;
+                    // LinkTarget is null for ordinary directories and never throws, whereas
+                    // ResolveLinkTarget throws DirectoryNotFoundException at the drive root.
+                    DirectoryInfo resolved = current.LinkTarget != null
+                        ? current.ResolveLinkTarget(true) as DirectoryInfo
+                        : null;
                     if (resolved != null) {
                         string canonicalDirectory = resolved.FullName;
                         for (int index = suffix.Count - 1; index >= 0; index--) {
@@ -186,7 +205,29 @@ namespace helengine.editor {
                 ReferenceEquals(heldLock, this)) {
                 HeldLocks.Remove(ProjectRootPath);
             }
+            if (HeldProjectRootKey != null && HeldVersionsByProjectRoot != null) {
+                HeldVersionsByProjectRoot.Remove(HeldProjectRootKey);
+            }
             IsDisposed = true;
+        }
+
+        /// <summary>
+        /// Reports whether the current thread owns the project's write lock, and which acquisition it is.
+        /// </summary>
+        /// <param name="projectRootPath">Project root to check.</param>
+        /// <param name="version">Version unique to the current owning acquisition when held.</param>
+        /// <returns>True when the current thread holds the lock.</returns>
+        internal static bool TryGetHeldVersion(string projectRootPath, out long version) {
+            version = 0;
+            if (string.IsNullOrWhiteSpace(projectRootPath) || HeldVersionsByProjectRoot == null) {
+                return false;
+            }
+
+            return HeldVersionsByProjectRoot.TryGetValue(NormalizeProjectRootKey(projectRootPath), out version);
+        }
+
+        static string NormalizeProjectRootKey(string projectRootPath) {
+            return Path.GetFullPath(projectRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
     }
 

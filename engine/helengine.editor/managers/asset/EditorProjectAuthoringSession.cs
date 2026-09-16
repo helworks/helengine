@@ -1050,7 +1050,9 @@ namespace helengine.editor {
             string projectRootPath = ResolveProjectRootPath(assetImportManager);
             EditorAssetRepairReport repairReport = new EditorAssetRepairReport();
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            EditorBootTimeline.Mark("authoring: project write lock");
             EditorAuthoringTransactionRecoveryService.Recover(projectRootPath);
+            EditorBootTimeline.Mark("authoring: transaction recovery");
             string assetsRootPath = Path.Combine(projectRootPath, "assets");
             EditorAuthoringMutationScope.EnsureDirectory(projectRootPath, assetsRootPath);
             EditorAssetHashCache hashCache = null;
@@ -1061,9 +1063,12 @@ namespace helengine.editor {
             IEditorAuthoringSessionLifetime lifetime = null;
             try {
                 hashCache = new EditorAssetHashCache(projectRootPath);
+                EditorBootTimeline.Mark("authoring: hash cache load");
                 identityIndex = new EditorAssetIdentityIndex(projectRootPath, null, null, hashCache, repairReport);
                 identityIndex.Initialize();
+                EditorBootTimeline.Mark("authoring: identity index reconcile");
                 nativeAssetWriteService = new EditorNativeAssetWriteService(projectRootPath, identityIndex, hashCache);
+                EditorBootTimeline.Mark("authoring: native asset write service");
                 referenceResolver = new EditorAssetReferenceResolver(
                     projectRootPath,
                     identityIndex,
@@ -1078,10 +1083,12 @@ namespace helengine.editor {
                     hashCache,
                     nativeAssetWriteService);
                 lifetime = new EditorAuthoringSessionLifetime(resources);
+                EditorBootTimeline.Mark("authoring: reference resolver");
                 configureImporters?.Invoke(assetImportManager);
                 // Importer settings are generated only after recovery and the first
                 // current-format identity index have been established.
                 assetImportManager.GenerateMissingImportSettings();
+                EditorBootTimeline.Mark("authoring: import settings generation");
                 return new SessionDependencies(assetImportManager, hashCache, identityIndex, referenceResolver, lifetime, nativeAssetWriteService, repairReport);
             } catch (Exception primary) {
                 List<Exception> disposalFailures = new List<Exception>();
@@ -1323,13 +1330,8 @@ namespace helengine.editor {
             StringComparison comparison = ProjectRootPathComparison;
             string currentPath = fullPath;
             while (true) {
-                try {
-                    FileAttributes attributes = File.GetAttributes(currentPath);
-                    if ((attributes & FileAttributes.ReparsePoint) != 0) {
-                        throw new InvalidOperationException($"Asset path '{fullPath}' traverses a reparse point.");
-                    }
-                } catch (FileNotFoundException) {
-                } catch (DirectoryNotFoundException) {
+                if (EditorFileAttributesProbe.IsReparsePoint(currentPath)) {
+                    throw new InvalidOperationException($"Asset path '{fullPath}' traverses a reparse point.");
                 }
 
                 if (string.Equals(currentPath, rootPath, comparison)) {
