@@ -792,8 +792,10 @@ namespace helengine.editor {
             RegisterDetacher(constructionLedger, () => interactionServices.EntityExistence.ExistenceChanged -= ApplyPlatformExistenceSuppression);
             interactionServices.EntityExistence.ExistenceChanged += ApplyPlatformExistenceSuppression;
 
+            EditorBootTimeline.Mark("panels: cameras, viewport, keyboard focus");
             titleBar = new EditorTitleBar(core, interactionServices, uiFont, CurrentUiMetrics, Math.Max(1, renderWidth), Math.Max(1, renderHeight), BuildWindowTitle(), titleBarIcon);
             titleBar.SetInput(core.Input);
+            EditorBootTimeline.Mark("panels: title bar");
             PanelRegistry = new EditorWorkspacePanelRegistry();
             PanelInstances = new List<EditorWorkspacePanelInstance>();
             WorkspaceLayoutService = new EditorWorkspaceLayoutService(EditorProjectMetadataResolver.ResolveProjectRootPath(this.projectPath));
@@ -805,11 +807,12 @@ namespace helengine.editor {
             fileSystemModelResolver.SetRenderManager(core.RenderManager3D);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
-            EditorBootTimeline.Mark("panels: cameras, viewport, title bar, docking");
+            EditorBootTimeline.Mark("panels: docking manager and resolvers");
             sceneHierarchyPanel = new SceneHierarchyPanel(core, interactionServices, uiFont, CurrentUiMetrics);
             sceneHierarchyPanel.SetObjectManager(core.ObjectManager);
             sceneHierarchyPanel.RefreshHierarchy();
             constructionLedger.Register(sceneHierarchyPanel);
+            EditorBootTimeline.Mark("panel: scene hierarchy");
             EditorAssetManager assetBrowserManager = new EditorAssetManager(this.projectPath, authoredAssetReferenceResolver);
             AssetBrowserDataSource assetBrowserDataSource = new AssetBrowserDataSource(assetBrowserManager, generatedAssetProviderRegistry);
             constructionLedger.Register(assetBrowserDataSource);
@@ -817,6 +820,7 @@ namespace helengine.editor {
             assetBrowserPanel.SetRendererResources(rendererResources);
             constructionLedger.Register(assetBrowserPanel);
             constructionLedger.Register(assetBrowserPanel.DisposeAuthoringResources);
+            EditorBootTimeline.Mark("panel: asset browser");
             propertiesPanel = new PropertiesPanel(core, interactionServices, uiFont, EditorContentManager, fileSystemModelResolver, titleBar.Entity, scriptHotReloadService, CurrentUiMetrics, fileSystemFontResolver, this.projectPath);
             propertiesPanel.SetInput(core.Input);
             constructionLedger.Register(propertiesPanel);
@@ -825,21 +829,23 @@ namespace helengine.editor {
             propertiesPanel.SetEntityExistenceEditingService(interactionServices.EntityExistence);
             propertiesPanel.SetComponentEditorRegistry(interactionServices.ComponentEditors);
             propertiesPanel.SetRendererResources(rendererResources);
-            EditorBootTimeline.Mark("panels: hierarchy, asset browser, properties");
+            EditorBootTimeline.Mark("panel: properties");
             loggerPanel = new LoggerPanel(core, interactionServices, uiFont, CurrentUiMetrics);
             loggerPanel.SetInputServices(core.Input, core.TextClipboardService);
             constructionLedger.Register(loggerPanel);
+            EditorBootTimeline.Mark("panel: logger");
             LogAuthoringRepairReport();
             previewPanel = new PreviewPanel(core, interactionServices, uiFont, ViewportToolbarIcons.GridIcon, CurrentUiMetrics);
             previewPanel.SetRendererResources(rendererResources);
             previewPanel.SetInput(core.Input);
             constructionLedger.Register(previewPanel);
-            EditorBootTimeline.Mark("panels: logger and preview");
+            EditorBootTimeline.Mark("panel: preview");
             assetPickerModal = new AssetPickerModal(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
+            EditorBootTimeline.Mark("modal: asset picker");
             meshModifierPickerModal = new MeshModifierPickerModal(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
-            EditorBootTimeline.Mark("panels: asset picker and mesh modifier modals");
+            EditorBootTimeline.Mark("modal: mesh modifier picker");
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
             scriptHotReloadService = new EditorGameScriptHotReloadService(
@@ -1056,14 +1062,16 @@ namespace helengine.editor {
                 runtimeTarget,
                 ShaderBackends);
             constructionLedger.Register(shaderModuleManager);
+            EditorBootTimeline.Mark("shaders: module manager");
             shaderPackageService = new EditorShaderPackageService(this.projectPath, shaderModuleManager, runtimeTarget, EditorContentManager, builtInShaderAssetLibrary);
+            EditorBootTimeline.Mark("shaders: package service");
             ShaderBuildNotificationQueue = new EditorShaderBuildNotificationQueue(shaderPackageService, core.RenderManager3D);
             propertiesPanel.ShaderPackageService = shaderPackageService;
             sceneAssetReferenceResolver.ShaderPackageService = shaderPackageService;
             ConstructionCheckpointForTests?.Invoke("after-shader-package-initialized");
             RegisterDetacher(constructionLedger, () => shaderModuleManager.ShaderBuilt -= HandleShaderBuilt);
             shaderModuleManager.ShaderBuilt += HandleShaderBuilt;
-            EditorBootTimeline.Mark("finalization: shader module manager and package service");
+            EditorBootTimeline.Mark("shaders: notification queue and wiring");
             shaderModuleManager.Start();
             EditorBootTimeline.Mark("finalization: shader module manager start");
             BuildStartScene();
