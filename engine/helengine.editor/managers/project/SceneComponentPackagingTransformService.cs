@@ -170,6 +170,11 @@ namespace helengine.editor {
         readonly string AssetsRootPath;
 
         /// <summary>
+        /// Reuses successfully resolved texture UUIDs while packaging the current project snapshot.
+        /// </summary>
+        readonly Dictionary<string, string> MovedTexturePathsByAssetId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Content manager used to load serialized scene and material assets from the project.
         /// </summary>
         readonly ContentManager ProjectContentManager;
@@ -1607,8 +1612,22 @@ namespace helengine.editor {
         /// <param name="reference">Serialized texture reference to rewrite.</param>
         /// <param name="buildRootPath">Absolute build root path that receives packaged assets.</param>
         /// <returns>Packaged file-backed texture reference.</returns>
-        SceneAssetReference RewriteFileSystemTextureReference(SceneAssetReference reference, string buildRootPath) {
+        internal SceneAssetReference RewriteFileSystemTextureReference(SceneAssetReference reference, string buildRootPath) {
             string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
+            string sourceRelativePath = reference.RelativePath;
+            if (!File.Exists(sourcePath)) {
+                bool hasStableId = Guid.TryParseExact(reference.AssetId, "N", out _);
+                if (!hasStableId || !MovedTexturePathsByAssetId.TryGetValue(reference.AssetId, out string resolvedPath) || !File.Exists(resolvedPath)) {
+                    using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(AssetImportManager.ProjectRootPath);
+                    AssetReferenceResolution resolution = resolver.Resolve(reference, AssetEntryKind.Image);
+                    resolvedPath = resolution.FullPath;
+                    if (hasStableId) {
+                        MovedTexturePathsByAssetId[reference.AssetId] = resolvedPath;
+                    }
+                }
+                sourcePath = resolvedPath;
+                sourceRelativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, sourcePath));
+            }
             TextureAssetImportSettings settings;
             if (!AssetImportManager.TryLoadOrCreateTextureImportSettings(sourcePath, out settings) || settings == null) {
                 throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not create import settings for packaging.");
@@ -1624,7 +1643,7 @@ namespace helengine.editor {
             if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
                 WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
             }
-            RememberTextureCookWorkItem(reference.RelativePath, sourcePath, cookedRelativePath, settings);
+            RememberTextureCookWorkItem(sourceRelativePath, sourcePath, cookedRelativePath, settings);
             return CreateFileSystemReference(cookedRelativePath);
         }
 

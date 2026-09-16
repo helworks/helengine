@@ -1158,25 +1158,7 @@ namespace helengine.editor {
                 }
 
                 if (AssetImportManager.IsTextureExtension(fullExtension)) {
-                    string sourcePath = ResolveProjectAssetPath(reference.RelativePath);
-                    TextureAssetImportSettings settings;
-                    if (!AssetImportManager.TryLoadOrCreateTextureImportSettings(sourcePath, out settings) || settings == null) {
-                        throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not create import settings for packaging.");
-                    }
-                    if (string.IsNullOrWhiteSpace(settings.Importer.AssetId)) {
-                        throw new InvalidOperationException($"Texture source '{reference.RelativePath}' did not produce an imported asset id for packaging.");
-                    }
-                    if (!AssetImportManager.TryLoadTextureAsset(sourcePath, out TextureAsset textureAsset) || textureAsset == null) {
-                        throw new InvalidOperationException($"Texture source '{reference.RelativePath}' could not be imported for packaging.");
-                    }
-
-                    string cookedRelativePath = BuildImportedTextureCookedRelativePath(settings.Importer.AssetId);
-                    if (!SupportsBuilderOwnedPlatformCookKind("texture")) {
-                        WriteAsset(Path.Combine(buildRootPath, cookedRelativePath), textureAsset);
-                    }
-
-                    RememberTextureCookWorkItem(NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, sourcePath)), cookedRelativePath, settings);
-                    return CreateFileSystemReference(cookedRelativePath);
+                    return TransformService.RewriteFileSystemTextureReference(reference, buildRootPath);
                 }
 
                 if (IsFileSystemMaterialReference(reference.RelativePath)) {

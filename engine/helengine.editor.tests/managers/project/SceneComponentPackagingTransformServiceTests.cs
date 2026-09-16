@@ -1196,6 +1196,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures cooking follows a moved texture's stable identity without rewriting its authored reference.
+        /// </summary>
+        [Fact]
+        public void RewriteTexture_WhenSourceMoved_UsesStableIdentity() {
+            string movedPath = Path.Combine(ProjectRootPath, "assets", "textures", "moved.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(movedPath));
+            File.WriteAllBytes(movedPath, new byte[] { 1, 2, 3 });
+            const string assetId = "00112233445566778899aabbccddeeff";
+            new AssetIdentityMetadataService(ProjectRootPath).Save(movedPath, new AssetIdentityMetadataDocument {
+                AssetId = assetId,
+                FormerAssetIds = new List<string>()
+            });
+            SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                assetId, "images/old.png", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+            SceneComponentPackagingTransformService service = CreateService(new StubTextComponentSpriteBakeService());
+            MethodInfo rewrite = typeof(SceneComponentPackagingTransformService).GetMethod(
+                "RewriteFileSystemTextureReference", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            SceneAssetReference cooked = (SceneAssetReference)rewrite.Invoke(service, new object[] { reference, BuildRootPath });
+
+            Assert.StartsWith("cooked/imported/", cooked.RelativePath, StringComparison.Ordinal);
+            Assert.True(File.Exists(Path.Combine(BuildRootPath, cooked.RelativePath)));
+            Assert.Equal("images/old.png", reference.RelativePath);
+            Assert.False(File.Exists(Path.Combine(ProjectRootPath, "assets", "images", "old.png")));
+        }
+        /// <summary>
         /// Creates one automatic reflected sprite-component record for packaging verification.
         /// </summary>
         /// <returns>Serialized sprite-component record.</returns>

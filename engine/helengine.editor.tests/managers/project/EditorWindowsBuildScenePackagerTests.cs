@@ -171,6 +171,40 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures the scene asset table cooks moved textures through their stable identities.
+        /// </summary>
+        [Fact]
+        public void Package_WhenSceneTextureMoved_ResolvesIdentityWithoutRewritingScene() {
+            string relativePath = "textures/moved.png";
+            WriteSourceTextureAsset(relativePath);
+            string sourcePath = Path.Combine(ProjectRootPath, "assets", relativePath);
+            const string assetId = "00112233445566778899aabbccddeeff";
+            new AssetIdentityMetadataService(ProjectRootPath).Save(sourcePath, new AssetIdentityMetadataDocument {
+                AssetId = assetId,
+                FormerAssetIds = new List<string>()
+            });
+            SceneAssetReference reference = global::helengine.SceneAssetReferenceFactory.CreateFileSystemReference(
+                assetId, "images/old.png", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+            string sceneId = "Scenes/MovedTexture.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = Array.Empty<SceneEntityAsset>(),
+                AssetReferences = new[] { reference }
+            });
+            string scenePath = Path.Combine(ProjectRootPath, "assets", sceneId);
+            byte[] originalScene = File.ReadAllBytes(scenePath);
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(
+                ProjectRootPath,
+                new IAssetImporterRegistration[] { new TextureImporterRegistration("test-texture", new TestTextureImporter(), new[] { ".png" }) },
+                BuiltInShaderAssetLibrary);
+
+            packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.True(File.Exists(GetPackagedScenePath(BuildRootPath, sceneId)));
+            Assert.NotEmpty(Directory.GetFiles(Path.Combine(BuildRootPath, "cooked", "imported")));
+            Assert.Equal(originalScene, File.ReadAllBytes(scenePath));
+        }
+        /// <summary>
         /// Loads the editor host's default importer registrations so the repro test matches the real Windows build path.
         /// </summary>
         /// <returns>Importer registrations used by the editor host.</returns>
