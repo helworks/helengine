@@ -17,8 +17,26 @@ namespace helengine.editor {
             return Path.Combine(Path.GetFullPath(projectRootPath), "cache", "editor", "authoring-transactions.pending");
         }
 
+        /// <summary>
+        /// Project roots verified free of pending transactions, with the write-lock acquisition version the
+        /// verification was made under. A pending marker can only be created by a transaction, and transactions
+        /// require the project write lock, so while this thread still holds that same acquisition the verdict
+        /// cannot change. Readers such as the hash cache call this on every lookup; without the memo a boot-time
+        /// replay re-validated the marker's directory chain hundreds of times.
+        /// </summary>
+        [ThreadStatic]
+        static Dictionary<string, long> VerifiedNoPendingByRoot;
+
         internal static void EnsureNoPending(string projectRootPath) {
             string canonicalRoot = Path.GetFullPath(projectRootPath);
+            bool lockHeld = EditorProjectWriteLock.TryGetHeldVersion(canonicalRoot, out long heldVersion);
+            if (lockHeld
+                && VerifiedNoPendingByRoot != null
+                && VerifiedNoPendingByRoot.TryGetValue(canonicalRoot, out long verifiedVersion)
+                && verifiedVersion == heldVersion) {
+                return;
+            }
+
             EditorAuthoringTransactionRecoveryService.ValidateTransactionContainer(canonicalRoot);
             if (OwnedProjects != null && OwnedProjects.Contains(canonicalRoot)) {
                 return;
@@ -29,6 +47,10 @@ namespace helengine.editor {
             if (File.Exists(markerPath)) {
                 ReadAndValidate(markerPath, canonicalRoot);
                 throw new InvalidOperationException($"Authoring transaction recovery is required for pending transaction '{markerPath}'.");
+            }
+
+            if (lockHeld) {
+                (VerifiedNoPendingByRoot ??= new Dictionary<string, long>(ProjectComparer))[canonicalRoot] = heldVersion;
             }
         }
 

@@ -46,6 +46,54 @@ public sealed class EditorProjectWriteLockTests : IDisposable {
         Assert.True(directoryNotFoundCount == 0, $"Saw {directoryNotFoundCount} DirectoryNotFoundException(s). First:{Environment.NewLine}{firstStackTrace}");
     }
 
+    /// <summary>
+    /// Ensures ownership versions are reported only while held and change across acquisitions.
+    /// </summary>
+    [Fact]
+    public void TryGetHeldVersion_ReflectsOwnershipAndChangesPerAcquisition() {
+        Assert.False(EditorProjectWriteLock.TryGetHeldVersion(ProjectRootPath, out _));
+
+        long firstVersion;
+        using (EditorProjectWriteLock first = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            Assert.True(EditorProjectWriteLock.TryGetHeldVersion(ProjectRootPath, out firstVersion));
+            using (EditorProjectWriteLock reentrant = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+                Assert.True(EditorProjectWriteLock.TryGetHeldVersion(ProjectRootPath, out long reentrantVersion));
+                Assert.Equal(firstVersion, reentrantVersion);
+            }
+            Assert.True(EditorProjectWriteLock.TryGetHeldVersion(ProjectRootPath, out _));
+        }
+
+        Assert.False(EditorProjectWriteLock.TryGetHeldVersion(ProjectRootPath, out _));
+
+        using (EditorProjectWriteLock second = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            Assert.True(EditorProjectWriteLock.TryGetHeldVersion(ProjectRootPath, out long secondVersion));
+            Assert.NotEqual(firstVersion, secondVersion);
+        }
+    }
+
+    /// <summary>
+    /// Ensures the pending-transaction check is memoized only for the lifetime of one owning acquisition.
+    /// </summary>
+    [Fact]
+    public void EnsureNoPending_WhenLockIsHeld_MemoizesUntilTheLockIsReleased() {
+        string markerPath = EditorAuthoringTransactionPendingMarker.GetPath(ProjectRootPath);
+
+        using (EditorProjectWriteLock held = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            EditorAuthoringTransactionPendingMarker.EnsureNoPending(ProjectRootPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(markerPath));
+            File.WriteAllText(markerPath, "{}");
+            // Same acquisition: the verdict is memoized, because a marker cannot legitimately appear meanwhile.
+            EditorAuthoringTransactionPendingMarker.EnsureNoPending(ProjectRootPath);
+        }
+
+        // A new acquisition must look again and see the marker.
+        using (EditorProjectWriteLock again = EditorProjectWriteLock.Acquire(ProjectRootPath)) {
+            Assert.ThrowsAny<Exception>(() => EditorAuthoringTransactionPendingMarker.EnsureNoPending(ProjectRootPath));
+        }
+
+        File.Delete(markerPath);
+    }
+
     [Fact]
     public async Task Acquire_WhenLockIsHeldForSeveralSeconds_WaitsAndSucceeds() {
         using EditorProjectWriteLock heldLock = EditorProjectWriteLock.Acquire(ProjectRootPath);
