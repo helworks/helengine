@@ -55,9 +55,10 @@ namespace helengine.editor {
                 string solutionPath = GameSolutionService.GeneratedProductionSolutionFilterFilePath;
                 List<EditorScriptAssemblyDescriptor> assemblies = DescribeModuleAssemblies();
                 string fingerprintFilePath = Path.Combine(GameSolutionService.GeneratedMetadataDirectoryPath, EditorScriptBuildFingerprint.FileName);
-                string fingerprint = EditorScriptBuildFingerprint.Compute(GameSolutionService.DescribeBuildInputs());
+                // One fingerprint per module, so an editor-assembly rebuild leaves runtime modules alone.
+                Dictionary<string, string> fingerprints = EditorScriptBuildFingerprint.ComputeAll(GameSolutionService.DescribeModuleBuildInputs());
                 if (!forceBuild
-                    && EditorScriptBuildFingerprint.MatchesStored(fingerprintFilePath, fingerprint)
+                    && EditorScriptBuildFingerprint.AllModulesMatch(EditorScriptBuildFingerprint.ReadStoredModules(fingerprintFilePath), fingerprints)
                     && AllAssembliesExist(assemblies)) {
                     AssemblyHost.Reload(assemblies);
                     return EditorBuildExecutionResult.Success($"Scripts up to date, reloaded without rebuilding: {GameSolutionService.GeneratedOutputAssemblyPath}");
@@ -81,7 +82,7 @@ namespace helengine.editor {
                     return buildResult;
                 }
 
-                EditorScriptBuildFingerprint.WriteStored(fingerprintFilePath, fingerprint);
+                EditorScriptBuildFingerprint.WriteStoredModules(fingerprintFilePath, fingerprints);
                 AssemblyHost.Reload(assemblies);
 
                 return EditorBuildExecutionResult.Success($"Scripts hot-reloaded: {GameSolutionService.GeneratedOutputAssemblyPath}");

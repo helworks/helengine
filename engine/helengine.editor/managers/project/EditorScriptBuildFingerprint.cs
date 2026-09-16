@@ -91,6 +91,117 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Computes one fingerprint per module, so a module is only considered stale when something it
+        /// actually consumes changed. A runtime module never sees the editor assemblies.
+        /// </summary>
+        /// <param name="moduleInputs">Build inputs keyed by module id.</param>
+        /// <returns>Fingerprints keyed by module id.</returns>
+        public static Dictionary<string, string> ComputeAll(IReadOnlyList<KeyValuePair<string, EditorScriptBuildInputs>> moduleInputs) {
+            if (moduleInputs == null) {
+                throw new ArgumentNullException(nameof(moduleInputs));
+            }
+
+            Dictionary<string, string> fingerprints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (int index = 0; index < moduleInputs.Count; index++) {
+                fingerprints[moduleInputs[index].Key] = Compute(moduleInputs[index].Value);
+            }
+
+            return fingerprints;
+        }
+
+        /// <summary>
+        /// Reads the stored per-module fingerprints. A missing or unreadable file yields an empty map, which
+        /// simply means every module is treated as stale.
+        /// </summary>
+        /// <param name="filePath">Absolute path of the stored fingerprint file.</param>
+        /// <returns>Fingerprints keyed by module id.</returns>
+        public static Dictionary<string, string> ReadStoredModules(string filePath) {
+            Dictionary<string, string> fingerprints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) {
+                return fingerprints;
+            }
+
+            string[] lines;
+            try {
+                lines = File.ReadAllLines(filePath, Encoding.UTF8);
+            } catch (IOException) {
+                return fingerprints;
+            } catch (UnauthorizedAccessException) {
+                return fingerprints;
+            }
+
+            for (int index = 0; index < lines.Length; index++) {
+                string line = lines[index].Trim();
+                if (line.Length == 0) {
+                    continue;
+                }
+
+                int separatorIndex = line.IndexOf('=');
+                if (separatorIndex <= 0 || separatorIndex == line.Length - 1) {
+                    // An unrecognized line means an older or damaged file; treat the whole thing as absent.
+                    return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                fingerprints[line.Substring(0, separatorIndex)] = line.Substring(separatorIndex + 1);
+            }
+
+            return fingerprints;
+        }
+
+        /// <summary>
+        /// Stores the per-module fingerprints of a build that just succeeded.
+        /// </summary>
+        /// <param name="filePath">Absolute path of the stored fingerprint file.</param>
+        /// <param name="fingerprints">Fingerprints keyed by module id.</param>
+        public static void WriteStoredModules(string filePath, IReadOnlyDictionary<string, string> fingerprints) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("Fingerprint file path must be provided.", nameof(filePath));
+            }
+            if (fingerprints == null) {
+                throw new ArgumentNullException(nameof(fingerprints));
+            }
+
+            string directoryPath = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrWhiteSpace(directoryPath)) {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            StringBuilder builder = new StringBuilder();
+            foreach (KeyValuePair<string, string> entry in fingerprints.OrderBy(entry => entry.Key, StringComparer.Ordinal)) {
+                builder.Append(entry.Key).Append('=').Append(entry.Value).Append('\n');
+            }
+
+            File.WriteAllText(filePath, builder.ToString(), Encoding.UTF8);
+        }
+
+        /// <summary>
+        /// Determines whether every module's current fingerprint matches what was stored.
+        /// </summary>
+        /// <param name="stored">Fingerprints recorded by the last successful build.</param>
+        /// <param name="current">Fingerprints computed from the current inputs.</param>
+        /// <returns>True when both sets describe exactly the same modules with the same fingerprints.</returns>
+        public static bool AllModulesMatch(IReadOnlyDictionary<string, string> stored, IReadOnlyDictionary<string, string> current) {
+            if (stored == null) {
+                throw new ArgumentNullException(nameof(stored));
+            }
+            if (current == null) {
+                throw new ArgumentNullException(nameof(current));
+            }
+            if (current.Count == 0 || stored.Count != current.Count) {
+                return false;
+            }
+
+            foreach (KeyValuePair<string, string> entry in current) {
+                if (!stored.TryGetValue(entry.Key, out string storedFingerprint)
+                    || !string.Equals(storedFingerprint, entry.Value, StringComparison.Ordinal)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Stores the fingerprint of a build that just succeeded.
         /// </summary>
         /// <param name="filePath">Absolute path of the stored fingerprint file.</param>

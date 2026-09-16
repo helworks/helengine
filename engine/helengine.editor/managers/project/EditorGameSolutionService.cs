@@ -506,6 +506,58 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Describes the build inputs of each production module separately, so a module is only stale when
+        /// something it actually consumes changed. A runtime module's inputs never include the editor
+        /// assemblies, so rebuilding the editor does not mark gameplay code stale.
+        /// </summary>
+        /// <returns>Build inputs keyed by module id, ordered by module id.</returns>
+        public IReadOnlyList<KeyValuePair<string, EditorScriptBuildInputs>> DescribeModuleBuildInputs() {
+            // Only production projects are built by the editor, so test project sources must not affect fingerprints.
+            IReadOnlyList<EditorGeneratedCodeModuleProject> projects = GeneratedModuleProjects;
+            // Shared inputs: a change to the solution, the production filter or the build props can change
+            // how any module compiles, so every module carries them.
+            string[] sharedGeneratedFilePaths = [
+                SolutionFilePath,
+                GeneratedProductionSolutionFilterFilePath,
+                Path.Combine(GeneratedMetadataDirectoryPath, GeneratedBuildPropertiesFileName)
+            ];
+
+            List<KeyValuePair<string, EditorScriptBuildInputs>> moduleInputs = new List<KeyValuePair<string, EditorScriptBuildInputs>>(projects.Count);
+            for (int index = 0; index < projects.Count; index++) {
+                EditorGeneratedCodeModuleProject project = projects[index];
+                List<string> generatedFilePaths = new List<string>(sharedGeneratedFilePaths.Length + 2);
+                generatedFilePaths.AddRange(sharedGeneratedFilePaths);
+                generatedFilePaths.Add(project.ProjectFilePath);
+                generatedFilePaths.Add(project.GeneratedGlobalUsingsFilePath);
+
+                List<string> excludedSourceDirectoryPaths = new List<string>(project.NestedSourceFolderPaths.Count);
+                for (int nestedIndex = 0; nestedIndex < project.NestedSourceFolderPaths.Count; nestedIndex++) {
+                    excludedSourceDirectoryPaths.Add(ResolveProjectPath(project.NestedSourceFolderPaths[nestedIndex]));
+                }
+
+                // ResolveAssemblyReferences already varies by module kind: editor modules additionally
+                // reference the editor assembly and its importer dependency, runtime modules do not.
+                IReadOnlyList<KeyValuePair<string, string>> references = ResolveAssemblyReferences(project);
+                List<string> referencedAssemblyPaths = new List<string>(references.Count);
+                for (int referenceIndex = 0; referenceIndex < references.Count; referenceIndex++) {
+                    referencedAssemblyPaths.Add(references[referenceIndex].Value);
+                }
+
+                moduleInputs.Add(new KeyValuePair<string, EditorScriptBuildInputs>(
+                    project.ModuleId,
+                    new EditorScriptBuildInputs(
+                        generatedFilePaths,
+                        [ResolveProjectPath(project.SourceFolderPath)],
+                        referencedAssemblyPaths,
+                        ["mode=" + CompilationMode, "kind=" + project.ModuleKind, "out|" + project.OutputDirectoryPath],
+                        excludedSourceDirectoryPaths)));
+            }
+
+            moduleInputs.Sort((left, right) => string.Compare(left.Key, right.Key, StringComparison.OrdinalIgnoreCase));
+            return moduleInputs;
+        }
+
+        /// <summary>
         /// Gets the invocation-specific compiler-output root, when this service was configured for isolated execution.
         /// </summary>
         internal string GeneratedExecutionOutputRootPath => GeneratedOutputRootPath;
