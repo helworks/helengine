@@ -70,13 +70,31 @@ namespace helengine.editor {
             EditorAuthoringReadBatch batch = current;
             while (batch != null) {
                 if (!batch.IsDisposed && PathComparer.Equals(batch.ProjectRootPath, NormalizeRoot(projectRootPath))) {
-                    return batch.GetOrAcquireScope(directoryPath);
+                    return batch.IsPinnable(directoryPath) ? batch.GetOrAcquireScope(directoryPath) : null;
                 }
 
                 batch = batch.Previous;
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Only directories inside the project's assets tree are pinned. Writers stage and rename temporary
+        /// directories under the cache folder, and an open handle on one of those would make the rename fail.
+        /// </summary>
+        /// <param name="directoryPath">Directory a read wants to pin.</param>
+        /// <returns>True when the directory is the assets root or lies beneath it.</returns>
+        bool IsPinnable(string directoryPath) {
+            if (string.IsNullOrWhiteSpace(directoryPath)) {
+                return false;
+            }
+
+            string fullDirectoryPath = Path.GetFullPath(directoryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string assetsRootPath = Path.Combine(ProjectRootPath, "assets");
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            return string.Equals(fullDirectoryPath, assetsRootPath, comparison)
+                || fullDirectoryPath.StartsWith(assetsRootPath + Path.DirectorySeparatorChar, comparison);
         }
 
         /// <summary>
@@ -87,6 +105,11 @@ namespace helengine.editor {
         /// <param name="directoryPath">Full directory to pin.</param>
         /// <returns>True when a matching batch is active and the directory chain is now verified and pinned.</returns>
         internal static bool TryPinDirectory(string projectRootPath, string directoryPath) {
+            // Acquiring a scope creates missing directories; a validation-only pin must never do that.
+            if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath)) {
+                return false;
+            }
+
             return TryGetScope(projectRootPath, directoryPath) != null;
         }
 

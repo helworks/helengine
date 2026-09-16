@@ -59,14 +59,32 @@ namespace helengine.editor.tests.managers.asset {
         /// </summary>
         [Fact]
         public void TryGetScope_WhenBatchIsForAnotherRoot_ReturnsNull() {
-            string otherRoot = Path.Combine(ProjectRootPath, "assets", "b");
+            string otherRoot = Path.Combine(ProjectRootPath, "other");
+            string otherAssets = Path.Combine(otherRoot, "assets");
+            Directory.CreateDirectory(otherAssets);
 
             using (EditorAuthoringReadBatch.Begin(otherRoot)) {
                 Assert.Null(EditorAuthoringReadBatch.TryGetScope(ProjectRootPath, Path.Combine(ProjectRootPath, "assets", "a")));
-                Assert.NotNull(EditorAuthoringReadBatch.TryGetScope(otherRoot, otherRoot));
+                Assert.NotNull(EditorAuthoringReadBatch.TryGetScope(otherRoot, otherAssets));
             }
 
-            Assert.Null(EditorAuthoringReadBatch.TryGetScope(otherRoot, otherRoot));
+            Assert.Null(EditorAuthoringReadBatch.TryGetScope(otherRoot, otherAssets));
+        }
+
+        /// <summary>
+        /// Ensures a batch never pins directories outside the assets tree, where writers stage and rename temporary folders.
+        /// </summary>
+        [Fact]
+        public void TryGetScope_WhenDirectoryIsOutsideAssets_ReturnsNull() {
+            string cacheDirectory = Path.Combine(ProjectRootPath, "cache", "editor");
+            Directory.CreateDirectory(cacheDirectory);
+
+            using (EditorAuthoringReadBatch.Begin(ProjectRootPath)) {
+                Assert.Null(EditorAuthoringReadBatch.TryGetScope(ProjectRootPath, cacheDirectory));
+                Assert.False(EditorAuthoringReadBatch.TryPinDirectory(ProjectRootPath, cacheDirectory));
+                Assert.False(EditorAuthoringReadBatch.TryPinDirectory(ProjectRootPath, Path.Combine(ProjectRootPath, "assets", "missing")));
+                Assert.NotNull(EditorAuthoringReadBatch.TryGetScope(ProjectRootPath, Path.Combine(ProjectRootPath, "assets", "a")));
+            }
         }
 
         /// <summary>

@@ -889,6 +889,7 @@ namespace helengine.editor {
         /// <returns>Paths to settings files created during the scan.</returns>
         public List<string> GenerateMissingImportSettings() {
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(projectRootPath);
+            using EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(projectRootPath);
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(assetsRootPath, projectRootPath);
             List<string> createdSettings = new List<string>();
             foreach (string sourcePath in EnumerateAssetSourceFiles()) {
@@ -949,6 +950,7 @@ namespace helengine.editor {
         /// <returns>Paths to cached assets created during the scan.</returns>
         public List<string> ImportTexturesMissingCache() {
             List<string> importedAssets = new List<string>();
+            using EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(projectRootPath);
             foreach (string sourcePath in EnumerateAssetSourceFiles()) {
                 if (!IsTextureExtension(Path.GetExtension(sourcePath))) {
                     continue;
@@ -964,7 +966,7 @@ namespace helengine.editor {
                 }
 
                 string outputPath = GetTextureAssetPath(settings.Importer.AssetId);
-                if (File.Exists(outputPath) && TextureImportHandler.TryLoadCachedAsset(outputPath, out _)) {
+                if (HasCurrentCachedAsset(outputPath, EditorAssetBinaryValueKind.TextureAsset)) {
                     continue;
                 }
 
@@ -981,6 +983,7 @@ namespace helengine.editor {
         /// <returns>Paths to cached assets created during the scan.</returns>
         public List<string> ImportModelsMissingCache() {
             List<string> importedAssets = new List<string>();
+            using EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(projectRootPath);
             foreach (string sourcePath in EnumerateAssetSourceFiles()) {
                 if (!IsModelExtension(Path.GetExtension(sourcePath))) {
                     continue;
@@ -996,7 +999,7 @@ namespace helengine.editor {
                 }
 
                 string outputPath = GetModelAssetPath(settings.Importer.AssetId);
-                if (File.Exists(outputPath) && ModelImportHandler.TryLoadCachedAsset(outputPath, out _)) {
+                if (HasCurrentCachedAsset(outputPath, EditorAssetBinaryValueKind.ModelAsset)) {
                     continue;
                 }
 
@@ -1503,11 +1506,50 @@ namespace helengine.editor {
         /// <param name="outputPath">Absolute path to the cached asset file.</param>
         /// <returns>True when the cache file should be regenerated using the current serializer version.</returns>
         internal bool IsStaleEditorAssetCache(string outputPath) {
-            using (MemoryStream stream = OpenVerifiedRead(outputPath)) {
+            // Only the header is needed; cached payloads can be many megabytes each.
+            using (MemoryStream stream = new MemoryStream(EditorAuthoringMutationScope.ReadLeadingBytes(projectRootPath, outputPath, CachedAssetHeaderProbeLength), writable: false)) {
                 EngineBinaryHeader header = EngineBinaryHeaderSerializer.Read(stream);
                 return header.FormatId == EditorAssetBinarySerializer.FormatId &&
                     header.Version != EditorAssetBinarySerializer.CurrentVersion;
             }
+        }
+
+        /// <summary>
+        /// Number of leading bytes that cover a HELE header with room to spare.
+        /// </summary>
+        const int CachedAssetHeaderProbeLength = 32;
+
+        /// <summary>
+        /// Determines from the header alone whether a cached editor asset exists, is current, and holds the expected
+        /// payload kind. The boot-time missing-cache passes use this instead of deserializing every cached payload,
+        /// which on a large project meant reading hundreds of megabytes on every start.
+        /// </summary>
+        /// <param name="outputPath">Absolute path to the cached asset file.</param>
+        /// <param name="expectedValueKind">Payload kind the cache file must declare.</param>
+        /// <returns>True when the cache file is present with a current header of the expected kind.</returns>
+        internal bool HasCurrentCachedAsset(string outputPath, EditorAssetBinaryValueKind expectedValueKind) {
+            if (string.IsNullOrWhiteSpace(outputPath) || !File.Exists(outputPath)) {
+                return false;
+            }
+
+            byte[] leadingBytes;
+            try {
+                leadingBytes = EditorAuthoringMutationScope.ReadLeadingBytes(projectRootPath, outputPath, CachedAssetHeaderProbeLength);
+            } catch (IOException) {
+                return false;
+            } catch (UnauthorizedAccessException) {
+                return false;
+            }
+
+            using MemoryStream stream = new MemoryStream(leadingBytes, writable: false);
+            if (!EngineBinaryHeaderSerializer.TryRead(stream, out EngineBinaryHeader header)) {
+                return false;
+            }
+
+            return header.FormatId == EditorAssetBinarySerializer.FormatId
+                && header.Version == EditorAssetBinarySerializer.CurrentVersion
+                && header.RecordKind == (ushort)EditorBinaryRecordKind.Asset
+                && header.ValueKind == (ushort)expectedValueKind;
         }
 
         /// <summary>

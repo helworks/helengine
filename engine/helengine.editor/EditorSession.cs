@@ -726,8 +726,11 @@ namespace helengine.editor {
             // Session construction completes current transaction recovery and
             // initializes the project identity graph before importer-owned files
             // are generated or cached.
+            EditorBootTimeline.Mark("authoring: session object");
             assetImportManager.ImportTexturesMissingCache();
+            EditorBootTimeline.Mark("authoring: textures missing cache");
             assetImportManager.ImportModelsMissingCache();
+            EditorBootTimeline.Mark("authoring: models missing cache");
             AuthoringSession = concreteAuthoringSession;
             AssetAuthoringService = (IEditorProjectAssetAuthoringService)AuthoringSession;
             authoredAssetReferenceResolver = concreteAuthoringSession.ReferenceResolverValue;
@@ -802,6 +805,7 @@ namespace helengine.editor {
             fileSystemModelResolver.SetRenderManager(core.RenderManager3D);
             EditorFileSystemFontResolver fileSystemFontResolver = new EditorFileSystemFontResolver(assetImportManager);
             EditorFileSystemTextureResolver fileSystemTextureResolver = new EditorFileSystemTextureResolver(assetImportManager);
+            EditorBootTimeline.Mark("panels: cameras, viewport, title bar, docking");
             sceneHierarchyPanel = new SceneHierarchyPanel(core, interactionServices, uiFont, CurrentUiMetrics);
             sceneHierarchyPanel.SetObjectManager(core.ObjectManager);
             sceneHierarchyPanel.RefreshHierarchy();
@@ -821,6 +825,7 @@ namespace helengine.editor {
             propertiesPanel.SetEntityExistenceEditingService(interactionServices.EntityExistence);
             propertiesPanel.SetComponentEditorRegistry(interactionServices.ComponentEditors);
             propertiesPanel.SetRendererResources(rendererResources);
+            EditorBootTimeline.Mark("panels: hierarchy, asset browser, properties");
             loggerPanel = new LoggerPanel(core, interactionServices, uiFont, CurrentUiMetrics);
             loggerPanel.SetInputServices(core.Input, core.TextClipboardService);
             constructionLedger.Register(loggerPanel);
@@ -829,11 +834,12 @@ namespace helengine.editor {
             previewPanel.SetRendererResources(rendererResources);
             previewPanel.SetInput(core.Input);
             constructionLedger.Register(previewPanel);
+            EditorBootTimeline.Mark("panels: logger and preview");
             assetPickerModal = new AssetPickerModal(core, interactionServices, uiFont, CurrentUiMetrics, this.projectPath, authoredAssetReferenceResolver, generatedAssetProviderRegistry);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, assetPickerModal.Dispose, assetPickerModal.DisposeAuthoringResources, assetPickerModal.Hide);
             meshModifierPickerModal = new MeshModifierPickerModal(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, meshModifierPickerModal.Dispose, hide: meshModifierPickerModal.Hide);
-            EditorBootTimeline.Mark("panels, dialogs, and workspace");
+            EditorBootTimeline.Mark("panels: asset picker and mesh modifier modals");
             gameSolutionService = new EditorGameSolutionService(this.projectPath, ProjectName, new EditorVisualStudioLauncher());
             EditorGameScriptAssemblyHost scriptAssemblyHost = new EditorGameScriptAssemblyHost(this.projectPath);
             scriptHotReloadService = new EditorGameScriptHotReloadService(
