@@ -26,6 +26,8 @@ namespace helengine {
         /// <summary>
         /// Cached near clip-plane distance used for perspective projection creation.
         /// </summary>
+        float FieldOfViewValue;
+
         float NearPlaneDistanceValue;
 
         /// <summary>
@@ -54,6 +56,7 @@ namespace helengine {
         public CameraComponent() {
             LayerMask = 0b11111111;
             ViewportValue = new float4(0, 0, 1, 1);
+            FieldOfViewValue = CameraProjectionUtils.DefaultFieldOfView;
             NearPlaneDistanceValue = 0.1f;
             FarPlaneDistanceValue = 100f;
             ClearSettings = new CameraClearSettings(true, new float4(0f, 0f, 0f, 0f), true, 1.0f, false, 0);
@@ -97,10 +100,20 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets the vertical field of view, in radians, used for perspective projection creation.
+        /// </summary>
+        [EditorPropertyDisplayName("Field Of View")]
+        [EditorPropertyOrder(2)]
+        public float FieldOfView {
+            get { return FieldOfViewValue; }
+            set { FieldOfViewValue = CameraProjectionUtils.ClampFieldOfView(value); }
+        }
+
+        /// <summary>
         /// Gets or sets the near clip-plane distance used for perspective projection creation.
         /// </summary>
         [EditorPropertyDisplayName("Near Plane Distance")]
-        [EditorPropertyOrder(2)]
+        [EditorPropertyOrder(3)]
         public float NearPlaneDistance {
             get { return NearPlaneDistanceValue; }
             set {
@@ -113,7 +126,7 @@ namespace helengine {
         /// Gets or sets the far clip-plane distance used for perspective projection creation.
         /// </summary>
         [EditorPropertyDisplayName("Far Plane Distance")]
-        [EditorPropertyOrder(3)]
+        [EditorPropertyOrder(4)]
         public float FarPlaneDistance {
             get { return FarPlaneDistanceValue; }
             set { FarPlaneDistanceValue = CameraProjectionUtils.ClampFarPlaneDistance(NearPlaneDistanceValue, value); }
@@ -130,7 +143,7 @@ namespace helengine {
         /// Gets or sets the clear settings applied before this camera renders.
         /// </summary>
         [EditorPropertyDisplayName("Clear Settings")]
-        [EditorPropertyOrder(4)]
+        [EditorPropertyOrder(5)]
         public CameraClearSettings ClearSettings { get; set; }
 
         /// <summary>

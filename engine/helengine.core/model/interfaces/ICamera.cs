@@ -24,6 +24,13 @@ namespace helengine {
         float4 Viewport { get; set; }
 
         /// <summary>
+        /// Gets or sets the vertical field of view, in radians, used when building perspective
+        /// projections for this camera. It belongs to the authored camera rather than to each
+        /// platform renderer, so one scene frames the same way everywhere.
+        /// </summary>
+        float FieldOfView { get; set; }
+
+        /// <summary>
         /// Gets or sets the near clip-plane distance used when building perspective projections for this camera.
         /// </summary>
         float NearPlaneDistance { get; set; }
