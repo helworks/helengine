@@ -61,6 +61,26 @@ public sealed class EditorGeneratedBootScenePreparationServiceTests : IDisposabl
     }
 
     /// <summary>
+    /// Ensures generated boot-scene files expose a valid embedded authored identity to the asset index.
+    /// </summary>
+    [Fact]
+    public void EnsurePrepared_WhenGeneratedBootSceneIsWritten_EmbedsValidAssetIdentity() {
+        EditorGeneratedBootScenePreparationService service = new EditorGeneratedBootScenePreparationService(ProjectRootPath);
+
+        service.EnsurePrepared(
+            "windows",
+            [
+                EngineSceneIdentifiers.GeneratedBootSceneId,
+                PlatformMenuSceneResolver.DesktopMainMenuSceneId
+            ]);
+
+        string scenePath = Path.Combine(ProjectRootPath, "assets", "Scenes", EngineSceneIdentifiers.GeneratedBootSceneId + ".helen");
+        AssetIdentityMetadataDocument identity = new AssetIdentityMetadataService(ProjectRootPath).Load(scenePath);
+
+        Assert.Matches("^[0-9a-f]{32}$", identity.AssetId);
+    }
+
+    /// <summary>
     /// Ensures boot-scene preparation rejects startup overrides that are not present in the selected scene set.
     /// </summary>
     [Fact]

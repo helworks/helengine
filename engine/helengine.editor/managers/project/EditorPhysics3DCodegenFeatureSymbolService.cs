@@ -91,6 +91,10 @@ namespace helengine.editor {
 
             PhysicsSceneFeatureFlags3D featureFlags = PhysicsSceneFeatureFlags3D.None;
             for (int index = 0; index < sceneIds.Count; index++) {
+                if (string.Equals(sceneIds[index], EngineSceneIdentifiers.GeneratedBootSceneId, StringComparison.Ordinal)) {
+                    continue;
+                }
+
                 SceneAsset sceneAsset = LoadSceneAsset(sceneIds[index]);
                 featureFlags |= AnalyzeSourceScene(sceneAsset);
             }

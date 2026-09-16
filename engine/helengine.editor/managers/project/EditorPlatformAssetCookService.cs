@@ -103,7 +103,7 @@ namespace helengine.editor {
                 BuiltInShaderAssetLibrary,
                 ScriptTypeResolver,
                 selectedEnvironmentId);
-            List<string> orderedCanonicalScenePaths = ResolveOrderedScenePaths(orderedSceneIds, null);
+            List<string> orderedCanonicalScenePaths = ResolveOrderedCanonicalScenePaths(orderedSceneIds);
             List<string> orderedSceneIdentityPaths = ResolvePackagedSceneIdentityPaths(orderedSceneIds, orderedCanonicalScenePaths);
             List<string> orderedScenePaths = ResolveOrderedScenePaths(orderedSceneIds, scenePathOverrides);
             EditorPlatformBuildScenePackagerResult packagerResult = packager.PackagePreservingIdentityPaths(
@@ -326,6 +326,27 @@ namespace helengine.editor {
             }
 
             return scenes;
+        }
+
+        /// <summary>
+        /// Resolves the canonical authored identity paths for the supplied scene ids, allowing synthetic scenes to identify themselves.
+        /// </summary>
+        /// <param name="orderedSceneIds">Stable scene ids selected for the build.</param>
+        /// <returns>Canonical authored identity paths in build order.</returns>
+        List<string> ResolveOrderedCanonicalScenePaths(IReadOnlyList<string> orderedSceneIds) {
+            if (orderedSceneIds == null) {
+                throw new ArgumentNullException(nameof(orderedSceneIds));
+            }
+
+            List<string> orderedCanonicalScenePaths = new List<string>(orderedSceneIds.Count);
+            for (int index = 0; index < orderedSceneIds.Count; index++) {
+                string sceneId = orderedSceneIds[index];
+                orderedCanonicalScenePaths.Add(string.Equals(sceneId, EngineSceneIdentifiers.GeneratedBootSceneId, StringComparison.Ordinal)
+                    ? sceneId
+                    : SceneCatalogService.ResolveScenePath(sceneId));
+            }
+
+            return orderedCanonicalScenePaths;
         }
 
         /// <summary>

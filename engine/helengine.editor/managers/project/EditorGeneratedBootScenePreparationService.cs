@@ -104,6 +104,7 @@ namespace helengine.editor {
             string scenePath = ResolveProjectAssetPath(normalizedRelativeScenePath);
             string initialSceneId = explicitRouting?.BootSceneId ?? ResolveInitialSceneId(platformId, sceneIds);
             SceneAsset sceneAsset = BootSceneAssetFactory.BuildSceneAsset(normalizedRelativeScenePath, initialSceneId, mappings);
+            sceneAsset.AuthoringAssetId = Guid.NewGuid().ToString("N");
             string directoryPath = Path.GetDirectoryName(scenePath)
                 ?? throw new InvalidOperationException("Generated boot scene path did not include a writable directory.");
             using EditorProjectWriteLock projectWriteLock = EditorProjectWriteLock.Acquire(ProjectRootPath);

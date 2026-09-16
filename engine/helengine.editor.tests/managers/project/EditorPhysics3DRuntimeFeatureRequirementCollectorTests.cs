@@ -119,6 +119,73 @@ public sealed class EditorPhysics3DRuntimeFeatureRequirementCollectorTests : IDi
     }
 
     /// <summary>
+    /// Verifies the generated boot scene is ignored while authored physics scenes still produce requirements.
+    /// </summary>
+    [Fact]
+    public void Collect_withGeneratedBootSceneAndPhysicsScene_ignoresGeneratedBootScene() {
+        WriteSceneAsset(
+            "Scenes/PhysicsScene.helen",
+            new SceneAsset {
+                Id = "Scenes/PhysicsScene.helen",
+                RootEntities = [
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Trigger",
+                        LocalPosition = float3.Zero,
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = [
+                            CreateRigidBodyRecord(BodyKind3D.Static, false),
+                            CreateBoxColliderRecord(new float3(2f, 2f, 2f), true)
+                        ],
+                        Children = []
+                    }
+                ]
+            });
+
+        EditorPhysics3DRuntimeFeatureRequirementCollector collector = new(ProjectRootPath);
+
+        PlatformBuildRequiredRuntimeFeature[] requiredFeatures = collector.Collect(
+            new PlatformBuildManifest(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0-engine",
+                "windows",
+                "1.0.0",
+                "GeneratedBootScene",
+                [
+                    new PlatformBuildScene(
+                        "GeneratedBootScene",
+                        "Generated Boot Scene",
+                        "GeneratedBootScene.helen",
+                        [],
+                        []),
+                    new PlatformBuildScene(
+                        "PhysicsScene",
+                        "Physics Scene",
+                        "Scenes/PhysicsScene.helen",
+                        [],
+                        [])
+                ],
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan(string.Empty, Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty));
+
+        Assert.Collection(
+            requiredFeatures,
+            requirement => {
+                Assert.Equal("PhysicsScene", requirement.SourceId);
+                Assert.Equal(RuntimeFeatureRequirementSourceKind.Scene, requirement.SourceKind);
+                Assert.Equal(PhysicsSceneFeatureSymbolCatalog3D.TriggerEventsFeatureId, requirement.FeatureId);
+            });
+    }
+
+    /// <summary>
     /// Writes one serialized scene asset into the temporary source project.
     /// </summary>
     /// <param name="sceneId">Project-relative scene id.</param>
