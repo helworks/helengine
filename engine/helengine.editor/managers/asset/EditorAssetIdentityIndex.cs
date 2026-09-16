@@ -249,6 +249,21 @@ namespace helengine.editor {
         internal long ReconciledGeneration { get; private set; }
 
         /// <summary>
+        /// Reports whether a path is currently indexed as an authored asset, without touching the file.
+        /// </summary>
+        /// <param name="fullPath">Absolute path under the assets root.</param>
+        /// <returns>True when the reconcile indexed the path.</returns>
+        internal bool ContainsPathUnderLock(string fullPath) {
+            EnsureNotDisposed();
+            if (string.IsNullOrWhiteSpace(fullPath)) {
+                return false;
+            }
+
+            string relativePath = NormalizeRelativePath(Path.GetRelativePath(AssetsRootPath, Path.GetFullPath(fullPath)));
+            return EntriesByPath.ContainsKey(relativePath);
+        }
+
+        /// <summary>
         /// Gets how many files the last reconcile took from the snapshot without opening them.
         /// </summary>
         internal int LastReconcileReusedSnapshotFileCount { get; private set; }
@@ -278,6 +293,15 @@ namespace helengine.editor {
                 return fileInfo.Exists
                     ? new EditorAssetIdentityFileStamp(true, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks)
                     : new EditorAssetIdentityFileStamp(false, 0, 0);
+            }
+        }
+
+        /// <summary>
+        /// Logs boot timing for the first reconcile only; later external reconciles stay quiet.
+        /// </summary>
+        void MarkFirstReconcile(string phase) {
+            if (!IsInitialized) {
+                EditorBootTimeline.Mark(phase);
             }
         }
 
@@ -422,21 +446,25 @@ namespace helengine.editor {
                 MissingMetadataPaths.Clear();
                 // One verified scope per directory for the whole read pass; released before repairs write.
                 EditorAuthoringReadBatch readBatch = EditorAuthoringReadBatch.Begin(ProjectRootPath);
-                List<string> sourcePaths = FileCatalog.EnumerateFiles(AssetsRootPath)
-                    .Select(Path.GetFullPath)
+                // Stamps for every enumerated file come from the listing itself; the snapshot compares
+                // against these and the next snapshot is written from them.
+                Dictionary<string, EditorAssetIdentityFileStamp> stampsByPath = new Dictionary<string, EditorAssetIdentityFileStamp>(PathComparer);
+                List<string> sourcePaths = new List<string>();
+                foreach (EditorAssetFileStampedPath stampedPath in FileCatalog.EnumerateFileStamps(AssetsRootPath)) {
+                    string fullPath = Path.GetFullPath(stampedPath.FullPath);
+                    sourcePaths.Add(fullPath);
+                    stampsByPath[fullPath] = new EditorAssetIdentityFileStamp(stampedPath.Exists, stampedPath.Length, stampedPath.LastWriteUtcTicks);
+                }
+                sourcePaths = sourcePaths
                     .OrderBy(path => NormalizeRelativePath(path), PathComparer)
                     .ThenBy(path => NormalizeRelativePath(path), StringComparer.Ordinal)
                     .ToList();
                 List<EditorAssetIdentityEntry> loadedEntries = new List<EditorAssetIdentityEntry>();
                 Dictionary<string, AssetIdentityMetadataDocument> documentsByPath = new Dictionary<string, AssetIdentityMetadataDocument>(PathComparer);
                 List<PendingIdentityRepair> pendingRepairs = new List<PendingIdentityRepair>();
-                // Stamps for every enumerated file, taken once; the snapshot compares against these and the
-                // next snapshot is written from them.
-                Dictionary<string, EditorAssetIdentityFileStamp> stampsByPath = new Dictionary<string, EditorAssetIdentityFileStamp>(PathComparer);
-                for (int index = 0; index < sourcePaths.Count; index++) {
-                    stampsByPath[sourcePaths[index]] = EditorAssetIdentityFileStamp.Read(sourcePaths[index]);
-                }
+                MarkFirstReconcile("reconcile: enumerate and stamp files");
                 Dictionary<string, EditorAssetIdentitySnapshotFile> snapshotByRelativePath = LoadSnapshotByRelativePath();
+                MarkFirstReconcile("reconcile: snapshot load");
                 Dictionary<string, bool> embeddedIdentityByPath = new Dictionary<string, bool>(PathComparer);
                 List<string> nonAuthoredPaths = new List<string>();
                 int reusedCount = 0;
@@ -500,6 +528,7 @@ namespace helengine.editor {
                     readBatch.Dispose();
                 }
                 LastReconcileReusedSnapshotFileCount = reusedCount;
+                MarkFirstReconcile("reconcile: scan files");
 
                 Dictionary<string, List<EditorAssetIdentityEntry>> duplicateGroups = GroupByCurrentAssetId(loadedEntries);
                 HashSet<string> usedIds = new HashSet<string>(loadedEntries.Select(entry => entry.AssetId), StringComparer.Ordinal);
@@ -566,7 +595,9 @@ namespace helengine.editor {
                     }
                 }
 
+                MarkFirstReconcile("reconcile: repairs and commit");
                 PersistSnapshot(loadedEntries, nonAuthoredPaths, stampsByPath, embeddedIdentityByPath, pendingRepairs);
+                MarkFirstReconcile("reconcile: snapshot write");
             } catch {
                 MissingMetadataPaths.Clear();
                 foreach (string path in previousMissingMetadataPaths) {

@@ -1,15 +1,20 @@
 namespace helengine.editor {
     /// <summary>
-    /// Enumerates authored source files from the local project filesystem.
+    /// Filesystem-backed catalog for the identity index.
     /// </summary>
     sealed class FileEditorAssetFileCatalog : IEditorAssetFileCatalog {
-        /// <summary>
-        /// Enumerates every file beneath an assets root.
-        /// </summary>
-        /// <param name="assetsRootPath">Absolute assets root path.</param>
-        /// <returns>Filesystem paths beneath the assets root.</returns>
         public IEnumerable<string> EnumerateFiles(string assetsRootPath) {
             return Directory.EnumerateFiles(assetsRootPath, "*", SearchOption.AllDirectories);
+        }
+
+        /// <summary>
+        /// Uses the directory listing's own attributes, so stamping thousands of files costs no extra calls.
+        /// </summary>
+        public IEnumerable<EditorAssetFileStampedPath> EnumerateFileStamps(string assetsRootPath) {
+            DirectoryInfo root = new DirectoryInfo(assetsRootPath);
+            foreach (FileInfo fileInfo in root.EnumerateFiles("*", SearchOption.AllDirectories)) {
+                yield return new EditorAssetFileStampedPath(fileInfo.FullName, true, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks);
+            }
         }
     }
 }

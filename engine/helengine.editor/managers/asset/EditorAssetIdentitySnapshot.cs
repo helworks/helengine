@@ -129,12 +129,15 @@ namespace helengine.editor {
             }
 
             try {
-                string json = Encoding.UTF8.GetString(EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, snapshotPath));
+                byte[] bytes = EditorAuthoringMutationScope.ReadAllBytes(ProjectRootPath, snapshotPath);
+                string json = Encoding.UTF8.GetString(bytes);
                 EditorAssetIdentitySnapshotDocument document = JsonSerializer.Deserialize<EditorAssetIdentitySnapshotDocument>(json, JsonOptions);
                 if (document == null || document.Version != CurrentVersion || document.Files == null) {
+                    LastLoadedBytes = null;
                     return null;
                 }
 
+                LastLoadedBytes = bytes;
                 return document;
             } catch (Exception exception) when (exception is IOException || exception is JsonException || exception is UnauthorizedAccessException || exception is InvalidDataException) {
                 return null;
@@ -154,9 +157,20 @@ namespace helengine.editor {
             document.Files.Sort((left, right) => string.CompareOrdinal(left.RelativePath, right.RelativePath));
             byte[] bytes = new UTF8Encoding(false).GetBytes(JsonSerializer.Serialize(document, JsonOptions));
             string snapshotPath = SnapshotPath;
+            if (LastLoadedBytes != null && LastLoadedBytes.AsSpan().SequenceEqual(bytes)) {
+                // Nothing changed since the snapshot was loaded; skip the atomic rewrite entirely.
+                return;
+            }
+
             EditorAuthoringMutationScope.EnsureDirectory(ProjectRootPath, Path.GetDirectoryName(snapshotPath));
             EditorAuthoringMutationScope.WriteAllBytesAtomically(ProjectRootPath, snapshotPath, bytes);
+            LastLoadedBytes = bytes;
         }
+
+        /// <summary>
+        /// Bytes of the snapshot as last loaded or written by this store, used to skip identical rewrites.
+        /// </summary>
+        byte[] LastLoadedBytes;
 
         /// <summary>
         /// Deletes the snapshot when present, forcing the next reconcile to be full.

@@ -1010,7 +1010,11 @@ namespace helengine.editor {
                 ValidateNoReparseTraversal(fullPath);
                 // A change published after the index reconciled is not reflected yet, even on a fresh session.
                 bool alreadyReconciled = freshSession && change.Generation <= IdentityIndex.ReconciledGeneration;
-                if (File.Exists(fullPath) && classifier.IsAuthoredAsset(fullPath)) {
+                // The reconcile already classified everything it indexed; asking it avoids reopening the file.
+                bool authored = alreadyReconciled
+                    ? IdentityIndex.ContainsPathUnderLock(fullPath)
+                    : classifier.IsAuthoredAsset(fullPath);
+                if (File.Exists(fullPath) && authored) {
                     if (!alreadyReconciled) {
                         bool metadataWasMissing = IdentityIndex.WasMetadataMissing(fullPath);
                         IdentityIndex.RegisterOrUpdateUnderLock(fullPath);
