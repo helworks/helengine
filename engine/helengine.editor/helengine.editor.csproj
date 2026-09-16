@@ -29,11 +29,17 @@
     </None>
   </ItemGroup>
 
+  <!-- WriteOnlyWhenDifferent is required, not cosmetic. The emitted content is a constant path, but
+       rewriting the file unconditionally gives it a new timestamp on every build, which makes CoreCompile
+       see a newer input than the assembly and recompile this project every time. That cascades to the
+       eleven projects referencing it, and it changes helengine.editor.dll's timestamp, which invalidates
+       the editor's project-script build fingerprint and rebuilds game scripts on every launch. -->
   <Target Name="EmbedHelengineSourceRootManifest" BeforeTargets="CoreCompile">
     <WriteLinesToFile
       File="$(IntermediateOutputPath)HelengineSourceRoot.g.cs"
       Lines="namespace helengine.editor { internal static class GeneratedHelengineSourceRoot { internal const string Path = @&quot;$(MSBuildProjectDirectory)\..\..&quot;%3B } }"
-      Overwrite="true" />
+      Overwrite="true"
+      WriteOnlyWhenDifferent="true" />
     <ItemGroup>
       <Compile Include="$(IntermediateOutputPath)HelengineSourceRoot.g.cs" />
     </ItemGroup>
