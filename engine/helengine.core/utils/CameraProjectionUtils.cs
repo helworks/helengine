@@ -16,8 +16,10 @@ namespace helengine {
         /// <summary>
         /// Default vertical field of view in radians, 45 degrees. Platform renderers used to
         /// choose this value individually, so the same authored scene framed differently on
-        /// each platform; this is the value they all happened to pick, which keeps existing
-        /// scenes framed exactly as before.
+        /// each platform. DirectX11, Vulkan, Dreamcast and Xbox 360 each picked 45 degrees,
+        /// so this default leaves them unchanged. PlayStation 1 used 60 degrees and did
+        /// reframe when it adopted the authored value, which is the divergence this removes
+        /// rather than a regression.
         /// </summary>
         public const float DefaultFieldOfView = 0.7853982f;
 
