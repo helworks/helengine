@@ -880,6 +880,10 @@ namespace helengine {
         /// </summary>
         /// <returns>Measured draw duration in milliseconds.</returns>
         protected virtual double MeasureRenderManager3DDrawMilliseconds() {
+            if (RenderManager3D == null) {
+                return 0d;
+            }
+
             DrawStopwatchValue.Restart();
             RenderManager3D.Draw();
             DrawStopwatchValue.Stop();
