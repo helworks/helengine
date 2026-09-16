@@ -134,7 +134,7 @@ namespace helengine.editor {
                 QueueItemId = Guid.NewGuid().ToString("N"),
                 PlatformId = platformConfig.PlatformId,
                 SelectedSceneIds = orderedSceneIds,
-                SelectedSceneReferences = orderedSceneIds.Select(sceneCatalogService.CreateSceneReference).ToList(),
+                SelectedSceneReferences = sceneCatalogService.CreateSceneReferences(orderedSceneIds),
                 OutputDirectoryPath = Path.GetFullPath(outputDirectoryPath),
                 DebugBuild = platformConfig.DebugBuild,
                 SelectedEnvironmentId = ResolveSelectedEnvironmentId(platformConfig, platformConfig.SelectedBuildProfileId),

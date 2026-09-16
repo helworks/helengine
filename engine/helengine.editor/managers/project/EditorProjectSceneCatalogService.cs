@@ -111,22 +111,47 @@ namespace helengine.editor {
 
         /// <summary>Creates the current stable reference for an authored or generated scene id.</summary>
         public SceneAssetReference CreateSceneReference(string sceneId) {
-            if (string.IsNullOrWhiteSpace(sceneId)) {
-                throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
+            return CreateSceneReferences(new[] { sceneId })[0];
+        }
+
+        /// <summary>
+        /// Captures an ordered batch of scene references using one asset resolver, avoiding a full asset-index initialization for every scene.
+        /// </summary>
+        /// <param name="sceneIds">Scene identifiers in caller order; duplicates are preserved.</param>
+        /// <returns>Current authored or generated references in the same order.</returns>
+        public List<SceneAssetReference> CreateSceneReferences(IReadOnlyList<string> sceneIds) {
+            if (sceneIds == null) {
+                throw new ArgumentNullException(nameof(sceneIds));
             }
 
-            if (GetSceneIds().Contains(sceneId, StringComparer.Ordinal)) {
-                string relativePath = ResolveScenePath(sceneId);
-                string fullPath = Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-                using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
-                return resolver.CreateFileReference(fullPath, AssetEntryKind.Scene);
-            }
+            List<SceneAssetReference> references = new List<SceneAssetReference>(sceneIds.Count);
+            EditorAssetReferenceResolver resolver = null;
+            try {
+                for (int index = 0; index < sceneIds.Count; index++) {
+                    string sceneId = sceneIds[index];
+                    if (string.IsNullOrWhiteSpace(sceneId)) {
+                        throw new ArgumentException("Scene id must be provided.", nameof(sceneId));
+                    }
 
-            return global::helengine.SceneAssetReferenceFactory.Rehydrate(
-                SceneAssetReferenceSourceKind.Generated,
-                sceneId,
-                GeneratedSceneProviderId,
-                sceneId);
+                    if (GetSceneIds().Contains(sceneId, StringComparer.Ordinal)) {
+                        string relativePath = ResolveScenePath(sceneId);
+                        string fullPath = Path.Combine(AssetsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                        if (resolver == null) {
+                            resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+                        }
+                        references.Add(resolver.CreateFileReference(fullPath, AssetEntryKind.Scene));
+                    } else {
+                        references.Add(global::helengine.SceneAssetReferenceFactory.Rehydrate(
+                            SceneAssetReferenceSourceKind.Generated,
+                            sceneId,
+                            GeneratedSceneProviderId,
+                            sceneId));
+                    }
+                }
+            } finally {
+                resolver?.Dispose();
+            }
+            return references;
         }
 
         /// <summary>Resolves a persisted stable scene reference back to the operational scene id.</summary>
