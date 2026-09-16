@@ -483,6 +483,54 @@ try {
         exit 5
     }
 
+    $CodegenProjectPath = Join-Path $ResolvedHelEngineRootPath "engine\vendor\csharpcodegen\codegen\codegen.csproj"
+    if (-not (Test-Path -LiteralPath $CodegenProjectPath -PathType Leaf)) {
+        [Console]::Error.WriteLine(
+            "Codegen submodule is not initialised: '$CodegenProjectPath' was not found. " +
+            "Run 'git submodule update --init --recursive' in the engine checkout.")
+        $BuildTerminalExitCode = 6
+        exit 6
+    }
+
+    $CodegenPublishPath = Join-Path $EditorPublishPath "codegen"
+    $CodegenRestoreArguments = @(
+        "restore",
+        $CodegenProjectPath
+    ) + $DotNetSharedPropertyArguments
+    $CodegenPublishArguments = @(
+        "publish",
+        $CodegenProjectPath,
+        "--no-restore",
+        "-c",
+        "Release",
+        "-o",
+        $CodegenPublishPath
+    ) + $DotNetSharedPropertyArguments
+
+    Write-Host ("Restoring codegen: dotnet " + ($CodegenRestoreArguments -join " "))
+    $CodegenRestoreExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList $CodegenRestoreArguments
+    if ($CodegenRestoreExitCode -ne 0) {
+        [Console]::Error.WriteLine("Codegen restore failed with exit code $CodegenRestoreExitCode.")
+        $BuildTerminalExitCode = $CodegenRestoreExitCode
+        exit $CodegenRestoreExitCode
+    }
+
+    Write-Host ("Publishing codegen: dotnet " + ($CodegenPublishArguments -join " "))
+    $CodegenPublishExitCode = Invoke-StreamingNativeProcess -FilePath $DotNetExecutablePath -ArgumentList $CodegenPublishArguments
+    if ($CodegenPublishExitCode -ne 0) {
+        [Console]::Error.WriteLine("Codegen publish failed with exit code $CodegenPublishExitCode.")
+        $BuildTerminalExitCode = $CodegenPublishExitCode
+        exit $CodegenPublishExitCode
+    }
+
+    $CodegenToolPath = Join-Path $CodegenPublishPath "codegen.exe"
+    if (-not (Test-Path -LiteralPath $CodegenToolPath -PathType Leaf)) {
+        [Console]::Error.WriteLine("Published codegen tool was not found at '$CodegenToolPath'.")
+        $BuildTerminalExitCode = 6
+        exit 6
+    }
+    Write-Host "Codegen tool: $CodegenToolPath"
+
     $DisplayArguments = @("dotnet", $EditorAssemblyPath)
     foreach ($Argument in $EditorRunArguments) {
         if ($Argument -match '[\s"]') {

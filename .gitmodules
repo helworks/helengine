@@ -1,3 +1,6 @@
 [submodule "engine/vendor/bepuphysics2"]
 	path = engine/vendor/bepuphysics2
 	url = git@github.com:helworks/bepuphysics2.git
+[submodule "engine/vendor/csharpcodegen"]
+	path = engine/vendor/csharpcodegen
+	url = git@github.com:distrohelena/csharpcodegen.git

@@ -798,11 +798,13 @@ if exist "%HELENGINE_WORKSPACE_EXPECTED_STATE_PATH%" (
     if not exist "%HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE%" echo missing> "%HELENGINE_WORKSPACE_RUNNING_STATE_CAPTURE%"
 )
 set "PublishOutputPath="
+set "PublishProjectPath="
 set "BuildOutputPath="
 set "ProjectFilePath="
 set "IsEditorBuild="
 :FindArguments
 if "%~1"=="" goto RunInvocation
+if /I "%~1"=="publish" set "PublishProjectPath=%~2"
 if /I "%~1"=="-o" set "PublishOutputPath=%~2"
 if /I "%~1"=="--output" set "BuildOutputPath=%~2"
 if /I "%~1"=="--project" set "ProjectFilePath=%~2"
@@ -812,7 +814,12 @@ goto FindArguments
 :RunInvocation
 if not "%PublishOutputPath%"=="" (
     if not exist "%PublishOutputPath%" mkdir "%PublishOutputPath%"
-    type nul > "%PublishOutputPath%\helengine.editor.app.dll"
+    echo %PublishProjectPath%| findstr /I /C:"codegen.csproj" >nul
+    if errorlevel 1 (
+        type nul > "%PublishOutputPath%\helengine.editor.app.dll"
+    ) else (
+        type nul > "%PublishOutputPath%\codegen.exe"
+    )
 )
 if defined IsEditorBuild (
     > "%HELENGINE_WORKSPACE_ENVIRONMENT_CAPTURE%" (
@@ -1159,7 +1166,7 @@ exit /b 8
             throw "WorkspaceRoot alone must emit one deprecation warning; captured $($DeprecationWarnings.Count)."
         }
         $WorkspaceOnlyPublishInvocation = Get-Content -LiteralPath $CapturePath |
-            Where-Object { $_ -match '^publish ' } |
+            Where-Object { $_ -match '^publish .*editor\.csproj' } |
             Select-Object -Last 1
         Clear-Content -LiteralPath $CapturePath
 
@@ -1213,9 +1220,22 @@ exit /b 8
             throw "The cache contains a GUID-like invocation directory: '$($GuidLikeInvocationDirectories.FullName -join "', '")'."
         }
 
-        $PublishInvocations = @($InitialInvocations | Where-Object { $_ -match '^publish ' })
+        $PublishInvocations = @($InitialInvocations | Where-Object { $_ -match '^publish .*editor\.csproj' })
         if ($PublishInvocations.Count -ne 2) {
-            throw "Expected two publish invocations, captured $($PublishInvocations.Count)."
+            throw "Expected two editor publish invocations, captured $($PublishInvocations.Count)."
+        }
+        $CodegenPublishInvocations = @($InitialInvocations | Where-Object { $_ -match '^publish .*codegen\.csproj' })
+        if ($CodegenPublishInvocations.Count -ne 2) {
+            throw "Expected two codegen publish invocations, captured $($CodegenPublishInvocations.Count)."
+        }
+        $ExpectedCodegenPublishPath = Join-Path $ExpectedEditorPublishPath "codegen"
+        foreach ($CodegenPublishInvocation in $CodegenPublishInvocations) {
+            if ((Get-CapturedArgumentValue -Invocation $CodegenPublishInvocation -ArgumentName "-o") -cne $ExpectedCodegenPublishPath) {
+                throw "The codegen was not published beside the editor: '$CodegenPublishInvocation'."
+            }
+            if ($CodegenPublishInvocation -notmatch '(^|\s)-c\s+Release(\s|$)') {
+                throw "The codegen was not published in Release: '$CodegenPublishInvocation'."
+            }
         }
         $FirstArtifactsPath = Get-CapturedArgumentValue -Invocation $PublishInvocations[0] -ArgumentName "--artifacts-path"
         $SecondArtifactsPath = Get-CapturedArgumentValue -Invocation $PublishInvocations[1] -ArgumentName "--artifacts-path"
@@ -1548,8 +1568,8 @@ exit /b 8
         if (Test-Path -LiteralPath $RobocopyMarkerPath) {
             throw "The wrapper invoked robocopy."
         }
-        if ($InitialInvocations.Count -ne 6) {
-            throw "Expected six native invocations for the repeated stable-cache cases, captured $($InitialInvocations.Count)."
+        if ($InitialInvocations.Count -ne 10) {
+            throw "Expected ten native invocations for the repeated stable-cache cases, captured $($InitialInvocations.Count)."
         }
     } finally {
         $env:PATH = $OriginalPath
