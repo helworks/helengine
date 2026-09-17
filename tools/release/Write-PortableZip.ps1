@@ -8,7 +8,7 @@ $PackageRoot = [IO.Path]::GetFullPath($PackageRoot).TrimEnd('\')
 $ZipPath = [IO.Path]::GetFullPath($ZipPath)
 if (Test-Path -LiteralPath $ZipPath) { throw "Archive already exists: $ZipPath" }
 if ($ZipPath.StartsWith($PackageRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Archive must be outside its source folder.' }
-foreach ($RequiredFile in @('README.txt', 'Start-Helengine.cmd', 'Setup-Toolchains.cmd', 'editor\helengine.editor.app.dll', 'tools\dotnet\dotnet.exe', 'tools\codegen\codegen.exe', 'toolchains\console-sdk-images.tar', 'user_settings\platforms.json')) {
+foreach ($RequiredFile in @('README.txt', 'Start-Helengine.cmd', 'Setup-Toolchains.cmd', 'editor\helengine.editor.app.dll', 'tools\dotnet\dotnet.exe', 'editor\codegen\codegen.exe', 'toolchains\console-sdk-images.tar', 'user_settings\platforms.json')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot $RequiredFile) -PathType Leaf)) { throw "Package is incomplete: $RequiredFile" }
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
