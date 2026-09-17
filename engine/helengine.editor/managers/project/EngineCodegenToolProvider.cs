@@ -29,17 +29,20 @@ namespace helengine.editor {
         const string IsolationFolderName = "helengine-builds";
 
         readonly string EditorBaseDirectoryPath;
-        readonly string SubmoduleRootPath;
+        readonly Func<string> ResolveSubmoduleRootPath;
         readonly string OnDemandCacheRootPath;
         readonly IEngineCodegenToolPublisher Publisher;
 
         /// <summary>
         /// Initializes the provider for the running editor using the real submodule and real external commands.
         /// </summary>
+        /// <remarks>
+        /// The submodule root is resolved lazily: a packaged editor has no source tree to locate, and the published copy beside it must resolve without one.
+        /// </remarks>
         public EngineCodegenToolProvider()
             : this(
                 AppContext.BaseDirectory,
-                new EditorSourceBuildWorkspaceLocator().ResolveCSharpCodegenRootPath(),
+                () => new EditorSourceBuildWorkspaceLocator().ResolveCSharpCodegenRootPath(),
                 ResolveDefaultOnDemandCacheRootPath(),
                 new DotNetEngineCodegenToolPublisher()) {
         }
@@ -48,26 +51,23 @@ namespace helengine.editor {
         /// Initializes the provider with explicit roots and publisher; used by tests.
         /// </summary>
         /// <param name="editorBaseDirectoryPath">Directory that contains the editor assembly.</param>
-        /// <param name="submoduleRootPath">Codegen submodule root.</param>
+        /// <param name="resolveSubmoduleRootPath">Resolves the codegen submodule root; invoked only when no published copy exists.</param>
         /// <param name="onDemandCacheRootPath">Root under which commit-keyed on-demand builds are stored.</param>
         /// <param name="publisher">External command abstraction.</param>
         internal EngineCodegenToolProvider(
             string editorBaseDirectoryPath,
-            string submoduleRootPath,
+            Func<string> resolveSubmoduleRootPath,
             string onDemandCacheRootPath,
             IEngineCodegenToolPublisher publisher) {
             if (string.IsNullOrWhiteSpace(editorBaseDirectoryPath)) {
                 throw new ArgumentException("Editor base directory path must be provided.", nameof(editorBaseDirectoryPath));
-            }
-            if (string.IsNullOrWhiteSpace(submoduleRootPath)) {
-                throw new ArgumentException("Submodule root path must be provided.", nameof(submoduleRootPath));
             }
             if (string.IsNullOrWhiteSpace(onDemandCacheRootPath)) {
                 throw new ArgumentException("On-demand cache root path must be provided.", nameof(onDemandCacheRootPath));
             }
 
             EditorBaseDirectoryPath = Path.GetFullPath(editorBaseDirectoryPath);
-            SubmoduleRootPath = Path.GetFullPath(submoduleRootPath);
+            ResolveSubmoduleRootPath = resolveSubmoduleRootPath ?? throw new ArgumentNullException(nameof(resolveSubmoduleRootPath));
             OnDemandCacheRootPath = Path.GetFullPath(onDemandCacheRootPath);
             Publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
         }
@@ -79,22 +79,35 @@ namespace helengine.editor {
                 return publishedToolPath;
             }
 
-            string codegenProjectPath = Path.GetFullPath(Path.Combine(SubmoduleRootPath, CodegenProjectRelativePath));
+            // Only a development build falls through to the submodule; locating it can fail outright in a packaged editor, so it happens after the published copy misses.
+            string submoduleRootPath;
+            try {
+                string resolvedSubmoduleRootPath = ResolveSubmoduleRootPath();
+                if (string.IsNullOrWhiteSpace(resolvedSubmoduleRootPath)) {
+                    throw new InvalidOperationException("The codegen submodule root resolver returned no path.");
+                }
+                submoduleRootPath = Path.GetFullPath(resolvedSubmoduleRootPath);
+            } catch (Exception ex) {
+                throw new InvalidOperationException(
+                    $"The engine codegen tool was not found at '{publishedToolPath}', and the codegen submodule could not be located, so no on-demand build is possible. Build through scripts/build-platform.ps1, which publishes the tool beside the editor.", ex);
+            }
+
+            string codegenProjectPath = Path.GetFullPath(Path.Combine(submoduleRootPath, CodegenProjectRelativePath));
             if (!File.Exists(codegenProjectPath)) {
                 throw new InvalidOperationException(
-                    $"The engine codegen tool was not found. No published copy at '{publishedToolPath}', and the codegen submodule at '{SubmoduleRootPath}' is not initialised ('{codegenProjectPath}' is missing). Run 'git submodule update --init --recursive' in the engine checkout, or build through scripts/build-platform.ps1 which publishes the tool.");
+                    $"The engine codegen tool was not found. No published copy at '{publishedToolPath}', and the codegen submodule at '{submoduleRootPath}' is not initialised ('{codegenProjectPath}' is missing). Run 'git submodule update --init --recursive' in the engine checkout, or build through scripts/build-platform.ps1 which publishes the tool.");
             }
 
             string commit;
             try {
-                commit = Publisher.ReadCommit(SubmoduleRootPath);
+                commit = Publisher.ReadCommit(submoduleRootPath);
             } catch (Exception ex) {
                 throw new InvalidOperationException(
                     $"The engine codegen tool was not found at '{publishedToolPath}', and the on-demand build could not read the submodule commit because git could not be run. Build through scripts/build-platform.ps1, which publishes the tool.", ex);
             }
             if (string.IsNullOrWhiteSpace(commit)) {
                 throw new InvalidOperationException(
-                    $"The engine codegen tool was not found at '{publishedToolPath}', and git returned no commit for the submodule at '{SubmoduleRootPath}'.");
+                    $"The engine codegen tool was not found at '{publishedToolPath}', and git returned no commit for the submodule at '{submoduleRootPath}'.");
             }
 
             string onDemandDirectoryPath = Path.Combine(OnDemandCacheRootPath, PublishedToolDirectoryName, commit.Trim());

@@ -58,7 +58,7 @@ namespace helengine.editor.tests.managers.project {
             string publishedToolPath = Path.Combine(publishedDirectoryPath, "codegen.exe");
             File.WriteAllText(publishedToolPath, string.Empty);
             FakePublisher publisher = new();
-            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, publisher);
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
 
             string resolvedPath = provider.Resolve();
 
@@ -67,9 +67,43 @@ namespace helengine.editor.tests.managers.project {
         }
 
         [Fact]
+        public void Resolve_WhenPublishedToolExists_DoesNotResolveSubmodule() {
+            string publishedDirectoryPath = Path.Combine(EditorBaseDirectoryPath, "codegen");
+            Directory.CreateDirectory(publishedDirectoryPath);
+            string publishedToolPath = Path.Combine(publishedDirectoryPath, "codegen.exe");
+            File.WriteAllText(publishedToolPath, string.Empty);
+            FakePublisher publisher = new();
+            EngineCodegenToolProvider provider = new(
+                EditorBaseDirectoryPath,
+                () => throw new InvalidOperationException("A packaged editor has no source tree to locate."),
+                CacheRootPath,
+                publisher);
+
+            string resolvedPath = provider.Resolve();
+
+            Assert.Equal(publishedToolPath, resolvedPath);
+            Assert.Equal(0, publisher.PublishCallCount);
+        }
+
+        [Fact]
+        public void Resolve_WhenNoPublishedToolAndSubmoduleResolverThrows_ThrowsNamingPublishedPath() {
+            InvalidOperationException resolverFailure = new("No engine source root is reachable.");
+            EngineCodegenToolProvider provider = new(
+                EditorBaseDirectoryPath,
+                () => throw resolverFailure,
+                CacheRootPath,
+                new FakePublisher());
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
+
+            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", "codegen.exe"), exception.Message, StringComparison.Ordinal);
+            Assert.Same(resolverFailure, exception.InnerException);
+        }
+
+        [Fact]
         public void Resolve_WhenNothingIsPublished_BuildsIntoCommitKeyedCacheDirectory() {
             FakePublisher publisher = new() { Commit = "deadbeef" };
-            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, publisher);
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
 
             string resolvedPath = provider.Resolve();
 
@@ -86,7 +120,7 @@ namespace helengine.editor.tests.managers.project {
             string cachedDirectoryPath = Path.Combine(CacheRootPath, "codegen", "deadbeef");
             Directory.CreateDirectory(cachedDirectoryPath);
             File.WriteAllText(Path.Combine(cachedDirectoryPath, "codegen.exe"), string.Empty);
-            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, publisher);
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
 
             string resolvedPath = provider.Resolve();
 
@@ -97,7 +131,7 @@ namespace helengine.editor.tests.managers.project {
         [Fact]
         public void Resolve_WhenCommitChanges_BuildsANewDirectory() {
             FakePublisher publisher = new() { Commit = "old000" };
-            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, publisher);
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
             provider.Resolve();
             publisher.Commit = "new111";
 
@@ -111,7 +145,7 @@ namespace helengine.editor.tests.managers.project {
         public void Resolve_WhenSubmoduleIsNotInitialised_ThrowsNamingSubmoduleAndCommand() {
             Directory.Delete(SubmoduleRootPath, true);
             FakePublisher publisher = new();
-            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, publisher);
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
@@ -123,7 +157,7 @@ namespace helengine.editor.tests.managers.project {
         [Fact]
         public void Resolve_WhenCommitCannotBeRead_ThrowsSayingGitIsRequired() {
             FakePublisher publisher = new() { ThrowOnReadCommit = true };
-            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, publisher);
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
@@ -133,7 +167,7 @@ namespace helengine.editor.tests.managers.project {
 
         [Fact]
         public void Resolve_WhenPublishDoesNotProduceTool_Throws() {
-            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, new NoOutputPublisher());
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, new NoOutputPublisher());
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
@@ -153,7 +187,7 @@ namespace helengine.editor.tests.managers.project {
         [Fact]
         public void Resolve_WhenPublishCannotRun_ThrowsNamingLocationsAndPreservesCause() {
             UnlaunchablePublisher publisher = new();
-            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, publisher);
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, () => SubmoduleRootPath, CacheRootPath, publisher);
 
             InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
 
