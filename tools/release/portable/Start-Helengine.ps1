@@ -36,7 +36,7 @@ if ($Check) {
     if ($LASTEXITCODE -ne 0) { throw 'Bundled .NET SDK could not start.' }
     $Manifest = Get-Content "$Root\user_settings\platforms.json" -Raw | ConvertFrom-Json
     foreach ($Entry in $Manifest.platforms) {
-        foreach ($Property in @('builderAssemblyPath', 'playerSourceRootPath', 'generatedCoreCppRootPath', 'codegenToolPath', 'pluginManifestPath')) {
+        foreach ($Property in @('builderAssemblyPath', 'playerSourceRootPath', 'generatedCoreCppRootPath', 'pluginManifestPath')) {
             if ($Entry.PSObject.Properties[$Property] -and -not (Test-Path (Join-Path "$Root\user_settings" $Entry.$Property))) { throw "Missing $Property for $($Entry.platformId)" }
         }
         Write-Host "$($Entry.platformId): payload paths OK"

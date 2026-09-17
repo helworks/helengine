@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $EngineRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-$Workspace = Split-Path $EngineRoot -Parent
+$CodegenRoot = Join-Path $EngineRoot 'engine\vendor\csharpcodegen'
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 $Package = Join-Path $OutputRoot 'Helengine'
 $null = New-Item -ItemType Directory -Force -Path $Package
@@ -54,7 +54,8 @@ $PackagedEntries = @()
 $Provenance = @()
 if (-not $SkipPublish -and -not $SkipHostPublish) {
     Publish-Payload (Join-Path $EngineRoot 'helengine.ui\helengine.editor.app\helengine.editor.app.csproj') (Join-Path $Package 'editor') 'editor'
-    Publish-Payload (Join-Path $Workspace 'csharpcodegen\codegen\codegen.csproj') (Join-Path $Package 'tools\codegen') 'codegen'
+    # The editor resolves AppContext.BaseDirectory\codegen\codegen.exe, so the tool ships inside the editor payload.
+    Publish-Payload (Join-Path $CodegenRoot 'codegen\codegen.csproj') (Join-Path $Package 'editor\codegen') 'codegen'
 }
 Write-Host 'Copying engine sources and portable SDK...'
 Copy-SourceTree $EngineRoot (Join-Path $Package 'sources\helengine') @('engine', 'submodules', 'Directory.Build.props', 'Directory.Packages.props', 'global.json', 'NuGet.Config', 'LICENSE')
@@ -101,7 +102,6 @@ foreach ($Entry in $Entries) {
         builderAssemblyPath = "../$BuilderRelativePath/$BuilderName"
         playerSourceRootPath = "../platforms/$Id/player"
         generatedCoreCppRootPath = '../generated-core'
-        codegenToolPath = '../tools/codegen/codegen.exe'
     }
     if (Test-Path (Join-Path $Player 'platform-plugin.json')) { $Record.pluginManifestPath = "../platforms/$Id/player/platform-plugin.json" }
     $PackagedEntries += $Record
@@ -110,7 +110,7 @@ foreach ($Entry in $Entries) {
 $null = New-Item -ItemType Directory -Force -Path (Join-Path $Package 'user_settings'), (Join-Path $Package 'generated-core'), (Join-Path $Package 'toolchains')
 @{ platforms = $PackagedEntries } | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $Package 'user_settings\platforms.json') -Encoding UTF8
 $Provenance += [ordered]@{ repository = 'helengine'; commit = (& git -C $EngineRoot rev-parse HEAD); changes = @(& git -C $EngineRoot status --short) }
-$Provenance += [ordered]@{ repository = 'csharpcodegen'; commit = (& git -C (Join-Path $Workspace 'csharpcodegen') rev-parse HEAD); changes = @(& git -C (Join-Path $Workspace 'csharpcodegen') status --short) }
+$Provenance += [ordered]@{ repository = 'csharpcodegen'; commit = (& git -C $CodegenRoot rev-parse HEAD); changes = @(& git -C $CodegenRoot status --short) }
 $Provenance | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $Package 'source-revisions.json') -Encoding UTF8
 foreach ($File in @('Start-Helengine.cmd', 'Start-Helengine.ps1', 'Join-Toolchains.ps1', 'Setup-Toolchains.cmd', 'README.txt', 'NuGet.Config')) {
     Copy-Item (Join-Path $PSScriptRoot "portable\$File") $Package -Force

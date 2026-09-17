@@ -496,7 +496,7 @@ $ResolvedPlatformsManifest = if ([string]::IsNullOrWhiteSpace($PlatformsManifest
     Resolve-FullPath -Path $PlatformsManifest
 }
 $ResolvedCodegenProject = if ([string]::IsNullOrWhiteSpace($CodegenProject)) {
-    Resolve-FullPath -Path "..\..\csharpcodegen\codegen\codegen.csproj" -BasePath $ScriptRoot
+    Resolve-FullPath -Path "engine\vendor\csharpcodegen\codegen\codegen.csproj" -BasePath $HelEngineRoot
 } else {
     Resolve-FullPath -Path $CodegenProject
 }
@@ -525,6 +525,12 @@ try {
             -Configuration $Configuration `
             -OutputPath $TempEditorRoot `
             -ArtifactsPath $TempEditorArtifactsRoot
+
+        # The editor resolves AppContext.BaseDirectory\codegen\codegen.exe, so the tool ships inside the editor payload.
+        $null = Publish-CodegenPackage `
+            -ProjectPath $ResolvedCodegenProject `
+            -Configuration $Configuration `
+            -OutputPath (Join-Path $TempEditorRoot "codegen")
 
         if ([string]::IsNullOrWhiteSpace($ReleaseVersion)) {
             $ReleaseVersion = Get-ReleaseVersionFromAssembly -AssemblyPath $EditorAssemblyPath
@@ -559,7 +565,6 @@ try {
         }
 
         $SharedRootPath = Join-Path $TempPlatformsRoot "shared"
-        $PackagedCodegenRootPath = Join-Path $SharedRootPath "codegen"
         $PackagedGeneratedCoreRootPath = Join-Path $SharedRootPath "generated-core"
         $NeedsGeneratedCore = $false
         foreach ($SourceEntry in $SourceEntries) {
@@ -568,11 +573,6 @@ try {
                 break
             }
         }
-
-        $CodegenExecutablePath = Publish-CodegenPackage `
-            -ProjectPath $ResolvedCodegenProject `
-            -Configuration $Configuration `
-            -OutputPath $PackagedCodegenRootPath
 
         if ($NeedsGeneratedCore) {
             Ensure-Directory -Path $PackagedGeneratedCoreRootPath
@@ -647,8 +647,6 @@ try {
             if ($NeedsGeneratedCore) {
                 $ManifestEntry.generatedCoreCppRootPath = Get-RelativePath -BasePath $TempPlatformsRoot -TargetPath $PackagedGeneratedCoreRootPath
             }
-
-            $ManifestEntry.codegenToolPath = Get-RelativePath -BasePath $TempPlatformsRoot -TargetPath $CodegenExecutablePath
 
             if (-not [string]::IsNullOrWhiteSpace($ResolvedPluginManifestPath)) {
                 $PackagedPluginManifestPath = Join-Path $PackagedPlayerRootPath ([System.IO.Path]::GetFileName($ResolvedPluginManifestPath))
