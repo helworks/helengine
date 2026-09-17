@@ -28,5 +28,11 @@ namespace helengine.baseplatform.Definitions {
         /// Every platform declares it explicitly; generated dispatch relies on RTTI unless a target opts out.
         /// </summary>
         public const string UseRtti = "codegen-use-rtti";
+
+        /// <summary>
+        /// Stable setting identifier telling csharpcodegen whether the target compiles its generated core with C++ exceptions.
+        /// Codegen only lowers try/catch when this is true; otherwise failures are fatal.
+        /// </summary>
+        public const string UseExceptions = "codegen-use-exceptions";
     }
 }
