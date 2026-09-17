@@ -71,7 +71,12 @@ The wrapper uses these codes for its own validation and orchestration failures:
 - `3`: editor project `.csproj` path was not found
 - `4`: project `.heproj` path was not found
 - `5`: the published editor assembly was missing after a successful publish command
+- `6`: the csharpcodegen submodule was not initialised, or the published codegen tool was missing after a successful publish command
 - `10`: wrapper or internal orchestration failure, including failure to write terminal state after an otherwise successful build
+
+### Codegen comes from the engine
+
+The C# to C++ codegen is a git submodule at `engine/vendor/csharpcodegen`, pinned by the engine commit. `scripts/build-platform.ps1` publishes it in Release into a `codegen/` directory beside the published editor, and the editor resolves that copy for every platform build. Platform entries in the platform registry no longer carry a `codegenToolPath`; an entry that still has one is ignored with a warning. To change which codegen the engine uses, bump the submodule and commit the pin. After cloning or switching branches run `git submodule update --init --recursive`.
 
 Restore, publish, and editor child process failures are propagated unchanged. Those child exit codes can numerically coincide with the wrapper-defined codes above, so callers must inspect emitted diagnostics and any available `.helengine-build-state.json` context to distinguish collisions.
 
