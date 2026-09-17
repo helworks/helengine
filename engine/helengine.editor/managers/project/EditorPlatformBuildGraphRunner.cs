@@ -43,6 +43,11 @@ namespace helengine.editor {
         readonly EditorBuiltInShaderAssetLibrary BuiltInShaderAssetLibrary;
 
         /// <summary>
+        /// Resolves the engine's own codegen executable for core regeneration and project module compilation.
+        /// </summary>
+        readonly IEngineCodegenToolProvider CodegenToolProvider;
+
+        /// <summary>
         /// Initializes one build-graph runner for the supplied project and platform descriptor.
         /// </summary>
         /// <param name="projectRootPath">Absolute or relative source project root path.</param>
@@ -55,6 +60,7 @@ namespace helengine.editor {
         /// <param name="builderLoader">Builder loader used to hydrate platform asset builders.</param>
         /// <param name="generatedCoreRegenerationService">Generated-core regeneration service used during codegen.</param>
         /// <param name="scriptTypeResolver">Optional shared script type resolver used for loaded gameplay modules.</param>
+        /// <param name="codegenToolProvider">Provider that resolves the engine's own codegen executable.</param>
         public EditorPlatformBuildGraphRunner(
             string projectRootPath,
             string requiredEngineVersion,
@@ -66,7 +72,8 @@ namespace helengine.editor {
             EditorPlatformAssetBuilderLoader builderLoader,
             EditorGeneratedCoreRegenerationService generatedCoreRegenerationService,
             IScriptTypeResolver scriptTypeResolver,
-            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
+            IEngineCodegenToolProvider codegenToolProvider)
             : this(
                 projectRootPath,
                 requiredEngineVersion,
@@ -80,7 +87,8 @@ namespace helengine.editor {
                 null,
                 null,
                 scriptTypeResolver,
-                builtInShaderAssetLibrary) {
+                builtInShaderAssetLibrary,
+                codegenToolProvider) {
         }
 
         internal EditorPlatformBuildGraphRunner(
@@ -96,7 +104,8 @@ namespace helengine.editor {
             EditorPlatformBuildGraphWorkspaceFactory workspaceFactory,
             EditorRuntimeFeatureManifestService runtimeFeatureManifestService,
             IScriptTypeResolver scriptTypeResolver,
-            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary) {
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
+            IEngineCodegenToolProvider codegenToolProvider) {
             ProjectRootPath = projectRootPath ?? throw new ArgumentNullException(nameof(projectRootPath));
             RequiredEngineVersion = requiredEngineVersion ?? throw new ArgumentNullException(nameof(requiredEngineVersion));
             ProjectId = projectId ?? throw new ArgumentNullException(nameof(projectId));
@@ -132,6 +141,7 @@ namespace helengine.editor {
             ArtifactVariantResolver = new EditorPlatformArtifactVariantResolver();
             ScriptTypeResolver = scriptTypeResolver;
             BuiltInShaderAssetLibrary = builtInShaderAssetLibrary ?? throw new ArgumentNullException(nameof(builtInShaderAssetLibrary));
+            CodegenToolProvider = codegenToolProvider ?? throw new ArgumentNullException(nameof(codegenToolProvider));
         }
 
         /// <summary>
@@ -500,7 +510,7 @@ namespace helengine.editor {
                 selectedCodegenProfile,
                 selectedCodegenOptionValues,
                 workspace.GeneratedCoreRootPath,
-                PlatformDescriptor.CodegenToolPath,
+                CodegenToolProvider.Resolve(),
                 PlatformDescriptor.GeneratedCoreProjectPaths,
                 additionalPreprocessorSymbols,
                 CancellationToken.None);
@@ -645,7 +655,7 @@ namespace helengine.editor {
                 manifestDocument,
                 PlatformDescriptor.Id,
                 selectedStorageProfile?.RuntimeSpecializationId ?? string.Empty,
-                PlatformDescriptor.CodegenToolPath,
+                CodegenToolProvider.Resolve(),
                 selectedCodegenProfile,
                 inferredRootModuleIds,
                 selectedCodegenOptionValues,

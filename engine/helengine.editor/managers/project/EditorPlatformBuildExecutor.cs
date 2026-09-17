@@ -59,9 +59,6 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(platformDescriptor.BuilderAssemblyPath)) {
                 throw new ArgumentException("Platform descriptor must provide a builder assembly path.", nameof(platformDescriptor));
             }
-            if (string.IsNullOrWhiteSpace(platformDescriptor.CodegenToolPath)) {
-                throw new ArgumentException("Platform descriptor must provide a csharpcodegen tool path.", nameof(platformDescriptor));
-            }
             if (builtInShaderAssetLibrary == null) {
                 throw new ArgumentNullException(nameof(builtInShaderAssetLibrary));
             }
@@ -80,7 +77,8 @@ namespace helengine.editor {
                 workspaceFactory: new EditorPlatformBuildGraphWorkspaceFactory(projectRootPath),
                 runtimeFeatureManifestService: null,
                 scriptTypeResolver: scriptTypeResolver,
-                builtInShaderAssetLibrary: builtInShaderAssetLibrary);
+                builtInShaderAssetLibrary: builtInShaderAssetLibrary,
+                codegenToolProvider: new EngineCodegenToolProvider());
         }
 
         /// <summary>

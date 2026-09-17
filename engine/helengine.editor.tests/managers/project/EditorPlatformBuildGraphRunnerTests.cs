@@ -181,7 +181,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             EditorBuildQueueItemDocument queueItem = new() {
                 QueueItemId = "queue-item",
@@ -283,7 +284,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             EditorBuildQueueItemDocument queueItem = new() {
                 QueueItemId = "queue-item",
@@ -385,7 +387,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             EditorBuildQueueItemDocument queueItem = new() {
                 QueueItemId = "queue-item",
@@ -487,7 +490,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             EditorBuildQueueItemDocument queueItem = new() {
                 QueueItemId = "queue-item",
@@ -589,7 +593,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             EditorBuildQueueItemDocument queueItem = new() {
                 QueueItemId = "queue-item",
@@ -685,7 +690,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
             TestPlatformMaterialAssetBuilder builder = new();
             EditorBuildQueueItemDocument queueItem = new() {
                 QueueItemId = "queue-item",
@@ -792,7 +798,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
             EditorPlatformBuildGraphWorkspace workspace = new(Path.Combine(rootPath, "workspace"));
             string cookedArtifactPath = Path.Combine(workspace.CookRootPath, "engine", "materials", "standard.hasset");
             string cookedArtifactDirectoryPath = Path.GetDirectoryName(cookedArtifactPath)
@@ -881,7 +888,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
             EditorPlatformBuildGraphWorkspace workspace = new(Path.Combine(rootPath, "workspace"));
             string cookedScenePath = Path.Combine(workspace.CookRootPath, "cooked", "scenes", "MainMenu.hasset");
             WriteCookedSceneAssetForBuildGraphRunnerTest(cookedScenePath, "Scenes/MainMenu.helen");
@@ -972,7 +980,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 null,
                 runtimeFeatureManifestService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary()
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider()
             ],
             null);
         PlatformBuildManifest inputManifest = new(
@@ -1043,7 +1052,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 null,
                 runtimeFeatureManifestService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary()
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider()
             ],
             null);
         PlatformBuildManifest manifest = new(
@@ -1126,7 +1136,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 scriptTypeResolver,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
             string generatedCoreRootPath = Path.Combine(rootPath, "generated-core");
             Directory.CreateDirectory(generatedCoreRootPath);
             File.WriteAllText(Path.Combine(generatedCoreRootPath, "Component.cpp"), "void TouchComponentUnity() {}\n");
@@ -1405,7 +1416,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 regenerationService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "RunRegenerateCore",
@@ -1471,7 +1483,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 regenerationService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
             EditorBuildQueueItemDocument queueItem = new() {
                 QueueItemId = "queue-item",
                 PlatformId = "windows",
@@ -1537,7 +1550,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 regenerationService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "RunRegenerateCore",
@@ -1601,7 +1615,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 regenerationService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "RunRegenerateCore",
@@ -1665,7 +1680,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 regenerationService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "RunRegenerateCore",
@@ -1729,7 +1745,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 regenerationService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "RunRegenerateCore",
@@ -1810,7 +1827,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 regenerationService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "RunRegenerateCore",
@@ -1905,7 +1923,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 regenerationService,
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             MethodInfo runRegenerateCoreMethod = typeof(EditorPlatformBuildGraphRunner).GetMethod(
                 "RunRegenerateCore",
@@ -1979,7 +1998,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary());
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider());
 
             EditorBuildExecutionResult result = runner.Execute(queueItem);
 
@@ -2220,6 +2240,15 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
     /// <summary>
     /// Captures the additional preprocessor symbols supplied to generated-core regeneration.
     /// </summary>
+    /// <summary>
+    /// Provider that returns a fixed tool path so runner tests never touch the real submodule.
+    /// </summary>
+    sealed class FakeCodegenToolProvider : IEngineCodegenToolProvider {
+        public string Resolve() {
+            return "codegen.exe";
+        }
+    }
+
     sealed class RecordingGeneratedCoreRegenerationService : EditorGeneratedCoreRegenerationService {
         /// <summary>
         /// Gets the additional preprocessor symbols supplied by the build graph.
@@ -2258,7 +2287,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary()) {
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider()) {
         }
 
         public string ExecutedQueueItemId { get; private set; }
@@ -2282,7 +2312,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary()) {
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider()) {
         }
 
         public bool HostDebugRunnerLaunched { get; private set; }
@@ -2317,7 +2348,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                 new EditorPlatformAssetBuilderLoader(),
                 new EditorGeneratedCoreRegenerationService(),
                 null,
-                TestGeneratedAssetGraph.CreateShaderLibrary()) {
+                TestGeneratedAssetGraph.CreateShaderLibrary(),
+                new FakeCodegenToolProvider()) {
         }
 
         public string LaunchedExecutablePath { get; private set; }
