@@ -1930,6 +1930,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
             Assert.NotNull(regenerationService.GeneratedCoreProjectPaths);
             Assert.Single(regenerationService.GeneratedCoreProjectPaths);
             Assert.Equal(externalProjectPath, regenerationService.GeneratedCoreProjectPaths[0]);
+            Assert.Equal("provider-codegen.exe", regenerationService.CodegenToolPath);
         } finally {
             if (Directory.Exists(rootPath)) {
                 Directory.Delete(rootPath, true);
@@ -2238,6 +2239,11 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
         public IReadOnlyList<string> GeneratedCoreProjectPaths { get; private set; }
 
         /// <summary>
+        /// Gets the codegen tool path the build graph resolved through its codegen tool provider.
+        /// </summary>
+        public string CodegenToolPath { get; private set; }
+
+        /// <summary>
         /// Captures regeneration inputs without launching the external codegen tool.
         /// </summary>
         public override void Regenerate(
@@ -2251,6 +2257,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
             CancellationToken cancellationToken) {
             GeneratedCoreProjectPaths = generatedCoreProjectPaths;
             AdditionalPreprocessorSymbols = additionalPreprocessorSymbols;
+            CodegenToolPath = codegenToolPath;
         }
     }
 
