@@ -79,7 +79,7 @@ namespace helengine.editor {
                 return publishedToolPath;
             }
 
-            string codegenProjectPath = Path.Combine(SubmoduleRootPath, CodegenProjectRelativePath);
+            string codegenProjectPath = Path.GetFullPath(Path.Combine(SubmoduleRootPath, CodegenProjectRelativePath));
             if (!File.Exists(codegenProjectPath)) {
                 throw new InvalidOperationException(
                     $"The engine codegen tool was not found. No published copy at '{publishedToolPath}', and the codegen submodule at '{SubmoduleRootPath}' is not initialised ('{codegenProjectPath}' is missing). Run 'git submodule update --init --recursive' in the engine checkout, or build through scripts/build-platform.ps1 which publishes the tool.");
@@ -103,7 +103,12 @@ namespace helengine.editor {
                 return onDemandToolPath;
             }
 
-            Publisher.Publish(codegenProjectPath, onDemandDirectoryPath);
+            try {
+                Publisher.Publish(codegenProjectPath, onDemandDirectoryPath);
+            } catch (Exception ex) {
+                throw new InvalidOperationException(
+                    $"The engine codegen tool was not found at '{publishedToolPath}', and the on-demand build of '{codegenProjectPath}' into '{onDemandDirectoryPath}' could not be run. Build through scripts/build-platform.ps1, which publishes the tool.", ex);
+            }
             if (!File.Exists(onDemandToolPath)) {
                 throw new InvalidOperationException(
                     $"Publishing the engine codegen tool from '{codegenProjectPath}' did not produce '{onDemandToolPath}'.");

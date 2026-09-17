@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Xunit;
 
 namespace helengine.editor.tests.managers.project {
@@ -146,6 +147,33 @@ namespace helengine.editor.tests.managers.project {
 
             public void Publish(string codegenProjectPath, string outputDirectoryPath) {
                 Directory.CreateDirectory(outputDirectoryPath);
+            }
+        }
+
+        [Fact]
+        public void Resolve_WhenPublishCannotRun_ThrowsNamingLocationsAndPreservesCause() {
+            UnlaunchablePublisher publisher = new();
+            EngineCodegenToolProvider provider = new(EditorBaseDirectoryPath, SubmoduleRootPath, CacheRootPath, publisher);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => provider.Resolve());
+
+            Assert.Contains(Path.Combine(EditorBaseDirectoryPath, "codegen", "codegen.exe"), exception.Message, StringComparison.Ordinal);
+            Assert.Contains(Path.Combine(SubmoduleRootPath, "codegen", "codegen.csproj"), exception.Message, StringComparison.Ordinal);
+            Assert.Same(publisher.Thrown, exception.InnerException);
+        }
+
+        /// <summary>
+        /// Fake publisher standing in for a missing dotnet on PATH, which surfaces as a Win32Exception from Process.Start.
+        /// </summary>
+        sealed class UnlaunchablePublisher : IEngineCodegenToolPublisher {
+            public readonly Win32Exception Thrown = new("The system cannot find the file specified");
+
+            public string ReadCommit(string submoduleRootPath) {
+                return "abc123";
+            }
+
+            public void Publish(string codegenProjectPath, string outputDirectoryPath) {
+                throw Thrown;
             }
         }
     }
