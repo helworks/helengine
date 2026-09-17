@@ -8,8 +8,6 @@ $RepositoryRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..
 $WrapperPath = Join-Path $RepositoryRootPath "scripts\build-platform.ps1"
 $FixtureRootPath = Join-Path $PSScriptRoot "fixtures\build-platform-smoke-project"
 $BuilderProjectPath = Join-Path $PSScriptRoot "fixtures\build-platform-smoke-builder\helengine.buildplatform.smokebuilder.csproj"
-$CodegenProjectPath = "C:\dev\helworks\csharpcodegen\codegen\codegen.csproj"
-$CodegenToolPath = "C:\dev\helworks\csharpcodegen\codegen\bin\Release\net9.0\codegen.exe"
 $TemporaryRootPath = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
 $TestBuildRootPath = Join-Path $TemporaryRootPath "helengine-build-platform-tests"
 $TestRootPath = Join-Path $TestBuildRootPath ("build platform real editor smoke " + [Guid]::NewGuid().ToString("N"))
@@ -237,16 +235,12 @@ try {
         (Join-Path $ProjectRootPath "assets\scenes\SmokeScene.helen"),
         [Convert]::FromBase64String($EncodedScenePayload))
 
-    Invoke-DotNetBuild -ProjectPath $CodegenProjectPath -Configuration "Release"
     Invoke-DotNetBuild -ProjectPath $BuilderProjectPath -Configuration "Debug"
 
     $BuilderAssemblyPath = [System.IO.Path]::GetFullPath(
         (Join-Path (Split-Path -Parent $BuilderProjectPath) "bin\Debug\net9.0\helengine.buildplatform.smokebuilder.dll"))
     if (-not (Test-Path -LiteralPath $BuilderAssemblyPath -PathType Leaf)) {
         throw "Smoke builder assembly was not found at '$BuilderAssemblyPath'."
-    }
-    if (-not (Test-Path -LiteralPath $CodegenToolPath -PathType Leaf)) {
-        throw "Release codegen tool was not found at '$CodegenToolPath'."
     }
 
     $null = New-Item -ItemType Directory -Path $EngineUserSettingsRootPath -Force
@@ -258,7 +252,6 @@ try {
                 displayName = "Build Platform Smoke"
                 builderAssemblyPath = $BuilderAssemblyPath
                 playerSourceRootPath = $ProjectRootPath
-                codegenToolPath = $CodegenToolPath
             }
         )
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EngineUserSettingsRootPath "platforms.json")

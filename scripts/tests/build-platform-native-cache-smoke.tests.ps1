@@ -9,7 +9,6 @@ $WrapperPath = Join-Path $RepositoryRootPath "scripts\build-platform.ps1"
 $FixtureRootPath = Join-Path $PSScriptRoot "fixtures\build-platform-smoke-project"
 $WindowsPlatformSourcePath = "C:\dev\helworks\helengine-windows"
 $WindowsBuilderAssemblyPath = Join-Path $WindowsPlatformSourcePath "builder\bin\Debug\net9.0\helengine.windows.builder.dll"
-$CodegenToolPath = "C:\dev\helworks\csharpcodegen\codegen\bin\Release\net9.0\codegen.exe"
 $TemporaryRootPath = [System.IO.Path]::GetFullPath("C:\tmp")
 $TestRootPath = Join-Path $TemporaryRootPath ("hbp-" + [Guid]::NewGuid().ToString("N"))
 $TestRootCreated = $false
@@ -160,9 +159,6 @@ try {
     if (-not (Test-Path -LiteralPath $WindowsBuilderAssemblyPath -PathType Leaf)) {
         throw "Windows builder assembly is required at '$WindowsBuilderAssemblyPath'."
     }
-    if (-not (Test-Path -LiteralPath $CodegenToolPath -PathType Leaf)) {
-        throw "External codegen tool is required at '$CodegenToolPath'."
-    }
     if (-not (Test-Path -LiteralPath $TemporaryRootPath -PathType Container)) {
         throw "Short native smoke temporary root '$TemporaryRootPath' is required."
     }
@@ -226,7 +222,6 @@ try {
                 displayName = "Native Windows Cache Smoke"
                 builderAssemblyPath = $WindowsBuilderAssemblyPath
                 playerSourceRootPath = $WindowsPlatformSourcePath
-                codegenToolPath = $CodegenToolPath
             }
         )
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EngineUserSettingsRootPath "platforms.json")
