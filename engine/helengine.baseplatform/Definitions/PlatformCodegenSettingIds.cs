@@ -22,5 +22,11 @@ namespace helengine.baseplatform.Definitions {
         /// Stable setting identifier for compact native exception message lowering consumed by csharpcodegen.
         /// </summary>
         public const string CompactNativeExceptionMessages = "codegen-compact-native-exception-messages";
+
+        /// <summary>
+        /// Stable setting identifier telling csharpcodegen whether the target compiles its generated core with RTTI.
+        /// Every platform declares it explicitly; generated dispatch relies on RTTI unless a target opts out.
+        /// </summary>
+        public const string UseRtti = "codegen-use-rtti";
     }
 }
