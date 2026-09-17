@@ -70,8 +70,12 @@ namespace helengine.platforms {
                 string pluginManifestPath = platformElement.TryGetProperty("pluginManifestPath", out JsonElement pluginManifestPathElement) ? pluginManifestPathElement.GetString() ?? string.Empty : string.Empty;
 
                 if (platformElement.TryGetProperty(RetiredCodegenToolPathPropertyName, out _)) {
-                    WarningSink?.Invoke(
-                        $"Platform '{platformId}' in {ManifestFilePath} still sets '{RetiredCodegenToolPathPropertyName}'. That field is ignored: the codegen now comes from the engine build. Remove it from the entry.");
+                    try {
+                        WarningSink?.Invoke(
+                            $"Platform '{platformId}' in {ManifestFilePath} still sets '{RetiredCodegenToolPathPropertyName}'. That field is ignored: the codegen now comes from the engine build. Remove it from the entry.");
+                    } catch {
+                        // A stale registry field must never be fatal, so a subscriber that throws cannot fail platform discovery.
+                    }
                 }
 
                 platforms.Add(new PlatformInstallationEntry(engineVersion, platformId, displayName, builderAssemblyPath, playerSourceRootPath, generatedCoreCppRootPath, pluginManifestPath));

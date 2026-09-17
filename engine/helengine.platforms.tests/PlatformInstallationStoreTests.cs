@@ -101,4 +101,30 @@ public sealed class PlatformInstallationStoreTests : IDisposable {
 
         Assert.Empty(warnings);
     }
+
+    [Fact]
+    public void Load_WhenWarningSinkThrows_StillLoadsEntry() {
+        File.WriteAllText(Path.Combine(TempDirectoryPath, "platforms.json"), """
+        {
+          "platforms": [
+            {
+              "engineVersion": "1.0.0",
+              "platformId": "gamecube",
+              "displayName": "Nintendo GameCube",
+              "builderAssemblyPath": "",
+              "playerSourceRootPath": "../helengine-gc",
+              "codegenToolPath": "anything"
+            }
+          ]
+        }
+        """);
+        PlatformInstallationStore store = new PlatformInstallationStore(
+            TempDirectoryPath,
+            _ => throw new InvalidOperationException("The warning sink is unavailable."));
+
+        PlatformInstallationManifest manifest = store.Load();
+
+        PlatformInstallationEntry entry = Assert.Single(manifest.Platforms);
+        Assert.Equal("gamecube", entry.PlatformId);
+    }
 }
