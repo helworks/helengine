@@ -10,11 +10,17 @@ namespace helengine.platforms {
         string EngineUserSettingsRootPath { get; }
 
         /// <summary>
+        /// Optional receiver for non-fatal platform registry problems, forwarded to the resolver.
+        /// </summary>
+        Action<string> WarningSink { get; }
+
+        /// <summary>
         /// Initializes one development platform provider.
         /// </summary>
         /// <param name="options">Platform-discovery options containing the engine user-settings override path.</param>
         public DevelopmentPlatformProvider(PlatformDiscoveryOptions options) {
             EngineUserSettingsRootPath = options.EngineUserSettingsRootPath;
+            WarningSink = options.WarningSink;
         }
 
         /// <summary>
@@ -30,7 +36,7 @@ namespace helengine.platforms {
                 return false;
             }
 
-            PlatformInstallationResolver installationResolver = new PlatformInstallationResolver(EngineUserSettingsRootPath);
+            PlatformInstallationResolver installationResolver = new PlatformInstallationResolver(EngineUserSettingsRootPath, WarningSink);
             if (installationResolver.TryLoadPlatforms(engineVersion, out platforms)) {
                 return true;
             }

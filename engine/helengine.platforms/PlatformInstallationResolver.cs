@@ -10,11 +10,18 @@ namespace helengine.platforms {
         string SharedToolchainRootPath { get; }
 
         /// <summary>
+        /// Optional receiver for non-fatal manifest problems, forwarded to the store.
+        /// </summary>
+        Action<string> WarningSink { get; }
+
+        /// <summary>
         /// Initializes one installation resolver for the supplied shared toolchain root.
         /// </summary>
         /// <param name="sharedToolchainRootPath">Shared toolchain root that owns the installation manifest.</param>
-        public PlatformInstallationResolver(string sharedToolchainRootPath) {
+        /// <param name="warningSink">Optional receiver for non-fatal manifest problems.</param>
+        public PlatformInstallationResolver(string sharedToolchainRootPath, Action<string> warningSink = null) {
             SharedToolchainRootPath = sharedToolchainRootPath ?? string.Empty;
+            WarningSink = warningSink;
         }
 
         /// <summary>
@@ -30,7 +37,7 @@ namespace helengine.platforms {
                 return false;
             }
 
-            PlatformInstallationStore store = new PlatformInstallationStore(SharedToolchainRootPath);
+            PlatformInstallationStore store = new PlatformInstallationStore(SharedToolchainRootPath, WarningSink);
             if (!store.Exists()) {
                 return false;
             }
@@ -48,7 +55,7 @@ namespace helengine.platforms {
         /// <param name="platform">Resolved platform when installation state exists.</param>
         /// <returns><c>true</c> when the requested platform exists in the manifest; otherwise <c>false</c>.</returns>
         public bool TryLoadPlatform(string engineVersion, string platformId, out AvailablePlatformDescriptor platform) {
-            platform = new AvailablePlatformDescriptor(string.Empty, string.Empty, string.Empty, string.Empty, false, string.Empty, string.Empty);
+            platform = new AvailablePlatformDescriptor(string.Empty, string.Empty, string.Empty, string.Empty, false, string.Empty);
 
             if (string.IsNullOrWhiteSpace(SharedToolchainRootPath)) {
                 return false;
@@ -60,7 +67,7 @@ namespace helengine.platforms {
                 return false;
             }
 
-            PlatformInstallationStore store = new PlatformInstallationStore(SharedToolchainRootPath);
+            PlatformInstallationStore store = new PlatformInstallationStore(SharedToolchainRootPath, WarningSink);
             if (!store.Exists()) {
                 return false;
             }
@@ -125,9 +132,8 @@ namespace helengine.platforms {
             string resolvedBuilderAssemblyPath = ResolveBuilderAssemblyPath(manifestRootPath, entry, pluginManifest);
             string resolvedPlayerSourceRootPath = ResolvePayloadPath(manifestRootPath, entry.PlayerSourceRootPath);
             string resolvedGeneratedCoreCppRootPath = ResolvePayloadPath(manifestRootPath, entry.GeneratedCoreCppRootPath);
-            string resolvedCodegenToolPath = ResolvePayloadPath(manifestRootPath, entry.CodegenToolPath);
             IReadOnlyList<string> resolvedGeneratedCoreProjectPaths = ResolveGeneratedCoreProjectPaths(manifestRootPath, entry, pluginManifest);
-            bool isInstalled = IsInstalled(resolvedBuilderAssemblyPath, resolvedPlayerSourceRootPath, resolvedGeneratedCoreCppRootPath, resolvedCodegenToolPath);
+            bool isInstalled = IsInstalled(resolvedBuilderAssemblyPath, resolvedPlayerSourceRootPath, resolvedGeneratedCoreCppRootPath);
 
             return new AvailablePlatformDescriptor(
                 entry.PlatformId,
@@ -136,7 +142,6 @@ namespace helengine.platforms {
                 resolvedPlayerSourceRootPath,
                 isInstalled,
                 resolvedGeneratedCoreCppRootPath,
-                resolvedCodegenToolPath,
                 resolvedGeneratedCoreProjectPaths);
         }
 
@@ -216,17 +221,15 @@ namespace helengine.platforms {
         /// <param name="builderAssemblyPath">Resolved builder assembly path.</param>
         /// <param name="playerSourceRootPath">Resolved player source root path.</param>
         /// <returns>True when either payload exists on disk; otherwise false.</returns>
-        static bool IsInstalled(string builderAssemblyPath, string playerSourceRootPath, string generatedCoreCppRootPath, string codegenToolPath) {
+        static bool IsInstalled(string builderAssemblyPath, string playerSourceRootPath, string generatedCoreCppRootPath) {
             if (!string.IsNullOrWhiteSpace(builderAssemblyPath) && File.Exists(builderAssemblyPath)) {
                 return !string.IsNullOrWhiteSpace(playerSourceRootPath) && Directory.Exists(playerSourceRootPath)
-                    && (string.IsNullOrWhiteSpace(generatedCoreCppRootPath) || Directory.Exists(generatedCoreCppRootPath))
-                    && (string.IsNullOrWhiteSpace(codegenToolPath) || File.Exists(codegenToolPath));
+                    && (string.IsNullOrWhiteSpace(generatedCoreCppRootPath) || Directory.Exists(generatedCoreCppRootPath));
             }
 
             return !string.IsNullOrWhiteSpace(playerSourceRootPath)
                 && Directory.Exists(playerSourceRootPath)
-                && (string.IsNullOrWhiteSpace(generatedCoreCppRootPath) || Directory.Exists(generatedCoreCppRootPath))
-                && (string.IsNullOrWhiteSpace(codegenToolPath) || File.Exists(codegenToolPath));
+                && (string.IsNullOrWhiteSpace(generatedCoreCppRootPath) || Directory.Exists(generatedCoreCppRootPath));
         }
     }
 }

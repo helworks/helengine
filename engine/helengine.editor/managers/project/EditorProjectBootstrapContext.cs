@@ -260,7 +260,7 @@ namespace helengine.editor {
         static AvailablePlatformProviderResolver CreateAvailablePlatformProviderResolver() {
             EditorSourceBuildWorkspaceLocator workspaceLocator = new EditorSourceBuildWorkspaceLocator();
             string sharedEngineUserSettingsRootPath = workspaceLocator.ResolveSharedEngineUserSettingsRootPath();
-            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(sharedEngineUserSettingsRootPath);
+            PlatformDiscoveryOptions options = new PlatformDiscoveryOptions(sharedEngineUserSettingsRootPath, Logger.WriteWarning);
             return new AvailablePlatformProviderResolver(options);
         }
     }

@@ -13,7 +13,6 @@ namespace helengine.platforms {
         /// <param name="builderAssemblyPath">Absolute or relative path to the platform builder assembly.</param>
         /// <param name="playerSourceRootPath">Absolute or relative path to the platform player source root.</param>
         /// <param name="generatedCoreCppRootPath">Absolute or relative path to the generated core C++ root.</param>
-        /// <param name="codegenToolPath">Absolute or relative path to the bundled csharpcodegen executable.</param>
         /// <param name="pluginManifestPath">Absolute or relative path to the platform-owned metadata-only plugin manifest.</param>
         /// <exception cref="ArgumentException">Thrown when a required string value is missing.</exception>
         public PlatformInstallationEntry(
@@ -23,7 +22,6 @@ namespace helengine.platforms {
             string builderAssemblyPath,
             string playerSourceRootPath,
             string generatedCoreCppRootPath = "",
-            string codegenToolPath = "",
             string pluginManifestPath = "") {
             if (string.IsNullOrWhiteSpace(engineVersion)) {
                 throw new ArgumentException("Engine version is required.", nameof(engineVersion));
@@ -41,7 +39,6 @@ namespace helengine.platforms {
             BuilderAssemblyPath = builderAssemblyPath ?? string.Empty;
             PlayerSourceRootPath = playerSourceRootPath;
             GeneratedCoreCppRootPath = generatedCoreCppRootPath ?? string.Empty;
-            CodegenToolPath = codegenToolPath ?? string.Empty;
             PluginManifestPath = pluginManifestPath ?? string.Empty;
         }
 
@@ -74,11 +71,6 @@ namespace helengine.platforms {
         /// Gets the path to the generated core C++ root.
         /// </summary>
         public string GeneratedCoreCppRootPath { get; }
-
-        /// <summary>
-        /// Gets the path to the bundled csharpcodegen executable.
-        /// </summary>
-        public string CodegenToolPath { get; }
 
         /// <summary>
         /// Gets the path to the platform-owned metadata-only plugin manifest.
