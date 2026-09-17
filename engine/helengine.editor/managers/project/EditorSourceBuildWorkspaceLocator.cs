@@ -206,36 +206,29 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the sibling `csharpcodegen` source repository used by local source builds.
+        /// Relative path of the vendored csharpcodegen submodule inside the engine source root.
         /// </summary>
-        /// <returns>Absolute `csharpcodegen` source root path.</returns>
-        public string ResolveCSharpCodegenRootPath() {
-            string helEngineRootPath = ResolveSharedHelEngineRootPath();
-            string parentDirectoryPath = ResolveWorkspaceParentDirectoryPath(helEngineRootPath);
-            string cSharpCodegenRootPath = Path.Combine(parentDirectoryPath, "csharpcodegen");
-            if (!Directory.Exists(cSharpCodegenRootPath)) {
-                throw new InvalidOperationException($"Expected source-build csharpcodegen repo was not found at '{cSharpCodegenRootPath}'.");
-            }
-
-            return Path.GetFullPath(cSharpCodegenRootPath);
-        }
+        const string CSharpCodegenSubmoduleRelativePath = "engine/vendor/csharpcodegen";
 
         /// <summary>
-        /// Resolves the parent workspace directory that owns the sibling source repositories.
+        /// Relative path of the codegen project inside the submodule, used to detect an uninitialised submodule.
         /// </summary>
-        /// <param name="helEngineRootPath">Absolute HelEngine source root path.</param>
-        /// <returns>Absolute parent workspace directory path.</returns>
-        string ResolveWorkspaceParentDirectoryPath(string helEngineRootPath) {
-            if (string.IsNullOrWhiteSpace(helEngineRootPath)) {
-                throw new ArgumentException("HelEngine root path must be provided.", nameof(helEngineRootPath));
+        const string CSharpCodegenProjectRelativePath = "codegen/codegen.csproj";
+
+        /// <summary>
+        /// Resolves the vendored `csharpcodegen` submodule that the engine build publishes its codegen tool from.
+        /// </summary>
+        /// <returns>Absolute submodule root path.</returns>
+        public string ResolveCSharpCodegenRootPath() {
+            string helEngineRootPath = ResolveHelEngineRootPath();
+            string submoduleRootPath = Path.GetFullPath(Path.Combine(helEngineRootPath, CSharpCodegenSubmoduleRelativePath));
+            string projectPath = Path.Combine(submoduleRootPath, CSharpCodegenProjectRelativePath);
+            if (!File.Exists(projectPath)) {
+                throw new InvalidOperationException(
+                    $"The csharpcodegen submodule at '{submoduleRootPath}' is not initialised ('{projectPath}' is missing). Run 'git submodule update --init --recursive' in the engine checkout.");
             }
 
-            DirectoryInfo directoryInfo = Directory.GetParent(Path.GetFullPath(helEngineRootPath));
-            if (directoryInfo == null) {
-                throw new InvalidOperationException("Workspace parent directory could not be resolved.");
-            }
-
-            return directoryInfo.FullName;
+            return submoduleRootPath;
         }
     }
 }

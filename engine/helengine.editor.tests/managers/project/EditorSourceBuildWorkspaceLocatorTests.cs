@@ -114,5 +114,35 @@ namespace helengine.editor.tests.managers.project {
 
             Assert.Equal(Path.GetFullPath(TemporaryRepositoryRootPath), resolvedRootPath);
         }
+
+        /// <summary>
+        /// Ensures the codegen root is the vendored submodule inside the engine, not a sibling checkout.
+        /// </summary>
+        [Fact]
+        public void ResolveCSharpCodegenRootPath_WhenSubmoduleIsInitialised_ReturnsVendorSubmoduleRoot() {
+            string submoduleRootPath = Path.Combine(TemporaryRepositoryRootPath, "engine", "vendor", "csharpcodegen");
+            Directory.CreateDirectory(Path.Combine(submoduleRootPath, "codegen"));
+            File.WriteAllText(Path.Combine(submoduleRootPath, "codegen", "codegen.csproj"), "<Project />");
+            Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, TemporaryRepositoryRootPath);
+            EditorSourceBuildWorkspaceLocator locator = new();
+
+            string resolvedRootPath = locator.ResolveCSharpCodegenRootPath();
+
+            Assert.Equal(Path.GetFullPath(submoduleRootPath), resolvedRootPath);
+        }
+
+        /// <summary>
+        /// Ensures an uninitialised submodule fails with the path and the command that fixes it.
+        /// </summary>
+        [Fact]
+        public void ResolveCSharpCodegenRootPath_WhenSubmoduleIsNotInitialised_ThrowsNamingCommand() {
+            Environment.SetEnvironmentVariable(HelEngineSourceRootEnvironmentVariableName, TemporaryRepositoryRootPath);
+            EditorSourceBuildWorkspaceLocator locator = new();
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => locator.ResolveCSharpCodegenRootPath());
+
+            Assert.Contains(Path.Combine("engine", "vendor", "csharpcodegen"), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("git submodule update --init", exception.Message, StringComparison.Ordinal);
+        }
     }
 }
