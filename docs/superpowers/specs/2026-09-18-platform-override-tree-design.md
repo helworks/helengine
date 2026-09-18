@@ -25,9 +25,9 @@ The fix is not more per-platform entries. It is letting an override target a gro
 
 6. **Level order is per entity, with a project default.** The order applies to the entity and its components. New entities take the project default, which ships as Common → Platform → Build Config so the common case costs nothing and matches today. The order may also be empty: an entity with just Common is authored once and has no per-platform, group or config variation at all. Its tab strip shows only Common, and resolution returns the Common value for every target.
 
-7. **Reordering an entity with authored overrides migrates and drops explicitly.** Every path that has an equivalent under the new order is migrated. Every path that does not is listed, and the user confirms the drop before it happens. Silent remapping is not allowed.
+7. **Reordering an entity with authored overrides relocates and drops explicitly.** Every path that has an equivalent under the new order is relocated. Every path that does not is listed, and the user confirms the drop before it happens. Silent remapping is not allowed.
 
-8. **Existing scenes migrate with no data change.** Under the default order every existing override already sits on a valid path. Only the format version moves.
+8. **Existing scenes are regenerated, not converted.** The repository's `CurrentFormatOnlySourceContractTests` forbids persisted-data compatibility paths in production source: no old-layout readers, no version ranges, no conversion helpers. The format version moves and the reader rejects the previous one with the existing "regenerate" message. The demodisc scenes are generator output, so regeneration is a build step, not a data loss. Under the default order every regenerated override lands on the same path it had before, so authored intent is unchanged.
 
 ## Model
 
@@ -65,11 +65,11 @@ This runs in two places and must agree: `EditorPlatformBuildScenePackager` when 
 
 **Group settings.** `settings/platform-groups.json`, loaded by an `EditorProjectPlatformGroupsService` shaped like `EditorProjectPlatformsService`: `Load` normalises and seeds, `Save` writes. A group is `{ id, displayName, platformIds, children }`. A platform may appear in exactly one group across the whole tree, or in none, in which case its group chain is empty.
 
-**Override path.** `EditorOverrideScope` becomes an ordered list of steps, each `{ kind, id }` with kind in Group, Platform, BuildConfig. `SceneEntityPlatformExistenceOverrideAsset`, `SceneEntityPlatformTransformOverrideAsset` and `SceneEntityPlatformComponentOverrideAsset` each gain the path in place of the current `PlatformId` and `EnvironmentId` pair. The read path accepts the old pair and lifts it to `[Platform: id, BuildConfig: env]`.
+**Override path.** `EditorOverrideScope` becomes an ordered list of steps, each `{ kind, id }` with kind in Group, Platform, BuildConfig. The step kind and step record live in `helengine.core` so the runtime reader and the editor share them. `SceneEntityPlatformExistenceOverrideAsset`, `SceneEntityPlatformTransformOverrideAsset` and `SceneEntityPlatformComponentOverrideAsset` each carry the path as a step array in place of the current `PlatformId` and `EnvironmentId` pair. Common is the empty path; an existence override may sit on it, which is how "exists nowhere except where a deeper node says otherwise" is expressed.
 
-**Level order.** Stored on the entity's `EntitySaveComponent` and serialised with the entity. Absent means the project default.
+**Level order.** Stored on the entity's `EntitySaveComponent` and serialised with the entity as a presence flag plus a kind array. Absent means the project default, which is recorded in `settings/platform-groups.json` and ships as Platform → Build Config.
 
-**Versioning.** `PackagedAssetBinarySerializer.CurrentVersion` is 24 and `SceneEntityPayloadVersion` is 8. Both move by one. The serializer already rejects any other version and tells the user to regenerate, which is the intended migration path for packaged assets. Authored `.helen` scenes read the old pair and write the new path on next save.
+**Versioning.** `PackagedAssetBinarySerializer.CurrentVersion` and `EditorAssetBinarySerializer.CurrentVersion` are 24 and `SceneEntityPayloadVersion` is 8. All move by one. The component override wrapped-payload version moves by one as well. Each reader keeps rejecting every other version with its existing message; there is no reader for the previous layout.
 
 ## Editor
 
@@ -79,11 +79,15 @@ This runs in two places and must agree: `EditorPlatformBuildScenePackager` when 
 
 **Level order control.** A small control beside the tab strip shows the entity's order and lets the user add a level, choosing from the kinds not yet used, or remove one. While the entity has nothing authored below Common the order changes freely. Otherwise the control opens a confirmation listing what migrates and what drops, and applies only on confirm.
 
-## Migration and reordering
+## Reordering
 
-Migration from an old order to a new one maps each authored path step by step: a step whose kind exists in the new order keeps its id at the new depth; a step whose kind was removed has no home. A path is migratable when every step has a home and the resulting path is a valid prefix of the new order. Reordering is the same operation.
+Changing an entity's level order maps each authored path step by step: a step whose kind exists in the new order keeps its id at the new depth; a step whose kind was removed has no home. A path can be relocated when every step has a home and the resulting path is a valid prefix of the new order.
 
-Paths that cannot migrate are dropped only after the user confirms a list that names each one by its meaning, "Exists = false on ps1 under debug", not by an internal id.
+Paths that cannot be relocated are dropped only after the user confirms a list that names each one by its meaning, "Exists = false on ps1 under debug", not by an internal id. The words "migrate" and "upgrade" are reserved by the source contract test for persisted-data conversion and must not appear in this feature's production source; the operation is called relocation.
+
+## Delivery
+
+Two implementation plans. The first delivers the model, the format, the resolver, the editing services and the packager, so group-scoped overrides can be authored through `PlatformSceneAuthoringHelperService` and resolved at build time while the existing two-row properties strip keeps working under the default order. The second delivers the editor UI: the Platform Groups dialog, the multi-level tab strip and the level-order control.
 
 ## Build
 
@@ -103,7 +107,7 @@ Once this lands, `RestrictEntitySubtreeToPlatforms` and `ExcludeEntitySubtreeFro
 ## Verification
 
 - Resolver tests: unique path for every target; deepest prefix wins; Common fallback; every order permutation; nested group chains; inconsistent group settings rejected with both ids named.
-- Serialization tests: old pair reads as the lifted path; round trip of the new path; version rejection message unchanged in shape.
-- Migration tests: a path that maps, a path that drops, and the order change refused without confirmation when drops exist.
+- Serialization tests: round trip of the new path including the empty Common path and a nested group chain; the previous payload version is rejected with the existing message shape.
+- Reordering tests: a path that relocates, a path that drops, and the order change refused without confirmation when drops exist.
 - Editor tests for the existing existence, transform and component services against the new scope, so the properties panel and the packager cannot disagree.
 - An end-to-end check on the demodisc `cube_test` scene: after the generator follow-up, a PS1 build receives one camera rig and one sun.
