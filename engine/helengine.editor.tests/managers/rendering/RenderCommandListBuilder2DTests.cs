@@ -261,6 +261,39 @@ namespace helengine.editor.tests.managers.rendering {
         }
 
         /// <summary>
+        /// Ensures a rounded rectangle's authored size is scaled by its parent entity's non-uniform world
+        /// scale, mirroring how sprite bounds are flattened, while its resolved position is left unscaled.
+        /// A non-uniform scale is used deliberately so a fix that mistakenly applies only the X scale to
+        /// both axes would still fail this assertion.
+        /// </summary>
+        [Fact]
+        public void Build_WhenQueueContainsScaledRoundedRect_ScalesSizeByParentScale() {
+            Entity entity = CreateEntity(new float3(5f, 6f, 0f), true);
+            entity.LocalScale = new float3(0.25f, 0.5f, 1f);
+            RoundedRectComponent shape = new RoundedRectComponent {
+                Size = new int2(400, 200),
+                Radius = 12f,
+                BorderThickness = 3f,
+                Corners = RoundedRectCorners.TopLeft | RoundedRectCorners.BottomLeft,
+                FillColor = new byte4(10, 20, 30, 40),
+                BorderColor = new byte4(50, 60, 70, 80)
+            };
+            entity.AddComponent(shape);
+
+            RenderList2D queue = new RenderList2D(1);
+            queue.Add(shape);
+
+            RenderCommandListBuilder2D builder = new RenderCommandListBuilder2D();
+            RenderCommandList2D commandList = builder.Build(queue);
+
+            Assert.Equal(1, commandList.Count);
+            Assert.Equal(RenderCommand2DType.RoundedRect, commandList.GetCommandType(0));
+
+            int payloadIndex = commandList.GetRoundedRectPayloadIndex(0);
+            Assert.Equal(new float4(5f, 6f, 100f, 100f), commandList.GetRoundedRectBounds(payloadIndex));
+        }
+
+        /// <summary>
         /// Ensures disabled parents are skipped even when their drawables remain in the render queue.
         /// </summary>
         [Fact]

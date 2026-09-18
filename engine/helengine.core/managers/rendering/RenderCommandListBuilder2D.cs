@@ -557,8 +557,16 @@ namespace helengine {
         /// <param name="roundedRect">Rounded rectangle drawable to flatten.</param>
         void EmitRoundedRect(IRoundedRectDrawable2D roundedRect) {
             float3 position = roundedRect.Parent.Position;
+            // Size, like the sprite quad's size, is authored in local units and must be scaled by the
+            // parent entity's world scale before it reaches the command list, because platform renderers
+            // consume the flattened command stream without access to the source entity hierarchy and can
+            // never recover this factor afterward. Position is left unscaled because it already arrives in
+            // resolved screen space (see EmitSprite).
+            float3 scale = roundedRect.Parent.Scale;
+            float width = roundedRect.Size.X * scale.X;
+            float height = roundedRect.Size.Y * scale.Y;
             CommandListValue.AddRoundedRect(
-                new float4(position.X, position.Y, roundedRect.Size.X, roundedRect.Size.Y),
+                new float4(position.X, position.Y, width, height),
                 roundedRect.Radius,
                 roundedRect.BorderThickness,
                 roundedRect.Corners,
