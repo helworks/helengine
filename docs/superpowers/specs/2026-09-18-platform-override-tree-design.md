@@ -23,7 +23,7 @@ The fix is not more per-platform entries. It is letting an override target a gro
 
 5. **Group definitions are project settings.** They live beside `settings/platforms.json` and are edited in a tree-editor modal. A group id may not equal a platform id; the modal refuses it, so one id namespace is safe.
 
-6. **Level order is per entity, with a project default.** The order applies to the entity and its components. New entities take the project default, which ships as Common → Platform → Build Config so the common case costs nothing and matches today.
+6. **Level order is per entity, with a project default.** The order applies to the entity and its components. New entities take the project default, which ships as Common → Platform → Build Config so the common case costs nothing and matches today. The order may also be empty: an entity with just Common is authored once and has no per-platform, group or config variation at all. Its tab strip shows only Common, and resolution returns the Common value for every target.
 
 7. **Reordering an entity with authored overrides migrates and drops explicitly.** Every path that has an equivalent under the new order is migrated. Every path that does not is listed, and the user confirms the drop before it happens. Silent remapping is not allowed.
 
