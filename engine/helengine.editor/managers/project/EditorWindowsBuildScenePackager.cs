@@ -1963,11 +1963,18 @@ namespace helengine.editor {
                 return CreateFileSystemReference(cookedRelativePath);
             }
 
-            RememberReferencedShaderDependency(new PlatformShaderDependency(
-                materialAsset.ShaderAssetId,
-                materialAsset.VertexProgram,
-                materialAsset.PixelProgram,
-                materialAsset.Variant));
+            // A material that resolves no shader asset id has no shader dependency to record.
+            // Platforms with a material builder report their dependencies from the cook result
+            // above. This fallback also serves platforms whose materials select a platform-owned
+            // schema, where the shader is chosen by the platform rather than authored per
+            // material, so an absent id is expected rather than a packaging error.
+            if (!string.IsNullOrWhiteSpace(materialAsset.ShaderAssetId)) {
+                RememberReferencedShaderDependency(new PlatformShaderDependency(
+                    materialAsset.ShaderAssetId,
+                    materialAsset.VertexProgram,
+                    materialAsset.PixelProgram,
+                    materialAsset.Variant));
+            }
             CopyReferencedDiffuseTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedEmissiveTextureAsset(fullPath, materialAsset, buildRootPath);
             CopyReferencedRoughnessTextureAsset(fullPath, materialAsset, buildRootPath);

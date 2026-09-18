@@ -275,6 +275,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a material that resolves no shader asset id packages without reporting a shader dependency.
+        /// </summary>
+        [Fact]
+        public void Package_WhenMaterialResolvesNoShaderAssetId_ReportsNoShaderDependency() {
+            string sceneId = "Scenes/NoShaderScene.helen";
+            string materialRelativePath = "Materials/NoShaderMaterial.hasset";
+
+            WriteMaterialAssetWithoutShader(materialRelativePath);
+            WriteSceneAsset(sceneId, materialRelativePath);
+
+            EditorPlatformBuildScenePackager packager = new EditorPlatformBuildScenePackager(ProjectRootPath, BuiltInShaderAssetLibrary);
+            EditorPlatformBuildScenePackagerResult result = packager.Package(new[] { sceneId }, BuildRootPath);
+
+            Assert.Empty(result.ReferencedShaderDependencies);
+        }
+
+        /// <summary>
         /// Ensures packaging rejects source-oriented texture ids that are not backed by imported cache assets.
         /// </summary>
         [Fact]
@@ -3850,6 +3867,27 @@ namespace helengine.editor.tests {
             settingsService.Save(materialPath, settings);
         }
 
+        /// <summary>
+        /// Writes one authored material that selects a platform-owned schema and so resolves no shader asset id.
+        /// </summary>
+        /// <param name="materialRelativePath">Project-relative material path to write.</param>
+        void WriteMaterialAssetWithoutShader(string materialRelativePath) {
+            string materialPath = Path.Combine(ProjectRootPath, "assets", materialRelativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
+
+            MaterialAssetImportSettings settings = CreateMaterialSettings(
+                materialRelativePath,
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                "platform-owned-schema",
+                useCustomShader: false,
+                "#FFFFFFFF");
+
+            MaterialAssetSettingsService settingsService = new MaterialAssetSettingsService(ProjectRootPath);
+            settingsService.Save(materialPath, settings);
+        }
         /// <summary>
         /// Writes one minimal source texture or model file into the project assets tree.
         /// </summary>
