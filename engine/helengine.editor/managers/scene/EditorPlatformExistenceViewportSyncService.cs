@@ -13,6 +13,17 @@ namespace helengine.editor {
         readonly string ProjectRootPath;
 
         /// <summary>
+        /// Settings error messages already reported, so one broken settings file does not flood the log on every event.
+        /// </summary>
+        readonly HashSet<string> ReportedSettingsErrors;
+
+        /// <summary>
+        /// Raised once per distinct message when the project's platform settings cannot be resolved. Suppression is
+        /// left untouched for that call, so the viewport keeps showing what it last resolved.
+        /// </summary>
+        public event Action<string> SettingsError;
+
+        /// <summary>
         /// Initializes one platform-existence viewport sync service for a project.
         /// </summary>
         public EditorPlatformExistenceViewportSyncService(ObjectManager objectManager, string projectRootPath) {
@@ -23,18 +34,24 @@ namespace helengine.editor {
             ExistenceService = new EntityPlatformExistenceEditingService();
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
             ProjectRootPath = projectRootPath;
+            ReportedSettingsErrors = new HashSet<string>(StringComparer.Ordinal);
         }
 
         /// <summary>
         /// Applies runtime suppression for every authored scene entity against the active platform's scope path.
         /// Group settings are re-read on each call because the call is event-driven and the file is small.
+        /// Inconsistent or unreadable settings are reported once per distinct message and leave suppression unchanged.
         /// </summary>
         public void Apply(string activePlatformId) {
             if (string.IsNullOrWhiteSpace(activePlatformId)) {
                 return;
             }
 
-            EditorOverrideScopeResolver resolver = EditorOverrideScopeResolver.Load(ProjectRootPath);
+            if (!EditorOverrideScopeResolver.TryLoad(ProjectRootPath, out EditorOverrideScopeResolver resolver, out string error)) {
+                ReportSettingsError(error);
+                return;
+            }
+
             List<Entity> entities = ObjectManager.Entities;
             for (int index = 0; index < entities.Count; index++) {
                 if (entities[index] is not EditorEntity editorEntity
@@ -52,6 +69,19 @@ namespace helengine.editor {
                 EditorOverrideScope target = resolver.BuildTargetPath(resolver.ResolveLevelOrder(saveComponent.OverrideLevelOrder), activePlatformId, string.Empty);
                 editorEntity.RuntimeSuppressed = !ExistenceService.ResolveExists(saveComponent, target);
             }
+        }
+
+        /// <summary>
+        /// Reports one settings failure the first time that exact message is seen.
+        /// </summary>
+        /// <param name="error">Message naming the offending settings entry.</param>
+        void ReportSettingsError(string error) {
+            if (string.IsNullOrWhiteSpace(error) || !ReportedSettingsErrors.Add(error)) {
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"Platform existence viewport sync could not read the project platform settings: {error}");
+            SettingsError?.Invoke(error);
         }
 
         /// <summary>

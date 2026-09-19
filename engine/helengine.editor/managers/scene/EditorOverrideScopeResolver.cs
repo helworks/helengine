@@ -22,14 +22,44 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Initializes a resolver over an already validated group tree.
+        /// </summary>
+        EditorOverrideScopeResolver(EditorProjectPlatformGroupsDocument groups) {
+            Groups = groups;
+        }
+
+        /// <summary>
         /// Reads <c>settings/platform-groups.json</c> and <c>settings/platforms.json</c> from a project and builds a
         /// resolver. Never writes to disk, so packaging and other read-only callers can build a resolver concurrently
-        /// without racing to seed default settings files.
+        /// without racing to seed default settings files. Inconsistent settings throw here.
         /// </summary>
         public static EditorOverrideScopeResolver Load(string projectRootPath) {
+            if (!TryLoad(projectRootPath, out EditorOverrideScopeResolver resolver, out string error)) {
+                throw new InvalidOperationException(error);
+            }
+
+            return resolver;
+        }
+
+        /// <summary>
+        /// Builds the same resolver as <see cref="Load"/> and reports inconsistent settings instead of throwing, so
+        /// callers on an interactive path, such as the viewport, can report the problem and carry on. Validation never
+        /// throws internally on this path.
+        /// </summary>
+        /// <param name="projectRootPath">Absolute project root path whose settings should be read.</param>
+        /// <param name="resolver">Resolver built over the project's group tree when the settings are consistent.</param>
+        /// <param name="error">Message naming the offending settings entry when the settings are inconsistent; empty otherwise.</param>
+        /// <returns>True when a resolver was built; otherwise false.</returns>
+        public static bool TryLoad(string projectRootPath, out EditorOverrideScopeResolver resolver, out string error) {
             EditorProjectPlatformGroupsDocument groups = new EditorProjectPlatformGroupsService(projectRootPath).Read();
             IReadOnlyList<string> platforms = new EditorProjectPlatformsService(projectRootPath).Read().SupportedPlatforms;
-            return new EditorOverrideScopeResolver(groups, platforms);
+            if (!EditorProjectPlatformGroupsService.TryValidate(groups, platforms, out error)) {
+                resolver = null;
+                return false;
+            }
+
+            resolver = new EditorOverrideScopeResolver(groups);
+            return true;
         }
 
         /// <summary>

@@ -48,6 +48,32 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures inconsistent group settings are reported instead of thrown, leaving viewport suppression untouched.
+        /// </summary>
+        [Fact]
+        public void Apply_WhenGroupSettingsAreInconsistent_ReportsTheErrorAndLeavesSuppressionUnchanged() {
+            new EditorProjectPlatformsService(ProjectRootPath).Save(new EditorProjectPlatformsDocument { SupportedPlatforms = ["windows", "ds"] });
+            new EditorProjectPlatformGroupsService(ProjectRootPath).Save(new EditorProjectPlatformGroupsDocument {
+                Groups = [
+                    new EditorProjectPlatformGroupDefinition { Id = "handheld", DisplayName = "handheld", PlatformIds = ["ds"] },
+                    new EditorProjectPlatformGroupDefinition { Id = "portable", DisplayName = "portable", PlatformIds = ["ds"] }
+                ]
+            });
+
+            EditorEntity entity = new EditorEntity(CoreValue, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
+            entity.RuntimeSuppressed = true;
+            EditorPlatformExistenceViewportSyncService sync = new EditorPlatformExistenceViewportSyncService(CoreValue.ObjectManager, ProjectRootPath);
+            List<string> reportedErrors = new List<string>();
+            sync.SettingsError += message => reportedErrors.Add(message);
+
+            sync.Apply("ds");
+            sync.Apply("ds");
+
+            Assert.True(entity.RuntimeSuppressed);
+            Assert.Contains("belongs to groups", Assert.Single(reportedErrors));
+        }
+
+        /// <summary>
         /// Ensures editor-internal and non-scene entities are never suppressed by platform existence.
         /// </summary>
         [Fact]

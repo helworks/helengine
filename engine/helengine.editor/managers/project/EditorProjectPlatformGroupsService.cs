@@ -179,6 +179,20 @@ namespace helengine.editor {
         /// Every message names the offending ids so the build log points at the settings entry to fix.
         /// </summary>
         public static void Validate(EditorProjectPlatformGroupsDocument document, IReadOnlyList<string> supportedPlatformIds) {
+            if (!TryValidate(document, supportedPlatformIds, out string error)) {
+                throw new InvalidOperationException(error);
+            }
+        }
+
+        /// <summary>
+        /// Runs the same checks as <see cref="Validate"/> and reports the first offending entry instead of throwing, so
+        /// callers that must survive inconsistent settings, such as the viewport, can report and carry on.
+        /// </summary>
+        /// <param name="document">Platform group document to check.</param>
+        /// <param name="supportedPlatformIds">Supported project platform ids the group ids must not collide with.</param>
+        /// <param name="error">Message naming the offending ids when the document is inconsistent; empty otherwise.</param>
+        /// <returns>True when the document is consistent; otherwise false.</returns>
+        public static bool TryValidate(EditorProjectPlatformGroupsDocument document, IReadOnlyList<string> supportedPlatformIds, out string error) {
             if (document == null) {
                 throw new ArgumentNullException(nameof(document));
             }
@@ -186,7 +200,10 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(supportedPlatformIds));
             }
 
-            EditorOverrideLevelOrder.Validate(document.DefaultLevelOrder);
+            if (!EditorOverrideLevelOrder.TryValidate(document.DefaultLevelOrder, out error)) {
+                return false;
+            }
+
             List<EditorProjectPlatformGroupDefinition> all = new List<EditorProjectPlatformGroupDefinition>();
             CollectGroups(document.Groups, all);
             Dictionary<string, string> groupByPlatform = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -195,26 +212,33 @@ namespace helengine.editor {
             for (int index = 0; index < all.Count; index++) {
                 EditorProjectPlatformGroupDefinition group = all[index];
                 if (string.IsNullOrWhiteSpace(group.Id)) {
-                    throw new InvalidOperationException("Platform groups must define a non-blank id.");
+                    error = "Platform groups must define a non-blank id.";
+                    return false;
                 }
                 if (!groupIds.Add(group.Id)) {
-                    throw new InvalidOperationException($"Platform group id '{group.Id}' is defined more than once.");
+                    error = $"Platform group id '{group.Id}' is defined more than once.";
+                    return false;
                 }
                 for (int platformIndex = 0; platformIndex < supportedPlatformIds.Count; platformIndex++) {
                     if (string.Equals(group.Id, supportedPlatformIds[platformIndex], StringComparison.OrdinalIgnoreCase)) {
-                        throw new InvalidOperationException($"Platform group id '{group.Id}' collides with platform id '{supportedPlatformIds[platformIndex]}'.");
+                        error = $"Platform group id '{group.Id}' collides with platform id '{supportedPlatformIds[platformIndex]}'.";
+                        return false;
                     }
                 }
                 for (int platformIndex = 0; platformIndex < group.PlatformIds.Count; platformIndex++) {
                     string platformId = group.PlatformIds[platformIndex];
                     if (groupByPlatform.TryGetValue(platformId, out string otherGroupId)) {
                         string firstPlatformIdSpelling = firstPlatformIdSpellingById[platformId];
-                        throw new InvalidOperationException($"Platform '{firstPlatformIdSpelling}' belongs to groups '{otherGroupId}' and '{group.Id}'; a platform may belong to one group.");
+                        error = $"Platform '{firstPlatformIdSpelling}' belongs to groups '{otherGroupId}' and '{group.Id}'; a platform may belong to one group.";
+                        return false;
                     }
                     groupByPlatform.Add(platformId, group.Id);
                     firstPlatformIdSpellingById.Add(platformId, platformId);
                 }
             }
+
+            error = string.Empty;
+            return true;
         }
 
         /// <summary>

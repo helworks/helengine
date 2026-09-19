@@ -15,6 +15,18 @@ namespace helengine {
         /// Rejects an order that lists one kind twice. The empty order (Common only) is valid.
         /// </summary>
         public static void Validate(IReadOnlyList<SceneOverrideScopeStepKind> order) {
+            if (!TryValidate(order, out string error)) {
+                throw new InvalidOperationException(error);
+            }
+        }
+
+        /// <summary>
+        /// Runs the same check as <see cref="Validate"/> and reports the duplicated kind instead of throwing.
+        /// </summary>
+        /// <param name="order">Override level order to check.</param>
+        /// <param name="error">Message naming the duplicated kind when the order is invalid; empty otherwise.</param>
+        /// <returns>True when the order lists each kind at most once; otherwise false.</returns>
+        public static bool TryValidate(IReadOnlyList<SceneOverrideScopeStepKind> order, out string error) {
             if (order == null) {
                 throw new ArgumentNullException(nameof(order));
             }
@@ -22,10 +34,14 @@ namespace helengine {
             for (int outer = 0; outer < order.Count; outer++) {
                 for (int inner = outer + 1; inner < order.Count; inner++) {
                     if (order[outer] == order[inner]) {
-                        throw new InvalidOperationException($"Override level order lists '{SceneOverrideScopePath.FormatKind(order[outer])}' more than once.");
+                        error = $"Override level order lists '{SceneOverrideScopePath.FormatKind(order[outer])}' more than once.";
+                        return false;
                     }
                 }
             }
+
+            error = string.Empty;
+            return true;
         }
 
         /// <summary>
