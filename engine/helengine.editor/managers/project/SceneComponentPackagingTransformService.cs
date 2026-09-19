@@ -220,6 +220,16 @@ namespace helengine.editor {
         readonly string TargetPlatformId;
 
         /// <summary>
+        /// Shared override scope resolver used to build the packaging target's scope path for each component record.
+        /// </summary>
+        readonly EditorOverrideScopeResolver OverrideScopeResolver;
+
+        /// <summary>
+        /// Selected environment id that occupies the Build Config level of the packaging target's scope path.
+        /// </summary>
+        readonly string SelectedEnvironmentId;
+
+        /// <summary>
         /// Builder used to translate schema-driven material settings into cooked runtime material bytes.
         /// </summary>
         readonly IPlatformAssetBuilder MaterialBuilder;
@@ -322,6 +332,8 @@ namespace helengine.editor {
         /// <param name="staticMeshCookProcessorRegistry">Optional registry that exposes the active static mesh collision cook processor.</param>
         /// <param name="cookedArtifactDeclarationSink">Optional callback that records material and shader outputs written during transformation.</param>
         /// <param name="shaderDependencySink">Optional callback that records complete material shader dependencies in the owning scene packager.</param>
+        /// <param name="overrideScopeResolver">Optional shared override scope resolver; when null an empty group tree with the default level order is used.</param>
+        /// <param name="selectedEnvironmentId">Selected environment id that occupies the Build Config level of the packaging target's scope path.</param>
         public SceneComponentPackagingTransformService(
             string assetsRootPath,
             ContentManager projectContentManager,
@@ -338,7 +350,9 @@ namespace helengine.editor {
             ITextComponentSpriteBakeService textComponentSpriteBakeService = null,
             StaticMeshCollisionCookProcessorRegistry staticMeshCookProcessorRegistry = null,
             Action<PlatformCookedArtifactDeclaration> cookedArtifactDeclarationSink = null,
-            Action<PlatformShaderDependency> shaderDependencySink = null) {
+            Action<PlatformShaderDependency> shaderDependencySink = null,
+            EditorOverrideScopeResolver overrideScopeResolver = null,
+            string selectedEnvironmentId = "") {
             AssetsRootPath = string.IsNullOrWhiteSpace(assetsRootPath)
                 ? throw new ArgumentException("Assets root path must be provided.", nameof(assetsRootPath))
                 : Path.GetFullPath(assetsRootPath);
@@ -359,6 +373,9 @@ namespace helengine.editor {
             }
             TargetPlatformId = effectiveTargetPlatformId;
             AssetImportManager.CurrentPlatformId = TargetPlatformId;
+            OverrideScopeResolver = overrideScopeResolver
+                ?? new EditorOverrideScopeResolver(new EditorProjectPlatformGroupsDocument(), Array.Empty<string>());
+            SelectedEnvironmentId = selectedEnvironmentId?.Trim() ?? string.Empty;
             MaterialBuilder = materialBuilder;
             SelectedBuildProfileId = selectedBuildProfileId ?? string.Empty;
             SelectedGraphicsProfileId = selectedGraphicsProfileId ?? string.Empty;
@@ -491,7 +508,8 @@ namespace helengine.editor {
             }
 
             EntitySaveComponent saveComponent = new EntitySaveComponent();
-            SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record, out EntityComponentPlatformOverrideState targetPlatformOverride);
+            EditorOverrideScope targetPath = BuildTargetPath(context);
+            SceneComponentAssetRecord baseRecord = ResolveTargetPlatformComponentRecord(record, targetPath, out EntityComponentPlatformOverrideState targetPlatformOverride);
             EntityComponentPlatformOverrideState commonScopeOverride = ResolveCommonScopeComponentOverride(record);
             MeshComponentTessellationSettings meshTessellationSettings = ResolveMeshComponentTessellationSettings(
                 targetPlatformOverride,
@@ -509,6 +527,7 @@ namespace helengine.editor {
                 record,
                 buildRootPath,
                 context,
+                targetPath,
                 meshTessellationSettings,
                 meshUvwModifiers);
             return true;
@@ -593,42 +612,79 @@ namespace helengine.editor {
         /// Selects the complete automatic-component payload authored for the current packaging platform, falling back to the common payload when no override exists.
         /// </summary>
         /// <param name="persistedRecord">Persisted component record that may contain platform override payloads.</param>
+        /// <param name="targetPath">Scope path the current packaging target occupies under the owning entity's level order.</param>
         /// <returns>Component record whose payload should be deserialized for the target platform.</returns>
         SceneComponentAssetRecord ResolveTargetPlatformComponentRecord(
             SceneComponentAssetRecord persistedRecord,
+            EditorOverrideScope targetPath,
             out EntityComponentPlatformOverrideState targetPlatformOverride) {
             if (persistedRecord == null) {
                 throw new ArgumentNullException(nameof(persistedRecord));
             }
 
-            IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(persistedRecord);
             targetPlatformOverride = null;
-            if (!string.IsNullOrWhiteSpace(TargetPlatformId) &&
-                !string.Equals(TargetPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                for (int index = 0; index < overrideStates.Count; index++) {
-                    EntityComponentPlatformOverrideState overrideState = overrideStates[index];
-                    if (overrideState == null
-                        || !overrideState.Scope.TryGetStepId(SceneOverrideScopeStepKind.Platform, out string overridePlatformId)
-                        || !string.Equals(overridePlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                        continue;
-                    }
-
-                    targetPlatformOverride = overrideState;
-                    byte[] overridePayload = overrideState.Payload ?? Array.Empty<byte>();
-                    if (overridePayload.Length == 0) {
-                        return PlatformOverridePayloadService.UnwrapBaseRecord(persistedRecord);
-                    }
-
-                    return new SceneComponentAssetRecord {
-                        ComponentTypeId = persistedRecord.ComponentTypeId,
-                        ComponentIndex = persistedRecord.ComponentIndex,
-                        ComponentKey = persistedRecord.ComponentKey,
-                        Payload = overridePayload
-                    };
-                }
+            if (!TrySelectScopedComponentOverride(persistedRecord, targetPath, out EntityComponentPlatformOverrideState selectedOverride)) {
+                return PlatformOverridePayloadService.UnwrapBaseRecord(persistedRecord);
             }
 
-            return PlatformOverridePayloadService.UnwrapBaseRecord(persistedRecord);
+            targetPlatformOverride = selectedOverride;
+            byte[] overridePayload = selectedOverride.Payload ?? Array.Empty<byte>();
+            if (overridePayload.Length == 0) {
+                return PlatformOverridePayloadService.UnwrapBaseRecord(persistedRecord);
+            }
+
+            return new SceneComponentAssetRecord {
+                ComponentTypeId = persistedRecord.ComponentTypeId,
+                ComponentIndex = persistedRecord.ComponentIndex,
+                ComponentKey = persistedRecord.ComponentKey,
+                Payload = overridePayload
+            };
+        }
+
+        /// <summary>
+        /// Selects the deepest component override payload authored on a prefix of the packaging target's scope path.
+        /// </summary>
+        /// <param name="persistedRecord">Persisted component record that may contain platform override payloads.</param>
+        /// <param name="targetPath">Scope path the current packaging target occupies under the owning entity's level order.</param>
+        /// <param name="selectedOverride">Selected override payload when one was authored beneath Common.</param>
+        /// <returns>True when one authored override payload applies to the packaging target.</returns>
+        bool TrySelectScopedComponentOverride(
+            SceneComponentAssetRecord persistedRecord,
+            EditorOverrideScope targetPath,
+            out EntityComponentPlatformOverrideState selectedOverride) {
+            selectedOverride = null;
+            if (string.IsNullOrWhiteSpace(TargetPlatformId)
+                || string.Equals(TargetPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return false;
+            }
+
+            IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(persistedRecord);
+            if (!EditorOverrideScopeResolver.TrySelectDeepest(overrideStates, state => state.Scope, targetPath, out EntityComponentPlatformOverrideState deepestOverride)
+                || deepestOverride.Scope.IsCommon) {
+                return false;
+            }
+
+            selectedOverride = deepestOverride;
+            return true;
+        }
+
+        /// <summary>
+        /// Builds the scope path the current packaging target occupies under the owning entity's level order.
+        /// </summary>
+        /// <param name="context">Entity-specific cook-time context that carries the owning entity's override level order.</param>
+        /// <returns>Scope path for the packaging target.</returns>
+        EditorOverrideScope BuildTargetPath(SceneComponentPackagingTransformContext context) {
+            if (context == null) {
+                throw new ArgumentNullException(nameof(context));
+            }
+            if (string.IsNullOrWhiteSpace(TargetPlatformId)) {
+                return EditorOverrideScope.Common;
+            }
+
+            return OverrideScopeResolver.BuildTargetPath(
+                OverrideScopeResolver.ResolveLevelOrder(context.OverrideLevelOrder),
+                TargetPlatformId,
+                SelectedEnvironmentId);
         }
 
         /// <summary>
@@ -789,6 +845,7 @@ namespace helengine.editor {
             SceneComponentAssetRecord sourceRecord,
             string buildRootPath,
             SceneComponentPackagingTransformContext context,
+            EditorOverrideScope targetPath,
             MeshComponentTessellationSettings meshTessellationSettings,
             IReadOnlyList<MeshComponentModifier> meshUvwModifiers) {
             if (string.IsNullOrWhiteSpace(componentTypeId)) {
@@ -821,7 +878,7 @@ namespace helengine.editor {
             for (int index = 0; index < schema.Members.Count; index++) {
                 ScriptComponentReflectionMember member = schema.Members[index];
                 if (member.PlatformComponentMemberDefinition != null) {
-                    WriteSyntheticPlatformMemberValue(writer, member, sourceRecord);
+                    WriteSyntheticPlatformMemberValue(writer, member, sourceRecord, targetPath);
                     continue;
                 }
                 AutomaticScriptComponentPersistenceDescriptor.WriteSupportedMemberValue(writer, member, component, rewrittenSaveState);
@@ -1277,10 +1334,12 @@ namespace helengine.editor {
         /// <param name="writer">Destination writer receiving the ordinal runtime payload.</param>
         /// <param name="member">Synthetic schema member being serialized.</param>
         /// <param name="sourceRecord">Original authored scene component record that may contain detached platform overrides.</param>
+        /// <param name="targetPath">Scope path the current packaging target occupies under the owning entity's level order.</param>
         void WriteSyntheticPlatformMemberValue(
             EngineBinaryWriter writer,
             ScriptComponentReflectionMember member,
-            SceneComponentAssetRecord sourceRecord) {
+            SceneComponentAssetRecord sourceRecord,
+            EditorOverrideScope targetPath) {
             if (writer == null) {
                 throw new ArgumentNullException(nameof(writer));
             }
@@ -1294,7 +1353,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Synthetic platform member serialization requires a platform definition-backed schema member.");
             }
 
-            string serializedValue = ResolveSyntheticPlatformMemberSerializedValue(sourceRecord, member.PlatformComponentMemberDefinition);
+            string serializedValue = ResolveSyntheticPlatformMemberSerializedValue(sourceRecord, member.PlatformComponentMemberDefinition, targetPath);
             object parsedValue = PlatformComponentMemberValueUtility.ParseValue(member.PlatformComponentMemberDefinition, serializedValue);
             AutomaticScriptComponentPersistenceDescriptor.WriteSupportedValue(writer, member.ValueType, parsedValue);
         }
@@ -1304,10 +1363,12 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="sourceRecord">Original authored scene component record that may contain detached platform overrides.</param>
         /// <param name="definition">Builder-owned synthetic platform member definition.</param>
+        /// <param name="targetPath">Scope path the current packaging target occupies under the owning entity's level order.</param>
         /// <returns>Serialized member value that should be emitted into the packaged runtime payload.</returns>
         string ResolveSyntheticPlatformMemberSerializedValue(
             SceneComponentAssetRecord sourceRecord,
-            PlatformComponentMemberDefinition definition) {
+            PlatformComponentMemberDefinition definition,
+            EditorOverrideScope targetPath) {
             if (sourceRecord == null) {
                 throw new ArgumentNullException(nameof(sourceRecord));
             }
@@ -1318,18 +1379,9 @@ namespace helengine.editor {
                 return definition.DefaultValue;
             }
 
-            IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(sourceRecord);
-            for (int index = 0; index < overrideStates.Count; index++) {
-                EntityComponentPlatformOverrideState overrideState = overrideStates[index];
-                if (!overrideState.Scope.TryGetStepId(SceneOverrideScopeStepKind.Platform, out string overridePlatformId)
-                    || !string.Equals(overridePlatformId, PlatformDefinition.PlatformId, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (overrideState.TryGetMemberValue(definition.MemberName, out string overrideValue)) {
-                    return overrideValue;
-                }
-
-                break;
+            if (TrySelectScopedComponentOverride(sourceRecord, targetPath, out EntityComponentPlatformOverrideState selectedOverride)
+                && selectedOverride.TryGetMemberValue(definition.MemberName, out string overrideValue)) {
+                return overrideValue;
             }
 
             return definition.DefaultValue;

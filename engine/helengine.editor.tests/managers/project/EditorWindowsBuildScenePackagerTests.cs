@@ -2724,6 +2724,44 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a component property override authored on a group scope reaches the builds of the platforms inside that group and leaves platforms outside it on the common payload.
+        /// </summary>
+        [Fact]
+        public void Package_WhenComponentPropertyOverrideIsAuthoredOnAGroupScope_AppliesItOnGroupMemberPlatforms() {
+            new EditorProjectPlatformsService(ProjectRootPath).Save(new EditorProjectPlatformsDocument { SupportedPlatforms = ["windows", "ds", "ps1"] });
+            EditorProjectPlatformGroupsService groupsService = new EditorProjectPlatformGroupsService(ProjectRootPath);
+            EditorProjectPlatformGroupsDocument groups = groupsService.Load();
+            groupsService.AddGroup(groups, null, "handheld");
+            groupsService.AssignPlatform(groups, "handheld", "ds");
+            groupsService.Save(groups);
+            InitializeRuntimeCore(BuildRootPath);
+
+            string sceneId = "Scenes/GroupComponentProperty.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u, Name = "CameraRoot", LocalScale = float3.One, LocalOrientation = float4.Identity,
+                        HasOverrideLevelOrder = true,
+                        OverrideLevelOrder = new[] { SceneOverrideScopeStepKind.Group, SceneOverrideScopeStepKind.Platform, SceneOverrideScopeStepKind.BuildConfig },
+                        Components = new[] {
+                            CreateScopedCameraDrawOrderOverrideRecord(EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld")), 42)
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            new EditorPlatformBuildScenePackager(ProjectRootPath, Array.Empty<IAssetImporterRegistration>(), "ds", BuiltInShaderAssetLibrary)
+                .Package(new[] { sceneId }, Path.Combine(BuildRootPath, "ds"));
+            new EditorPlatformBuildScenePackager(ProjectRootPath, Array.Empty<IAssetImporterRegistration>(), "ps1", BuiltInShaderAssetLibrary)
+                .Package(new[] { sceneId }, Path.Combine(BuildRootPath, "ps1"));
+
+            Assert.Equal(42, ReadPackagedCameraDrawOrder(Path.Combine(BuildRootPath, "ds"), sceneId));
+            Assert.Equal(17, ReadPackagedCameraDrawOrder(Path.Combine(BuildRootPath, "ps1"), sceneId));
+        }
+
+        /// <summary>
         /// Ensures packaging for one target platform removes root entity subtrees authored as absent on that platform.
         /// </summary>
         [Fact]
@@ -4581,6 +4619,53 @@ namespace helengine.editor.tests {
 
             ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
             return persistenceRegistry.GetDescriptor(cameraComponent).SerializeComponent(cameraComponent, 0, new EntityComponentSaveState());
+        }
+
+        /// <summary>
+        /// Creates one authored camera component record whose wrapped payload carries a draw-order override at the supplied scope path.
+        /// </summary>
+        /// <param name="scope">Scope path the override payload is authored against.</param>
+        /// <param name="overriddenDrawOrder">Camera draw order the scoped payload should carry.</param>
+        /// <returns>Wrapped authored camera component record.</returns>
+        SceneComponentAssetRecord CreateScopedCameraDrawOrderOverrideRecord(EditorOverrideScope scope, byte overriddenDrawOrder) {
+            SceneComponentAssetRecord commonRecord = CreateCameraComponentRecord();
+            CameraComponent overrideCamera = new CameraComponent {
+                CameraDrawOrder = overriddenDrawOrder,
+                LayerMask = EditorLayerMasks.SceneObjects,
+                Viewport = new float4(12f, 24f, 640f, 360f),
+                NearPlaneDistance = 0.42f,
+                FarPlaneDistance = 128f,
+                ClearSettings = new CameraClearSettings(true, new float4(0.25f, 0.5f, 0.75f, 1f), true, 1f, true, 9),
+                RenderSettings = new CameraRenderSettings {
+                    DepthPrepassMode = DepthPrepassMode.Always,
+                    ShadowDistance = 128f,
+                    PostProcessTier = PostProcessTier.High
+                }
+            };
+
+            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
+            SceneComponentAssetRecord overrideRecord = persistenceRegistry
+                .GetDescriptor(overrideCamera)
+                .SerializeComponent(overrideCamera, 0, new EntityComponentSaveState());
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            saveState.SetScopedPlatformOverride(scope, new EntityComponentPlatformOverrideState { Payload = overrideRecord.Payload });
+            return new ComponentPlatformOverridePayloadService().Wrap(commonRecord, saveState);
+        }
+
+        /// <summary>
+        /// Reads the camera draw order stored in the single packaged camera component of one packaged scene.
+        /// </summary>
+        /// <param name="buildRootPath">Absolute packaged build root path that holds the packaged scene.</param>
+        /// <param name="sceneId">Project-relative scene id that was packaged.</param>
+        /// <returns>Camera draw order carried by the packaged runtime payload.</returns>
+        byte ReadPackagedCameraDrawOrder(string buildRootPath, string sceneId) {
+            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(buildRootPath, sceneId));
+            SceneAsset packagedScene = DeserializePackagedScene(packagedSceneStream);
+            SceneComponentAssetRecord packagedRecord = Assert.Single(Assert.Single(packagedScene.RootEntities).Components);
+            AutomaticScriptComponentRuntimeDeserializer deserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(CameraComponent)),
+                typeof(CameraComponent));
+            return Assert.IsType<CameraComponent>(deserializer.Deserialize(packagedRecord, null)).CameraDrawOrder;
         }
 
         /// <summary>

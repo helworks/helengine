@@ -19,6 +19,11 @@ namespace helengine.editor {
         public float4 WorldOrientation { get; }
 
         /// <summary>
+        /// Gets the override level order authored on the entity that owns the component record, or null when the entity uses the project default order.
+        /// </summary>
+        public IReadOnlyList<SceneOverrideScopeStepKind> OverrideLevelOrder { get; }
+
+        /// <summary>
         /// Initializes a context for one component record using its final static world scale and an identity world pose.
         /// </summary>
         /// <param name="worldScale">Final static world scale of the owning entity.</param>
@@ -32,10 +37,26 @@ namespace helengine.editor {
         /// <param name="worldScale">Final static world scale of the owning entity.</param>
         /// <param name="worldPosition">Final static world position of the owning entity.</param>
         /// <param name="worldOrientation">Final static world orientation of the owning entity.</param>
-        public SceneComponentPackagingTransformContext(float3 worldScale, float3 worldPosition, float4 worldOrientation) {
+        public SceneComponentPackagingTransformContext(float3 worldScale, float3 worldPosition, float4 worldOrientation)
+            : this(worldScale, worldPosition, worldOrientation, null) {
+        }
+
+        /// <summary>
+        /// Initializes a context for one component record using its complete final static world transform and the owning entity's override level order.
+        /// </summary>
+        /// <param name="worldScale">Final static world scale of the owning entity.</param>
+        /// <param name="worldPosition">Final static world position of the owning entity.</param>
+        /// <param name="worldOrientation">Final static world orientation of the owning entity.</param>
+        /// <param name="overrideLevelOrder">Override level order authored on the owning entity, or null when the project default applies.</param>
+        public SceneComponentPackagingTransformContext(
+            float3 worldScale,
+            float3 worldPosition,
+            float4 worldOrientation,
+            IReadOnlyList<SceneOverrideScopeStepKind> overrideLevelOrder) {
             WorldScale = worldScale;
             WorldPosition = worldPosition;
             WorldOrientation = worldOrientation;
+            OverrideLevelOrder = overrideLevelOrder;
         }
     }
 }

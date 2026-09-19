@@ -684,7 +684,9 @@ namespace helengine.editor {
                 effectiveTextComponentSpriteBakeService,
                 StaticMeshCollisionCookProcessorRegistry.Shared,
                 declaration => RememberCookedArtifactDeclaration(declaration),
-                dependency => RememberReferencedShaderDependency(dependency));
+                dependency => RememberReferencedShaderDependency(dependency),
+                OverrideScopeResolver,
+                SelectedEnvironmentId);
         }
 
         /// <summary>
@@ -904,9 +906,16 @@ namespace helengine.editor {
             float4 accumulatedParentOrientation = parentWorldOrientation;
             float4.Concatenate(ref localOrientation, ref accumulatedParentOrientation, out float4 worldOrientation);
             worldOrientation.Normalize();
+            IReadOnlyList<SceneOverrideScopeStepKind> entityOverrideLevelOrder = entityAsset.HasOverrideLevelOrder ? entityAsset.OverrideLevelOrder : null;
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {
-                componentRecords[index] = RewriteComponentRecord(componentRecords[index], buildRootPath, worldScale, worldPosition, worldOrientation);
+                componentRecords[index] = RewriteComponentRecord(
+                    componentRecords[index],
+                    buildRootPath,
+                    worldScale,
+                    worldPosition,
+                    worldOrientation,
+                    entityOverrideLevelOrder);
             }
 
             SceneEntityAsset[] childEntityAssets = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
@@ -1292,8 +1301,15 @@ namespace helengine.editor {
         /// <param name="worldScale">Final static world scale of the component's owning entity.</param>
         /// <param name="worldPosition">Final static world position of the component's owning entity.</param>
         /// <param name="worldOrientation">Final static world orientation of the component's owning entity.</param>
+        /// <param name="entityOverrideLevelOrder">Override level order authored on the owning entity, or null when the project default applies.</param>
         /// <returns>Rewritten component record.</returns>
-        SceneComponentAssetRecord RewriteComponentRecord(SceneComponentAssetRecord record, string buildRootPath, float3 worldScale, float3 worldPosition, float4 worldOrientation) {
+        SceneComponentAssetRecord RewriteComponentRecord(
+            SceneComponentAssetRecord record,
+            string buildRootPath,
+            float3 worldScale,
+            float3 worldPosition,
+            float4 worldOrientation,
+            IReadOnlyList<SceneOverrideScopeStepKind> entityOverrideLevelOrder) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
@@ -1304,7 +1320,12 @@ namespace helengine.editor {
             }
 
             if (supportRule.SupportKind == PlatformComponentSupportKind.Transform) {
-                if (TransformService.TryTransform(record, buildRootPath, new SceneComponentPackagingTransformContext(worldScale, worldPosition, worldOrientation), out SceneComponentAssetRecord transformedRecord)) {
+                SceneComponentPackagingTransformContext context = new SceneComponentPackagingTransformContext(
+                    worldScale,
+                    worldPosition,
+                    worldOrientation,
+                    entityOverrideLevelOrder);
+                if (TransformService.TryTransform(record, buildRootPath, context, out SceneComponentAssetRecord transformedRecord)) {
                     return transformedRecord;
                 }
 
