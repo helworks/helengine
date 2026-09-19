@@ -51,14 +51,18 @@ namespace helengine.editor {
         /// <param name="error">Message naming the offending settings entry when the settings are inconsistent; empty otherwise.</param>
         /// <returns>True when a resolver was built; otherwise false.</returns>
         public static bool TryLoad(string projectRootPath, out EditorOverrideScopeResolver resolver, out string error) {
-            EditorProjectPlatformGroupsDocument groups = new EditorProjectPlatformGroupsService(projectRootPath).Read();
+            resolver = null;
+            if (!new EditorProjectPlatformGroupsService(projectRootPath).TryRead(out EditorProjectPlatformGroupsDocument groups, out error)) {
+                return false;
+            }
+
             IReadOnlyList<string> platforms = new EditorProjectPlatformsService(projectRootPath).Read().SupportedPlatforms;
             if (!EditorProjectPlatformGroupsService.TryValidate(groups, platforms, out error)) {
-                resolver = null;
                 return false;
             }
 
             resolver = new EditorOverrideScopeResolver(groups);
+            error = string.Empty;
             return true;
         }
 

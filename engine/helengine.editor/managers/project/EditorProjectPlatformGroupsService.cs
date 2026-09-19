@@ -34,11 +34,12 @@ namespace helengine.editor {
 
         /// <summary>
         /// Loads the document, seeding an empty tree with the default level order when the file is missing or malformed.
-        /// Writes the seeded document back to disk when seeding was needed.
+        /// Writes the seeded document back only when the file was missing: a malformed file is authored content and is
+        /// never overwritten, so the author can repair it.
         /// </summary>
         public EditorProjectPlatformGroupsDocument Load() {
-            EditorProjectPlatformGroupsDocument document = ReadCore(out bool wasSeeded);
-            if (wasSeeded) {
+            EditorProjectPlatformGroupsDocument document = ReadCore(out bool wasMissing, out _, out _);
+            if (wasMissing) {
                 Save(document);
             }
 
@@ -50,16 +51,35 @@ namespace helengine.editor {
         /// or malformed. Never writes to disk.
         /// </summary>
         public EditorProjectPlatformGroupsDocument Read() {
-            return ReadCore(out _);
+            return ReadCore(out _, out _, out _);
+        }
+
+        /// <summary>
+        /// Reads the document and reports a malformed settings file instead of silently resolving against an empty tree.
+        /// </summary>
+        /// <param name="document">Document read from disk, or the seeded default when the file is missing or malformed.</param>
+        /// <param name="error">Message naming the settings file and the parse failure when the file is malformed; empty otherwise.</param>
+        /// <returns>True when the file was missing or parsed cleanly; false when it exists and could not be parsed.</returns>
+        public bool TryRead(out EditorProjectPlatformGroupsDocument document, out string error) {
+            document = ReadCore(out _, out bool wasMalformed, out string parseError);
+            if (wasMalformed) {
+                error = $"Platform group settings at '{SettingsFilePath}' could not be parsed: {parseError}";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
         }
 
         /// <summary>
         /// Reads the document from disk, normalizing it and seeding a default tree in memory as needed.
         /// </summary>
-        /// <param name="wasSeeded">Set to true when the file was missing or malformed and a default tree was seeded.</param>
-        EditorProjectPlatformGroupsDocument ReadCore(out bool wasSeeded) {
-            EditorProjectPlatformGroupsDocument document = TryLoadDocument();
-            wasSeeded = document == null;
+        /// <param name="wasMissing">Set to true when the settings file does not exist.</param>
+        /// <param name="wasMalformed">Set to true when the settings file exists but could not be parsed.</param>
+        /// <param name="parseError">Set to the parse failure message when the settings file is malformed; empty otherwise.</param>
+        EditorProjectPlatformGroupsDocument ReadCore(out bool wasMissing, out bool wasMalformed, out string parseError) {
+            EditorProjectPlatformGroupsDocument document = TryLoadDocument(out wasMissing, out parseError);
+            wasMalformed = document == null && !wasMissing;
             document ??= new EditorProjectPlatformGroupsDocument();
             Normalize(document);
             return document;
@@ -340,14 +360,30 @@ namespace helengine.editor {
             return false;
         }
 
-        EditorProjectPlatformGroupsDocument TryLoadDocument() {
-            if (!File.Exists(SettingsFilePath)) {
+        /// <summary>
+        /// Reads and deserializes the settings file, separating "not there" from "there but unreadable".
+        /// </summary>
+        /// <param name="wasMissing">Set to true when the settings file does not exist.</param>
+        /// <param name="parseError">Set to the failure message when an existing settings file could not be read; empty otherwise.</param>
+        /// <returns>Deserialized document, or null when the file is missing or malformed.</returns>
+        EditorProjectPlatformGroupsDocument TryLoadDocument(out bool wasMissing, out string parseError) {
+            parseError = string.Empty;
+            wasMissing = !File.Exists(SettingsFilePath);
+            if (wasMissing) {
                 return null;
             }
 
             try {
-                return JsonSerializer.Deserialize<EditorProjectPlatformGroupsDocument>(File.ReadAllText(SettingsFilePath), JsonSerializerOptions);
-            } catch {
+                EditorProjectPlatformGroupsDocument document = JsonSerializer.Deserialize<EditorProjectPlatformGroupsDocument>(
+                    File.ReadAllText(SettingsFilePath),
+                    JsonSerializerOptions);
+                if (document == null) {
+                    parseError = "the file does not contain a platform group document.";
+                }
+
+                return document;
+            } catch (Exception error) {
+                parseError = error.Message;
                 return null;
             }
         }

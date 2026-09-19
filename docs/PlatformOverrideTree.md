@@ -25,9 +25,11 @@ scope is a valid prefix walk of an order.
 ## Platform groups settings
 
 Group definitions live in `settings/platform-groups.json`, managed by `EditorProjectPlatformGroupsService`. `Load`
-seeds a default document (empty group tree, default level order) and writes it back when seeding was needed;
+seeds a default document (empty group tree, default level order) and writes it back only when the file was missing:
+a file that exists but cannot be parsed is authored content and is never overwritten, so the author can repair it.
 `Read` performs the same seeding in memory but never writes, so read-only callers such as the packager and the
-viewport never race to create the file. Mutating a loaded document goes through `AddGroup`, `RenameGroup`,
+viewport never race to create the file, and `TryRead` returns false naming the file and the parse failure so a caller
+reports the problem instead of silently resolving against an empty tree. Mutating a loaded document goes through `AddGroup`, `RenameGroup`,
 `DeleteGroup`, `AssignPlatform` and `UnassignPlatform`; `Validate` rejects blank or duplicate group ids, a group id
 that collides with a platform id, and a platform assigned to two groups; `FindGroupChain` returns the group ids from
 the root down to the group holding a platform. Adding `consoles` at the root, `handheld` beneath it, and assigning

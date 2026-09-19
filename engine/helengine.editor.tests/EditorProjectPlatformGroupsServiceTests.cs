@@ -43,6 +43,43 @@ namespace helengine.editor.tests {
             Assert.False(File.Exists(Path.Combine(ProjectRootPath, "settings", "platform-groups.json")));
         }
 
+        /// <summary>
+        /// Ensures a malformed settings file is never overwritten and that the parse failure reaches the caller.
+        /// </summary>
+        [Fact]
+        public void LoadAndTryRead_WhenFileIsMalformed_KeepTheFileAndReportTheParseFailure() {
+            string settingsFilePath = Path.Combine(ProjectRootPath, "settings", "platform-groups.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(settingsFilePath));
+            byte[] authoredBytes = System.Text.Encoding.UTF8.GetBytes("{ not json");
+            File.WriteAllBytes(settingsFilePath, authoredBytes);
+            EditorProjectPlatformGroupsService service = new EditorProjectPlatformGroupsService(ProjectRootPath);
+
+            EditorProjectPlatformGroupsDocument document = service.Load();
+
+            Assert.Empty(document.Groups);
+            Assert.Equal(EditorOverrideLevelOrder.Default, document.DefaultLevelOrder);
+            Assert.Equal(authoredBytes, File.ReadAllBytes(settingsFilePath));
+
+            Assert.False(service.TryRead(out EditorProjectPlatformGroupsDocument readDocument, out string error));
+            Assert.Empty(readDocument.Groups);
+            Assert.Contains(settingsFilePath, error);
+        }
+
+        /// <summary>
+        /// Ensures reading a well-formed settings file reports success and the authored tree.
+        /// </summary>
+        [Fact]
+        public void TryRead_WhenFileIsWellFormed_ReturnsTheAuthoredTree() {
+            EditorProjectPlatformGroupsService service = new EditorProjectPlatformGroupsService(ProjectRootPath);
+            EditorProjectPlatformGroupsDocument saved = service.Load();
+            service.AddGroup(saved, null, "handheld");
+            service.Save(saved);
+
+            Assert.True(service.TryRead(out EditorProjectPlatformGroupsDocument document, out string error));
+            Assert.Equal("handheld", Assert.Single(document.Groups).Id);
+            Assert.Empty(error);
+        }
+
         [Fact]
         public void AddAssignAndSave_RoundTripsANestedTree() {
             EditorProjectPlatformGroupsService service = new EditorProjectPlatformGroupsService(ProjectRootPath);
