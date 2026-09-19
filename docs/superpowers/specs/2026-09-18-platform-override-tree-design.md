@@ -1,6 +1,6 @@
 # Platform override tree
 
-**Status:** approved design, 2026-09-18
+**Status:** model/format/build plan implemented 2026-09-19; editor UI plan pending
 **Scope:** helengine editor, core scene asset format, and the platform scene packager. Project-side generator changes follow in a separate step once this lands.
 
 ## Problem
