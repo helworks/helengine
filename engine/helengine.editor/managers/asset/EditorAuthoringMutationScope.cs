@@ -1562,6 +1562,10 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
         }
 
         internal static string TryGetVerifiedSha256(string projectRootPath, string filePath) {
+            // Recovery hashes paths that are usually absent; probe first so a missing entry never raises.
+            if (!EditorFileAttributesProbe.TryGetAttributes(Path.GetFullPath(filePath), out _)) {
+                return "missing";
+            }
             try {
                 return Convert.ToHexString(SHA256.HashData(ReadAllBytes(projectRootPath, filePath))).ToLowerInvariant();
             } catch (FileNotFoundException) {
@@ -1586,6 +1590,12 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             string fullPath = Path.GetFullPath(path);
             string parent = Path.GetDirectoryName(fullPath);
             if (string.IsNullOrWhiteSpace(parent)) {
+                return "missing";
+            }
+
+            // Boot recovery probes fixed artifact names that are usually absent. Answer "missing" from the
+            // attributes probe so the open below never raises for a path that is not there.
+            if (!EditorFileAttributesProbe.TryGetAttributes(fullPath, out _)) {
                 return "missing";
             }
 
