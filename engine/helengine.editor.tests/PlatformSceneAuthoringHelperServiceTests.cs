@@ -139,6 +139,41 @@ public sealed class PlatformSceneAuthoringHelperServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures excluding one component from a group scope marks it removed beneath that scope and every platform nested beneath it, while leaving unrelated platforms untouched, and records exactly one component-override state.
+    /// </summary>
+    [Fact]
+    public void ExcludeComponentFromScope_WhenScopeIsGroup_RemovesComponentBeneathScopeAndLeavesOtherPlatformsUntouched() {
+        EditorEntity ownerEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        CameraComponent camera = new CameraComponent();
+        ownerEntity.AddComponent(camera);
+        EditorOverrideScope handhelds = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handhelds"));
+        EditorOverrideScope handheldsDs = handhelds.Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"));
+        PlatformSceneAuthoringHelperService helper = new PlatformSceneAuthoringHelperService();
+        ComponentPlatformEditingService componentPlatformEditingService = new ComponentPlatformEditingService();
+
+        helper.ExcludeComponentFromScope(ownerEntity, camera, handhelds);
+
+        EntitySaveComponent saveComponent = GetSaveComponent(ownerEntity);
+        Assert.True(componentPlatformEditingService.IsComponentRemoved(camera, saveComponent, handheldsDs));
+        Assert.False(componentPlatformEditingService.IsComponentRemoved(camera, saveComponent, new EditorOverrideScope("ps1")));
+        EntityPlatformComponentOverrideState onlyOverrideState = Assert.Single(saveComponent.EnumerateComponentPlatformOverrides());
+        Assert.Equal(handhelds, onlyOverrideState.Scope);
+    }
+
+    /// <summary>
+    /// Ensures excluding a component on Common throws because that would remove the component everywhere.
+    /// </summary>
+    [Fact]
+    public void ExcludeComponentFromScope_WhenScopeIsCommon_Throws() {
+        EditorEntity ownerEntity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        CameraComponent camera = new CameraComponent();
+        ownerEntity.AddComponent(camera);
+        PlatformSceneAuthoringHelperService helper = new PlatformSceneAuthoringHelperService();
+
+        Assert.Throws<ArgumentException>(() => helper.ExcludeComponentFromScope(ownerEntity, camera, EditorOverrideScope.Common));
+    }
+
+    /// <summary>
     /// Retrieves the hidden save component attached to one editor entity.
     /// </summary>
     /// <param name="entity">Entity whose save component should be returned.</param>

@@ -190,6 +190,28 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Removes one common live component beneath one scope path while leaving every other path as authored.
+        /// </summary>
+        /// <param name="ownerEntity">Entity that owns the common live component.</param>
+        /// <param name="component">Common live component that should be excluded.</param>
+        /// <param name="scope">Scope path that should prune the component.</param>
+        public void ExcludeComponentFromScope(EditorEntity ownerEntity, Component component, EditorOverrideScope scope) {
+            if (ownerEntity == null) {
+                throw new ArgumentNullException(nameof(ownerEntity));
+            } else if (component == null) {
+                throw new ArgumentNullException(nameof(component));
+            }
+            if (scope.IsCommon) {
+                throw new ArgumentException("Excluding on Common would remove the component everywhere; delete the component instead.", nameof(scope));
+            }
+
+            EntitySaveComponent saveComponent = EnsureEntitySaveComponent(ownerEntity);
+            if (!ComponentPlatformEditingService.IsComponentRemoved(component, saveComponent, scope)) {
+                ComponentPlatformEditingService.RemoveComponent(component, saveComponent, scope);
+            }
+        }
+
+        /// <summary>
         /// Records the level order the subtree's overrides are authored against.
         /// </summary>
         /// <param name="rootEntity">Root entity whose entire subtree should record the level order.</param>
