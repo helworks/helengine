@@ -46,5 +46,35 @@ namespace helengine.editor.tests {
             sync.Apply("ds");
             Assert.False(entity.RuntimeSuppressed);
         }
+
+        /// <summary>
+        /// Ensures editor-internal and non-scene entities are never suppressed by platform existence.
+        /// </summary>
+        [Fact]
+        public void Apply_LeavesEditorInternalEntitiesUntouched() {
+            EditorPlatformExistenceViewportSyncService service = new EditorPlatformExistenceViewportSyncService(CoreValue.ObjectManager, ProjectRootPath);
+            EditorEntity internalEntity = new EditorEntity(CoreValue, new helengine.editor.EditorSessionInteractionServices()) { InternalEntity = true };
+
+            service.Apply("windows");
+
+            Assert.False(internalEntity.RuntimeSuppressed);
+        }
+
+        /// <summary>
+        /// Ensures existence-override edits raise the changed event so viewport suppression can re-resolve event-driven.
+        /// </summary>
+        [Fact]
+        public void SetExists_WhenOverrideChanges_RaisesExistenceChanged() {
+            EditorEntity sceneEntity = new EditorEntity(CoreValue, new helengine.editor.EditorSessionInteractionServices()) { IsSceneOwned = true };
+            EntitySaveComponent saveComponent = sceneEntity.Components.OfType<EntitySaveComponent>().Single();
+            int raisedCount = 0;
+            EntityPlatformExistenceEditingService existenceService = new EntityPlatformExistenceEditingService();
+            existenceService.ExistenceChanged += () => raisedCount++;
+
+            existenceService.SetExists(saveComponent, "windows", false);
+            existenceService.SetExists(saveComponent, "windows", true);
+
+            Assert.Equal(2, raisedCount);
+        }
     }
 }
