@@ -12,13 +12,14 @@ namespace helengine.editor {
             }
 
             AssetPlatformProcessorSettings platformSettings = null;
-            if (settings.Platforms != null) {
-                settings.Platforms.TryGetValue(scope.PlatformId, out platformSettings);
+            if (settings.Platforms != null && scope.TryGetStepId(SceneOverrideScopeStepKind.Platform, out string platformId)) {
+                settings.Platforms.TryGetValue(platformId, out platformSettings);
             }
 
             AssetPlatformProcessorSettings effective = ClonePlatform(platformSettings);
-            if (scope.IsPlatformOnly || platformSettings?.Environments == null
-                || !platformSettings.Environments.TryGetValue(scope.EnvironmentId, out AssetPlatformProcessorSettings environmentSettings)
+            if (!scope.TryGetStepId(SceneOverrideScopeStepKind.BuildConfig, out string environmentId)
+                || platformSettings?.Environments == null
+                || !platformSettings.Environments.TryGetValue(environmentId, out AssetPlatformProcessorSettings environmentSettings)
                 || environmentSettings == null) {
                 return effective;
             }

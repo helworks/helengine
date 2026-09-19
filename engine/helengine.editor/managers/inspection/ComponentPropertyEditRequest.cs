@@ -35,9 +35,6 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(memberName)) {
                 throw new ArgumentException("Member name must be provided.", nameof(memberName));
             }
-            if (string.IsNullOrWhiteSpace(scope.PlatformId)) {
-                throw new ArgumentException("Override scope must provide a platform id.", nameof(scope));
-            }
 
             OwnerEntity = ownerEntity;
             CommonComponent = commonComponent;

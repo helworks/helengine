@@ -47,5 +47,19 @@ namespace helengine.editor.tests {
             AssetImportSettings restored = SectionedAssetImportSettingsBinarySerializer.Deserialize(stream);
             Assert.True(restored.Processor.Platforms["windows"].Environments["debug"].Model.Tessellate);
         }
+
+        [Fact]
+        public void Resolve_WithGroupChainAbovePlatform_UsesThePlatformAndBuildConfigSteps() {
+            AssetProcessorSettings settings = new AssetProcessorSettings();
+            settings.Platforms["ds"] = new AssetPlatformProcessorSettings();
+            settings.Platforms["ds"].Environments["debug"] = new AssetPlatformProcessorSettings();
+            EditorOverrideScope scope = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld"))
+                .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"))
+                .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.BuildConfig, "debug"));
+
+            AssetPlatformProcessorSettings resolved = AssetProcessorSettingsScopeResolver.Resolve(settings, scope);
+
+            Assert.NotNull(resolved);
+        }
     }
 }

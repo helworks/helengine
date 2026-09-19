@@ -88,7 +88,7 @@ namespace helengine.editor {
             } else if (!request.Property.PropertyType.IsInstanceOfType(request.Value)) {
                 throw new ArgumentException($"Value for component member '{request.MemberName}' is not assignable to {request.Property.PropertyType.Name}.", nameof(request));
             }
-            bool isCommonScope = string.Equals(request.Scope.PlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase);
+            bool isCommonScope = request.Scope.IsCommon;
             if (!isCommonScope
                 && (request.CommonComponent == null || request.SaveComponent == null || string.IsNullOrWhiteSpace(request.PropertyPath))) {
                 throw new InvalidOperationException("Scoped property edits require a common component, save component and serialized property path.");
@@ -114,7 +114,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="request">Request describing the edited target and scope.</param>
         void PersistOverride(ComponentPropertyEditRequest request) {
-            if (request.Scope.PlatformId.Equals(ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+            if (request.Scope.IsCommon) {
                 return;
             }
 

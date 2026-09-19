@@ -30,12 +30,19 @@ namespace helengine.editor {
         /// Resolves one animation clip through platform then nested environment inheritance.
         /// </summary>
         public AnimationClipAsset ResolveForScope(AnimationClipAsset clip, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                return ResolveForPlatform(clip, scope.PlatformId);
+            if (clip == null) {
+                throw new ArgumentNullException(nameof(clip));
+            }
+            if (!scope.TryGetStepId(SceneOverrideScopeStepKind.Platform, out string platformId)) {
+                return clip;
             }
 
-            AnimationClipAsset platformClip = ResolveForPlatform(clip, scope.PlatformId);
-            AnimationClipPlatformOverrideAsset environmentOverride = ResolvePlatformOverride(clip, scope.PlatformId, scope.EnvironmentId);
+            AnimationClipAsset platformClip = ResolveForPlatform(clip, platformId);
+            if (!scope.TryGetStepId(SceneOverrideScopeStepKind.BuildConfig, out string environmentId)) {
+                return platformClip;
+            }
+
+            AnimationClipPlatformOverrideAsset environmentOverride = ResolvePlatformOverride(clip, platformId, environmentId);
             if (environmentOverride == null || environmentOverride.Mode == AnimationClipPlatformOverrideMode.InheritBase) {
                 return platformClip;
             }

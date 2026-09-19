@@ -1135,8 +1135,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="scope">Persisted override scope to inspect.</param>
         void SeedEnvironmentOverridePlatform(EditorOverrideScope scope) {
-            if (!string.IsNullOrWhiteSpace(scope.EnvironmentId)) {
-                ComponentEnvironmentOverridePlatforms.Add(scope.PlatformId);
+            if (scope.TryGetStepId(SceneOverrideScopeStepKind.BuildConfig, out _)
+                && scope.TryGetStepId(SceneOverrideScopeStepKind.Platform, out string platformId)) {
+                ComponentEnvironmentOverridePlatforms.Add(platformId);
             }
         }
 

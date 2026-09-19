@@ -158,25 +158,6 @@ namespace helengine {
             return steps;
         }
 
-        /// <summary>
-        /// Transitional: id of the Platform step, <see cref="CommonPlatformId"/> for Common, empty when the path has no platform step. Removed in Task 7.
-        /// </summary>
-        public string PlatformId {
-            get {
-                if (IsCommon) {
-                    return CommonPlatformId;
-                }
-
-                return TryGetStepId(SceneOverrideScopeStepKind.Platform, out string platformId) ? platformId : string.Empty;
-            }
-        }
-
-        /// <summary>Transitional: id of the BuildConfig step or empty. Removed in Task 7.</summary>
-        public string EnvironmentId => TryGetStepId(SceneOverrideScopeStepKind.BuildConfig, out string environmentId) ? environmentId : string.Empty;
-
-        /// <summary>Transitional: true when the path has no BuildConfig step. Removed in Task 7.</summary>
-        public bool IsPlatformOnly => !HasStepKind(SceneOverrideScopeStepKind.BuildConfig);
-
         /// <inheritdoc />
         public bool Equals(EditorOverrideScope other) {
             return IsPrefixOf(other) && Depth == other.Depth;
