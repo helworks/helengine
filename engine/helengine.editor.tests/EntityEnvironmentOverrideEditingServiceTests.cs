@@ -173,5 +173,35 @@ namespace helengine.editor.tests {
             Assert.True(saveComponent.ActiveTransformScope.IsCommon);
             Assert.Equal(float3.Zero, entity.LocalPosition);
         }
+
+        [Fact]
+        public void ResolveEditableComponent_WhenGroupAndPlatformOverridesExist_LayersGroupThenPlatform() {
+            CameraComponent commonComponent = new CameraComponent { FarPlaneDistance = 100f, NearPlaneDistance = 1f };
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            ComponentPlatformEditingService service = new ComponentPlatformEditingService();
+            EditorOverrideScope handheld = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld"));
+            EditorOverrideScope handheldDs = handheld.Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"));
+
+            CameraComponent groupComponent = Assert.IsType<CameraComponent>(service.EnsureScopeOverrideComponent(commonComponent, saveComponent, handheld));
+            groupComponent.FarPlaneDistance = 200f;
+            service.MarkScopePropertyOverride(commonComponent, saveComponent, handheld, nameof(CameraComponent.FarPlaneDistance));
+            service.PersistScopeOverride(commonComponent, groupComponent, saveComponent, handheld);
+
+            CameraComponent platformComponent = Assert.IsType<CameraComponent>(service.EnsureScopeOverrideComponent(commonComponent, saveComponent, handheldDs));
+            Assert.Equal(200f, platformComponent.FarPlaneDistance);
+            platformComponent.NearPlaneDistance = 5f;
+            service.MarkScopePropertyOverride(commonComponent, saveComponent, handheldDs, nameof(CameraComponent.NearPlaneDistance));
+            service.PersistScopeOverride(commonComponent, platformComponent, saveComponent, handheldDs);
+
+            CameraComponent resolved = Assert.IsType<CameraComponent>(service.ResolveEditableComponent(commonComponent, saveComponent, handheldDs));
+            Assert.Equal(200f, resolved.FarPlaneDistance);
+            Assert.Equal(5f, resolved.NearPlaneDistance);
+            Assert.True(service.IsScopePropertyOverrideActive(commonComponent, resolved, saveComponent, handheldDs, nameof(CameraComponent.NearPlaneDistance)));
+            Assert.False(service.IsScopePropertyOverrideActive(commonComponent, resolved, saveComponent, handheldDs, nameof(CameraComponent.FarPlaneDistance)));
+
+            Assert.True(service.RemoveComponent(commonComponent, saveComponent, handheld));
+            Assert.True(service.IsComponentRemoved(commonComponent, saveComponent, handheldDs));
+            Assert.False(service.IsComponentRemoved(commonComponent, saveComponent, new EditorOverrideScope("ps1")));
+        }
     }
 }

@@ -15,7 +15,7 @@ namespace helengine.editor {
         /// </summary>
         readonly ComponentPersistenceRegistry PersistenceRegistry;
         /// <summary>
-        /// Cached platform override snapshot components keyed by their common component and platform id.
+        /// Cached override snapshot components keyed by their common component and scope path.
         /// </summary>
         readonly Dictionary<Component, Dictionary<string, Component>> OverrideComponentsByCommonComponent;
 
@@ -43,67 +43,54 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return commonComponent;
-            }
-
-            if (!saveComponent.TryGetComponentState(commonComponent, out EntityComponentSaveState saveState)) {
-                return commonComponent;
-            }
-
-            if (!saveState.TryGetPlatformOverride(platformId, out EntityComponentPlatformOverrideState overrideState)) {
-                return commonComponent;
-            }
-
-            Component overrideSnapshotComponent = GetOrLoadOverrideSnapshotComponent(commonComponent, platformId, overrideState);
-            if (overrideSnapshotComponent == null) {
-                return commonComponent;
-            }
-
-            if (!overrideState.HasAnyPropertyOverrides) {
-                return overrideSnapshotComponent;
-            }
-
-            return BuildEditableComponent(commonComponent, overrideSnapshotComponent, overrideState);
+            return ResolveEditableComponent(commonComponent, saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Resolves common, platform, and nested environment component property overrides in order.
+        /// Resolves the effective editable component for one scope path by folding the parent path first.
         /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <returns>The effective editable component for the supplied scope path.</returns>
         public Component ResolveEditableComponent(Component commonComponent, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                return ResolveEditableComponent(commonComponent, saveComponent, scope.PlatformId);
-            }
             if (commonComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
             }
             if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
+            if (scope.IsCommon) {
+                return commonComponent;
+            }
 
-            Component platformComponent = ResolveEditableComponent(commonComponent, saveComponent, scope.PlatformId);
+            Component parentComponent = ResolveEditableComponent(commonComponent, saveComponent, scope.Parent);
             if (!saveComponent.TryGetComponentState(commonComponent, out EntityComponentSaveState saveState)
-                || !saveState.TryGetScopedPlatformOverride(scope, out EntityComponentPlatformOverrideState environmentState)) {
-                return platformComponent;
+                || !saveState.TryGetScopedPlatformOverride(scope, out EntityComponentPlatformOverrideState overrideState)) {
+                return parentComponent;
             }
 
-            Component environmentSnapshot = GetOrLoadOverrideSnapshotComponent(commonComponent, scope, environmentState);
-            if (environmentSnapshot == null) {
-                return platformComponent;
+            Component snapshotComponent = GetOrLoadOverrideSnapshotComponent(commonComponent, scope, overrideState);
+            if (snapshotComponent == null) {
+                return parentComponent;
             }
-            if (!environmentState.HasAnyPropertyOverrides) {
-                return environmentSnapshot;
+            if (!overrideState.HasAnyPropertyOverrides) {
+                return snapshotComponent;
             }
 
-            return BuildEditableComponent(platformComponent, environmentSnapshot, environmentState);
+            return BuildEditableComponent(parentComponent, snapshotComponent, overrideState);
         }
 
         /// <summary>
-        /// Ensures an editable component exists for a platform or nested environment scope.
+        /// Ensures an editable component exists for one scope path.
         /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <returns>Editable override component for the supplied scope path.</returns>
         public Component EnsureScopeOverrideComponent(Component commonComponent, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                return EnsurePlatformOverrideComponent(commonComponent, saveComponent, scope.PlatformId);
+            if (scope.IsCommon) {
+                return commonComponent;
             }
 
             Component editableComponent = ResolveEditableComponent(commonComponent, saveComponent, scope);
@@ -111,8 +98,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Marks one property path as explicitly overridden at a platform or nested environment scope.
+        /// Marks one property path as explicitly overridden at one scope path.
         /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <param name="propertyPath">Stable property path that was edited.</param>
         public void MarkScopePropertyOverride(Component commonComponent, EntitySaveComponent saveComponent, EditorOverrideScope scope, string propertyPath) {
             if (commonComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
@@ -123,7 +114,7 @@ namespace helengine.editor {
             if (string.IsNullOrWhiteSpace(propertyPath)) {
                 throw new ArgumentException("Property path must be provided.", nameof(propertyPath));
             }
-            if (string.Equals(scope.PlatformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+            if (scope.IsCommon) {
                 return;
             }
 
@@ -133,13 +124,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Persists one detached component payload and its explicit property/reference metadata at a nested scope.
+        /// Persists one detached component payload and its explicit property/reference metadata at one scope path.
         /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="overrideComponent">Editable override component that should be persisted.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
         public void PersistScopeOverride(Component commonComponent, Component overrideComponent, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                PersistPlatformOverride(commonComponent, overrideComponent, saveComponent, scope.PlatformId);
-                return;
-            }
             if (commonComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
             }
@@ -149,6 +140,9 @@ namespace helengine.editor {
             if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
+            if (scope.IsCommon) {
+                throw new InvalidOperationException("Common component state should not be persisted as an override.");
+            }
 
             EntityComponentSaveState componentSaveState = saveComponent.GetOrCreateComponentState(commonComponent);
             EntityComponentSaveState effectiveOverrideSaveState = BuildEffectiveOverrideSaveState(componentSaveState, scope);
@@ -157,7 +151,7 @@ namespace helengine.editor {
             EntityComponentPlatformOverrideState overrideState = componentSaveState.GetOrCreateScopedPlatformOverride(scope);
             overrideState.Payload = record.Payload;
             ReplaceOverrideAssetReferences(overrideState, effectiveOverrideSaveState);
-            CacheOverrideComponent(commonComponent, scope, overrideComponent);
+            CacheOverrideComponent(commonComponent, scope.ToString(), overrideComponent);
         }
 
         /// <summary>
@@ -176,16 +170,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return commonComponent;
-            }
-
-            Component editableComponent = ResolveEditableComponent(commonComponent, saveComponent, platformId);
-            if (!ReferenceEquals(editableComponent, commonComponent)) {
-                return editableComponent;
-            }
-
-            return CloneComponent(commonComponent);
+            return EnsureScopeOverrideComponent(commonComponent, saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
@@ -206,19 +191,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException("Common component state should not be persisted as a platform override.");
-            }
-
-            EntityComponentSaveState componentSaveState = saveComponent.GetOrCreateComponentState(commonComponent);
-            EntityComponentSaveState effectiveOverrideSaveState = BuildEffectiveOverrideSaveState(componentSaveState, platformId);
-            IComponentPersistenceDescriptor descriptor = PersistenceRegistry.GetDescriptor(overrideComponent);
-            SceneComponentAssetRecord record = descriptor.SerializeComponent(overrideComponent, 0, effectiveOverrideSaveState);
-
-            EntityComponentPlatformOverrideState overrideState = GetOrCreatePlatformOverrideState(componentSaveState, platformId);
-            overrideState.Payload = record.Payload;
-            ReplaceOverrideAssetReferences(overrideState, effectiveOverrideSaveState);
-            CacheOverrideComponent(commonComponent, platformId, overrideComponent);
+            PersistScopeOverride(commonComponent, overrideComponent, saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
@@ -251,20 +224,24 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(assetReference));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                saveComponent.SetAssetReference(commonComponent, referenceName, assetReference);
-                return;
-            }
-
-            EntityComponentSaveState componentSaveState = saveComponent.GetOrCreateComponentState(commonComponent);
-            EntityComponentPlatformOverrideState overrideState = componentSaveState.GetOrCreatePlatformOverride(platformId);
-            overrideState.SetAssetReference(referenceName, assetReference);
-            PersistPlatformOverride(commonComponent, editableComponent, saveComponent, platformId);
+            StoreScopeAssetReference(
+                commonComponent,
+                editableComponent,
+                saveComponent,
+                EditorOverrideScope.ForPlatform(platformId),
+                referenceName,
+                assetReference);
         }
 
         /// <summary>
-        /// Stores a stable asset reference at a platform or nested environment scope.
+        /// Stores a stable asset reference at one scope path.
         /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Editable component that owns the updated property.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <param name="referenceName">Stable property reference slot name.</param>
+        /// <param name="assetReference">Stable asset reference assigned to the property.</param>
         public void StoreScopeAssetReference(
             Component commonComponent,
             Component editableComponent,
@@ -272,12 +249,12 @@ namespace helengine.editor {
             EditorOverrideScope scope,
             string referenceName,
             SceneAssetReference assetReference) {
-            if (scope.IsPlatformOnly) {
-                StoreAssetReference(commonComponent, editableComponent, saveComponent, scope.PlatformId, referenceName, assetReference);
-                return;
-            }
             if (commonComponent == null || editableComponent == null || saveComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
+            }
+            if (scope.IsCommon) {
+                saveComponent.SetAssetReference(commonComponent, referenceName, assetReference);
+                return;
             }
 
             EntityComponentPlatformOverrideState overrideState = saveComponent
@@ -305,13 +282,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Property path must be provided.", nameof(propertyPath));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return;
-            }
-
-            EntityComponentSaveState componentSaveState = saveComponent.GetOrCreateComponentState(commonComponent);
-            EntityComponentPlatformOverrideState overrideState = GetOrCreatePlatformOverrideState(componentSaveState, platformId);
-            overrideState.SetPropertyOverride(propertyPath);
+            MarkScopePropertyOverride(commonComponent, saveComponent, EditorOverrideScope.ForPlatform(platformId), propertyPath);
         }
 
         /// <summary>
@@ -341,37 +312,33 @@ namespace helengine.editor {
                 throw new ArgumentException("Property path must be provided.", nameof(propertyPath));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return false;
-            }
-            if (!saveComponent.TryGetComponentState(commonComponent, out EntityComponentSaveState componentSaveState)) {
-                return false;
-            }
-            if (!componentSaveState.TryGetPlatformOverride(platformId, out EntityComponentPlatformOverrideState overrideState)) {
-                return false;
-            }
-            if (overrideState.HasAnyPropertyOverrides) {
-                return overrideState.HasPropertyOverride(propertyPath);
-            }
-
-            return !object.Equals(
-                ReadPropertyPathValue(commonComponent, propertyPath),
-                ReadPropertyPathValue(editableComponent, propertyPath));
+            return IsScopePropertyOverrideActive(
+                commonComponent,
+                editableComponent,
+                saveComponent,
+                EditorOverrideScope.ForPlatform(platformId),
+                propertyPath);
         }
 
         /// <summary>
-        /// Returns whether one property is explicitly overridden at a platform or nested environment scope.
+        /// Returns whether one property is explicitly overridden at one scope path.
         /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="editableComponent">Effective editable component shown for the current scope path.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <param name="propertyPath">Stable property path to query.</param>
+        /// <returns>True when the property path is overridden at the supplied scope path.</returns>
         public bool IsScopePropertyOverrideActive(
             Component commonComponent,
             Component editableComponent,
             EntitySaveComponent saveComponent,
             EditorOverrideScope scope,
             string propertyPath) {
-            if (scope.IsPlatformOnly) {
-                return IsPropertyOverrideActive(commonComponent, editableComponent, saveComponent, scope.PlatformId, propertyPath);
-            }
             if (saveComponent == null || commonComponent == null || editableComponent == null) {
+                return false;
+            }
+            if (scope.IsCommon) {
                 return false;
             }
             if (!saveComponent.TryGetComponentState(commonComponent, out EntityComponentSaveState componentSaveState)
@@ -383,7 +350,7 @@ namespace helengine.editor {
             }
 
             return !object.Equals(
-                ReadPropertyPathValue(ResolveEditableComponent(commonComponent, saveComponent, new EditorOverrideScope(scope.PlatformId)), propertyPath),
+                ReadPropertyPathValue(ResolveEditableComponent(commonComponent, saveComponent, scope.Parent), propertyPath),
                 ReadPropertyPathValue(editableComponent, propertyPath));
         }
 
@@ -405,40 +372,21 @@ namespace helengine.editor {
                 throw new ArgumentException("Property path must be provided.", nameof(propertyPath));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return;
-            }
-            if (!saveComponent.TryGetComponentState(commonComponent, out EntityComponentSaveState componentSaveState)) {
-                return;
-            }
-            if (!componentSaveState.TryGetPlatformOverride(platformId, out EntityComponentPlatformOverrideState overrideState)) {
-                return;
-            }
-
-            overrideState.ClearPropertyOverride(propertyPath);
-            string assetReferenceName = TryResolveAssetReferenceName(propertyPath);
-            if (!string.IsNullOrWhiteSpace(assetReferenceName)) {
-                overrideState.RemoveAssetReference(assetReferenceName);
-            }
-            if (overrideState.HasMemberValue(propertyPath)) {
-                overrideState.RemoveMemberValue(propertyPath);
-            }
-
-            if (!overrideState.HasAnyPropertyOverrides && !overrideState.HasAnyAssetReferences && !overrideState.HasAnyMemberValues) {
-                componentSaveState.RemovePlatformOverride(platformId);
-                ClearCachedOverrideComponent(commonComponent, platformId);
-            }
+            ClearScopePropertyOverride(commonComponent, saveComponent, EditorOverrideScope.ForPlatform(platformId), propertyPath);
         }
 
         /// <summary>
-        /// Clears one explicit property override at a platform or nested environment scope.
+        /// Clears one explicit property override at one scope path.
         /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path whose property override should be cleared.</param>
+        /// <param name="propertyPath">Stable property path that should return to parent behavior.</param>
         public void ClearScopePropertyOverride(Component commonComponent, EntitySaveComponent saveComponent, EditorOverrideScope scope, string propertyPath) {
-            if (scope.IsPlatformOnly) {
-                ClearPropertyOverride(commonComponent, saveComponent, scope.PlatformId, propertyPath);
+            if (saveComponent == null || commonComponent == null || string.IsNullOrWhiteSpace(propertyPath)) {
                 return;
             }
-            if (saveComponent == null || commonComponent == null || string.IsNullOrWhiteSpace(propertyPath)) {
+            if (scope.IsCommon) {
                 return;
             }
             if (!saveComponent.TryGetComponentState(commonComponent, out EntityComponentSaveState componentSaveState)
@@ -497,44 +445,41 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return false;
-            }
-            if (!saveComponent.TryGetComponentPlatformOverride(platformId, out EntityPlatformComponentOverrideState platformOverrideState)) {
-                return false;
-            }
-
-            return platformOverrideState.IsComponentRemoved(EnsureComponentKey(commonComponent, saveComponent));
+            return IsComponentRemoved(commonComponent, saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Returns whether one common live component is removed for a platform or nested environment scope.
+        /// Returns whether one common live component is removed at one scope path or any of its parents.
         /// </summary>
+        /// <param name="commonComponent">Common live component attached to the entity.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <returns>True when the common component is removed at the supplied scope path.</returns>
         public bool IsComponentRemoved(Component commonComponent, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                return IsComponentRemoved(commonComponent, saveComponent, scope.PlatformId);
-            }
             if (commonComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
             } else if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
+            if (scope.IsCommon) {
+                return false;
+            }
 
             string componentKey = EnsureComponentKey(commonComponent, saveComponent);
-            if (saveComponent.TryGetComponentPlatformOverride(scope, out EntityPlatformComponentOverrideState environmentOverrideState)
-                && environmentOverrideState.IsComponentRemoved(componentKey)) {
+            if (saveComponent.TryGetComponentPlatformOverride(scope, out EntityPlatformComponentOverrideState overrideState)
+                && overrideState.IsComponentRemoved(componentKey)) {
                 return true;
             }
 
-            return IsComponentRemoved(commonComponent, saveComponent, scope.PlatformId);
+            return IsComponentRemoved(commonComponent, saveComponent, scope.Parent);
         }
 
         /// <summary>
-        /// Returns the detached platform-only components authored for the supplied platform.
+        /// Returns the detached platform-only components inherited by the supplied platform.
         /// </summary>
         /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
         /// <param name="platformId">Target platform being edited.</param>
-        /// <returns>Detached platform-only component states authored for the platform.</returns>
+        /// <returns>Detached platform-only component states inherited by the platform.</returns>
         public IReadOnlyList<EntityPlatformAddedComponentState> GetAddedComponents(EntitySaveComponent saveComponent, string platformId) {
             if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
@@ -542,39 +487,33 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return Array.Empty<EntityPlatformAddedComponentState>();
-            }
-            if (!saveComponent.TryGetComponentPlatformOverride(platformId, out EntityPlatformComponentOverrideState platformOverrideState)) {
-                return Array.Empty<EntityPlatformAddedComponentState>();
-            }
-
-            List<EntityPlatformAddedComponentState> addedComponents = new List<EntityPlatformAddedComponentState>();
-            foreach (EntityPlatformAddedComponentState addedComponentState in platformOverrideState.EnumerateAddedComponents()) {
-                if (addedComponentState == null || addedComponentState.Component == null || addedComponentState.SaveState == null) {
-                    continue;
-                }
-
-                addedComponents.Add(addedComponentState);
-            }
-
-            return addedComponents;
+            return GetAddedComponents(saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Returns detached component additions inherited by a platform or nested environment scope.
+        /// Returns detached component additions inherited by one scope path.
         /// </summary>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <returns>Detached component states authored on the scope path or on any of its parents.</returns>
         public IReadOnlyList<EntityPlatformAddedComponentState> GetAddedComponents(EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                return GetAddedComponents(saveComponent, scope.PlatformId);
-            }
             if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
+            if (scope.IsCommon) {
+                return Array.Empty<EntityPlatformAddedComponentState>();
+            }
 
             Dictionary<string, EntityPlatformAddedComponentState> addedByKey = new Dictionary<string, EntityPlatformAddedComponentState>(StringComparer.Ordinal);
-            AddAddedComponentsForScope(saveComponent, new EditorOverrideScope(scope.PlatformId), addedByKey);
-            AddAddedComponentsForScope(saveComponent, scope, addedByKey);
+            for (int depth = 1; depth <= scope.Depth; depth++) {
+                EditorOverrideScopeStep[] prefixSteps = new EditorOverrideScopeStep[depth];
+                for (int index = 0; index < depth; index++) {
+                    prefixSteps[index] = scope.Steps[index];
+                }
+
+                AddAddedComponentsForScope(saveComponent, new EditorOverrideScope(prefixSteps), addedByKey);
+            }
+
             return addedByKey.Values.ToArray();
         }
 
@@ -593,35 +532,25 @@ namespace helengine.editor {
             } else if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException("Platform-only components cannot be added on the common tab.");
-            }
 
-            Component detachedComponent = descriptor.CreateComponentInstance();
-            EntityComponentSaveState addedComponentSaveState = new EntityComponentSaveState {
-                ComponentKey = Guid.NewGuid().ToString("N")
-            };
-            EntityPlatformAddedComponentState addedComponentState = new EntityPlatformAddedComponentState {
-                ComponentKey = addedComponentSaveState.ComponentKey,
-                Component = detachedComponent,
-                SaveState = addedComponentSaveState
-            };
-
-            saveComponent.GetOrCreateComponentPlatformOverride(platformId).SetAddedComponent(addedComponentState);
-            return addedComponentState;
+            return AddScopeOnlyComponent(descriptor, saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Adds one detached component directly to a nested environment scope.
+        /// Adds one detached component directly to one scope path.
         /// </summary>
+        /// <param name="descriptor">Descriptor that defines the component type to add.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <returns>Detached scope-only component state.</returns>
         public EntityPlatformAddedComponentState AddScopeOnlyComponent(EditorComponentAddDescriptor descriptor, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                return AddPlatformOnlyComponent(descriptor, saveComponent, scope.PlatformId);
-            }
             if (descriptor == null) {
                 throw new ArgumentNullException(nameof(descriptor));
             } else if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (scope.IsCommon) {
+                throw new InvalidOperationException("Scoped components cannot be added on the common tab.");
             }
 
             Component detachedComponent = descriptor.CreateComponentInstance();
@@ -652,38 +581,25 @@ namespace helengine.editor {
             } else if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                throw new InvalidOperationException("Platform-specific remove behavior is not valid on the common tab.");
-            }
 
-            EntityPlatformComponentOverrideState platformOverrideState = saveComponent.GetOrCreateComponentPlatformOverride(platformId);
-            EntityPlatformAddedComponentState addedComponentState = FindAddedComponentState(platformOverrideState, component);
-            if (addedComponentState != null) {
-                platformOverrideState.RemoveAddedComponent(addedComponentState.ComponentKey);
-                RemoveEmptyComponentPlatformOverride(saveComponent, platformId, platformOverrideState);
-                return false;
-            }
-
-            EntityComponentSaveState componentSaveState = saveComponent.GetOrCreateComponentState(component);
-            string componentKey = EnsureComponentKey(component, saveComponent);
-            platformOverrideState.MarkComponentRemoved(componentKey);
-            componentSaveState.RemovePlatformOverride(platformId);
-            ClearCachedOverrideComponent(component, platformId);
-            RemoveEmptyComponentPlatformOverride(saveComponent, platformId, platformOverrideState);
-            return true;
+            return RemoveComponent(component, saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Removes one component at a platform or nested environment scope.
+        /// Removes one component at one scope path.
         /// </summary>
+        /// <param name="component">Component being removed from the active scope view.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <returns>True when the component still exists on the parent path and was hidden only for this scope path; otherwise false.</returns>
         public bool RemoveComponent(Component component, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                return RemoveComponent(component, saveComponent, scope.PlatformId);
-            }
             if (component == null) {
                 throw new ArgumentNullException(nameof(component));
             } else if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
+            }
+            if (scope.IsCommon) {
+                throw new InvalidOperationException("Scoped remove behavior is not valid on the common tab.");
             }
 
             EntityPlatformComponentOverrideState scopeOverride = saveComponent.GetOrCreateComponentPlatformOverride(scope);
@@ -698,6 +614,7 @@ namespace helengine.editor {
             string componentKey = EnsureComponentKey(component, saveComponent);
             scopeOverride.MarkComponentRemoved(componentKey);
             componentSaveState.RemoveScopedPlatformOverride(scope);
+            ClearCachedOverrideComponent(component, scope.ToString());
             RemoveEmptyComponentPlatformOverride(saveComponent, scope, scopeOverride);
             return true;
         }
@@ -717,36 +634,16 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            if (!saveComponent.TryGetComponentPlatformOverride(platformId, out EntityPlatformComponentOverrideState platformOverrideState)) {
-                return;
-            }
-
-            EntityPlatformAddedComponentState addedComponentState = FindAddedComponentState(platformOverrideState, component);
-            if (addedComponentState != null) {
-                platformOverrideState.RemoveAddedComponent(addedComponentState.ComponentKey);
-                RemoveEmptyComponentPlatformOverride(saveComponent, platformId, platformOverrideState);
-                return;
-            }
-
-            if (!saveComponent.TryGetComponentState(component, out EntityComponentSaveState componentSaveState)) {
-                return;
-            }
-
-            if (!string.IsNullOrWhiteSpace(componentSaveState.ComponentKey)) {
-                platformOverrideState.RestoreRemovedComponent(componentSaveState.ComponentKey);
-            }
-
-            RemoveEmptyComponentPlatformOverride(saveComponent, platformId, platformOverrideState);
+            RevertComponentExistenceOverride(component, saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Reverts one component existence override at a platform or nested environment scope.
+        /// Reverts one component existence override at one scope path.
         /// </summary>
+        /// <param name="component">Component whose existence override should be reverted.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path being edited.</param>
         public void RevertComponentExistenceOverride(Component component, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            if (scope.IsPlatformOnly) {
-                RevertComponentExistenceOverride(component, saveComponent, scope.PlatformId);
-                return;
-            }
             if (!saveComponent.TryGetComponentPlatformOverride(scope, out EntityPlatformComponentOverrideState scopeOverride)) {
                 return;
             }
@@ -783,30 +680,22 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            addedComponentState = null;
-            if (string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return false;
-            }
-            if (!saveComponent.TryGetComponentPlatformOverride(platformId, out EntityPlatformComponentOverrideState platformOverrideState)) {
-                return false;
-            }
-
-            addedComponentState = FindAddedComponentState(platformOverrideState, component);
-            return addedComponentState != null;
+            return TryGetAddedComponentState(component, saveComponent, EditorOverrideScope.ForPlatform(platformId), out addedComponentState);
         }
 
         /// <summary>
-        /// Attempts to resolve a detached component inherited by a platform or nested environment scope.
+        /// Attempts to resolve a detached component inherited by one scope path.
         /// </summary>
+        /// <param name="component">Detached component instance to resolve.</param>
+        /// <param name="saveComponent">Hidden save component that stores editor metadata.</param>
+        /// <param name="scope">Scope path whose detached component state should be queried.</param>
+        /// <param name="addedComponentState">Resolved detached component state when one exists.</param>
+        /// <returns>True when the scope path or one of its parents owns a detached state for the component.</returns>
         public bool TryGetAddedComponentState(
             Component component,
             EntitySaveComponent saveComponent,
             EditorOverrideScope scope,
             out EntityPlatformAddedComponentState addedComponentState) {
-            if (scope.IsPlatformOnly) {
-                return TryGetAddedComponentState(component, saveComponent, scope.PlatformId, out addedComponentState);
-            }
-
             addedComponentState = null;
             if (saveComponent.TryGetComponentPlatformOverride(scope, out EntityPlatformComponentOverrideState scopeOverride)) {
                 addedComponentState = FindAddedComponentState(scopeOverride, component);
@@ -814,8 +703,11 @@ namespace helengine.editor {
             if (addedComponentState != null) {
                 return true;
             }
+            if (scope.IsCommon) {
+                return false;
+            }
 
-            return TryGetAddedComponentState(component, saveComponent, scope.PlatformId, out addedComponentState);
+            return TryGetAddedComponentState(component, saveComponent, scope.Parent, out addedComponentState);
         }
 
         /// <summary>
@@ -844,26 +736,28 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(assetReference));
             }
 
-            if (!TryGetAddedComponentState(component, saveComponent, platformId, out EntityPlatformAddedComponentState addedComponentState)) {
-                throw new InvalidOperationException("Detached platform-only component asset references require a tracked added component state.");
-            }
-
-            addedComponentState.SaveState.SetAssetReference(referenceName, assetReference);
+            StoreAddedComponentAssetReference(
+                component,
+                saveComponent,
+                EditorOverrideScope.ForPlatform(platformId),
+                referenceName,
+                assetReference);
         }
 
         /// <summary>
-        /// Stores a stable asset reference in a detached component inherited by a platform or nested environment scope.
+        /// Stores a stable asset reference in a detached component inherited by one scope path.
         /// </summary>
+        /// <param name="component">Detached scope-only component that owns the updated asset property.</param>
+        /// <param name="saveComponent">Hidden save component that stores entity-level component overrides.</param>
+        /// <param name="scope">Scope path being edited.</param>
+        /// <param name="referenceName">Stable property reference slot name.</param>
+        /// <param name="assetReference">Stable asset reference assigned to the property.</param>
         public void StoreAddedComponentAssetReference(
             Component component,
             EntitySaveComponent saveComponent,
             EditorOverrideScope scope,
             string referenceName,
             SceneAssetReference assetReference) {
-            if (scope.IsPlatformOnly) {
-                StoreAddedComponentAssetReference(component, saveComponent, scope.PlatformId, referenceName, assetReference);
-                return;
-            }
             if (!TryGetAddedComponentState(component, saveComponent, scope, out EntityPlatformAddedComponentState addedComponentState)) {
                 throw new InvalidOperationException("Detached scoped component asset references require a tracked added component state.");
             }
@@ -945,18 +839,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Builds the effective save-state used to serialize one fully independent platform override.
+        /// Builds effective asset-reference metadata inherited by one scope path payload.
         /// </summary>
-        /// <param name="componentSaveState">Component save-state that owns the common and platform metadata.</param>
-        /// <param name="platformId">Platform identifier whose effective references should be gathered.</param>
+        /// <param name="componentSaveState">Component save-state that owns the common and scoped metadata.</param>
+        /// <param name="scope">Scope path whose effective references should be gathered.</param>
         /// <returns>Effective save-state containing the references required by the override.</returns>
-        EntityComponentSaveState BuildEffectiveOverrideSaveState(EntityComponentSaveState componentSaveState, string platformId) {
-            return BuildEffectiveOverrideSaveState(componentSaveState, new EditorOverrideScope(platformId));
-        }
-
-        /// <summary>
-        /// Builds effective asset-reference metadata inherited by a platform or nested environment payload.
-        /// </summary>
         EntityComponentSaveState BuildEffectiveOverrideSaveState(EntityComponentSaveState componentSaveState, EditorOverrideScope scope) {
             if (componentSaveState == null) {
                 throw new ArgumentNullException(nameof(componentSaveState));
@@ -967,15 +854,17 @@ namespace helengine.editor {
                 effectiveSaveState.SetAssetReference(assetReferenceEntry.Key, assetReferenceEntry.Value);
             }
 
-            if (componentSaveState.TryGetScopedPlatformOverride(new EditorOverrideScope(scope.PlatformId), out EntityComponentPlatformOverrideState overrideState)) {
-                foreach (KeyValuePair<string, SceneAssetReference> assetReferenceEntry in overrideState.EnumerateNamedAssetReferences()) {
-                    effectiveSaveState.SetAssetReference(assetReferenceEntry.Key, assetReferenceEntry.Value);
+            for (int depth = 1; depth <= scope.Depth; depth++) {
+                EditorOverrideScopeStep[] prefixSteps = new EditorOverrideScopeStep[depth];
+                for (int index = 0; index < depth; index++) {
+                    prefixSteps[index] = scope.Steps[index];
                 }
-            }
 
-            if (!scope.IsPlatformOnly
-                && componentSaveState.TryGetScopedPlatformOverride(scope, out EntityComponentPlatformOverrideState environmentOverrideState)) {
-                foreach (KeyValuePair<string, SceneAssetReference> assetReferenceEntry in environmentOverrideState.EnumerateNamedAssetReferences()) {
+                if (!componentSaveState.TryGetScopedPlatformOverride(new EditorOverrideScope(prefixSteps), out EntityComponentPlatformOverrideState overrideState)) {
+                    continue;
+                }
+
+                foreach (KeyValuePair<string, SceneAssetReference> assetReferenceEntry in overrideState.EnumerateNamedAssetReferences()) {
                     effectiveSaveState.SetAssetReference(assetReferenceEntry.Key, assetReferenceEntry.Value);
                 }
             }
@@ -1055,38 +944,12 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves the cached or deserialized snapshot component that stores the persisted override values for one platform.
+        /// Resolves the cached or deserialized snapshot component that stores the persisted override values for one scope path.
         /// </summary>
         /// <param name="commonComponent">Common live component that owns the override.</param>
-        /// <param name="platformId">Platform identifier whose override snapshot should be resolved.</param>
+        /// <param name="scope">Scope path whose override snapshot should be resolved.</param>
         /// <param name="overrideState">Stored override payload metadata.</param>
         /// <returns>Detached snapshot component when one can be materialized; otherwise null.</returns>
-        Component GetOrLoadOverrideSnapshotComponent(Component commonComponent, string platformId, EntityComponentPlatformOverrideState overrideState) {
-            if (commonComponent == null) {
-                throw new ArgumentNullException(nameof(commonComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            } else if (overrideState == null) {
-                throw new ArgumentNullException(nameof(overrideState));
-            }
-
-            Component cachedOverrideComponent = GetCachedOverrideComponent(commonComponent, platformId);
-            if (cachedOverrideComponent != null) {
-                return cachedOverrideComponent;
-            }
-
-            Component deserializedOverrideComponent = DeserializeOverrideComponent(commonComponent, overrideState);
-            if (deserializedOverrideComponent == null) {
-                return null;
-            }
-
-            CacheOverrideComponent(commonComponent, platformId, deserializedOverrideComponent);
-            return deserializedOverrideComponent;
-        }
-
-        /// <summary>
-        /// Resolves the cached or deserialized snapshot component for a nested environment scope.
-        /// </summary>
         Component GetOrLoadOverrideSnapshotComponent(Component commonComponent, EditorOverrideScope scope, EntityComponentPlatformOverrideState overrideState) {
             if (commonComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
@@ -1111,23 +974,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Retrieves one cached platform override component when it already exists in the current editor session.
+        /// Retrieves one cached override component when it already exists in the current editor session.
         /// </summary>
         /// <param name="commonComponent">Common live component that owns the override.</param>
-        /// <param name="platformId">Platform identifier whose override should be returned.</param>
+        /// <param name="cacheKey">Scope path key whose override should be returned.</param>
         /// <returns>Cached override component when one exists; otherwise null.</returns>
-        Component GetCachedOverrideComponent(Component commonComponent, string platformId) {
+        Component GetCachedOverrideComponent(Component commonComponent, string cacheKey) {
             if (commonComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (string.IsNullOrWhiteSpace(cacheKey)) {
+                throw new ArgumentException("Scope cache key must be provided.", nameof(cacheKey));
             }
 
-            if (!OverrideComponentsByCommonComponent.TryGetValue(commonComponent, out Dictionary<string, Component> overridesByPlatformId)) {
+            if (!OverrideComponentsByCommonComponent.TryGetValue(commonComponent, out Dictionary<string, Component> overridesByScope)) {
                 return null;
             }
 
-            if (!overridesByPlatformId.TryGetValue(platformId, out Component overrideComponent)) {
+            if (!overridesByScope.TryGetValue(cacheKey, out Component overrideComponent)) {
                 return null;
             }
 
@@ -1135,23 +998,23 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Clears one cached platform override snapshot from the current editor session.
+        /// Clears one cached override snapshot from the current editor session.
         /// </summary>
         /// <param name="commonComponent">Common live component that owns the override snapshot.</param>
-        /// <param name="platformId">Platform identifier whose cached snapshot should be cleared.</param>
-        void ClearCachedOverrideComponent(Component commonComponent, string platformId) {
+        /// <param name="cacheKey">Scope path key whose cached snapshot should be cleared.</param>
+        void ClearCachedOverrideComponent(Component commonComponent, string cacheKey) {
             if (commonComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (string.IsNullOrWhiteSpace(cacheKey)) {
+                throw new ArgumentException("Scope cache key must be provided.", nameof(cacheKey));
             }
 
-            if (!OverrideComponentsByCommonComponent.TryGetValue(commonComponent, out Dictionary<string, Component> overridesByPlatformId)) {
+            if (!OverrideComponentsByCommonComponent.TryGetValue(commonComponent, out Dictionary<string, Component> overridesByScope)) {
                 return;
             }
 
-            overridesByPlatformId.Remove(platformId);
-            if (overridesByPlatformId.Count < 1) {
+            overridesByScope.Remove(cacheKey);
+            if (overridesByScope.Count < 1) {
                 OverrideComponentsByCommonComponent.Remove(commonComponent);
             }
         }
@@ -1160,30 +1023,23 @@ namespace helengine.editor {
         /// Stores one editable override component in the current editor-session cache.
         /// </summary>
         /// <param name="commonComponent">Common live component that owns the override.</param>
-        /// <param name="platformId">Platform identifier whose override is being cached.</param>
+        /// <param name="cacheKey">Scope path key whose override is being cached.</param>
         /// <param name="overrideComponent">Detached editable override component to cache.</param>
-        void CacheOverrideComponent(Component commonComponent, string platformId, Component overrideComponent) {
+        void CacheOverrideComponent(Component commonComponent, string cacheKey, Component overrideComponent) {
             if (commonComponent == null) {
                 throw new ArgumentNullException(nameof(commonComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            } else if (string.IsNullOrWhiteSpace(cacheKey)) {
+                throw new ArgumentException("Scope cache key must be provided.", nameof(cacheKey));
             } else if (overrideComponent == null) {
                 throw new ArgumentNullException(nameof(overrideComponent));
             }
 
-            if (!OverrideComponentsByCommonComponent.TryGetValue(commonComponent, out Dictionary<string, Component> overridesByPlatformId)) {
-                overridesByPlatformId = new Dictionary<string, Component>(StringComparer.OrdinalIgnoreCase);
-                OverrideComponentsByCommonComponent.Add(commonComponent, overridesByPlatformId);
+            if (!OverrideComponentsByCommonComponent.TryGetValue(commonComponent, out Dictionary<string, Component> overridesByScope)) {
+                overridesByScope = new Dictionary<string, Component>(StringComparer.OrdinalIgnoreCase);
+                OverrideComponentsByCommonComponent.Add(commonComponent, overridesByScope);
             }
 
-            overridesByPlatformId[platformId] = overrideComponent;
-        }
-
-        /// <summary>
-        /// Stores one scoped override component in the current editor-session cache.
-        /// </summary>
-        void CacheOverrideComponent(Component commonComponent, EditorOverrideScope scope, Component overrideComponent) {
-            CacheOverrideComponent(commonComponent, scope.ToString(), overrideComponent);
+            overridesByScope[cacheKey] = overrideComponent;
         }
 
         /// <summary>
@@ -1210,30 +1066,6 @@ namespace helengine.editor {
             foreach (KeyValuePair<string, SceneAssetReference> assetReferenceEntry in effectiveOverrideSaveState.EnumerateNamedAssetReferences()) {
                 overrideState.SetAssetReference(assetReferenceEntry.Key, assetReferenceEntry.Value);
             }
-        }
-
-        /// <summary>
-        /// Resolves the mutable platform override state for the supplied component and platform, creating it when needed.
-        /// </summary>
-        /// <param name="componentSaveState">Component save-state that owns the override metadata.</param>
-        /// <param name="platformId">Platform identifier whose override state should be returned.</param>
-        /// <returns>Mutable platform override state for the supplied component and platform.</returns>
-        EntityComponentPlatformOverrideState GetOrCreatePlatformOverrideState(EntityComponentSaveState componentSaveState, string platformId) {
-            if (componentSaveState == null) {
-                throw new ArgumentNullException(nameof(componentSaveState));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
-
-            if (componentSaveState.TryGetPlatformOverride(platformId, out EntityComponentPlatformOverrideState existingOverrideState)) {
-                return existingOverrideState;
-            }
-
-            EntityComponentPlatformOverrideState overrideState = new EntityComponentPlatformOverrideState {
-                Scope = new EditorOverrideScope(platformId)
-            };
-            componentSaveState.SetPlatformOverride(platformId, overrideState);
-            return overrideState;
         }
 
         /// <summary>
@@ -1452,32 +1284,18 @@ namespace helengine.editor {
         /// Removes one empty entity-level component override container after its last added or removed component override is cleared.
         /// </summary>
         /// <param name="saveComponent">Hidden save component that owns the entity-level component override container.</param>
-        /// <param name="platformId">Platform identifier whose override container should be pruned.</param>
-        /// <param name="platformOverrideState">Platform override container being inspected.</param>
-        void RemoveEmptyComponentPlatformOverride(
-            EntitySaveComponent saveComponent,
-            string platformId,
-            EntityPlatformComponentOverrideState platformOverrideState) {
-            if (saveComponent == null) {
-                throw new ArgumentNullException(nameof(saveComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            } else if (platformOverrideState == null) {
-                throw new ArgumentNullException(nameof(platformOverrideState));
-            }
-
-            if (!platformOverrideState.HasAnyOverrides) {
-                saveComponent.RemoveComponentPlatformOverride(platformId);
-            }
-        }
-
-        /// <summary>
-        /// Removes one empty entity-level component override container at a nested scope.
-        /// </summary>
+        /// <param name="scope">Scope path whose override container should be pruned.</param>
+        /// <param name="platformOverrideState">Scoped override container being inspected.</param>
         void RemoveEmptyComponentPlatformOverride(
             EntitySaveComponent saveComponent,
             EditorOverrideScope scope,
             EntityPlatformComponentOverrideState platformOverrideState) {
+            if (saveComponent == null) {
+                throw new ArgumentNullException(nameof(saveComponent));
+            } else if (platformOverrideState == null) {
+                throw new ArgumentNullException(nameof(platformOverrideState));
+            }
+
             if (!platformOverrideState.HasAnyOverrides) {
                 saveComponent.RemoveComponentPlatformOverride(scope);
             }
