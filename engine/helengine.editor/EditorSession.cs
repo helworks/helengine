@@ -788,7 +788,7 @@ namespace helengine.editor {
             keyboardFocusEntity.AddComponent(keyboardFocusUpdateComponent);
             keyboardFocusEntity.InitializeHierarchy();
 
-            PlatformExistenceSyncService = new EditorPlatformExistenceViewportSyncService(core.ObjectManager);
+            PlatformExistenceSyncService = new EditorPlatformExistenceViewportSyncService(core.ObjectManager, this.projectPath);
             RegisterDetacher(constructionLedger, () => interactionServices.EntityExistence.ExistenceChanged -= ApplyPlatformExistenceSuppression);
             interactionServices.EntityExistence.ExistenceChanged += ApplyPlatformExistenceSuppression;
 

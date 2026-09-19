@@ -10,24 +10,31 @@ namespace helengine.editor {
         /// </summary>
         readonly EntityPlatformExistenceEditingService ExistenceService;
         readonly ObjectManager ObjectManager;
+        readonly string ProjectRootPath;
 
         /// <summary>
-        /// Initializes one platform-existence viewport sync service.
+        /// Initializes one platform-existence viewport sync service for a project.
         /// </summary>
-        public EditorPlatformExistenceViewportSyncService(ObjectManager objectManager) {
+        public EditorPlatformExistenceViewportSyncService(ObjectManager objectManager, string projectRootPath) {
+            if (string.IsNullOrWhiteSpace(projectRootPath)) {
+                throw new ArgumentException("Project root path must be provided.", nameof(projectRootPath));
+            }
+
             ExistenceService = new EntityPlatformExistenceEditingService();
             ObjectManager = objectManager ?? throw new ArgumentNullException(nameof(objectManager));
+            ProjectRootPath = projectRootPath;
         }
 
         /// <summary>
-        /// Applies runtime suppression for every authored scene entity based on the supplied active platform.
+        /// Applies runtime suppression for every authored scene entity against the active platform's scope path.
+        /// Group settings are re-read on each call because the call is event-driven and the file is small.
         /// </summary>
-        /// <param name="activePlatformId">Active project platform id; blank ids apply nothing.</param>
         public void Apply(string activePlatformId) {
             if (string.IsNullOrWhiteSpace(activePlatformId)) {
                 return;
             }
 
+            EditorOverrideScopeResolver resolver = EditorOverrideScopeResolver.Load(ProjectRootPath);
             List<Entity> entities = ObjectManager.Entities;
             for (int index = 0; index < entities.Count; index++) {
                 if (entities[index] is not EditorEntity editorEntity
@@ -42,7 +49,8 @@ namespace helengine.editor {
                     continue;
                 }
 
-                editorEntity.RuntimeSuppressed = !ExistenceService.ResolveExists(saveComponent, activePlatformId);
+                EditorOverrideScope target = resolver.BuildTargetPath(resolver.ResolveLevelOrder(saveComponent.OverrideLevelOrder), activePlatformId, string.Empty);
+                editorEntity.RuntimeSuppressed = !ExistenceService.ResolveExists(saveComponent, target);
             }
         }
 
