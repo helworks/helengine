@@ -85,22 +85,25 @@ namespace helengine {
                 return CommonLabel;
             }
 
+            // The transpiled StringBuilder exposes no Length getter, so track whether anything was written.
             System.Text.StringBuilder builder = new System.Text.StringBuilder();
+            bool wroteStep = false;
             for (int index = 0; index < steps.Length; index++) {
                 SceneOverrideScopeStepAsset step = steps[index];
                 if (step == null) {
                     continue;
                 }
-                if (builder.Length > 0) {
+                if (wroteStep) {
                     builder.Append('/');
                 }
 
                 builder.Append(FormatKind(step.Kind));
                 builder.Append(':');
                 builder.Append((step.Id ?? string.Empty).Trim());
+                wroteStep = true;
             }
 
-            return builder.Length == 0 ? CommonLabel : builder.ToString();
+            return wroteStep ? builder.ToString() : CommonLabel;
         }
 
         /// <summary>
