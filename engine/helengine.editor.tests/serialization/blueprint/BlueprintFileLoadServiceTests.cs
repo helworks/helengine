@@ -143,7 +143,7 @@ namespace helengine.editor.tests.serialization.blueprint {
 
             Type overrideStateType = ResolveRequiredType("helengine.EntityComponentPlatformOverrideState");
             object overrideState = Activator.CreateInstance(overrideStateType);
-            overrideStateType.GetProperty("PlatformId").SetValue(overrideState, "windows");
+            overrideStateType.GetProperty("Scope").SetValue(overrideState, new EditorOverrideScope("windows"));
             overrideStateType.GetProperty("Payload").SetValue(overrideState, new byte[] { 1, 2, 3, 4 });
             MethodInfo setPlatformOverrideMethod = typeof(EntityComponentSaveState).GetMethod("SetPlatformOverride", BindingFlags.Instance | BindingFlags.Public);
             Assert.NotNull(setPlatformOverrideMethod);

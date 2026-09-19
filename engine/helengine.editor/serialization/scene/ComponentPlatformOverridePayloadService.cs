@@ -11,7 +11,7 @@ namespace helengine.editor {
         /// <summary>
         /// Current wrapped payload format version.
         /// </summary>
-        const int WrappedPayloadVersion = 4;
+        const int WrappedPayloadVersion = 5;
 
         /// <summary>
         /// Wraps one serialized component record with editor-only platform override metadata when overrides exist.
@@ -117,8 +117,7 @@ namespace helengine.editor {
             }
 
             return overrides
-                .OrderBy(overrideState => overrideState.PlatformId, StringComparer.Ordinal)
-                .ThenBy(overrideState => overrideState.EnvironmentId ?? string.Empty, StringComparer.Ordinal)
+                .OrderBy(overrideState => overrideState.Scope.ToString(), StringComparer.Ordinal)
                 .ToArray();
         }
 
@@ -170,14 +169,17 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(writer));
             } else if (overrideState == null) {
                 throw new ArgumentNullException(nameof(overrideState));
-            } else if (string.IsNullOrWhiteSpace(overrideState.PlatformId)) {
-                throw new InvalidOperationException("Platform override entries must define a platform id.");
             } else if (overrideState.Payload == null) {
                 throw new InvalidOperationException("Platform override entries must define a payload.");
             }
 
-            writer.WriteString(overrideState.PlatformId);
-            writer.WriteString(overrideState.EnvironmentId ?? string.Empty);
+            SceneOverrideScopeStepAsset[] steps = overrideState.Scope.ToSteps();
+            writer.WriteInt32(steps.Length);
+            for (int stepIndex = 0; stepIndex < steps.Length; stepIndex++) {
+                writer.WriteByte((byte)steps[stepIndex].Kind);
+                writer.WriteString(steps[stepIndex].Id);
+            }
+
             writer.WriteByteArray(overrideState.Payload);
 
             List<KeyValuePair<string, SceneAssetReference>> assetReferences = GetOverrideAssetReferences(overrideState);
@@ -233,7 +235,7 @@ namespace helengine.editor {
             HashSet<EditorOverrideScope> scopes = new HashSet<EditorOverrideScope>();
             for (int index = 0; index < overrideCount; index++) {
                 EntityComponentPlatformOverrideState overrideState = ReadOverrideState(reader);
-                EditorOverrideScope scope = new EditorOverrideScope(overrideState.PlatformId, overrideState.EnvironmentId);
+                EditorOverrideScope scope = overrideState.Scope;
                 if (!scopes.Add(scope)) {
                     throw new InvalidOperationException($"Duplicate component override scope '{scope}'.");
                 }
@@ -324,14 +326,21 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(reader));
             }
 
-            string platformId = reader.ReadString();
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new InvalidOperationException("Platform override payload entries must define a platform id.");
+            int stepCount = reader.ReadInt32();
+            if (stepCount < 0) {
+                throw new InvalidOperationException("Platform override payload entries cannot contain a negative scope step count.");
+            }
+
+            SceneOverrideScopeStepAsset[] steps = new SceneOverrideScopeStepAsset[stepCount];
+            for (int stepIndex = 0; stepIndex < stepCount; stepIndex++) {
+                steps[stepIndex] = new SceneOverrideScopeStepAsset {
+                    Kind = (SceneOverrideScopeStepKind)reader.ReadByte(),
+                    Id = reader.ReadString()
+                };
             }
 
             EntityComponentPlatformOverrideState overrideState = new EntityComponentPlatformOverrideState {
-                PlatformId = platformId,
-                EnvironmentId = reader.ReadString(),
+                Scope = EditorOverrideScope.FromSteps(steps),
                 Payload = reader.ReadByteArray() ?? Array.Empty<byte>()
             };
 

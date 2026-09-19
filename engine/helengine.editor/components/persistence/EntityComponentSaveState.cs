@@ -115,8 +115,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(overrideState));
             }
 
-            overrideState.PlatformId = scope.PlatformId;
-            overrideState.EnvironmentId = scope.EnvironmentId;
+            overrideState.Scope = scope;
             PlatformOverridesByScope.Set(scope, overrideState);
         }
 
@@ -136,8 +135,7 @@ namespace helengine {
         /// <returns>Mutable override payload metadata.</returns>
         public EntityComponentPlatformOverrideState GetOrCreateScopedPlatformOverride(EditorOverrideScope scope) {
             return PlatformOverridesByScope.GetOrCreate(scope, () => new EntityComponentPlatformOverrideState {
-                PlatformId = scope.PlatformId,
-                EnvironmentId = scope.EnvironmentId
+                Scope = scope
             });
         }
 

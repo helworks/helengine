@@ -8,7 +8,7 @@ namespace helengine.files {
         /// <summary>
         /// Version marker written into current scene entity payloads.
         /// </summary>
-        public const byte SceneEntityPayloadVersion = 8;
+        public const byte SceneEntityPayloadVersion = 9;
 
         /// <summary>Validates one scene entity and all nested entities.</summary>
         public static void ValidateDeterministicSceneEntityOverrides(SceneEntityAsset entity) {
@@ -16,9 +16,9 @@ namespace helengine.files {
                 return;
             }
 
-            EnsureUniquePlatformOverrideScopes(entity.PlatformExistenceOverrides, item => item?.PlatformId, item => item?.EnvironmentId);
-            EnsureUniquePlatformOverrideScopes(entity.PlatformTransformOverrides, item => item?.PlatformId, item => item?.EnvironmentId);
-            EnsureUniquePlatformOverrideScopes(entity.PlatformComponentOverrides, item => item?.PlatformId, item => item?.EnvironmentId);
+            EnsureUniqueOverrideScopes(entity.PlatformExistenceOverrides, item => item?.Scope);
+            EnsureUniqueOverrideScopes(entity.PlatformTransformOverrides, item => item?.Scope);
+            EnsureUniqueOverrideScopes(entity.PlatformComponentOverrides, item => item?.Scope);
             for (int index = 0; index < (entity.Children?.Length ?? 0); index++) {
                 ValidateDeterministicSceneEntityOverrides(entity.Children[index]);
             }
@@ -109,6 +109,8 @@ namespace helengine.files {
             writer.WriteFloat3(asset.LocalPosition);
             writer.WriteFloat3(asset.LocalScale);
             writer.WriteFloat4(asset.LocalOrientation);
+            writer.WriteByte(asset.HasOverrideLevelOrder ? (byte)1 : (byte)0);
+            writer.WriteArray(asset.HasOverrideLevelOrder ? asset.OverrideLevelOrder ?? Array.Empty<SceneOverrideScopeStepKind>() : Array.Empty<SceneOverrideScopeStepKind>(), WriteSceneOverrideScopeStepKind);
             writer.WriteArray(asset.Components, WriteSceneComponentAssetRecordValue);
             writer.WriteArray(SortSceneEntityPlatformExistenceOverrides(asset.PlatformExistenceOverrides), WriteSceneEntityPlatformExistenceOverrideAsset);
             writer.WriteArray(SortSceneEntityPlatformTransformOverrides(asset.PlatformTransformOverrides), WriteSceneEntityPlatformTransformOverrideAsset);
@@ -139,6 +141,8 @@ namespace helengine.files {
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
             float4 localOrientation = reader.ReadFloat4();
+            bool hasOverrideLevelOrder = reader.ReadByte() != 0;
+            SceneOverrideScopeStepKind[] overrideLevelOrder = reader.ReadArray(ReadSceneOverrideScopeStepKind) ?? Array.Empty<SceneOverrideScopeStepKind>();
             SceneComponentAssetRecord[] components = ReadSceneComponentAssetRecordArray(reader) ?? Array.Empty<SceneComponentAssetRecord>();
             SceneEntityPlatformExistenceOverrideAsset[] platformExistenceOverrides = reader.ReadArray(ReadSceneEntityPlatformExistenceOverrideAsset) ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
             SceneEntityPlatformTransformOverrideAsset[] platformTransformOverrides = reader.ReadArray(ReadSceneEntityPlatformTransformOverrideAsset) ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
@@ -153,6 +157,8 @@ namespace helengine.files {
                 LocalPosition = localPosition,
                 LocalScale = localScale,
                 LocalOrientation = localOrientation,
+                HasOverrideLevelOrder = hasOverrideLevelOrder,
+                OverrideLevelOrder = hasOverrideLevelOrder ? overrideLevelOrder : Array.Empty<SceneOverrideScopeStepKind>(),
                 Components = components,
                 PlatformExistenceOverrides = platformExistenceOverrides,
                 PlatformTransformOverrides = platformTransformOverrides,
@@ -165,9 +171,8 @@ namespace helengine.files {
         /// Orders entity existence overrides by scope and then by their serialized value.
         /// </summary>
         static SceneEntityPlatformExistenceOverrideAsset[] SortSceneEntityPlatformExistenceOverrides(SceneEntityPlatformExistenceOverrideAsset[] overrides) {
-            EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
-            return overrides?.OrderBy(item => NormalizeOverrideScopeIdentifier(item?.PlatformId), StringComparer.Ordinal)
-                .ThenBy(item => NormalizeOverrideScopeIdentifier(item?.EnvironmentId), StringComparer.Ordinal)
+            EnsureUniqueOverrideScopes(overrides, item => item?.Scope);
+            return overrides?.OrderBy(item => SceneOverrideScopePath.Format(item?.Scope), StringComparer.Ordinal)
                 .ThenBy(item => item?.Exists == true ? 1 : 0)
                 .ToArray();
         }
@@ -176,9 +181,8 @@ namespace helengine.files {
         /// Orders entity transform overrides by scope and then by their serialized value.
         /// </summary>
         static SceneEntityPlatformTransformOverrideAsset[] SortSceneEntityPlatformTransformOverrides(SceneEntityPlatformTransformOverrideAsset[] overrides) {
-            EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
-            return overrides?.OrderBy(item => NormalizeOverrideScopeIdentifier(item?.PlatformId), StringComparer.Ordinal)
-                .ThenBy(item => NormalizeOverrideScopeIdentifier(item?.EnvironmentId), StringComparer.Ordinal)
+            EnsureUniqueOverrideScopes(overrides, item => item?.Scope);
+            return overrides?.OrderBy(item => SceneOverrideScopePath.Format(item?.Scope), StringComparer.Ordinal)
                 .ThenBy(item => item?.HasLocalPositionOverride == true ? 1 : 0)
                 .ThenBy(item => item?.LocalPosition.X ?? 0f)
                 .ThenBy(item => item?.LocalPosition.Y ?? 0f)
@@ -199,9 +203,8 @@ namespace helengine.files {
         /// Orders entity component overrides by scope and every serialized nested field.
         /// </summary>
         static SceneEntityPlatformComponentOverrideAsset[] SortSceneEntityPlatformComponentOverrides(SceneEntityPlatformComponentOverrideAsset[] overrides) {
-            EnsureUniquePlatformOverrideScopes(overrides, item => item?.PlatformId, item => item?.EnvironmentId);
-            return overrides?.OrderBy(item => NormalizeOverrideScopeIdentifier(item?.PlatformId), StringComparer.Ordinal)
-                .ThenBy(item => NormalizeOverrideScopeIdentifier(item?.EnvironmentId), StringComparer.Ordinal)
+            EnsureUniqueOverrideScopes(overrides, item => item?.Scope);
+            return overrides?.OrderBy(item => SceneOverrideScopePath.Format(item?.Scope), StringComparer.Ordinal)
                 .ThenBy(item => string.Join("\u001f", (item?.RemovedComponentKeys ?? Array.Empty<string>())
                     .OrderBy(key => key ?? string.Empty, StringComparer.Ordinal)), StringComparer.Ordinal)
                 .ThenBy(item => string.Join("\u001f", SortSceneEntityPlatformAddedComponents(item?.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>())
@@ -210,36 +213,66 @@ namespace helengine.files {
         }
 
         /// <summary>
-        /// Rejects multiple override records for one exact platform/environment scope before bytes are emitted.
+        /// Rejects two override records on one scope path before bytes are emitted.
         /// </summary>
-        static void EnsureUniquePlatformOverrideScopes<T>(
-            T[] overrides,
-            Func<T, string> platformSelector,
-            Func<T, string> environmentSelector) {
+        static void EnsureUniqueOverrideScopes<T>(T[] overrides, Func<T, SceneOverrideScopeStepAsset[]> scopeSelector) {
             if (overrides == null) {
                 return;
             }
 
-            Dictionary<string, HashSet<string>> environmentsByPlatform = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             for (int index = 0; index < overrides.Length; index++) {
-                string platformId = NormalizeOverrideScopeIdentifier(platformSelector(overrides[index]));
-                string environmentId = NormalizeOverrideScopeIdentifier(environmentSelector(overrides[index]));
-                if (!environmentsByPlatform.TryGetValue(platformId, out HashSet<string> environments)) {
-                    environments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    environmentsByPlatform.Add(platformId, environments);
-                }
-
-                if (!environments.Add(environmentId)) {
-                    throw new InvalidOperationException($"Duplicate platform override scope '{platformId}/{environmentId}'.");
+                string path = SceneOverrideScopePath.Format(SceneOverrideScopePath.Normalize(scopeSelector(overrides[index])));
+                if (!paths.Add(path)) {
+                    throw new InvalidOperationException($"Duplicate override scope '{path}'.");
                 }
             }
         }
 
         /// <summary>
-        /// Normalizes one serialized override scope identifier using the public scope identity rules.
+        /// Writes one normalized override scope path.
         /// </summary>
-        static string NormalizeOverrideScopeIdentifier(string value) {
-            return (value ?? string.Empty).Trim();
+        static void WriteSceneOverrideScopeSteps(EngineBinaryWriter writer, SceneOverrideScopeStepAsset[] steps) {
+            writer.WriteArray(SceneOverrideScopePath.Normalize(steps), WriteSceneOverrideScopeStep);
+        }
+
+        /// <summary>
+        /// Writes one override scope path step.
+        /// </summary>
+        static void WriteSceneOverrideScopeStep(EngineBinaryWriter writer, SceneOverrideScopeStepAsset step) {
+            writer.WriteByte((byte)step.Kind);
+            writer.WriteString(step.Id);
+        }
+
+        /// <summary>
+        /// Reads one override scope path.
+        /// </summary>
+        static SceneOverrideScopeStepAsset[] ReadSceneOverrideScopeSteps(EngineBinaryReader reader) {
+            return reader.ReadArray(ReadSceneOverrideScopeStep) ?? Array.Empty<SceneOverrideScopeStepAsset>();
+        }
+
+        /// <summary>
+        /// Reads one override scope path step.
+        /// </summary>
+        static SceneOverrideScopeStepAsset ReadSceneOverrideScopeStep(EngineBinaryReader reader) {
+            return new SceneOverrideScopeStepAsset {
+                Kind = (SceneOverrideScopeStepKind)reader.ReadByte(),
+                Id = reader.ReadString()
+            };
+        }
+
+        /// <summary>
+        /// Writes one override scope level kind.
+        /// </summary>
+        static void WriteSceneOverrideScopeStepKind(EngineBinaryWriter writer, SceneOverrideScopeStepKind kind) {
+            writer.WriteByte((byte)kind);
+        }
+
+        /// <summary>
+        /// Reads one override scope level kind.
+        /// </summary>
+        static SceneOverrideScopeStepKind ReadSceneOverrideScopeStepKind(EngineBinaryReader reader) {
+            return (SceneOverrideScopeStepKind)reader.ReadByte();
         }
 
         /// <summary>
@@ -280,8 +313,7 @@ namespace helengine.files {
                 throw new ArgumentNullException(nameof(asset));
             }
 
-            writer.WriteString(asset.PlatformId);
-            writer.WriteString(asset.EnvironmentId ?? string.Empty);
+            WriteSceneOverrideScopeSteps(writer, asset.Scope);
             writer.WriteByte(asset.Exists ? (byte)1 : (byte)0);
         }
 
@@ -296,8 +328,7 @@ namespace helengine.files {
             }
 
             return new SceneEntityPlatformExistenceOverrideAsset {
-                PlatformId = reader.ReadString(),
-                EnvironmentId = reader.ReadString(),
+                Scope = ReadSceneOverrideScopeSteps(reader),
                 Exists = reader.ReadByte() != 0
             };
         }
@@ -314,8 +345,7 @@ namespace helengine.files {
                 throw new ArgumentNullException(nameof(asset));
             }
 
-            writer.WriteString(asset.PlatformId);
-            writer.WriteString(asset.EnvironmentId ?? string.Empty);
+            WriteSceneOverrideScopeSteps(writer, asset.Scope);
             writer.WriteByte(asset.HasLocalPositionOverride ? (byte)1 : (byte)0);
             writer.WriteFloat3(asset.LocalPosition);
             writer.WriteByte(asset.HasLocalScaleOverride ? (byte)1 : (byte)0);
@@ -335,8 +365,7 @@ namespace helengine.files {
             }
 
             return new SceneEntityPlatformTransformOverrideAsset {
-                PlatformId = reader.ReadString(),
-                EnvironmentId = reader.ReadString(),
+                Scope = ReadSceneOverrideScopeSteps(reader),
                 HasLocalPositionOverride = reader.ReadByte() != 0,
                 LocalPosition = reader.ReadFloat3(),
                 HasLocalScaleOverride = reader.ReadByte() != 0,
@@ -358,8 +387,7 @@ namespace helengine.files {
                 throw new ArgumentNullException(nameof(asset));
             }
 
-            writer.WriteString(asset.PlatformId);
-            writer.WriteString(asset.EnvironmentId ?? string.Empty);
+            WriteSceneOverrideScopeSteps(writer, asset.Scope);
             writer.WriteArray(asset.RemovedComponentKeys?.OrderBy(key => key ?? string.Empty, StringComparer.Ordinal).ToArray(), EditorAssetPayloadPrimitives.WriteStringValue);
             writer.WriteArray(SortSceneEntityPlatformAddedComponents(asset.AddedComponents), WriteSceneEntityPlatformAddedComponentAsset);
         }
@@ -392,8 +420,7 @@ namespace helengine.files {
             }
 
             return new SceneEntityPlatformComponentOverrideAsset {
-                PlatformId = reader.ReadString(),
-                EnvironmentId = reader.ReadString(),
+                Scope = ReadSceneOverrideScopeSteps(reader),
                 RemovedComponentKeys = reader.ReadArray(EditorAssetPayloadPrimitives.ReadStringValue) ?? Array.Empty<string>(),
                 AddedComponents = reader.ReadArray(ReadSceneEntityPlatformAddedComponentAsset) ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>()
             };

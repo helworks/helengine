@@ -455,11 +455,11 @@ namespace helengine.editor.tests {
                         LocalOrientation = float4.Identity,
                         PlatformExistenceOverrides = new[] {
                             new SceneEntityPlatformExistenceOverrideAsset {
-                                PlatformId = "Windows",
+                                Scope = SceneOverrideScopePath.Platform("Windows"),
                                 Exists = true
                             },
                             new SceneEntityPlatformExistenceOverrideAsset {
-                                PlatformId = "Nintendo3DS",
+                                Scope = SceneOverrideScopePath.Platform("Nintendo3DS"),
                                 Exists = false
                             }
                         },
@@ -476,11 +476,11 @@ namespace helengine.editor.tests {
             Assert.Collection(
                 rootEntity.PlatformExistenceOverrides,
                 nintendo3DsOverride => {
-                    Assert.Equal("Nintendo3DS", nintendo3DsOverride.PlatformId);
+                    Assert.Equal("platform:Nintendo3DS", SceneOverrideScopePath.Format(nintendo3DsOverride.Scope));
                     Assert.False(nintendo3DsOverride.Exists);
                 },
                 windowsOverride => {
-                    Assert.Equal("Windows", windowsOverride.PlatformId);
+                    Assert.Equal("platform:Windows", SceneOverrideScopePath.Format(windowsOverride.Scope));
                     Assert.True(windowsOverride.Exists);
                 });
         }

@@ -24,7 +24,7 @@ namespace helengine.editor {
             }
 
             string normalizedRequestedPlatformId = NormalizePlatformId(platformId);
-            string normalizedActivePlatformId = NormalizePlatformId(saveComponent.ActiveTransformPlatformId);
+            string normalizedActivePlatformId = NormalizePlatformId(saveComponent.ActiveTransformScope.PlatformId);
             if (string.Equals(normalizedRequestedPlatformId, normalizedActivePlatformId, StringComparison.OrdinalIgnoreCase)) {
                 return;
             }
@@ -46,7 +46,7 @@ namespace helengine.editor {
             }
 
             ApplyPlatformTransform(entity, saveComponent, normalizedRequestedPlatformId);
-            saveComponent.ActiveTransformPlatformId = normalizedRequestedPlatformId;
+            saveComponent.ActiveTransformScope = new EditorOverrideScope(normalizedRequestedPlatformId);
         }
 
         /// <summary>
@@ -60,9 +60,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            EditorOverrideScope activeScope = new EditorOverrideScope(
-                NormalizePlatformId(saveComponent.ActiveTransformPlatformId),
-                saveComponent.ActiveTransformEnvironmentId);
+            EditorOverrideScope activeScope = saveComponent.ActiveTransformScope;
             if (activeScope == scope) {
                 return;
             }
@@ -79,8 +77,7 @@ namespace helengine.editor {
             }
 
             ApplyScopeTransform(entity, saveComponent, scope);
-            saveComponent.ActiveTransformPlatformId = scope.PlatformId;
-            saveComponent.ActiveTransformEnvironmentId = scope.EnvironmentId;
+            saveComponent.ActiveTransformScope = scope;
         }
 
         /// <summary>
@@ -94,22 +91,20 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            string platformId = NormalizePlatformId(saveComponent.ActiveTransformPlatformId);
-            if (IsCommonPlatformId(platformId) || !saveComponent.HasCommonTransformSnapshot) {
+            EditorOverrideScope scope = saveComponent.ActiveTransformScope;
+            if (scope.IsCommon || !saveComponent.HasCommonTransformSnapshot) {
                 return;
             }
 
-            EditorOverrideScope scope = new EditorOverrideScope(platformId, saveComponent.ActiveTransformEnvironmentId);
             float3 parentPosition = saveComponent.CommonLocalPositionSnapshot;
             float3 parentScale = saveComponent.CommonLocalScaleSnapshot;
             float4 parentOrientation = saveComponent.CommonLocalOrientationSnapshot;
-            if (!scope.IsPlatformOnly && saveComponent.TryGetTransformPlatformOverride(new EditorOverrideScope(platformId), out SceneEntityPlatformTransformOverrideAsset platformOverride)) {
+            if (!scope.IsPlatformOnly && saveComponent.TryGetTransformPlatformOverride(new EditorOverrideScope(scope.PlatformId), out SceneEntityPlatformTransformOverrideAsset platformOverride)) {
                 ApplyOverride(ref parentPosition, ref parentScale, ref parentOrientation, platformOverride);
             }
 
             SceneEntityPlatformTransformOverrideAsset overrideState = saveComponent.GetOrCreateTransformPlatformOverride(scope);
-            overrideState.PlatformId = scope.PlatformId;
-            overrideState.EnvironmentId = scope.EnvironmentId;
+            overrideState.Scope = scope.ToSteps();
             overrideState.HasLocalPositionOverride = entity.LocalPosition != parentPosition;
             overrideState.LocalPosition = entity.LocalPosition;
             overrideState.HasLocalScaleOverride = entity.LocalScale != parentScale;
@@ -158,9 +153,7 @@ namespace helengine.editor {
                 saveComponent.RemoveTransformPlatformOverride(scope);
             }
 
-            EditorOverrideScope activeScope = new EditorOverrideScope(
-                NormalizePlatformId(saveComponent.ActiveTransformPlatformId),
-                saveComponent.ActiveTransformEnvironmentId);
+            EditorOverrideScope activeScope = saveComponent.ActiveTransformScope;
             if (activeScope == scope) {
                 ApplyScopeTransform(entity, saveComponent, scope);
             }
@@ -178,13 +171,13 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            string normalizedActivePlatformId = NormalizePlatformId(saveComponent.ActiveTransformPlatformId);
+            string normalizedActivePlatformId = NormalizePlatformId(saveComponent.ActiveTransformScope.PlatformId);
             if (IsCommonPlatformId(normalizedActivePlatformId) || !saveComponent.HasCommonTransformSnapshot) {
                 return;
             }
 
             SceneEntityPlatformTransformOverrideAsset overrideState = saveComponent.GetOrCreateTransformPlatformOverride(normalizedActivePlatformId);
-            overrideState.PlatformId = normalizedActivePlatformId;
+            overrideState.Scope = SceneOverrideScopePath.Platform(normalizedActivePlatformId);
             overrideState.HasLocalPositionOverride = entity.LocalPosition != saveComponent.CommonLocalPositionSnapshot;
             overrideState.LocalPosition = entity.LocalPosition;
             overrideState.HasLocalScaleOverride = entity.LocalScale != saveComponent.CommonLocalScaleSnapshot;
@@ -239,7 +232,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            if (saveComponent.HasCommonTransformSnapshot && !IsCommonPlatformId(saveComponent.ActiveTransformPlatformId)) {
+            if (saveComponent.HasCommonTransformSnapshot && !saveComponent.ActiveTransformScope.IsCommon) {
                 return saveComponent.CommonLocalPositionSnapshot;
             }
 
@@ -259,7 +252,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            if (saveComponent.HasCommonTransformSnapshot && !IsCommonPlatformId(saveComponent.ActiveTransformPlatformId)) {
+            if (saveComponent.HasCommonTransformSnapshot && !saveComponent.ActiveTransformScope.IsCommon) {
                 return saveComponent.CommonLocalScaleSnapshot;
             }
 
@@ -279,7 +272,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            if (saveComponent.HasCommonTransformSnapshot && !IsCommonPlatformId(saveComponent.ActiveTransformPlatformId)) {
+            if (saveComponent.HasCommonTransformSnapshot && !saveComponent.ActiveTransformScope.IsCommon) {
                 return saveComponent.CommonLocalOrientationSnapshot;
             }
 
@@ -464,8 +457,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="saveComponent">Hidden save component whose active projection metadata should be cleared.</param>
         void ClearActiveProjection(EntitySaveComponent saveComponent) {
-            saveComponent.ActiveTransformPlatformId = string.Empty;
-            saveComponent.ActiveTransformEnvironmentId = string.Empty;
+            saveComponent.ActiveTransformScope = EditorOverrideScope.Common;
             saveComponent.HasCommonTransformSnapshot = false;
             saveComponent.CommonLocalPositionSnapshot = float3.Zero;
             saveComponent.CommonLocalScaleSnapshot = float3.Zero;
@@ -509,7 +501,7 @@ namespace helengine.editor {
                 saveComponent.RemoveTransformPlatformOverride(platformId);
             }
 
-            if (string.Equals(NormalizePlatformId(saveComponent.ActiveTransformPlatformId), NormalizePlatformId(platformId), StringComparison.OrdinalIgnoreCase)) {
+            if (string.Equals(NormalizePlatformId(saveComponent.ActiveTransformScope.PlatformId), NormalizePlatformId(platformId), StringComparison.OrdinalIgnoreCase)) {
                 ApplyPlatformTransform(entity, saveComponent, NormalizePlatformId(platformId));
             }
         }

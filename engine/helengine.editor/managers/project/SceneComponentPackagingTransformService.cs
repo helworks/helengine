@@ -607,7 +607,7 @@ namespace helengine.editor {
                 !string.Equals(TargetPlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 for (int index = 0; index < overrideStates.Count; index++) {
                     EntityComponentPlatformOverrideState overrideState = overrideStates[index];
-                    if (overrideState == null || !string.Equals(overrideState.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                    if (overrideState == null || !string.Equals(overrideState.Scope.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
                         continue;
                     }
 
@@ -1117,7 +1117,7 @@ namespace helengine.editor {
             IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(persistedRecord);
             for (int index = 0; index < overrideStates.Count; index++) {
                 EntityComponentPlatformOverrideState overrideState = overrideStates[index];
-                if (overrideState != null && string.Equals(overrideState.PlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (overrideState != null && string.Equals(overrideState.Scope.PlatformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
                     return overrideState;
                 }
             }
@@ -1319,7 +1319,7 @@ namespace helengine.editor {
             IReadOnlyList<EntityComponentPlatformOverrideState> overrideStates = PlatformOverridePayloadService.ReadOverrideStates(sourceRecord);
             for (int index = 0; index < overrideStates.Count; index++) {
                 EntityComponentPlatformOverrideState overrideState = overrideStates[index];
-                if (!string.Equals(overrideState.PlatformId, PlatformDefinition.PlatformId, StringComparison.OrdinalIgnoreCase)) {
+                if (!string.Equals(overrideState.Scope.PlatformId, PlatformDefinition.PlatformId, StringComparison.OrdinalIgnoreCase)) {
                     continue;
                 }
                 if (overrideState.TryGetMemberValue(definition.MemberName, out string overrideValue)) {

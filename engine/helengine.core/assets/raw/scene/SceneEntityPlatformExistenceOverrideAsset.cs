@@ -1,20 +1,15 @@
 namespace helengine {
     /// <summary>
-    /// Stores one platform-specific entity existence override attached to a serialized scene entity.
+    /// Stores one entity existence override authored on one override scope path inside a serialized scene entity.
     /// </summary>
     public class SceneEntityPlatformExistenceOverrideAsset {
         /// <summary>
-        /// Gets or sets the platform identifier that owns this entity existence override.
+        /// Gets or sets the scope path this override is authored on. Empty is Common.
         /// </summary>
-        public string PlatformId { get; set; } = string.Empty;
+        public SceneOverrideScopeStepAsset[] Scope { get; set; } = Array.Empty<SceneOverrideScopeStepAsset>();
 
         /// <summary>
-        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
-        /// </summary>
-        public string EnvironmentId { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Gets or sets a value indicating whether the entity should exist on the owning platform.
+        /// Gets or sets a value indicating whether the entity should exist on the owning scope.
         /// </summary>
         public bool Exists { get; set; }
     }

@@ -1230,7 +1230,7 @@ namespace helengine.editor {
             }
 
             EntityComponentPlatformOverrideState overrideState = new EntityComponentPlatformOverrideState {
-                PlatformId = platformId
+                Scope = new EditorOverrideScope(platformId)
             };
             componentSaveState.SetPlatformOverride(platformId, overrideState);
             return overrideState;

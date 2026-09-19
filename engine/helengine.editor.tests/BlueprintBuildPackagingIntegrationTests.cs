@@ -125,7 +125,7 @@ namespace helengine.editor.tests {
                 "DemoDiscBottomScreenRoot",
                 new[] {
                     new SceneEntityPlatformExistenceOverrideAsset {
-                        PlatformId = "psvita",
+                        Scope = SceneOverrideScopePath.Platform("psvita"),
                         Exists = false
                     }
                 });
@@ -214,7 +214,7 @@ namespace helengine.editor.tests {
                 ],
                 PlatformExistenceOverrides = [
                     new SceneEntityPlatformExistenceOverrideAsset {
-                        PlatformId = platformId,
+                        Scope = SceneOverrideScopePath.Platform(platformId),
                         Exists = exists
                     }
                 ],

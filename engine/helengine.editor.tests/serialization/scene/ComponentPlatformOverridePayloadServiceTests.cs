@@ -33,7 +33,7 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(baseRecord.ComponentTypeId, wrappedRecord.ComponentTypeId);
             Assert.Equal(baseRecord.ComponentIndex, wrappedRecord.ComponentIndex);
             Assert.Equal(baseRecord.Payload, unwrappedRecord.Payload);
-            Assert.Equal("windows", loadedOverride.PlatformId);
+            Assert.Equal("platform:windows", loadedOverride.Scope.ToString());
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, loadedOverride.Payload);
             Assert.True(loadedOverride.HasPropertyOverride("Transform.Position"));
             Assert.True(loadedOverride.TryGetMemberValue("BGLayer", out string bgLayerValue));
@@ -60,8 +60,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneComponentAssetRecord wrappedRecord = service.Wrap(baseRecord, saveState);
             EntityComponentPlatformOverrideState loadedOverride = Assert.Single(service.ReadOverrideStates(wrappedRecord));
 
-            Assert.Equal("windows", loadedOverride.PlatformId);
-            Assert.Equal("debug", loadedOverride.EnvironmentId);
+            Assert.Equal("platform:windows/buildconfig:debug", loadedOverride.Scope.ToString());
             Assert.Equal(new byte[] { 9, 8, 7 }, loadedOverride.Payload);
         }
 

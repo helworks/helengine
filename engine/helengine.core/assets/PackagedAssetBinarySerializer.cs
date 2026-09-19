@@ -16,12 +16,12 @@ namespace helengine {
         /// <summary>
         /// Serializer version for the current packaged runtime asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 24;
+        public const byte CurrentVersion = 25;
 
         /// <summary>
         /// Version marker written into scene entity payloads that include stable ids, static state, layer masks, and enabled state.
         /// </summary>
-        const byte SceneEntityPayloadVersion = 8;
+        const byte SceneEntityPayloadVersion = 9;
 
         /// <summary>
         /// Deserializes an asset from the supplied stream using the packaged runtime asset format.
@@ -607,6 +607,9 @@ namespace helengine {
             float3 localPosition = reader.ReadFloat3();
             float3 localScale = reader.ReadFloat3();
             float4 localOrientation = reader.ReadFloat4();
+            EngineBinaryReadContext.CurrentReadStage = "SceneEntity:OverrideLevelOrder";
+            bool hasOverrideLevelOrder = reader.ReadByte() != 0;
+            SceneOverrideScopeStepKind[] overrideLevelOrder = reader.ReadArray(ReadSceneOverrideScopeStepKind) ?? Array.Empty<SceneOverrideScopeStepKind>();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:Components";
             SceneComponentAssetRecord[] components = ReadSceneComponentAssetRecordArray(reader) ?? Array.Empty<SceneComponentAssetRecord>();
             EngineBinaryReadContext.CurrentReadStage = "SceneEntity:PlatformExistenceOverrides";
@@ -628,6 +631,8 @@ namespace helengine {
                 LocalPosition = localPosition,
                 LocalScale = localScale,
                 LocalOrientation = localOrientation,
+                HasOverrideLevelOrder = hasOverrideLevelOrder,
+                OverrideLevelOrder = hasOverrideLevelOrder ? overrideLevelOrder : Array.Empty<SceneOverrideScopeStepKind>(),
                 Components = components,
                 PlatformExistenceOverrides = platformExistenceOverrides,
                 PlatformTransformOverrides = platformTransformOverrides,
@@ -647,8 +652,7 @@ namespace helengine {
             }
 
             return new SceneEntityPlatformExistenceOverrideAsset {
-                PlatformId = reader.ReadString(),
-                EnvironmentId = reader.ReadString(),
+                Scope = ReadSceneOverrideScopeSteps(reader),
                 Exists = reader.ReadByte() != 0
             };
         }
@@ -664,8 +668,7 @@ namespace helengine {
             }
 
             return new SceneEntityPlatformTransformOverrideAsset {
-                PlatformId = reader.ReadString(),
-                EnvironmentId = reader.ReadString(),
+                Scope = ReadSceneOverrideScopeSteps(reader),
                 HasLocalPositionOverride = reader.ReadByte() != 0,
                 LocalPosition = reader.ReadFloat3(),
                 HasLocalScaleOverride = reader.ReadByte() != 0,
@@ -686,11 +689,40 @@ namespace helengine {
             }
 
             return new SceneEntityPlatformComponentOverrideAsset {
-                PlatformId = reader.ReadString(),
-                EnvironmentId = reader.ReadString(),
+                Scope = ReadSceneOverrideScopeSteps(reader),
                 RemovedComponentKeys = reader.ReadArray(ReadStringValue) ?? Array.Empty<string>(),
                 AddedComponents = reader.ReadArray(ReadSceneEntityPlatformAddedComponentAsset) ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>()
             };
+        }
+
+        /// <summary>
+        /// Reads one override scope path.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Decoded override scope path.</returns>
+        static SceneOverrideScopeStepAsset[] ReadSceneOverrideScopeSteps(EngineBinaryReader reader) {
+            return reader.ReadArray(ReadSceneOverrideScopeStep) ?? Array.Empty<SceneOverrideScopeStepAsset>();
+        }
+
+        /// <summary>
+        /// Reads one override scope path step.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Decoded override scope path step.</returns>
+        static SceneOverrideScopeStepAsset ReadSceneOverrideScopeStep(EngineBinaryReader reader) {
+            return new SceneOverrideScopeStepAsset {
+                Kind = (SceneOverrideScopeStepKind)reader.ReadByte(),
+                Id = reader.ReadString()
+            };
+        }
+
+        /// <summary>
+        /// Reads one override scope level kind.
+        /// </summary>
+        /// <param name="reader">Source reader positioned at the payload.</param>
+        /// <returns>Decoded override scope level kind.</returns>
+        static SceneOverrideScopeStepKind ReadSceneOverrideScopeStepKind(EngineBinaryReader reader) {
+            return (SceneOverrideScopeStepKind)reader.ReadByte();
         }
 
         /// <summary>

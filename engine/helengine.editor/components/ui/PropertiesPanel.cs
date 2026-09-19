@@ -1118,21 +1118,25 @@ namespace helengine.editor {
             }
 
             foreach (SceneEntityPlatformTransformOverrideAsset overrideState in saveComponent.EnumerateTransformPlatformOverrides()) {
-                if (!string.IsNullOrWhiteSpace(overrideState.EnvironmentId)) {
-                    ComponentEnvironmentOverridePlatforms.Add(overrideState.PlatformId);
-                }
+                SeedEnvironmentOverridePlatform(EditorOverrideScope.FromSteps(overrideState.Scope));
             }
 
             foreach (SceneEntityPlatformExistenceOverrideAsset overrideState in saveComponent.EnumerateExistencePlatformOverrides()) {
-                if (!string.IsNullOrWhiteSpace(overrideState.EnvironmentId)) {
-                    ComponentEnvironmentOverridePlatforms.Add(overrideState.PlatformId);
-                }
+                SeedEnvironmentOverridePlatform(EditorOverrideScope.FromSteps(overrideState.Scope));
             }
 
             foreach (EntityPlatformComponentOverrideState overrideState in saveComponent.EnumerateComponentPlatformOverrides()) {
-                if (!string.IsNullOrWhiteSpace(overrideState.EnvironmentId)) {
-                    ComponentEnvironmentOverridePlatforms.Add(overrideState.PlatformId);
-                }
+                SeedEnvironmentOverridePlatform(overrideState.Scope);
+            }
+        }
+
+        /// <summary>
+        /// Opts one override scope's platform into the environment tab strip when the scope names a build config.
+        /// </summary>
+        /// <param name="scope">Persisted override scope to inspect.</param>
+        void SeedEnvironmentOverridePlatform(EditorOverrideScope scope) {
+            if (!string.IsNullOrWhiteSpace(scope.EnvironmentId)) {
+                ComponentEnvironmentOverridePlatforms.Add(scope.PlatformId);
             }
         }
 

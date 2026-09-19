@@ -135,7 +135,7 @@ namespace helengine.editor {
             }
 
             foreach (KeyValuePair<string, SceneAssetReference> pair in overrideState.EnumerateNamedAssetReferences()) {
-                ValidateNamedReference(component, pair.Key, pair.Value, overrideState.PlatformId);
+                ValidateNamedReference(component, pair.Key, pair.Value, overrideState.Scope.ToString());
             }
         }
 

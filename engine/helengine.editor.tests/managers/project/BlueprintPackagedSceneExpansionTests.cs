@@ -84,8 +84,7 @@ namespace helengine.editor.tests.managers.project {
                 LocalOrientation = float4.Identity,
                 PlatformExistenceOverrides = [
                     new SceneEntityPlatformExistenceOverrideAsset {
-                        PlatformId = "windows",
-                        EnvironmentId = "release",
+                        Scope = SceneOverrideScopePath.PlatformBuildConfig("windows", "release"),
                         Exists = false
                     }
                 ],
@@ -117,8 +116,7 @@ namespace helengine.editor.tests.managers.project {
 
             SceneEntityAsset expandedBlueprintRoot = Assert.Single(Assert.Single(sceneAsset.RootEntities).Children);
             SceneEntityPlatformExistenceOverrideAsset existenceOverride = Assert.Single(expandedBlueprintRoot.PlatformExistenceOverrides);
-            Assert.Equal("windows", existenceOverride.PlatformId);
-            Assert.Equal("release", existenceOverride.EnvironmentId);
+            Assert.Equal("platform:windows/buildconfig:release", SceneOverrideScopePath.Format(existenceOverride.Scope));
             Assert.False(existenceOverride.Exists);
         }
 

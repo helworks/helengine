@@ -767,7 +767,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneEntityAsset rootEntity = Assert.Single(asset.RootEntities);
             SceneEntityPlatformTransformOverrideAsset ps2Override = Assert.Single(rootEntity.PlatformTransformOverrides);
             Assert.Equal(new float3(1f, 2f, 3f), rootEntity.LocalPosition);
-            Assert.Equal("ps2", ps2Override.PlatformId);
+            Assert.Equal("platform:ps2", SceneOverrideScopePath.Format(ps2Override.Scope));
             Assert.True(ps2Override.HasLocalPositionOverride);
             Assert.Equal(new float3(10f, 20f, 30f), ps2Override.LocalPosition);
 
@@ -809,7 +809,7 @@ namespace helengine.editor.tests.serialization.scene {
 
             SceneEntityAsset rootEntity = Assert.Single(asset.RootEntities);
             SceneEntityPlatformExistenceOverrideAsset overrideAsset = Assert.Single(rootEntity.PlatformExistenceOverrides);
-            Assert.Equal("nintendo3ds", overrideAsset.PlatformId);
+            Assert.Equal("platform:nintendo3ds", SceneOverrideScopePath.Format(overrideAsset.Scope));
             Assert.False(overrideAsset.Exists);
 
             SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
@@ -847,8 +847,8 @@ namespace helengine.editor.tests.serialization.scene {
             }
 
             SceneEntityAsset rootEntity = Assert.Single(asset.RootEntities);
-            Assert.Equal("debug", Assert.Single(rootEntity.PlatformExistenceOverrides).EnvironmentId);
-            Assert.Equal("debug", Assert.Single(rootEntity.PlatformTransformOverrides).EnvironmentId);
+            Assert.Equal("platform:windows/buildconfig:debug", SceneOverrideScopePath.Format(Assert.Single(rootEntity.PlatformExistenceOverrides).Scope));
+            Assert.Equal("platform:windows/buildconfig:debug", SceneOverrideScopePath.Format(Assert.Single(rootEntity.PlatformTransformOverrides).Scope));
 
             SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
             EditorEntity loadedEntity = Assert.Single(loadService.Load(asset));
@@ -937,7 +937,7 @@ namespace helengine.editor.tests.serialization.scene {
             SceneEntityAsset rootEntity = Assert.Single(asset.RootEntities);
             SceneEntityPlatformComponentOverrideAsset windowsOverride = Assert.Single(rootEntity.PlatformComponentOverrides);
             SceneEntityPlatformAddedComponentAsset addedCameraAsset = Assert.Single(windowsOverride.AddedComponents);
-            Assert.Equal("windows", windowsOverride.PlatformId);
+            Assert.Equal("platform:windows", SceneOverrideScopePath.Format(windowsOverride.Scope));
             Assert.NotNull(addedCameraAsset.Component);
 
             SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
@@ -1415,7 +1415,7 @@ namespace helengine.editor.tests.serialization.scene {
             Type overrideStateType = ResolveRequiredType("helengine.EntityComponentPlatformOverrideState");
             object overrideState = Activator.CreateInstance(overrideStateType);
 
-            overrideStateType.GetProperty("PlatformId").SetValue(overrideState, platformId);
+            overrideStateType.GetProperty("Scope").SetValue(overrideState, new EditorOverrideScope(platformId));
             overrideStateType.GetProperty("Payload").SetValue(overrideState, payload);
 
             MethodInfo setMethod = typeof(EntityComponentSaveState).GetMethod("SetPlatformOverride", BindingFlags.Instance | BindingFlags.Public);

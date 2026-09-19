@@ -76,7 +76,7 @@ namespace helengine.editor.tests {
             Type overrideStateType = ResolveRequiredType("helengine.EntityComponentPlatformOverrideState");
             object overrideState = Activator.CreateInstance(overrideStateType);
 
-            overrideStateType.GetProperty("PlatformId").SetValue(overrideState, "windows");
+            overrideStateType.GetProperty("Scope").SetValue(overrideState, new EditorOverrideScope("windows"));
             overrideStateType.GetProperty("Payload").SetValue(overrideState, new byte[] { 1, 2, 3, 4 });
 
             MethodInfo setMethod = typeof(EntityComponentSaveState).GetMethod("SetPlatformOverride", BindingFlags.Instance | BindingFlags.Public);
@@ -91,7 +91,7 @@ namespace helengine.editor.tests {
 
             Assert.True(found);
             Assert.NotNull(arguments[1]);
-            Assert.Equal("windows", Assert.IsType<string>(overrideStateType.GetProperty("PlatformId").GetValue(arguments[1])));
+            Assert.Equal("platform:windows", overrideStateType.GetProperty("Scope").GetValue(arguments[1]).ToString());
             Assert.Equal(new byte[] { 1, 2, 3, 4 }, Assert.IsType<byte[]>(overrideStateType.GetProperty("Payload").GetValue(arguments[1])));
         }
 

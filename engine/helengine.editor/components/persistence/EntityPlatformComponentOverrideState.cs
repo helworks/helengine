@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Stores one platform's removed common components and detached platform-only components for an entity.
+    /// Stores one scope's removed common components and detached scope-only components for an entity.
     /// </summary>
     public class EntityPlatformComponentOverrideState {
         /// <summary>
@@ -19,19 +19,12 @@ namespace helengine {
         public EntityPlatformComponentOverrideState() {
             RemovedComponentKeys = new HashSet<string>(StringComparer.Ordinal);
             AddedComponentsByKey = new Dictionary<string, EntityPlatformAddedComponentState>(StringComparer.Ordinal);
-            PlatformId = string.Empty;
-            EnvironmentId = string.Empty;
         }
 
         /// <summary>
-        /// Gets or sets the platform identifier that owns the component existence overrides.
+        /// Gets or sets the scope path this override is authored on.
         /// </summary>
-        public string PlatformId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
-        /// </summary>
-        public string EnvironmentId { get; set; }
+        public EditorOverrideScope Scope { get; set; }
 
         /// <summary>
         /// Gets a value indicating whether any removed common components are tracked for the platform.

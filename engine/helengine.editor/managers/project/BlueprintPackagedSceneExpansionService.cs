@@ -443,6 +443,8 @@ namespace helengine.editor {
                 LocalPosition = entityAsset.LocalPosition,
                 LocalScale = entityAsset.LocalScale,
                 LocalOrientation = entityAsset.LocalOrientation,
+                HasOverrideLevelOrder = entityAsset.HasOverrideLevelOrder,
+                OverrideLevelOrder = (entityAsset.OverrideLevelOrder ?? Array.Empty<SceneOverrideScopeStepKind>()).ToArray(),
                 Components = components.Select(CloneComponentRecord).ToArray(),
                 PlatformExistenceOverrides = existenceOverrides.Select(CloneExistenceOverride).ToArray(),
                 PlatformTransformOverrides = transformOverrides.Select(CloneTransformOverride).ToArray(),
@@ -536,8 +538,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityPlatformExistenceOverrideAsset {
-                PlatformId = overrideAsset.PlatformId,
-                EnvironmentId = overrideAsset.EnvironmentId,
+                Scope = SceneOverrideScopePath.Normalize(overrideAsset.Scope),
                 Exists = overrideAsset.Exists
             };
         }
@@ -548,7 +549,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityPlatformTransformOverrideAsset {
-                PlatformId = overrideAsset.PlatformId,
+                Scope = SceneOverrideScopePath.Normalize(overrideAsset.Scope),
                 HasLocalPositionOverride = overrideAsset.HasLocalPositionOverride,
                 LocalPosition = overrideAsset.LocalPosition,
                 HasLocalScaleOverride = overrideAsset.HasLocalScaleOverride,
@@ -564,7 +565,7 @@ namespace helengine.editor {
             }
 
             return new SceneEntityPlatformComponentOverrideAsset {
-                PlatformId = overrideAsset.PlatformId,
+                Scope = SceneOverrideScopePath.Normalize(overrideAsset.Scope),
                 RemovedComponentKeys = (overrideAsset.RemovedComponentKeys ?? Array.Empty<string>()).ToArray(),
                 AddedComponents = (overrideAsset.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>())
                     .Select(CloneAddedComponent)

@@ -29,17 +29,17 @@ namespace helengine.editor.tests.serialization.blueprint {
                     },
                     PlatformExistenceOverrides = new[] {
                         new SceneEntityPlatformExistenceOverrideAsset {
-                            PlatformId = "windows",
+                            Scope = SceneOverrideScopePath.Platform("windows"),
                             Exists = true
                         },
                         new SceneEntityPlatformExistenceOverrideAsset {
-                            PlatformId = "nintendo_ds",
+                            Scope = SceneOverrideScopePath.Platform("nintendo_ds"),
                             Exists = false
                         }
                     },
                     PlatformTransformOverrides = new[] {
                         new SceneEntityPlatformTransformOverrideAsset {
-                            PlatformId = "windows",
+                            Scope = SceneOverrideScopePath.Platform("windows"),
                             HasLocalPositionOverride = true,
                             LocalPosition = new float3(4f, 5f, 6f),
                             HasLocalScaleOverride = true,
@@ -50,7 +50,7 @@ namespace helengine.editor.tests.serialization.blueprint {
                     },
                     PlatformComponentOverrides = new[] {
                         new SceneEntityPlatformComponentOverrideAsset {
-                            PlatformId = "windows",
+                            Scope = SceneOverrideScopePath.Platform("windows"),
                             RemovedComponentKeys = new[] { "mesh-removed" },
                             AddedComponents = new[] {
                                 new SceneEntityPlatformAddedComponentAsset {
@@ -109,19 +109,19 @@ namespace helengine.editor.tests.serialization.blueprint {
             Assert.Collection(
                 deserialized.RootEntity.PlatformExistenceOverrides,
                 dsOverride => {
-                    Assert.Equal("nintendo_ds", dsOverride.PlatformId);
+                    Assert.Equal("platform:nintendo_ds", SceneOverrideScopePath.Format(dsOverride.Scope));
                     Assert.False(dsOverride.Exists);
                 },
                 windowsOverride => {
-                    Assert.Equal("windows", windowsOverride.PlatformId);
+                    Assert.Equal("platform:windows", SceneOverrideScopePath.Format(windowsOverride.Scope));
                     Assert.True(windowsOverride.Exists);
                 });
             SceneEntityPlatformTransformOverrideAsset transformOverride = Assert.Single(deserialized.RootEntity.PlatformTransformOverrides);
-            Assert.Equal("windows", transformOverride.PlatformId);
+            Assert.Equal("platform:windows", SceneOverrideScopePath.Format(transformOverride.Scope));
             Assert.True(transformOverride.HasLocalPositionOverride);
             Assert.Equal(new float3(4f, 5f, 6f), transformOverride.LocalPosition);
             SceneEntityPlatformComponentOverrideAsset componentOverride = Assert.Single(deserialized.RootEntity.PlatformComponentOverrides);
-            Assert.Equal("windows", componentOverride.PlatformId);
+            Assert.Equal("platform:windows", SceneOverrideScopePath.Format(componentOverride.Scope));
             Assert.Equal("mesh-removed", Assert.Single(componentOverride.RemovedComponentKeys));
             Assert.Equal("mesh-added", Assert.Single(componentOverride.AddedComponents).Component.ComponentKey);
             Assert.Equal(12u, Assert.Single(deserialized.RootEntity.Children).Id);

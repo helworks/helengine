@@ -132,7 +132,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             saveComponent.SetAssetReference(meshComponent, "Model", modelReference);
             saveComponent.SetAssetReference(meshComponent, "Materials[0]", materialReference);
             saveComponent.SetTransformPlatformOverride("windows", new SceneEntityPlatformTransformOverrideAsset {
-                PlatformId = "windows",
+                Scope = SceneOverrideScopePath.Platform("windows"),
                 HasLocalPositionOverride = true,
                 LocalPosition = new float3(10f, 20f, 30f)
             });
@@ -158,7 +158,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             Assert.Single(asset.RootEntity.Children);
             Assert.Equal(2, asset.AssetReferences.Length);
             Assert.Single(asset.RootEntity.PlatformTransformOverrides);
-            Assert.Equal("windows", asset.RootEntity.PlatformTransformOverrides[0].PlatformId);
+            Assert.Equal("platform:windows", SceneOverrideScopePath.Format(asset.RootEntity.PlatformTransformOverrides[0].Scope));
             Assert.True(asset.RootEntity.PlatformTransformOverrides[0].HasLocalPositionOverride);
 
             TestSceneAssetReferenceResolver resolver = new TestSceneAssetReferenceResolver();
@@ -277,7 +277,7 @@ namespace helengine.editor.tests.serialization.blueprint {
             Type overrideStateType = ResolveRequiredType("helengine.EntityComponentPlatformOverrideState");
             object overrideState = Activator.CreateInstance(overrideStateType);
 
-            overrideStateType.GetProperty("PlatformId").SetValue(overrideState, platformId);
+            overrideStateType.GetProperty("Scope").SetValue(overrideState, new EditorOverrideScope(platformId));
             overrideStateType.GetProperty("Payload").SetValue(overrideState, payload);
 
             MethodInfo setMethod = typeof(EntityComponentSaveState).GetMethod("SetPlatformOverride", BindingFlags.Instance | BindingFlags.Public);

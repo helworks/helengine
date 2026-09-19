@@ -1,20 +1,15 @@
 namespace helengine {
     /// <summary>
-    /// Stores one editor-authored per-platform entity transform override inside a serialized scene asset.
+    /// Stores one editor-authored entity transform override authored on one override scope path inside a serialized scene asset.
     /// </summary>
     public class SceneEntityPlatformTransformOverrideAsset {
         /// <summary>
-        /// Gets or sets the platform identifier that owns this transform override.
+        /// Gets or sets the scope path this override is authored on. Empty is Common.
         /// </summary>
-        public string PlatformId { get; set; } = string.Empty;
+        public SceneOverrideScopeStepAsset[] Scope { get; set; } = Array.Empty<SceneOverrideScopeStepAsset>();
 
         /// <summary>
-        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
-        /// </summary>
-        public string EnvironmentId { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Gets or sets a value indicating whether the local-position override is authored for this platform.
+        /// Gets or sets a value indicating whether the local-position override is authored for this scope.
         /// </summary>
         public bool HasLocalPositionOverride { get; set; }
 
@@ -24,7 +19,7 @@ namespace helengine {
         public float3 LocalPosition { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the local-scale override is authored for this platform.
+        /// Gets or sets a value indicating whether the local-scale override is authored for this scope.
         /// </summary>
         public bool HasLocalScaleOverride { get; set; }
 
@@ -34,7 +29,7 @@ namespace helengine {
         public float3 LocalScale { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the local-orientation override is authored for this platform.
+        /// Gets or sets a value indicating whether the local-orientation override is authored for this scope.
         /// </summary>
         public bool HasLocalOrientationOverride { get; set; }
 

@@ -26,14 +26,14 @@ namespace helengine {
         public uint EntityId { get; set; }
 
         /// <summary>
-        /// Gets or sets the platform currently projected into the live entity transform while editing in the inspector.
+        /// Gets or sets the scope currently projected into the live entity transform while editing; Common when none.
         /// </summary>
-        public string ActiveTransformPlatformId { get; set; }
+        public EditorOverrideScope ActiveTransformScope { get; set; }
 
         /// <summary>
-        /// Gets or sets the nested environment currently projected into the live entity transform.
+        /// Gets or sets the authored level order beneath Common, or null to use the project default.
         /// </summary>
-        public string ActiveTransformEnvironmentId { get; set; }
+        public IReadOnlyList<SceneOverrideScopeStepKind> OverrideLevelOrder { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether the common transform snapshot is available while one platform override is projected into the live entity.
@@ -63,8 +63,7 @@ namespace helengine {
             ExistenceOverridesByScope = new EditorOverrideScopeMap<SceneEntityPlatformExistenceOverrideAsset>();
             TransformOverridesByScope = new EditorOverrideScopeMap<SceneEntityPlatformTransformOverrideAsset>();
             ComponentOverridesByScope = new EditorOverrideScopeMap<EntityPlatformComponentOverrideState>();
-            ActiveTransformPlatformId = string.Empty;
-            ActiveTransformEnvironmentId = string.Empty;
+            ActiveTransformScope = EditorOverrideScope.Common;
         }
 
         /// <summary>
@@ -137,8 +136,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(overrideState));
             }
 
-            overrideState.PlatformId = scope.PlatformId;
-            overrideState.EnvironmentId = scope.EnvironmentId;
+            overrideState.Scope = scope.ToSteps();
             ExistenceOverridesByScope.Set(scope, overrideState);
         }
 
@@ -158,8 +156,7 @@ namespace helengine {
         /// <returns>Mutable entity existence override payload.</returns>
         public SceneEntityPlatformExistenceOverrideAsset GetOrCreateExistencePlatformOverride(EditorOverrideScope scope) {
             return ExistenceOverridesByScope.GetOrCreate(scope, () => new SceneEntityPlatformExistenceOverrideAsset {
-                PlatformId = scope.PlatformId,
-                EnvironmentId = scope.EnvironmentId,
+                Scope = scope.ToSteps(),
                 Exists = true
             });
         }
@@ -227,8 +224,7 @@ namespace helengine {
                 throw new ArgumentNullException(nameof(overrideState));
             }
 
-            overrideState.PlatformId = scope.PlatformId;
-            overrideState.EnvironmentId = scope.EnvironmentId;
+            overrideState.Scope = scope.ToSteps();
             TransformOverridesByScope.Set(scope, overrideState);
         }
 
@@ -248,8 +244,7 @@ namespace helengine {
         /// <returns>Mutable transform override payload.</returns>
         public SceneEntityPlatformTransformOverrideAsset GetOrCreateTransformPlatformOverride(EditorOverrideScope scope) {
             return TransformOverridesByScope.GetOrCreate(scope, () => new SceneEntityPlatformTransformOverrideAsset {
-                PlatformId = scope.PlatformId,
-                EnvironmentId = scope.EnvironmentId
+                Scope = scope.ToSteps()
             });
         }
 
@@ -313,8 +308,7 @@ namespace helengine {
         /// <returns>Mutable component existence override payload.</returns>
         public EntityPlatformComponentOverrideState GetOrCreateComponentPlatformOverride(EditorOverrideScope scope) {
             return ComponentOverridesByScope.GetOrCreate(scope, () => new EntityPlatformComponentOverrideState {
-                PlatformId = scope.PlatformId,
-                EnvironmentId = scope.EnvironmentId
+                Scope = scope
             });
         }
 

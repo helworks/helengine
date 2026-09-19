@@ -2583,7 +2583,7 @@ namespace helengine.editor.tests {
                         Components = Array.Empty<SceneComponentAssetRecord>(),
                         PlatformTransformOverrides = new[] {
                             new SceneEntityPlatformTransformOverrideAsset {
-                                PlatformId = "windows",
+                                Scope = SceneOverrideScopePath.Platform("windows"),
                                 HasLocalPositionOverride = true,
                                 LocalPosition = new float3(10f, 20f, 30f)
                             }
@@ -2626,7 +2626,7 @@ namespace helengine.editor.tests {
                         Components = Array.Empty<SceneComponentAssetRecord>(),
                         PlatformExistenceOverrides = new[] {
                             new SceneEntityPlatformExistenceOverrideAsset {
-                                PlatformId = "windows",
+                                Scope = SceneOverrideScopePath.Platform("windows"),
                                 Exists = true
                             }
                         },
@@ -2640,7 +2640,7 @@ namespace helengine.editor.tests {
                                 Components = Array.Empty<SceneComponentAssetRecord>(),
                                 PlatformExistenceOverrides = new[] {
                                     new SceneEntityPlatformExistenceOverrideAsset {
-                                        PlatformId = "windows",
+                                        Scope = SceneOverrideScopePath.Platform("windows"),
                                         Exists = false
                                     }
                                 },
@@ -2694,7 +2694,7 @@ namespace helengine.editor.tests {
                         Components = Array.Empty<SceneComponentAssetRecord>(),
                         PlatformExistenceOverrides = new[] {
                             new SceneEntityPlatformExistenceOverrideAsset {
-                                PlatformId = "windows",
+                                Scope = SceneOverrideScopePath.Platform("windows"),
                                 Exists = false
                             }
                         },
@@ -2748,7 +2748,7 @@ namespace helengine.editor.tests {
                         Components = Array.Empty<SceneComponentAssetRecord>(),
                         PlatformComponentOverrides = new[] {
                             new SceneEntityPlatformComponentOverrideAsset {
-                                PlatformId = "windows",
+                                Scope = SceneOverrideScopePath.Platform("windows"),
                                 AddedComponents = new[] {
                                     new SceneEntityPlatformAddedComponentAsset {
                                         Component = cameraRecord

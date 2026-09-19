@@ -1025,21 +1025,20 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformExistenceOverrideAsset[] existenceOverrides = entityAsset.PlatformExistenceOverrides ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
+            EditorOverrideScope targetScope = new EditorOverrideScope(TargetPlatformId, SelectedEnvironmentId);
+            EditorOverrideScope platformScope = new EditorOverrideScope(TargetPlatformId);
             SceneEntityPlatformExistenceOverrideAsset platformOverride = null;
             for (int index = 0; index < existenceOverrides.Length; index++) {
                 SceneEntityPlatformExistenceOverrideAsset existenceOverride = existenceOverrides[index];
-                if (existenceOverride == null || string.IsNullOrWhiteSpace(existenceOverride.PlatformId)) {
+                if (existenceOverride == null) {
                     continue;
                 }
 
-                if (!string.Equals(existenceOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (!string.IsNullOrWhiteSpace(SelectedEnvironmentId)
-                    && string.Equals(existenceOverride.EnvironmentId, SelectedEnvironmentId, StringComparison.OrdinalIgnoreCase)) {
+                EditorOverrideScope scope = EditorOverrideScope.FromSteps(existenceOverride.Scope);
+                if (scope == targetScope) {
                     return existenceOverride;
                 }
-                if (string.IsNullOrWhiteSpace(existenceOverride.EnvironmentId)) {
+                if (scope == platformScope) {
                     platformOverride = existenceOverride;
                 }
             }
@@ -1063,21 +1062,20 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformTransformOverrideAsset[] transformOverrides = entityAsset.PlatformTransformOverrides ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
+            EditorOverrideScope targetScope = new EditorOverrideScope(TargetPlatformId, SelectedEnvironmentId);
+            EditorOverrideScope platformScope = new EditorOverrideScope(TargetPlatformId);
             SceneEntityPlatformTransformOverrideAsset platformOverride = null;
             for (int index = 0; index < transformOverrides.Length; index++) {
                 SceneEntityPlatformTransformOverrideAsset transformOverride = transformOverrides[index];
-                if (transformOverride == null || string.IsNullOrWhiteSpace(transformOverride.PlatformId)) {
+                if (transformOverride == null) {
                     continue;
                 }
 
-                if (!string.Equals(transformOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (!string.IsNullOrWhiteSpace(SelectedEnvironmentId)
-                    && string.Equals(transformOverride.EnvironmentId, SelectedEnvironmentId, StringComparison.OrdinalIgnoreCase)) {
+                EditorOverrideScope scope = EditorOverrideScope.FromSteps(transformOverride.Scope);
+                if (scope == targetScope) {
                     return transformOverride;
                 }
-                if (string.IsNullOrWhiteSpace(transformOverride.EnvironmentId)) {
+                if (scope == platformScope) {
                     platformOverride = transformOverride;
                 }
             }
@@ -1101,21 +1099,20 @@ namespace helengine.editor {
             }
 
             SceneEntityPlatformComponentOverrideAsset[] componentOverrides = entityAsset.PlatformComponentOverrides ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+            EditorOverrideScope targetScope = new EditorOverrideScope(TargetPlatformId, SelectedEnvironmentId);
+            EditorOverrideScope platformScope = new EditorOverrideScope(TargetPlatformId);
             SceneEntityPlatformComponentOverrideAsset platformOverride = null;
             for (int index = 0; index < componentOverrides.Length; index++) {
                 SceneEntityPlatformComponentOverrideAsset componentOverride = componentOverrides[index];
-                if (componentOverride == null || string.IsNullOrWhiteSpace(componentOverride.PlatformId)) {
+                if (componentOverride == null) {
                     continue;
                 }
 
-                if (!string.Equals(componentOverride.PlatformId, TargetPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
-                }
-                if (!string.IsNullOrWhiteSpace(SelectedEnvironmentId)
-                    && string.Equals(componentOverride.EnvironmentId, SelectedEnvironmentId, StringComparison.OrdinalIgnoreCase)) {
+                EditorOverrideScope scope = EditorOverrideScope.FromSteps(componentOverride.Scope);
+                if (scope == targetScope) {
                     return componentOverride;
                 }
-                if (string.IsNullOrWhiteSpace(componentOverride.EnvironmentId)) {
+                if (scope == platformScope) {
                     platformOverride = componentOverride;
                 }
             }

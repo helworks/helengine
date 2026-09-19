@@ -69,6 +69,16 @@ namespace helengine {
         public float4 LocalOrientation { get; set; }
 
         /// <summary>
+        /// Gets or sets whether <see cref="OverrideLevelOrder"/> is authored; false means the project default order applies.
+        /// </summary>
+        public bool HasOverrideLevelOrder { get; set; }
+
+        /// <summary>
+        /// Gets or sets the level kinds beneath Common, outermost first, that this entity's overrides are authored against.
+        /// </summary>
+        public SceneOverrideScopeStepKind[] OverrideLevelOrder { get; set; } = Array.Empty<SceneOverrideScopeStepKind>();
+
+        /// <summary>
         /// Gets or sets the serialized component payloads attached to the entity.
         /// </summary>
         public SceneComponentAssetRecord[] Components { get; set; } = Array.Empty<SceneComponentAssetRecord>();

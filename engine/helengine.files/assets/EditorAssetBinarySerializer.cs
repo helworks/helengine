@@ -18,7 +18,7 @@ namespace helengine.files {
         /// <summary>
         /// Serializer version for the current editor asset payload layout.
         /// </summary>
-        public const byte CurrentVersion = 24;
+        public const byte CurrentVersion = 25;
 
         /// <summary>
         /// Payload description used when a stored header carries a foreign format id.

@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Stores editor-only serialized component override metadata for one target platform.
+    /// Stores editor-only serialized component override metadata for one override scope.
     /// </summary>
     public class EntityComponentPlatformOverrideState {
         /// <summary>
@@ -23,19 +23,13 @@ namespace helengine {
             AssetReferencesByName = new Dictionary<string, SceneAssetReference>(StringComparer.Ordinal);
             OverriddenPropertyPaths = new HashSet<string>(StringComparer.Ordinal);
             MemberValuesByName = new Dictionary<string, string>(StringComparer.Ordinal);
-            PlatformId = string.Empty;
             Payload = Array.Empty<byte>();
         }
 
         /// <summary>
-        /// Gets or sets the platform identifier that owns this override payload.
+        /// Gets or sets the scope path this override is authored on.
         /// </summary>
-        public string PlatformId { get; set; }
-
-        /// <summary>
-        /// Gets or sets the optional environment identifier nested under <see cref="PlatformId"/>.
-        /// </summary>
-        public string EnvironmentId { get; set; }
+        public EditorOverrideScope Scope { get; set; }
 
         /// <summary>
         /// Gets or sets the serialized component payload used by the override.

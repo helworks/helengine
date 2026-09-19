@@ -10,8 +10,8 @@ namespace helengine.core.tests.assets {
         /// </summary>
         /// <param name="version">Unsupported packaged asset header version.</param>
         [Theory]
-        [InlineData(23)]
-        [InlineData(25)]
+        [InlineData(24)]
+        [InlineData(26)]
         public void Deserialize_WhenHeaderVersionIsNotCurrent_ThrowsRegenerationGuidance(byte version) {
             using MemoryStream stream = CreateHeaderOnlyStream(version);
 

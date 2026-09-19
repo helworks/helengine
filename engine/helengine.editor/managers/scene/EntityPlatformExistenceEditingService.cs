@@ -113,8 +113,7 @@ namespace helengine.editor {
             }
 
             saveComponent.SetExistencePlatformOverride(scope, new SceneEntityPlatformExistenceOverrideAsset {
-                PlatformId = scope.PlatformId,
-                EnvironmentId = scope.EnvironmentId,
+                Scope = scope.ToSteps(),
                 Exists = exists
             });
             ExistenceChanged?.Invoke();
