@@ -10,6 +10,7 @@ namespace helengine.editor {
         /// <summary>File name beneath <c>settings/</c>.</summary>
         public const string SettingsFileName = "platform-groups.json";
 
+        /// <summary>Gets the JSON formatting rules used for the platform group settings document: indented, camelCase properties, enum names as strings.</summary>
         static JsonSerializerOptions JsonSerializerOptions { get; } = new() {
             WriteIndented = true,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
