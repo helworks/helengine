@@ -142,5 +142,36 @@ namespace helengine.editor.tests {
             Assert.True(service.HasExistenceOverride(saveComponent, handheld));
             Assert.False(service.HasExistenceOverride(saveComponent, handheldDsDebug));
         }
+
+        [Fact]
+        public void ActivateScope_WhenGroupPlatformAndConfigAreAuthored_FoldsEveryPrefix() {
+            EditorEntity entity = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices()) {
+                LocalPosition = float3.Zero,
+                LocalScale = float3.One,
+                LocalOrientation = float4.Identity
+            };
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            EntityPlatformTransformEditingService service = new EntityPlatformTransformEditingService();
+            EditorOverrideScope handheld = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld"));
+            EditorOverrideScope handheldDs = handheld.Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"));
+            EditorOverrideScope handheldDsDebug = handheldDs.Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.BuildConfig, "debug"));
+
+            saveComponent.SetTransformPlatformOverride(handheld, new SceneEntityPlatformTransformOverrideAsset { HasLocalPositionOverride = true, LocalPosition = new float3(1f, 0f, 0f) });
+            saveComponent.SetTransformPlatformOverride(handheldDs, new SceneEntityPlatformTransformOverrideAsset { HasLocalScaleOverride = true, LocalScale = new float3(3f, 3f, 3f) });
+            saveComponent.SetTransformPlatformOverride(handheldDsDebug, new SceneEntityPlatformTransformOverrideAsset { HasLocalPositionOverride = true, LocalPosition = new float3(2f, 0f, 0f) });
+
+            service.ActivateScope(entity, saveComponent, handheldDsDebug);
+            Assert.Equal(new float3(2f, 0f, 0f), entity.LocalPosition);
+            Assert.Equal(new float3(3f, 3f, 3f), entity.LocalScale);
+            Assert.Equal(handheldDsDebug, saveComponent.ActiveTransformScope);
+
+            entity.LocalScale = new float3(3f, 3f, 3f);
+            entity.LocalPosition = new float3(1f, 0f, 0f);
+            service.RestoreCommonScope(entity, saveComponent);
+
+            Assert.False(saveComponent.TryGetTransformPlatformOverride(handheldDsDebug, out _));
+            Assert.True(saveComponent.ActiveTransformScope.IsCommon);
+            Assert.Equal(float3.Zero, entity.LocalPosition);
+        }
     }
 }

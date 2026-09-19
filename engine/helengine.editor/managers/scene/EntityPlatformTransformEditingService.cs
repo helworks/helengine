@@ -23,34 +23,11 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            string normalizedRequestedPlatformId = NormalizePlatformId(platformId);
-            string normalizedActivePlatformId = NormalizePlatformId(saveComponent.ActiveTransformScope.PlatformId);
-            if (string.Equals(normalizedRequestedPlatformId, normalizedActivePlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return;
-            }
-
-            PersistActivePlatform(entity, saveComponent);
-            if (!IsCommonPlatformId(normalizedActivePlatformId) && IsCommonPlatformId(normalizedRequestedPlatformId)) {
-                RestoreCommonTransform(entity, saveComponent);
-                ClearActiveProjection(saveComponent);
-                return;
-            }
-
-            if (IsCommonPlatformId(normalizedRequestedPlatformId)) {
-                ClearActiveProjection(saveComponent);
-                return;
-            }
-
-            if (!saveComponent.HasCommonTransformSnapshot) {
-                CaptureCommonTransform(entity, saveComponent);
-            }
-
-            ApplyPlatformTransform(entity, saveComponent, normalizedRequestedPlatformId);
-            saveComponent.ActiveTransformScope = new EditorOverrideScope(normalizedRequestedPlatformId);
+            ActivateScope(entity, saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Activates a platform or nested environment transform projection using common-to-platform-to-environment inheritance.
+        /// Projects one path into the live transform: the Common snapshot, then every authored prefix from shallowest to deepest.
         /// </summary>
         public void ActivateScope(Entity entity, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
             if (entity == null) {
@@ -59,14 +36,12 @@ namespace helengine.editor {
             if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
-
-            EditorOverrideScope activeScope = saveComponent.ActiveTransformScope;
-            if (activeScope == scope) {
+            if (saveComponent.ActiveTransformScope == scope) {
                 return;
             }
 
             PersistActiveScope(entity, saveComponent);
-            if (IsCommonPlatformId(scope.PlatformId)) {
+            if (scope.IsCommon) {
                 RestoreCommonTransform(entity, saveComponent);
                 ClearActiveProjection(saveComponent);
                 return;
@@ -76,12 +51,18 @@ namespace helengine.editor {
                 CaptureCommonTransform(entity, saveComponent);
             }
 
-            ApplyScopeTransform(entity, saveComponent, scope);
+            float3 localPosition = saveComponent.CommonLocalPositionSnapshot;
+            float3 localScale = saveComponent.CommonLocalScaleSnapshot;
+            float4 localOrientation = saveComponent.CommonLocalOrientationSnapshot;
+            FoldScopeTransform(saveComponent, scope, ref localPosition, ref localScale, ref localOrientation);
+            entity.LocalPosition = localPosition;
+            entity.LocalScale = localScale;
+            entity.LocalOrientation = localOrientation;
             saveComponent.ActiveTransformScope = scope;
         }
 
         /// <summary>
-        /// Persists the currently projected platform or environment transform payload.
+        /// Persists the projected path's payload as the difference between the live transform and the fold of its parent path.
         /// </summary>
         public void PersistActiveScope(Entity entity, EntitySaveComponent saveComponent) {
             if (entity == null) {
@@ -99,9 +80,7 @@ namespace helengine.editor {
             float3 parentPosition = saveComponent.CommonLocalPositionSnapshot;
             float3 parentScale = saveComponent.CommonLocalScaleSnapshot;
             float4 parentOrientation = saveComponent.CommonLocalOrientationSnapshot;
-            if (!scope.IsPlatformOnly && saveComponent.TryGetTransformPlatformOverride(new EditorOverrideScope(scope.PlatformId), out SceneEntityPlatformTransformOverrideAsset platformOverride)) {
-                ApplyOverride(ref parentPosition, ref parentScale, ref parentOrientation, platformOverride);
-            }
+            FoldScopeTransform(saveComponent, scope.Parent, ref parentPosition, ref parentScale, ref parentOrientation);
 
             SceneEntityPlatformTransformOverrideAsset overrideState = saveComponent.GetOrCreateTransformPlatformOverride(scope);
             overrideState.Scope = scope.ToSteps();
@@ -116,6 +95,22 @@ namespace helengine.editor {
                 && !overrideState.HasLocalScaleOverride
                 && !overrideState.HasLocalOrientationOverride) {
                 saveComponent.RemoveTransformPlatformOverride(scope);
+            }
+        }
+
+        /// <summary>
+        /// Applies every authored prefix of <paramref name="scope"/>, shallowest first, onto the supplied transform.
+        /// </summary>
+        void FoldScopeTransform(EntitySaveComponent saveComponent, EditorOverrideScope scope, ref float3 position, ref float3 scale, ref float4 orientation) {
+            for (int depth = 1; depth <= scope.Depth; depth++) {
+                EditorOverrideScopeStep[] prefixSteps = new EditorOverrideScopeStep[depth];
+                for (int index = 0; index < depth; index++) {
+                    prefixSteps[index] = scope.Steps[index];
+                }
+
+                if (saveComponent.TryGetTransformPlatformOverride(new EditorOverrideScope(prefixSteps), out SceneEntityPlatformTransformOverrideAsset overrideState)) {
+                    ApplyOverride(ref position, ref scale, ref orientation, overrideState);
+                }
             }
         }
 
@@ -155,35 +150,23 @@ namespace helengine.editor {
 
             EditorOverrideScope activeScope = saveComponent.ActiveTransformScope;
             if (activeScope == scope) {
-                ApplyScopeTransform(entity, saveComponent, scope);
+                float3 localPosition = saveComponent.CommonLocalPositionSnapshot;
+                float3 localScale = saveComponent.CommonLocalScaleSnapshot;
+                float4 localOrientation = saveComponent.CommonLocalOrientationSnapshot;
+                FoldScopeTransform(saveComponent, scope, ref localPosition, ref localScale, ref localOrientation);
+                entity.LocalPosition = localPosition;
+                entity.LocalScale = localScale;
+                entity.LocalOrientation = localOrientation;
             }
         }
 
         /// <summary>
-        /// Persists the currently projected platform override from the live entity back into the hidden save metadata.
+        /// Persists the projected path; kept for callers that think in platforms.
         /// </summary>
         /// <param name="entity">Entity whose live transform should be captured.</param>
         /// <param name="saveComponent">Hidden save component that owns the transform override metadata.</param>
         public void PersistActivePlatform(Entity entity, EntitySaveComponent saveComponent) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            } else if (saveComponent == null) {
-                throw new ArgumentNullException(nameof(saveComponent));
-            }
-
-            string normalizedActivePlatformId = NormalizePlatformId(saveComponent.ActiveTransformScope.PlatformId);
-            if (IsCommonPlatformId(normalizedActivePlatformId) || !saveComponent.HasCommonTransformSnapshot) {
-                return;
-            }
-
-            SceneEntityPlatformTransformOverrideAsset overrideState = saveComponent.GetOrCreateTransformPlatformOverride(normalizedActivePlatformId);
-            overrideState.Scope = SceneOverrideScopePath.Platform(normalizedActivePlatformId);
-            overrideState.HasLocalPositionOverride = entity.LocalPosition != saveComponent.CommonLocalPositionSnapshot;
-            overrideState.LocalPosition = entity.LocalPosition;
-            overrideState.HasLocalScaleOverride = entity.LocalScale != saveComponent.CommonLocalScaleSnapshot;
-            overrideState.LocalScale = entity.LocalScale;
-            overrideState.HasLocalOrientationOverride = !entity.LocalOrientation.Equals(saveComponent.CommonLocalOrientationSnapshot);
-            overrideState.LocalOrientation = entity.LocalOrientation;
+            PersistActiveScope(entity, saveComponent);
         }
 
         /// <summary>
@@ -198,7 +181,7 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            PersistActivePlatform(entity, saveComponent);
+            PersistActiveScope(entity, saveComponent);
             RestoreCommonTransform(entity, saveComponent);
             ClearActiveProjection(saveComponent);
         }
@@ -292,8 +275,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            return saveComponent.TryGetTransformPlatformOverride(platformId, out SceneEntityPlatformTransformOverrideAsset overrideState)
-                && overrideState.HasLocalPositionOverride;
+            return IsScopePositionOverrideActive(saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>Returns whether a platform or nested environment explicitly overrides local position.</summary>
@@ -316,8 +298,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            return saveComponent.TryGetTransformPlatformOverride(platformId, out SceneEntityPlatformTransformOverrideAsset overrideState)
-                && overrideState.HasLocalOrientationOverride;
+            return IsScopeRotationOverrideActive(saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>Returns whether a platform or nested environment explicitly overrides local rotation.</summary>
@@ -340,8 +321,7 @@ namespace helengine.editor {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            return saveComponent.TryGetTransformPlatformOverride(platformId, out SceneEntityPlatformTransformOverrideAsset overrideState)
-                && overrideState.HasLocalScaleOverride;
+            return IsScopeScaleOverrideActive(saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>Returns whether a platform or nested environment explicitly overrides local scale.</summary>
@@ -358,7 +338,7 @@ namespace helengine.editor {
         /// <param name="saveComponent">Hidden save component that owns the transform override metadata.</param>
         /// <param name="platformId">Platform identifier whose position override should be cleared.</param>
         public void ClearPositionOverride(Entity entity, EntitySaveComponent saveComponent, string platformId) {
-            ClearTransformOverride(entity, saveComponent, platformId, TransformOverrideFieldKind.Position);
+            ClearScopeOverride(entity, saveComponent, EditorOverrideScope.ForPlatform(platformId), "position");
         }
 
         /// <summary>
@@ -368,7 +348,7 @@ namespace helengine.editor {
         /// <param name="saveComponent">Hidden save component that owns the transform override metadata.</param>
         /// <param name="platformId">Platform identifier whose rotation override should be cleared.</param>
         public void ClearRotationOverride(Entity entity, EntitySaveComponent saveComponent, string platformId) {
-            ClearTransformOverride(entity, saveComponent, platformId, TransformOverrideFieldKind.Rotation);
+            ClearScopeOverride(entity, saveComponent, EditorOverrideScope.ForPlatform(platformId), "rotation");
         }
 
         /// <summary>
@@ -378,7 +358,7 @@ namespace helengine.editor {
         /// <param name="saveComponent">Hidden save component that owns the transform override metadata.</param>
         /// <param name="platformId">Platform identifier whose scale override should be cleared.</param>
         public void ClearScaleOverride(Entity entity, EntitySaveComponent saveComponent, string platformId) {
-            ClearTransformOverride(entity, saveComponent, platformId, TransformOverrideFieldKind.Scale);
+            ClearScopeOverride(entity, saveComponent, EditorOverrideScope.ForPlatform(platformId), "scale");
         }
 
         /// <summary>
@@ -391,35 +371,6 @@ namespace helengine.editor {
             saveComponent.CommonLocalScaleSnapshot = entity.LocalScale;
             saveComponent.CommonLocalOrientationSnapshot = entity.LocalOrientation;
             saveComponent.HasCommonTransformSnapshot = true;
-        }
-
-        /// <summary>
-        /// Applies the effective transform for one non-common platform to the live entity.
-        /// </summary>
-        /// <param name="entity">Entity whose live transform should be updated.</param>
-        /// <param name="saveComponent">Hidden save component that stores the common snapshot and override metadata.</param>
-        /// <param name="platformId">Non-common platform identifier whose effective transform should be applied.</param>
-        void ApplyPlatformTransform(Entity entity, EntitySaveComponent saveComponent, string platformId) {
-            ApplyScopeTransform(entity, saveComponent, new EditorOverrideScope(platformId));
-        }
-
-        /// <summary>
-        /// Applies common, platform, and environment transform payloads in inheritance order.
-        /// </summary>
-        void ApplyScopeTransform(Entity entity, EntitySaveComponent saveComponent, EditorOverrideScope scope) {
-            float3 localPosition = saveComponent.CommonLocalPositionSnapshot;
-            float3 localScale = saveComponent.CommonLocalScaleSnapshot;
-            float4 localOrientation = saveComponent.CommonLocalOrientationSnapshot;
-            if (saveComponent.TryGetTransformPlatformOverride(new EditorOverrideScope(scope.PlatformId), out SceneEntityPlatformTransformOverrideAsset platformOverride)) {
-                ApplyOverride(ref localPosition, ref localScale, ref localOrientation, platformOverride);
-            }
-            if (!scope.IsPlatformOnly && saveComponent.TryGetTransformPlatformOverride(scope, out SceneEntityPlatformTransformOverrideAsset environmentOverride)) {
-                ApplyOverride(ref localPosition, ref localScale, ref localOrientation, environmentOverride);
-            }
-
-            entity.LocalPosition = localPosition;
-            entity.LocalScale = localScale;
-            entity.LocalOrientation = localOrientation;
         }
 
         /// <summary>
@@ -462,88 +413,6 @@ namespace helengine.editor {
             saveComponent.CommonLocalPositionSnapshot = float3.Zero;
             saveComponent.CommonLocalScaleSnapshot = float3.Zero;
             saveComponent.CommonLocalOrientationSnapshot = float4.Identity;
-        }
-
-        /// <summary>
-        /// Clears one transform override field from the supplied platform payload and reapplies the active projection when required.
-        /// </summary>
-        /// <param name="entity">Entity whose live transform may need to update.</param>
-        /// <param name="saveComponent">Hidden save component that owns the transform override metadata.</param>
-        /// <param name="platformId">Platform identifier whose override field should be cleared.</param>
-        /// <param name="fieldKind">Transform field that should return to common behavior.</param>
-        void ClearTransformOverride(Entity entity, EntitySaveComponent saveComponent, string platformId, TransformOverrideFieldKind fieldKind) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            } else if (saveComponent == null) {
-                throw new ArgumentNullException(nameof(saveComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
-            }
-
-            if (!saveComponent.TryGetTransformPlatformOverride(platformId, out SceneEntityPlatformTransformOverrideAsset overrideState)) {
-                return;
-            }
-
-            if (fieldKind == TransformOverrideFieldKind.Position) {
-                overrideState.HasLocalPositionOverride = false;
-                overrideState.LocalPosition = float3.Zero;
-            } else if (fieldKind == TransformOverrideFieldKind.Rotation) {
-                overrideState.HasLocalOrientationOverride = false;
-                overrideState.LocalOrientation = float4.Identity;
-            } else if (fieldKind == TransformOverrideFieldKind.Scale) {
-                overrideState.HasLocalScaleOverride = false;
-                overrideState.LocalScale = float3.Zero;
-            }
-
-            if (!overrideState.HasLocalPositionOverride
-                && !overrideState.HasLocalOrientationOverride
-                && !overrideState.HasLocalScaleOverride) {
-                saveComponent.RemoveTransformPlatformOverride(platformId);
-            }
-
-            if (string.Equals(NormalizePlatformId(saveComponent.ActiveTransformScope.PlatformId), NormalizePlatformId(platformId), StringComparison.OrdinalIgnoreCase)) {
-                ApplyPlatformTransform(entity, saveComponent, NormalizePlatformId(platformId));
-            }
-        }
-
-        /// <summary>
-        /// Normalizes one platform identifier so comparison logic can treat missing values as the shared common state.
-        /// </summary>
-        /// <param name="platformId">Platform identifier to normalize.</param>
-        /// <returns>Normalized platform identifier.</returns>
-        string NormalizePlatformId(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                return CommonPlatformId;
-            }
-
-            return platformId;
-        }
-
-        /// <summary>
-        /// Returns whether the supplied platform identifier refers to the shared common transform state.
-        /// </summary>
-        /// <param name="platformId">Platform identifier to classify.</param>
-        /// <returns>True when the supplied identifier points at the common transform state.</returns>
-        bool IsCommonPlatformId(string platformId) {
-            return string.Equals(NormalizePlatformId(platformId), CommonPlatformId, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Identifies one transform field inside a platform override payload.
-        /// </summary>
-        enum TransformOverrideFieldKind {
-            /// <summary>
-            /// Clears the local-position override.
-            /// </summary>
-            Position,
-            /// <summary>
-            /// Clears the local-orientation override.
-            /// </summary>
-            Rotation,
-            /// <summary>
-            /// Clears the local-scale override.
-            /// </summary>
-            Scale
         }
     }
 }
