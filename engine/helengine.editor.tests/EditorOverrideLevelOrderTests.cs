@@ -51,6 +51,20 @@ namespace helengine.editor.tests {
         }
 
         [Fact]
+        public void Plan_DropsARelocationWhoseTargetIsOccupiedByAStationaryScope() {
+            SceneOverrideScopeStepKind[] newOrder = { SceneOverrideScopeStepKind.BuildConfig, SceneOverrideScopeStepKind.Platform };
+            EditorOverrideScope dsDebug = EditorOverrideScope.Common.Append(Ds).Append(Debug);
+            EditorOverrideScope debugDs = EditorOverrideScope.Common.Append(Debug).Append(Ds);
+
+            EditorOverrideScopeRelocationPlan plan = EditorOverrideScopeRelocationPlanner.Plan(newOrder, new[] { dsDebug, debugDs });
+
+            Assert.Contains(plan.Dropped, item => item == dsDebug);
+            Assert.DoesNotContain(plan.Relocated, item => item.Source == debugDs);
+            Assert.DoesNotContain(plan.Dropped, item => item == debugDs);
+            Assert.True(plan.HasDrops);
+        }
+
+        [Fact]
         public void Apply_MovesExistenceTransformAndComponentEntriesAndDeletesDrops() {
             EntitySaveComponent saveComponent = new EntitySaveComponent();
             EditorOverrideScope dsDebug = EditorOverrideScope.Common.Append(Ds).Append(Debug);

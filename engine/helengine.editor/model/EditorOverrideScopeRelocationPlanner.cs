@@ -5,7 +5,9 @@ namespace helengine {
     public static class EditorOverrideScopeRelocationPlanner {
         /// <summary>
         /// Maps each authored path onto the new order: steps whose kind survives keep their id and are re-sequenced by
-        /// the new order; a path whose kind was removed, or whose result is not a valid prefix walk, is dropped.
+        /// the new order; a path whose kind was removed, or whose result is not a valid prefix walk, is dropped. A
+        /// relocation whose target coincides with a scope that stays put, or with another relocation's target, is
+        /// also reported as dropped rather than silently overwriting the occupant.
         /// </summary>
         public static EditorOverrideScopeRelocationPlan Plan(IReadOnlyList<SceneOverrideScopeStepKind> newOrder, IEnumerable<EditorOverrideScope> authored) {
             if (authored == null) {
@@ -14,18 +16,32 @@ namespace helengine {
 
             EditorOverrideLevelOrder.Validate(newOrder);
             EditorOverrideScopeRelocationPlan plan = new EditorOverrideScopeRelocationPlan { NewOrder = newOrder };
+            List<EditorOverrideScope> unique = new List<EditorOverrideScope>();
             HashSet<EditorOverrideScope> seen = new HashSet<EditorOverrideScope>();
             foreach (EditorOverrideScope scope in authored) {
-                if (scope.IsCommon || !seen.Add(scope)) {
+                if (!scope.IsCommon && seen.Add(scope)) {
+                    unique.Add(scope);
+                }
+            }
+
+            HashSet<EditorOverrideScope> stayPut = new HashSet<EditorOverrideScope>();
+            for (int index = 0; index < unique.Count; index++) {
+                if (TryRelocate(newOrder, unique[index], out EditorOverrideScope target) && target == unique[index]) {
+                    stayPut.Add(unique[index]);
+                }
+            }
+
+            HashSet<EditorOverrideScope> claimedTargets = new HashSet<EditorOverrideScope>(stayPut);
+            for (int index = 0; index < unique.Count; index++) {
+                EditorOverrideScope scope = unique[index];
+                if (stayPut.Contains(scope)) {
                     continue;
                 }
-                if (!TryRelocate(newOrder, scope, out EditorOverrideScope target)) {
+                if (!TryRelocate(newOrder, scope, out EditorOverrideScope target) || !claimedTargets.Add(target)) {
                     plan.Dropped.Add(scope);
                     continue;
                 }
-                if (target != scope) {
-                    plan.Relocated.Add(new EditorOverrideScopeRelocation { Source = scope, Target = target });
-                }
+                plan.Relocated.Add(new EditorOverrideScopeRelocation { Source = scope, Target = target });
             }
 
             return plan;
