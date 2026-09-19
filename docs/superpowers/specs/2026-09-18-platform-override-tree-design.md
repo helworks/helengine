@@ -55,7 +55,7 @@ Inputs: an entity, its level order, the project's group tree, a target platform 
 
 1. Build the target path by taking, for each level in the entity's order, the node that matches the target. For Group that is the chain from the outermost group containing the platform to the innermost. For Platform it is the platform. For Build Config it is the environment.
 2. Find every authored override whose path is a prefix of the target path.
-3. The longest such prefix wins. Common is the empty prefix and always applies as the fallback.
+3. Fold those overrides shallowest prefix first, deepest last. Common is the empty prefix and always applies as the fallback. Entity existence takes the deepest authored value, because a boolean has nothing to merge. Each transform field takes the deepest authored value for that field, so a record's `HasLocal*Override` flags overwrite only the fields it claims and an unclaimed field keeps the value a shallower prefix set. Component add and remove sets accumulate: a key removed at one prefix stays removed unless a deeper prefix adds it back, and a component added at one prefix is dropped when a deeper prefix removes its key.
 
 Each level yields exactly one node, so step 2 never yields two overrides of equal length that differ. If the group tree is inconsistent, a platform in two groups or a group id that collides with a platform, the group settings are invalid and the build fails naming the offending ids. That is a settings error, not a scene error.
 

@@ -69,8 +69,14 @@ Properties are camelCase and enum values are written as their names, so `default
 
 Resolving a target (one platform, one build config) against an entity's authored overrides walks the entity's level
 order from Common downward: for each level, the target contributes exactly one node (the group chain containing the
-platform for Group, the platform itself for Platform, the environment for Build Config), and the deepest authored
-prefix of that walk wins. Because the path for a target is unique, two overrides can never conflict; there is no
+platform for Group, the platform itself for Platform, the environment for Build Config), and every override authored
+on a prefix of that walk applies, folded shallowest first and deepest last. Entity existence takes the deepest
+authored value, because a boolean has nothing to merge. Each transform field takes the deepest authored value for
+that field: a record's `HasLocalPositionOverride`, `HasLocalScaleOverride` and `HasLocalOrientationOverride` flags
+overwrite only the fields they claim, so a deeper record that sets scale alone keeps the position a shallower record
+set. Component add and remove sets accumulate along the path: a key removed at one prefix stays removed unless a
+deeper prefix adds it back, and a component added at one prefix is dropped when a deeper prefix removes its key.
+Because the path for a target is unique, two overrides can never conflict; there is no
 priority setting, only the level order itself. For example, an entity authored with `Common: Exists = false` and
 `Handheld: Exists = true` exists on every platform in the Handheld group and nowhere else; adding PSP to Handheld
 later makes the entity exist on PSP without touching the scene, and a PS1 build (PS1 not in Handheld) still resolves
@@ -83,13 +89,17 @@ reads `settings/platform-groups.json` and `settings/platforms.json` without writ
 back from the entity's order to the project default to `EditorOverrideLevelOrder.Default`; `BuildTargetPath` builds
 the path for a platform/environment pair. Both `EditorPlatformBuildScenePackager` and `EditorPlatformExistenceViewportSyncService`
 build their resolver through `EditorOverrideScopeResolver.Load` and call `BuildTargetPath(ResolveLevelOrder(...), platformId, environmentId)`
-to get the same target path — that path is what is shared. Selecting the winning override then differs by data
-source: the packager runs `EditorOverrideScopeResolver.TrySelectDeepest` over the serialized `Scope` arrays on a
-`SceneEntityAsset`'s override lists, while the viewport calls `EntityPlatformExistenceEditingService.ResolveExists(saveComponent, target)`,
-which calls `EntitySaveComponent.TryGetDeepestExistencePlatformOverride` and in turn `EditorOverrideScopeMap.TryGetDeepestPrefix`
-over the live editor state. Both implement the same rule — the deepest authored prefix wins, Common included, and an
-entity with nothing authored exists — so the packaged build and the editor viewport preview always agree on which
-override applies, even though one reads serialized assets and the other reads in-memory editor state.
+to get the same target path — that path is what is shared. Applying the authored overrides to that path then differs
+by data source, not by rule. For entity existence the packager runs `EditorOverrideScopeResolver.TrySelectDeepest`
+over the serialized `Scope` arrays on a `SceneEntityAsset`'s override list, while the viewport calls
+`EntityPlatformExistenceEditingService.ResolveExists(saveComponent, target)`, which calls
+`EntitySaveComponent.TryGetDeepestExistencePlatformOverride` and in turn `EditorOverrideScopeMap.TryGetDeepestPrefix`
+over the live editor state. For transforms, component sets and component property payloads the packager folds every
+prefix-matching record shallowest to deepest, the same fold the editor performs in
+`EntityPlatformTransformEditingService.FoldScopeTransform`, `ComponentPlatformEditingService.IsComponentRemoved` and
+`ComponentPlatformEditingService.GetAddedComponents`. So the packaged build and the editor viewport preview always
+agree on the effective value, existence and overrides alike, even though one reads serialized assets and the other
+reads in-memory editor state.
 
 ## Format versions
 

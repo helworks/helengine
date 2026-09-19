@@ -2724,6 +2724,99 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures transform overrides authored on several prefixes of the target path fold together instead of the deepest record alone deciding every field.
+        /// </summary>
+        [Fact]
+        public void Package_WhenTransformOverridesAreAuthoredOnTwoPrefixes_AppliesEveryAuthoredField() {
+            string sceneId = "Scenes/FoldedTransform.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u,
+                        Name = "Root",
+                        LocalPosition = new float3(1f, 2f, 3f),
+                        LocalScale = float3.One,
+                        LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        PlatformTransformOverrides = new[] {
+                            new SceneEntityPlatformTransformOverrideAsset {
+                                Scope = SceneOverrideScopePath.Platform("ds"),
+                                HasLocalPositionOverride = true,
+                                LocalPosition = new float3(10f, 20f, 30f)
+                            },
+                            new SceneEntityPlatformTransformOverrideAsset {
+                                Scope = SceneOverrideScopePath.PlatformBuildConfig("ds", "debug"),
+                                HasLocalScaleOverride = true,
+                                LocalScale = new float3(2f, 2f, 2f)
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            new EditorPlatformBuildScenePackager(ProjectRootPath, Array.Empty<IAssetImporterRegistration>(), "ds", BuiltInShaderAssetLibrary, "debug")
+                .Package(new[] { sceneId }, BuildRootPath);
+
+            using FileStream packagedSceneStream = File.OpenRead(GetPackagedScenePath(BuildRootPath, sceneId));
+            SceneEntityAsset packagedRoot = Assert.Single(DeserializePackagedScene(packagedSceneStream).RootEntities);
+
+            Assert.Equal(new float3(10f, 20f, 30f), packagedRoot.LocalPosition);
+            Assert.Equal(new float3(2f, 2f, 2f), packagedRoot.LocalScale);
+        }
+
+        /// <summary>
+        /// Ensures component removals and additions authored on several prefixes of the target path accumulate along the path.
+        /// </summary>
+        [Fact]
+        public void Package_WhenComponentSetOverridesAreAuthoredOnTwoPrefixes_AccumulatesRemovalsAndAdditions() {
+            new EditorProjectPlatformsService(ProjectRootPath).Save(new EditorProjectPlatformsDocument { SupportedPlatforms = ["windows", "ds", "ps1"] });
+            EditorProjectPlatformGroupsService groupsService = new EditorProjectPlatformGroupsService(ProjectRootPath);
+            EditorProjectPlatformGroupsDocument groups = groupsService.Load();
+            groupsService.AddGroup(groups, null, "handheld");
+            groupsService.AssignPlatform(groups, "handheld", "ds");
+            groupsService.Save(groups);
+            InitializeRuntimeCore(BuildRootPath);
+
+            SceneComponentAssetRecord commonCameraRecord = CreateCameraComponentRecord();
+            commonCameraRecord.ComponentKey = "common-camera";
+            SceneComponentAssetRecord addedCameraRecord = CreateCameraComponentRecord(EditorLayerMasks.SceneObjects, 99);
+            addedCameraRecord.ComponentKey = "ds-camera";
+
+            string sceneId = "Scenes/FoldedComponentSet.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u, Name = "CameraRoot", LocalScale = float3.One, LocalOrientation = float4.Identity,
+                        HasOverrideLevelOrder = true,
+                        OverrideLevelOrder = new[] { SceneOverrideScopeStepKind.Group, SceneOverrideScopeStepKind.Platform, SceneOverrideScopeStepKind.BuildConfig },
+                        Components = new[] { commonCameraRecord },
+                        PlatformComponentOverrides = new[] {
+                            new SceneEntityPlatformComponentOverrideAsset {
+                                Scope = SceneOverrideScopePath.Group("handheld"),
+                                RemovedComponentKeys = new[] { "common-camera" }
+                            },
+                            new SceneEntityPlatformComponentOverrideAsset {
+                                Scope = BuildGroupPlatformScopeSteps("handheld", "ds"),
+                                AddedComponents = new[] {
+                                    new SceneEntityPlatformAddedComponentAsset { Component = addedCameraRecord }
+                                }
+                            }
+                        },
+                        Children = Array.Empty<SceneEntityAsset>()
+                    }
+                }
+            });
+
+            new EditorPlatformBuildScenePackager(ProjectRootPath, Array.Empty<IAssetImporterRegistration>(), "ds", BuiltInShaderAssetLibrary)
+                .Package(new[] { sceneId }, Path.Combine(BuildRootPath, "ds"));
+
+            Assert.Equal(99, ReadPackagedCameraDrawOrder(Path.Combine(BuildRootPath, "ds"), sceneId));
+        }
+
+        /// <summary>
         /// Ensures a component property override authored on a group scope reaches the builds of the platforms inside that group and leaves platforms outside it on the common payload.
         /// </summary>
         [Fact]
@@ -4601,10 +4694,11 @@ namespace helengine.editor.tests {
         /// Creates one authored camera component record that matches the current reflected persistence contract.
         /// </summary>
         /// <param name="layerMask">Authored runtime layer mask assigned to the camera.</param>
+        /// <param name="cameraDrawOrder">Authored camera draw order assigned to the camera.</param>
         /// <returns>Serialized authored camera component record.</returns>
-        SceneComponentAssetRecord CreateCameraComponentRecord(ushort layerMask = EditorLayerMasks.SceneObjects) {
+        SceneComponentAssetRecord CreateCameraComponentRecord(ushort layerMask = EditorLayerMasks.SceneObjects, byte cameraDrawOrder = 17) {
             CameraComponent cameraComponent = new CameraComponent {
-                CameraDrawOrder = 17,
+                CameraDrawOrder = cameraDrawOrder,
                 LayerMask = layerMask,
                 Viewport = new float4(12f, 24f, 640f, 360f),
                 NearPlaneDistance = 0.42f,
@@ -4622,6 +4716,19 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Builds one serialized scope path that visits a group step and then a platform step.
+        /// </summary>
+        /// <param name="groupId">Platform group id occupying the Group level.</param>
+        /// <param name="platformId">Platform id occupying the Platform level.</param>
+        /// <returns>Serialized two-step scope path.</returns>
+        static SceneOverrideScopeStepAsset[] BuildGroupPlatformScopeSteps(string groupId, string platformId) {
+            return new[] {
+                new SceneOverrideScopeStepAsset { Kind = SceneOverrideScopeStepKind.Group, Id = groupId },
+                new SceneOverrideScopeStepAsset { Kind = SceneOverrideScopeStepKind.Platform, Id = platformId }
+            };
+        }
+
+        /// <summary>
         /// Creates one authored camera component record whose wrapped payload carries a draw-order override at the supplied scope path.
         /// </summary>
         /// <param name="scope">Scope path the override payload is authored against.</param>
@@ -4629,24 +4736,7 @@ namespace helengine.editor.tests {
         /// <returns>Wrapped authored camera component record.</returns>
         SceneComponentAssetRecord CreateScopedCameraDrawOrderOverrideRecord(EditorOverrideScope scope, byte overriddenDrawOrder) {
             SceneComponentAssetRecord commonRecord = CreateCameraComponentRecord();
-            CameraComponent overrideCamera = new CameraComponent {
-                CameraDrawOrder = overriddenDrawOrder,
-                LayerMask = EditorLayerMasks.SceneObjects,
-                Viewport = new float4(12f, 24f, 640f, 360f),
-                NearPlaneDistance = 0.42f,
-                FarPlaneDistance = 128f,
-                ClearSettings = new CameraClearSettings(true, new float4(0.25f, 0.5f, 0.75f, 1f), true, 1f, true, 9),
-                RenderSettings = new CameraRenderSettings {
-                    DepthPrepassMode = DepthPrepassMode.Always,
-                    ShadowDistance = 128f,
-                    PostProcessTier = PostProcessTier.High
-                }
-            };
-
-            ComponentPersistenceRegistry persistenceRegistry = new ComponentPersistenceRegistry();
-            SceneComponentAssetRecord overrideRecord = persistenceRegistry
-                .GetDescriptor(overrideCamera)
-                .SerializeComponent(overrideCamera, 0, new EntityComponentSaveState());
+            SceneComponentAssetRecord overrideRecord = CreateCameraComponentRecord(EditorLayerMasks.SceneObjects, overriddenDrawOrder);
             EntityComponentSaveState saveState = new EntityComponentSaveState();
             saveState.SetScopedPlatformOverride(scope, new EntityComponentPlatformOverrideState { Payload = overrideRecord.Payload });
             return new ComponentPlatformOverridePayloadService().Wrap(commonRecord, saveState);

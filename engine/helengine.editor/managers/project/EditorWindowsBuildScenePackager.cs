@@ -401,13 +401,14 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Initializes one scene packager for a target platform with an explicit session-owned shader library.
+        /// Initializes one scene packager for a target platform and optional environment with an explicit session-owned shader library.
         /// </summary>
         public EditorPlatformBuildScenePackager(
             string projectRootPath,
             IReadOnlyList<IAssetImporterRegistration> importers,
             string targetPlatformId,
-            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary)
+            EditorBuiltInShaderAssetLibrary builtInShaderAssetLibrary,
+            string selectedEnvironmentId = "")
             : this(
                 projectRootPath,
                 importers,
@@ -418,7 +419,9 @@ namespace helengine.editor {
                 string.Empty,
                 string.Empty,
                 null,
-                builtInShaderAssetLibrary) {
+                builtInShaderAssetLibrary,
+                null,
+                selectedEnvironmentId) {
         }
 
         /// <summary>
@@ -951,7 +954,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies the selected target platform transform override to one serialized scene entity before the runtime scene is written.
+        /// Folds every transform override authored on a prefix of the entity's target path into one serialized scene entity before the runtime scene is written.
         /// </summary>
         /// <param name="entityAsset">Scene entity payload being packaged.</param>
         void ApplyTargetPlatformTransformOverride(SceneEntityAsset entityAsset) {
@@ -959,8 +962,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
 
-            SceneEntityPlatformTransformOverrideAsset transformOverride = FindTargetPlatformTransformOverride(entityAsset);
-            if (transformOverride != null) {
+            List<SceneEntityPlatformTransformOverrideAsset> transformOverrides = CollectPrefixOverridesByDepth(
+                entityAsset.PlatformTransformOverrides,
+                item => item.Scope,
+                entityAsset);
+            for (int index = 0; index < transformOverrides.Count; index++) {
+                SceneEntityPlatformTransformOverrideAsset transformOverride = transformOverrides[index];
                 if (transformOverride.HasLocalPositionOverride) {
                     entityAsset.LocalPosition = transformOverride.LocalPosition;
                 }
@@ -976,7 +983,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Applies the selected target platform component existence override to one serialized scene entity before the runtime scene is written.
+        /// Accumulates the component removals and additions authored on every prefix of the entity's target path before the runtime scene is written.
         /// </summary>
         /// <param name="entityAsset">Scene entity payload being packaged.</param>
         void ApplyTargetPlatformComponentOverrides(SceneEntityAsset entityAsset) {
@@ -984,16 +991,20 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
 
-            SceneEntityPlatformComponentOverrideAsset componentOverride = FindTargetPlatformComponentOverride(entityAsset);
-            if (componentOverride == null) {
+            List<SceneEntityPlatformComponentOverrideAsset> componentOverrides = CollectPrefixOverridesByDepth(
+                entityAsset.PlatformComponentOverrides,
+                item => item.Scope,
+                entityAsset);
+            if (componentOverrides.Count < 1) {
                 entityAsset.PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
                 return;
             }
 
-            HashSet<string> removedComponentKeys = new HashSet<string>(
-                (componentOverride.RemovedComponentKeys ?? Array.Empty<string>())
-                    .Where(value => !string.IsNullOrWhiteSpace(value)),
-                StringComparer.Ordinal);
+            HashSet<string> removedComponentKeys = new HashSet<string>(StringComparer.Ordinal);
+            List<SceneComponentAssetRecord> addedComponentRecords = new List<SceneComponentAssetRecord>();
+            for (int index = 0; index < componentOverrides.Count; index++) {
+                AccumulateComponentOverride(componentOverrides[index], removedComponentKeys, addedComponentRecords);
+            }
 
             List<SceneComponentAssetRecord> effectiveComponents = new List<SceneComponentAssetRecord>();
             SceneComponentAssetRecord[] authoredComponents = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
@@ -1009,19 +1020,70 @@ namespace helengine.editor {
                 effectiveComponents.Add(componentRecord);
             }
 
-            SceneEntityPlatformAddedComponentAsset[] addedComponents = componentOverride.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>();
-            for (int index = 0; index < addedComponents.Length; index++) {
-                if (addedComponents[index]?.Component != null) {
-                    effectiveComponents.Add(addedComponents[index].Component);
-                }
-            }
-
+            effectiveComponents.AddRange(addedComponentRecords);
             for (int index = 0; index < effectiveComponents.Count; index++) {
                 effectiveComponents[index].ComponentIndex = index;
             }
 
             entityAsset.Components = effectiveComponents.ToArray();
             entityAsset.PlatformComponentOverrides = Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
+        }
+
+        /// <summary>
+        /// Folds one component override record into the accumulated removal and addition sets: a removal at this depth
+        /// drops a shallower addition of the same key, and an addition at this depth restores a key removed higher up.
+        /// </summary>
+        /// <param name="componentOverride">Component override record authored on one prefix of the entity's target path.</param>
+        /// <param name="removedComponentKeys">Accumulated stable keys of components removed for the packaging target.</param>
+        /// <param name="addedComponentRecords">Accumulated component records added for the packaging target, in authored order.</param>
+        static void AccumulateComponentOverride(
+            SceneEntityPlatformComponentOverrideAsset componentOverride,
+            HashSet<string> removedComponentKeys,
+            List<SceneComponentAssetRecord> addedComponentRecords) {
+            string[] removedKeys = componentOverride.RemovedComponentKeys ?? Array.Empty<string>();
+            for (int index = 0; index < removedKeys.Length; index++) {
+                string removedKey = removedKeys[index];
+                if (string.IsNullOrWhiteSpace(removedKey)) {
+                    continue;
+                }
+
+                removedComponentKeys.Add(removedKey);
+                addedComponentRecords.RemoveAll(record => string.Equals(record.ComponentKey, removedKey, StringComparison.Ordinal));
+            }
+
+            SceneEntityPlatformAddedComponentAsset[] addedComponents = componentOverride.AddedComponents ?? Array.Empty<SceneEntityPlatformAddedComponentAsset>();
+            for (int index = 0; index < addedComponents.Length; index++) {
+                SceneComponentAssetRecord addedRecord = addedComponents[index]?.Component;
+                if (addedRecord == null) {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(addedRecord.ComponentKey)) {
+                    removedComponentKeys.Remove(addedRecord.ComponentKey);
+                }
+                addedComponentRecords.Add(addedRecord);
+            }
+        }
+
+        /// <summary>
+        /// Returns every override authored on a prefix of the entity's target path, ordered from the shallowest prefix to the deepest.
+        /// </summary>
+        /// <typeparam name="T">Serialized override record type stored on the scene entity.</typeparam>
+        /// <param name="overrides">Authored override records stored on the scene entity.</param>
+        /// <param name="scopeSelector">Selector that reads the serialized scope path of one override record.</param>
+        /// <param name="entityAsset">Scene entity payload that owns the override records.</param>
+        /// <returns>Prefix-matching override records ordered by increasing scope depth.</returns>
+        List<T> CollectPrefixOverridesByDepth<T>(T[] overrides, Func<T, SceneOverrideScopeStepAsset[]> scopeSelector, SceneEntityAsset entityAsset) where T : class {
+            if (string.IsNullOrWhiteSpace(TargetPlatformId) ||
+                string.Equals(TargetPlatformId, EntityPlatformTransformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
+                return new List<T>();
+            }
+
+            EditorOverrideScope targetPath = BuildEntityTargetPath(entityAsset);
+            return (overrides ?? Array.Empty<T>())
+                .Where(item => item != null && EditorOverrideScope.FromSteps(scopeSelector(item)).IsPrefixOf(targetPath))
+                .OrderBy(item => EditorOverrideScope.FromSteps(scopeSelector(item)).Depth)
+                .ToList();
         }
 
         /// <summary>
@@ -1049,48 +1111,6 @@ namespace helengine.editor {
 
             SceneEntityPlatformExistenceOverrideAsset[] overrides = entityAsset.PlatformExistenceOverrides ?? Array.Empty<SceneEntityPlatformExistenceOverrideAsset>();
             return EditorOverrideScopeResolver.TrySelectDeepest(overrides, item => EditorOverrideScope.FromSteps(item.Scope), BuildEntityTargetPath(entityAsset), out SceneEntityPlatformExistenceOverrideAsset selected)
-                ? selected
-                : null;
-        }
-
-        /// <summary>
-        /// Resolves the transform override that matches the current packaging target platform.
-        /// </summary>
-        /// <param name="entityAsset">Scene entity payload whose transform override should be resolved.</param>
-        /// <returns>Matching target-platform transform override when one exists; otherwise null.</returns>
-        SceneEntityPlatformTransformOverrideAsset FindTargetPlatformTransformOverride(SceneEntityAsset entityAsset) {
-            if (entityAsset == null) {
-                throw new ArgumentNullException(nameof(entityAsset));
-            }
-
-            if (string.IsNullOrWhiteSpace(TargetPlatformId) ||
-                string.Equals(TargetPlatformId, EntityPlatformTransformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return null;
-            }
-
-            SceneEntityPlatformTransformOverrideAsset[] overrides = entityAsset.PlatformTransformOverrides ?? Array.Empty<SceneEntityPlatformTransformOverrideAsset>();
-            return EditorOverrideScopeResolver.TrySelectDeepest(overrides, item => EditorOverrideScope.FromSteps(item.Scope), BuildEntityTargetPath(entityAsset), out SceneEntityPlatformTransformOverrideAsset selected)
-                ? selected
-                : null;
-        }
-
-        /// <summary>
-        /// Resolves the component existence override that matches the current packaging target platform.
-        /// </summary>
-        /// <param name="entityAsset">Scene entity payload whose component existence override should be resolved.</param>
-        /// <returns>Matching target-platform component existence override when one exists; otherwise null.</returns>
-        SceneEntityPlatformComponentOverrideAsset FindTargetPlatformComponentOverride(SceneEntityAsset entityAsset) {
-            if (entityAsset == null) {
-                throw new ArgumentNullException(nameof(entityAsset));
-            }
-
-            if (string.IsNullOrWhiteSpace(TargetPlatformId) ||
-                string.Equals(TargetPlatformId, EntityPlatformTransformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
-                return null;
-            }
-
-            SceneEntityPlatformComponentOverrideAsset[] overrides = entityAsset.PlatformComponentOverrides ?? Array.Empty<SceneEntityPlatformComponentOverrideAsset>();
-            return EditorOverrideScopeResolver.TrySelectDeepest(overrides, item => EditorOverrideScope.FromSteps(item.Scope), BuildEntityTargetPath(entityAsset), out SceneEntityPlatformComponentOverrideAsset selected)
                 ? selected
                 : null;
         }
