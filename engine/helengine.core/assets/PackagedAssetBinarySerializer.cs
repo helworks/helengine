@@ -701,7 +701,7 @@ namespace helengine {
         /// <param name="reader">Source reader positioned at the payload.</param>
         /// <returns>Decoded override scope path.</returns>
         static SceneOverrideScopeStepAsset[] ReadSceneOverrideScopeSteps(EngineBinaryReader reader) {
-            return reader.ReadArray(ReadSceneOverrideScopeStep) ?? Array.Empty<SceneOverrideScopeStepAsset>();
+            return reader.ReadArray(ReadSceneOverrideScopeStep) ?? new SceneOverrideScopeStepAsset[0];
         }
 
         /// <summary>

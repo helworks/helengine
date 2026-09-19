@@ -49,7 +49,7 @@ namespace helengine {
         /// </summary>
         public static SceneOverrideScopeStepAsset[] Normalize(SceneOverrideScopeStepAsset[] steps) {
             if (steps == null) {
-                return Common();
+                return new SceneOverrideScopeStepAsset[0];
             }
 
             int count = 0;
