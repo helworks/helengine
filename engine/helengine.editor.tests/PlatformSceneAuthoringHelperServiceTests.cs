@@ -117,6 +117,28 @@ public sealed class PlatformSceneAuthoringHelperServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures restricting one subtree to a scope writes a false Common existence override and a true existence override for the requested scope on every descendant, and records the level order.
+    /// </summary>
+    [Fact]
+    public void RestrictEntitySubtreeToScope_WritesCommonFalseAndScopeTrueOnEveryDescendant() {
+        EditorEntity root = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        EditorEntity child = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
+        root.AddChild(child);
+        EditorOverrideScope handheld = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld"));
+        PlatformSceneAuthoringHelperService helper = new PlatformSceneAuthoringHelperService();
+        EntityPlatformExistenceEditingService existence = new EntityPlatformExistenceEditingService();
+
+        helper.SetEntitySubtreeLevelOrder(root, new[] { SceneOverrideScopeStepKind.Group, SceneOverrideScopeStepKind.Platform });
+        helper.RestrictEntitySubtreeToScope(root, handheld);
+
+        EntitySaveComponent childSave = child.Components.OfType<EntitySaveComponent>().Single();
+        Assert.False(existence.ResolveExists(childSave, EditorOverrideScope.Common));
+        Assert.True(existence.ResolveExists(childSave, handheld.Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"))));
+        Assert.False(existence.ResolveExists(childSave, new EditorOverrideScope("ps1")));
+        Assert.Equal(new[] { SceneOverrideScopeStepKind.Group, SceneOverrideScopeStepKind.Platform }, childSave.OverrideLevelOrder);
+    }
+
+    /// <summary>
     /// Retrieves the hidden save component attached to one editor entity.
     /// </summary>
     /// <param name="entity">Entity whose save component should be returned.</param>

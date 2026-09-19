@@ -154,6 +154,59 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Makes the subtree exist only beneath one scope: Common says absent, the scope says present. Adding a platform
+        /// to the group later applies without touching the scene.
+        /// </summary>
+        /// <param name="rootEntity">Root entity whose entire subtree should be restricted.</param>
+        /// <param name="scope">Scope that should keep the subtree.</param>
+        public void RestrictEntitySubtreeToScope(EditorEntity rootEntity, EditorOverrideScope scope) {
+            if (rootEntity == null) {
+                throw new ArgumentNullException(nameof(rootEntity));
+            }
+            if (scope.IsCommon) {
+                throw new ArgumentException("Restricting to Common would hide the subtree everywhere.", nameof(scope));
+            }
+
+            foreach (EditorEntity entity in EnumerateSubtree(rootEntity)) {
+                EntitySaveComponent saveComponent = EnsureEntitySaveComponent(entity);
+                EntityExistenceEditingService.SetExists(saveComponent, EditorOverrideScope.Common, false);
+                EntityExistenceEditingService.SetExists(saveComponent, scope, true);
+            }
+        }
+
+        /// <summary>
+        /// Removes the subtree beneath one scope while leaving every other path as authored.
+        /// </summary>
+        /// <param name="rootEntity">Root entity whose entire subtree should be excluded.</param>
+        /// <param name="scope">Scope that should prune the subtree.</param>
+        public void ExcludeEntitySubtreeFromScope(EditorEntity rootEntity, EditorOverrideScope scope) {
+            if (rootEntity == null) {
+                throw new ArgumentNullException(nameof(rootEntity));
+            }
+
+            foreach (EditorEntity entity in EnumerateSubtree(rootEntity)) {
+                EntityExistenceEditingService.SetExists(EnsureEntitySaveComponent(entity), scope, false);
+            }
+        }
+
+        /// <summary>
+        /// Records the level order the subtree's overrides are authored against.
+        /// </summary>
+        /// <param name="rootEntity">Root entity whose entire subtree should record the level order.</param>
+        /// <param name="order">Level order the subtree's overrides are authored against.</param>
+        public void SetEntitySubtreeLevelOrder(EditorEntity rootEntity, IReadOnlyList<SceneOverrideScopeStepKind> order) {
+            if (rootEntity == null) {
+                throw new ArgumentNullException(nameof(rootEntity));
+            }
+
+            EditorOverrideLevelOrder.Validate(order);
+            SceneOverrideScopeStepKind[] copy = order.ToArray();
+            foreach (EditorEntity entity in EnumerateSubtree(rootEntity)) {
+                EnsureEntitySaveComponent(entity).OverrideLevelOrder = copy;
+            }
+        }
+
+        /// <summary>
         /// Applies the resolved platform restrictions recursively to one entity subtree.
         /// </summary>
         /// <param name="entity">Current subtree entity.</param>
@@ -299,6 +352,30 @@ namespace helengine.editor {
             }
 
             return includedPlatformSet;
+        }
+
+        /// <summary>
+        /// Enumerates the root entity followed by every descendant in the subtree, depth-first.
+        /// </summary>
+        /// <param name="root">Root entity whose subtree should be enumerated.</param>
+        /// <returns>Root entity followed by each descendant.</returns>
+        static IEnumerable<EditorEntity> EnumerateSubtree(EditorEntity root) {
+            if (root == null) {
+                throw new ArgumentNullException(nameof(root));
+            }
+
+            yield return root;
+            if (root.Children == null) {
+                yield break;
+            }
+
+            for (int childIndex = 0; childIndex < root.Children.Count; childIndex++) {
+                if (root.Children[childIndex] is EditorEntity childEntity) {
+                    foreach (EditorEntity descendant in EnumerateSubtree(childEntity)) {
+                        yield return descendant;
+                    }
+                }
+            }
         }
 
         /// <summary>
