@@ -29,6 +29,20 @@ namespace helengine.editor.tests {
             Assert.True(File.Exists(Path.Combine(ProjectRootPath, "settings", "platform-groups.json")));
         }
 
+        /// <summary>
+        /// Ensures reading against a missing file returns the seeded default order without creating the settings file.
+        /// </summary>
+        [Fact]
+        public void Read_WhenFileIsMissing_ReturnsTheDefaultOrderWithoutCreatingTheFile() {
+            EditorProjectPlatformGroupsService service = new EditorProjectPlatformGroupsService(ProjectRootPath);
+
+            EditorProjectPlatformGroupsDocument document = service.Read();
+
+            Assert.Empty(document.Groups);
+            Assert.Equal(EditorOverrideLevelOrder.Default, document.DefaultLevelOrder);
+            Assert.False(File.Exists(Path.Combine(ProjectRootPath, "settings", "platform-groups.json")));
+        }
+
         [Fact]
         public void AddAssignAndSave_RoundTripsANestedTree() {
             EditorProjectPlatformGroupsService service = new EditorProjectPlatformGroupsService(ProjectRootPath);

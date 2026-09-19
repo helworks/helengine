@@ -47,22 +47,47 @@ namespace helengine.editor {
         /// <summary>
         /// Loads the project platform settings document, seeding the active editor platform when the file is missing,
         /// invalid, or declares no platforms, since an empty platform list would prevent the project from opening.
+        /// Writes the seeded document back to disk when seeding was needed.
         /// </summary>
         /// <returns>Validated project platform settings document for the current project.</returns>
         public EditorProjectPlatformsDocument Load() {
+            EditorProjectPlatformsDocument document = ReadCore(out bool wasSeeded);
+            if (wasSeeded) {
+                Save(document);
+            }
+
+            return document;
+        }
+
+        /// <summary>
+        /// Reads the project platform settings document, seeding the active editor platform in memory when the file is
+        /// missing, invalid, or declares no platforms. Never writes to disk.
+        /// </summary>
+        /// <returns>Validated project platform settings document for the current project.</returns>
+        public EditorProjectPlatformsDocument Read() {
+            return ReadCore(out _);
+        }
+
+        /// <summary>
+        /// Reads the project platform settings document from disk, normalizing and seeding it in memory as needed.
+        /// </summary>
+        /// <param name="wasSeeded">Set to true when the file was missing, invalid, or declared no platforms.</param>
+        /// <returns>Validated project platform settings document for the current project.</returns>
+        EditorProjectPlatformsDocument ReadCore(out bool wasSeeded) {
             EditorProjectPlatformsDocument document = TryLoadDocument();
             if (document == null) {
-                document = CreateDefaultDocument();
-                Save(document);
-                return document;
+                wasSeeded = true;
+                return CreateDefaultDocument();
             }
 
             Normalize(document);
             if (document.SupportedPlatforms.Count == 0) {
                 document.SupportedPlatforms.Add(ActiveEditorPlatformId);
-                Save(document);
+                wasSeeded = true;
+                return document;
             }
 
+            wasSeeded = false;
             return document;
         }
 

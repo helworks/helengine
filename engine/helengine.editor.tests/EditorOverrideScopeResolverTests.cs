@@ -59,6 +59,24 @@ namespace helengine.editor.tests {
             Assert.False(EditorOverrideScopeResolver.TrySelectDeepest(Array.Empty<SceneEntityPlatformExistenceOverrideAsset>(), item => EditorOverrideScope.FromSteps(item.Scope), EditorOverrideScope.Common, out _));
         }
 
+        /// <summary>
+        /// Ensures loading a resolver against a project with no settings files does not create them, since packaging
+        /// must stay read-only against the project tree even when settings have never been written.
+        /// </summary>
+        [Fact]
+        public void Load_AgainstAProjectWithNoSettingsFiles_DoesNotWriteToDisk() {
+            string projectRootPath = Path.Combine(Path.GetTempPath(), "helengine-override-scope-resolver-load-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(projectRootPath);
+            try {
+                EditorOverrideScopeResolver resolver = EditorOverrideScopeResolver.Load(projectRootPath);
+
+                Assert.False(Directory.Exists(Path.Combine(projectRootPath, "settings")));
+                Assert.Equal(new EditorOverrideScope("windows"), resolver.BuildTargetPath(resolver.ResolveLevelOrder(null), "windows", ""));
+            } finally {
+                Directory.Delete(projectRootPath, true);
+            }
+        }
+
         [Fact]
         public void Constructor_RejectsInconsistentGroupSettingsNamingBothIds() {
             EditorProjectPlatformGroupsDocument tree = CreateTree();

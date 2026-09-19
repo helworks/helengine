@@ -34,16 +34,33 @@ namespace helengine.editor {
 
         /// <summary>
         /// Loads the document, seeding an empty tree with the default level order when the file is missing or malformed.
+        /// Writes the seeded document back to disk when seeding was needed.
         /// </summary>
         public EditorProjectPlatformGroupsDocument Load() {
-            EditorProjectPlatformGroupsDocument document = TryLoadDocument();
-            if (document == null) {
-                document = new EditorProjectPlatformGroupsDocument();
-                Normalize(document);
+            EditorProjectPlatformGroupsDocument document = ReadCore(out bool wasSeeded);
+            if (wasSeeded) {
                 Save(document);
-                return document;
             }
 
+            return document;
+        }
+
+        /// <summary>
+        /// Reads the document, seeding an empty tree with the default level order in memory when the file is missing
+        /// or malformed. Never writes to disk.
+        /// </summary>
+        public EditorProjectPlatformGroupsDocument Read() {
+            return ReadCore(out _);
+        }
+
+        /// <summary>
+        /// Reads the document from disk, normalizing it and seeding a default tree in memory as needed.
+        /// </summary>
+        /// <param name="wasSeeded">Set to true when the file was missing or malformed and a default tree was seeded.</param>
+        EditorProjectPlatformGroupsDocument ReadCore(out bool wasSeeded) {
+            EditorProjectPlatformGroupsDocument document = TryLoadDocument();
+            wasSeeded = document == null;
+            document ??= new EditorProjectPlatformGroupsDocument();
             Normalize(document);
             return document;
         }

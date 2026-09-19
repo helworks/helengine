@@ -22,11 +22,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Loads <c>settings/platform-groups.json</c> and <c>settings/platforms.json</c> from a project and builds a resolver.
+        /// Reads <c>settings/platform-groups.json</c> and <c>settings/platforms.json</c> from a project and builds a
+        /// resolver. Never writes to disk, so packaging and other read-only callers can build a resolver concurrently
+        /// without racing to seed default settings files.
         /// </summary>
         public static EditorOverrideScopeResolver Load(string projectRootPath) {
-            EditorProjectPlatformGroupsDocument groups = new EditorProjectPlatformGroupsService(projectRootPath).Load();
-            IReadOnlyList<string> platforms = new EditorProjectPlatformsService(projectRootPath).Load().SupportedPlatforms;
+            EditorProjectPlatformGroupsDocument groups = new EditorProjectPlatformGroupsService(projectRootPath).Read();
+            IReadOnlyList<string> platforms = new EditorProjectPlatformsService(projectRootPath).Read().SupportedPlatforms;
             return new EditorOverrideScopeResolver(groups, platforms);
         }
 
