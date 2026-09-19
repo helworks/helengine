@@ -196,6 +196,42 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Ensures the authored override level order survives scene save and load onto a fresh save component, and that an entity without one loads back without one.
+        /// </summary>
+        [Fact]
+        public void SaveAndLoad_RoundTripsTheAuthoredOverrideLevelOrderAndTheProjectDefault() {
+            EditorEntity ordered = CreateUserEntity("Ordered", float3.Zero, float3.One, float4.Identity);
+            GetSaveComponent(ordered).OverrideLevelOrder = new[] {
+                SceneOverrideScopeStepKind.Group,
+                SceneOverrideScopeStepKind.Platform,
+                SceneOverrideScopeStepKind.BuildConfig
+            };
+            EditorEntity unordered = CreateUserEntity("Unordered", float3.Zero, float3.One, float4.Identity);
+            Assert.Null(GetSaveComponent(unordered).OverrideLevelOrder);
+
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            SceneSaveService saveService = CreateSceneSaveService(registry);
+            string scenePath = Path.Combine(TempProjectRootPath, "assets", "Scenes", "LevelOrder.helen");
+
+            saveService.Save(scenePath);
+
+            SceneAsset asset;
+            using (FileStream stream = File.OpenRead(scenePath)) {
+                asset = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+
+            SceneLoadService loadService = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            IReadOnlyList<EditorEntity> loadedEntities = loadService.Load(asset);
+            EditorEntity loadedOrdered = Assert.Single(loadedEntities, entity => string.Equals(entity.Name, "Ordered", StringComparison.Ordinal));
+            EditorEntity loadedUnordered = Assert.Single(loadedEntities, entity => string.Equals(entity.Name, "Unordered", StringComparison.Ordinal));
+
+            Assert.Equal(
+                new[] { SceneOverrideScopeStepKind.Group, SceneOverrideScopeStepKind.Platform, SceneOverrideScopeStepKind.BuildConfig },
+                GetSaveComponent(loadedOrdered).OverrideLevelOrder);
+            Assert.Null(GetSaveComponent(loadedUnordered).OverrideLevelOrder);
+        }
+
+        /// <summary>
         /// Ensures scene save and load preserve the authored enabled flag for root and child entities.
         /// </summary>
         [Fact]

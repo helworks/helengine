@@ -60,12 +60,12 @@ namespace helengine {
             return ValuesByScope.Remove(scope);
         }
 
-        /// <summary>Enumerates every payload in insertion order.</summary>
+        /// <summary>Enumerates every payload in unspecified order.</summary>
         public IEnumerable<T> EnumerateValues() {
             return ValuesByScope.Values;
         }
 
-        /// <summary>Enumerates every authored scope in insertion order.</summary>
+        /// <summary>Enumerates every authored scope in unspecified order.</summary>
         public IEnumerable<EditorOverrideScope> EnumerateScopes() {
             return ValuesByScope.Keys;
         }

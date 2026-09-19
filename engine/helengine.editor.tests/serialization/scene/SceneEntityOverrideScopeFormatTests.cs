@@ -2,7 +2,7 @@ using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
     /// <summary>
-    /// Verifies the scope path and level order survive the editor asset format and that the previous entity payload version is rejected.
+    /// Verifies the scope path and level order survive the editor asset format, that a duplicate path is rejected before writing, and that the four format versions moved together.
     /// </summary>
     public sealed class SceneEntityOverrideScopeFormatTests {
         [Fact]

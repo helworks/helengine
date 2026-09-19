@@ -46,6 +46,24 @@ namespace helengine.editor.tests {
             Assert.False(target.IsPrefixOf(target.Parent));
         }
 
+        /// <summary>
+        /// Ensures the prefix helper returns Common at depth zero, the path itself at its own depth, and rejects a depth outside that range.
+        /// </summary>
+        [Fact]
+        public void PrefixAt_ReturnsTheLeadingStepsAndRejectsDepthsOutsideThePath() {
+            EditorOverrideScope scope = EditorOverrideScope.Common
+                .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Group, "handheld"))
+                .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"))
+                .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.BuildConfig, "debug"));
+
+            Assert.True(scope.PrefixAt(0).IsCommon);
+            Assert.Equal("group:handheld", scope.PrefixAt(1).ToString());
+            Assert.Equal(scope.Parent, scope.PrefixAt(2));
+            Assert.Equal(scope, scope.PrefixAt(3));
+            Assert.Throws<ArgumentOutOfRangeException>(() => scope.PrefixAt(-1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => scope.PrefixAt(4));
+        }
+
         [Fact]
         public void ToSteps_RoundTripsThroughFromSteps() {
             EditorOverrideScope scope = new EditorOverrideScope("ps1", "release");

@@ -83,6 +83,25 @@ namespace helengine {
             }
         }
 
+        /// <summary>
+        /// Returns the prefix holding the first <paramref name="depth"/> steps: zero yields <see cref="Common"/> and
+        /// <see cref="Depth"/> yields this path.
+        /// </summary>
+        /// <param name="depth">Number of leading steps to keep, in the range zero to <see cref="Depth"/>.</param>
+        /// <returns>Prefix path of the requested depth.</returns>
+        public EditorOverrideScope PrefixAt(int depth) {
+            if (depth < 0 || depth > Depth) {
+                throw new ArgumentOutOfRangeException(nameof(depth), depth, $"Override scope prefix depth must be between 0 and {Depth}.");
+            }
+
+            EditorOverrideScopeStep[] prefixSteps = new EditorOverrideScopeStep[depth];
+            for (int index = 0; index < depth; index++) {
+                prefixSteps[index] = Steps[index];
+            }
+
+            return new EditorOverrideScope(prefixSteps);
+        }
+
         /// <summary>Returns a path with one more step.</summary>
         public EditorOverrideScope Append(EditorOverrideScopeStep step) {
             EditorOverrideScopeStep[] steps = new EditorOverrideScopeStep[Depth + 1];

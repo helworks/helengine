@@ -103,12 +103,7 @@ namespace helengine.editor {
         /// </summary>
         void FoldScopeTransform(EntitySaveComponent saveComponent, EditorOverrideScope scope, ref float3 position, ref float3 scale, ref float4 orientation) {
             for (int depth = 1; depth <= scope.Depth; depth++) {
-                EditorOverrideScopeStep[] prefixSteps = new EditorOverrideScopeStep[depth];
-                for (int index = 0; index < depth; index++) {
-                    prefixSteps[index] = scope.Steps[index];
-                }
-
-                if (saveComponent.TryGetTransformPlatformOverride(new EditorOverrideScope(prefixSteps), out SceneEntityPlatformTransformOverrideAsset overrideState)) {
+                if (saveComponent.TryGetTransformPlatformOverride(scope.PrefixAt(depth), out SceneEntityPlatformTransformOverrideAsset overrideState)) {
                     ApplyOverride(ref position, ref scale, ref orientation, overrideState);
                 }
             }
@@ -177,7 +172,8 @@ namespace helengine.editor {
         public void RestoreCommon(Entity entity, EntitySaveComponent saveComponent) {
             if (entity == null) {
                 throw new ArgumentNullException(nameof(entity));
-            } else if (saveComponent == null) {
+            }
+            if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
@@ -187,19 +183,13 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Persists the active platform or nested environment projection and restores common transform state.
+        /// Persists the active platform or nested environment projection and restores common transform state; kept for
+        /// callers that think in scope paths.
         /// </summary>
+        /// <param name="entity">Entity whose live transform should be restored.</param>
+        /// <param name="saveComponent">Hidden save component that owns the transform override metadata.</param>
         public void RestoreCommonScope(Entity entity, EntitySaveComponent saveComponent) {
-            if (entity == null) {
-                throw new ArgumentNullException(nameof(entity));
-            }
-            if (saveComponent == null) {
-                throw new ArgumentNullException(nameof(saveComponent));
-            }
-
-            PersistActiveScope(entity, saveComponent);
-            RestoreCommonTransform(entity, saveComponent);
-            ClearActiveProjection(saveComponent);
+            RestoreCommon(entity, saveComponent);
         }
 
         /// <summary>

@@ -506,12 +506,7 @@ namespace helengine.editor {
 
             Dictionary<string, EntityPlatformAddedComponentState> addedByKey = new Dictionary<string, EntityPlatformAddedComponentState>(StringComparer.Ordinal);
             for (int depth = 1; depth <= scope.Depth; depth++) {
-                EditorOverrideScopeStep[] prefixSteps = new EditorOverrideScopeStep[depth];
-                for (int index = 0; index < depth; index++) {
-                    prefixSteps[index] = scope.Steps[index];
-                }
-
-                AddAddedComponentsForScope(saveComponent, new EditorOverrideScope(prefixSteps), addedByKey);
+                AddAddedComponentsForScope(saveComponent, scope.PrefixAt(depth), addedByKey);
             }
 
             return addedByKey.Values.ToArray();
@@ -855,12 +850,7 @@ namespace helengine.editor {
             }
 
             for (int depth = 1; depth <= scope.Depth; depth++) {
-                EditorOverrideScopeStep[] prefixSteps = new EditorOverrideScopeStep[depth];
-                for (int index = 0; index < depth; index++) {
-                    prefixSteps[index] = scope.Steps[index];
-                }
-
-                if (!componentSaveState.TryGetScopedPlatformOverride(new EditorOverrideScope(prefixSteps), out EntityComponentPlatformOverrideState overrideState)) {
+                if (!componentSaveState.TryGetScopedPlatformOverride(scope.PrefixAt(depth), out EntityComponentPlatformOverrideState overrideState)) {
                     continue;
                 }
 
