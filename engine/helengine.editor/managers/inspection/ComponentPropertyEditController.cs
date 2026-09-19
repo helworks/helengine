@@ -123,7 +123,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Records one component-scoped mutation or emits the legacy dirty notification fallback.
+        /// Records one component-scoped mutation or emits the plain dirty notification when no history service is attached.
         /// </summary>
         /// <param name="request">Request that was applied.</param>
         /// <param name="historyMutationService">Current history service.</param>

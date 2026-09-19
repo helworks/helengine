@@ -17,7 +17,7 @@ namespace helengine.editor {
             return CanonicalPackagedAssetPath.Normalize(string.Concat(ImportedTextureDirectoryName, "/", fileName, extension));
         }
 
-        /// <summary>Builds a compatibility path when no builder capability is available.</summary>
+        /// <summary>Builds the default runtime path when no builder capability is available.</summary>
         public static string BuildCookedRelativePath(string targetPlatformId, string assetId) {
             _ = targetPlatformId;
             return BuildCookedRelativePath((PlatformAssetCookCapabilityDefinition)null, assetId);

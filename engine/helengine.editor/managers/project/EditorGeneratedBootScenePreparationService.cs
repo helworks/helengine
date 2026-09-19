@@ -77,7 +77,7 @@ namespace helengine.editor {
             return TryWritePreparedScene(platformId, sceneIds, relativeScenePath, routing);
         }
 
-        /// <summary>Writes one generated boot scene through the legacy compatibility route.</summary>
+        /// <summary>Writes one generated boot scene using the platform's default scene routing.</summary>
         public bool TryWritePreparedScene(string platformId, IReadOnlyList<string> sceneIds, string relativeScenePath) {
             return TryWritePreparedScene(platformId, sceneIds, relativeScenePath, null);
         }

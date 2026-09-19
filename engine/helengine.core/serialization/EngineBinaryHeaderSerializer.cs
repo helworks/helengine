@@ -84,8 +84,8 @@ namespace helengine {
                 return false;
             }
 
-            int version = stream.ReadByte();
-            if (version < 0) {
+            int probedByte = stream.ReadByte();
+            if (probedByte < 0) {
                 return false;
             }
 
@@ -95,7 +95,7 @@ namespace helengine {
                 return false;
             }
 
-            header = new EngineBinaryHeader((EngineBinaryEndianness)endiannessValue, (byte)version, formatId, recordKind, valueKind);
+            header = new EngineBinaryHeader((EngineBinaryEndianness)endiannessValue, (byte)probedByte, formatId, recordKind, valueKind);
             return true;
         }
 
