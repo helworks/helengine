@@ -51,15 +51,25 @@ namespace helengine.editor.tests {
         [Fact]
         public void Resolve_WithGroupChainAbovePlatform_UsesThePlatformAndBuildConfigSteps() {
             AssetProcessorSettings settings = new AssetProcessorSettings();
-            settings.Platforms["ds"] = new AssetPlatformProcessorSettings();
-            settings.Platforms["ds"].Environments["debug"] = new AssetPlatformProcessorSettings();
+            settings.Platforms["ds"] = new AssetPlatformProcessorSettings {
+                Model = new ModelAssetProcessorSettings { Tessellate = false }
+            };
+            settings.Platforms["ds"].Environments["debug"] = new AssetPlatformProcessorSettings {
+                Model = new ModelAssetProcessorSettings { Tessellate = true }
+            };
             EditorOverrideScope scope = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld"))
                 .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"))
                 .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.BuildConfig, "debug"));
 
             AssetPlatformProcessorSettings resolved = AssetProcessorSettingsScopeResolver.Resolve(settings, scope);
 
-            Assert.NotNull(resolved);
+            Assert.True(resolved.Sections.ContainsKey(ModelAssetPlatformSettingsSectionDefinition.SectionIdValue));
+            Assert.True(resolved.Model.Tessellate);
+
+            EditorOverrideScope groupOnlyScope = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld"));
+            AssetPlatformProcessorSettings groupOnlyResolved = AssetProcessorSettingsScopeResolver.Resolve(settings, groupOnlyScope);
+
+            Assert.Empty(groupOnlyResolved.Sections);
         }
     }
 }
