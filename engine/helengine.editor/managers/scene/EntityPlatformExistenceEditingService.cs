@@ -19,93 +19,74 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Resolves whether one entity should exist on the supplied platform.
+        /// Resolves whether one entity exists on the default-order path for a platform.
         /// </summary>
-        /// <param name="saveComponent">Hidden save component that owns the entity existence overrides.</param>
-        /// <param name="platformId">Platform identifier to resolve.</param>
-        /// <returns>True when the entity should exist on the supplied platform.</returns>
         public bool ResolveExists(EntitySaveComponent saveComponent, string platformId) {
-            if (saveComponent == null) {
-                throw new ArgumentNullException(nameof(saveComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            return ResolveExists(saveComponent, new EditorOverrideScope(platformId));
+            return ResolveExists(saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Resolves common, platform, and nested environment existence state in order.
+        /// Resolves existence at one path: the deepest authored prefix wins, Common included; nothing authored means the entity exists.
         /// </summary>
         public bool ResolveExists(EntitySaveComponent saveComponent, EditorOverrideScope scope) {
             if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            bool exists = true;
-            if (saveComponent.TryGetExistencePlatformOverride(new EditorOverrideScope(scope.PlatformId), out SceneEntityPlatformExistenceOverrideAsset platformOverride)) {
-                exists = platformOverride.Exists;
-            }
-            if (!scope.IsPlatformOnly
-                && saveComponent.TryGetExistencePlatformOverride(scope, out SceneEntityPlatformExistenceOverrideAsset environmentOverride)) {
-                exists = environmentOverride.Exists;
+            if (saveComponent.TryGetDeepestExistencePlatformOverride(scope, out SceneEntityPlatformExistenceOverrideAsset overrideState)) {
+                return overrideState.Exists;
             }
 
-            return exists;
+            return true;
         }
 
         /// <summary>
-        /// Returns whether one platform stores an explicit entity existence override.
+        /// Returns whether one path stores its own existence override.
         /// </summary>
-        /// <param name="saveComponent">Hidden save component that owns the entity existence overrides.</param>
-        /// <param name="platformId">Platform identifier to query.</param>
-        /// <returns>True when the platform stores an explicit entity existence override.</returns>
         public bool HasExistenceOverride(EntitySaveComponent saveComponent, string platformId) {
-            if (saveComponent == null) {
-                throw new ArgumentNullException(nameof(saveComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            string normalizedPlatformId = NormalizePlatformId(platformId);
-            if (IsCommonPlatformId(normalizedPlatformId)) {
-                return false;
-            }
-
-            return saveComponent.TryGetExistencePlatformOverride(normalizedPlatformId, out _);
+            return HasExistenceOverride(saveComponent, EditorOverrideScope.ForPlatform(platformId));
         }
 
         /// <summary>
-        /// Stores the desired entity existence for one platform and removes redundant overrides that match common behavior.
+        /// Returns whether one path stores its own existence override.
         /// </summary>
-        /// <param name="saveComponent">Hidden save component that owns the entity existence overrides.</param>
-        /// <param name="platformId">Platform identifier whose effective entity existence should be stored.</param>
-        /// <param name="exists">True when the entity should exist on the platform.</param>
-        public void SetExists(EntitySaveComponent saveComponent, string platformId, bool exists) {
+        public bool HasExistenceOverride(EntitySaveComponent saveComponent, EditorOverrideScope scope) {
             if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
-            } else if (string.IsNullOrWhiteSpace(platformId)) {
-                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
 
-            SetExists(saveComponent, new EditorOverrideScope(platformId), exists);
+            return saveComponent.TryGetExistencePlatformOverride(scope, out _);
         }
 
         /// <summary>
-        /// Stores a sparse platform or nested environment existence override relative to its parent scope.
+        /// Stores existence for the default-order path of a platform.
+        /// </summary>
+        public void SetExists(EntitySaveComponent saveComponent, string platformId, bool exists) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            SetExists(saveComponent, EditorOverrideScope.ForPlatform(platformId), exists);
+        }
+
+        /// <summary>
+        /// Stores a sparse override: the entry is removed when it equals what the parent path already resolves to.
+        /// Common's parent value is the implicit "exists".
         /// </summary>
         public void SetExists(EntitySaveComponent saveComponent, EditorOverrideScope scope, bool exists) {
             if (saveComponent == null) {
                 throw new ArgumentNullException(nameof(saveComponent));
             }
 
-            if (IsCommonPlatformId(scope.PlatformId)) {
-                return;
-            }
-
-            bool parentExists = scope.IsPlatformOnly
-                ? true
-                : ResolveExists(saveComponent, new EditorOverrideScope(scope.PlatformId));
+            bool parentExists = scope.IsCommon ? true : ResolveExists(saveComponent, scope.Parent);
             if (exists == parentExists) {
                 saveComponent.RemoveExistencePlatformOverride(scope);
                 ExistenceChanged?.Invoke();
@@ -117,30 +98,6 @@ namespace helengine.editor {
                 Exists = exists
             });
             ExistenceChanged?.Invoke();
-        }
-
-        /// <summary>
-        /// <summary>
-        /// Returns whether the supplied platform id points at shared common state.
-        /// </summary>
-        /// <param name="platformId">Platform identifier to inspect.</param>
-        /// <returns>True when the identifier points at shared common state.</returns>
-        static bool IsCommonPlatformId(string platformId) {
-            return string.IsNullOrWhiteSpace(platformId)
-                || string.Equals(platformId, CommonPlatformId, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Normalizes one platform identifier for case-insensitive comparisons and dictionary lookups.
-        /// </summary>
-        /// <param name="platformId">Platform identifier to normalize.</param>
-        /// <returns>Normalized platform identifier.</returns>
-        static string NormalizePlatformId(string platformId) {
-            if (string.IsNullOrWhiteSpace(platformId)) {
-                return CommonPlatformId;
-            }
-
-            return platformId.Trim();
         }
     }
 }

@@ -182,6 +182,13 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Resolves the existence override authored on the deepest prefix of <paramref name="scope"/>, Common included.
+        /// </summary>
+        public bool TryGetDeepestExistencePlatformOverride(EditorOverrideScope scope, out SceneEntityPlatformExistenceOverrideAsset overrideState) {
+            return ExistenceOverridesByScope.TryGetDeepestPrefix(scope, out overrideState, out _);
+        }
+
+        /// <summary>
         /// Removes one stored platform entity existence override payload from this entity save state.
         /// </summary>
         /// <param name="platformId">Platform identifier whose entity existence override payload should be removed.</param>

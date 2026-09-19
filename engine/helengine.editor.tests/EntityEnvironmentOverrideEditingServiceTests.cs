@@ -91,5 +91,56 @@ namespace helengine.editor.tests {
             Assert.Equal(300f, loadedDebug.FarPlaneDistance);
             Assert.Equal(200f, loadedRelease.FarPlaneDistance);
         }
+
+        [Fact]
+        public void ResolveExists_WhenGroupChainIsAuthored_UsesTheDeepestPrefix() {
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            EntityPlatformExistenceEditingService service = new EntityPlatformExistenceEditingService();
+            EditorOverrideScope handheld = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld"));
+            EditorOverrideScope handheldDs = handheld.Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"));
+            EditorOverrideScope handheldPsp = handheld.Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "psp"));
+
+            service.SetExists(saveComponent, EditorOverrideScope.Common, false);
+            service.SetExists(saveComponent, handheld, true);
+            service.SetExists(saveComponent, handheldPsp, false);
+
+            Assert.True(service.ResolveExists(saveComponent, handheldDs));
+            Assert.False(service.ResolveExists(saveComponent, handheldPsp));
+            Assert.False(service.ResolveExists(saveComponent, new EditorOverrideScope("ps1")));
+            Assert.False(service.ResolveExists(saveComponent, EditorOverrideScope.Common));
+        }
+
+        [Fact]
+        public void SetExists_OnCommon_StoresFalseAndRemovesTrue() {
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            EntityPlatformExistenceEditingService service = new EntityPlatformExistenceEditingService();
+
+            service.SetExists(saveComponent, EditorOverrideScope.Common, false);
+            Assert.True(saveComponent.TryGetExistencePlatformOverride(EditorOverrideScope.Common, out SceneEntityPlatformExistenceOverrideAsset stored));
+            Assert.Empty(stored.Scope);
+            Assert.False(stored.Exists);
+
+            service.SetExists(saveComponent, EditorOverrideScope.Common, true);
+            Assert.False(saveComponent.TryGetExistencePlatformOverride(EditorOverrideScope.Common, out _));
+        }
+
+        [Fact]
+        public void SetExists_WhenValueMatchesParentPrefix_RemovesTheDeeperOverride() {
+            EntitySaveComponent saveComponent = new EntitySaveComponent();
+            EntityPlatformExistenceEditingService service = new EntityPlatformExistenceEditingService();
+            EditorOverrideScope handheld = EditorOverrideScope.FromSteps(SceneOverrideScopePath.Group("handheld"));
+            EditorOverrideScope handheldDsDebug = handheld
+                .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Platform, "ds"))
+                .Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.BuildConfig, "debug"));
+
+            service.SetExists(saveComponent, handheld, false);
+            service.SetExists(saveComponent, handheldDsDebug, true);
+            Assert.True(saveComponent.TryGetExistencePlatformOverride(handheldDsDebug, out _));
+
+            service.SetExists(saveComponent, handheldDsDebug, false);
+            Assert.False(saveComponent.TryGetExistencePlatformOverride(handheldDsDebug, out _));
+            Assert.True(service.HasExistenceOverride(saveComponent, handheld));
+            Assert.False(service.HasExistenceOverride(saveComponent, handheldDsDebug));
+        }
     }
 }
