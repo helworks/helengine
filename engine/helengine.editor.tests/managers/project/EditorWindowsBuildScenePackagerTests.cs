@@ -2677,6 +2677,53 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Ensures a group-scoped existence override prunes member platforms and leaves non-members alone, with Common as the fallback.
+        /// </summary>
+        [Fact]
+        public void Package_WhenEntityIsRestrictedToAGroup_PrunesItOnPlatformsOutsideTheGroup() {
+            new EditorProjectPlatformsService(ProjectRootPath).Save(new EditorProjectPlatformsDocument { SupportedPlatforms = ["windows", "ds", "ps1"] });
+            EditorProjectPlatformGroupsService groupsService = new EditorProjectPlatformGroupsService(ProjectRootPath);
+            EditorProjectPlatformGroupsDocument groups = groupsService.Load();
+            groupsService.AddGroup(groups, null, "handheld");
+            groupsService.AssignPlatform(groups, "handheld", "ds");
+            groupsService.Save(groups);
+
+            string sceneId = "Scenes/GroupExistence.helen";
+            WriteSceneAsset(sceneId, new SceneAsset {
+                Id = sceneId,
+                RootEntities = new[] {
+                    new SceneEntityAsset {
+                        Id = 1u, Name = "Root", LocalScale = float3.One, LocalOrientation = float4.Identity,
+                        Components = Array.Empty<SceneComponentAssetRecord>(),
+                        Children = new[] {
+                            new SceneEntityAsset {
+                                Id = 2u, Name = "HandheldRig", LocalScale = float3.One, LocalOrientation = float4.Identity,
+                                Components = Array.Empty<SceneComponentAssetRecord>(),
+                                HasOverrideLevelOrder = true,
+                                OverrideLevelOrder = new[] { SceneOverrideScopeStepKind.Group, SceneOverrideScopeStepKind.Platform, SceneOverrideScopeStepKind.BuildConfig },
+                                PlatformExistenceOverrides = new[] {
+                                    new SceneEntityPlatformExistenceOverrideAsset { Scope = SceneOverrideScopePath.Common(), Exists = false },
+                                    new SceneEntityPlatformExistenceOverrideAsset { Scope = SceneOverrideScopePath.Group("handheld"), Exists = true }
+                                },
+                                Children = Array.Empty<SceneEntityAsset>()
+                            }
+                        }
+                    }
+                }
+            });
+
+            new EditorPlatformBuildScenePackager(ProjectRootPath, Array.Empty<IAssetImporterRegistration>(), "ds", BuiltInShaderAssetLibrary)
+                .Package(new[] { sceneId }, Path.Combine(BuildRootPath, "ds"));
+            new EditorPlatformBuildScenePackager(ProjectRootPath, Array.Empty<IAssetImporterRegistration>(), "ps1", BuiltInShaderAssetLibrary)
+                .Package(new[] { sceneId }, Path.Combine(BuildRootPath, "ps1"));
+
+            using FileStream dsStream = File.OpenRead(GetPackagedScenePath(Path.Combine(BuildRootPath, "ds"), sceneId));
+            using FileStream ps1Stream = File.OpenRead(GetPackagedScenePath(Path.Combine(BuildRootPath, "ps1"), sceneId));
+            Assert.Single(Assert.Single(DeserializePackagedScene(dsStream).RootEntities).Children);
+            Assert.Empty(Assert.Single(DeserializePackagedScene(ps1Stream).RootEntities).Children);
+        }
+
+        /// <summary>
         /// Ensures packaging for one target platform removes root entity subtrees authored as absent on that platform.
         /// </summary>
         [Fact]
