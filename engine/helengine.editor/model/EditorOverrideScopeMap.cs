@@ -1,84 +1,73 @@
 namespace helengine {
     /// <summary>
-    /// Stores override payloads in platform-keyed containers with environment entries nested beneath each platform.
+    /// Stores override payloads keyed by scope path and answers deepest-authored-prefix lookups.
     /// </summary>
     /// <typeparam name="T">Override payload type.</typeparam>
     internal sealed class EditorOverrideScopeMap<T> {
-        readonly Dictionary<string, Dictionary<string, T>> ValuesByPlatformId;
+        readonly Dictionary<EditorOverrideScope, T> ValuesByScope;
 
         /// <summary>
-        /// Initializes an empty nested scope map.
+        /// Initializes an empty map.
         /// </summary>
         public EditorOverrideScopeMap() {
-            ValuesByPlatformId = new Dictionary<string, Dictionary<string, T>>(StringComparer.OrdinalIgnoreCase);
+            ValuesByScope = new Dictionary<EditorOverrideScope, T>();
         }
 
-        /// <summary>
-        /// Stores one payload at the supplied scope.
-        /// </summary>
+        /// <summary>Stores one payload at the supplied scope.</summary>
         public void Set(EditorOverrideScope scope, T value) {
-            GetOrCreatePlatformValues(scope.PlatformId)[scope.EnvironmentId] = value;
+            ValuesByScope[scope] = value;
         }
 
-        /// <summary>
-        /// Gets or creates one payload at the supplied scope.
-        /// </summary>
+        /// <summary>Gets or creates one payload at the supplied scope.</summary>
         public T GetOrCreate(EditorOverrideScope scope, Func<T> valueFactory) {
-            Dictionary<string, T> values = GetOrCreatePlatformValues(scope.PlatformId);
-            if (!values.TryGetValue(scope.EnvironmentId, out T value)) {
+            if (!ValuesByScope.TryGetValue(scope, out T value)) {
                 value = valueFactory();
-                values.Add(scope.EnvironmentId, value);
+                ValuesByScope.Add(scope, value);
             }
 
             return value;
         }
 
-        /// <summary>
-        /// Attempts to resolve one payload at the supplied scope.
-        /// </summary>
+        /// <summary>Attempts to resolve the payload authored exactly at the supplied scope.</summary>
         public bool TryGet(EditorOverrideScope scope, out T value) {
-            if (ValuesByPlatformId.TryGetValue(scope.PlatformId, out Dictionary<string, T> values)) {
-                return values.TryGetValue(scope.EnvironmentId, out value);
-            }
+            return ValuesByScope.TryGetValue(scope, out value);
+        }
 
+        /// <summary>
+        /// Resolves the payload whose scope is the longest prefix of <paramref name="target"/>, Common included.
+        /// </summary>
+        public bool TryGetDeepestPrefix(EditorOverrideScope target, out T value, out EditorOverrideScope matched) {
+            bool found = false;
+            int bestDepth = -1;
             value = default;
-            return false;
-        }
-
-        /// <summary>
-        /// Removes one payload at the supplied scope.
-        /// </summary>
-        public bool Remove(EditorOverrideScope scope) {
-            if (!ValuesByPlatformId.TryGetValue(scope.PlatformId, out Dictionary<string, T> values)) {
-                return false;
-            }
-
-            bool removed = values.Remove(scope.EnvironmentId);
-            if (values.Count == 0) {
-                ValuesByPlatformId.Remove(scope.PlatformId);
-            }
-
-            return removed;
-        }
-
-        /// <summary>
-        /// Enumerates every payload in deterministic platform-then-environment insertion order.
-        /// </summary>
-        public IEnumerable<T> EnumerateValues() {
-            foreach (Dictionary<string, T> values in ValuesByPlatformId.Values) {
-                foreach (T value in values.Values) {
-                    yield return value;
+            matched = EditorOverrideScope.Common;
+            foreach (KeyValuePair<EditorOverrideScope, T> entry in ValuesByScope) {
+                if (entry.Key.Depth <= bestDepth || !entry.Key.IsPrefixOf(target)) {
+                    continue;
                 }
+
+                found = true;
+                bestDepth = entry.Key.Depth;
+                value = entry.Value;
+                matched = entry.Key;
             }
+
+            return found;
         }
 
-        Dictionary<string, T> GetOrCreatePlatformValues(string platformId) {
-            if (!ValuesByPlatformId.TryGetValue(platformId, out Dictionary<string, T> values)) {
-                values = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
-                ValuesByPlatformId.Add(platformId, values);
-            }
+        /// <summary>Removes one payload.</summary>
+        public bool Remove(EditorOverrideScope scope) {
+            return ValuesByScope.Remove(scope);
+        }
 
-            return values;
+        /// <summary>Enumerates every payload in insertion order.</summary>
+        public IEnumerable<T> EnumerateValues() {
+            return ValuesByScope.Values;
+        }
+
+        /// <summary>Enumerates every authored scope in insertion order.</summary>
+        public IEnumerable<EditorOverrideScope> EnumerateScopes() {
+            return ValuesByScope.Keys;
         }
     }
 }
