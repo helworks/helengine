@@ -312,6 +312,33 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Ensures the resolver's content manager has the shared editor content processors
+    /// registered, matching the configuration EditorSession applies to its own content manager
+    /// (EditorContentManagerConfiguration.ConfigureEditorContentManager). Project-authored
+    /// commands — headless or interactive — load file-system materials and their already-imported
+    /// diffuse textures through this exact content manager (EditorSceneAssetReferenceResolver's
+    /// private AssetContentManager field, set from AssetImportManager.ContentManager). Without
+    /// this registration, ContentManager.Load throws "Content processor '...' is not registered."
+    /// for "editor.texture-asset" and sibling ids the first time a cached imported texture or a
+    /// file-system material is resolved.
+    /// </summary>
+    [Fact]
+    public void CreateSceneAssetReferenceResolver_ResolverContentManagerHasEditorContentProcessorsRegistered() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        using EditorProjectAuthoringSession capability = CreateCapability(projectRootPath);
+
+        ISceneAssetReferenceResolver resolver = capability.CreateSceneAssetReferenceResolver();
+        EditorSceneAssetReferenceResolver typedResolver = Assert.IsType<EditorSceneAssetReferenceResolver>(resolver);
+        System.Reflection.FieldInfo contentManagerField = typeof(EditorSceneAssetReferenceResolver).GetField(
+            "AssetContentManager",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        ContentManager resolverContentManager = Assert.IsType<ContentManager>(contentManagerField.GetValue(typedResolver));
+
+        Assert.True(resolverContentManager.IsProcessorRegistered(EditorContentProcessorIds.TextureAsset));
+        Assert.True(resolverContentManager.IsProcessorRegistered(EditorContentProcessorIds.MaterialAsset));
+    }
+
+    /// <summary>
     /// Ensures attaching the host-owned shader package service updates the session's scene
     /// asset-reference resolver, matching the wiring the interactive editor session performs
     /// so headless editor commands can resolve file-system materials during scene loads.

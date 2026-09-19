@@ -70,6 +70,14 @@ namespace helengine.editor {
             if (!string.Equals(Path.GetFullPath(AssetImportManagerValue.AssetsRootPath), expectedAssetsRootPath, pathComparison)) {
                 throw new InvalidOperationException("The host asset import manager assets root does not belong to its canonical project root.");
             }
+            // The import manager's content manager is configured for import-settings
+            // processors only (EditorContentManagerConfiguration.ConfigureProjectContentManager,
+            // applied by AssetImportManager's constructor). The scene resolver built below reads
+            // materials and imported textures through this same content manager, so it also needs
+            // the shared editor content processors (editor.texture-asset, editor.material-asset,
+            // etc.) that EditorSession registers on its own EditorContentManager. Registration is
+            // guarded per processor id, so layering this on top of the existing configuration is safe.
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(AssetImportManagerValue.ContentManager, RendererResources.RenderManager2D);
             EditorFileSystemModelResolver modelResolver = new EditorFileSystemModelResolver(AssetImportManagerValue);
             modelResolver.SetRenderManager(RendererResources.RenderManager3D);
             SceneAssetReferenceResolver = new EditorSceneAssetReferenceResolver(
