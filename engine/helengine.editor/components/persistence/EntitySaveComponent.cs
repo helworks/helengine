@@ -300,6 +300,20 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Stores one platform or nested environment component existence override payload.
+        /// </summary>
+        /// <param name="scope">Platform or platform/environment scope that owns the payload.</param>
+        /// <param name="overrideState">Override payload metadata to store.</param>
+        public void SetComponentPlatformOverride(EditorOverrideScope scope, EntityPlatformComponentOverrideState overrideState) {
+            if (overrideState == null) {
+                throw new ArgumentNullException(nameof(overrideState));
+            }
+
+            overrideState.Scope = scope;
+            ComponentOverridesByScope.Set(scope, overrideState);
+        }
+
+        /// <summary>
         /// Gets the existing platform component existence override payload for one platform or creates a new one when needed.
         /// </summary>
         /// <param name="platformId">Platform identifier whose component override payload should be returned.</param>
