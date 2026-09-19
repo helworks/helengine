@@ -48,7 +48,7 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.NotNull(typeof(EditorAuthoringMutationScope).GetProperty("MutationHookForTests", flags));
         BindingFlags journalFlags = BindingFlags.Instance | BindingFlags.NonPublic;
         Assert.NotNull(typeof(EditorAuthoringMutationJournal).GetMethod("CreatePublishingPayloadPath", journalFlags));
-        Assert.NotNull(typeof(EditorAuthoringMutationJournal).GetMethod("CreateDestinationOldPath", journalFlags));
+        Assert.NotNull(typeof(EditorAuthoringMutationScope).GetMethod("FixedRenameReplace", flags));
     }
 
     [Fact]
@@ -61,7 +61,6 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         Assert.DoesNotContain("FixedRenameExchange", source, StringComparison.Ordinal);
         Assert.DoesNotContain("standalone-", source, StringComparison.Ordinal);
         Assert.Contains("Fixed", source, StringComparison.Ordinal);
-        Assert.Contains("DestinationOld", source, StringComparison.Ordinal);
         Assert.Contains("DocumentOld", source, StringComparison.Ordinal);
         string scopeSource = File.ReadAllText(FindSourceFile("EditorAuthoringMutationScope.cs"));
         Assert.DoesNotContain("RenameLinuxExchange", scopeSource, StringComparison.Ordinal);
@@ -1335,7 +1334,7 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     }
 
     [Fact]
-    public void Recover_WhenReplacementStopsAfterFormerDestinationMove_PublishesPayloadAndRetiresBothProofs() {
+    public void Recover_WhenReplacementStopsBeforePublishingOverTheDestination_PublishesPayloadAndRetiresTheOperation() {
         string destination = Path.Combine(ProjectRootPath, "assets", "recover-after-former-destination.hasset");
         File.WriteAllBytes(destination, new byte[] { 2, 2, 2 });
         bool injected = false;
@@ -1355,7 +1354,7 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
         }
 
         Assert.True(injected);
-        Assert.False(File.Exists(destination));
+        Assert.Equal(new byte[] { 2, 2, 2 }, File.ReadAllBytes(destination));
         Assert.NotEmpty(Directory.GetDirectories(Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations")));
 
         EditorAuthoringMutationJournal.Recover(ProjectRootPath);
@@ -1536,21 +1535,15 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
     }
 
     [Fact]
-    public void WriteAllBytesAtomically_PersistsFormerDestinationProofBeforeMovingExistingDestination() {
+    public void WriteAllBytesAtomically_CutBeforeReplaceSyscall_RecoveryPublishesThePayloadOverTheOriginal() {
         string destination = Path.Combine(ProjectRootPath, "assets", "former-proof-order.hasset");
         File.WriteAllBytes(destination, new byte[] { 1, 2, 3 });
-        bool proofWasPersisted = false;
+        bool interrupted = false;
         try {
             EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (point == "FixedRename.BeforeSyscall:former-proof-order.hasset->destination.old") {
-                    string journalRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
-                    string operationDirectory = Assert.Single(Directory.GetDirectories(journalRoot));
-                    using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(operationDirectory, "document.json")));
-                    Assert.Equal("destination.old", document.RootElement.GetProperty("DestinationOldRelativePath").GetString());
-                    Assert.False(string.IsNullOrWhiteSpace(document.RootElement.GetProperty("DestinationOldIdentity").GetString()));
-                    Assert.False(string.IsNullOrWhiteSpace(document.RootElement.GetProperty("DestinationOldHash").GetString()));
-                    proofWasPersisted = true;
-                    throw new IOException("injected before former destination move");
+                if (!interrupted && point == "FixedRename.BeforeSyscall:payload.publishing->former-proof-order.hasset") {
+                    interrupted = true;
+                    throw new IOException("injected before the replace syscall");
                 }
             };
 
@@ -1562,9 +1555,15 @@ public sealed class EditorAuthoringMutationJournalTests : IDisposable {
             EditorAuthoringMutationScope.MutationHookForTests = null;
         }
 
-        Assert.True(proofWasPersisted);
+        Assert.True(interrupted);
+        string journalRoot = Path.Combine(ProjectRootPath, "cache", "editor", "authoring-mutations");
+        Assert.True(Directory.Exists(Assert.Single(Directory.GetDirectories(journalRoot))));
+        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(destination));
+
         EditorAuthoringMutationJournal.Recover(ProjectRootPath);
+
         Assert.Equal(new byte[] { 8, 9, 10 }, File.ReadAllBytes(destination));
+        Assert.Empty(Directory.GetFileSystemEntries(journalRoot));
     }
 
     [Fact]

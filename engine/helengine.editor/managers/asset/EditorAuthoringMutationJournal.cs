@@ -73,7 +73,7 @@ namespace helengine.editor {
                 return false;
             }
             string name = Path.GetFileName(fullPath);
-            return name is "document.json" or "document.next" or "document.old" or "destination.old";
+            return name is "document.json" or "document.next" or "document.old";
         }
 
         // Payload files and their staging directory are owned by the same
@@ -210,10 +210,6 @@ namespace helengine.editor {
 
         internal string PublishingPayloadHashValue => Document.PublishingPayloadExactHash;
 
-        internal string DestinationOldIdentityValue => Document.DestinationOldIdentity;
-
-        internal string DestinationOldHashValue => Document.DestinationOldHash;
-
         internal string CreatePublishingPayloadPath() {
             EnsureOpen();
             EnsureMutationCallbackAllowed();
@@ -226,22 +222,6 @@ namespace helengine.editor {
             // fixed publishing name before moving the inode into it.
             Document.PublishingPayloadIdentity = Document.StagedIdentity;
             Document.PublishingPayloadExactHash = Document.StagedExactHash;
-            Persist();
-            return path;
-        }
-
-        internal string CreateDestinationOldPath() {
-            EnsureOpen();
-            EnsureMutationCallbackAllowed();
-            string path = Path.Combine(OperationDirectoryPath, "destination.old");
-            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(path, OperationDirectoryPath);
-            Document.DestinationOldRelativePath = "destination.old";
-            // The destination proof is captured at Begin and is the durable
-            // identity expected at the fixed former-destination name. Store
-            // it before the namespace move so a crash between rename and the
-            // next document update remains recoverable.
-            Document.DestinationOldIdentity = Document.ExpectedDestinationIdentity;
-            Document.DestinationOldHash = Document.ExpectedDestinationHash;
             Persist();
             return path;
         }
@@ -262,25 +242,6 @@ namespace helengine.editor {
             Document.PublishingPayloadIdentity = identity;
             Document.PublishingPayloadExactHash = hash;
             Document.Phase = "PayloadPublishing";
-            Persist();
-        }
-
-        internal void RecordDestinationOld(string path) {
-            EnsureOpen();
-            EnsureMutationCallbackAllowed();
-            string fullPath = RequireContainedArtifact(path, "destination.old");
-            string identity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(ProjectRootPath, fullPath);
-            string hash = CaptureHash(ProjectRootPath, fullPath);
-            if (identity == "missing" || identity == "unavailable" || hash == "missing" || hash == "unavailable") {
-                throw new InvalidDataException("The former destination identity could not be verified.");
-            }
-            if (!string.Equals(identity, Document.ExpectedDestinationIdentity, StringComparison.Ordinal) ||
-                !string.Equals(hash, Document.ExpectedDestinationHash, StringComparison.Ordinal)) {
-                throw new InvalidDataException("The former destination does not match the destination proof.");
-            }
-            Document.DestinationOldIdentity = identity;
-            Document.DestinationOldHash = hash;
-            Document.Phase = "DestinationQuarantined";
             Persist();
         }
 
@@ -1003,8 +964,7 @@ namespace helengine.editor {
                     RetireDocument(root, path);
                     continue;
                 }
-                if (!string.IsNullOrWhiteSpace(document.PublishingPayloadRelativePath) ||
-                    !string.IsNullOrWhiteSpace(document.DestinationOldRelativePath)) {
+                if (!string.IsNullOrWhiteSpace(document.PublishingPayloadRelativePath)) {
                     RecoverPayloadPublication(root, path, document);
                     continue;
                 }
@@ -1065,7 +1025,6 @@ namespace helengine.editor {
                     !string.Equals(name, "staged", StringComparison.Ordinal) &&
                     !string.Equals(name, "backups", StringComparison.Ordinal) &&
                     !string.Equals(name, "deleting", StringComparison.Ordinal) &&
-                    !string.Equals(name, "destination.old", StringComparison.Ordinal) &&
                     !string.Equals(name, "document.old", StringComparison.Ordinal)) {
                     throw new InvalidDataException($"The authoring mutation operation contains an unexpected artifact '{entry}'.");
                 }
@@ -1074,12 +1033,6 @@ namespace helengine.editor {
                         throw new InvalidDataException($"The authoring mutation artifact '{entry}' must be a directory.");
                     }
                     EditorAuthoringTransactionRecoveryService.ValidateTreeHasNoReparsePoints(entry, operationDirectory);
-                }
-                if (name == "destination.old") {
-                    if (string.IsNullOrWhiteSpace(document.DestinationOldRelativePath) ||
-                        !string.Equals(document.DestinationOldRelativePath, "destination.old", StringComparison.Ordinal)) {
-                        throw new InvalidDataException($"The authoring mutation operation contains an unrecorded former destination.");
-                    }
                 }
                 if (name == "document.old") {
                     if (!string.Equals(document.DocumentOldRelativePath, "document.old", StringComparison.Ordinal)) {
@@ -1463,7 +1416,6 @@ namespace helengine.editor {
                 !string.Equals(document.Phase, "StagingAllocated", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Staged", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "PayloadPublishing", StringComparison.Ordinal) &&
-                !string.Equals(document.Phase, "DestinationQuarantined", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Publishing", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Quarantining", StringComparison.Ordinal) &&
                 !string.Equals(document.Phase, "Published", StringComparison.Ordinal) &&
@@ -1521,14 +1473,9 @@ namespace helengine.editor {
                 throw new InvalidDataException($"The authoring mutation journal '{path}' is missing staged payload identity proof.");
             }
             ValidateFixedArtifactPath(document.PublishingPayloadRelativePath, root, path, "staged/payload.publishing");
-            ValidateFixedArtifactPath(document.DestinationOldRelativePath, root, path, "destination.old");
             if (!string.IsNullOrWhiteSpace(document.PublishingPayloadRelativePath) &&
                 (string.IsNullOrWhiteSpace(document.PublishingPayloadExactHash) || string.IsNullOrWhiteSpace(document.PublishingPayloadIdentity))) {
                 throw new InvalidDataException($"The authoring mutation journal '{path}' is missing publishing payload identity proof.");
-            }
-            if (!string.IsNullOrWhiteSpace(document.DestinationOldRelativePath) &&
-                (string.IsNullOrWhiteSpace(document.DestinationOldHash) || string.IsNullOrWhiteSpace(document.DestinationOldIdentity))) {
-                throw new InvalidDataException($"The authoring mutation journal '{path}' is missing former destination identity proof.");
             }
             ValidateFixedArtifactPath(document.DocumentOldRelativePath, root, path, "document.old");
             if (!string.IsNullOrWhiteSpace(document.DocumentOldRelativePath) &&
@@ -1868,21 +1815,11 @@ namespace helengine.editor {
             string publishingPath = string.IsNullOrWhiteSpace(document.PublishingPayloadRelativePath)
                 ? null
                 : Path.Combine(operationDirectory, document.PublishingPayloadRelativePath.Replace('/', Path.DirectorySeparatorChar));
-            string destinationOldPath = string.IsNullOrWhiteSpace(document.DestinationOldRelativePath)
-                ? null
-                : Path.Combine(operationDirectory, document.DestinationOldRelativePath.Replace('/', Path.DirectorySeparatorChar));
-
-            if (document.Kind == "copy" && destinationOldPath != null) {
-                throw new InvalidDataException($"The copy mutation '{journalPath}' cannot own a former destination.");
-            }
             if (stagedPath != null) {
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(stagedPath, operationDirectory);
             }
             if (publishingPath != null) {
                 EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(publishingPath, operationDirectory);
-            }
-            if (destinationOldPath != null) {
-                EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destinationOldPath, operationDirectory);
             }
             EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destinationPath, root);
 
@@ -1892,18 +1829,14 @@ namespace helengine.editor {
             string stagedHash = stagedPath == null ? "missing" : EditorAuthoringMutationScope.TryGetVerifiedSha256(root, stagedPath);
             string publishingIdentity = publishingPath == null ? "missing" : EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, publishingPath);
             string publishingHash = publishingPath == null ? "missing" : EditorAuthoringMutationScope.TryGetVerifiedSha256(root, publishingPath);
-            string oldIdentity = destinationOldPath == null ? "missing" : EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationOldPath);
-            string oldHash = destinationOldPath == null ? "missing" : EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationOldPath);
-
             bool stagedValid = stagedIdentity == document.StagedIdentity && stagedHash == document.StagedExactHash;
             bool publishingValid = publishingIdentity == document.PublishingPayloadIdentity && publishingHash == document.PublishingPayloadExactHash;
             bool destinationIsPublished = destinationIdentity == document.StagedIdentity && destinationHash == document.StagedExactHash;
             bool destinationIsOriginal = destinationIdentity == document.ExpectedDestinationIdentity && destinationHash == document.ExpectedDestinationHash;
-            bool oldValid = destinationOldPath != null && oldIdentity == document.DestinationOldIdentity && oldHash == document.DestinationOldHash;
 
-            // A completed no-replace publish is recognizable by the exact
-            // staged inode/hash at the destination. Retire only after any
-            // former destination is independently proven and removed.
+            // A completed publish is recognizable by the exact staged
+            // inode/hash at the destination. Retire once the leftover payload
+            // names are independently proven and removed.
             if (destinationIsPublished) {
                 EditorAuthoringMutationScope.FlushContainingDirectoryForRecovery(
                     root,
@@ -1915,11 +1848,6 @@ namespace helengine.editor {
                         ? Path.Combine(operationDirectory, "staged")
                         : Path.GetDirectoryName(publishingPath ?? stagedPath),
                     "Recovery.BeforePublishedPayloadFlush");
-                if (oldValid) {
-                    EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, destinationOldPath, oldIdentity, oldHash);
-                } else if (destinationOldPath != null && oldIdentity != "missing") {
-                    throw new InvalidOperationException($"The authoring mutation '{journalPath}' found an unexpected former destination.");
-                }
                 if (publishingValid) {
                     EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, publishingPath, publishingIdentity, publishingHash);
                 }
@@ -1952,94 +1880,53 @@ namespace helengine.editor {
                 throw new InvalidOperationException($"The copy mutation '{journalPath}' has no verifiable publication payload.");
             }
 
-            // If the old destination has already been quarantined, publish the
-            // exact payload while the journal owns the destination gap.
-            if (oldValid && destinationIdentity == "missing") {
-                string payloadPath = publishingValid ? publishingPath : stagedValid ? stagedPath : null;
-                string payloadIdentity = publishingValid ? publishingIdentity : stagedIdentity;
-                string payloadHash = publishingValid ? publishingHash : stagedHash;
-                if (payloadPath == null) {
-                    throw new InvalidOperationException($"The authoring mutation '{journalPath}' lost its staged payload.");
-                }
-                EditorAuthoringMutationScope.FixedRenameNoReplace(root, payloadPath, destinationPath, payloadIdentity, "missing", payloadHash);
+            string replacePayloadPath = publishingValid ? publishingPath : stagedValid ? stagedPath : null;
+            string replacePayloadIdentity = publishingValid ? publishingIdentity : stagedIdentity;
+            string replacePayloadHash = publishingValid ? publishingHash : stagedHash;
+
+            // A destination that was absent when the operation began has no
+            // former inode. A crash between the durable publishing intent and
+            // the final no-replace rename is completed from whichever fixed
+            // payload name still proves the staged identity.
+            if (destinationIdentity == "missing" &&
+                string.Equals(document.ExpectedDestinationIdentity, "missing", StringComparison.Ordinal) &&
+                replacePayloadPath != null) {
+                EditorAuthoringMutationScope.FixedRenameNoReplace(root, replacePayloadPath, destinationPath, replacePayloadIdentity, "missing", replacePayloadHash);
                 string publishedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationPath);
                 string publishedHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationPath);
                 if (publishedIdentity != document.StagedIdentity || publishedHash != document.StagedExactHash) {
                     throw new InvalidOperationException($"The authoring mutation '{journalPath}' published an unverifiable destination.");
                 }
-                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, destinationOldPath, oldIdentity, oldHash);
                 RetireDocument(root, journalPath);
                 return;
             }
 
-            // New destinations have no former inode. A crash between the
-            // durable publishing intent and the final no-replace rename is
-            // completed from whichever fixed payload name still proves the
-            // staged identity.
-            if (destinationIdentity == "missing" && oldIdentity == "missing" && destinationOldPath == null) {
-                string payloadPath = publishingValid ? publishingPath : stagedValid ? stagedPath : null;
-                string payloadIdentity = publishingValid ? publishingIdentity : stagedIdentity;
-                string payloadHash = publishingValid ? publishingHash : stagedHash;
-                if (payloadPath != null) {
-                    EditorAuthoringMutationScope.FixedRenameNoReplace(root, payloadPath, destinationPath, payloadIdentity, "missing", payloadHash);
-                    string publishedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationPath);
-                    string publishedHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationPath);
-                    if (publishedIdentity != document.StagedIdentity || publishedHash != document.StagedExactHash) {
-                        throw new InvalidOperationException($"The authoring mutation '{journalPath}' published an unverifiable destination.");
-                    }
-                    RetireDocument(root, journalPath);
-                    return;
-                }
-            }
-
-            // No destination gap means the operation has not quarantined the
-            // old inode yet. If the process stopped before reserving the
-            // fixed former-destination artifact, reserve and persist it now
-            // before moving any namespace entry. The next recovery observes
-            // the same exact proof even if the move itself is interrupted.
-            if (destinationIsOriginal && document.Kind != "copy" && oldIdentity == "missing") {
-                string payloadPath = publishingValid ? publishingPath : stagedValid ? stagedPath : null;
-                string payloadIdentity = publishingValid ? publishingIdentity : stagedIdentity;
-                string payloadHash = publishingValid ? publishingHash : stagedHash;
-                if (payloadPath == null) {
+            // The destination still holds its original inode, so the payload
+            // is renamed over it in one atomic step. The user's file is never
+            // moved into this operation directory, which keeps the cache
+            // folder removable at any moment.
+            if (destinationIsOriginal) {
+                if (replacePayloadPath == null) {
                     throw new InvalidOperationException($"The authoring mutation '{journalPath}' has no verifiable staged payload.");
                 }
-                if (destinationOldPath == null) {
-                    document.DestinationOldRelativePath = "destination.old";
-                    document.DestinationOldIdentity = document.ExpectedDestinationIdentity;
-                    document.DestinationOldHash = document.ExpectedDestinationHash;
-                    WriteDocument(journalPath, document, root, createNew: false);
-                    destinationOldPath = Path.Combine(operationDirectory, "destination.old");
-                    EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destinationOldPath, operationDirectory);
-                }
-                EditorAuthoringMutationScope.FixedRenameNoReplace(root, destinationPath, destinationOldPath, document.ExpectedDestinationIdentity, "missing", document.ExpectedDestinationHash);
-                string movedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationOldPath);
-                string movedHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationOldPath);
-                if (movedIdentity != document.ExpectedDestinationIdentity || movedHash != document.ExpectedDestinationHash) {
-                    throw new InvalidOperationException($"The authoring mutation '{journalPath}' moved an unverifiable former destination.");
-                }
-                EditorAuthoringMutationScope.FixedRenameNoReplace(root, payloadPath, destinationPath, payloadIdentity, "missing", payloadHash);
+                EditorAuthoringMutationScope.FixedRenameReplace(
+                    root,
+                    replacePayloadPath,
+                    destinationPath,
+                    replacePayloadIdentity,
+                    document.ExpectedDestinationIdentity,
+                    replacePayloadHash,
+                    document.ExpectedDestinationHash);
                 string publishedIdentity = EditorAuthoringMutationScope.CaptureVerifiedIdentity(root, destinationPath);
                 string publishedHash = EditorAuthoringMutationScope.TryGetVerifiedSha256(root, destinationPath);
                 if (publishedIdentity != document.StagedIdentity || publishedHash != document.StagedExactHash) {
                     throw new InvalidOperationException($"The authoring mutation '{journalPath}' published an unverifiable destination.");
                 }
-                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(root, destinationOldPath, movedIdentity, movedHash);
-                RetireDocument(root, journalPath);
-                return;
-            }
-
-            // A replacement may have stopped after the old inode was moved
-            // but before a payload was made durable. Restore it exactly.
-            if (destinationIsMissing(destinationIdentity) && oldValid && !stagedValid && !publishingValid) {
-                EditorAuthoringMutationScope.FixedRenameNoReplace(root, destinationOldPath, destinationPath, oldIdentity, "missing", oldHash);
                 RetireDocument(root, journalPath);
                 return;
             }
             throw new InvalidOperationException($"The authoring mutation '{journalPath}' has an ambiguous inode publication state.");
         }
-
-        static bool destinationIsMissing(string identity) => identity == "missing";
 
         static void RecoverBareStagedPayload(string root, string journalPath, MutationDocument document) {
             if (!string.Equals(document.Kind, "copy", StringComparison.Ordinal) &&
@@ -2133,9 +2020,6 @@ namespace helengine.editor {
             public string PublishingPayloadRelativePath { get; set; }
             public string PublishingPayloadExactHash { get; set; }
             public string PublishingPayloadIdentity { get; set; }
-            public string DestinationOldRelativePath { get; set; }
-            public string DestinationOldHash { get; set; }
-            public string DestinationOldIdentity { get; set; }
             public string DocumentOldRelativePath { get; set; }
             public string DocumentOldHash { get; set; }
             public string DocumentOldIdentity { get; set; }

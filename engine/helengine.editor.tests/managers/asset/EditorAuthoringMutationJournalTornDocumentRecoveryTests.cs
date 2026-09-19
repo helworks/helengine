@@ -29,9 +29,9 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
-        /// A replace interrupted after the former destination was quarantined and before the next document was
-        /// promoted leaves document.next, document.old and destination.old with no document.json. Recovery must
-        /// publish the staged payload, drop the quarantine and retire the operation without any exception.
+        /// A replace interrupted while promoting the document that records its publishing payload leaves
+        /// document.next and document.old with no document.json while the destination still holds its original
+        /// bytes. Recovery must publish the staged payload and retire the operation without any exception.
         /// </summary>
         [Fact]
         public void Recover_WhenReplaceStoppedBeforePromotingItsDocument_FinishesWithoutFirstChanceExceptions() {
@@ -45,8 +45,7 @@ namespace helengine.editor.tests.managers.asset {
             Assert.False(File.Exists(Path.Combine(operationDirectory, "document.json")));
             Assert.True(File.Exists(Path.Combine(operationDirectory, "document.next")));
             Assert.True(File.Exists(Path.Combine(operationDirectory, "document.old")));
-            Assert.True(File.Exists(Path.Combine(operationDirectory, "destination.old")));
-            Assert.False(File.Exists(destination));
+            Assert.Equal(originalBytes, File.ReadAllBytes(destination));
 
             int firstChanceCount = 0;
             string firstStackTrace = string.Empty;
@@ -70,19 +69,18 @@ namespace helengine.editor.tests.managers.asset {
         }
 
         /// <summary>
-        /// Runs a real atomic replace and cuts it at the rename that promotes document.next once the former
-        /// destination has been moved into the operation folder. Returns the surviving operation directory.
+        /// Runs a real atomic replace and cuts it at the rename that promotes document.next once the staged payload
+        /// has been moved to its publishing name. Returns the surviving operation directory.
         /// </summary>
         string InterruptReplaceBeforeDocumentPromotion(string destination, byte[] replacementBytes) {
-            string fileName = Path.GetFileName(destination);
-            bool destinationQuarantined = false;
+            bool payloadPublishing = false;
             bool interrupted = false;
             EditorAuthoringMutationScope.MutationHookForTests = point => {
-                if (point == "FixedRename.BeforeSyscall:" + fileName + "->destination.old") {
-                    destinationQuarantined = true;
+                if (point == "FixedRename.BeforeSyscall:payload->payload.publishing") {
+                    payloadPublishing = true;
                     return;
                 }
-                if (destinationQuarantined && !interrupted && point == "FixedRename.BeforeSyscall:document.next->document.json") {
+                if (payloadPublishing && !interrupted && point == "FixedRename.BeforeSyscall:document.next->document.json") {
                     interrupted = true;
                     throw new IOException("injected document promotion cut");
                 }

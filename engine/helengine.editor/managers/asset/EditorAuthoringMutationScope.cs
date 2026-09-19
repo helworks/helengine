@@ -290,6 +290,149 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             FixedRename(projectRootPath, sourcePath, destinationPath, expectedSourceIdentity, expectedDestinationIdentity, expectedSourceHash);
         }
 
+        /// <summary>
+        /// Renames one proven regular-file leaf over an existing proven destination in a single atomic step. Both
+        /// inodes are verified by identity and content before the syscall, so an interrupted publication leaves the
+        /// destination holding either its original inode or the replacement inode and never an operation-owned name.
+        /// </summary>
+        internal static void FixedRenameReplace(
+            string projectRootPath,
+            string sourcePath,
+            string destinationPath,
+            string expectedSourceIdentity,
+            string expectedDestinationIdentity,
+            string expectedSourceHash,
+            string expectedDestinationHash) {
+            if (string.IsNullOrWhiteSpace(expectedSourceIdentity) || string.IsNullOrWhiteSpace(expectedDestinationIdentity)) {
+                throw new InvalidDataException("A fixed authoring replace requires both entry identity proofs.");
+            }
+            string source = Path.GetFullPath(sourcePath);
+            string destination = Path.GetFullPath(destinationPath);
+            string sourceParent = Path.GetDirectoryName(source);
+            string destinationParent = Path.GetDirectoryName(destination);
+            if (string.IsNullOrWhiteSpace(sourceParent) || string.IsNullOrWhiteSpace(destinationParent)) {
+                throw new InvalidDataException("A fixed authoring replace requires contained parent directories.");
+            }
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(source, projectRootPath);
+            EditorAuthoringTransactionRecoveryService.ValidateNoReparsePath(destination, projectRootPath);
+            using EditorAuthoringMutationScope sourceScope = AcquireForMutation(projectRootPath, sourceParent);
+            EditorAuthoringMutationScope destinationScope = null;
+            try {
+                destinationScope = string.Equals(sourceParent, destinationParent, PathComparison)
+                    ? sourceScope
+                    : AcquireForMutation(projectRootPath, destinationParent);
+
+                string sourceIdentityBefore = CaptureVerifiedIdentity(projectRootPath, source);
+                if (sourceIdentityBefore == "missing" || sourceIdentityBefore == "unavailable" ||
+                    !string.Equals(sourceIdentityBefore, expectedSourceIdentity, StringComparison.Ordinal)) {
+                    throw new InvalidDataException($"The fixed authoring source '{source}' failed identity verification.");
+                }
+                string destinationIdentityBefore = CaptureVerifiedIdentity(projectRootPath, destination);
+                if (destinationIdentityBefore == "missing") {
+                    throw new IOException($"The fixed replace destination '{destination}' is missing.");
+                }
+                if (destinationIdentityBefore == "unavailable" ||
+                    !string.Equals(destinationIdentityBefore, expectedDestinationIdentity, StringComparison.Ordinal)) {
+                    throw new InvalidDataException($"The fixed authoring destination '{destination}' failed identity verification.");
+                }
+                VerifyExpectedHash(projectRootPath, source, expectedSourceHash, "source");
+                VerifyExpectedHash(projectRootPath, destination, expectedDestinationHash, "destination");
+
+                // The proofs above are the durable record. The hook stays
+                // between that record and the handles/fstat used by the
+                // namespace syscall so tests can exercise the race.
+                InvokeMutationHook("FixedRename.BeforeSyscall");
+                InvokeMutationHook($"FixedRename.BeforeSyscall:{Path.GetFileName(source)}->{Path.GetFileName(destination)}");
+
+                if (OperatingSystem.IsWindows()) {
+                    using EditorAuthoringVerifiedFile sourceFile = sourceScope.OpenVerifiedFileCore(
+                        source,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete,
+                        true);
+                    SafeFileHandle sourceHandle = sourceFile.Stream.SafeFileHandle;
+                    string sourceHandleIdentity = DescribeWindowsHandle(sourceHandle);
+                    if (!string.Equals(sourceHandleIdentity, sourceIdentityBefore, StringComparison.Ordinal) ||
+                        !string.Equals(sourceHandleIdentity, expectedSourceIdentity, StringComparison.Ordinal)) {
+                        throw new InvalidDataException($"The fixed authoring source '{source}' changed after identity proof.");
+                    }
+                    VerifyExpectedHash(sourceHandle, expectedSourceHash, "source");
+
+                    InvokeMutationHook("FixedRename.AfterHandleProof");
+                    sourceScope.RenameVerifiedWindowsLeaf(
+                        sourceHandle,
+                        Path.GetFileName(destination),
+                        true,
+                        destinationScope);
+                    InvokeMutationHook("FixedRename.AfterSyscallBeforeFsync");
+                    InvokeMutationHook($"FixedRename.AfterSyscallBeforeFsync:{Path.GetFileName(source)}->{Path.GetFileName(destination)}");
+                    VerifyExpectedHash(sourceHandle, expectedSourceHash, "published destination");
+                } else if (OperatingSystem.IsLinux()) {
+                    int sourceParentFd = sourceScope.Handles[sourceScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
+                    int destinationParentFd = destinationScope.Handles[destinationScope.Handles.Count - 1].DangerousGetHandle().ToInt32();
+                    string sourceName = Path.GetFileName(source);
+                    string destinationName = Path.GetFileName(destination);
+                    if (!TryGetLinuxEntry(sourceParentFd, sourceName, out LinuxPosixStat sourceStatus)) {
+                        throw new FileNotFoundException($"The fixed authoring source '{source}' does not exist.");
+                    }
+                    string sourceStatusIdentity = new PosixEntryIdentity(sourceStatus).Describe();
+                    if (!string.Equals(sourceStatusIdentity, sourceIdentityBefore, StringComparison.Ordinal) ||
+                        !string.Equals(sourceStatusIdentity, expectedSourceIdentity, StringComparison.Ordinal)) {
+                        throw new InvalidDataException($"The fixed authoring source '{source}' changed after identity proof.");
+                    }
+                    EnsureLinuxEntryType(sourceStatus, false, source);
+                    if (HasContentProof(expectedSourceHash)) {
+                        using SafeFileHandle sourceFile = OpenPosixRegularFileAt(sourceScope.Handles[sourceScope.Handles.Count - 1], sourceName);
+                        VerifyExpectedHash(sourceFile, expectedSourceHash, "source");
+                    }
+                    if (!TryGetLinuxEntry(destinationParentFd, destinationName, out LinuxPosixStat destinationStatus)) {
+                        throw new IOException($"The fixed replace destination '{destination}' is missing.");
+                    }
+                    string destinationStatusIdentity = new PosixEntryIdentity(destinationStatus).Describe();
+                    if (!string.Equals(destinationStatusIdentity, destinationIdentityBefore, StringComparison.Ordinal) ||
+                        !string.Equals(destinationStatusIdentity, expectedDestinationIdentity, StringComparison.Ordinal)) {
+                        throw new InvalidDataException($"The fixed authoring destination '{destination}' changed after identity proof.");
+                    }
+                    EnsureLinuxEntryType(destinationStatus, false, destination);
+
+                    PosixEntryIdentity verifiedSourceIdentity = new PosixEntryIdentity(sourceStatus);
+                    PosixEntryIdentity verifiedDestinationIdentity = new PosixEntryIdentity(destinationStatus);
+                    InvokeMutationHook("FixedRename.AfterHandleProof");
+                    EnsureLinuxIdentity(sourceParentFd, sourceName, verifiedSourceIdentity, source);
+                    EnsureLinuxIdentity(destinationParentFd, destinationName, verifiedDestinationIdentity, destination);
+                    InvokeMutationHook("FixedRename.BeforeFinalSyscall");
+                    InvokeMutationHook($"FixedRename.BeforeFinalSyscall:{sourceName}->{destinationName}");
+                    EnsureLinuxIdentity(sourceParentFd, sourceName, verifiedSourceIdentity, source);
+                    EnsureLinuxIdentity(destinationParentFd, destinationName, verifiedDestinationIdentity, destination);
+                    RenameLinuxReplaceRaw(sourceParentFd, sourceName, destinationParentFd, destinationName, destination);
+                    // The namespace syscall has already succeeded here. Keep the
+                    // durability boundary observable so a test or recovery hook
+                    // can exercise the post-rename, pre-fsync cut.
+                    InvokeMutationHook("FixedRename.AfterSyscallBeforeFsync");
+                    InvokeMutationHook($"FixedRename.AfterSyscallBeforeFsync:{sourceName}->{destinationName}");
+                    FsyncDirectory(sourceParentFd, destination);
+                    if (destinationParentFd != sourceParentFd) {
+                        FsyncDirectory(destinationParentFd, destination);
+                    }
+                    EnsureLinuxIdentity(destinationParentFd, destinationName, verifiedSourceIdentity, destination);
+                } else {
+                    throw CreateUnsupportedPlatformException();
+                }
+
+                string destinationIdentityAfter = CaptureVerifiedIdentity(projectRootPath, destination);
+                if (destinationIdentityAfter == "missing" || destinationIdentityAfter == "unavailable" ||
+                    !string.Equals(destinationIdentityAfter, expectedSourceIdentity, StringComparison.Ordinal)) {
+                    throw new IOException($"The fixed authoring replace did not publish the verified source at '{destination}'.");
+                }
+                VerifyExpectedHash(projectRootPath, destination, expectedSourceHash, "published destination");
+            } finally {
+                if (!ReferenceEquals(destinationScope, sourceScope)) {
+                    destinationScope?.Dispose();
+                }
+            }
+        }
+
         static void FixedRename(
             string projectRootPath,
             string sourcePath,
@@ -1206,6 +1349,21 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             }
         }
 
+        /// <summary>
+        /// Renames one descriptor-relative entry over an existing destination entry with no flags, so the destination
+        /// name always resolves to either the former inode or the renamed inode.
+        /// </summary>
+        static void RenameLinuxReplaceRaw(
+            int sourceParentFd,
+            string sourceName,
+            int destinationParentFd,
+            string destinationName,
+            string path) {
+            if (RenameAt2(sourceParentFd, sourceName, destinationParentFd, destinationName, 0) != 0) {
+                throw CreatePosixRenameException(path);
+            }
+        }
+
         /// <summary>Deletes a verified regular-file leaf without following links.</summary>
         internal void DeleteLeaf(string filePath) {
             EnsureNotDisposed();
@@ -1653,10 +1811,10 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
             journal.RecordStagedPayload(stagedPath, stagedHash);
             journal.ValidateStagedPayload();
 
-            // Reserve the former destination before publishing any payload
-            // state. A recovery observer must never see the original
-            // destination alongside a publishing payload without the exact
-            // proof and fixed path needed to continue the replacement.
+            // Re-prove the destination before publishing any payload state. A
+            // recovery observer sees only two destination states, the original
+            // inode or the published payload inode, and the recorded proofs
+            // tell it which of the two it is looking at.
             string destinationIdentity;
             try {
                 destinationIdentity = journal.RequireDestinationIdentity(fullPath);
@@ -1664,10 +1822,6 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                 journal.Complete();
                 throw;
             }
-            string destinationOldPath = destinationIdentity == "missing"
-                ? null
-                : journal.CreateDestinationOldPath();
-
             string publishingPath = journal.CreatePublishingPayloadPath();
             EditorAuthoringMutationScope.FixedRenameNoReplace(
                 projectRootPath,
@@ -1683,30 +1837,19 @@ using LinuxPosixStat = helengine.editor.EditorAuthoringNativeMethods.LinuxPosixS
                     publishingPath,
                     fullPath,
                     journal.PublishingPayloadIdentityValue,
-                    journal.ExpectedDestinationIdentityValue,
-                        journal.PublishingPayloadHashValue);
-            } else {
-                EditorAuthoringMutationScope.FixedRenameNoReplace(
-                    projectRootPath,
-                    fullPath,
-                    destinationOldPath,
-                    journal.ExpectedDestinationIdentityValue,
                     "missing",
-                    journal.ExpectedDestinationHashValue);
-                journal.RecordDestinationOld(destinationOldPath);
-                EditorAuthoringMutationScope.FixedRenameNoReplace(
+                    journal.PublishingPayloadHashValue);
+            } else {
+                // The former destination never leaves its directory: the proven payload is renamed over it in one
+                // step, so an interrupted replace leaves either the original or the replacement at the destination.
+                EditorAuthoringMutationScope.FixedRenameReplace(
                     projectRootPath,
                     publishingPath,
                     fullPath,
                     journal.PublishingPayloadIdentityValue,
-                    "missing",
-                    journal.PublishingPayloadHashValue);
-                journal.ValidatePublishedPayload(fullPath);
-                EditorAuthoringMutationScope.FixedDeleteVerifiedLeaf(
-                    projectRootPath,
-                    destinationOldPath,
-                    journal.DestinationOldIdentityValue,
-                    journal.DestinationOldHashValue);
+                    journal.ExpectedDestinationIdentityValue,
+                    journal.PublishingPayloadHashValue,
+                    journal.ExpectedDestinationHashValue);
             }
             journal.ValidatePublishedPayload(fullPath);
             journal.MarkPhase("Published");
