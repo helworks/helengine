@@ -89,19 +89,25 @@ to the Common value.
 `EditorOverrideScopeResolver` turns a concrete build target into its override scope path. `EditorOverrideScopeResolver.Load(projectRoot)`
 reads `settings/platform-groups.json` and `settings/platforms.json` without writing either; `ResolveLevelOrder` falls
 back from the entity's order to the project default to `EditorOverrideLevelOrder.Default`; `BuildTargetPath` builds
-the path for a platform/environment pair. Both `EditorPlatformBuildScenePackager` and `EditorPlatformExistenceViewportSyncService`
-build their resolver through `EditorOverrideScopeResolver.Load` and call `BuildTargetPath(ResolveLevelOrder(...), platformId, environmentId)`
-to get the same target path — that path is what is shared. Applying the authored overrides to that path then differs
-by data source, not by rule. For entity existence the packager runs `EditorOverrideScopeResolver.TrySelectDeepest`
-over the serialized `Scope` arrays on a `SceneEntityAsset`'s override list, while the viewport calls
+the path for a platform/environment pair. `EditorPlatformBuildScenePackager` builds its resolver through
+`EditorOverrideScopeResolver.Load`, which throws on inconsistent settings so a build fails naming the offending ids;
+`EditorPlatformExistenceViewportSyncService` builds its own through `EditorOverrideScopeResolver.TryLoad`, which
+reports the same message instead of throwing so an event-driven editor path survives a broken settings file. Both
+call `BuildTargetPath(ResolveLevelOrder(...), platformId, environmentId)` to get the same target path — that path is
+what is shared. Applying the authored overrides to that path then differs by data source, not by rule. For entity
+existence the packager runs `EditorOverrideScopeResolver.TrySelectDeepest` over the serialized `Scope` arrays on a
+`SceneEntityAsset`'s override list, while the viewport calls
 `EntityPlatformExistenceEditingService.ResolveExists(saveComponent, target)`, which calls
 `EntitySaveComponent.TryGetDeepestExistencePlatformOverride` and in turn `EditorOverrideScopeMap.TryGetDeepestPrefix`
-over the live editor state. For transforms, component sets and component property payloads the packager folds every
-prefix-matching record shallowest to deepest, the same fold the editor performs in
+over the live editor state. For transforms and component sets the packager folds every prefix-matching record
+shallowest to deepest, the same fold the editor performs in
 `EntityPlatformTransformEditingService.FoldScopeTransform`, `ComponentPlatformEditingService.IsComponentRemoved` and
-`ComponentPlatformEditingService.GetAddedComponents`. So the packaged build and the editor viewport preview always
-agree on the effective value, existence and overrides alike, even though one reads serialized assets and the other
-reads in-memory editor state.
+`ComponentPlatformEditingService.GetAddedComponents`. A component property override is not folded on either side: the
+record is a whole serialized payload plus its explicit property markers, so the deepest authored prefix supplies it
+whole, in the packager through `SceneComponentPackagingTransformService` and in the editor through
+`ComponentPlatformEditingService.ResolveEditableComponent`. So the packaged build and the editor viewport preview
+always agree on the effective value, existence and overrides alike, even though one reads serialized assets and the
+other reads in-memory editor state.
 
 ## Format versions
 
