@@ -809,6 +809,15 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Attaches the host-owned shader package service to this session's scene-reference resolver.
+        /// </summary>
+        /// <param name="shaderPackageService">Session-owned shader package service.</param>
+        public void AttachShaderPackageService(EditorShaderPackageService shaderPackageService) {
+            EnsureNotDisposed();
+            AssetAuthoringService.AttachShaderPackageService(shaderPackageService);
+        }
+
+        /// <summary>
         /// Writes one native asset through the transitional service surface.
         /// </summary>
         /// <param name="relativePath">Assets-relative native path.</param>

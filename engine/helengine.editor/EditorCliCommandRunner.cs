@@ -141,6 +141,22 @@ namespace helengine.editor {
                 shaderBackendRegistry,
                 250));
             shaderModuleManager.Start();
+            // The scene asset resolver needs a shader package service to satisfy
+            // file-system material references during headless scene loads. This
+            // command-scoped instance mirrors EditorSession's wiring but owns its
+            // own content manager and built-in shader fallback library, since
+            // this graph never receives the interactive session's shared copies.
+            using ContentManager shaderPackageContentManager = new ContentManager(
+                new HostFileSystemContentStreamSource(Path.Combine(bootstrap.ProjectRootPath, "assets")));
+            EditorContentManagerConfiguration.ConfigureEditorContentManager(shaderPackageContentManager, core.RenderManager2D);
+            using EditorBuiltInShaderAssetLibrary shaderPackageBuiltInShaderAssetLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackendRegistry);
+            EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(
+                bootstrap.ProjectRootPath,
+                shaderModuleManager,
+                runtimeTarget,
+                shaderPackageContentManager,
+                shaderPackageBuiltInShaderAssetLibrary);
+            authoring.AttachShaderPackageService(shaderPackageService);
 
             EditorBuildIsolationPathResolver isolationPathResolver = new EditorBuildIsolationPathResolver(bootstrap.ProjectRootPath);
             string commandExecutionId = Guid.NewGuid().ToString("N");

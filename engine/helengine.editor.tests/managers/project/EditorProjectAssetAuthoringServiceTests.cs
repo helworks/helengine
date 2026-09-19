@@ -1,3 +1,4 @@
+using helengine.directx11;
 using helengine.editor.tests.testing;
 
 namespace helengine.editor.tests.managers.project;
@@ -308,6 +309,77 @@ public sealed class EditorProjectAssetAuthoringServiceTests : IDisposable {
     [Fact]
     public void ReferenceCanonicalization_IsExposedByThePublicCapability() {
         Assert.NotNull(typeof(IEditorProjectAssetAuthoringService).GetMethod(nameof(IEditorProjectAssetAuthoringService.CanonicalizeAssetReferences)));
+    }
+
+    /// <summary>
+    /// Ensures attaching the host-owned shader package service updates the session's scene
+    /// asset-reference resolver, matching the wiring the interactive editor session performs
+    /// so headless editor commands can resolve file-system materials during scene loads.
+    /// </summary>
+    [Fact]
+    public void AttachShaderPackageService_SetsTheResolversShaderPackageService() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        using EditorProjectAuthoringSession capability = CreateCapability(projectRootPath);
+        TestGeneratedAssetGraph graph = GeneratedGraphs.Last();
+        using ShaderModuleManager shaderModuleManager = CreateShaderModuleManager(projectRootPath);
+        using ContentManager shaderPackageContentManager = new ContentManager(
+            new HostFileSystemContentStreamSource(Path.Combine(projectRootPath, "assets")));
+        EditorContentManagerConfiguration.ConfigureEditorContentManager(shaderPackageContentManager, Core.Instance.RenderManager2D);
+        EditorShaderPackageService shaderPackageService = new EditorShaderPackageService(
+            projectRootPath,
+            shaderModuleManager,
+            ShaderCompileTarget.DirectX11,
+            shaderPackageContentManager,
+            graph.ShaderLibrary);
+
+        capability.AttachShaderPackageService(shaderPackageService);
+
+        EditorSceneAssetReferenceResolver resolver = Assert.IsType<EditorSceneAssetReferenceResolver>(
+            capability.CreateSceneAssetReferenceResolver());
+        Assert.Same(shaderPackageService, resolver.ShaderPackageService);
+    }
+
+    /// <summary>
+    /// Ensures attaching a null shader package service is rejected instead of silently clearing the resolver's wiring.
+    /// </summary>
+    [Fact]
+    public void AttachShaderPackageService_WhenServiceIsNull_Throws() {
+        string projectRootPath = CreateTemporaryProjectRoot();
+        using EditorProjectAuthoringSession capability = CreateCapability(projectRootPath);
+
+        Assert.Throws<ArgumentNullException>(() => capability.AttachShaderPackageService(null));
+    }
+
+    /// <summary>
+    /// Creates one command-scoped shader module manager under an isolated project root, mirroring
+    /// the headless CLI command runner's per-invocation shader graph.
+    /// </summary>
+    /// <param name="projectRootPath">Isolated project root used by the capability under test.</param>
+    /// <returns>Configured shader module manager ready for package-service construction.</returns>
+    static ShaderModuleManager CreateShaderModuleManager(string projectRootPath) {
+        string shaderRootPath = Path.Combine(projectRootPath, "assets", "Shaders");
+        string packageOutputPath = Path.Combine(projectRootPath, "cache", "shader-cache");
+        Directory.CreateDirectory(shaderRootPath);
+        Directory.CreateDirectory(packageOutputPath);
+
+        ShaderTargetBuildOptions targetOptions = new ShaderTargetBuildOptions(ShaderCompileTarget.DirectX11, new ShaderModel(4, 0));
+        ShaderPackageBuildOptions buildOptions = new ShaderPackageBuildOptions(
+            new[] { targetOptions },
+            ShaderBindingPolicies.Default,
+            true,
+            false,
+            false,
+            Array.Empty<ShaderDefine>());
+        ShaderBackendRegistry shaderBackendRegistry = new ShaderBackendRegistry();
+        shaderBackendRegistry.Register(new DirectX11ShaderBackend());
+        ShaderModuleManagerOptions options = new ShaderModuleManagerOptions(
+            shaderRootPath,
+            packageOutputPath,
+            buildOptions,
+            ShaderCompileTarget.DirectX11,
+            shaderBackendRegistry,
+            100);
+        return new ShaderModuleManager(options);
     }
 
     /// <summary>

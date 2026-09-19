@@ -49,6 +49,7 @@ public abstract class TestEditorProjectAuthoringSessionBase : IEditorProjectAuth
     public virtual FontAsset ResolveFontAsset(string sourcePath) => throw Unsupported();
     public virtual TextureAsset ResolveTextureAsset(string sourcePath) => throw Unsupported();
     public virtual ISceneAssetReferenceResolver CreateSceneAssetReferenceResolver() => throw Unsupported();
+    public virtual void AttachShaderPackageService(EditorShaderPackageService shaderPackageService) => throw Unsupported();
     public virtual void WriteNativeAsset(string relativePath, Asset asset) => throw Unsupported();
     public virtual void WriteNativeAsset(string relativePath, Asset asset, string authoringAssetId) => throw Unsupported();
     public virtual void WriteNativeScene(string relativePath, SceneSettingsAsset sceneSettings, Entity[] roots, ComponentPersistenceRegistry persistenceRegistry, string authoringAssetId) => throw Unsupported();

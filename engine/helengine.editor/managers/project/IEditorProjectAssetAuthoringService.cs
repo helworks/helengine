@@ -87,6 +87,12 @@ namespace helengine.editor {
         ISceneAssetReferenceResolver CreateSceneAssetReferenceResolver();
 
         /// <summary>
+        /// Attaches the host-owned shader package service to this capability's scene-reference resolver.
+        /// </summary>
+        /// <param name="shaderPackageService">Session-owned shader package service.</param>
+        void AttachShaderPackageService(EditorShaderPackageService shaderPackageService);
+
+        /// <summary>
         /// Writes one current native asset beneath the active project's assets directory.
         /// </summary>
         /// <param name="relativePath">Assets-relative native asset path.</param>
