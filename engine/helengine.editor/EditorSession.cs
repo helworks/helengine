@@ -90,17 +90,17 @@ namespace helengine.editor {
         /// </summary>
         readonly string CanonicalProjectFilePath;
         /// <summary>
-        /// Project file name shown in the host window title.
-        /// </summary>
-        readonly string ProjectDisplayName;
-        /// <summary>
         /// Exact engine version required by the current project file.
         /// </summary>
         readonly string RequiredEngineVersion;
         /// <summary>
-        /// Game project name loaded from the canonical project document.
+        /// Game project name loaded from the canonical project document; the Project Settings dialog can change it.
         /// </summary>
-        readonly string ProjectName;
+        string ProjectName;
+        /// <summary>
+        /// Reads and writes the project's name and description in the canonical project document.
+        /// </summary>
+        EditorProjectSettingsService projectSettingsService;
         /// <summary>
         /// Human-visible project version loaded from the canonical project document.
         /// </summary>
@@ -441,6 +441,10 @@ namespace helengine.editor {
         /// </summary>
         SceneSettingsDialog sceneSettingsDialog;
         /// <summary>
+        /// Modal dialog used to edit the project's name and description.
+        /// </summary>
+        ProjectSettingsDialog projectSettingsDialog;
+        /// <summary>
         /// Modal dialog used to edit editor-global preferences such as UI scale.
         /// </summary>
         EditorPreferencesDialog preferencesDialog;
@@ -664,7 +668,6 @@ namespace helengine.editor {
             constructionLedger.Register(builtInShaderAssetLibrary);
             CanonicalProjectFilePath = EditorProjectMetadataResolver.ResolveCanonicalProjectFilePath(projectPath);
             this.projectPath = EditorProjectMetadataResolver.ResolveProjectRootPathFromCanonicalProjectFile(CanonicalProjectFilePath);
-            ProjectDisplayName = EditorProjectMetadataResolver.ResolveProjectDisplayNameFromCanonicalProjectFile(CanonicalProjectFilePath);
             CurrentEditorPreferences = initialEditorPreferences ?? throw new ArgumentNullException(nameof(initialEditorPreferences));
             CurrentUiScaleSettings = CurrentEditorPreferences.UiScale;
             CurrentThemeId = CurrentEditorPreferences.ThemeId;
@@ -673,6 +676,7 @@ namespace helengine.editor {
             RequiredEngineVersion = EditorProjectMetadataResolver.ResolveRequiredEngineVersion(projectDocument);
             ProjectName = EditorProjectMetadataResolver.ResolveProjectName(projectDocument);
             ProjectVersion = EditorProjectMetadataResolver.ResolveProjectVersion(projectDocument);
+            projectSettingsService = new EditorProjectSettingsService(CanonicalProjectFilePath);
             // The scene-lifecycle service owns the current-scene state that the window title reads,
             // so it has to exist before the first title is composed later in this constructor.
             sceneCatalogService = new EditorProjectSceneCatalogService(this.projectPath);
@@ -901,6 +905,8 @@ namespace helengine.editor {
             RegisterScaleSensitiveDialogCleanup(constructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
             sceneSettingsDialog = new SceneSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
+            projectSettingsDialog = new ProjectSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(constructionLedger, projectSettingsDialog.Dispose, hide: projectSettingsDialog.Hide);
             preferencesDialog = new EditorPreferencesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(constructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             sceneAssetReferenceFactory = new SceneAssetReferenceFactory(authoredAssetReferenceResolver);
@@ -993,6 +999,8 @@ namespace helengine.editor {
             titleBar.ExportSceneRequested += HandleExportSceneRequested;
             RegisterDetacher(constructionLedger, () => titleBar.PlatformsRequested -= HandlePlatformsRequested);
             titleBar.PlatformsRequested += HandlePlatformsRequested;
+            RegisterDetacher(constructionLedger, () => titleBar.ProjectSettingsRequested -= HandleProjectSettingsRequested);
+            titleBar.ProjectSettingsRequested += HandleProjectSettingsRequested;
             RegisterDetacher(constructionLedger, () => titleBar.ProfilesRequested -= HandleProfilesRequested);
             titleBar.ProfilesRequested += HandleProfilesRequested;
             RegisterDetacher(constructionLedger, () => titleBar.BuildScriptsRequested -= HandleBuildScriptsRequested);
@@ -1567,6 +1575,7 @@ namespace helengine.editor {
             buildDialogCopySettingsDialog?.UpdateLayout(width, height);
             unsavedChangesDialog?.UpdateLayout(width, height);
             sceneSettingsDialog?.UpdateLayout(width, height);
+            projectSettingsDialog?.UpdateLayout(width, height);
             preferencesDialog?.UpdateLayout(width, height);
             IReadOnlyList<PropertiesPanel> propertiesPanels = GetPropertiesPanels();
             for (int index = 0; index < propertiesPanels.Count; index++) {
@@ -1808,6 +1817,12 @@ namespace helengine.editor {
                 RegisterDetacher(ConstructionLedger, () => sceneSettingsDialog.CancelRequested -= HandleSceneSettingsDialogCanceled);
                 sceneSettingsDialog.CancelRequested += HandleSceneSettingsDialogCanceled;
             }
+            if (projectSettingsDialog != null) {
+                RegisterDetacher(ConstructionLedger, () => projectSettingsDialog.ConfirmRequested -= HandleProjectSettingsDialogConfirmed);
+                projectSettingsDialog.ConfirmRequested += HandleProjectSettingsDialogConfirmed;
+                RegisterDetacher(ConstructionLedger, () => projectSettingsDialog.CancelRequested -= HandleProjectSettingsDialogCanceled);
+                projectSettingsDialog.CancelRequested += HandleProjectSettingsDialogCanceled;
+            }
             } finally {
                 RegisteringScaleSensitiveDialogHandlers = false;
             }
@@ -1919,6 +1934,8 @@ namespace helengine.editor {
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, unsavedChangesDialog.Dispose, hide: unsavedChangesDialog.Hide);
             sceneSettingsDialog = new SceneSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, sceneSettingsDialog.Dispose, hide: sceneSettingsDialog.Hide);
+            projectSettingsDialog = new ProjectSettingsDialog(core, interactionServices, uiFont, CurrentUiMetrics);
+            RegisterScaleSensitiveDialogCleanup(ConstructionLedger, projectSettingsDialog.Dispose, hide: projectSettingsDialog.Hide);
             preferencesDialog = new EditorPreferencesDialog(core, interactionServices, uiFont, CurrentUiMetrics);
             RegisterScaleSensitiveDialogCleanup(ConstructionLedger, preferencesDialog.Dispose, hide: preferencesDialog.Hide);
             AttachScaleSensitiveDialogHandlers();
@@ -3191,6 +3208,38 @@ namespace helengine.editor {
         /// </summary>
         void HandleSceneSettingsRequested() {
             sceneSettingsDialog.Show(CurrentSceneSettings);
+        }
+
+        /// <summary>
+        /// Opens the Project Settings dialog with the name and description currently stored in the project file.
+        /// </summary>
+        void HandleProjectSettingsRequested() {
+            projectSettingsDialog.Show(projectSettingsService.Load());
+        }
+
+        /// <summary>
+        /// Persists a confirmed project identity and pushes the new name to the title, the generated solution and the
+        /// build coordinator, then closes the dialog.
+        /// </summary>
+        /// <param name="settings">Confirmed project name and description.</param>
+        void HandleProjectSettingsDialogConfirmed(EditorProjectSettings settings) {
+            if (settings == null) {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            projectSettingsService.Save(settings);
+            ProjectName = settings.Name.Trim();
+            gameSolutionService.UpdateProjectName(ProjectName);
+            BuildMenuCoordinator.UpdateProjectName(ProjectName);
+            RefreshWindowTitle();
+            projectSettingsDialog.Hide();
+        }
+
+        /// <summary>
+        /// Closes the Project Settings dialog without saving.
+        /// </summary>
+        void HandleProjectSettingsDialogCanceled() {
+            projectSettingsDialog.Hide();
         }
 
         /// <summary>
@@ -5468,7 +5517,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Window title text shown by the editor host.</returns>
         string BuildWindowTitle() {
-            return EditorProjectMetadataResolver.BuildWindowTitle(ProjectDisplayName, ActiveProjectPlatform, CurrentScenePath, IsSceneDirty);
+            return EditorProjectMetadataResolver.BuildWindowTitle(ProjectName, ActiveProjectPlatform, CurrentScenePath, IsSceneDirty);
         }
 
         /// <summary>

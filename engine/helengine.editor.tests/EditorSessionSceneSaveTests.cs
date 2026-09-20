@@ -114,7 +114,7 @@ namespace helengine.editor.tests {
             InvokePrivate(session, "HandleSceneSaveRequested", expectedPath);
 
             EditorTitleBar titleBar = GetPrivateField<EditorTitleBar>(session, "titleBar");
-            Assert.Equal("Saved - helengine - project.heproj", titleBar.Title);
+            Assert.Equal("Saved - helengine - city", titleBar.Title);
         }
 
         /// <summary>
@@ -131,7 +131,7 @@ namespace helengine.editor.tests {
             InvokePrivate(session, "RefreshWindowTitle");
 
             EditorTitleBar titleBar = GetPrivateField<EditorTitleBar>(session, "titleBar");
-            Assert.Equal("DirtyScene* - helengine - project.heproj", titleBar.Title);
+            Assert.Equal("DirtyScene* - helengine - city", titleBar.Title);
         }
 
         /// <summary>
@@ -149,7 +149,7 @@ namespace helengine.editor.tests {
             InvokePrivate(session, "HandleSceneSaveRequested", savePath);
 
             EditorTitleBar titleBar = GetPrivateField<EditorTitleBar>(session, "titleBar");
-            Assert.Equal("Saved - helengine - project.heproj", titleBar.Title);
+            Assert.Equal("Saved - helengine - city", titleBar.Title);
         }
 
         /// <summary>
@@ -317,7 +317,7 @@ namespace helengine.editor.tests {
             EditorSceneCanvasProfileState sceneCanvasProfileState = new EditorSceneCanvasProfileState();
             sceneCanvasProfileState.ApplySceneSettings(currentSceneSettings);
             SceneSettingsDialog sceneSettingsDialog = new SceneSettingsDialog(CoreValue, InteractionServices, CreateFont(), EditorUiMetrics.Default);
-            EditorTitleBar titleBar = new EditorTitleBar(CoreValue, InteractionServices, CreateFont(), 1280, 720, "helengine - project.heproj");
+            EditorTitleBar titleBar = new EditorTitleBar(CoreValue, InteractionServices, CreateFont(), 1280, 720, "helengine - city");
             EditorHistoryCaptureService historyCaptureService = new EditorHistoryCaptureService(saveService);
             EditorUndoRedoService undoRedoService = new EditorUndoRedoService(new EditorHistoryContext());
             EditorMutationService historyMutationService = new EditorMutationService(
@@ -337,7 +337,7 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "sceneCanvasProfileState", sceneCanvasProfileState);
             SetPrivateField(session, "sceneSettingsDialog", sceneSettingsDialog);
             SetPrivateField(session, "titleBar", titleBar);
-            SetPrivateField(session, "ProjectDisplayName", "project.heproj");
+            SetPrivateField(session, "ProjectName", "city");
             SetPrivateField(session, "HistoryCaptureService", historyCaptureService);
             SetPrivateField(session, "UndoRedoService", undoRedoService);
             SetPrivateField(session, "HistoryMutationService", historyMutationService);

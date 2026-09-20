@@ -61,14 +61,28 @@ namespace helengine.editor {
         readonly string ProjectRootPath;
 
         /// <summary>
-        /// Sanitized identifier used for file names and assembly metadata.
+        /// Sanitized identifier used for file names and assembly metadata; follows the project name when it is renamed.
         /// </summary>
-        readonly string ProjectIdentifier;
+        string ProjectIdentifier;
 
         /// <summary>
-        /// Generated solution file path.
+        /// Generated solution file path; follows the project name when it is renamed.
         /// </summary>
-        readonly string SolutionFilePath;
+        string SolutionFilePath;
+
+        /// <summary>
+        /// Adopts a renamed project so the next generated solution carries the new name. Files generated under the old
+        /// name are left on disk.
+        /// </summary>
+        /// <param name="projectName">New non-blank project name.</param>
+        public void UpdateProjectName(string projectName) {
+            if (string.IsNullOrWhiteSpace(projectName)) {
+                throw new ArgumentException("Project name must be provided.", nameof(projectName));
+            }
+
+            ProjectIdentifier = SanitizeIdentifier(projectName);
+            SolutionFilePath = Path.Combine(ProjectRootPath, ProjectIdentifier + SolutionFileExtension);
+        }
 
         /// <summary>
         /// IDE launcher used after generating the solution files.

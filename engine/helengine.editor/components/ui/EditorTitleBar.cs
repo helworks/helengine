@@ -707,6 +707,10 @@ namespace helengine.editor {
         /// </summary>
         public event Action BuildSettingsRequested;
         /// <summary>
+        /// Raised when the user selects the Build menu's Settings command that edits the project identity.
+        /// </summary>
+        public event Action ProjectSettingsRequested;
+        /// <summary>
         /// Raised when the user selects the Platforms command.
         /// </summary>
         public event Action PlatformsRequested;
@@ -908,6 +912,7 @@ namespace helengine.editor {
         /// <returns>Immutable collection of Build menu items.</returns>
         IReadOnlyList<ContextMenuItem> BuildBuildMenuItems() {
             return new ContextMenuItem[] {
+                new ContextMenuItem("Settings...", RaiseProjectSettingsRequested),
                 new ContextMenuItem("Platforms...", RaisePlatformsRequested),
                 new ContextMenuItem("Profiles...", RaiseProfilesRequested),
                 new ContextMenuItem("Build...", RaiseBuildRequested),
@@ -2003,6 +2008,16 @@ namespace helengine.editor {
             HideMenus();
             if (BuildSettingsRequested != null) {
                 BuildSettingsRequested();
+            }
+        }
+
+        /// <summary>
+        /// Raises the project Settings command event.
+        /// </summary>
+        void RaiseProjectSettingsRequested() {
+            HideMenus();
+            if (ProjectSettingsRequested != null) {
+                ProjectSettingsRequested();
             }
         }
 

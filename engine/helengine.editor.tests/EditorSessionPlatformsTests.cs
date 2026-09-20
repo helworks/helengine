@@ -111,7 +111,7 @@ namespace helengine.editor.tests {
 
             session.SetActiveProjectPlatform("ps2");
 
-            Assert.Equal("helengine - project.heproj [PS2]", session.WindowTitle);
+            Assert.Equal("helengine - city [PS2]", session.WindowTitle);
         }
 
         /// <summary>
@@ -137,7 +137,7 @@ namespace helengine.editor.tests {
             InvokePrivate(session, "HandleSceneMutated");
             InvokePrivate(session, "RefreshWindowTitle");
 
-            Assert.Equal("DirtyScene* - helengine - project.heproj [PS2]", session.WindowTitle);
+            Assert.Equal("DirtyScene* - helengine - city [PS2]", session.WindowTitle);
         }
 
         /// <summary>
@@ -227,10 +227,10 @@ namespace helengine.editor.tests {
             SetPrivateField(session, "ProjectSupportedPlatforms", supportedPlatforms);
             SetPrivateField(session, "ProjectLocalSettingsService", localSettingsService);
             SetPrivateField(session, "ActiveProjectPlatform", activePlatform);
-            SetPrivateField(session, "ProjectDisplayName", "project.heproj");
+            SetPrivateField(session, "ProjectName", "city");
             SetPrivateField(session, "assetImportManager", assetImportManager);
             SetPrivateField(session, "AssetSelectionCoordinator", new EditorAssetSelectionCoordinator(assetImportManager));
-            SetPrivateField(session, "titleBar", new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine - project.heproj [WINDOWS]"));
+            SetPrivateField(session, "titleBar", new EditorTitleBar(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1280, 720, "helengine - city [WINDOWS]"));
             SetPrivateField(session, "platformsDialog", new PlatformsDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont()));
             SetPrivateField(session, "projectPlatformsService", new EditorProjectPlatformsService(TempProjectRootPath));
             AvailablePlatformProviderResolver platformProviderResolver = new AvailablePlatformProviderResolver(new PlatformDiscoveryOptions(TempProjectRootPath));

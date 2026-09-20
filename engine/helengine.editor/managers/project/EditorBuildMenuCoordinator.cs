@@ -27,9 +27,21 @@ namespace helengine.editor {
         string ProjectRootPath { get; }
 
         /// <summary>
-        /// Stable project identifier reported to platform builders.
+        /// Stable project identifier reported to platform builders; the Project Settings dialog can rename it.
         /// </summary>
-        string ProjectName { get; }
+        string ProjectName { get; set; }
+
+        /// <summary>
+        /// Adopts a renamed project so the next build receives the new name.
+        /// </summary>
+        /// <param name="projectName">New non-blank project name.</param>
+        public void UpdateProjectName(string projectName) {
+            if (string.IsNullOrWhiteSpace(projectName)) {
+                throw new ArgumentException("Project name must be provided.", nameof(projectName));
+            }
+
+            ProjectName = projectName;
+        }
 
         /// <summary>
         /// Human-visible project version reported to platform builders.
