@@ -1484,6 +1484,9 @@ namespace helengine.editor {
         /// <param name="renderWidth">Current render width.</param>
         /// <param name="renderHeight">Current render height.</param>
         public void UpdateFrame(int renderWidth, int renderHeight) {
+            if (IsDisposed || IsDisposing) {
+                return;
+            }
             if (!startupSceneRestoreAttempted) {
                 startupSceneRestoreAttempted = true;
                 RestoreLastOpenScene();
@@ -1491,6 +1494,11 @@ namespace helengine.editor {
             }
             ProcessPendingShaderBuildNotifications();
             Update();
+            // The title bar's close button runs inside Update and can dispose this session through the host window.
+            // Nothing after that point may touch the disposed services.
+            if (IsDisposed || IsDisposing) {
+                return;
+            }
             UpdateLayout(renderWidth, renderHeight);
             bool layoutDirty = UpdateDocking(renderWidth, renderHeight);
             if (layoutDirty) {

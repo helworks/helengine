@@ -682,8 +682,16 @@ namespace helengine.editor.app {
         /// Handles the session request to close the host window after pending unsaved changes are resolved.
         /// </summary>
         void HandleEditorSessionCloseRequested() {
-            allowSessionDrivenClose = true;
-            Close();
+            // The request arrives from the title bar inside the running frame. Closing right here would dispose the
+            // session while its own Update is still on the stack, so the close is queued for after the frame.
+            BeginInvoke(() => {
+                if (closed) {
+                    return;
+                }
+
+                allowSessionDrivenClose = true;
+                Close();
+            });
         }
 
         /// <summary>
