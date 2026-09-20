@@ -171,6 +171,87 @@ namespace helengine.editor.tests.managers.project {
         }
 
         /// <summary>
+        /// Ensures disposing the host at session shutdown collects the script assembly quietly even though long-lived editor
+        /// services still hold the shared resolver, and a script type was resolved through it. The editor closes from inside
+        /// the update loop, so this must neither throw nor raise a first-chance exception.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenResolverIsStillReferencedAfterResolvingAType_UnloadsWithoutRaisingExceptions() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+
+            EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+            host.Reload([
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime)
+            ]);
+            IScriptTypeResolver capturedResolver = host.ScriptTypeResolver;
+            WeakReference assemblyReference = ResolveScriptAssemblyReference(capturedResolver);
+
+            int firstChanceCount = DisposeCountingFirstChanceExceptions(host, out string firstStackTrace);
+
+            Assert.True(firstChanceCount == 0, $"Saw {firstChanceCount} first-chance exception(s) during dispose. First:{Environment.NewLine}{firstStackTrace}");
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            Assert.False(assemblyReference.IsAlive, "The script assembly is still reachable after the host was disposed.");
+            Assert.NotNull(capturedResolver);
+        }
+
+        /// <summary>
+        /// Ensures that when something outside the host still holds a script type at shutdown, dispose gives up quietly:
+        /// no exception is thrown or raised, and the host is left empty. The snapshot folder is designed to tolerate
+        /// leftovers from a session that could not unload.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenAScriptTypeIsStillHeldElsewhere_DoesNotRaiseExceptions() {
+            string gameplayAssemblyPath = WriteModuleAssembly("gameplay");
+
+            EditorGameScriptAssemblyHost host = new EditorGameScriptAssemblyHost(ProjectRootPath);
+            host.Reload([
+                CreateAssemblyDescriptor("gameplay", gameplayAssemblyPath, EditorCodeModuleKind.Runtime)
+            ]);
+            Type heldType = host.ScriptTypeResolver.Resolve(typeof(TestUpdateOnlyScriptComponent).FullName + ", gameplay");
+
+            int firstChanceCount = DisposeCountingFirstChanceExceptions(host, out string firstStackTrace);
+
+            Assert.True(firstChanceCount == 0, $"Saw {firstChanceCount} first-chance exception(s) during dispose. First:{Environment.NewLine}{firstStackTrace}");
+            Assert.Throws<InvalidOperationException>(() => host.ScriptTypeResolver.Resolve(typeof(TestUpdateOnlyScriptComponent).FullName + ", gameplay"));
+            Assert.NotNull(heldType);
+        }
+
+        /// <summary>
+        /// Resolves the test script type through the resolver in its own frame, so the caller's frame never roots the
+        /// resolved <see cref="Type"/> and only the returned weak reference observes the collectible assembly.
+        /// </summary>
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        static WeakReference ResolveScriptAssemblyReference(IScriptTypeResolver resolver) {
+            return new WeakReference(resolver.Resolve(typeof(TestUpdateOnlyScriptComponent).FullName + ", gameplay").Assembly);
+        }
+
+        /// <summary>
+        /// Disposes the host while counting every first-chance exception raised on this thread.
+        /// </summary>
+        static int DisposeCountingFirstChanceExceptions(EditorGameScriptAssemblyHost host, out string firstStackTrace) {
+            int firstChanceCount = 0;
+            string capturedStackTrace = string.Empty;
+            EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> handler = (sender, args) => {
+                firstChanceCount++;
+                if (string.IsNullOrEmpty(capturedStackTrace)) {
+                    capturedStackTrace = args.Exception.GetType().Name + ": " + args.Exception.Message + Environment.NewLine + Environment.StackTrace;
+                }
+            };
+
+            AppDomain.CurrentDomain.FirstChanceException += handler;
+            try {
+                host.Dispose();
+            } finally {
+                AppDomain.CurrentDomain.FirstChanceException -= handler;
+            }
+
+            firstStackTrace = capturedStackTrace;
+            return firstChanceCount;
+        }
+
+        /// <summary>
         /// Ensures a failed later module load reports its original error instead of masking it with a collectible-context unload failure.
         /// </summary>
         [Fact]

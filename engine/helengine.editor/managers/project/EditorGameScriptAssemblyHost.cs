@@ -123,17 +123,31 @@ namespace helengine.editor {
                 return;
             }
 
-            try {
-                UnloadContexts(CurrentLoadContextsByModuleId);
-                DeleteDirectoryIfPresent(CurrentSnapshotRootDirectoryPath);
-            } catch {
-            }
-
+            // Every reference this host owns must be gone before the collector is asked to reclaim the context.
+            // The shared resolver and the assembly table both hold Assembly objects from the collectible context;
+            // clearing them after the wait, as this method once did, made the wait fail on every editor close.
+            Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> previousLoadContextsByModuleId = CurrentLoadContextsByModuleId;
+            string previousSnapshotRootDirectoryPath = CurrentSnapshotRootDirectoryPath;
             CurrentLoadContextsByModuleId = new Dictionary<string, EditorCollectibleScriptAssemblyLoadContext>(StringComparer.OrdinalIgnoreCase);
             CurrentAssembliesByModuleId = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
             CurrentModuleKindsByModuleId = new Dictionary<string, EditorCodeModuleKind>(StringComparer.OrdinalIgnoreCase);
             CurrentSnapshotRootDirectoryPath = null;
             ScriptTypeResolverValue.Clear();
+
+            // A script type still held outside the host keeps the context alive. That is not an error on the close
+            // path: startup already tolerates snapshot folders left behind by a session that could not unload.
+            if (!TryUnloadContexts(previousLoadContextsByModuleId)) {
+                Logger.WriteWarning("The scripting assembly was still referenced at shutdown; its snapshot folder was left in place.");
+                return;
+            }
+
+            try {
+                DeleteDirectoryIfPresent(previousSnapshotRootDirectoryPath);
+            } catch (IOException exception) {
+                Logger.WriteWarning($"The script snapshot folder could not be deleted at shutdown: {exception.Message}");
+            } catch (UnauthorizedAccessException exception) {
+                Logger.WriteWarning($"The script snapshot folder could not be deleted at shutdown: {exception.Message}");
+            }
         }
 
         /// <summary>
@@ -363,8 +377,21 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="loadContextReference">Weak reference returned by <see cref="BeginUnload(EditorCollectibleScriptAssemblyLoadContext)"/>.</param>
         void WaitForUnload(WeakReference loadContextReference) {
+            if (!TryWaitForUnload(loadContextReference)) {
+                throw new InvalidOperationException("The previous scripting assembly could not be unloaded.");
+            }
+        }
+
+        /// <summary>
+        /// Forces garbage collection until one collectible context disappears or the retry limit is reached, and reports
+        /// whether it disappeared. Shutdown uses this form so a script type still held by a caller outside the host never
+        /// turns into an exception on the close path.
+        /// </summary>
+        /// <param name="loadContextReference">Weak reference returned by <see cref="BeginUnload(EditorCollectibleScriptAssemblyLoadContext)"/>.</param>
+        /// <returns>True when the context was collected or there was nothing to wait for.</returns>
+        static bool TryWaitForUnload(WeakReference loadContextReference) {
             if (loadContextReference == null) {
-                return;
+                return true;
             }
 
             for (int attempt = 0; attempt < 12 && loadContextReference.IsAlive; attempt++) {
@@ -373,9 +400,7 @@ namespace helengine.editor {
                 GC.Collect();
             }
 
-            if (loadContextReference.IsAlive) {
-                throw new InvalidOperationException("The previous scripting assembly could not be unloaded.");
-            }
+            return !loadContextReference.IsAlive;
         }
 
         /// <summary>
@@ -391,6 +416,28 @@ namespace helengine.editor {
             for (int index = 0; index < references.Count; index++) {
                 WaitForUnload(references[index]);
             }
+        }
+
+        /// <summary>
+        /// Unloads all collectible contexts tracked in the supplied dictionary and reports whether every one of them was
+        /// collected, without throwing when one is still reachable.
+        /// </summary>
+        /// <param name="loadContextsByModuleId">Load contexts keyed by module id.</param>
+        /// <returns>True when every context was collected.</returns>
+        bool TryUnloadContexts(Dictionary<string, EditorCollectibleScriptAssemblyLoadContext> loadContextsByModuleId) {
+            if (loadContextsByModuleId == null || loadContextsByModuleId.Count == 0) {
+                return true;
+            }
+
+            List<WeakReference> references = BeginUnloadContexts(loadContextsByModuleId);
+            bool collected = true;
+            for (int index = 0; index < references.Count; index++) {
+                if (!TryWaitForUnload(references[index])) {
+                    collected = false;
+                }
+            }
+
+            return collected;
         }
 
 
