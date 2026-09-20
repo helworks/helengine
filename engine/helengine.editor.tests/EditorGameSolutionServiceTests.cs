@@ -228,6 +228,12 @@ namespace helengine.editor.tests {
             Assert.Contains("..\\gameplay\\gameplay.csproj", projectFileContents, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("global using helengine;", globalUsingsContents, StringComparison.Ordinal);
             Assert.Contains("global using helengine.editor;", globalUsingsContents, StringComparison.Ordinal);
+
+            // Visual Studio shows the solution's display name, so editor-only modules are flagged there while the
+            // project file itself keeps the plain module id.
+            string solutionContents = File.ReadAllText(Path.Combine(TempProjectRootPath, "SkyRider.sln"));
+            Assert.Contains("= \"menu.tools [Editor]\", \"user_settings/generated_code/projects/menu.tools/menu.tools.csproj\"", solutionContents, StringComparison.Ordinal);
+            Assert.Contains("= \"gameplay\", \"user_settings/generated_code/projects/gameplay/gameplay.csproj\"", solutionContents, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -532,6 +538,9 @@ public sealed class ShaderBackendRegistryTests {
             string globalUsingsPath = Path.Combine(TempProjectRootPath, "user_settings", "generated_code", "projects", "menu.tools.tests", "GlobalUsings.g.cs");
             Assert.True(File.Exists(globalUsingsPath));
             Assert.Contains("global using helengine.editor;", File.ReadAllText(globalUsingsPath), StringComparison.Ordinal);
+
+            string solutionContents = File.ReadAllText(Path.Combine(TempProjectRootPath, "SkyRider.sln"));
+            Assert.Contains("= \"menu.tools.tests [Editor]\", ", solutionContents, StringComparison.Ordinal);
         }
 
         /// <summary>

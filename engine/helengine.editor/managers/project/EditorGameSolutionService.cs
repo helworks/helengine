@@ -857,7 +857,7 @@ namespace helengine.editor {
                 string solutionDirectoryPath = Path.GetDirectoryName(SolutionFilePath) ?? ProjectRootPath;
                 string relativeProjectFileName = Path.GetRelativePath(solutionDirectoryPath, moduleProject.ProjectFilePath).Replace('\\', '/');
                 string projectGuidText = moduleProject.ProjectGuid.ToString("B").ToUpperInvariant();
-                builder.AppendLine("Project(\"{" + CSharpProjectTypeGuid + "}\") = \"" + EscapeSolutionText(moduleProject.ModuleId) + "\", \"" + EscapeSolutionText(relativeProjectFileName) + "\", \"" + projectGuidText + "\"");
+                builder.AppendLine("Project(\"{" + CSharpProjectTypeGuid + "}\") = \"" + EscapeSolutionText(BuildSolutionDisplayName(moduleProject)) + "\", \"" + EscapeSolutionText(relativeProjectFileName) + "\", \"" + projectGuidText + "\"");
                 builder.AppendLine("EndProject");
             }
 
@@ -1156,6 +1156,20 @@ namespace helengine.editor {
         /// <returns>Solution-safe text value.</returns>
         static string EscapeSolutionText(string value) {
             return string.IsNullOrEmpty(value) ? string.Empty : value.Replace("\"", "\"\"");
+        }
+
+        /// <summary>
+        /// Builds the name Visual Studio shows for one generated project. Editor-only modules and their tests carry an
+        /// "[Editor]" flag so they are told apart from runtime code at a glance; the project file keeps the plain id.
+        /// </summary>
+        /// <param name="moduleProject">Generated project to name.</param>
+        /// <returns>Solution display name.</returns>
+        static string BuildSolutionDisplayName(EditorGeneratedCodeModuleProject moduleProject) {
+            if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
+                return moduleProject.ModuleId + " [Editor]";
+            }
+
+            return moduleProject.ModuleId;
         }
 
         /// <summary>
