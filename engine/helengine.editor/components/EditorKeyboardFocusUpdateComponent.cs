@@ -48,6 +48,11 @@ namespace helengine.editor {
                 InteractionServices.KeyboardFocus.HandlePointerPressed(input.GetMousePosition(), true);
             }
 
+            // A focused text box owns the keyboard. Dialog and panel boxes are not registered focus targets, so
+            // without this the previously focused target (usually the viewport) would still see W/R/S/F and Delete.
+            TextBoxComponent focusedTextEntry = TextBoxComponent.FocusedTextEntry;
+            bool textEntryActive = focusedTextEntry != null && focusedTextEntry.IsFocused;
+            bool activationKeysAllowed = !textEntryActive || InteractionServices.KeyboardFocus.IsFocusedTarget(focusedTextEntry);
             bool shiftPressed = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
             bool controlPressed = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);
             if (input.WasKeyPressed(Keys.Tab)) {
@@ -76,29 +81,29 @@ namespace helengine.editor {
                 if (DuplicateShortcutRequested != null) {
                     DuplicateShortcutRequested();
                 }
-            } else if (input.WasKeyPressed(Keys.Delete)) {
+            } else if (!textEntryActive && input.WasKeyPressed(Keys.Delete)) {
                 if (DeleteShortcutRequested != null) {
                     DeleteShortcutRequested();
                 }
-            } else if (input.WasKeyPressed(Keys.Enter)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.Enter)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Enter);
-            } else if (input.WasKeyPressed(Keys.Space)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.Space)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Space);
-            } else if (input.WasKeyPressed(Keys.W)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.W)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.W);
-            } else if (input.WasKeyPressed(Keys.R)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.R)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.R);
-            } else if (input.WasKeyPressed(Keys.S)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.S)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.S);
-            } else if (input.WasKeyPressed(Keys.F)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.F)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.F);
-            } else if (input.WasKeyPressed(Keys.Up)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.Up)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Up);
-            } else if (input.WasKeyPressed(Keys.Down)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.Down)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Down);
-            } else if (input.WasKeyPressed(Keys.Left)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.Left)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Left);
-            } else if (input.WasKeyPressed(Keys.Right)) {
+            } else if (activationKeysAllowed && input.WasKeyPressed(Keys.Right)) {
                 InteractionServices.KeyboardFocus.HandleActivationKey(Keys.Right);
             }
 

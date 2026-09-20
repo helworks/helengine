@@ -25,6 +25,14 @@ namespace helengine {
         const float ShakeFrequencyHz = 16f;
 
         static TextBoxComponent FocusedTextBox;
+
+        /// <summary>
+        /// The text box currently receiving typed characters, or null when no text box is focused. Editor shortcut
+        /// dispatch consults this so single-key commands stay quiet while the user types.
+        /// </summary>
+        public static TextBoxComponent FocusedTextEntry {
+            get { return FocusedTextBox; }
+        }
         readonly TextBoxEditState EditState;
         string PlaceholderValue = "";
         FontAsset FontValue;

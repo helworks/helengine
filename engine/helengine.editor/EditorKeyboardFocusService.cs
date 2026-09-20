@@ -207,6 +207,14 @@ namespace helengine.editor {
         /// Routes an activation key into the currently focused target when supported.
         /// </summary>
         /// <param name="key">Activation key to route.</param>
+        /// <summary>
+        /// Returns true when the supplied target is the one that currently receives activation keys.
+        /// </summary>
+        /// <param name="target">Target to compare against the focused target.</param>
+        public bool IsFocusedTarget(IFocusTarget target) {
+            return target != null && ReferenceEquals(FocusedTarget, target);
+        }
+
         public void HandleActivationKey(Keys key) {
             if (!IsTargetValid(FocusedTarget)) {
                 return;
