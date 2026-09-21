@@ -486,7 +486,7 @@ namespace helengine.editor {
         public string GeneratedMetadataDirectoryPath {
             get {
                 return string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
-                    ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
+                    ? EditorGeneratedCodePaths.ResolveWorkspaceRootPath(ProjectRootPath)
                     : GeneratedWorkspaceRootPath;
             }
         }
@@ -628,7 +628,7 @@ namespace helengine.editor {
         /// <returns>Absolute path to the generated solution file.</returns>
         public string GenerateSolutionFiles() {
             string generationWorkspaceRootPath = string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
-                ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
+                ? EditorGeneratedCodePaths.ResolveWorkspaceRootPath(ProjectRootPath)
                 : GeneratedWorkspaceRootPath;
             using (EditorGeneratedCodeWorkspaceLease workspaceLease = AcquireWorkspaceLease()) {
                 return GenerateSolutionFiles(workspaceLease);
@@ -657,7 +657,7 @@ namespace helengine.editor {
             }
 
             string generationWorkspaceRootPath = string.IsNullOrWhiteSpace(GeneratedWorkspaceRootPath)
-                ? Path.Combine(ProjectRootPath, "user_settings", "generated_code")
+                ? EditorGeneratedCodePaths.ResolveWorkspaceRootPath(ProjectRootPath)
                 : GeneratedWorkspaceRootPath;
             if (!workspaceLease.Covers(generationWorkspaceRootPath)) {
                 throw new ArgumentException("Workspace lease does not cover the generated solution workspace.", nameof(workspaceLease));

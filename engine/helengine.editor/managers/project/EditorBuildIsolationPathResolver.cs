@@ -170,7 +170,7 @@ namespace helengine.editor {
         /// </summary>
         /// <returns>Absolute project-scoped generated-code workspace path.</returns>
         public string ResolveGeneratedCodeProjectWorkspaceRootPath() {
-            return Path.Combine(ProjectRootPath, "user_settings", "generated_code");
+            return EditorGeneratedCodePaths.ResolveWorkspaceRootPath(ProjectRootPath);
         }
 
         /// <summary>

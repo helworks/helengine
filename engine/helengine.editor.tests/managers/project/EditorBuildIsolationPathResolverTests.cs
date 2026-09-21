@@ -162,7 +162,7 @@ namespace helengine.editor.tests.managers.project {
             string secondOutputRootPath = resolver.ResolveGeneratedCodeOutputRootPath("editor-command", "command-b");
 
             Assert.Equal(firstWorkspaceRootPath, repeatedWorkspaceRootPath);
-            Assert.EndsWith(Path.Combine("user_settings", "generated_code"), firstWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("cache", "generated_code"), firstWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
             Assert.NotEqual(firstOutputRootPath, secondOutputRootPath);
             Assert.DoesNotContain("command-a", firstWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("command-b", firstWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
@@ -181,8 +181,8 @@ namespace helengine.editor.tests.managers.project {
 
             Assert.Equal(editorWorkspaceRootPath, repeatedEditorWorkspaceRootPath);
             Assert.NotEqual(editorWorkspaceRootPath, runtimeWorkspaceRootPath);
-            Assert.EndsWith(Path.Combine("user_settings", "generated_code", "editor-command", "EditorFull"), editorWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
-            Assert.EndsWith(Path.Combine("user_settings", "generated_code", "platform-build", "RuntimeOnly"), runtimeWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("cache", "generated_code", "editor-command", "EditorFull"), editorWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(Path.Combine("cache", "generated_code", "platform-build", "RuntimeOnly"), runtimeWorkspaceRootPath, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

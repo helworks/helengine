@@ -236,7 +236,7 @@ namespace helengine.editor {
         /// <param name="fullProjectRootPath">Absolute game project root path.</param>
         /// <returns>Absolute generated workspace root path.</returns>
         static string ResolveGeneratedWorkspaceRootPath(string fullProjectRootPath) {
-            return Path.Combine(fullProjectRootPath, "user_settings", "generated_code");
+            return EditorGeneratedCodePaths.ResolveWorkspaceRootPath(fullProjectRootPath);
         }
 
         /// <summary>

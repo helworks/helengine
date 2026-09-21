@@ -40,7 +40,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public async Task GenerateSolutionFiles_WhenSameRouteRunsConcurrently_PublishesOneCompleteStableMetadataSet() {
-            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "editor-command", "EditorFull");
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code", "editor-command", "EditorFull");
             string firstExecutionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "first");
             string secondExecutionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "second");
 
@@ -71,7 +71,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void AcquireWorkspaceLease_WhenHeld_RejectsAnotherExclusiveFileHandle() {
-            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "editor-command", "EditorFull");
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code", "editor-command", "EditorFull");
             EditorGameSolutionService service = CreateService(workspaceRootPath, Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "lease"));
 
             using EditorGeneratedCodeWorkspaceLease lease = service.AcquireWorkspaceLease();
@@ -90,7 +90,7 @@ namespace helengine.editor.tests {
 
             using EditorGeneratedCodeWorkspaceLease workspaceLease = service.AcquireWorkspaceLease();
             Assert.True(workspaceLease.Covers(Path.GetDirectoryName(solutionPath)));
-            Assert.True(workspaceLease.Covers(Path.Combine(ProjectRootPath, "user_settings", "generated_code", "projects", "gameplay")));
+            Assert.True(workspaceLease.Covers(Path.Combine(ProjectRootPath, "cache", "generated_code", "projects", "gameplay")));
 
             EditorBuildExecutionResult result = new EditorDotNetScriptBuildTool().Build(missingSolutionPath, string.Empty, workspaceLease);
 
@@ -112,7 +112,7 @@ namespace helengine.editor.tests {
             EditorBuildExecutionResult result = new EditorDotNetScriptBuildTool().Build(solutionPath);
 
             Assert.True(result.Succeeded, result.Message);
-            string generatedWorkspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code");
+            string generatedWorkspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code");
             Assert.Empty(Directory.EnumerateDirectories(generatedWorkspaceRootPath, "obj", SearchOption.AllDirectories));
             Assert.Empty(Directory.EnumerateDirectories(generatedWorkspaceRootPath, "bin", SearchOption.AllDirectories));
             Assert.True(File.Exists(Path.Combine(stableOutputRootPath, "generated_code", "obj", "gameplay", "project.assets.json")));
@@ -124,7 +124,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildGeneratedSolution_WhenExecutionRootContainsSeparators_UsesEarlyIsolatedIntermediateAndOutputPaths() {
-            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "editor-command", "EditorFull");
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code", "editor-command", "EditorFull");
             string executionRootPath = Path.Combine(
                 Path.GetTempPath(),
                 "helengine generated,probe;percent% & apostrophe' " + Guid.NewGuid().ToString("N"));
@@ -153,8 +153,8 @@ namespace helengine.editor.tests {
                 Path.GetTempPath(),
                 "helengine-generated-code-isolation-tests",
                 Guid.NewGuid().ToString("N"));
-            string firstWorkspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "first");
-            string secondWorkspaceRootPath = Path.Combine(secondProjectRootPath, "user_settings", "generated_code", "second");
+            string firstWorkspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code", "first");
+            string secondWorkspaceRootPath = Path.Combine(secondProjectRootPath, "cache", "generated_code", "second");
             string firstExecutionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "first");
             string secondExecutionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "second");
             string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
@@ -192,7 +192,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildGeneratedSolution_WhenDestinationHasUnmarkedMatchingSiblings_PreservesTheirBytes() {
-            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "foreign-publication");
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code", "foreign-publication");
             string executionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "foreign-publication");
             string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
             string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
@@ -228,7 +228,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildGeneratedSolution_WhenOwnedPublicationArtifactsRemain_RecoversOnlyThoseArtifacts() {
-            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "owned-publication");
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code", "owned-publication");
             string executionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "owned-publication");
             string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
             string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
@@ -269,7 +269,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildGeneratedSolution_WhenPublicationMoveFails_LeavesDestinationTreeUnchangedAndCleansOwnedArtifacts() {
-            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "move-failure-publication");
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code", "move-failure-publication");
             string executionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "move-failure-publication");
             string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
             string destinationParentPath = Path.GetDirectoryName(destinationRootPath);
@@ -328,7 +328,7 @@ namespace helengine.editor.tests {
         /// </summary>
         [Fact]
         public void BuildGeneratedSolution_WhenCompilationFails_RetainsExistingDestinationBytes() {
-            string workspaceRootPath = Path.Combine(ProjectRootPath, "user_settings", "generated_code", "failed-publication");
+            string workspaceRootPath = Path.Combine(ProjectRootPath, "cache", "generated_code", "failed-publication");
             string executionRootPath = Path.Combine(Path.GetTempPath(), "helengine-generated-code-execution-tests", Guid.NewGuid().ToString("N"), "failed-publication");
             string destinationRootPath = Path.Combine(Path.GetTempPath(), "helengine-shared-build-destination", Guid.NewGuid().ToString("N"));
 

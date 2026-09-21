@@ -25,7 +25,7 @@ namespace helengine.editor {
             return Discover(
                 projectRootPath,
                 generatedOutputRootPath,
-                Path.Combine(Path.GetFullPath(projectRootPath), "user_settings", "generated_code"),
+                EditorGeneratedCodePaths.ResolveWorkspaceRootPath(projectRootPath),
                 productionProjects);
         }
 
