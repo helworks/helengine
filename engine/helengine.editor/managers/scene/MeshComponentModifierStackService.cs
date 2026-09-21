@@ -80,11 +80,26 @@ namespace helengine.editor {
         /// <param name="modifiers">Ordered modifier entries to persist.</param>
         public void SetStack(EntityComponentSaveState saveState, string platformId, IReadOnlyList<MeshComponentModifier> modifiers) {
             ValidateSaveStateAndPlatformId(saveState, platformId);
+            SetStack(saveState, new EditorOverrideScope(platformId), modifiers);
+        }
+
+        /// <summary>
+        /// Stores one modifier stack at an arbitrary override scope, such as a platform group, replacing any
+        /// previously authored entries there. The packager's deepest-scope selection then applies it to every
+        /// platform beneath that scope.
+        /// </summary>
+        /// <param name="saveState">Editor persistence metadata for the MeshComponent.</param>
+        /// <param name="scope">Override scope that owns the stack.</param>
+        /// <param name="modifiers">Ordered modifier entries to persist.</param>
+        public void SetStack(EntityComponentSaveState saveState, EditorOverrideScope scope, IReadOnlyList<MeshComponentModifier> modifiers) {
+            if (saveState == null) {
+                throw new ArgumentNullException(nameof(saveState));
+            }
             if (modifiers == null) {
                 throw new ArgumentNullException(nameof(modifiers));
             }
 
-            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreatePlatformOverride(platformId);
+            EntityComponentPlatformOverrideState overrideState = saveState.GetOrCreateScopedPlatformOverride(scope);
             overrideState.SetMemberValue(ModifierCountMemberName, modifiers.Count.ToString(CultureInfo.InvariantCulture));
             for (int index = 0; index < modifiers.Count; index++) {
                 MeshComponentModifier modifier = modifiers[index];

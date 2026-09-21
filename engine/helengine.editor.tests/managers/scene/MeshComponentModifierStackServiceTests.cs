@@ -29,6 +29,26 @@ namespace helengine.editor.tests {
         /// <summary>
         /// Ensures writing a current modifier stack does not mirror entries into superseded tessellation members.
         /// </summary>
+        /// <summary>
+        /// Ensures a stack authored at a group scope lands on that scope's override state, where the packager's
+        /// deepest-scope selection finds it for every platform in the group.
+        /// </summary>
+        [Fact]
+        public void SetStack_AtGroupScope_WritesTheStackOnThatScope() {
+            MeshComponentModifierStackService service = new MeshComponentModifierStackService();
+            EntityComponentSaveState saveState = new EntityComponentSaveState();
+            EditorOverrideScope groupScope = EditorOverrideScope.Common.Append(new EditorOverrideScopeStep(SceneOverrideScopeStepKind.Group, "sd"));
+
+            service.SetStack(saveState, groupScope, [
+                new MeshComponentModifier(MeshComponentModifier.TessellateKind) { MaxEdgeLength = 0.25 }
+            ]);
+
+            Assert.True(saveState.TryGetScopedPlatformOverride(groupScope, out EntityComponentPlatformOverrideState overrideState));
+            Assert.True(overrideState.TryGetMemberValue(MeshComponentModifierStackService.ModifierCountMemberName, out string modifierCount));
+            Assert.Equal("1", modifierCount);
+            Assert.False(saveState.HasPlatformOverride("sd"));
+        }
+
         [Fact]
         public void SetStack_WithTessellateEntry_DoesNotWriteSupersededTessellationMembers() {
             MeshComponentModifierStackService service = new MeshComponentModifierStackService();
