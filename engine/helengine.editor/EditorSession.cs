@@ -1798,6 +1798,8 @@ namespace helengine.editor {
                 buildDialog.RemoveQueueItemRequested += HandleBuildDialogRemoveQueueItemRequested;
                 RegisterDetacher(ConstructionLedger, () => buildDialog.CancelRequested -= HandleBuildDialogCancelRequested);
                 buildDialog.CancelRequested += HandleBuildDialogCancelRequested;
+                RegisterDetacher(ConstructionLedger, () => buildDialog.ResetScenesToProjectRequested -= HandleBuildDialogResetScenesToProjectRequested);
+                buildDialog.ResetScenesToProjectRequested += HandleBuildDialogResetScenesToProjectRequested;
             }
             if (buildDialogCopySettingsDialog != null) {
                 RegisterDetacher(ConstructionLedger, () => buildDialogCopySettingsDialog.ConfirmRequested -= HandleBuildDialogCopySettingsConfirmed);
@@ -3761,6 +3763,23 @@ namespace helengine.editor {
 
             string dialogPlatformId = ResolveVisiblePlatformId(visiblePlatformIds, ActiveProjectPlatform);
             buildDialog.Refresh(visiblePlatformIds, sceneCatalogService.GetSceneIds(), dialogPlatformId, buildConfig, ResolvePlatformSelectionModel(dialogPlatformId), ResolveProjectEnvironmentIds());
+        }
+
+        /// <summary>
+        /// Reloads one platform's scenes from the project-shared scene package after its local override was turned
+        /// off, persists the choice and refreshes the dialog on that platform.
+        /// </summary>
+        /// <param name="platformId">Platform whose scenes should follow the project again.</param>
+        void HandleBuildDialogResetScenesToProjectRequested(string platformId) {
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id is required.", nameof(platformId));
+            }
+
+            EditorBuildConfigDocument buildConfig = ResolveCurrentBuildConfig();
+            buildConfigService.ResetPlatformScenesToProject(buildConfig, platformId);
+            buildConfigService.Save(buildConfig);
+            buildDialogCopySettingsDialog.Hide();
+            buildDialog.Refresh(ResolveVisibleSupportedPlatforms(), sceneCatalogService.GetSceneIds(), platformId, buildConfig, ResolvePlatformSelectionModel(platformId), ResolveProjectEnvironmentIds());
         }
 
         /// <summary>

@@ -2,11 +2,15 @@ using System.Text.Json;
 
 namespace helengine.editor {
     /// <summary>
-    /// Loads and persists editor-local build configuration stored in `user_settings/build_config.json`.
+    /// Loads and persists build configuration split across two files. `settings/build_config.json` is the
+    /// project-shared scene package: which scenes each platform ships and in what order. `user_settings/build_config.json`
+    /// is editor-local state: output folders, debug and environment selections, profile selections, the build queue and,
+    /// per platform, an optional local scene override for a developer who wants to build a subset. Callers work with one
+    /// composed <see cref="EditorBuildConfigDocument"/>; this service splits it again on save.
     /// </summary>
     public sealed class EditorBuildConfigService {
         /// <summary>
-        /// Gets the JSON formatting rules used for the local build configuration document.
+        /// Gets the JSON formatting rules used for both build configuration documents.
         /// </summary>
         static JsonSerializerOptions JsonSerializerOptions { get; } = new() {
             WriteIndented = true,
@@ -23,11 +27,20 @@ namespace helengine.editor {
         string ProjectRootPath { get; }
 
         /// <summary>
-        /// Gets the absolute path to `user_settings/build_config.json`.
+        /// Gets the absolute path to the editor-local `user_settings/build_config.json`.
         /// </summary>
-        string BuildConfigFilePath {
+        string LocalBuildConfigFilePath {
             get {
                 return Path.Combine(ProjectRootPath, "user_settings", "build_config.json");
+            }
+        }
+
+        /// <summary>
+        /// Gets the absolute path to the project-shared `settings/build_config.json`.
+        /// </summary>
+        string ProjectBuildConfigFilePath {
+            get {
+                return Path.Combine(ProjectRootPath, "settings", "build_config.json");
             }
         }
 
@@ -44,31 +57,50 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Attempts to load an existing local build configuration document without seeding new platform entries.
+        /// Attempts to load the composed build configuration without seeding new platform entries.
         /// </summary>
-        /// <returns>Loaded build configuration document, or null when the file is missing or malformed.</returns>
+        /// <returns>Composed build configuration, or null when neither the project nor the local file is present and readable.</returns>
         public EditorBuildConfigDocument TryLoadExisting() {
-            return TryLoadDocument();
+            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(out _);
+            EditorBuildConfigDocument localDocument = TryLoadLocalDocument(out bool localChanged);
+            if (projectDocument == null && localDocument == null) {
+                return null;
+            }
+
+            EditorBuildConfigDocument document = Compose(projectDocument, localDocument);
+            if (localChanged) {
+                WriteLocalDocument(document);
+            }
+
+            return document;
         }
 
         /// <summary>
-        /// Loads the local build configuration, silently regenerating missing or invalid data and seeding newly enabled platforms.
+        /// Attempts to load the project-shared scene package on its own, with scene identifiers resolved.
+        /// </summary>
+        /// <returns>Project scene package, or null when `settings/build_config.json` is missing or unreadable.</returns>
+        public EditorProjectBuildConfigDocument TryLoadProjectBuildConfig() {
+            return TryLoadProjectDocument(out _);
+        }
+
+        /// <summary>
+        /// Loads the composed build configuration, seeding newly enabled platforms and creating whichever file is missing.
         /// </summary>
         /// <param name="supportedPlatforms">Supported platform identifiers declared by the current project.</param>
-        /// <param name="currentSceneId">Project-relative scene identifier used to seed first-time platform selections.</param>
-        /// <returns>Validated local build configuration document for the current project.</returns>
+        /// <param name="currentSceneId">Project-relative scene identifier used to seed first-time platform packages.</param>
+        /// <returns>Validated composed build configuration for the current project.</returns>
         public EditorBuildConfigDocument Load(IReadOnlyList<string> supportedPlatforms, string currentSceneId) {
             if (supportedPlatforms == null) {
                 throw new ArgumentNullException(nameof(supportedPlatforms));
             }
 
-            EditorBuildConfigDocument document = TryLoadDocument();
-            if (document == null) {
-                document = new EditorBuildConfigDocument();
-            }
+            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(out bool projectMalformed);
+            EditorBuildConfigDocument localDocument = TryLoadLocalDocument(out bool localChanged);
+            EditorBuildConfigDocument document = Compose(projectDocument, localDocument);
 
-            bool changed = EnsurePlatformEntries(document, supportedPlatforms, currentSceneId);
-            if (!File.Exists(BuildConfigFilePath) || changed) {
+            bool changed = EnsurePlatformEntries(document, supportedPlatforms, currentSceneId) || localChanged;
+            bool projectFileMissing = !projectMalformed && !File.Exists(ProjectBuildConfigFilePath);
+            if (projectFileMissing || !File.Exists(LocalBuildConfigFilePath) || changed) {
                 Save(document);
             }
 
@@ -76,9 +108,10 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Persists the supplied local build configuration document to `user_settings/build_config.json`.
+        /// Persists the composed document: scene packages of platforms that follow the project go to
+        /// `settings/build_config.json`, everything else to `user_settings/build_config.json`.
         /// </summary>
-        /// <param name="document">Validated local build configuration to persist.</param>
+        /// <param name="document">Composed build configuration to persist.</param>
         public void Save(EditorBuildConfigDocument document) {
             if (document == null) {
                 throw new ArgumentNullException(nameof(document));
@@ -86,30 +119,259 @@ namespace helengine.editor {
 
             SynchronizeSceneReferences(document);
             NormalizeDocument(document);
-            string buildConfigDirectoryPath = Path.GetDirectoryName(BuildConfigFilePath);
-            Directory.CreateDirectory(buildConfigDirectoryPath);
-
-            string json = JsonSerializer.Serialize(document, JsonSerializerOptions);
-            File.WriteAllText(BuildConfigFilePath, json);
+            WriteProjectDocument(document);
+            WriteLocalDocument(document);
         }
 
         /// <summary>
-        /// Attempts to load the local build configuration document from disk.
+        /// Drops one platform's local scene override and reloads its scenes from the project-shared package.
         /// </summary>
-        /// <returns>Loaded build configuration document, or null when the file is missing or malformed.</returns>
-        EditorBuildConfigDocument TryLoadDocument() {
-            if (!File.Exists(BuildConfigFilePath)) {
+        /// <param name="document">Composed build configuration being edited.</param>
+        /// <param name="platformId">Platform whose scenes should follow the project again.</param>
+        public void ResetPlatformScenesToProject(EditorBuildConfigDocument document, string platformId) {
+            if (document == null) {
+                throw new ArgumentNullException(nameof(document));
+            }
+            if (string.IsNullOrWhiteSpace(platformId)) {
+                throw new ArgumentException("Platform id must be provided.", nameof(platformId));
+            }
+
+            EditorBuildPlatformConfigDocument platform = FindPlatformEntry(document.Platforms, platformId);
+            if (platform == null) {
+                throw new InvalidOperationException($"No build settings exist for platform '{platformId}'.");
+            }
+
+            platform.OverridesProjectScenes = false;
+            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(out _);
+            ApplyProjectScenes(platform, FindProjectPlatformEntry(projectDocument, platformId));
+        }
+
+        /// <summary>
+        /// Merges the project scene packages into the local document to form the composed view callers edit.
+        /// Platforms that follow the project receive its scenes; platforms with a local override keep their own.
+        /// </summary>
+        /// <param name="projectDocument">Project scene packages, or null when the file is absent.</param>
+        /// <param name="localDocument">Local build state, or null when the file is absent.</param>
+        /// <returns>Composed build configuration.</returns>
+        EditorBuildConfigDocument Compose(EditorProjectBuildConfigDocument projectDocument, EditorBuildConfigDocument localDocument) {
+            EditorBuildConfigDocument document = localDocument ?? new EditorBuildConfigDocument();
+            document.Platforms ??= [];
+            document.QueueItems ??= [];
+
+            if (projectDocument != null && projectDocument.Platforms != null) {
+                for (int index = 0; index < projectDocument.Platforms.Count; index++) {
+                    EditorProjectPlatformBuildConfigDocument projectPlatform = projectDocument.Platforms[index];
+                    if (projectPlatform == null || string.IsNullOrWhiteSpace(projectPlatform.PlatformId)) {
+                        continue;
+                    }
+                    if (!HasPlatformEntry(document.Platforms, projectPlatform.PlatformId)) {
+                        document.Platforms.Add(CreatePlatformDocument(projectPlatform.PlatformId, null));
+                    }
+                }
+            }
+
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                EditorBuildPlatformConfigDocument platform = document.Platforms[index];
+                if (platform == null || platform.OverridesProjectScenes) {
+                    continue;
+                }
+
+                ApplyProjectScenes(platform, FindProjectPlatformEntry(projectDocument, platform.PlatformId));
+            }
+
+            return document;
+        }
+
+        /// <summary>
+        /// Replaces one platform's scenes and orders with copies of the project package, or clears them when the
+        /// project has no package for the platform.
+        /// </summary>
+        /// <param name="platform">Composed platform entry to update.</param>
+        /// <param name="projectPlatform">Project scene package for the platform, or null.</param>
+        static void ApplyProjectScenes(EditorBuildPlatformConfigDocument platform, EditorProjectPlatformBuildConfigDocument projectPlatform) {
+            platform.SelectedSceneIds = [];
+            platform.SelectedSceneReferences = [];
+            platform.SceneOrders = [];
+            if (projectPlatform == null) {
+                return;
+            }
+
+            if (projectPlatform.SelectedSceneIds != null) {
+                platform.SelectedSceneIds.AddRange(projectPlatform.SelectedSceneIds);
+            }
+            if (projectPlatform.SelectedSceneReferences != null) {
+                platform.SelectedSceneReferences.AddRange(projectPlatform.SelectedSceneReferences);
+            }
+            if (projectPlatform.SceneOrders != null) {
+                for (int index = 0; index < projectPlatform.SceneOrders.Count; index++) {
+                    EditorBuildSceneOrderDocument order = projectPlatform.SceneOrders[index];
+                    if (order == null) {
+                        continue;
+                    }
+
+                    platform.SceneOrders.Add(new EditorBuildSceneOrderDocument {
+                        SceneId = order.SceneId,
+                        SceneReference = order.SceneReference,
+                        OrderNumber = order.OrderNumber
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// Writes the scene packages of every platform that follows the project into `settings/build_config.json`,
+        /// keeping packages of platforms absent from the composed document. A project file that exists but cannot be
+        /// parsed is authored content and is left alone so its author can repair it.
+        /// </summary>
+        /// <param name="document">Composed build configuration being saved.</param>
+        void WriteProjectDocument(EditorBuildConfigDocument document) {
+            EditorProjectBuildConfigDocument projectDocument = TryLoadProjectDocument(out bool projectMalformed);
+            if (projectMalformed) {
+                return;
+            }
+
+            projectDocument ??= new EditorProjectBuildConfigDocument();
+            projectDocument.Platforms ??= [];
+            bool hasFollowingPlatform = false;
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                EditorBuildPlatformConfigDocument platform = document.Platforms[index];
+                if (platform == null || string.IsNullOrWhiteSpace(platform.PlatformId) || platform.OverridesProjectScenes) {
+                    continue;
+                }
+
+                hasFollowingPlatform = true;
+                EditorProjectPlatformBuildConfigDocument projectPlatform = FindProjectPlatformEntry(projectDocument, platform.PlatformId);
+                if (projectPlatform == null) {
+                    projectPlatform = new EditorProjectPlatformBuildConfigDocument {
+                        PlatformId = platform.PlatformId
+                    };
+                    projectDocument.Platforms.Add(projectPlatform);
+                }
+
+                projectPlatform.SelectedSceneIds = new List<string>(platform.SelectedSceneIds ?? []);
+                projectPlatform.SelectedSceneReferences = new List<SceneAssetReference>(platform.SelectedSceneReferences ?? []);
+                projectPlatform.SceneOrders = [];
+                for (int orderIndex = 0; orderIndex < platform.SceneOrders.Count; orderIndex++) {
+                    EditorBuildSceneOrderDocument order = platform.SceneOrders[orderIndex];
+                    if (order == null) {
+                        continue;
+                    }
+
+                    projectPlatform.SceneOrders.Add(new EditorBuildSceneOrderDocument {
+                        SceneId = order.SceneId,
+                        SceneReference = order.SceneReference,
+                        OrderNumber = order.OrderNumber
+                    });
+                }
+            }
+
+            if (!hasFollowingPlatform && !File.Exists(ProjectBuildConfigFilePath)) {
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(ProjectBuildConfigFilePath));
+            string json = JsonSerializer.Serialize(projectDocument, JsonSerializerOptions);
+            File.WriteAllText(ProjectBuildConfigFilePath, json);
+        }
+
+        /// <summary>
+        /// Writes the local document. Platforms that follow the project are written without scenes so the package
+        /// has exactly one home; their in-memory lists are restored after serialization.
+        /// </summary>
+        /// <param name="document">Composed build configuration being saved.</param>
+        void WriteLocalDocument(EditorBuildConfigDocument document) {
+            List<EditorBuildPlatformConfigDocument> strippedPlatforms = [];
+            List<List<SceneAssetReference>> stashedReferences = [];
+            List<List<EditorBuildSceneOrderDocument>> stashedOrders = [];
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                EditorBuildPlatformConfigDocument platform = document.Platforms[index];
+                if (platform == null || platform.OverridesProjectScenes) {
+                    continue;
+                }
+
+                strippedPlatforms.Add(platform);
+                stashedReferences.Add(platform.SelectedSceneReferences);
+                stashedOrders.Add(platform.SceneOrders);
+                platform.SelectedSceneReferences = [];
+                platform.SceneOrders = [];
+            }
+
+            try {
+                Directory.CreateDirectory(Path.GetDirectoryName(LocalBuildConfigFilePath));
+                string json = JsonSerializer.Serialize(document, JsonSerializerOptions);
+                File.WriteAllText(LocalBuildConfigFilePath, json);
+            } finally {
+                for (int index = 0; index < strippedPlatforms.Count; index++) {
+                    strippedPlatforms[index].SelectedSceneReferences = stashedReferences[index];
+                    strippedPlatforms[index].SceneOrders = stashedOrders[index];
+                }
+            }
+        }
+
+        /// <summary>
+        /// Attempts to load the project scene packages from disk, resolving scene identifiers from the references.
+        /// </summary>
+        /// <param name="malformed">Set to true when the file exists but cannot be parsed.</param>
+        /// <returns>Project scene packages, or null when the file is missing or malformed.</returns>
+        EditorProjectBuildConfigDocument TryLoadProjectDocument(out bool malformed) {
+            malformed = false;
+            if (!File.Exists(ProjectBuildConfigFilePath)) {
                 return null;
             }
 
             try {
-                string json = File.ReadAllText(BuildConfigFilePath);
+                string json = File.ReadAllText(ProjectBuildConfigFilePath);
+                EditorProjectBuildConfigDocument document = JsonSerializer.Deserialize<EditorProjectBuildConfigDocument>(json, JsonSerializerOptions);
+                if (document == null) {
+                    malformed = true;
+                    return null;
+                }
+
+                document.Platforms ??= [];
+                EditorProjectSceneCatalogService catalog = CreateSceneCatalogService();
+                for (int index = 0; index < document.Platforms.Count; index++) {
+                    EditorProjectPlatformBuildConfigDocument platform = document.Platforms[index];
+                    if (platform == null) {
+                        document.Platforms[index] = new EditorProjectPlatformBuildConfigDocument();
+                        continue;
+                    }
+
+                    platform.SelectedSceneReferences ??= [];
+                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences);
+                    platform.SceneOrders ??= [];
+                    for (int orderIndex = 0; orderIndex < platform.SceneOrders.Count; orderIndex++) {
+                        EditorBuildSceneOrderDocument order = platform.SceneOrders[orderIndex];
+                        if (order?.SceneReference != null) {
+                            order.SceneId = catalog.ResolveSceneId(order.SceneReference);
+                        }
+                    }
+                }
+
+                return document;
+            } catch {
+                malformed = true;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Attempts to load the local build document from disk, normalizing current-format fields.
+        /// </summary>
+        /// <param name="changed">Set to true when normalization altered the document and it should be written back.</param>
+        /// <returns>Local build document, or null when the file is missing or malformed.</returns>
+        EditorBuildConfigDocument TryLoadLocalDocument(out bool changed) {
+            changed = false;
+            if (!File.Exists(LocalBuildConfigFilePath)) {
+                return null;
+            }
+
+            try {
+                string json = File.ReadAllText(LocalBuildConfigFilePath);
                 EditorBuildConfigDocument document = JsonSerializer.Deserialize<EditorBuildConfigDocument>(json, JsonSerializerOptions);
                 if (document == null) {
                     return null;
                 }
 
-                bool changed = false;
                 document.Platforms ??= [];
                 document.QueueItems ??= [];
                 for (int index = 0; index < document.Platforms.Count; index++) {
@@ -176,10 +438,6 @@ namespace helengine.editor {
                     changed |= NormalizeCurrentQueueItem(queueItem);
                 }
 
-                if (changed) {
-                    Save(document);
-                }
-
                 return document;
             } catch {
                 return null;
@@ -228,11 +486,11 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Ensures the supplied build document contains one platform configuration entry for each supported platform.
+        /// Ensures the composed document contains one platform entry for each supported platform.
         /// </summary>
-        /// <param name="document">Local build configuration document to normalize.</param>
+        /// <param name="document">Composed build configuration to normalize.</param>
         /// <param name="supportedPlatforms">Supported platform identifiers declared by the current project.</param>
-        /// <param name="currentSceneId">Project-relative scene identifier used when seeding new platform entries.</param>
+        /// <param name="currentSceneId">Project-relative scene identifier used when seeding new platform packages.</param>
         /// <returns>True when the document changed; otherwise false.</returns>
         bool EnsurePlatformEntries(EditorBuildConfigDocument document, IReadOnlyList<string> supportedPlatforms, string currentSceneId) {
             bool changed = false;
@@ -261,9 +519,9 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Normalizes one full local build configuration document before it is returned to callers or persisted to disk.
+        /// Normalizes one composed document before it is returned to callers or persisted to disk.
         /// </summary>
-        /// <param name="document">Local build configuration document to normalize.</param>
+        /// <param name="document">Composed build configuration to normalize.</param>
         void NormalizeDocument(EditorBuildConfigDocument document) {
             if (document == null) {
                 throw new ArgumentNullException(nameof(document));
@@ -290,7 +548,7 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Normalizes current environment metadata in one persisted local platform configuration record.
+        /// Normalizes current environment metadata in one platform configuration record.
         /// </summary>
         /// <param name="platform">Platform configuration record to normalize.</param>
         static bool NormalizeCurrentPlatform(EditorBuildPlatformConfigDocument platform) {
@@ -329,27 +587,65 @@ namespace helengine.editor {
         /// <param name="platforms">Platform configuration collection to inspect.</param>
         /// <param name="platformId">Platform identifier to search for.</param>
         /// <returns>True when a matching platform configuration already exists; otherwise false.</returns>
-        bool HasPlatformEntry(IReadOnlyList<EditorBuildPlatformConfigDocument> platforms, string platformId) {
-            for (int i = 0; i < platforms.Count; i++) {
-                if (string.Equals(platforms[i].PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
-                    return true;
-                }
-            }
-
-            return false;
+        static bool HasPlatformEntry(IReadOnlyList<EditorBuildPlatformConfigDocument> platforms, string platformId) {
+            return FindPlatformEntry(platforms, platformId) != null;
         }
 
         /// <summary>
-        /// Creates one default local build configuration entry for the supplied platform identifier.
+        /// Finds one composed platform entry by platform identifier.
+        /// </summary>
+        /// <param name="platforms">Platform configuration collection to inspect.</param>
+        /// <param name="platformId">Platform identifier to search for.</param>
+        /// <returns>Matching platform configuration, or null.</returns>
+        static EditorBuildPlatformConfigDocument FindPlatformEntry(IReadOnlyList<EditorBuildPlatformConfigDocument> platforms, string platformId) {
+            if (platforms == null) {
+                return null;
+            }
+
+            for (int i = 0; i < platforms.Count; i++) {
+                EditorBuildPlatformConfigDocument platform = platforms[i];
+                if (platform != null && string.Equals(platform.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                    return platform;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Finds one project scene package by platform identifier.
+        /// </summary>
+        /// <param name="projectDocument">Project scene packages, or null.</param>
+        /// <param name="platformId">Platform identifier to search for.</param>
+        /// <returns>Matching scene package, or null.</returns>
+        static EditorProjectPlatformBuildConfigDocument FindProjectPlatformEntry(EditorProjectBuildConfigDocument projectDocument, string platformId) {
+            if (projectDocument == null || projectDocument.Platforms == null) {
+                return null;
+            }
+
+            for (int i = 0; i < projectDocument.Platforms.Count; i++) {
+                EditorProjectPlatformBuildConfigDocument platform = projectDocument.Platforms[i];
+                if (platform != null && string.Equals(platform.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)) {
+                    return platform;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Creates one default composed entry for the supplied platform identifier. The entry follows the project
+        /// package, so a seeded current scene is written to the project file on the next save.
         /// </summary>
         /// <param name="platformId">Platform identifier the new configuration belongs to.</param>
-        /// <param name="currentSceneId">Project-relative scene identifier used for first-time seeding.</param>
+        /// <param name="currentSceneId">Project-relative scene identifier used for first-time seeding, or null.</param>
         /// <returns>New platform configuration document seeded for first-time use.</returns>
-        EditorBuildPlatformConfigDocument CreatePlatformDocument(string platformId, string currentSceneId) {
+        static EditorBuildPlatformConfigDocument CreatePlatformDocument(string platformId, string currentSceneId) {
             EditorBuildPlatformConfigDocument document = new EditorBuildPlatformConfigDocument {
                 PlatformId = platformId,
                 OutputDirectoryPath = string.Empty,
                 DebugBuild = false,
+                OverridesProjectScenes = false,
                 SelectedBuildProfileId = string.Empty,
                 SelectedGraphicsProfileId = string.Empty,
                 SelectedBuildOptionValues = [],

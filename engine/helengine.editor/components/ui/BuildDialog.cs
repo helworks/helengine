@@ -303,6 +303,23 @@ public class BuildDialog : EditorDialogBase {
         /// </summary>
         readonly CheckBoxComponent DebugBuildCheckBox;
         /// <summary>
+        /// Host entity for the local scene override label.
+        /// </summary>
+        readonly EditorEntity OverrideProjectScenesLabelHost;
+        /// <summary>
+        /// Local scene override label text.
+        /// </summary>
+        readonly TextComponent OverrideProjectScenesLabelText;
+        /// <summary>
+        /// Host entity for the local scene override checkbox.
+        /// </summary>
+        readonly EditorEntity OverrideProjectScenesCheckBoxHost;
+        /// <summary>
+        /// Checkbox used to choose whether this machine builds its own scene selection for the active platform
+        /// instead of the project-shared scene package.
+        /// </summary>
+        readonly CheckBoxComponent OverrideProjectScenesCheckBox;
+        /// <summary>
         /// Host entity for the output-folder browse button.
         /// </summary>
         readonly EditorEntity BrowseOutputFolderButtonHost;
@@ -438,6 +455,11 @@ public class BuildDialog : EditorDialogBase {
         /// Raised when the user wants to remove one queued build item from the current queue.
         /// </summary>
         public event Action<string> RemoveQueueItemRequested;
+        /// <summary>
+        /// Raised when the active platform stops overriding the project scene package and its scenes should be
+        /// reloaded from the project file. Carries the platform id.
+        /// </summary>
+        public event Action<string> ResetScenesToProjectRequested;
         /// <summary>
         /// Raised when the user closes the build dialog without confirming another action.
         /// </summary>
@@ -678,6 +700,33 @@ public class BuildDialog : EditorDialogBase {
             DebugBuildCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFont, false);
             DebugBuildCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
             DebugBuildCheckBoxHost.AddComponent(DebugBuildCheckBox);
+
+            OverrideProjectScenesLabelHost = new EditorEntity(OwnerCore, InteractionServices) {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildColumnRoot.AddChild(OverrideProjectScenesLabelHost);
+
+            OverrideProjectScenesLabelText = new TextComponent {
+                Font = DialogFont,
+                Text = "Local scene override",
+                Color = ThemeManager.Colors.InputForegroundPrimary,
+                RenderOrder2D = DialogTextOrder
+            };
+            OverrideProjectScenesLabelHost.AddComponent(OverrideProjectScenesLabelText);
+
+            OverrideProjectScenesCheckBoxHost = new EditorEntity(OwnerCore, InteractionServices) {
+                LayerMask = LayerMask,
+                Position = float3.Zero,
+                InternalEntity = true
+            };
+            BuildColumnRoot.AddChild(OverrideProjectScenesCheckBoxHost);
+
+            OverrideProjectScenesCheckBox = new CheckBoxComponent(new int2(18, 18), DialogFont, false);
+            OverrideProjectScenesCheckBox.SetRenderOrders(DialogPanelOrder, DialogTextOrder);
+            OverrideProjectScenesCheckBox.CheckedChanged += HandleOverrideProjectScenesCheckedChanged;
+            OverrideProjectScenesCheckBoxHost.AddComponent(OverrideProjectScenesCheckBox);
 
             BrowseOutputFolderButtonHost = new EditorEntity(OwnerCore, InteractionServices) {
                 LayerMask = LayerMask,
@@ -1291,6 +1340,29 @@ public class BuildDialog : EditorDialogBase {
         }
 
         /// <summary>
+        /// Switches the active platform between its own local scene selection and the project scene package.
+        /// Turning the override on keeps the scenes currently shown as the local selection. Turning it off asks the
+        /// session to reload the project package, since the dialog does not read the project file itself.
+        /// </summary>
+        /// <param name="checkBox">Checkbox that changed.</param>
+        /// <param name="isChecked">True when the active platform now overrides the project scenes.</param>
+        void HandleOverrideProjectScenesCheckedChanged(CheckBoxComponent checkBox, bool isChecked) {
+            if (checkBox == null) {
+                throw new ArgumentNullException(nameof(checkBox));
+            }
+            if (CurrentBuildConfig == null || string.IsNullOrWhiteSpace(ActivePlatformId)) {
+                return;
+            }
+
+            SyncActivePlatformConfig();
+            EditorBuildPlatformConfigDocument platformConfig = FindPlatformConfig(ActivePlatformId);
+            platformConfig.OverridesProjectScenes = isChecked;
+            if (!isChecked) {
+                ResetScenesToProjectRequested?.Invoke(ActivePlatformId);
+            }
+        }
+
+        /// <summary>
         /// Rebuilds the scene checklist for the current active platform.
         /// </summary>
         void RebuildActivePlatformSceneRows() {
@@ -1309,6 +1381,7 @@ public class BuildDialog : EditorDialogBase {
             OutputDirectoryField.Text = platformConfig.OutputDirectoryPath ?? "";
             OutputDirectoryField.SetInvalidState(false);
             DebugBuildCheckBox.IsChecked = platformConfig.DebugBuild;
+            OverrideProjectScenesCheckBox.IsChecked = platformConfig.OverridesProjectScenes;
             EnvironmentComboBox.SetItems(ActiveEnvironmentIds, ResolveEnvironmentIndex(platformConfig.SelectedEnvironmentId));
             SetSceneListInvalidState(false);
         }
@@ -1687,6 +1760,9 @@ public class BuildDialog : EditorDialogBase {
             BrowseOutputFolderButtonHost.Position = new float3(GetOutputFieldWidth() + DialogMetrics.ScalePixels(8), outputFieldY, 0.1f);
             DebugBuildLabelHost.Position = new float3(DialogMetrics.ScalePixels(24), debugBuildY, 0.1f);
             DebugBuildCheckBoxHost.Position = new float3(0f, debugBuildY - DialogMetrics.ScalePixels(2), 0.1f);
+            int overrideProjectScenesX = GetBuildColumnWidth() / 2;
+            OverrideProjectScenesLabelHost.Position = new float3(overrideProjectScenesX + DialogMetrics.ScalePixels(24), debugBuildY, 0.1f);
+            OverrideProjectScenesCheckBoxHost.Position = new float3(overrideProjectScenesX, debugBuildY - DialogMetrics.ScalePixels(2), 0.1f);
             AddToBuildButtonHost.Position = new float3(0f, addButtonY, 0.1f);
         }
 

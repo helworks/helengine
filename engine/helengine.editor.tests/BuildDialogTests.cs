@@ -399,6 +399,88 @@ namespace helengine.editor.tests {
             Assert.True(raisedRequest.DebugBuild);
         }
 
+        /// <summary>
+        /// Ensures switching platforms restores that platform's local scene override state on the checkbox.
+        /// </summary>
+        [Fact]
+        public void HandlePlatformTabClicked_WhenPlatformsStoreDifferentSceneOverrideValues_RestoresTheActiveValue() {
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            dialog.Show(
+                ["windows", "linux"],
+                [
+                    "Scenes/City.helen",
+                    "Scenes/Menu.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "windows",
+                            SelectedSceneIds = [
+                                "Scenes/City.helen"
+                            ],
+                            OutputDirectoryPath = @"C:\builds\windows",
+                            OverridesProjectScenes = true
+                        },
+                        new EditorBuildPlatformConfigDocument {
+                            PlatformId = "linux",
+                            SelectedSceneIds = [
+                                "Scenes/Menu.helen"
+                            ],
+                            OutputDirectoryPath = "/tmp/linux-build",
+                            OverridesProjectScenes = false
+                        }
+                    ]
+                });
+
+            CheckBoxComponent overrideCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "OverrideProjectScenesCheckBox");
+
+            Assert.True(overrideCheckBox.IsChecked);
+
+            InvokePrivate(dialog, "HandlePlatformTabClicked", "linux");
+
+            Assert.False(overrideCheckBox.IsChecked);
+        }
+
+        /// <summary>
+        /// Ensures turning the local scene override on keeps the shown scenes as the local selection without asking
+        /// the session for anything, while turning it off clears the flag and asks for the project package.
+        /// </summary>
+        [Fact]
+        public void HandleOverrideProjectScenesCheckedChanged_TogglesTheFlagAndRequestsProjectScenesOnlyWhenTurnedOff() {
+            BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());
+            List<string> resetRequests = [];
+            dialog.ResetScenesToProjectRequested += platformId => resetRequests.Add(platformId);
+            EditorBuildPlatformConfigDocument windows = new EditorBuildPlatformConfigDocument {
+                PlatformId = "windows",
+                SelectedSceneIds = [
+                    "Scenes/City.helen"
+                ],
+                OutputDirectoryPath = @"C:\builds\windows"
+            };
+            dialog.Show(
+                ["windows"],
+                [
+                    "Scenes/City.helen"
+                ],
+                "windows",
+                new EditorBuildConfigDocument {
+                    Platforms = [windows]
+                });
+            CheckBoxComponent overrideCheckBox = GetPrivateField<CheckBoxComponent>(dialog, "OverrideProjectScenesCheckBox");
+
+            InvokePrivate(dialog, "HandleOverrideProjectScenesCheckedChanged", overrideCheckBox, true);
+
+            Assert.True(windows.OverridesProjectScenes);
+            Assert.Equal(["Scenes/City.helen"], windows.SelectedSceneIds);
+            Assert.Empty(resetRequests);
+
+            InvokePrivate(dialog, "HandleOverrideProjectScenesCheckedChanged", overrideCheckBox, false);
+
+            Assert.False(windows.OverridesProjectScenes);
+            Assert.Equal(["windows"], resetRequests);
+        }
+
         [Fact]
         public void HandleAddToBuildClicked_WhenEnvironmentIsSelected_SnapshotsTheEnvironmentId() {
             BuildDialog dialog = new BuildDialog(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont());

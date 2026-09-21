@@ -43,6 +43,165 @@ public sealed class EditorBuildConfigServiceTests : IDisposable {
         AssertPlatform(document.Platforms[1], "linux", ["Scenes/City.helen"], string.Empty);
         Assert.Empty(document.QueueItems);
         Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "user_settings", "build_config.json")));
+        Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "settings", "build_config.json")));
+    }
+
+    /// <summary>
+    /// Ensures a platform that follows the project writes its scenes to the project file and none to the local file,
+    /// while output folder and queue stay local.
+    /// </summary>
+    [Fact]
+    public void Save_WhenPlatformFollowsProject_WritesScenesToProjectFileAndKeepsLocalStateLocal() {
+        EditorBuildConfigService service = CreateService();
+        service.Save(new EditorBuildConfigDocument {
+            Platforms = [
+                new EditorBuildPlatformConfigDocument {
+                    PlatformId = "windows",
+                    SelectedSceneIds = ["Scenes/City.helen", "Scenes/Menu.helen"],
+                    SceneOrders = [
+                        new EditorBuildSceneOrderDocument { SceneId = "Scenes/Menu.helen", OrderNumber = 1 },
+                        new EditorBuildSceneOrderDocument { SceneId = "Scenes/City.helen", OrderNumber = 2 }
+                    ],
+                    OutputDirectoryPath = @"C:\builds\windows"
+                }
+            ],
+            QueueItems = [
+                new EditorBuildQueueItemDocument { QueueItemId = "queue-1", PlatformId = "windows", SelectedSceneIds = ["Scenes/City.helen"], OutputDirectoryPath = @"C:\builds\windows" }
+            ]
+        });
+
+        using JsonDocument projectJson = JsonDocument.Parse(File.ReadAllText(Path.Combine(TempProjectRootPath, "settings", "build_config.json")));
+        using JsonDocument localJson = JsonDocument.Parse(File.ReadAllText(Path.Combine(TempProjectRootPath, "user_settings", "build_config.json")));
+        JsonElement projectPlatform = Assert.Single(projectJson.RootElement.GetProperty("platforms").EnumerateArray());
+        JsonElement localPlatform = Assert.Single(localJson.RootElement.GetProperty("platforms").EnumerateArray());
+
+        Assert.Equal("windows", projectPlatform.GetProperty("platformId").GetString());
+        Assert.Equal(2, projectPlatform.GetProperty("selectedSceneReferences").GetArrayLength());
+        Assert.Equal(2, projectPlatform.GetProperty("sceneOrders").GetArrayLength());
+        Assert.False(projectPlatform.TryGetProperty("outputDirectoryPath", out _));
+        Assert.False(projectJson.RootElement.TryGetProperty("queueItems", out _));
+        Assert.Equal(0, localPlatform.GetProperty("selectedSceneReferences").GetArrayLength());
+        Assert.Equal(0, localPlatform.GetProperty("sceneOrders").GetArrayLength());
+        Assert.False(localPlatform.GetProperty("overridesProjectScenes").GetBoolean());
+        Assert.Equal(@"C:\builds\windows", localPlatform.GetProperty("outputDirectoryPath").GetString());
+        Assert.Single(localJson.RootElement.GetProperty("queueItems").EnumerateArray());
+    }
+
+    /// <summary>
+    /// Ensures a platform with a local scene override keeps its scenes in the local file and leaves the project
+    /// package untouched, and that both views survive a reload.
+    /// </summary>
+    [Fact]
+    public void Save_WhenPlatformOverridesProjectScenes_KeepsLocalScenesAndProjectPackageApart() {
+        EditorBuildConfigService service = CreateService();
+        service.Save(new EditorBuildConfigDocument {
+            Platforms = [
+                new EditorBuildPlatformConfigDocument { PlatformId = "windows", SelectedSceneIds = ["Scenes/City.helen", "Scenes/Menu.helen"] }
+            ]
+        });
+
+        EditorBuildConfigDocument document = service.TryLoadExisting();
+        document.Platforms[0].OverridesProjectScenes = true;
+        document.Platforms[0].SelectedSceneIds = ["Scenes/Menu.helen"];
+        service.Save(document);
+
+        EditorBuildConfigDocument reloaded = service.TryLoadExisting();
+        EditorProjectBuildConfigDocument project = service.TryLoadProjectBuildConfig();
+        EditorBuildPlatformConfigDocument platform = Assert.Single(reloaded.Platforms);
+        Assert.True(platform.OverridesProjectScenes);
+        Assert.Equal(["Scenes/Menu.helen"], platform.SelectedSceneIds);
+        Assert.Equal(["Scenes/City.helen", "Scenes/Menu.helen"], Assert.Single(project.Platforms).SelectedSceneIds);
+    }
+
+    /// <summary>
+    /// Ensures a machine that has only the project file composes every platform with the project scenes and an
+    /// empty output folder instead of reporting missing build settings.
+    /// </summary>
+    [Fact]
+    public void TryLoadExisting_WhenOnlyProjectFileExists_ComposesPlatformsFromTheProjectPackage() {
+        EditorBuildConfigService service = CreateService();
+        service.Save(new EditorBuildConfigDocument {
+            Platforms = [
+                new EditorBuildPlatformConfigDocument { PlatformId = "ps2", SelectedSceneIds = ["Scenes/City.helen"], OutputDirectoryPath = @"C:\builds\ps2" }
+            ]
+        });
+        File.Delete(Path.Combine(TempProjectRootPath, "user_settings", "build_config.json"));
+
+        EditorBuildConfigDocument document = service.TryLoadExisting();
+
+        Assert.NotNull(document);
+        AssertPlatform(Assert.Single(document.Platforms), "ps2", ["Scenes/City.helen"], string.Empty);
+        Assert.Empty(document.QueueItems);
+    }
+
+    /// <summary>
+    /// Ensures a following platform whose local file still lists scenes takes them from the project package only.
+    /// </summary>
+    [Fact]
+    public void TryLoadExisting_WhenFollowingPlatformHasLocalScenes_UsesTheProjectPackage() {
+        EditorBuildConfigService service = CreateService();
+        service.Save(new EditorBuildConfigDocument {
+            Platforms = [
+                new EditorBuildPlatformConfigDocument { PlatformId = "windows", SelectedSceneIds = ["Scenes/City.helen"] }
+            ]
+        });
+        EditorBuildConfigDocument overriding = service.TryLoadExisting();
+        overriding.Platforms[0].OverridesProjectScenes = true;
+        overriding.Platforms[0].SelectedSceneIds = ["Scenes/Menu.helen"];
+        service.Save(overriding);
+        string localPath = Path.Combine(TempProjectRootPath, "user_settings", "build_config.json");
+        File.WriteAllText(localPath, File.ReadAllText(localPath).Replace("\"overridesProjectScenes\": true", "\"overridesProjectScenes\": false"));
+
+        EditorBuildConfigDocument document = service.TryLoadExisting();
+
+        Assert.Equal(["Scenes/City.helen"], Assert.Single(document.Platforms).SelectedSceneIds);
+    }
+
+    /// <summary>
+    /// Ensures dropping a local override reloads the project scenes into the composed platform entry.
+    /// </summary>
+    [Fact]
+    public void ResetPlatformScenesToProject_ReplacesTheLocalOverrideWithTheProjectPackage() {
+        EditorBuildConfigService service = CreateService();
+        service.Save(new EditorBuildConfigDocument {
+            Platforms = [
+                new EditorBuildPlatformConfigDocument {
+                    PlatformId = "windows",
+                    SelectedSceneIds = ["Scenes/City.helen", "Scenes/Menu.helen"],
+                    SceneOrders = [new EditorBuildSceneOrderDocument { SceneId = "Scenes/Menu.helen", OrderNumber = 1 }]
+                }
+            ]
+        });
+        EditorBuildConfigDocument document = service.TryLoadExisting();
+        document.Platforms[0].OverridesProjectScenes = true;
+        document.Platforms[0].SelectedSceneIds = ["Scenes/Menu.helen"];
+        document.Platforms[0].SceneOrders = [];
+
+        service.ResetPlatformScenesToProject(document, "windows");
+
+        Assert.False(document.Platforms[0].OverridesProjectScenes);
+        Assert.Equal(["Scenes/City.helen", "Scenes/Menu.helen"], document.Platforms[0].SelectedSceneIds);
+        EditorBuildSceneOrderDocument order = Assert.Single(document.Platforms[0].SceneOrders);
+        Assert.Equal("Scenes/Menu.helen", order.SceneId);
+        Assert.Equal(1, order.OrderNumber);
+    }
+
+    /// <summary>
+    /// Ensures a project file that cannot be parsed is left alone by save instead of being replaced.
+    /// </summary>
+    [Fact]
+    public void Save_WhenProjectFileIsMalformed_LeavesItUntouched() {
+        EditorBuildConfigService service = CreateService();
+        string projectPath = Path.Combine(TempProjectRootPath, "settings", "build_config.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(projectPath));
+        File.WriteAllText(projectPath, "{ not json");
+
+        service.Save(new EditorBuildConfigDocument {
+            Platforms = [new EditorBuildPlatformConfigDocument { PlatformId = "windows", SelectedSceneIds = ["Scenes/City.helen"] }]
+        });
+
+        Assert.Equal("{ not json", File.ReadAllText(projectPath));
+        Assert.True(File.Exists(Path.Combine(TempProjectRootPath, "user_settings", "build_config.json")));
     }
 
     /// <summary>

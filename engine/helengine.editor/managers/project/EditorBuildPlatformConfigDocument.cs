@@ -25,6 +25,13 @@ namespace helengine.editor {
         public List<EditorBuildSceneOrderDocument> SceneOrders { get; set; } = [];
 
         /// <summary>
+        /// Gets or sets whether this machine builds its own scene selection for the platform instead of the
+        /// project-shared scene package. When false, the selected scenes and orders mirror
+        /// `settings/build_config.json` and edits to them are written back there.
+        /// </summary>
+        public bool OverridesProjectScenes { get; set; }
+
+        /// <summary>
         /// Gets or sets the last output directory path chosen for this platform.
         /// </summary>
         public string OutputDirectoryPath { get; set; } = string.Empty;
