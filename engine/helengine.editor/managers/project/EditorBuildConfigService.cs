@@ -328,7 +328,6 @@ namespace helengine.editor {
                 }
 
                 document.Platforms ??= [];
-                EditorProjectSceneCatalogService catalog = CreateSceneCatalogService();
                 for (int index = 0; index < document.Platforms.Count; index++) {
                     EditorProjectPlatformBuildConfigDocument platform = document.Platforms[index];
                     if (platform == null) {
@@ -337,14 +336,9 @@ namespace helengine.editor {
                     }
 
                     platform.SelectedSceneReferences ??= [];
-                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences);
                     platform.SceneOrders ??= [];
-                    for (int orderIndex = 0; orderIndex < platform.SceneOrders.Count; orderIndex++) {
-                        EditorBuildSceneOrderDocument order = platform.SceneOrders[orderIndex];
-                        if (order?.SceneReference != null) {
-                            order.SceneId = catalog.ResolveSceneId(order.SceneReference);
-                        }
-                    }
+                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences);
+                    ResolveSceneOrderIds(platform.SceneOrders);
                 }
 
                 return document;
@@ -384,14 +378,9 @@ namespace helengine.editor {
 
                     platform.SelectedSceneIds ??= [];
                     platform.SelectedSceneReferences ??= [];
-                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences);
                     platform.SceneOrders ??= [];
-                    for (int orderIndex = 0; orderIndex < platform.SceneOrders.Count; orderIndex++) {
-                        EditorBuildSceneOrderDocument order = platform.SceneOrders[orderIndex];
-                        if (order?.SceneReference != null) {
-                            order.SceneId = CreateSceneCatalogService().ResolveSceneId(order.SceneReference);
-                        }
-                    }
+                    platform.SelectedSceneIds = ResolveSceneIds(platform.SelectedSceneReferences);
+                    ResolveSceneOrderIds(platform.SceneOrders);
                     platform.SelectedBuildProfileId ??= string.Empty;
                     platform.EditorPrebuildCommandIdsByBuildProfileId ??= [];
                     platform.SelectedGraphicsProfileId ??= string.Empty;
@@ -444,41 +433,87 @@ namespace helengine.editor {
             }
         }
 
-        /// <summary>Synchronizes persisted scene references from the editor's operational scene-id lists.</summary>
+        /// <summary>
+        /// Synchronizes persisted scene references from the editor's operational scene-id lists. Every id in the
+        /// document is captured in one batch so the asset identity index is initialized once per save.
+        /// </summary>
         void SynchronizeSceneReferences(EditorBuildConfigDocument document) {
-            EditorProjectSceneCatalogService catalog = CreateSceneCatalogService();
             document.Platforms ??= [];
+            document.QueueItems ??= [];
+            List<string> sceneIds = [];
             for (int index = 0; index < document.Platforms.Count; index++) {
                 EditorBuildPlatformConfigDocument platform = document.Platforms[index];
                 if (platform == null) {
                     continue;
                 }
                 platform.SelectedSceneIds ??= [];
-                platform.SelectedSceneReferences = platform.SelectedSceneIds.Select(catalog.CreateSceneReference).ToList();
                 platform.SceneOrders ??= [];
+                sceneIds.AddRange(platform.SelectedSceneIds);
                 for (int orderIndex = 0; orderIndex < platform.SceneOrders.Count; orderIndex++) {
                     EditorBuildSceneOrderDocument order = platform.SceneOrders[orderIndex];
                     if (order != null && !string.IsNullOrWhiteSpace(order.SceneId)) {
-                        order.SceneReference = catalog.CreateSceneReference(order.SceneId);
+                        sceneIds.Add(order.SceneId);
                     }
                 }
             }
-
-            document.QueueItems ??= [];
             for (int index = 0; index < document.QueueItems.Count; index++) {
                 EditorBuildQueueItemDocument queueItem = document.QueueItems[index];
                 if (queueItem == null) {
                     continue;
                 }
                 queueItem.SelectedSceneIds ??= [];
-                queueItem.SelectedSceneReferences = queueItem.SelectedSceneIds.Select(catalog.CreateSceneReference).ToList();
+                sceneIds.AddRange(queueItem.SelectedSceneIds);
+            }
+
+            List<SceneAssetReference> references = CreateSceneCatalogService().CreateSceneReferences(sceneIds);
+            int cursor = 0;
+            for (int index = 0; index < document.Platforms.Count; index++) {
+                EditorBuildPlatformConfigDocument platform = document.Platforms[index];
+                if (platform == null) {
+                    continue;
+                }
+                platform.SelectedSceneReferences = references.GetRange(cursor, platform.SelectedSceneIds.Count);
+                cursor += platform.SelectedSceneIds.Count;
+                for (int orderIndex = 0; orderIndex < platform.SceneOrders.Count; orderIndex++) {
+                    EditorBuildSceneOrderDocument order = platform.SceneOrders[orderIndex];
+                    if (order != null && !string.IsNullOrWhiteSpace(order.SceneId)) {
+                        order.SceneReference = references[cursor];
+                        cursor++;
+                    }
+                }
+            }
+            for (int index = 0; index < document.QueueItems.Count; index++) {
+                EditorBuildQueueItemDocument queueItem = document.QueueItems[index];
+                if (queueItem == null) {
+                    continue;
+                }
+                queueItem.SelectedSceneReferences = references.GetRange(cursor, queueItem.SelectedSceneIds.Count);
+                cursor += queueItem.SelectedSceneIds.Count;
             }
         }
 
-        /// <summary>Resolves operational ids from one current persisted reference list.</summary>
+        /// <summary>Resolves operational ids from one current persisted reference list in one batch.</summary>
         List<string> ResolveSceneIds(IReadOnlyList<SceneAssetReference> references) {
-            EditorProjectSceneCatalogService catalog = CreateSceneCatalogService();
-            return (references ?? Array.Empty<SceneAssetReference>()).Select(catalog.ResolveSceneId).ToList();
+            return CreateSceneCatalogService().ResolveSceneIds(references ?? Array.Empty<SceneAssetReference>());
+        }
+
+        /// <summary>Resolves the operational id of every order entry that carries a reference, in one batch.</summary>
+        /// <param name="orders">Scene order entries to update in place.</param>
+        void ResolveSceneOrderIds(List<EditorBuildSceneOrderDocument> orders) {
+            List<EditorBuildSceneOrderDocument> referencedOrders = [];
+            List<SceneAssetReference> references = [];
+            for (int index = 0; index < orders.Count; index++) {
+                EditorBuildSceneOrderDocument order = orders[index];
+                if (order?.SceneReference != null) {
+                    referencedOrders.Add(order);
+                    references.Add(order.SceneReference);
+                }
+            }
+
+            List<string> sceneIds = ResolveSceneIds(references);
+            for (int index = 0; index < referencedOrders.Count; index++) {
+                referencedOrders[index].SceneId = sceneIds[index];
+            }
         }
 
         EditorProjectSceneCatalogService CreateSceneCatalogService() {

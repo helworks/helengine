@@ -91,6 +91,23 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
+        /// Resolves authored and generated references back to their ids in caller order through one shared resolver.
+        /// </summary>
+        [Fact]
+        public void ResolveSceneIds_MixedBatch_ReturnsIdsInCallerOrder() {
+            WriteSerializedScene("Scenes/Alpha.helen");
+            WriteSerializedScene("Levels/Beta.helen");
+            EditorProjectSceneCatalogService service = new EditorProjectSceneCatalogService(TempProjectRootPath);
+            List<SceneAssetReference> references = service.CreateSceneReferences(new[] { "Beta", "generated-scene", "Alpha", "Beta" });
+
+            List<string> sceneIds = service.ResolveSceneIds(references);
+
+            Assert.Equal(new[] { "Beta", "generated-scene", "Alpha", "Beta" }, sceneIds);
+            Assert.Empty(service.ResolveSceneIds(Array.Empty<SceneAssetReference>()));
+            Assert.Throws<ArgumentNullException>(() => service.ResolveSceneIds(null));
+        }
+
+        /// <summary>
         /// Starts a fresh resolver for the next batch so an asset move remains visible.
         /// </summary>
         [Fact]

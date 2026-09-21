@@ -159,16 +159,49 @@ namespace helengine.editor {
             if (reference == null) {
                 throw new ArgumentNullException(nameof(reference));
             }
-            if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
-                if (!string.Equals(reference.ProviderId, GeneratedSceneProviderId, StringComparison.Ordinal)) {
-                    throw new InvalidOperationException($"Unsupported generated scene provider '{reference.ProviderId}'.");
-                }
-                return reference.AssetId;
+
+            return ResolveSceneIds(new[] { reference })[0];
+        }
+
+        /// <summary>
+        /// Resolves an ordered batch of persisted scene references using one asset resolver, so a build
+        /// configuration with hundreds of references initializes the asset identity index once instead of per reference.
+        /// </summary>
+        /// <param name="references">Scene references in caller order; duplicates are preserved.</param>
+        /// <returns>Operational scene ids in the same order.</returns>
+        public List<string> ResolveSceneIds(IReadOnlyList<SceneAssetReference> references) {
+            if (references == null) {
+                throw new ArgumentNullException(nameof(references));
             }
 
-            using EditorAssetReferenceResolver resolver = new EditorAssetReferenceResolver(ProjectRootPath);
-            AssetReferenceResolution resolution = resolver.Resolve(reference, AssetEntryKind.Scene);
-            return ResolveSceneId(resolution.FullPath);
+            List<string> sceneIds = new List<string>(references.Count);
+            EditorAssetReferenceResolver resolver = null;
+            try {
+                for (int index = 0; index < references.Count; index++) {
+                    SceneAssetReference reference = references[index];
+                    if (reference == null) {
+                        throw new ArgumentException("Scene reference must be provided.", nameof(references));
+                    }
+
+                    if (reference.SourceKind == SceneAssetReferenceSourceKind.Generated) {
+                        if (!string.Equals(reference.ProviderId, GeneratedSceneProviderId, StringComparison.Ordinal)) {
+                            throw new InvalidOperationException($"Unsupported generated scene provider '{reference.ProviderId}'.");
+                        }
+                        sceneIds.Add(reference.AssetId);
+                        continue;
+                    }
+
+                    if (resolver == null) {
+                        resolver = new EditorAssetReferenceResolver(ProjectRootPath);
+                    }
+                    AssetReferenceResolution resolution = resolver.Resolve(reference, AssetEntryKind.Scene);
+                    sceneIds.Add(ResolveSceneId(resolution.FullPath));
+                }
+            } finally {
+                resolver?.Dispose();
+            }
+
+            return sceneIds;
         }
 
         /// <summary>
