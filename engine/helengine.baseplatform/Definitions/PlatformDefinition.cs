@@ -66,6 +66,8 @@ namespace helengine.baseplatform.Definitions {
                 throw new ArgumentException("Material schemas cannot contain null entries.", nameof(materialSchemas));
             } else if (Array.Exists(componentSupportRules, componentSupportRule => componentSupportRule == null)) {
                 throw new ArgumentException("Component support rules cannot contain null entries.", nameof(componentSupportRules));
+            } else if (Array.Exists(componentSupportRules, componentSupportRule => !IsEngineComponentTypeId(componentSupportRule.ComponentTypeId))) {
+                throw new ArgumentException("Component support rules may only name engine components (helengine.*). Game script components reach every platform through the generic reflected transform, so a platform definition must not depend on one project's types.", nameof(componentSupportRules));
             } else if (Array.Exists(codegenProfiles, codegenProfile => codegenProfile == null)) {
                 throw new ArgumentException("Codegen profiles cannot contain null entries.", nameof(codegenProfiles));
             } else if (Array.Exists(storageProfiles, storageProfile => storageProfile == null)) {
@@ -394,6 +396,16 @@ namespace helengine.baseplatform.Definitions {
         /// Gets the component support rules exposed by the platform.
         /// </summary>
         public PlatformComponentSupportRule[] ComponentSupportRules { get; }
+
+        /// <summary>
+        /// Returns true when a component type id belongs to the engine (the <c>helengine.</c> namespace). Anything else
+        /// is a game project's script component, which no platform definition may name.
+        /// </summary>
+        /// <param name="componentTypeId">Serialized component type id.</param>
+        public static bool IsEngineComponentTypeId(string componentTypeId) {
+            return !string.IsNullOrWhiteSpace(componentTypeId)
+                && componentTypeId.StartsWith("helengine.", StringComparison.OrdinalIgnoreCase);
+        }
 
         /// <summary>
         /// Gets the codegen profiles exposed by the platform.

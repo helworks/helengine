@@ -182,5 +182,36 @@ public class PlatformDefinitionTests {
 
         Assert.Equal("true", buildProfile.CodegenSettingDefaultValues["codegen-compact-native-exception-messages"]);
     }
+
+    /// <summary>
+    /// A platform definition may only name engine components. A rule for a game project's script type would tie the
+    /// console builder to one game, so the constructor rejects it.
+    /// </summary>
+    [Fact]
+    public void PlatformDefinition_rejects_component_support_rules_that_name_game_script_types() {
+        ArgumentException exception = Assert.Throws<ArgumentException>(() => new PlatformDefinition(
+            "psp",
+            "PSP",
+            [],
+            [],
+            [],
+            [
+                new PlatformComponentSupportRule(
+                    "helengine.meshcomponent",
+                    PlatformComponentSupportKind.Transform,
+                    "Engine component.",
+                    string.Empty),
+                new PlatformComponentSupportRule(
+                    "demodisc.menu.ReturnToMenuComponent, DemoDisc",
+                    PlatformComponentSupportKind.PassThrough,
+                    "Game component.",
+                    string.Empty)
+            ]));
+
+        Assert.Equal("componentSupportRules", exception.ParamName);
+        Assert.True(PlatformDefinition.IsEngineComponentTypeId("helengine.MeshComponent"));
+        Assert.False(PlatformDefinition.IsEngineComponentTypeId("demodisc.menu.ReturnToMenuComponent, DemoDisc"));
+        Assert.False(PlatformDefinition.IsEngineComponentTypeId(string.Empty));
+    }
 }
 
