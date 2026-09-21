@@ -229,11 +229,26 @@ namespace helengine.editor.tests {
             Assert.Contains("global using helengine;", globalUsingsContents, StringComparison.Ordinal);
             Assert.Contains("global using helengine.editor;", globalUsingsContents, StringComparison.Ordinal);
 
-            // Visual Studio shows the solution's display name, so editor-only modules are flagged there while the
-            // project file itself keeps the plain module id.
+            // Visual Studio names SDK-style projects after their project file, so editor-only modules are told apart
+            // by nesting them under an "Editor" solution folder while runtime modules sit under "Runtime".
             string solutionContents = File.ReadAllText(Path.Combine(TempProjectRootPath, "SkyRider.sln"));
-            Assert.Contains("= \"menu.tools [Editor]\", \"user_settings/generated_code/projects/menu.tools/menu.tools.csproj\"", solutionContents, StringComparison.Ordinal);
-            Assert.Contains("= \"gameplay\", \"user_settings/generated_code/projects/gameplay/gameplay.csproj\"", solutionContents, StringComparison.Ordinal);
+            string editorFolderGuid = FindSolutionFolderGuid(solutionContents, EditorGameSolutionService.EditorSolutionFolderName);
+            string runtimeFolderGuid = FindSolutionFolderGuid(solutionContents, EditorGameSolutionService.RuntimeSolutionFolderName);
+            EditorGeneratedCodeModuleProject runtimeProject = Assert.Single(service.GeneratedModuleProjects, project => project.ModuleId == "gameplay");
+            Assert.Contains(editorProject.ProjectGuid.ToString("B").ToUpperInvariant() + " = " + editorFolderGuid, solutionContents, StringComparison.Ordinal);
+            Assert.Contains(runtimeProject.ProjectGuid.ToString("B").ToUpperInvariant() + " = " + runtimeFolderGuid, solutionContents, StringComparison.Ordinal);
+            Assert.Contains("= \"menu.tools\", \"user_settings/generated_code/projects/menu.tools/menu.tools.csproj\"", solutionContents, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Finds the GUID of one solution folder entry, asserting the folder exists.
+        /// </summary>
+        static string FindSolutionFolderGuid(string solutionContents, string folderName) {
+            System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(
+                solutionContents,
+                "Project\\(\"\\{2150E333-8FDC-42A3-9474-1A3956D46DE8\\}\"\\) = \"" + System.Text.RegularExpressions.Regex.Escape(folderName) + "\", \"" + System.Text.RegularExpressions.Regex.Escape(folderName) + "\", \"(\\{[0-9A-F-]+\\})\"");
+            Assert.True(match.Success, $"Solution folder '{folderName}' was not written.");
+            return match.Groups[1].Value;
         }
 
         /// <summary>
@@ -540,7 +555,20 @@ public sealed class ShaderBackendRegistryTests {
             Assert.Contains("global using helengine.editor;", File.ReadAllText(globalUsingsPath), StringComparison.Ordinal);
 
             string solutionContents = File.ReadAllText(Path.Combine(TempProjectRootPath, "SkyRider.sln"));
-            Assert.Contains("= \"menu.tools.tests [Editor]\", ", solutionContents, StringComparison.Ordinal);
+            string editorFolderGuid = FindSolutionFolderGuid(solutionContents, EditorGameSolutionService.EditorSolutionFolderName);
+            string editorTestProjectGuid = FindProjectGuid(solutionContents, "menu.tools.tests");
+            Assert.Contains(editorTestProjectGuid + " = " + editorFolderGuid, solutionContents, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Finds the GUID of one C# project entry by its module id, asserting the entry exists.
+        /// </summary>
+        static string FindProjectGuid(string solutionContents, string moduleId) {
+            System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(
+                solutionContents,
+                "Project\\(\"\\{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC\\}\"\\) = \"" + System.Text.RegularExpressions.Regex.Escape(moduleId) + "\", \"[^\"]+\", \"(\\{[0-9A-F-]+\\})\"");
+            Assert.True(match.Success, $"Project '{moduleId}' was not written to the solution.");
+            return match.Groups[1].Value;
         }
 
         /// <summary>

@@ -26,6 +26,21 @@ namespace helengine.editor {
         const string CSharpProjectTypeGuid = "FAE04EC0-301F-11D3-BF4B-00C04F79EFBC";
 
         /// <summary>
+        /// Project type GUID Visual Studio uses for solution folders.
+        /// </summary>
+        const string SolutionFolderProjectTypeGuid = "2150E333-8FDC-42A3-9474-1A3956D46DE8";
+
+        /// <summary>
+        /// Solution folder that groups runtime modules and their tests.
+        /// </summary>
+        public const string RuntimeSolutionFolderName = "Runtime";
+
+        /// <summary>
+        /// Solution folder that groups editor-only modules and their tests.
+        /// </summary>
+        public const string EditorSolutionFolderName = "Editor";
+
+        /// <summary>
         /// Default framework used by the generated game project.
         /// </summary>
         const string TargetFrameworkValue = "net9.0";
@@ -857,7 +872,29 @@ namespace helengine.editor {
                 string solutionDirectoryPath = Path.GetDirectoryName(SolutionFilePath) ?? ProjectRootPath;
                 string relativeProjectFileName = Path.GetRelativePath(solutionDirectoryPath, moduleProject.ProjectFilePath).Replace('\\', '/');
                 string projectGuidText = moduleProject.ProjectGuid.ToString("B").ToUpperInvariant();
-                builder.AppendLine("Project(\"{" + CSharpProjectTypeGuid + "}\") = \"" + EscapeSolutionText(BuildSolutionDisplayName(moduleProject)) + "\", \"" + EscapeSolutionText(relativeProjectFileName) + "\", \"" + projectGuidText + "\"");
+                builder.AppendLine("Project(\"{" + CSharpProjectTypeGuid + "}\") = \"" + EscapeSolutionText(moduleProject.ModuleId) + "\", \"" + EscapeSolutionText(relativeProjectFileName) + "\", \"" + projectGuidText + "\"");
+                builder.AppendLine("EndProject");
+            }
+
+            // Visual Studio names SDK-style projects after their project file and ignores the display name above, so
+            // editor-only modules are told apart from runtime code by solution folders instead.
+            bool hasRuntimeProjects = false;
+            bool hasEditorProjects = false;
+            for (int index = 0; index < generatedCodeSolution.Projects.Count; index++) {
+                if (generatedCodeSolution.Projects[index].ModuleKind == EditorCodeModuleKind.Editor) {
+                    hasEditorProjects = true;
+                } else {
+                    hasRuntimeProjects = true;
+                }
+            }
+            string runtimeFolderGuidText = ResolveSolutionFolderGuid(RuntimeSolutionFolderName).ToString("B").ToUpperInvariant();
+            string editorFolderGuidText = ResolveSolutionFolderGuid(EditorSolutionFolderName).ToString("B").ToUpperInvariant();
+            if (hasRuntimeProjects) {
+                builder.AppendLine("Project(\"{" + SolutionFolderProjectTypeGuid + "}\") = \"" + RuntimeSolutionFolderName + "\", \"" + RuntimeSolutionFolderName + "\", \"" + runtimeFolderGuidText + "\"");
+                builder.AppendLine("EndProject");
+            }
+            if (hasEditorProjects) {
+                builder.AppendLine("Project(\"{" + SolutionFolderProjectTypeGuid + "}\") = \"" + EditorSolutionFolderName + "\", \"" + EditorSolutionFolderName + "\", \"" + editorFolderGuidText + "\"");
                 builder.AppendLine("EndProject");
             }
 
@@ -875,8 +912,31 @@ namespace helengine.editor {
                 builder.AppendLine("\t\t" + projectGuidText + ".Release|Any CPU.Build.0 = Release|Any CPU");
             }
             builder.AppendLine("\tEndGlobalSection");
+            builder.AppendLine("\tGlobalSection(NestedProjects) = preSolution");
+            for (int index = 0; index < generatedCodeSolution.Projects.Count; index++) {
+                EditorGeneratedCodeModuleProject moduleProject = generatedCodeSolution.Projects[index];
+                string projectGuidText = moduleProject.ProjectGuid.ToString("B").ToUpperInvariant();
+                string folderGuidText = moduleProject.ModuleKind == EditorCodeModuleKind.Editor ? editorFolderGuidText : runtimeFolderGuidText;
+                builder.AppendLine("\t\t" + projectGuidText + " = " + folderGuidText);
+            }
+            builder.AppendLine("\tEndGlobalSection");
             builder.AppendLine("EndGlobal");
             return builder.ToString();
+        }
+
+        /// <summary>
+        /// Derives a stable GUID for one solution folder from its name, so regenerating the solution never moves
+        /// folders around in Visual Studio.
+        /// </summary>
+        /// <param name="folderName">Solution folder name.</param>
+        /// <returns>Stable folder GUID.</returns>
+        static Guid ResolveSolutionFolderGuid(string folderName) {
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes("helengine.solution-folder|" + folderName));
+            byte[] guidBytes = new byte[16];
+            Array.Copy(hash, guidBytes, 16);
+            guidBytes[7] = (byte)((guidBytes[7] & 0x0F) | 0x50);
+            guidBytes[8] = (byte)((guidBytes[8] & 0x3F) | 0x80);
+            return new Guid(guidBytes);
         }
 
         /// <summary>
@@ -1158,19 +1218,6 @@ namespace helengine.editor {
             return string.IsNullOrEmpty(value) ? string.Empty : value.Replace("\"", "\"\"");
         }
 
-        /// <summary>
-        /// Builds the name Visual Studio shows for one generated project. Editor-only modules and their tests carry an
-        /// "[Editor]" flag so they are told apart from runtime code at a glance; the project file keeps the plain id.
-        /// </summary>
-        /// <param name="moduleProject">Generated project to name.</param>
-        /// <returns>Solution display name.</returns>
-        static string BuildSolutionDisplayName(EditorGeneratedCodeModuleProject moduleProject) {
-            if (moduleProject.ModuleKind == EditorCodeModuleKind.Editor) {
-                return moduleProject.ModuleId + " [Editor]";
-            }
-
-            return moduleProject.ModuleId;
-        }
 
         /// <summary>
         /// Converts one arbitrary project name into a file-safe and assembly-safe identifier.
