@@ -747,6 +747,39 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
     }
 
     /// <summary>
+    /// Verifies a physics-feature regeneration invokes the HelPhysics project so its runtime sources enter generated core.
+    /// </summary>
+    [Fact]
+    public void Regenerate_with_physics_scene_symbols_invokes_helphysics_project() {
+        string platformId = "helphysics-project-fixture-" + Guid.NewGuid().ToString("N");
+        string generatedCoreRootPath = Path.Combine(RootPath, "regenerate-helphysics-project-output");
+        string codegenRootPath = Path.Combine(RootPath, "fake-codegen-helphysics-project");
+        string argumentsLogPath = Path.Combine(RootPath, "fake-codegen-helphysics-project.log");
+        string fakeCodegenPath = CreateFakeCodegenTool(codegenRootPath, argumentsLogPath);
+        string helPhysicsProjectPath = Path.Combine(
+            ResolveRepositoryRootPath(),
+            "engine",
+            "helengine.helphysics",
+            "helengine.helphysics.csproj");
+
+        EditorGeneratedCoreRegenerationService service = new();
+        service.Regenerate(
+            CreatePlatformDefinition(platformId, runtimeGenerationContract: null),
+            CreateDefaultCodegenProfile(),
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            generatedCoreRootPath,
+            fakeCodegenPath,
+            [],
+            [helengine.PhysicsSceneFeatureSymbolCatalog3D.SceneFeatureStrippingSymbol],
+            CancellationToken.None);
+
+        string[] loggedInvocations = File.ReadAllLines(argumentsLogPath);
+        Assert.Contains(
+            loggedInvocations,
+            invocation => invocation.Contains($"PROJECT={helPhysicsProjectPath}|", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// Verifies the runtime component registry source no longer relies on LINQ key projection that lowers to unsupported generated-core helpers.
     /// </summary>
     [Fact]
@@ -1681,6 +1714,28 @@ public sealed class EditorGeneratedCoreRegenerationServiceTests : IDisposable {
         Assert.Equal(typeof(GeneratedRuntimeModuleRegistrationTestRegistration), manifest.RegistrationType);
         Assert.Equal(nameof(GeneratedRuntimeModuleRegistrationTestRegistration.Register), manifest.RegistrationMethodName);
         Assert.Contains(typeof(GeneratedRuntimeModuleRegistrationTestComponent), manifest.ActivationTypes);
+    }
+
+    /// <summary>
+    /// Verifies the default HelPhysics provider manifest activates from shared physics contract types and does not select the legacy BEPU provider.
+    /// </summary>
+    [Fact]
+    public void Emit_generated_runtime_module_registration_for_helphysics_contracts_selects_helphysics_only() {
+        string generatedCoreRootPath = Path.Combine(RootPath, "generated-runtime-modules-helphysics");
+        try {
+            EditorGeneratedCoreRegenerationService.EnsureGeneratedRuntimeModuleRegistrationSupport(generatedCoreRootPath);
+            EditorGeneratedCoreRegenerationService.EmitGeneratedRuntimeModuleRegistration(
+                generatedCoreRootPath,
+                [typeof(RigidBody3DComponent), typeof(SphereCollider3DComponent)]);
+
+            string source = File.ReadAllText(Path.Combine(generatedCoreRootPath, "GeneratedRuntimeModuleRegistration.cpp"));
+
+            Assert.Contains("#include \"HelPhysicsRuntimeComponentRegistration.hpp\"", source, StringComparison.Ordinal);
+            Assert.Contains("HelPhysicsRuntimeComponentRegistration::Register(core);", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Bepu", source, StringComparison.Ordinal);
+        } finally {
+            DeleteDirectoryIfPresent(generatedCoreRootPath);
+        }
     }
 
     /// <summary>

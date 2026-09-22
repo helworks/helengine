@@ -1,6 +1,6 @@
 namespace helengine {
     /// <summary>
-    /// Owns fixed-capacity box-shape storage guarded by generational handles.
+    /// Owns fixed-capacity primitive-shape storage guarded by generational handles.
     /// </summary>
     sealed class HelPhysicsShapePool3D {
         /// <summary>
@@ -17,6 +17,16 @@ namespace helengine {
         /// Stores box shape values indexed by their permanent fixed slot.
         /// </summary>
         readonly HelPhysicsBoxShape3D[] Boxes;
+
+        /// <summary>
+        /// Stores sphere shape values indexed by their permanent fixed slot.
+        /// </summary>
+        readonly HelPhysicsSphereShape3D[] Spheres;
+
+        /// <summary>
+        /// Stores the primitive kind occupying each fixed shape slot.
+        /// </summary>
+        readonly HelPhysicsShapeKind3D[] Kinds;
 
         /// <summary>
         /// Stores whether each corresponding entry in <see cref="Boxes"/> currently belongs to a live handle.
@@ -52,6 +62,8 @@ namespace helengine {
             ValidateCapacity(capacity);
 
             Boxes = new HelPhysicsBoxShape3D[capacity];
+            Spheres = new HelPhysicsSphereShape3D[capacity];
+            Kinds = new HelPhysicsShapeKind3D[capacity];
             IsOccupied = new bool[capacity];
             Generations = new ushort[capacity];
             FreeIndices = new ushort[capacity];
@@ -92,6 +104,26 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Allocates one free shape slot and stores the supplied sphere value.
+        /// </summary>
+        /// <param name="sphere">Sphere shape to store in the newly allocated slot.</param>
+        /// <returns>A generational handle that accesses the allocated shape slot.</returns>
+        /// <exception cref="HelPhysicsCapacityExceededException">Thrown when every fixed shape slot is occupied.</exception>
+        public HelPhysicsShapeHandle3D Allocate(HelPhysicsSphereShape3D sphere) {
+            if (FreeIndexCount == 0) {
+                throw new HelPhysicsCapacityExceededException("shape", Boxes.Length);
+            }
+
+            ushort index = FreeIndices[--FreeIndexCount];
+            Spheres[index] = sphere;
+            Kinds[index] = HelPhysicsShapeKind3D.Sphere;
+            IsOccupied[index] = true;
+            ActiveCountValue++;
+
+            return new HelPhysicsShapeHandle3D(index, Generations[index]);
+        }
+
+        /// <summary>
         /// Releases a live shape slot, invalidates its generation, and returns its index to the free list.
         /// </summary>
         /// <param name="handle">Current generational handle for the shape slot to release.</param>
@@ -119,6 +151,32 @@ namespace helengine {
             ValidateHandle(handle);
 
             return ref Boxes[handle.Index];
+        }
+
+        /// <summary>
+        /// Returns the stored sphere value for one currently allocated shape slot.
+        /// </summary>
+        /// <param name="handle">Current generational handle for the requested sphere.</param>
+        /// <returns>A reference to the requested sphere value in fixed storage.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the handle is invalid or does not identify a sphere.</exception>
+        public ref HelPhysicsSphereShape3D GetRequiredSphere(HelPhysicsShapeHandle3D handle) {
+            ValidateHandle(handle);
+
+            if (Kinds[handle.Index] != HelPhysicsShapeKind3D.Sphere) {
+                throw new InvalidOperationException("The shape handle does not identify a sphere shape.");
+            }
+
+            return ref Spheres[handle.Index];
+        }
+
+        /// <summary>
+        /// Returns the primitive kind stored by one currently allocated shape slot.
+        /// </summary>
+        /// <param name="handle">Current generational shape handle.</param>
+        /// <returns>The shape kind stored by the handle slot.</returns>
+        public HelPhysicsShapeKind3D GetRequiredKind(HelPhysicsShapeHandle3D handle) {
+            ValidateHandle(handle);
+            return Kinds[handle.Index];
         }
 
         /// <summary>

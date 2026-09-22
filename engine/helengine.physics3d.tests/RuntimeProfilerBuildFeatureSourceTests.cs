@@ -8,10 +8,10 @@ namespace helengine {
         /// </summary>
         [Fact]
         public void RuntimeProfiler_WhenGeneratedFeatureIsDisabled_IsExcludedFromCoreAndPhysicsProviders() {
-            AssertProfilerFileIsFeatureGuarded("diagnostics", "RuntimeProfilerMetrics.cs");
-            AssertProfilerFileIsFeatureGuarded("diagnostics", "RuntimeProfilerMetricsSnapshot.cs");
-            AssertProfilerFileIsFeatureGuarded("diagnostics", "RuntimePhysicsProfilerMetrics.cs");
-            AssertProfilerFileIsFeatureGuarded("physics", "IPhysicsRuntimeProfilerMetricsProvider.cs");
+            AssertProfilerFileIsFeatureGuarded("helengine.core", "diagnostics", "RuntimeProfilerMetrics.cs");
+            AssertProfilerFileIsFeatureGuarded("helengine.core", "diagnostics", "RuntimeProfilerMetricsSnapshot.cs");
+            AssertProfilerFileIsFeatureGuarded("helengine.core", "diagnostics", "RuntimePhysicsProfilerMetrics.cs");
+            AssertProfilerFileIsFeatureGuarded("helengine.core", "physics", "IPhysicsRuntimeProfilerMetricsProvider.cs");
 
             string coreSource = LoadSource("helengine.core", "Core.cs");
             Assert.Contains("#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER\n        readonly RuntimeProfilerMetrics RuntimeProfilerMetricsValue;", coreSource, StringComparison.Ordinal);
@@ -20,15 +20,18 @@ namespace helengine {
 
             AssertPhysicsProviderIsFeatureGuarded("helengine.bepu", "BepuPhysicsWorld3D.cs");
             AssertPhysicsProviderIsFeatureGuarded("helengine.physics3d", "PhysicsWorld3D.cs");
+            AssertPhysicsProviderIsFeatureGuarded("helengine.helphysics", "runtime/HelPhysicsWorld3D.cs");
+            AssertProfilerFileIsFeatureGuarded("helengine.helphysics", "runtime", "HelPhysicsRuntimeProfilerMetrics3D.cs");
         }
 
         /// <summary>
         /// Verifies one profiler-only source file is enclosed by the generated-runtime profiler guard.
         /// </summary>
-        /// <param name="directoryName">Directory beneath <c>helengine.core</c> that owns the source file.</param>
+        /// <param name="projectDirectoryName">Project directory beneath <c>engine</c> that owns the source file.</param>
+        /// <param name="directoryName">Directory beneath the owning project that contains the source file.</param>
         /// <param name="fileName">Profiler-only source filename.</param>
-        static void AssertProfilerFileIsFeatureGuarded(string directoryName, string fileName) {
-            string source = LoadSource("helengine.core", directoryName, fileName).Trim();
+        static void AssertProfilerFileIsFeatureGuarded(string projectDirectoryName, string directoryName, string fileName) {
+            string source = LoadSource(projectDirectoryName, directoryName, fileName).Trim();
             Assert.StartsWith("#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER", source, StringComparison.Ordinal);
             Assert.EndsWith("#endif", source, StringComparison.Ordinal);
         }
@@ -40,8 +43,13 @@ namespace helengine {
         /// <param name="fileName">Physics runtime source filename.</param>
         static void AssertPhysicsProviderIsFeatureGuarded(string projectDirectoryName, string fileName) {
             string source = LoadSource(projectDirectoryName, fileName);
-            Assert.Contains("#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER\n        , IPhysicsRuntimeProfilerMetricsProvider\n#endif", source, StringComparison.Ordinal);
-            Assert.Contains("#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER\n        public bool TryGetRuntimeProfilerMetrics", source, StringComparison.Ordinal);
+            const string profilerGuard = "#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER";
+            Assert.Contains(profilerGuard + "\n        , IPhysicsRuntimeProfilerMetricsProvider\n#endif", source, StringComparison.Ordinal);
+            int methodIndex = source.IndexOf("public bool TryGetRuntimeProfilerMetrics", StringComparison.Ordinal);
+            int methodGuardIndex = source.LastIndexOf(profilerGuard, methodIndex, StringComparison.Ordinal);
+            Assert.True(methodGuardIndex >= 0, "Profiler provider method must have a preceding feature guard.");
+            string betweenGuardAndMethod = source.Substring(methodGuardIndex, methodIndex - methodGuardIndex);
+            Assert.DoesNotContain("#endif", betweenGuardAndMethod, StringComparison.Ordinal);
         }
 
         /// <summary>

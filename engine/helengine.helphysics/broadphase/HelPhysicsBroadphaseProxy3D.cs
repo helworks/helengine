@@ -24,6 +24,11 @@ namespace helengine {
         public bool IsActive;
 
         /// <summary>
+        /// Indicates whether this body represents an overlap trigger that remains query-active while sleeping.
+        /// </summary>
+        public bool IsTrigger;
+
+        /// <summary>
         /// Stores the collision layer emitted by this body for other masks to inspect.
         /// </summary>
         public ushort CollisionLayer;

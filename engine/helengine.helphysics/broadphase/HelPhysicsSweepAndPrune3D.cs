@@ -69,7 +69,7 @@ namespace helengine {
         /// <param name="aabb">Current inclusive world-space bounds for this body.</param>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when the body index or body mode is invalid.</exception>
         /// <exception cref="HelPhysicsCapacityExceededException">Thrown when no fixed proxy slot remains for a new body.</exception>
-        public void UpdateProxy(int bodyIndex, BodyKind3D bodyKind, bool isActive, ushort collisionLayer, ushort collisionMask, HelPhysicsAabb3D aabb) {
+        public void UpdateProxy(int bodyIndex, BodyKind3D bodyKind, bool isActive, ushort collisionLayer, ushort collisionMask, HelPhysicsAabb3D aabb, bool isTrigger = false) {
             ValidateBodyIndex(bodyIndex);
             ValidateBodyKind(bodyKind);
 
@@ -77,6 +77,7 @@ namespace helengine {
             if (proxyIndex >= 0) {
                 Proxies[proxyIndex].BodyKind = bodyKind;
                 Proxies[proxyIndex].IsActive = isActive;
+                Proxies[proxyIndex].IsTrigger = isTrigger;
                 Proxies[proxyIndex].CollisionLayer = collisionLayer;
                 Proxies[proxyIndex].CollisionMask = collisionMask;
                 Proxies[proxyIndex].Aabb = aabb;
@@ -93,6 +94,7 @@ namespace helengine {
             Proxies[freeProxyIndex].BodyIndex = bodyIndex;
             Proxies[freeProxyIndex].BodyKind = bodyKind;
             Proxies[freeProxyIndex].IsActive = isActive;
+            Proxies[freeProxyIndex].IsTrigger = isTrigger;
             Proxies[freeProxyIndex].CollisionLayer = collisionLayer;
             Proxies[freeProxyIndex].CollisionMask = collisionMask;
             Proxies[freeProxyIndex].Aabb = aabb;
@@ -354,11 +356,11 @@ namespace helengine {
                 return false;
             }
 
-            if (first.BodyKind == BodyKind3D.Static && second.BodyKind == BodyKind3D.Static) {
+            if (first.BodyKind == BodyKind3D.Static && second.BodyKind == BodyKind3D.Static && !first.IsTrigger && !second.IsTrigger) {
                 return false;
             }
 
-            return IsPairActive(first) || IsPairActive(second);
+            return first.IsTrigger || second.IsTrigger || IsPairActive(first) || IsPairActive(second);
         }
 
         /// <summary>

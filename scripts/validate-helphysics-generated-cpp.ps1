@@ -125,16 +125,53 @@ if ($ConversionReport.hasErrors -or [int]$ConversionReport.errorCount -gt 0) {
 }
 $AuditIssues = @()
 $ReportAuditPattern = '(?i:\b(?:unresolved|unsupported)\s+(?:symbol|type|member|method|dependency|reference)\b|\b(?:symbol|type|member|method|dependency|reference)\s+(?:is\s+)?(?:unresolved|unsupported)\b)|System(?:\.|::)Numerics|\bVector(?:\s*<|\\u003C)'
-$GeneratedAuditPattern = '(?i:\b(?:unresolved|unsupported)[_ ](?:symbol|dependency|reference)\b|\b(?:symbol|dependency|reference)\s+(?:is\s+)?(?:unresolved|unsupported)\b|__(?:unresolved|unsupported))|System(?:\.|::)Numerics|\bVector\s*<'
+$GeneratedUnsupportedPattern = '(?i:\b(?:unresolved|unsupported)[_ ](?:symbol|dependency|reference)\b|\b(?:symbol|dependency|reference)\s+(?:is\s+)?(?:unresolved|unsupported)\b|__(?:unresolved|unsupported))'
+$GeneratedDependencyPattern = '(?i:System(?:\.|::)Numerics|\bVector\s*<)'
 $ReportMatches = Select-String -LiteralPath $ConversionReportPath -Pattern $ReportAuditPattern -CaseSensitive
 foreach ($ReportMatch in $ReportMatches) {
     $AuditIssues += "$($ReportMatch.Path):$($ReportMatch.LineNumber): $($ReportMatch.Line.Trim())"
 }
-$AuditedFiles = Get-ChildItem -LiteralPath $GeneratedPath -Recurse -File |
-    Where-Object { $_.Extension -in @(".c", ".cc", ".cpp", ".h", ".hh", ".hpp", ".inc") } |
+
+# Copied runtime/provider headers are implementation support; dependency checks target emitted application files.
+$GeneratedFiles = Get-ChildItem -LiteralPath $GeneratedPath -Recurse -File |
+    Where-Object { $_.Extension -in @('.c', '.cc', '.cpp', '.h', '.hh', '.hpp', '.inc') } |
     Select-Object -ExpandProperty FullName
-foreach ($AuditedFile in $AuditedFiles) {
-    $Matches = Select-String -LiteralPath $AuditedFile -Pattern $GeneratedAuditPattern -CaseSensitive
+foreach ($GeneratedFile in $GeneratedFiles) {
+    $Matches = Select-String -LiteralPath $GeneratedFile -Pattern $GeneratedUnsupportedPattern -CaseSensitive
+    foreach ($Match in $Matches) {
+        $AuditIssues += "$($Match.Path):$($Match.LineNumber): $($Match.Line.Trim())"
+    }
+}
+
+if (-not ($ConversionReport.PSObject.Properties.Name -contains 'emittedFiles')) {
+    throw "Generated conversion report does not expose emittedFiles at '$ConversionReportPath'."
+}
+$ReportedEmittedFiles = @($ConversionReport.emittedFiles)
+if ($ReportedEmittedFiles.Count -eq 0) {
+    throw "Generated conversion report emittedFiles is empty at '$ConversionReportPath'."
+}
+$GeneratedRoot = [IO.Path]::GetFullPath($GeneratedPath)
+if (-not $GeneratedRoot.EndsWith([IO.Path]::DirectorySeparatorChar)) {
+    $GeneratedRoot += [IO.Path]::DirectorySeparatorChar
+}
+$EmittedFiles = @()
+foreach ($ReportedEmittedFile in $ReportedEmittedFiles) {
+    if ([string]::IsNullOrWhiteSpace([string]$ReportedEmittedFile)) {
+        throw "Generated conversion report contains an empty emitted file path at '$ConversionReportPath'."
+    }
+    $ResolvedEmittedFile = [IO.Path]::GetFullPath([string]$ReportedEmittedFile)
+    if (-not $ResolvedEmittedFile.StartsWith($GeneratedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Conversion report emitted file escaped the generated output root: '$ResolvedEmittedFile'."
+    }
+    if (-not (Test-Path -LiteralPath $ResolvedEmittedFile -PathType Leaf)) {
+        throw "Conversion report emitted file does not exist: '$ResolvedEmittedFile'."
+    }
+    if ([IO.Path]::GetExtension($ResolvedEmittedFile) -in @('.c', '.cc', '.cpp', '.h', '.hh', '.hpp', '.inc')) {
+        $EmittedFiles += $ResolvedEmittedFile
+    }
+}
+foreach ($EmittedFile in $EmittedFiles) {
+    $Matches = Select-String -LiteralPath $EmittedFile -Pattern $GeneratedDependencyPattern -CaseSensitive
     foreach ($Match in $Matches) {
         $AuditIssues += "$($Match.Path):$($Match.LineNumber): $($Match.Line.Trim())"
     }
@@ -185,6 +222,41 @@ if (-not (Test-Path -LiteralPath $GeneratedObjectPath -PathType Leaf)) {
     throw "Generated MSVC build completed without expected object '$GeneratedObjectPath'."
 }
 
+$NativeSmokeSourcePath = Join-Path $ScriptRootPath "fixtures/helphysics-runtime-smoke.cpp"
+if (-not (Test-Path -LiteralPath $NativeSmokeSourcePath -PathType Leaf)) {
+    throw "Native runtime smoke fixture was not found at '$NativeSmokeSourcePath'."
+}
+$NativeSmokeRoot = Join-Path $GeneratedPath "native-runtime-smoke"
+$null = [System.IO.Directory]::CreateDirectory($NativeSmokeRoot)
+$NativeSmokeObjectPath = Join-Path $NativeSmokeRoot "helphysics-runtime-smoke.obj"
+$NativeSmokeExecutablePath = Join-Path $NativeSmokeRoot "helphysics-runtime-smoke.exe"
+$NativeSmokeBuildLogPath = Join-Path $NativeSmokeRoot "build.log"
+$NativeSmokeRunLogPath = Join-Path $NativeSmokeRoot "run.log"
+$NativeSmokeBuildCommand = 'call "{0}" -arch=amd64 -host_arch=amd64 && cl /nologo /std:c++20 /EHsc /I"{1}" /I"{1}/runtime" /c "{2}" /Fo"{3}" && link /nologo /OUT:"{4}" "{3}" "{5}"' -f $VsDevCmdPath, $GeneratedPath, $NativeSmokeSourcePath, $NativeSmokeObjectPath, $NativeSmokeExecutablePath, $GeneratedObjectPath
+$NativeSmokePreviousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    & $env:ComSpec /d /c $NativeSmokeBuildCommand *> $NativeSmokeBuildLogPath
+    $NativeSmokeBuildExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $NativeSmokePreviousErrorActionPreference
+}
+if ($NativeSmokeBuildExitCode -ne 0) {
+    Write-LogTail -LogPath $NativeSmokeBuildLogPath
+    throw "Native runtime smoke compile/link failed with exit code $NativeSmokeBuildExitCode. Full output is preserved at '$NativeSmokeBuildLogPath'."
+}
+$NativeSmokePreviousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    & $NativeSmokeExecutablePath *> $NativeSmokeRunLogPath
+    $NativeSmokeRunExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $NativeSmokePreviousErrorActionPreference
+}
+if ($NativeSmokeRunExitCode -ne 0) {
+    Write-LogTail -LogPath $NativeSmokeRunLogPath
+    throw "Native runtime smoke execution failed with exit code $NativeSmokeRunExitCode. Full output is preserved at '$NativeSmokeRunLogPath'."
+}
 Write-Host "HelPhysics generated C++ validation succeeded."
 Write-Host "Output: $GeneratedPath"
 Write-Host "Report: $ConversionReportPath"

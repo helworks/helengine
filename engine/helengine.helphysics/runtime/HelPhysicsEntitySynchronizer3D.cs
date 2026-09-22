@@ -13,6 +13,9 @@ namespace helengine {
         /// </summary>
         readonly HelPhysicsSceneBinder3D Binder;
 
+        /// <summary>Stores precomputed controller motions until the complete batch is validated.</summary>
+        readonly List<HelPhysicsCharacterControllerMotion3D> ControllerMotionsValue;
+
         /// <summary>
         /// Initializes a synchronizer for one explicit scene binder.
         /// </summary>
@@ -20,15 +23,145 @@ namespace helengine {
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="binder"/> is null.</exception>
         public HelPhysicsEntitySynchronizer3D(HelPhysicsSceneBinder3D binder) {
             Binder = binder ?? throw new ArgumentNullException(nameof(binder));
+            ControllerMotionsValue = new List<HelPhysicsCharacterControllerMotion3D>();
         }
 
         /// <summary>
-        /// Validates the complete binding and kinematic batch, then accepts every authored kinematic input.
+        /// Applies one authored controller motion using bound support geometry.
         /// </summary>
+        HelPhysicsCharacterControllerMotion3D ComputeControllerMotion(HelPhysicsEntityBinding3D binding) {
+            HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
+            float3 currentPosition = ToEngineVector(snapshot.Position);
+            float3 gravity = ToEngineVector(Binder.World.Settings.Gravity);
+            double stepSeconds = Binder.World.Settings.FixedStepSeconds;
+            float3 desired = binding.Controller.DesiredMoveDirection;
+            double lengthSquared = ((double)desired.X * desired.X) + ((double)desired.Z * desired.Z);
+            HelPhysicsCharacterControllerSupport3D currentSupport = Binder.FindControllerSupport(binding, currentPosition, binding.Controller.StepHeight);
+            float3 targetPosition = new float3(
+                currentPosition.X + (currentSupport.IsValid ? currentSupport.Velocity.X * (float)stepSeconds : 0f),
+                currentPosition.Y + (currentSupport.IsValid ? currentSupport.Velocity.Y * (float)stepSeconds : 0f),
+                currentPosition.Z + (currentSupport.IsValid ? currentSupport.Velocity.Z * (float)stepSeconds : 0f));
+            if (lengthSquared > 0d && binding.Controller.MoveSpeed > 0d) {
+                double inverseLength = 1d / Math.Sqrt(lengthSquared);
+                float distance = (float)(binding.Controller.MoveSpeed * stepSeconds);
+                targetPosition = new float3(
+                    targetPosition.X + (float)(desired.X * inverseLength * distance),
+                    targetPosition.Y,
+                    targetPosition.Z + (float)(desired.Z * inverseLength * distance));
+            }
+
+            HelPhysicsCharacterController3D resolver = binding.ControllerResolver;
+            targetPosition = Binder.ClampControllerTarget(binding, currentPosition, targetPosition);
+            HelPhysicsCharacterControllerMotion3D motion = resolver.ComputeMotion(
+                currentPosition,
+                binding.ControllerVerticalVelocity,
+                gravity,
+                stepSeconds,
+                currentSupport,
+                Binder.FindControllerSupport(binding, targetPosition, binding.Controller.StepHeight));
+            motion = new HelPhysicsCharacterControllerMotion3D(
+                new float3(targetPosition.X, motion.Position.Y, targetPosition.Z),
+                motion.VerticalVelocity,
+                motion.IsGrounded,
+                motion.SupportVelocity);
+            return motion;
+        }
+        public void SynchronizeKinematicBody(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            HelPhysicsEntityBinding3D binding = Binder.GetBinding(entity);
+            if (binding.Description.BodyKind != BodyKind3D.Kinematic) {
+                throw new InvalidOperationException("Only kinematic HelPhysics bodies accept kinematic synchronization.");
+            }
+
+            Binder.World.SetKinematicState(
+                binding.BodyHandle,
+                ToPhysicsVector(entity.Position),
+                ToPhysicsQuaternion(entity.Orientation),
+                ToPhysicsVector(binding.RigidBody.LinearVelocity),
+                ToPhysicsVector(binding.RigidBody.AngularVelocity));
+        }
+
+        /// <summary>
+        /// Pushes one authored dynamic pose and velocity into the active world.
+        /// The low-level world must expose an owner-checked dynamic state mutation API before this operation is enabled.
+        /// </summary>
+        /// <param name="entity">Bound dynamic entity to synchronize.</param>
+        public void SynchronizeDynamicBody(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            HelPhysicsEntityBinding3D binding = Binder.GetBinding(entity);
+            if (binding.Description.BodyKind != BodyKind3D.Dynamic) {
+                throw new InvalidOperationException("Only dynamic HelPhysics bodies accept dynamic synchronization.");
+            }
+
+            Binder.World.SetDynamicStateForSceneBinder(
+                Binder,
+                binding.BodyHandle,
+                ToPhysicsVector(entity.Position),
+                ToPhysicsQuaternion(entity.Orientation),
+                ToPhysicsVector(binding.RigidBody.LinearVelocity),
+                ToPhysicsVector(binding.RigidBody.AngularVelocity));
+        }
+
+        /// <summary>
+        /// Pushes one authored dynamic velocity into the active world while retaining runtime pose.
+        /// The low-level world must expose an owner-checked dynamic velocity mutation API before this operation is enabled.
+        /// </summary>
+        /// <param name="entity">Bound dynamic entity to synchronize.</param>
+        public void SynchronizeDynamicBodyVelocity(Entity entity) {
+            if (entity == null) {
+                throw new ArgumentNullException(nameof(entity));
+            }
+
+            HelPhysicsEntityBinding3D binding = Binder.GetBinding(entity);
+            if (binding.Description.BodyKind != BodyKind3D.Dynamic) {
+                throw new InvalidOperationException("Only dynamic HelPhysics bodies accept dynamic velocity synchronization.");
+            }
+
+            Binder.World.SetDynamicVelocityForSceneBinder(
+                Binder,
+                binding.BodyHandle,
+                ToPhysicsVector(binding.RigidBody.LinearVelocity),
+                ToPhysicsVector(binding.RigidBody.AngularVelocity));
+        }
         public void SynchronizeBeforeStep() {
+            ControllerMotionsValue.Clear();
+            for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
+                ControllerMotionsValue.Add(default);
+            }
             int activeKinematicCount = ValidateBindingsAndKinematicInputs();
+            for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
+                HelPhysicsEntityBinding3D binding = Binder.Bindings[bindingIndex];
+                if (binding.IsValid && binding.Controller != null) {
+                    ControllerMotionsValue[bindingIndex] = ComputeControllerMotion(binding);
+                    HelPhysicsBodySnapshot3D preflightSnapshot = binding.GetBodySnapshot();
+                    float3 preflightPosition = ToEngineVector(preflightSnapshot.Position);
+                    HelPhysicsCharacterControllerMotion3D preflightMotion = ControllerMotionsValue[bindingIndex];
+                    float3 preflightDisplacement = (preflightMotion.Position - preflightPosition) / (float)Binder.World.Settings.FixedStepSeconds;
+                    if (Binder.World.ValidateKinematicState(binding.BodyHandle, ToPhysicsVector(preflightMotion.Position), ToPhysicsQuaternion(binding.Entity.Orientation), ToPhysicsVector(preflightDisplacement), PhysicsVector3.Zero)) {
+                        activeKinematicCount++;
+                    }
+                }
+            }
             Binder.World.ValidateKinematicCommandCapacity(activeKinematicCount);
             EnqueueKinematicInputs();
+            for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
+                HelPhysicsEntityBinding3D binding = Binder.Bindings[bindingIndex];
+                if (!binding.IsValid || binding.Controller == null) {
+                    continue;
+                }
+                HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
+                HelPhysicsCharacterControllerMotion3D motion = ControllerMotionsValue[bindingIndex];
+                binding.ControllerVerticalVelocity = motion.VerticalVelocity;
+                float3 currentPosition = ToEngineVector(snapshot.Position);
+                float3 displacement = (motion.Position - currentPosition) / (float)Binder.World.Settings.FixedStepSeconds;
+                Binder.World.SetKinematicState(binding.BodyHandle, ToPhysicsVector(motion.Position), ToPhysicsQuaternion(binding.Entity.Orientation), ToPhysicsVector(displacement), PhysicsVector3.Zero);
+            }
         }
 
         /// <summary>
@@ -37,11 +170,23 @@ namespace helengine {
         public void SynchronizeAfterStep() {
             for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
                 HelPhysicsEntityBinding3D binding = Binder.Bindings[bindingIndex];
-                if (!binding.IsValid || binding.Description.BodyKind != BodyKind3D.Dynamic) {
+                if (!binding.IsValid) {
                     continue;
                 }
 
                 HelPhysicsBodySnapshot3D snapshot = binding.GetBodySnapshot();
+                if (binding.Controller != null) {
+                    float3 controllerWorldPosition = ToEngineVector(snapshot.Position);
+                    float4 controllerWorldOrientation = ToEngineQuaternion(snapshot.Orientation);
+                    ResolveLocalPose(binding.Entity, controllerWorldPosition, controllerWorldOrientation, out float3 controllerLocalPosition, out float4 controllerLocalOrientation);
+                    binding.Entity.LocalPosition = controllerLocalPosition;
+                    binding.Entity.LocalOrientation = controllerLocalOrientation;
+                    continue;
+                }
+
+                if (binding.Description.BodyKind != BodyKind3D.Dynamic) {
+                    continue;
+                }
                 float3 worldPosition = ToEngineVector(snapshot.Position);
                 float4 worldOrientation = ToEngineQuaternion(snapshot.Orientation);
                 ResolveLocalPose(binding.Entity, worldPosition, worldOrientation, out float3 localPosition, out float4 localOrientation);
@@ -64,13 +209,15 @@ namespace helengine {
         /// <summary>
         /// Validates every binding and input without mutating world command storage or engine output.
         /// </summary>
-        /// <returns>The exact number of active kinematic state commands required by the complete batch.</returns>
+        /// <returns>The active ordinary kinematic command count; controller demand is added after motion preflight.</returns>
         int ValidateBindingsAndKinematicInputs() {
             int activeKinematicCount = 0;
             for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
                 HelPhysicsEntityBinding3D binding = Binder.Bindings[bindingIndex];
                 ValidateBindingComponents(binding);
-                if (binding.Description.BodyKind == BodyKind3D.Dynamic) {
+                if (binding.Controller != null) {
+                    ValidateControllerInput(binding);
+                } else if (binding.Description.BodyKind == BodyKind3D.Dynamic) {
                     ValidateDynamicParentTransform(binding.Entity);
                 } else if (binding.Description.BodyKind == BodyKind3D.Kinematic) {
                     bool isActive = Binder.World.ValidateKinematicState(
@@ -94,7 +241,7 @@ namespace helengine {
         void EnqueueKinematicInputs() {
             for (int bindingIndex = 0; bindingIndex < Binder.Bindings.Count; bindingIndex++) {
                 HelPhysicsEntityBinding3D binding = Binder.Bindings[bindingIndex];
-                if (binding.Description.BodyKind != BodyKind3D.Kinematic) {
+                if (binding.Description.BodyKind != BodyKind3D.Kinematic || binding.Controller != null) {
                     continue;
                 }
 
@@ -122,14 +269,23 @@ namespace helengine {
             int rigidBodyCount = 0;
             int colliderCount = 0;
             int boxColliderCount = 0;
+            int sphereColliderCount = 0;
+            int controllerCount = 0;
             bool hasOriginalRigidBody = false;
             bool hasOriginalBoxCollider = false;
+            bool hasOriginalSphereCollider = false;
+            bool hasOriginalController = false;
             for (int componentIndex = 0; componentIndex < binding.Entity.Components.Count; componentIndex++) {
                 Component component = binding.Entity.Components[componentIndex];
                 if (component is RigidBody3DComponent rigidBody) {
                     rigidBodyCount++;
                     if (ReferenceEquals(rigidBody, binding.RigidBody)) {
                         hasOriginalRigidBody = true;
+                    }
+                } else if (component is CharacterController3DComponent controller) {
+                    controllerCount++;
+                    if (ReferenceEquals(controller, binding.Controller)) {
+                        hasOriginalController = true;
                     }
                 } else if (component is Collider3DComponent collider) {
                     colliderCount++;
@@ -138,17 +294,40 @@ namespace helengine {
                         if (ReferenceEquals(boxCollider, binding.BoxCollider)) {
                             hasOriginalBoxCollider = true;
                         }
+                    } else if (collider is SphereCollider3DComponent sphereCollider) {
+                        sphereColliderCount++;
+                        if (ReferenceEquals(sphereCollider, binding.SphereCollider)) {
+                            hasOriginalSphereCollider = true;
+                        }
                     }
                 }
             }
 
+            if (binding.Controller != null) {
+                if (controllerCount != 1 || !hasOriginalController) {
+                    throw new InvalidOperationException("A bound controller entity must retain exactly its original CharacterController3DComponent.");
+                } else if (rigidBodyCount != 0 || colliderCount != 1 || boxColliderCount != 1 || !hasOriginalBoxCollider) {
+                    throw new InvalidOperationException("A bound controller entity must retain exactly one original BoxCollider3DComponent and no RigidBody3DComponent.");
+                }
+
+                return;
+            }
+
             if (rigidBodyCount != 1 || !hasOriginalRigidBody) {
                 throw new InvalidOperationException("A bound entity must retain exactly its original RigidBody3DComponent.");
-            } else if (colliderCount != 1 || boxColliderCount != 1 || !hasOriginalBoxCollider) {
-                throw new InvalidOperationException("A bound entity must retain exactly its original BoxCollider3DComponent.");
+            } else if (colliderCount != 1 || (boxColliderCount == 1 && !hasOriginalBoxCollider) || (sphereColliderCount == 1 && !hasOriginalSphereCollider) || (boxColliderCount == 0 && sphereColliderCount == 0)) {
+                throw new InvalidOperationException("A bound entity must retain exactly its original collider component.");
             } else if (binding.RigidBody.BodyKind != binding.Description.BodyKind) {
                 throw new InvalidOperationException("A bound entity body mode cannot change after HelPhysics reservation.");
             }
+        }
+
+        static void ValidateControllerInput(HelPhysicsEntityBinding3D binding) {
+            ValidateFiniteVector(binding.Entity.Position, "Character controller position must be finite before HelPhysics stepping.");
+            ValidateNormalizedQuaternion(binding.Entity.Orientation, "Character controller orientation must be finite and normalized before HelPhysics stepping.");
+            float3 desired = binding.Controller.DesiredMoveDirection;
+            ValidateFiniteVector(desired, "Character controller desired movement must be finite before HelPhysics stepping.");
+            ValidateDynamicParentTransform(binding.Entity);
         }
 
         /// <summary>

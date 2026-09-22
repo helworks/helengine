@@ -18,6 +18,14 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Tests whether this lifecycle observer belongs to one exact binder.
+        /// </summary>
+        /// <param name="binder">Binder expected to own this observer.</param>
+        /// <returns>True only for the exact owner reference.</returns>
+        internal bool IsOwnedBy(HelPhysicsSceneBinder3D binder) {
+            return binder != null && ReferenceEquals(Binder, binder);
+        }
+        /// <summary>
         /// Invalidates and queues removal of the owning binding during normal detach or entity disposal.
         /// </summary>
         /// <param name="entity">Entity losing this lifecycle observer.</param>

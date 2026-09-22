@@ -44,6 +44,16 @@ namespace helengine {
         public readonly PhysicsScalar AngularSleepThresholdSquared;
 
         /// <summary>
+        /// Stores the primitive shape kind owned by this body.
+        /// </summary>
+        public readonly HelPhysicsShapeKind3D ShapeKind;
+
+        /// <summary>
+        /// Indicates whether this body reports overlaps instead of physical contact response.
+        /// </summary>
+        public readonly bool IsTrigger;
+
+        /// <summary>
         /// Stores the positive number of consecutive quiet fixed steps this body requires before its island may sleep.
         /// </summary>
         public readonly ushort SleepTicks;
@@ -70,7 +80,9 @@ namespace helengine {
             int entityBindingId,
             PhysicsScalar linearSleepThresholdSquared,
             PhysicsScalar angularSleepThresholdSquared,
-            ushort sleepTicks) {
+            ushort sleepTicks,
+            HelPhysicsShapeKind3D shapeKind = HelPhysicsShapeKind3D.Box,
+            bool isTrigger = false) {
             ValidateSleepThreshold(linearSleepThresholdSquared, nameof(linearSleepThresholdSquared));
             ValidateSleepThreshold(angularSleepThresholdSquared, nameof(angularSleepThresholdSquared));
             if (sleepTicks == 0) {
@@ -86,6 +98,8 @@ namespace helengine {
             LinearSleepThresholdSquared = linearSleepThresholdSquared;
             AngularSleepThresholdSquared = angularSleepThresholdSquared;
             SleepTicks = sleepTicks;
+            ShapeKind = shapeKind;
+            IsTrigger = isTrigger;
         }
 
         /// <summary>

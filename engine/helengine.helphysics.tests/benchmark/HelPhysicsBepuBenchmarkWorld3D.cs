@@ -48,7 +48,10 @@ namespace helengine {
             GravityAccelerationsValue = new CollidableProperty<float>(BufferPoolValue);
             SimulationValue = Simulation.Create(
                 BufferPoolValue,
-                new HelengineBepuNarrowPhaseCallbacks(CollidablePropertiesValue),
+                new HelengineBepuNarrowPhaseCallbacks(
+                    CollidablePropertiesValue,
+                    new BepuBodyRegistry3D(),
+                    new BepuTriggerPairSet3D()),
                 new HelengineBepuPoseIntegratorCallbacks(GravityAccelerationsValue),
                 new SolveDescription(4, 1));
             DynamicBodyHandles = new BodyHandle[4];

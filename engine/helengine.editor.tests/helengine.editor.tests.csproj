@@ -34,7 +34,9 @@
     <None Include="fixtures\**\*.heproj" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <Target Name="CopyHelengineRuntimeAssemblies" AfterTargets="Build">
+  <!-- Alternate artifact roots already contain the project-reference outputs. Skipping this legacy
+       copy there prevents stale default-bin assemblies from replacing the current test build. -->
+  <Target Name="CopyHelengineRuntimeAssemblies" AfterTargets="Build" Condition="'$(ArtifactsPath)' == ''">
     <ItemGroup>
       <HelengineRuntimeAssembly Include="..\helengine.baseplatform\bin\$(Configuration)\net9.0\helengine.baseplatform.dll" />
       <HelengineRuntimeAssembly Include="..\helengine.baseplatform\bin\$(Configuration)\net9.0\helengine.baseplatform.pdb" />

@@ -1,15 +1,19 @@
 namespace helengine {
     /// <summary>
-    /// Owns one deterministic fixed-capacity scalar box world and executes its simulation in a fixed twelve-phase order.
+    /// Owns one deterministic fixed-capacity scalar box/sphere world and executes its simulation in a fixed twelve-phase order.
     /// </summary>
-    public sealed class HelPhysicsWorld3D : IPhysicsRuntime, IPhysicsRuntimeProfilerMetricsProvider {
+    public sealed partial class HelPhysicsWorld3D : IPhysicsRuntime
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
+        , IPhysicsRuntimeProfilerMetricsProvider
+#endif
+        {
         /// <summary>
         /// Stores the process-local monotonic ownership allocator that permanently rejects token wraparound.
         /// </summary>
         static readonly HelPhysicsWorldIdAllocator3D WorldIdAllocator = new HelPhysicsWorldIdAllocator3D();
 
         /// <summary>
-        /// Stores the conservative collision skin added to every world-space box bound.
+        /// Stores the conservative collision skin added to every world-space shape bound.
         /// </summary>
         static readonly PhysicsScalar BroadphaseCollisionSkin = PhysicsScalar.FromFloat(0.005f);
 
@@ -24,7 +28,7 @@ namespace helengine {
         readonly HelPhysicsBodyPool3D Bodies;
 
         /// <summary>
-        /// Stores the separately generated box allocation owned by every reserved body.
+        /// Stores the separately generated shape allocation owned by every reserved body.
         /// </summary>
         readonly HelPhysicsShapePool3D Shapes;
 
@@ -163,10 +167,12 @@ namespace helengine {
         /// </summary>
         readonly HelPhysicsContactManifold3D[] IslandManifolds;
 
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         /// <summary>
         /// Stores the single reusable outer-profiler sample returned without allocation.
         /// </summary>
         readonly HelPhysicsRuntimeProfilerMetrics3D RuntimeProfilerMetrics;
+#endif
 
         /// <summary>
         /// Stores the nonzero ownership token embedded into every public body handle from this world.
@@ -228,7 +234,7 @@ namespace helengine {
         /// </summary>
         /// <param name="settings">Complete immutable allocation and solve profile for this world.</param>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="settings"/> is <see langword="null"/>.</exception>
-        public HelPhysicsWorld3D(HelPhysicsWorldSettings3D settings) {
+        public HelPhysicsWorld3D([NativeTakesOwnership] HelPhysicsWorldSettings3D settings) {
             if (settings == null) {
                 throw new ArgumentNullException(nameof(settings));
             }
@@ -260,11 +266,14 @@ namespace helengine {
             PendingBodyKinds = new BodyKind3D[settings.BodyCapacity];
             PendingInitialAwakeStates = new bool[settings.BodyCapacity];
             CandidatePairs = new HelPhysicsCandidatePair3D[settings.CandidatePairCapacity];
+            InitializeTriggerStorage();
             ActivePairs = new HelPhysicsPairKey3D[settings.ManifoldCapacity];
             ActiveManifolds = new HelPhysicsContactManifold3D[settings.ManifoldCapacity];
             IslandPairs = new HelPhysicsPairKey3D[settings.ManifoldCapacity];
             IslandManifolds = new HelPhysicsContactManifold3D[settings.ManifoldCapacity];
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
             RuntimeProfilerMetrics = new HelPhysicsRuntimeProfilerMetrics3D();
+#endif
             LastStepMetrics = default;
         }
 
@@ -325,7 +334,7 @@ namespace helengine {
         /// <summary>
         /// Validates aggregate body, shape, and activation-command demand without reserving or mutating world storage.
         /// </summary>
-        /// <param name="bodyCount">Non-negative number of complete box-body reservations required by one transaction.</param>
+        /// <param name="bodyCount">Non-negative number of complete body reservations required by one transaction.</param>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="bodyCount"/> is negative.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the world is permanently faulted.</exception>
         /// <exception cref="HelPhysicsCapacityExceededException">Thrown when any fixed reservation pool cannot accept the complete demand.</exception>
@@ -347,7 +356,7 @@ namespace helengine {
         /// <summary>
         /// Reserves one shape and body immediately, returning a stable pending handle whose activation executes first at the next valid step.
         /// </summary>
-        /// <param name="description">Complete explicit box body description to reserve.</param>
+        /// <param name="description">Complete explicit body description to reserve.</param>
         /// <returns>A generation-safe world-owned handle whose snapshot is pending until phase one.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="description"/> is <see langword="null"/>.</exception>
         /// <exception cref="InvalidOperationException">Thrown when a scene binder owns this world or the world is permanently faulted.</exception>
@@ -365,7 +374,7 @@ namespace helengine {
         /// Reserves one body on behalf of this world's exclusive scene-binder owner.
         /// </summary>
         /// <param name="owner">Exact binder that owns this world's scene associations.</param>
-        /// <param name="description">Complete explicit box body description to reserve.</param>
+        /// <param name="description">Complete explicit body description to reserve.</param>
         /// <returns>A generation-safe world-owned handle whose snapshot is pending until phase one.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="owner"/> or <paramref name="description"/> is null.</exception>
         /// <exception cref="InvalidOperationException">Thrown when <paramref name="owner"/> is not the exact owner or the world is permanently faulted.</exception>
@@ -380,7 +389,7 @@ namespace helengine {
         /// <summary>
         /// Reserves one fully validated public or owner-coordinated body in fixed shape, body, and command storage.
         /// </summary>
-        /// <param name="description">Complete explicit box body description to reserve.</param>
+        /// <param name="description">Complete explicit body description to reserve.</param>
         /// <returns>A generation-safe world-owned handle whose snapshot is pending until phase one.</returns>
         /// <exception cref="ArgumentNullException">Thrown when <paramref name="description"/> is null.</exception>
         /// <exception cref="InvalidOperationException">Thrown when the world is permanently faulted.</exception>
@@ -400,7 +409,9 @@ namespace helengine {
                 throw new HelPhysicsCapacityExceededException("shape", Shapes.Capacity);
             }
 
-            HelPhysicsShapeHandle3D shapeHandle = Shapes.Allocate(description.Shape);
+            HelPhysicsShapeHandle3D shapeHandle = description.ShapeKind == HelPhysicsShapeKind3D.Sphere
+                ? Shapes.Allocate(description.SphereShape)
+                : Shapes.Allocate(description.Shape);
             HelPhysicsBodyState3D state = new HelPhysicsBodyState3D {
                 Position = description.Position,
                 Orientation = description.Orientation,
@@ -418,14 +429,16 @@ namespace helengine {
             };
             HelPhysicsBodyColdState3D coldState = new HelPhysicsBodyColdState3D(
                 shapeHandle,
-                BodyKind3D.Static,
+                description.BodyKind,
                 description.Material,
                 description.CollisionLayer,
                 description.CollisionMask,
                 description.EntityBindingId,
                 description.LinearSleepThresholdSquared,
                 description.AngularSleepThresholdSquared,
-                description.SleepTicks);
+                description.SleepTicks,
+                description.ShapeKind,
+                description.IsTrigger);
             HelPhysicsBodyHandle3D internalHandle = Bodies.Allocate(state, coldState);
             PendingBodyKinds[internalHandle.Index] = description.BodyKind;
             PendingInitialAwakeStates[internalHandle.Index] = description.IsAwake;
@@ -688,15 +701,18 @@ namespace helengine {
             }
 
             PhysicsScalar scalarStepSeconds = PhysicsScalar.FromFloat((float)stepSeconds);
+            bool stepCompleted = false;
             try {
                 StepId++;
                 PhaseTwoProxyUpdateCount = 0;
                 PhaseElevenProxyUpdateCount = 0;
                 IslandSleeper.BeginStep();
+                BeginTriggerStep();
                 ApplyDeferredCommands();
                 PhaseTwoProxyUpdateCount = UpdateBroadphaseProxies(scalarStepSeconds);
                 BuildCandidatesAndRouteNewContactWakes(scalarStepSeconds);
                 BuildActiveManifolds();
+                PublishTriggerEvents();
                 BuildIslandsAndRouteKinematicWakes();
                 PhysicsVector3 gravity = Settings.Gravity;
                 BodyIntegrator.IntegrateVelocity(scalarStepSeconds, in gravity, Bodies);
@@ -706,12 +722,15 @@ namespace helengine {
                 PhaseElevenProxyUpdateCount = UpdateBroadphaseProxies(scalarStepSeconds);
                 IslandSleeper.EvaluateSleep(Bodies, IslandBuilder);
                 RetainSleepingContactsAndPublishMetrics();
-            } catch {
-                IsFaulted = true;
-                throw;
+                stepCompleted = true;
+            } finally {
+                if (!stepCompleted) {
+                    IsFaulted = true;
+                }
             }
         }
 
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
         /// <summary>
         /// Returns the single reusable profiler sample most recently synchronized from completed step metrics.
         /// </summary>
@@ -721,6 +740,7 @@ namespace helengine {
             metrics = RuntimeProfilerMetrics;
             return true;
         }
+#endif
 
         /// <summary>
         /// Retrieves one retained manifold after validating both public body identities and world ownership.
@@ -1179,7 +1199,7 @@ namespace helengine {
 
                 ref HelPhysicsBodyState3D state = ref Bodies.GetRequiredStateByIndex(bodyIndex);
                 ref HelPhysicsBodyColdState3D coldState = ref Bodies.GetRequiredColdStateByIndex(bodyIndex);
-                bool isActive = IsBroadphaseProxyActive(in state, coldState.BodyKind);
+                bool isActive = IsBroadphaseProxyActive(in state, coldState.BodyKind, coldState.IsTrigger);
                 PhysicsScalar velocityExpansion =
                     state.LinearVelocity.Length() * stepSeconds * BroadphaseVelocityExpansionFactor;
                 if (ProxyIsRegistered[bodyIndex] &&
@@ -1190,20 +1210,23 @@ namespace helengine {
                     continue;
                 }
 
-                ref HelPhysicsBoxShape3D shape = ref Shapes.GetRequiredBox(coldState.ShapeHandle);
                 PhysicsScalar margin = BroadphaseCollisionSkin + velocityExpansion;
-                HelPhysicsAabb3D aabb = HelPhysicsBoxGeometry3D.ComputeWorldAabb(
-                    shape,
-                    state.Position,
-                    state.Orientation,
-                    margin);
+                HelPhysicsAabb3D aabb;
+                if (coldState.ShapeKind == HelPhysicsShapeKind3D.Sphere) {
+                    ref HelPhysicsSphereShape3D sphere = ref Shapes.GetRequiredSphere(coldState.ShapeHandle);
+                    aabb = HelPhysicsSphereGeometry3D.ComputeWorldAabb(sphere, state.Position, margin);
+                } else {
+                    ref HelPhysicsBoxShape3D box = ref Shapes.GetRequiredBox(coldState.ShapeHandle);
+                    aabb = HelPhysicsBoxGeometry3D.ComputeWorldAabb(box, state.Position, state.Orientation, margin);
+                }
                 Broadphase.UpdateProxy(
                     bodyIndex,
                     coldState.BodyKind,
                     isActive,
                     coldState.CollisionLayer,
                     coldState.CollisionMask,
-                    aabb);
+                    aabb,
+                    coldState.IsTrigger);
                 ProxyIsDirty[bodyIndex] = false;
                 ProxyIsRegistered[bodyIndex] = true;
                 ProxyPositions[bodyIndex] = state.Position;
@@ -1221,8 +1244,9 @@ namespace helengine {
         /// </summary>
         /// <param name="state">Current hot state supplying awake and velocity values.</param>
         /// <param name="bodyKind">Current simulation mode interpreting activity.</param>
+        /// <param name="isTrigger">Whether the body is a trigger proxy that remains active while occupied.</param>
         /// <returns><see langword="true"/> for awake dynamics or moving kinematics; otherwise <see langword="false"/>.</returns>
-        static bool IsBroadphaseProxyActive(in HelPhysicsBodyState3D state, BodyKind3D bodyKind) {
+        static bool IsBroadphaseProxyActive(in HelPhysicsBodyState3D state, BodyKind3D bodyKind, bool isTrigger) {
             if (bodyKind == BodyKind3D.Dynamic) {
                 return state.IsAwake;
             } else if (bodyKind == BodyKind3D.Kinematic) {
@@ -1230,7 +1254,7 @@ namespace helengine {
                     state.AngularVelocity.LengthSquared() != PhysicsScalar.Zero;
             }
 
-            return false;
+            return isTrigger;
         }
 
         /// <summary>
@@ -1293,7 +1317,7 @@ namespace helengine {
             HelPhysicsPairKey3D pair = new HelPhysicsPairKey3D(
                 candidate.FirstBodyIndex,
                 candidate.SecondBodyIndex);
-            return !ManifoldCache.TryGet(pair, out _);
+            return !IsTriggerCandidate(candidate) && !ManifoldCache.TryGet(pair, out _);
         }
 
         /// <summary>
@@ -1350,16 +1374,19 @@ namespace helengine {
                 ref HelPhysicsBodyState3D bodyB = ref Bodies.GetRequiredStateByIndex(candidate.SecondBodyIndex);
                 ref HelPhysicsBodyColdState3D coldStateA = ref Bodies.GetRequiredColdStateByIndex(candidate.FirstBodyIndex);
                 ref HelPhysicsBodyColdState3D coldStateB = ref Bodies.GetRequiredColdStateByIndex(candidate.SecondBodyIndex);
-                ref HelPhysicsBoxShape3D shapeA = ref Shapes.GetRequiredBox(coldStateA.ShapeHandle);
-                ref HelPhysicsBoxShape3D shapeB = ref Shapes.GetRequiredBox(coldStateB.ShapeHandle);
                 HelPhysicsContactManifold3D manifold = default;
-                if (!HelPhysicsBoxBoxCollision3D.TryBuildManifold(
-                    in shapeA,
-                    in bodyA,
-                    in shapeB,
-                    in bodyB,
-                    CollisionScratch,
-                    ref manifold)) {
+                bool overlaps = HelPhysicsCollisionDispatcher3D.TryBuild(Shapes, CollisionScratch, in coldStateA, in bodyA, in coldStateB, in bodyB, ref manifold);
+                if (coldStateA.IsTrigger || coldStateB.IsTrigger) {
+                    if (overlaps) {
+                        RecordTriggerOverlap(
+                            candidate.FirstBodyIndex,
+                            candidate.SecondBodyIndex,
+                            in coldStateA,
+                            in coldStateB);
+                    }
+                    continue;
+                }
+                if (!overlaps) {
                     continue;
                 }
 
@@ -1419,6 +1446,10 @@ namespace helengine {
                     candidate.FirstBodyIndex,
                     candidate.SecondBodyIndex);
                 if (ContainsPair(ActivePairs, ActiveManifoldCount, pair)) {
+                    continue;
+                }
+
+                if (IsTriggerCandidate(candidate)) {
                     continue;
                 }
 
@@ -1563,10 +1594,12 @@ namespace helengine {
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.ExplicitImpulse),
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.NewCandidateContact),
                 IslandSleeper.GetWakeCount(HelPhysicsWakeReason3D.MovingKinematicContact));
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
             RuntimeProfilerMetrics.Publish(
                 LastStepMetrics.BodyCount,
                 LastStepMetrics.ContactPointCount,
                 LastStepMetrics.ManifoldCount);
+#endif
         }
 
         /// <summary>

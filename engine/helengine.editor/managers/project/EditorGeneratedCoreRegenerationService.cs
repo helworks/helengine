@@ -77,7 +77,7 @@ namespace helengine.editor {
             string helengineCoreProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.core", "helengine.core.csproj");
             string helengineShaderProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.shader", "helengine.shader.csproj");
             string helengineInputProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.input", "helengine.input.csproj");
-            string helenginePhysics3DProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.physics3d", "helengine.physics3d.csproj");
+            string helengineHelPhysicsProjectPath = Path.Combine(helEngineRootPath, "engine", "helengine.helphysics", "helengine.helphysics.csproj");
             string bundledRuntimeSupportRootPath = Path.Combine(
                 Path.GetDirectoryName(fullCodegenToolPath) ?? throw new InvalidOperationException($"Unable to resolve the codegen tool directory from '{fullCodegenToolPath}'."),
                 ".net.cpp");
@@ -85,7 +85,7 @@ namespace helengine.editor {
             string tempRoot = Path.Combine(scratchRootPath, Guid.NewGuid().ToString("N"));
             string shaderOutputRoot = Path.Combine(tempRoot, "shader");
             string portableInputOutputRoot = Path.Combine(tempRoot, "portable-input");
-            string physics3DOutputRoot = Path.Combine(tempRoot, "physics3d");
+            string helPhysicsOutputRoot = Path.Combine(tempRoot, "helphysics");
             string externalProjectsOutputRoot = Path.Combine(tempRoot, "external");
             bool shouldRegenerateShaderProject = ShouldRegenerateShaderProject(platformDefinition, additionalPreprocessorSymbols);
             bool shouldRegeneratePhysics3DProject = ShouldRegeneratePhysics3DProject(additionalPreprocessorSymbols);
@@ -99,8 +99,8 @@ namespace helengine.editor {
             if (!File.Exists(helengineInputProjectPath)) {
                 throw new FileNotFoundException($"Could not find helengine.input project at '{helengineInputProjectPath}'.", helengineInputProjectPath);
             }
-            if (shouldRegeneratePhysics3DProject && !File.Exists(helenginePhysics3DProjectPath)) {
-                throw new FileNotFoundException($"Could not find helengine.physics3d project at '{helenginePhysics3DProjectPath}'.", helenginePhysics3DProjectPath);
+            if (shouldRegeneratePhysics3DProject && !File.Exists(helengineHelPhysicsProjectPath)) {
+                throw new FileNotFoundException($"Could not find helengine.helphysics project at '{helengineHelPhysicsProjectPath}'.", helengineHelPhysicsProjectPath);
             }
             if (!File.Exists(fullCodegenToolPath)) {
                 throw new FileNotFoundException($"Could not find the bundled csharpcodegen executable at '{fullCodegenToolPath}'.", fullCodegenToolPath);
@@ -167,11 +167,11 @@ namespace helengine.editor {
                 MergeGeneratedConversionReport(portableInputOutputRoot, generatedCoreOutputRoot);
                 AppendRegenerationLog(regenerationLogPath, "merge-complete portable-input");
                 if (shouldRegeneratePhysics3DProject) {
-                    AppendRegenerationLog(regenerationLogPath, $"project-start path={helenginePhysics3DProjectPath}");
+                    AppendRegenerationLog(regenerationLogPath, $"project-start path={helengineHelPhysicsProjectPath}");
                     RegenerateProject(
                         fullCodegenToolPath,
-                        helenginePhysics3DProjectPath,
-                        physics3DOutputRoot,
+                        helengineHelPhysicsProjectPath,
+                        helPhysicsOutputRoot,
                         platformDefinition,
                         codegenProfile,
                         selectedCodegenOptionValues,
@@ -179,11 +179,11 @@ namespace helengine.editor {
                         false,
                         regenerationLogPath,
                         cancellationToken);
-                    AppendRegenerationLog(regenerationLogPath, $"project-complete path={helenginePhysics3DProjectPath}");
-                    AppendRegenerationLog(regenerationLogPath, "merge-start physics3d");
-                    MergeGeneratedSourceTree(physics3DOutputRoot, generatedCoreOutputRoot);
-                    MergeGeneratedConversionReport(physics3DOutputRoot, generatedCoreOutputRoot);
-                    AppendRegenerationLog(regenerationLogPath, "merge-complete physics3d");
+                    AppendRegenerationLog(regenerationLogPath, $"project-complete path={helengineHelPhysicsProjectPath}");
+                    AppendRegenerationLog(regenerationLogPath, "merge-start helphysics");
+                    MergeGeneratedSourceTree(helPhysicsOutputRoot, generatedCoreOutputRoot);
+                    MergeGeneratedConversionReport(helPhysicsOutputRoot, generatedCoreOutputRoot);
+                    AppendRegenerationLog(regenerationLogPath, "merge-complete helphysics");
                 }
                 AppendRegenerationLog(regenerationLogPath, "external-projects-start");
                 RegenerateAdditionalGeneratedCoreProjects(
@@ -1078,12 +1078,7 @@ namespace helengine.editor {
             }
 
             Directory.CreateDirectory(generatedCoreRootPath);
-            IReadOnlyList<Assembly> assemblies = AppDomain.CurrentDomain
-                .GetAssemblies()
-                .Where(assembly => assembly != null && !assembly.IsDynamic)
-                .Distinct()
-                .OrderBy(assembly => assembly.FullName, StringComparer.Ordinal)
-                .ToArray();
+            IReadOnlyList<Assembly> assemblies = ResolveGeneratedRuntimeModuleManifestAssemblies();
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests = DiscoverGeneratedRuntimeModuleManifests(assemblies);
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> activeManifests = ResolveActiveGeneratedRuntimeModuleManifests(manifests, usedTypes);
 
@@ -1095,6 +1090,38 @@ namespace helengine.editor {
                 BuildGeneratedRuntimeModuleRegistrationSource(activeManifests));
         }
 
+        /// <summary>
+        /// Resolves the assemblies that can contribute generated runtime module manifests during an editor build.
+        /// The default HelPhysics assembly is included explicitly because its contract activation types live in the
+        /// shared physics assembly and do not load the provider assembly on their own.
+        /// </summary>
+        /// <param name="additionalAssemblies">Optional assemblies already known from the active build closure.</param>
+        /// <returns>Distinct non-dynamic assemblies in deterministic order.</returns>
+        internal static IReadOnlyList<Assembly> ResolveGeneratedRuntimeModuleManifestAssemblies(
+            IReadOnlyList<Assembly> additionalAssemblies = null) {
+            HashSet<Assembly> assemblies = new HashSet<Assembly>();
+            Assembly[] loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+            for (int index = 0; index < loadedAssemblies.Length; index++) {
+                Assembly assembly = loadedAssemblies[index];
+                if (assembly != null && !assembly.IsDynamic) {
+                    assemblies.Add(assembly);
+                }
+            }
+
+            if (additionalAssemblies != null) {
+                for (int index = 0; index < additionalAssemblies.Count; index++) {
+                    Assembly assembly = additionalAssemblies[index];
+                    if (assembly != null && !assembly.IsDynamic) {
+                        assemblies.Add(assembly);
+                    }
+                }
+            }
+
+            assemblies.Add(typeof(global::helengine.HelPhysicsRuntimeComponentRegistration).Assembly);
+            return assemblies
+                .OrderBy(assembly => assembly.FullName, StringComparer.Ordinal)
+                .ToArray();
+        }
         /// <summary>
         /// Parses one quoted include directive and returns its included file name when the line declares one.
         /// </summary>

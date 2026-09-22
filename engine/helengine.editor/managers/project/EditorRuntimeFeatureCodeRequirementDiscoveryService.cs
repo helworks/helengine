@@ -82,10 +82,12 @@ namespace helengine.editor {
                 throw new ArgumentNullException(nameof(usedRuntimeTypes));
             }
 
-            IReadOnlyList<Assembly> assemblies = usedRuntimeTypes
+            IReadOnlyList<Assembly> usedTypeAssemblies = usedRuntimeTypes
                 .Select(type => type.Assembly)
                 .Distinct()
                 .ToArray();
+            IReadOnlyList<Assembly> assemblies = EditorGeneratedCoreRegenerationService
+                .ResolveGeneratedRuntimeModuleManifestAssemblies(usedTypeAssemblies);
             IReadOnlyList<GeneratedRuntimeModuleManifestAttribute> manifests =
                 EditorGeneratedCoreRegenerationService.DiscoverGeneratedRuntimeModuleManifests(assemblies);
             return EditorGeneratedCoreRegenerationService.ResolveActiveGeneratedRuntimeModuleManifests(manifests, usedRuntimeTypes);

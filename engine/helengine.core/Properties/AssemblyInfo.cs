@@ -5,3 +5,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("helengine.files")]
 [assembly: InternalsVisibleTo("helengine.shader")]
 [assembly: InternalsVisibleTo("helengine.bepu")]
+[assembly: InternalsVisibleTo("helengine.helphysics")]

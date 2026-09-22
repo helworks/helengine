@@ -47,6 +47,12 @@ namespace helengine.editor {
             Directory.CreateDirectory(outputRootPath);
             List<PlatformBuildCodeModule> compiledModules = [];
             EditorCodeModuleManifestEntry[] modulesToCompile = ResolveModulesToCompile(manifestDocument, inferredRootModuleIds);
+            Dictionary<string, string> moduleProjectPaths = new(StringComparer.OrdinalIgnoreCase);
+            string moduleProjectsRootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(outputRootPath)) + "-projects";
+            for (int index = 0; index < modulesToCompile.Length; index++) {
+                EditorCodeModuleManifestEntry moduleEntry = modulesToCompile[index];
+                moduleProjectPaths[moduleEntry.ModuleId] = Path.Combine(moduleProjectsRootPath, moduleEntry.ModuleId, moduleEntry.ModuleId + ".csproj");
+            }
 
             for (int index = 0; index < modulesToCompile.Length; index++) {
                 EditorCodeModuleManifestEntry moduleEntry = modulesToCompile[index];
@@ -62,9 +68,22 @@ namespace helengine.editor {
                 if (codegenProfile.OutputLanguage != PlatformCodegenLanguage.Cpp) {
                     throw new NotSupportedException($"Code module '{moduleEntry.ModuleId}' requested unsupported output language '{codegenProfile.OutputLanguage}'.");
                 }
+            }
+
+            for (int index = 0; index < modulesToCompile.Length; index++) {
+                EditorCodeModuleManifestEntry moduleEntry = modulesToCompile[index];
+                string moduleProjectRootPath = Path.Combine(moduleProjectsRootPath, moduleEntry.ModuleId);
+                WriteModuleProjectFile(moduleEntry, moduleProjectRootPath, platformId, moduleProjectPaths, selectedEnvironmentId);
+            }
+
+            for (int index = 0; index < modulesToCompile.Length; index++) {
+                EditorCodeModuleManifestEntry moduleEntry = modulesToCompile[index];
+                if (!ModuleContainsAnyScripts(moduleEntry)) {
+                    continue;
+                }
 
                 string moduleRootPath = Path.Combine(outputRootPath, moduleEntry.ModuleId);
-                string projectFilePath = WriteModuleProjectFile(moduleEntry, moduleRootPath, platformId, selectedEnvironmentId);
+                string projectFilePath = moduleProjectPaths[moduleEntry.ModuleId];
                 IReadOnlyList<string> platformSymbols = EditorPlatformPreprocessorSymbolService.ResolveGameplaySymbols(platformId, selectedEnvironmentId);
                 string languageToken = "cpp";
                 string endiannessToken = codegenProfile.Endianness == helengine.baseplatform.Profiles.PlatformSerializationEndianness.BigEndian
@@ -233,18 +252,30 @@ namespace helengine.editor {
             return EnumerateModuleScriptFiles(moduleEntry).Any();
         }
 
-        string WriteModuleProjectFile(EditorCodeModuleManifestEntry moduleEntry, string moduleRootPath, string platformId, string selectedEnvironmentId = "") {
+        /// <summary>
+        /// Writes one synthetic SDK project for a code module and its prepared module-project dependencies.
+        /// </summary>
+        /// <param name="moduleEntry">Module manifest entry whose source files are compiled by the project.</param>
+        /// <param name="moduleProjectRootPath">Build-workspace directory that owns the synthetic project and its intermediate files.</param>
+        /// <param name="platformId">Target platform used to select preprocessor symbols.</param>
+        /// <param name="moduleProjectPaths">Prepared project paths keyed by module id for the complete selected dependency closure.</param>
+        /// <param name="selectedEnvironmentId">Optional environment used to select platform symbols.</param>
+        /// <returns>The generated synthetic project file path.</returns>
+        string WriteModuleProjectFile(EditorCodeModuleManifestEntry moduleEntry, string moduleProjectRootPath, string platformId, IReadOnlyDictionary<string, string> moduleProjectPaths, string selectedEnvironmentId = "") {
             if (moduleEntry == null) {
                 throw new ArgumentNullException(nameof(moduleEntry));
-            }
-            if (string.IsNullOrWhiteSpace(moduleRootPath)) {
-                throw new ArgumentException("Module root path must be provided.", nameof(moduleRootPath));
             }
             if (string.IsNullOrWhiteSpace(platformId)) {
                 throw new ArgumentException("Platform id must be provided.", nameof(platformId));
             }
+            if (string.IsNullOrWhiteSpace(moduleProjectRootPath)) {
+                throw new ArgumentException("Module project root path must be provided.", nameof(moduleProjectRootPath));
+            }
+            if (moduleProjectPaths == null) {
+                throw new ArgumentNullException(nameof(moduleProjectPaths));
+            }
 
-            string projectRootPath = Path.Combine(moduleRootPath, "_project");
+            string projectRootPath = Path.GetFullPath(moduleProjectRootPath);
             Directory.CreateDirectory(projectRootPath);
             string generatedGlobalUsingsPath = WriteGeneratedGlobalUsingsFile(projectRootPath, moduleEntry);
             string intermediateRootPath = Path.Combine(projectRootPath, "obj");
@@ -275,6 +306,24 @@ namespace helengine.editor {
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.nativeownership\" HintPath=\"{EscapeXml(typeof(NativeBorrowedReturnAttribute).Assembly.Location)}\" />");
             projectBuilder.AppendLine($"    <Reference Include=\"helengine.physics\" HintPath=\"{EscapeXml(typeof(RigidBody3DComponent).Assembly.Location)}\" />");
             projectBuilder.AppendLine("  </ItemGroup>");
+            foreach (string dependencyModuleId in moduleEntry.DependencyModuleIds
+                .Where(dependencyModuleId => !string.IsNullOrWhiteSpace(dependencyModuleId))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(dependencyModuleId => dependencyModuleId, StringComparer.OrdinalIgnoreCase)) {
+                if (!moduleProjectPaths.TryGetValue(dependencyModuleId, out string dependencyProjectPath)) {
+                    if (IsEngineOwnedAssemblyModuleId(dependencyModuleId)) {
+                        continue;
+                    }
+
+                    throw new InvalidOperationException(
+                        $"Code module '{moduleEntry.ModuleId}' depends on module project '{dependencyModuleId}', but no generated project path was prepared.");
+                }
+
+                string relativeDependencyProjectPath = Path.GetRelativePath(projectRootPath, dependencyProjectPath);
+                projectBuilder.AppendLine("  <ItemGroup>");
+                projectBuilder.AppendLine($"    <ProjectReference Include=\"{EscapeXml(relativeDependencyProjectPath)}\" />");
+                projectBuilder.AppendLine("  </ItemGroup>");
+            }
             projectBuilder.AppendLine("  <ItemGroup>");
             projectBuilder.AppendLine($"    <Compile Include=\"{EscapeXml(generatedGlobalUsingsPath)}\" />");
 

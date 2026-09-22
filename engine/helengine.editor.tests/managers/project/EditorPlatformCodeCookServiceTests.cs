@@ -75,6 +75,70 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
         Assert.Contains("*.tests", generatedProjectContents, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Ensures every selected module project references the complete prepared dependency closure, including modules without source files.
+    /// </summary>
+    [Fact]
+    public void Compile_code_modules_writes_dependency_project_references_for_full_closure() {
+        RecordingCodegenToolRunner toolRunner = new() { DeleteOutputAfterRun = true };
+        EditorPlatformCodeCookService service = new(ProjectRootPath, toolRunner);
+        string dependencyRootPath = Path.Combine(ProjectRootPath, "assets", "DemoDisc");
+        string consumerRootPath = Path.Combine(ProjectRootPath, "assets", "TiltPlay");
+        string emptyDependencyRootPath = Path.Combine(ProjectRootPath, "assets", "PhysicsShared");
+        Directory.CreateDirectory(dependencyRootPath);
+        Directory.CreateDirectory(consumerRootPath);
+        Directory.CreateDirectory(emptyDependencyRootPath);
+        File.WriteAllText(Path.Combine(dependencyRootPath, "DemoDiscGamepadInput.cs"), "namespace DemoDisc.menu { public static class DemoDiscGamepadInput { public static bool IsButtonDown(int value) => value != 0; } }");
+        File.WriteAllText(Path.Combine(consumerRootPath, "DemoTiltStageComponent.cs"), "namespace DemoDisc.TiltPlay { public sealed class DemoTiltStageComponent { public bool Poll(int value) => DemoDisc.menu.DemoDiscGamepadInput.IsButtonDown(value); } }");
+
+        EditorCodeModuleManifestDocument manifestDocument = new([
+            new EditorCodeModuleManifestEntry("DemoDisc", "assets/DemoDisc", [], ["always-loaded"]),
+            new EditorCodeModuleManifestEntry("PhysicsShared", "assets/PhysicsShared", [], ["always-loaded"]),
+            new EditorCodeModuleManifestEntry("TiltPlay", "assets/TiltPlay", ["DemoDisc", "PhysicsShared"], ["always-loaded"])
+        ]);
+
+        service.CompileModules(
+            manifestDocument,
+            "windows",
+            "windows-loose-files",
+            "/tmp/fake-codegen.exe",
+            new PlatformCodegenProfileDefinition(
+                "windows-cpp",
+                "Windows C++",
+                "Default Windows C++ codegen profile.",
+                PlatformCodegenLanguage.Cpp,
+                PlatformSerializationEndianness.LittleEndian,
+                []),
+            ["TiltPlay"],
+            new Dictionary<string, string>(),
+            OutputRootPath);
+
+        string tiltPlayProjectPath = Path.Combine(Path.GetFullPath(OutputRootPath) + "-projects", "TiltPlay", "TiltPlay.csproj");
+        string demoDiscProjectPath = Path.Combine(Path.GetFullPath(OutputRootPath) + "-projects", "DemoDisc", "DemoDisc.csproj");
+        string physicsSharedProjectPath = Path.Combine(Path.GetFullPath(OutputRootPath) + "-projects", "PhysicsShared", "PhysicsShared.csproj");
+        Assert.True(File.Exists(demoDiscProjectPath));
+        Assert.True(File.Exists(physicsSharedProjectPath));
+        string tiltPlayProject = File.ReadAllText(tiltPlayProjectPath);
+        string[] dependencyProjectReferences = System.Xml.Linq.XDocument.Parse(tiltPlayProject)
+            .Descendants("ProjectReference")
+            .Select(element => (string)element.Attribute("Include") ?? string.Empty)
+            .ToArray();
+        string tiltPlayProjectDirectory = Path.GetDirectoryName(tiltPlayProjectPath) ?? string.Empty;
+        Assert.Contains(
+            dependencyProjectReferences,
+            projectReference => string.Equals(
+                Path.GetFullPath(Path.Combine(tiltPlayProjectDirectory, projectReference)),
+                Path.GetFullPath(demoDiscProjectPath),
+                StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            dependencyProjectReferences,
+            projectReference => string.Equals(
+                Path.GetFullPath(Path.Combine(tiltPlayProjectDirectory, projectReference)),
+                Path.GetFullPath(physicsSharedProjectPath),
+                StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(2, toolRunner.Invocations.Count);
+    }
+
     [Fact]
     public void Compile_code_modules_respects_selected_module_ids() {
         RecordingCodegenToolRunner toolRunner = new();
@@ -263,7 +327,7 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
             new Dictionary<string, string>(),
             OutputRootPath);
 
-        string projectRootPath = Path.Combine(OutputRootPath, "gameplay", "_project");
+        string projectRootPath = Path.Combine(Path.GetFullPath(OutputRootPath) + "-projects", "gameplay");
         string globalUsingsPath = Path.Combine(projectRootPath, "GlobalUsings.g.cs");
         string projectFilePath = Path.Combine(projectRootPath, "gameplay.csproj");
 
@@ -432,6 +496,11 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
     sealed class RecordingCodegenToolRunner : IEditorCodegenToolRunner {
         public List<(string ToolPath, IReadOnlyList<string> Arguments, string WorkingDirectory)> Invocations { get; } = [];
 
+        /// <summary>
+        /// Deletes the simulated converter output after each invocation to model converter cleanup.
+        /// </summary>
+        public bool DeleteOutputAfterRun { get; set; }
+
         public string GeneratedRelativePath { get; set; } = "module.generated.cpp";
 
         public string GeneratedContents { get; set; } = "// generated";
@@ -441,6 +510,17 @@ public sealed class EditorPlatformCodeCookServiceTests : IDisposable {
             string outputPath = ResolveOutputPath(arguments);
             Directory.CreateDirectory(outputPath);
             File.WriteAllText(Path.Combine(outputPath, GeneratedRelativePath), GeneratedContents);
+            if (DeleteOutputAfterRun) {
+                string fullWorkingDirectory = Path.GetFullPath(workingDirectory);
+                string fullOutputPath = Path.GetFullPath(outputPath);
+                string relativeOutputPath = Path.GetRelativePath(fullWorkingDirectory, fullOutputPath);
+                if (Path.IsPathRooted(relativeOutputPath)
+                    || string.Equals(relativeOutputPath, "..", StringComparison.Ordinal)
+                    || relativeOutputPath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)) {
+                    throw new InvalidOperationException("Refusing to delete simulated converter output outside the test workspace.");
+                }
+                Directory.Delete(fullOutputPath, true);
+            }
         }
 
         static string ResolveOutputPath(IReadOnlyList<string> arguments) {

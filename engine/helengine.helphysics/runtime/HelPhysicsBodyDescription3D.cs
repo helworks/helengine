@@ -44,7 +44,8 @@ namespace helengine {
             PhysicsScalar linearSleepThreshold,
             PhysicsScalar angularSleepThreshold,
             ushort sleepTicks,
-            bool isAwake) {
+            bool isAwake,
+            bool isTrigger = false) {
             ValidateShape(in shape);
             ValidateBodyKind(bodyKind);
             ValidateOrientation(in orientation);
@@ -79,6 +80,7 @@ namespace helengine {
             }
 
             Shape = shape;
+            ShapeKind = HelPhysicsShapeKind3D.Box;
             BodyKind = bodyKind;
             Position = position;
             Orientation = orientation;
@@ -104,12 +106,62 @@ namespace helengine {
             AngularSleepThresholdSquared = angularSleepThreshold * angularSleepThreshold;
             SleepTicks = sleepTicks;
             IsAwake = isAwake;
+            IsTrigger = isTrigger;
         }
 
         /// <summary>
         /// Gets the explicit centered box shape allocated for this body.
         /// </summary>
         public HelPhysicsBoxShape3D Shape { get; }
+
+        /// <summary>
+        /// <summary>
+        /// Initializes a validated sphere body description and derives sphere inertia.
+        /// </summary>
+        public HelPhysicsBodyDescription3D(
+            HelPhysicsSphereShape3D sphere,
+            BodyKind3D bodyKind,
+            PhysicsVector3 position,
+            PhysicsQuaternion orientation,
+            PhysicsVector3 linearVelocity,
+            PhysicsVector3 angularVelocity,
+            PhysicsScalar mass,
+            HelPhysicsMaterial3D material,
+            ushort collisionLayer,
+            ushort collisionMask,
+            int entityBindingId,
+            PhysicsScalar gravityScale,
+            PhysicsScalar linearDamping,
+            PhysicsScalar angularDamping,
+            PhysicsScalar linearSleepThreshold,
+            PhysicsScalar angularSleepThreshold,
+            ushort sleepTicks,
+            bool isAwake,
+            bool isTrigger = false)
+            : this(
+                new HelPhysicsBoxShape3D(new PhysicsVector3(sphere.Radius, sphere.Radius, sphere.Radius)),
+                bodyKind, position, orientation, linearVelocity, angularVelocity, mass, material,
+                collisionLayer, collisionMask, entityBindingId, gravityScale, linearDamping,
+                angularDamping, linearSleepThreshold, angularSleepThreshold, sleepTicks, isAwake, isTrigger) {
+            ShapeKind = HelPhysicsShapeKind3D.Sphere;
+            SphereShape = sphere;
+            LocalInverseInertia = HelPhysicsSphereGeometry3D.ComputeLocalInverseInertia(sphere, bodyKind, mass);
+        }
+
+        /// <summary>
+        /// Gets the primitive shape kind stored by this description.
+        /// </summary>
+        public HelPhysicsShapeKind3D ShapeKind { get; }
+
+        /// <summary>
+        /// Gets the sphere shape when ShapeKind is Sphere.
+        /// </summary>
+        public HelPhysicsSphereShape3D SphereShape { get; }
+
+        /// <summary>
+        /// Gets whether this body emits overlap events instead of physical contacts.
+        /// </summary>
+        public bool IsTrigger { get; }
 
         /// <summary>
         /// Gets the explicit simulation participation mode.

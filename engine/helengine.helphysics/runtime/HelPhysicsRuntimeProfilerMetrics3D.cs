@@ -1,3 +1,4 @@
+#if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
 namespace helengine {
     /// <summary>
     /// Owns the HelPhysics profiler sample and exposes its protected reusable update path only inside the runtime assembly.
@@ -21,3 +22,5 @@ namespace helengine {
         }
     }
 }
+
+#endif

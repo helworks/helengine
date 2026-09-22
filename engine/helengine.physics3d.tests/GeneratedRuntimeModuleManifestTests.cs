@@ -15,16 +15,11 @@ namespace helengine.physics3d.tests {
                     .Assembly
                     .GetCustomAttributes<GeneratedRuntimeModuleManifestAttribute>());
 
-            Assert.Equal("physics3d-runtime-module", manifest.ModuleId);
+            Assert.Equal("physics3d-legacy-runtime-module", manifest.ModuleId);
             Assert.Equal(typeof(BepuRuntimeComponentRegistration), manifest.RegistrationType);
             Assert.Equal(nameof(BepuRuntimeComponentRegistration.Register), manifest.RegistrationMethodName);
-            Assert.Contains(typeof(RigidBody3DComponent), manifest.ActivationTypes);
-            Assert.Contains(typeof(BoxCollider3DComponent), manifest.ActivationTypes);
-            Assert.Contains(typeof(SphereCollider3DComponent), manifest.ActivationTypes);
-            Assert.Contains(typeof(CapsuleCollider3DComponent), manifest.ActivationTypes);
-            Assert.Contains(typeof(StaticMeshCollider3DComponent), manifest.ActivationTypes);
-            Assert.Contains(typeof(KinematicMotion3DComponent), manifest.ActivationTypes);
-            Assert.Contains(typeof(CharacterController3DComponent), manifest.ActivationTypes);
+            Assert.Contains(typeof(BepuPhysicsWorld3D), manifest.ActivationTypes);
+            Assert.DoesNotContain(typeof(RigidBody3DComponent), manifest.ActivationTypes);
         }
     }
 }

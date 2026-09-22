@@ -33,6 +33,7 @@ namespace helengine {
             Entity = entity ?? throw new ArgumentNullException(nameof(entity));
             RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
             BoxCollider = boxCollider ?? throw new ArgumentNullException(nameof(boxCollider));
+            SphereCollider = null;
             BodyHandle = bodyHandle;
             BindingId = bindingId;
             Description = description ?? throw new ArgumentNullException(nameof(description));
@@ -40,6 +41,62 @@ namespace helengine {
             IsValid = true;
         }
 
+        /// <summary>
+        /// Initializes one sphere-collider association after its body reservation has succeeded.
+        /// </summary>
+        /// <param name="world">World that owns the reserved body.</param>
+        /// <param name="entity">Engine entity represented by the body.</param>
+        /// <param name="rigidBody">Authored rigid-body component synchronized by the binding.</param>
+        /// <param name="sphereCollider">Authored sphere-collider component whose identity must remain attached.</param>
+        /// <param name="bodyHandle">Generation-safe world-owned body identity.</param>
+        /// <param name="bindingId">Positive binder-local identity retained in the body description.</param>
+        /// <param name="description">Validated immutable creation data translated from the entity.</param>
+        /// <param name="lifecycle">Entity lifecycle observer that invalidates this binding during disposal.</param>
+        internal HelPhysicsEntityBinding3D(
+            HelPhysicsWorld3D world,
+            Entity entity,
+            RigidBody3DComponent rigidBody,
+            SphereCollider3DComponent sphereCollider,
+            HelPhysicsBodyHandle3D bodyHandle,
+            int bindingId,
+            [NativeTakesOwnership] HelPhysicsBodyDescription3D description,
+            [NativeRetainsBorrow] HelPhysicsEntityBindingLifecycle3D lifecycle) {
+            WorldValue = world ?? throw new ArgumentNullException(nameof(world));
+            Entity = entity ?? throw new ArgumentNullException(nameof(entity));
+            RigidBody = rigidBody ?? throw new ArgumentNullException(nameof(rigidBody));
+            SphereCollider = sphereCollider ?? throw new ArgumentNullException(nameof(sphereCollider));
+            BoxCollider = null;
+            BodyHandle = bodyHandle;
+            BindingId = bindingId;
+            Description = description ?? throw new ArgumentNullException(nameof(description));
+            Lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
+            IsValid = true;
+        }
+        /// <summary>
+        /// Initializes one controller-only association backed by an internal kinematic body.
+        /// </summary>
+        internal HelPhysicsEntityBinding3D(
+            HelPhysicsWorld3D world,
+            Entity entity,
+            CharacterController3DComponent controller,
+            BoxCollider3DComponent boxCollider,
+            HelPhysicsBodyHandle3D bodyHandle,
+            int bindingId,
+            [NativeTakesOwnership] HelPhysicsBodyDescription3D description,
+            [NativeRetainsBorrow] HelPhysicsEntityBindingLifecycle3D lifecycle) {
+            WorldValue = world ?? throw new ArgumentNullException(nameof(world));
+            Entity = entity ?? throw new ArgumentNullException(nameof(entity));
+            Controller = controller ?? throw new ArgumentNullException(nameof(controller));
+            BoxCollider = boxCollider ?? throw new ArgumentNullException(nameof(boxCollider));
+            RigidBody = null;
+            SphereCollider = null;
+            BodyHandle = bodyHandle;
+            BindingId = bindingId;
+            Description = description ?? throw new ArgumentNullException(nameof(description));
+            Lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
+            IsValid = true;
+            ControllerResolver = new HelPhysicsCharacterController3D(Entity, Controller, BoxCollider);
+        }
         /// <summary>
         /// Gets the engine entity represented by this binding.
         /// </summary>
@@ -54,6 +111,20 @@ namespace helengine {
         /// Gets the exact authored box collider whose continued attachment is required by this binding.
         /// </summary>
         public BoxCollider3DComponent BoxCollider { get; }
+
+        /// <summary>
+        /// Gets the exact authored sphere collider when this binding stores a sphere shape.
+        /// </summary>
+        public SphereCollider3DComponent SphereCollider { get; }
+
+        /// <summary>Gets the authored controller component when this is a controller-only binding.</summary>
+        public CharacterController3DComponent Controller { get; }
+
+        /// <summary>Stores the cached resolver for controller fixed-step motion.</summary>
+        internal HelPhysicsCharacterController3D ControllerResolver { get; }
+
+        /// <summary>Stores vertical velocity between controller fixed steps.</summary>
+        internal float ControllerVerticalVelocity { get; set; }
 
         /// <summary>
         /// Gets the generation-safe body identity issued by the owning world.
