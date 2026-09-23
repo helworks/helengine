@@ -195,7 +195,8 @@ namespace helengine.editor {
                 shaderSources[index] = new PlatformShaderArtifactCookSource(
                     resolvedSource.ShaderAssetId,
                     resolvedSource.SourceHash,
-                    resolvedSource.SourceText);
+                    resolvedSource.SourceText,
+                    resolvedSource.SourcePath);
             }
 
             PlatformShaderArtifactCookRequest shaderRequest = new PlatformShaderArtifactCookRequest(

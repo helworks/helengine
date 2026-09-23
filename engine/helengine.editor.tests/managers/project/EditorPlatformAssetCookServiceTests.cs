@@ -497,7 +497,7 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
     }
 
     /// <summary>
-    /// Verifies a shader-capable platform receives resolved shader source text and contributes its explicitly declared bundle to the cooked manifest.
+    /// Verifies a shader-capable platform receives built-in shader source text and provenance and contributes its explicitly declared bundle to the cooked manifest.
     /// </summary>
     [Fact]
     public void Cook_whenPlatformBuilderSupportsShaderArtifacts_resolvesSourcesAndCollectsDeclaredBundle() {
@@ -529,6 +529,74 @@ public sealed class EditorPlatformAssetCookServiceTests : IDisposable {
         PlatformShaderArtifactCookRequest request = Assert.IsType<PlatformShaderArtifactCookRequest>(builder.LastShaderArtifactCookRequest);
         PlatformShaderArtifactCookSource source = Assert.Single(request.ShaderSources);
         Assert.Equal("ForwardStandardShader", source.ShaderAssetId);
+        string expectedPath = BuiltInShaderAssetLibrary.ResolveShaderPath("ForwardStandardShader.hlsl");
+        Assert.True(source.HasSourcePath);
+        Assert.Equal(Path.GetFullPath(expectedPath), source.SourcePath);
+        Assert.Equal(File.ReadAllText(expectedPath), source.SourceText);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(expectedPath))), source.SourceHash);
+        Assert.Contains(manifest.CookedArtifacts, artifact => artifact.RelativePath == "cooked/shaders/psvita/shaders.psvb" && artifact.ArtifactKind == "shader");
+    }
+
+    /// <summary>
+    /// Verifies the editor hands an authored shader override and its filesystem include context to a shader-capable platform.
+    /// </summary>
+    [Fact]
+    public void Cook_whenPlatformBuilderSupportsShaderArtifacts_prefersAuthoredSourceAndPreservesNestedIncludeContext() {
+        const string scenePath = "Scenes/VitaShaderBundle.helen";
+        const string materialPath = "Materials/VitaShaderBundle.hasset";
+        string authoredPath = Path.Combine(ProjectRootPath, "assets", "ForwardStandardShader.hlsl");
+        string commonIncludePath = Path.Combine(ProjectRootPath, "assets", "inc", "common.hlsli");
+        string nestedIncludePath = Path.Combine(ProjectRootPath, "assets", "inc", "math", "value.hlsli");
+        string wrongFallbackPath = Path.Combine(ProjectRootPath, "math", "value.hlsli");
+        Directory.CreateDirectory(Path.GetDirectoryName(authoredPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(commonIncludePath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(nestedIncludePath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(wrongFallbackPath)!);
+        File.WriteAllText(authoredPath, "#include \"inc/common.hlsli\"\n");
+        File.WriteAllText(commonIncludePath, "#include \"math/value.hlsli\"\n");
+        File.WriteAllText(nestedIncludePath, "float4 NestedValue() { return float4(1, 2, 3, 4); }\n");
+        File.WriteAllText(wrongFallbackPath, "float4 WrongFallback() { return 0; }\n");
+        WriteMaterialAsset(materialPath, "VitaShaderBundle");
+        WriteSceneAssetWithMaterial(scenePath, materialPath);
+        ShaderArtifactTestPlatformMaterialAssetBuilder builder = new();
+        EditorPlatformAssetCookService service = new(
+            ProjectRootPath,
+            "1.0.0-engine",
+            "game",
+            "1.0.0",
+            Array.Empty<IAssetImporterRegistration>(),
+            PackagedFontAssetFactory.Create(),
+            null,
+            null,
+            BuiltInShaderAssetLibrary);
+
+        PlatformBuildManifest manifest = service.Cook(
+            builder.Definition,
+            ["VitaShaderBundle"],
+            BuildRootPath,
+            ["psvita"],
+            builder,
+            "debug",
+            "gxm");
+
+        PlatformShaderArtifactCookRequest request = Assert.IsType<PlatformShaderArtifactCookRequest>(builder.LastShaderArtifactCookRequest);
+        PlatformShaderArtifactCookSource source = Assert.Single(request.ShaderSources);
+        string expectedAuthoredPath = Path.GetFullPath(authoredPath);
+        string builtInPath = Path.GetFullPath(BuiltInShaderAssetLibrary.ResolveShaderPath("ForwardStandardShader.hlsl"));
+        Assert.Equal("ForwardStandardShader", source.ShaderAssetId);
+        Assert.True(source.HasSourcePath);
+        Assert.Equal(expectedAuthoredPath, source.SourcePath);
+        Assert.NotEqual(builtInPath, source.SourcePath);
+        Assert.Equal(File.ReadAllText(authoredPath), source.SourceText);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(authoredPath))), source.SourceHash);
+
+        ShaderFilesystemIncludeResolver resolver = new(ProjectRootPath);
+        ShaderIncludeResult common = resolver.Resolve(source.SourcePath, "inc/common.hlsli");
+        ShaderIncludeResult nested = resolver.Resolve(common.Path, "math/value.hlsli");
+        Assert.Equal(Path.GetFullPath(Path.Combine(ProjectRootPath, "assets", "inc", "math", "value.hlsli")), Path.GetFullPath(nested.Path));
+        Assert.Contains("NestedValue", nested.Source);
+        Assert.DoesNotContain("WrongFallback", nested.Source);
+        Assert.Throws<FileNotFoundException>(() => resolver.Resolve(common.Path, "missing.hlsli"));
         Assert.Contains(manifest.CookedArtifacts, artifact => artifact.RelativePath == "cooked/shaders/psvita/shaders.psvb" && artifact.ArtifactKind == "shader");
     }
 

@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace helengine.baseplatform.Requests {
 
     /// <summary>
@@ -20,6 +22,11 @@ namespace helengine.baseplatform.Requests {
         readonly string SourceTextValue;
 
         /// <summary>
+        /// Stores the fully qualified host-side path for the authored HLSL source, or null for legacy source-only callers.
+        /// </summary>
+        readonly string SourcePathValue;
+
+        /// <summary>
         /// Initializes one resolved shader source for a platform shader cook operation.
         /// </summary>
         /// <param name="shaderAssetId">Stable shader asset identifier referenced by material dependencies.</param>
@@ -40,6 +47,24 @@ namespace helengine.baseplatform.Requests {
         }
 
         /// <summary>
+        /// Initializes one resolved shader source and its fully qualified host-side source path for a platform shader cook operation.
+        /// </summary>
+        /// <param name="shaderAssetId">Stable shader asset identifier referenced by material dependencies.</param>
+        /// <param name="sourceHash">SHA-256 identity of the authored source bytes.</param>
+        /// <param name="sourceText">Complete authored HLSL source text snapshot.</param>
+        /// <param name="sourcePath">Fully qualified path for the authored HLSL source.</param>
+        public PlatformShaderArtifactCookSource(string shaderAssetId, string sourceHash, string sourceText, string sourcePath)
+            : this(shaderAssetId, sourceHash, sourceText) {
+            if (string.IsNullOrWhiteSpace(sourcePath)) {
+                throw new ArgumentException("Shader source path is required.", nameof(sourcePath));
+            } else if (!Path.IsPathFullyQualified(sourcePath)) {
+                throw new ArgumentException("Shader source path must be fully qualified.", nameof(sourcePath));
+            }
+
+            SourcePathValue = Path.GetFullPath(sourcePath);
+        }
+
+        /// <summary>
         /// Gets the stable shader asset identifier.
         /// </summary>
         public string ShaderAssetId => ShaderAssetIdValue;
@@ -53,5 +78,15 @@ namespace helengine.baseplatform.Requests {
         /// Gets the complete authored HLSL source text.
         /// </summary>
         public string SourceText => SourceTextValue;
+
+        /// <summary>
+        /// Gets the fully qualified authored source path, or null when the legacy source-only constructor was used.
+        /// </summary>
+        public string SourcePath => SourcePathValue;
+
+        /// <summary>
+        /// Gets whether a fully qualified authored source path was supplied.
+        /// </summary>
+        public bool HasSourcePath => SourcePathValue != null;
     }
 }

@@ -36,6 +36,11 @@ namespace helengine {
         /// <summary>
         /// Wii U GLSL source target compiled into GX2 binaries by the platform build.
         /// </summary>
-        WiiU
+        WiiU,
+
+        /// <summary>
+        /// PlayStation 3 RSX vertex and fragment programs compiled by the Docker SDK.
+        /// </summary>
+        Ps3
     }
 }
