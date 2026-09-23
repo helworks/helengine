@@ -74,6 +74,10 @@ namespace helengine {
             }
 
             IShaderBackend backend = GetBackend(request.Target);
+            if (backend is IShaderBackendCachePolicy cachePolicy && !cachePolicy.UseSharedCache) {
+                return backend.Compile(request, includeResolver);
+            }
+
             ShaderCompileCacheKey cacheKey = ShaderCompileRequestIdentity.CreateCacheKey(request, sourceHasher);
             ShaderCompileResult cached;
             if (cache.TryGet(cacheKey, out cached)) {
