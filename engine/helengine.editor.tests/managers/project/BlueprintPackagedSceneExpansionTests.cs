@@ -287,6 +287,60 @@ namespace helengine.editor.tests.managers.project {
             Assert.Equal(300u, expandedComponent.TargetEntityReference.EntityId);
         }
 
+        [Fact]
+        public void Expand_WhenBlueprintHasInternalReference_BindsEachInstanceToItsOwnTargetId() {
+            const string blueprintPath = "Blueprints/InternalReferenceBlueprint.hblueprint";
+            WriteBlueprintAsset(blueprintPath, null, new SceneEntityAsset {
+                Id = 1u,
+                Name = "Blueprint Root",
+                Children = [
+                    new SceneEntityAsset { Id = 2u, Name = "Target" },
+                    new SceneEntityAsset {
+                        Id = 3u,
+                        Name = "Observer",
+                        Components = [SerializeComponent(new SceneEntityTriggerObserverComponent {
+                            TargetEntityReference = new SceneEntityReference { EntityId = 2u }
+                        })]
+                    }
+                ]
+            });
+            SceneAsset scene = new SceneAsset {
+                RootEntities = [
+                    CreateBlueprintInstance(100u, blueprintPath),
+                    CreateBlueprintInstance(200u, blueprintPath)
+                ]
+            };
+
+            using BlueprintPackagedSceneExpansionService service = new BlueprintPackagedSceneExpansionService(ProjectRootPath, new ComponentPersistenceRegistry());
+            service.Expand(scene);
+
+            uint firstTargetId = 0u;
+            for (int index = 0; index < scene.RootEntities.Length; index++) {
+                SceneEntityAsset expandedRoot = Assert.Single(scene.RootEntities[index].Children);
+                SceneEntityAsset target = expandedRoot.Children[0];
+                SceneComponentAssetRecord record = Assert.Single(expandedRoot.Children[1].Components);
+                IComponentPersistenceDescriptor descriptor = new ComponentPersistenceRegistry().GetDescriptor(record.ComponentTypeId);
+                SceneEntityTriggerObserverComponent observer = Assert.IsType<SceneEntityTriggerObserverComponent>(
+                    descriptor.DeserializeComponent(record, null, null));
+                Assert.Equal(target.Id, observer.TargetEntityReference.EntityId);
+                if (index == 0) {
+                    firstTargetId = target.Id;
+                } else {
+                    Assert.NotEqual(firstTargetId, target.Id);
+                }
+            }
+        }
+
+        static SceneEntityAsset CreateBlueprintInstance(uint id, string blueprintPath) {
+            return new SceneEntityAsset {
+                Id = id,
+                Name = "Instance",
+                Components = [SerializeComponent(new BlueprintInstanceComponent {
+                    BlueprintAssetReference = global::helengine.editor.tests.SceneAssetReferenceTestFactory.CreateCurrentFileSystem(blueprintPath)
+                })]
+            };
+        }
+
         /// <summary>
         /// Ensures authoring code can bind every scene-entity reference in a blueprint without knowing persisted component keys.
         /// </summary>

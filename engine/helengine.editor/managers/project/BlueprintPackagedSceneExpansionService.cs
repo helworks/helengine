@@ -143,8 +143,11 @@ namespace helengine.editor {
 
             List<SceneEntityAsset> expandedChildren = new List<SceneEntityAsset>(instanceRoot.Children ?? Array.Empty<SceneEntityAsset>());
             SceneEntityAsset clonedBlueprintRoot = CloneEntity(blueprintAsset.RootEntity);
+            Dictionary<uint, uint> clonedIds = new Dictionary<uint, uint>();
+            PlanFreshEntityIds(clonedBlueprintRoot, clonedIds);
+            RemapInternalReferences(clonedBlueprintRoot, clonedIds);
             ApplyEntityReferenceOverrides(clonedBlueprintRoot, instanceComponent.EntityReferenceOverrides);
-            AssignFreshEntityIds(clonedBlueprintRoot);
+            AssignFreshEntityIds(clonedBlueprintRoot, clonedIds);
             expandedChildren.Add(clonedBlueprintRoot);
             instanceRoot.Children = expandedChildren.ToArray();
 
@@ -491,19 +494,117 @@ namespace helengine.editor {
         /// Reassigns every entity in one cloned Blueprint subtree to unique ids after the authored scene ids.
         /// </summary>
         /// <param name="entityAsset">Cloned Blueprint entity hierarchy.</param>
-        void AssignFreshEntityIds(SceneEntityAsset entityAsset) {
+        void PlanFreshEntityIds(SceneEntityAsset entityAsset, Dictionary<uint, uint> clonedIds) {
             if (entityAsset == null) {
                 throw new ArgumentNullException(nameof(entityAsset));
+            }
+            if (entityAsset.Id == 0u || clonedIds.ContainsKey(entityAsset.Id)) {
+                throw new InvalidOperationException($"Blueprint entity id '{entityAsset.Id}' must be non-zero and unique before expansion.");
             }
             if (NextClonedEntityId == uint.MaxValue) {
                 throw new InvalidOperationException("Blueprint expansion exhausted the serialized scene entity id range.");
             }
 
-            entityAsset.Id = ++NextClonedEntityId;
+            clonedIds.Add(entityAsset.Id, ++NextClonedEntityId);
             SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int index = 0; index < children.Length; index++) {
-                AssignFreshEntityIds(children[index]);
+                PlanFreshEntityIds(children[index], clonedIds);
             }
+        }
+
+        void AssignFreshEntityIds(SceneEntityAsset entityAsset, Dictionary<uint, uint> clonedIds) {
+            entityAsset.Id = clonedIds[entityAsset.Id];
+            SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
+            for (int index = 0; index < children.Length; index++) {
+                AssignFreshEntityIds(children[index], clonedIds);
+            }
+        }
+
+        void RemapInternalReferences(SceneEntityAsset entityAsset, Dictionary<uint, uint> clonedIds) {
+            SceneComponentAssetRecord[] components = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
+            for (int index = 0; index < components.Length; index++) {
+                RemapInternalReferences(components[index], clonedIds);
+            }
+            SceneEntityAsset[] children = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
+            for (int index = 0; index < children.Length; index++) {
+                RemapInternalReferences(children[index], clonedIds);
+            }
+        }
+
+        static void RemapInternalReferences(SceneComponentAssetRecord record, Dictionary<uint, uint> clonedIds) {
+            if (record == null || record.Payload == null) {
+                return;
+            }
+            Type componentType = PersistedComponentTypeResolver.TryResolve(record.ComponentTypeId);
+            if (componentType == null) {
+                return;
+            }
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(componentType);
+            Dictionary<string, Type> referenceFields = new Dictionary<string, Type>(StringComparer.Ordinal);
+            for (int index = 0; index < schema.Members.Count; index++) {
+                ScriptComponentReflectionMember member = schema.Members[index];
+                if (member.ValueType == typeof(SceneEntityReference) || member.ValueType == typeof(SceneEntityReference[])) {
+                    referenceFields.Add(member.Name, member.ValueType);
+                }
+            }
+            if (referenceFields.Count == 0) {
+                return;
+            }
+
+            using MemoryStream sourceStream = new MemoryStream(record.Payload, false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(sourceStream, EngineBinaryEndianness.LittleEndian);
+            byte version = reader.ReadByte();
+            if (version != EditorTaggedSceneComponentPayloadFormat.CurrentVersion) {
+                throw new InvalidOperationException($"Blueprint component '{record.ComponentTypeId}' needs a current tagged payload to remap internal entity references.");
+            }
+            int fieldCount = reader.ReadInt32();
+            using MemoryStream outputStream = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(outputStream, EngineBinaryEndianness.LittleEndian, true)) {
+                writer.WriteByte(version);
+                writer.WriteInt32(fieldCount);
+                for (int index = 0; index < fieldCount; index++) {
+                    string name = reader.ReadString();
+                    byte[] fieldPayload = reader.ReadByteArray();
+                    if (referenceFields.TryGetValue(name, out Type referenceType)) {
+                        fieldPayload = RemapReferenceField(fieldPayload, referenceType == typeof(SceneEntityReference[]), clonedIds);
+                    }
+                    writer.WriteString(name);
+                    writer.WriteByteArray(fieldPayload);
+                }
+            }
+            if (sourceStream.Position != sourceStream.Length) {
+                throw new InvalidOperationException($"Blueprint component '{record.ComponentTypeId}' has trailing tagged payload data.");
+            }
+            record.Payload = outputStream.ToArray();
+        }
+
+        static byte[] RemapReferenceField(byte[] payload, bool isArray, Dictionary<uint, uint> clonedIds) {
+            using MemoryStream source = new MemoryStream(payload ?? Array.Empty<byte>(), false);
+            using EngineBinaryReader reader = EngineBinaryReader.Create(source, EngineBinaryEndianness.LittleEndian);
+            using MemoryStream output = new MemoryStream();
+            using (EngineBinaryWriter writer = EngineBinaryWriter.Create(output, EngineBinaryEndianness.LittleEndian, true)) {
+                if (isArray) {
+                    int count = reader.ReadInt32();
+                    writer.WriteInt32(count);
+                    for (int index = 0; index < count; index++) {
+                        WriteRemappedReference(reader, writer, clonedIds);
+                    }
+                } else {
+                    WriteRemappedReference(reader, writer, clonedIds);
+                }
+            }
+            if (source.Position != source.Length) {
+                throw new InvalidOperationException("Blueprint scene entity reference field has trailing payload data.");
+            }
+            return output.ToArray();
+        }
+
+        static void WriteRemappedReference(EngineBinaryReader reader, EngineBinaryWriter writer, Dictionary<uint, uint> clonedIds) {
+            SceneEntityReference reference = reader.ReadSceneEntityReference();
+            if (reference != null && clonedIds.TryGetValue(reference.EntityId, out uint clonedId)) {
+                reference.EntityId = clonedId;
+            }
+            writer.WriteSceneEntityReference(reference);
         }
 
         static SceneComponentAssetRecord CloneComponentRecord(SceneComponentAssetRecord record) {
