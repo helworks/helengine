@@ -28,10 +28,6 @@ namespace helengine {
         /// </summary>
         static readonly Dictionary<Type, uint> StableTypeNameHashesByType = new Dictionary<Type, uint>();
 
-        /// <summary>
-        /// Tracks which updateable types have already been published to the active CPU profiling sink.
-        /// </summary>
-        Dictionary<Type, bool> CpuProfileTypeNamesByType;
 
         /// <summary>
         /// Initializes a new object manager using the provided initialization options.
@@ -670,17 +666,8 @@ namespace helengine {
             if (sink == null || entity == null) {
                 return;
             }
-            if (CpuProfileTypeNamesByType == null) {
-                CpuProfileTypeNamesByType = new Dictionary<Type, bool>();
-            }
-
             Type entityType = entity.GetType();
-            if (CpuProfileTypeNamesByType.ContainsKey(entityType)) {
-                return;
-            }
-
-            CpuProfileTypeNamesByType[entityType] = true;
-            sink.RegisterType(ResolveStableTypeNameHash(entity), entityType.Name);
+            sink.RegisterType(entity, ResolveStableTypeNameHash(entity), entityType.Name);
         }
         /// <summary>
         /// Adds an updateable to the ordered update list.

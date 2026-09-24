@@ -29,9 +29,10 @@ namespace helengine {
         /// <summary>
         /// Registers a readable type-name legend entry outside the timed update loop.
         /// </summary>
+        /// <param name="item">Updateable instance whose concrete native identity may be used by the host.</param>
         /// <param name="typeHash">Stable updateable type-name hash.</param>
         /// <param name="typeName">Readable updateable type name.</param>
-        void RegisterType(uint typeHash, string typeName);
+        void RegisterType(IUpdateable item, uint typeHash, string typeName);
 
         /// <summary>
         /// Reports that the host clock moved backwards or otherwise failed monotonicity.

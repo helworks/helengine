@@ -57,6 +57,7 @@ namespace helengine.editor.tests {
             Assert.All(rows, entry => Assert.Equal(64UL, entry.ElapsedMicroseconds));
             Assert.NotSame(rows[0].Item, rows[1].Item);
             Assert.Contains(sink.TypeNames, entry => entry.Name == nameof(ProfileProbeComponent));
+            Assert.Contains(sink.TypeNames, entry => entry.Item is ProfileProbeComponent);
         }
 
         [Fact]
@@ -139,9 +140,9 @@ namespace helengine.editor.tests {
                 Updateables.Add(new ProfileUpdateableRecord(item, index, typeHash, ownerSceneEntityId, elapsedMicroseconds));
             }
 
-            public void RegisterType(uint typeHash, string typeName) {
+            public void RegisterType(IUpdateable item, uint typeHash, string typeName) {
                 if (!TypeNames.Any(entry => entry.TypeHash == typeHash)) {
-                    TypeNames.Add(new ProfileTypeRecord(typeHash, typeName));
+                    TypeNames.Add(new ProfileTypeRecord(item, typeHash, typeName));
                 }
             }
 
@@ -152,6 +153,6 @@ namespace helengine.editor.tests {
 
         readonly record struct ProfileStageRecord(RuntimeCpuProfileStage Stage, ulong ElapsedMicroseconds);
         readonly record struct ProfileUpdateableRecord(IUpdateable Item, int Index, uint TypeHash, uint OwnerSceneEntityId, ulong ElapsedMicroseconds);
-        readonly record struct ProfileTypeRecord(uint TypeHash, string Name);
+        readonly record struct ProfileTypeRecord(IUpdateable Item, uint TypeHash, string Name);
     }
 }
