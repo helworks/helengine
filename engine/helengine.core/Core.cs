@@ -123,6 +123,11 @@ namespace helengine {
         public CoreInitializationOptions InitializationOptions { get; private set; }
 
         /// <summary>
+        /// Gets the optional CPU profiling sink used by Core and its object manager.
+        /// </summary>
+        internal IRuntimeCpuProfileSink CpuProfileSink => InitializationOptions == null ? null : InitializationOptions.CpuProfileSink;
+
+        /// <summary>
         /// Gets the initialized runtime policy used to present performance overlay text.
         /// </summary>
         public PerformanceOverlaySettings PerformanceOverlay { get; private set; }
@@ -776,6 +781,8 @@ namespace helengine {
         /// Executes the engine draw cycle.
         /// </summary>
         public virtual void Draw() {
+            IRuntimeCpuProfileSink cpuProfileSink = CpuProfileSink;
+            ulong cpuProfileStart = 0UL;
             LastSceneTransitionStage = "DrawBegin";
             if (InitializationOptions.CommitPendingSceneOperationsDuringDraw) {
                 LastSceneTransitionStage = "BeforeCompleteFrameBoundary";
@@ -795,7 +802,16 @@ namespace helengine {
             if (UpdateStageDiagnosticsProviderValue != null) {
                 RecordUpdateStage("BeforeRenderManager3DDraw");
             }
+            cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
             LastRenderManager3DDrawMilliseconds = MeasureRenderManager3DDrawMilliseconds();
+            if (cpuProfileSink != null) {
+                ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                if (cpuProfileEnd < cpuProfileStart) {
+                    cpuProfileSink.ClockFault();
+                } else {
+                    cpuProfileSink.RecordStage(RuntimeCpuProfileStage.RenderManager3D, cpuProfileEnd - cpuProfileStart);
+                }
+            }
             LastSceneTransitionStage = "AfterRenderManager3DDraw";
             if (UpdateStageDiagnosticsProviderValue != null) {
                 RecordUpdateStage("AfterRenderManager3DDraw");
@@ -814,14 +830,25 @@ namespace helengine {
         /// Commits queued scene operations after the active host reaches one frame-boundary safe point for resource release.
         /// </summary>
         public virtual void CompleteFrameBoundary() {
+            IRuntimeCpuProfileSink cpuProfileSink = CpuProfileSink;
+            ulong cpuProfileStart = 0UL;
             if (SceneManager != null) {
                 LastSceneTransitionStage = "CompleteFrameBoundaryCommitBegin";
+                cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_RUNTIME_PROFILER
                 RuntimeProfilerMetricsValue.AddSceneOperationCount(SceneManager.CommitPendingOperationsAtFrameBoundary());
 #else
                 SceneManager.CommitPendingOperationsAtFrameBoundary();
 #endif
                 LastSceneTransitionStage = "CompleteFrameBoundaryCommitEnd";
+                if (cpuProfileSink != null) {
+                    ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                    if (cpuProfileEnd < cpuProfileStart) {
+                        cpuProfileSink.ClockFault();
+                    } else {
+                        cpuProfileSink.RecordStage(RuntimeCpuProfileStage.FrameBoundary, cpuProfileEnd - cpuProfileStart);
+                    }
+                }
                 if (UpdateStageDiagnosticsProviderValue != null) {
                     RecordUpdateStage("AfterCompleteFrameBoundarySceneCommit");
                 }
@@ -926,17 +953,36 @@ namespace helengine {
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeInputEarlyUpdate");
             }
+            IRuntimeCpuProfileSink cpuProfileSink = CpuProfileSink;
+            ulong cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
             Input.EarlyUpdate();
+            if (cpuProfileSink != null) {
+                ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                if (cpuProfileEnd < cpuProfileStart) {
+                    cpuProfileSink.ClockFault();
+                } else {
+                    cpuProfileSink.RecordStage(RuntimeCpuProfileStage.EarlyInput, cpuProfileEnd - cpuProfileStart);
+                }
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterInputEarlyUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterInputEarlyUpdate");
                 RecordUpdateStage("BeforeFpsRecordUpdateFrame");
             }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforeFpsRecordUpdateFramePhaseId);
+            cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
             FPSComponent.RecordUpdateFrame();
 #if !HELENGINE_CODEGEN_FEATURE_DISABLED_DEBUG_OVERLAY
             DebugComponent.RecordUpdateFrame();
 #endif
+            if (cpuProfileSink != null) {
+                ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                if (cpuProfileEnd < cpuProfileStart) {
+                    cpuProfileSink.ClockFault();
+                } else {
+                    cpuProfileSink.RecordStage(RuntimeCpuProfileStage.FrameCounters, cpuProfileEnd - cpuProfileStart);
+                }
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterFpsRecordUpdateFramePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterFpsRecordUpdateFrame");
@@ -946,13 +992,31 @@ namespace helengine {
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeObjectManagerUpdate");
             }
+            cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
             ObjectManager.Update();
+            if (cpuProfileSink != null) {
+                ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                if (cpuProfileEnd < cpuProfileStart) {
+                    cpuProfileSink.ClockFault();
+                } else {
+                    cpuProfileSink.RecordStage(RuntimeCpuProfileStage.ObjectManagerUpdate, cpuProfileEnd - cpuProfileStart);
+                }
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterObjectManagerUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterObjectManagerUpdate");
                 RecordUpdateStage("BeforeAudioManagerUpdate");
             }
+            cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
             AudioManager?.Update();
+            if (cpuProfileSink != null) {
+                ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                if (cpuProfileEnd < cpuProfileStart) {
+                    cpuProfileSink.ClockFault();
+                } else {
+                    cpuProfileSink.RecordStage(RuntimeCpuProfileStage.Audio, cpuProfileEnd - cpuProfileStart);
+                }
+            }
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterAudioManagerUpdate");
             }
@@ -960,7 +1024,16 @@ namespace helengine {
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeUpdatePhysics");
             }
+            cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
             UpdatePhysics(elapsedSeconds);
+            if (cpuProfileSink != null) {
+                ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                if (cpuProfileEnd < cpuProfileStart) {
+                    cpuProfileSink.ClockFault();
+                } else {
+                    cpuProfileSink.RecordStage(RuntimeCpuProfileStage.Physics, cpuProfileEnd - cpuProfileStart);
+                }
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterUpdatePhysicsPhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterUpdatePhysics");
@@ -970,14 +1043,32 @@ namespace helengine {
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("BeforeInputUpdate");
             }
+            cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
             Input.Update();
+            if (cpuProfileSink != null) {
+                ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                if (cpuProfileEnd < cpuProfileStart) {
+                    cpuProfileSink.ClockFault();
+                } else {
+                    cpuProfileSink.RecordStage(RuntimeCpuProfileStage.LateInput, cpuProfileEnd - cpuProfileStart);
+                }
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterInputUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterInputUpdate");
                 RecordUpdateStage("BeforePointerInteractionSystemUpdate");
             }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.BeforePointerInteractionSystemUpdatePhaseId);
+            cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
             PointerInteractionSystem.Update();
+            if (cpuProfileSink != null) {
+                ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                if (cpuProfileEnd < cpuProfileStart) {
+                    cpuProfileSink.ClockFault();
+                } else {
+                    cpuProfileSink.RecordStage(RuntimeCpuProfileStage.PointerInteraction, cpuProfileEnd - cpuProfileStart);
+                }
+            }
             RuntimeExecutionPhaseProbe.SetCurrentPhaseId(RuntimeExecutionPhaseProbe.AfterPointerInteractionSystemUpdatePhaseId);
             if (shouldRecordUpdateStages) {
                 RecordUpdateStage("AfterPointerInteractionSystemUpdate");

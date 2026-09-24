@@ -65,6 +65,11 @@ namespace helengine {
         public IRuntimeDiagnosticsProvider RuntimeDiagnosticsProvider { get; set; }
 
         /// <summary>
+        /// Gets or sets the optional native-host CPU profiling sink.
+        /// </summary>
+        public IRuntimeCpuProfileSink CpuProfileSink { get; set; }
+
+        /// <summary>
         /// Gets or sets the runtime policy that controls performance overlay text scaling and shadows.
         /// Unconfigured hosts use the generic overlay presentation settings.
         /// </summary>
