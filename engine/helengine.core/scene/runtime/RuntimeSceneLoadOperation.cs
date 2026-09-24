@@ -19,6 +19,12 @@ namespace helengine {
         readonly List<Entity> RootEntities;
 
         /// <summary>
+        /// References collected only while this scene is materialized.
+        /// </summary>
+        [NativeOwnedMember]
+        readonly RuntimeSceneReferenceFixups ReferenceFixups;
+
+        /// <summary>
         /// Index of the next serialized root entity to materialize.
         /// </summary>
         int NextRootEntityIndex;
@@ -41,6 +47,7 @@ namespace helengine {
 
             RootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
             RootEntities = new List<Entity>(RootEntityAssets.Length);
+            ReferenceFixups = new RuntimeSceneReferenceFixups();
             SceneLoadService.BeginTrackedLoad();
         }
 
@@ -78,7 +85,7 @@ namespace helengine {
             }
 
             if (NextRootEntityIndex < RootEntityAssets.Length) {
-                RootEntities.Add(SceneLoadService.LoadRootEntity(RootEntityAssets[NextRootEntityIndex], NextRootEntityIndex));
+                RootEntities.Add(SceneLoadService.LoadRootEntity(RootEntityAssets[NextRootEntityIndex], NextRootEntityIndex, ReferenceFixups));
                 NextRootEntityIndex++;
             }
 
@@ -86,6 +93,9 @@ namespace helengine {
                 RuntimeMeshPreparationService meshPreparationService = new RuntimeMeshPreparationService();
                 for (int index = 0; index < RootEntities.Count; index++) {
                     meshPreparationService.Prepare(RootEntities[index], SceneLoadService.TrackPreparedModel);
+                }
+                ReferenceFixups.Bind(RootEntities);
+                for (int index = 0; index < RootEntities.Count; index++) {
                     RootEntities[index].InitializeHierarchy();
                 }
 

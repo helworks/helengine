@@ -5,6 +5,17 @@ using helengine.ui;
 using Xunit;
 
 namespace helengine.editor.tests.serialization.scene {
+    public sealed class SceneReferenceLoadProbeComponent : Component {
+        public SceneEntityReference Target { get; set; }
+        [ScenePersistenceIgnore]
+        public Entity TargetSeenDuringInitialization { get; private set; }
+
+        public override void ComponentInitialized(Entity entity) {
+            base.ComponentInitialized(entity);
+            TargetSeenDuringInitialization = Target?.ResolvedEntity;
+        }
+    }
+
     /// <summary>
     /// Verifies runtime scene loading emits a timing log for packaged asset materialization.
     /// </summary>
@@ -65,6 +76,94 @@ namespace helengine.editor.tests.serialization.scene {
             resolver.Dispose();
             contentManager.Dispose();
             otherCore.Dispose();
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Load_WhenReferenceTargetsLaterRoot_BindsBeforeInitialization(bool incremental) {
+            RuntimeSceneLoadService loader = CreateReferenceLoadService();
+            SceneAsset scene = CreateReferenceScene(20u, false);
+
+            IReadOnlyList<Entity> roots;
+            if (incremental) {
+                RuntimeSceneLoadOperation operation = loader.CreateTrackedLoadOperation(scene);
+                operation.Advance();
+                Assert.False(operation.IsCompleted);
+                operation.Advance();
+                roots = operation.Result.RootEntities;
+            } else {
+                roots = loader.Load(scene);
+            }
+
+            SceneReferenceLoadProbeComponent probe = Assert.IsType<SceneReferenceLoadProbeComponent>(
+                Assert.Single(roots[0].Components, component => component is SceneReferenceLoadProbeComponent));
+            Assert.Same(roots[1], probe.Target.ResolvedEntity);
+            Assert.Same(roots[1], probe.TargetSeenDuringInitialization);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Load_WhenReferencedIdIsMissing_ReportsOwnerAndId(bool incremental) {
+            RuntimeSceneLoadService loader = CreateReferenceLoadService();
+            SceneAsset scene = CreateReferenceScene(99u, false);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => LoadReferenceScene(loader, scene, incremental));
+            Assert.Contains(nameof(SceneReferenceLoadProbeComponent), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("99", exception.Message, StringComparison.Ordinal);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Load_WhenReferencedIdIsDuplicated_ReportsOwnerAndId(bool incremental) {
+            RuntimeSceneLoadService loader = CreateReferenceLoadService();
+            SceneAsset scene = CreateReferenceScene(20u, true);
+
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => LoadReferenceScene(loader, scene, incremental));
+            Assert.Contains(nameof(SceneReferenceLoadProbeComponent), exception.Message, StringComparison.Ordinal);
+            Assert.Contains("20", exception.Message, StringComparison.Ordinal);
+        }
+
+        RuntimeSceneLoadService CreateReferenceLoadService() {
+            RuntimeSceneAssetReferenceResolver resolver = new RuntimeSceneAssetReferenceResolver(CoreValue, CoreValue.ContentManager);
+            return new RuntimeSceneLoadService(CoreValue, resolver, RuntimeComponentRegistry.CreateDefault());
+        }
+
+        SceneAsset CreateReferenceScene(uint referencedId, bool duplicateTarget) {
+            SceneReferenceLoadProbeComponent probe = new SceneReferenceLoadProbeComponent {
+                Target = new SceneEntityReference { EntityId = referencedId }
+            };
+            List<SceneEntityAsset> roots = new List<SceneEntityAsset> {
+                new SceneEntityAsset {
+                    Id = 10u,
+                    Components = new[] {
+                        new SceneComponentAssetRecord {
+                            ComponentTypeId = AutomaticScriptComponentPersistenceDescriptor.BuildComponentTypeId(typeof(SceneReferenceLoadProbeComponent)),
+                            ComponentIndex = 0,
+                            Payload = WriteAutomaticRuntimeComponentPayload(probe, null)
+                        }
+                    }
+                },
+                new SceneEntityAsset { Id = 20u }
+            };
+            if (duplicateTarget) {
+                roots.Add(new SceneEntityAsset { Id = 20u });
+            }
+
+            return new SceneAsset { RootEntities = roots.ToArray() };
+        }
+
+        static void LoadReferenceScene(RuntimeSceneLoadService loader, SceneAsset scene, bool incremental) {
+            if (incremental) {
+                RuntimeSceneLoadOperation operation = loader.CreateTrackedLoadOperation(scene);
+                while (!operation.IsCompleted) {
+                    operation.Advance();
+                }
+            } else {
+                loader.Load(scene);
+            }
         }
 
         [Fact]

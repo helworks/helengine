@@ -156,8 +156,8 @@ namespace helengine {
         /// <param name="entityAsset">Serialized root entity payload.</param>
         /// <param name="rootEntityIndex">Index of the root entity in the packaged scene.</param>
         /// <returns>Materialized runtime root entity.</returns>
-        internal Entity LoadRootEntity(SceneEntityAsset entityAsset, int rootEntityIndex) {
-            return LoadEntity(entityAsset, rootEntityIndex, 0);
+        internal Entity LoadRootEntity(SceneEntityAsset entityAsset, int rootEntityIndex, RuntimeSceneReferenceFixups fixups) {
+            return LoadEntity(entityAsset, rootEntityIndex, 0, fixups);
         }
 
         /// <summary>
@@ -174,11 +174,13 @@ namespace helengine {
             System.Diagnostics.Stopwatch loadStopwatch = System.Diagnostics.Stopwatch.StartNew();
             SceneEntityAsset[] rootEntityAssets = sceneAsset.RootEntities ?? Array.Empty<SceneEntityAsset>();
             List<Entity> rootEntities = new List<Entity>(rootEntityAssets.Length);
+            RuntimeSceneReferenceFixups fixups = new RuntimeSceneReferenceFixups();
             try {
                 for (int index = 0; index < rootEntityAssets.Length; index++) {
                     RecordTraceState("BeforeRootEntityLoad", index, 0, string.Empty);
-                    rootEntities.Add(LoadEntity(rootEntityAssets[index], index, 0));
+                    rootEntities.Add(LoadEntity(rootEntityAssets[index], index, 0, fixups));
                 }
+                fixups.Bind(rootEntities);
                 for (int index = 0; index < rootEntities.Count; index++) {
                     rootEntities[index].InitializeHierarchy();
                 }
@@ -188,6 +190,8 @@ namespace helengine {
 
                 return rootEntities;
             } finally {
+                fixups.Clear();
+                NativeOwnership.Delete(fixups);
                 NativeOwnership.Delete(loadStopwatch);
             }
         }
@@ -197,7 +201,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entityAsset">Serialized runtime entity payload to materialize.</param>
         /// <returns>Loaded runtime entity.</returns>
-        Entity LoadEntity(SceneEntityAsset entityAsset, int rootEntityIndex, int entityDepth) {
+        Entity LoadEntity(SceneEntityAsset entityAsset, int rootEntityIndex, int entityDepth, RuntimeSceneReferenceFixups fixups) {
             if (entityAsset == null) {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
@@ -222,13 +226,13 @@ namespace helengine {
             SceneComponentAssetRecord[] componentRecords = entityAsset.Components ?? Array.Empty<SceneComponentAssetRecord>();
             for (int index = 0; index < componentRecords.Length; index++) {
                 RecordTraceState("BeforeComponentLoad", rootEntityIndex, entityDepth, componentRecords[index] != null ? componentRecords[index].ComponentTypeId : string.Empty);
-                entity.AddComponent(LoadComponent(componentRecords[index], rootEntityIndex, entityDepth));
+                entity.AddComponent(LoadComponent(componentRecords[index], rootEntityIndex, entityDepth, fixups));
             }
 
             SceneEntityAsset[] childEntityAssets = entityAsset.Children ?? Array.Empty<SceneEntityAsset>();
             for (int index = 0; index < childEntityAssets.Length; index++) {
                 RecordTraceState("BeforeChildEntityLoad", rootEntityIndex, entityDepth + 1, string.Empty);
-                entity.AddChild(LoadEntity(childEntityAssets[index], rootEntityIndex, entityDepth + 1));
+                entity.AddChild(LoadEntity(childEntityAssets[index], rootEntityIndex, entityDepth + 1, fixups));
             }
 
             RecordTraceState("LoadEntityEnd", rootEntityIndex, entityDepth, string.Empty);
@@ -240,13 +244,13 @@ namespace helengine {
         /// </summary>
         /// <param name="record">Serialized component record to materialize.</param>
         /// <returns>Loaded runtime component.</returns>
-        Component LoadComponent(SceneComponentAssetRecord record, int rootEntityIndex, int entityDepth) {
+        Component LoadComponent(SceneComponentAssetRecord record, int rootEntityIndex, int entityDepth, RuntimeSceneReferenceFixups fixups) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
 
             RecordTraceState("LoadComponentBegin", rootEntityIndex, entityDepth, record.ComponentTypeId);
-            return ComponentRegistry.GetDeserializer(record.ComponentTypeId).Deserialize(record, ReferenceResolver);
+            return ComponentRegistry.GetDeserializer(record.ComponentTypeId).Deserialize(record, ReferenceResolver, fixups);
         }
 
         /// <summary>
