@@ -80,6 +80,7 @@ namespace helengine {
                     }
 
                     request.Matched = true;
+                    Requests[requestIndex] = request;
                     request.Reference.ResolvedEntity = entity;
                 }
             }
@@ -89,7 +90,7 @@ namespace helengine {
             }
         }
 
-        sealed class Request {
+        struct Request {
             public readonly SceneEntityReference Reference;
             public readonly string ComponentTypeId;
             public readonly uint EntityId;
