@@ -582,7 +582,7 @@ namespace helengine {
             ReleaseTransientSceneAsset(TransitionSceneAsset);
             OwnerCore.ReportSceneTransitionStage("AfterTransitionSceneAssetRelease");
             TransitionSceneAsset = null;
-            TransitionLoadOperation = null;
+            NativeOwnership.DisposeAndRelease(ref TransitionLoadOperation);
             TransitionSceneContentPath = string.Empty;
             SceneTransitionProgressValue = 1f;
             IsSceneTransitionActiveValue = false;

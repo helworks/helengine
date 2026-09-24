@@ -114,7 +114,7 @@ namespace helengine {
                 operation.Result.RootEntities,
                 operation.Result.OwnedAssets);
             NativeOwnership.Delete(operation.Result);
-            NativeOwnership.Delete(operation);
+            NativeOwnership.DisposeAndDelete(operation);
             return result;
         }
 
@@ -155,8 +155,9 @@ namespace helengine {
         /// </summary>
         /// <param name="entityAsset">Serialized root entity payload.</param>
         /// <param name="rootEntityIndex">Index of the root entity in the packaged scene.</param>
+        /// <param name="fixups">Borrowed load-scoped reference sink; this method does not retain it after returning.</param>
         /// <returns>Materialized runtime root entity.</returns>
-        internal Entity LoadRootEntity(SceneEntityAsset entityAsset, int rootEntityIndex, RuntimeSceneReferenceFixups fixups) {
+        internal Entity LoadRootEntity(SceneEntityAsset entityAsset, int rootEntityIndex, [NativeNoEscape] RuntimeSceneReferenceFixups fixups) {
             return LoadEntity(entityAsset, rootEntityIndex, 0, fixups);
         }
 
@@ -200,8 +201,9 @@ namespace helengine {
         /// Loads one serialized runtime entity recursively.
         /// </summary>
         /// <param name="entityAsset">Serialized runtime entity payload to materialize.</param>
+        /// <param name="fixups">Borrowed load-scoped reference sink; this method does not retain it after returning.</param>
         /// <returns>Loaded runtime entity.</returns>
-        Entity LoadEntity(SceneEntityAsset entityAsset, int rootEntityIndex, int entityDepth, RuntimeSceneReferenceFixups fixups) {
+        Entity LoadEntity(SceneEntityAsset entityAsset, int rootEntityIndex, int entityDepth, [NativeNoEscape] RuntimeSceneReferenceFixups fixups) {
             if (entityAsset == null) {
                 throw new ArgumentNullException(nameof(entityAsset));
             }
@@ -243,8 +245,9 @@ namespace helengine {
         /// Loads one serialized runtime component from its scene record.
         /// </summary>
         /// <param name="record">Serialized component record to materialize.</param>
+        /// <param name="fixups">Borrowed load-scoped reference sink; the deserializer call does not retain it after returning.</param>
         /// <returns>Loaded runtime component.</returns>
-        Component LoadComponent(SceneComponentAssetRecord record, int rootEntityIndex, int entityDepth, RuntimeSceneReferenceFixups fixups) {
+        Component LoadComponent(SceneComponentAssetRecord record, int rootEntityIndex, int entityDepth, [NativeNoEscape] RuntimeSceneReferenceFixups fixups) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }

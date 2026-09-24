@@ -2,7 +2,7 @@ namespace helengine {
     /// <summary>
     /// Incrementally materializes one packaged scene so the runtime can publish real progress between frame boundaries.
     /// </summary>
-    public sealed class RuntimeSceneLoadOperation {
+    public sealed class RuntimeSceneLoadOperation : IDisposable {
         /// <summary>
         /// Service that resolves scene entities and owns asset-tracking lifecycle operations.
         /// </summary>
@@ -22,7 +22,7 @@ namespace helengine {
         /// References collected only while this scene is materialized.
         /// </summary>
         [NativeOwnedMember]
-        readonly RuntimeSceneReferenceFixups ReferenceFixups;
+        RuntimeSceneReferenceFixups ReferenceFixups;
 
         /// <summary>
         /// Index of the next serialized root entity to materialize.
@@ -101,6 +101,11 @@ namespace helengine {
 
                 ResultValue = new RuntimeSceneLoadResult(RootEntities, SceneLoadService.CompleteTrackedLoad());
             }
+        }
+
+        /// <summary>Releases temporary reference storage when the load completes or is abandoned.</summary>
+        public void Dispose() {
+            NativeOwnership.DisposeAndRelease(ref ReferenceFixups);
         }
     }
 }
