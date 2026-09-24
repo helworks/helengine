@@ -156,7 +156,11 @@ namespace helengine {
         /// <summary>Rejects calls after disposal or after a failed submission.</summary>
         void ThrowIfUnavailable() {
             if (IsDisposed) {
+#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+                throw new InvalidOperationException("The batch writer has been disposed.");
+#else
                 throw new ObjectDisposedException(nameof(Batch2DWriter));
+#endif
             }
             if (IsFaulted) {
                 throw new InvalidOperationException("The batch writer is faulted and must be disposed.");
@@ -185,7 +189,11 @@ namespace helengine {
                     throw new ArgumentException("Textured batch runs require a runtime texture.", nameof(run));
                 }
                 if (run.Texture.IsDisposed) {
+#if HELENGINE_CODEGEN_DISABLE_RUNTIME_SCRIPT_REFLECTION
+                    throw new InvalidOperationException("A disposed texture cannot be used by a batch run.");
+#else
                     throw new ObjectDisposedException(nameof(run.Texture), "A disposed texture cannot be used by a batch run.");
+#endif
                 }
             }
             else if (run.Variant != Batch2DVariant.RoundedShape) {

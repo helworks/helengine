@@ -307,6 +307,28 @@ namespace helengine.core.tests.managers.rendering {
         }
 
         /// <summary>
+        /// Confirms repeated disposal discards queued geometry, preserves borrowed textures, and keeps disposed operations rejected.
+        /// </summary>
+        [Fact]
+        public void Dispose_WhenCalledTwice_DiscardsQueuedDataAndPreservesBorrowedTexture() {
+            RecordingBatch2DSink sink = new RecordingBatch2DSink();
+            Batch2DWriter writer = new Batch2DWriter(sink, 1);
+            writer.ConfigureCamera(float4x4.Identity, new float4(0f, 0f, 640f, 480f));
+            ManagedRuntimeTexture texture = new ManagedRuntimeTexture();
+            Batch2DRun run = CreateRun(Batch2DVariant.Textured, texture, 0, 0, 640, 480);
+            writer.AppendQuad(run, CreateVertex(1f), CreateVertex(2f), CreateVertex(3f), CreateVertex(4f));
+
+            writer.Dispose();
+            writer.Dispose();
+
+            Assert.Empty(sink.Runs);
+            Assert.False(texture.IsDisposed);
+            Assert.Throws<ObjectDisposedException>(() => writer.AppendQuad(
+                run, CreateVertex(5f), CreateVertex(6f), CreateVertex(7f), CreateVertex(8f)));
+            Assert.Throws<ObjectDisposedException>(() => writer.Flush());
+        }
+
+        /// <summary>
         /// Confirms a failed submit faults the writer and prevents a second attempt at the pending chunk.
         /// </summary>
         [Fact]
