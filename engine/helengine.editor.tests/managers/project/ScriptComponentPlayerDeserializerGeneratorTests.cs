@@ -55,6 +55,36 @@ namespace helengine.editor.tests.managers.project {
             Assert.Contains("received member count unavailable", nativeSource, StringComparison.OrdinalIgnoreCase);
         }
 
+        [Fact]
+        public void GenerateNativeDeserializerSource_WhenReferencesAreDirectAndNestedArray_AttachesFixupSinkBeforeMemberReads() {
+            ScriptComponentReflectionSchema schema = new ScriptComponentReflectionSchemaBuilder().Build(typeof(SceneReferenceGeneratorTestComponent));
+            ScriptComponentPlayerDeserializerGenerator generator = new ScriptComponentPlayerDeserializerGenerator();
+
+            string managedSource = generator.Generate(schema);
+            string nativeSource = generator.GenerateNativeDeserializerSource(schema);
+
+            Assert.Contains("RuntimeSceneReferenceFixups fixups", managedSource, StringComparison.Ordinal);
+            Assert.Contains("reader.SceneReferenceFixups = fixups", managedSource, StringComparison.Ordinal);
+            Assert.Contains("reader.SceneReferenceOwnerTypeId = record.ComponentTypeId", managedSource, StringComparison.Ordinal);
+            Assert.True(managedSource.IndexOf("reader.SceneReferenceFixups = fixups", StringComparison.Ordinal)
+                < managedSource.IndexOf("ReadSceneEntityReference()", StringComparison.Ordinal));
+            Assert.Contains("RuntimeSceneReferenceFixups* fixups", nativeSource, StringComparison.Ordinal);
+            Assert.Contains("reader->set_SceneReferenceFixups(fixups)", nativeSource, StringComparison.Ordinal);
+            Assert.Contains("reader->set_SceneReferenceOwnerTypeId(ComponentType)", nativeSource, StringComparison.Ordinal);
+            Assert.Contains("ReadSceneEntityReference()", nativeSource, StringComparison.Ordinal);
+            Assert.Contains("ReadSceneEntityReference()", nativeSource.Substring(nativeSource.IndexOf("ReadSceneReferenceGeneratorTestContainer(", StringComparison.Ordinal)), StringComparison.Ordinal);
+            Assert.True(nativeSource.IndexOf("reader->set_SceneReferenceFixups(fixups)", StringComparison.Ordinal)
+                < nativeSource.IndexOf("ReadSceneEntityReference()", StringComparison.Ordinal));
+        }
+
+        public sealed class SceneReferenceGeneratorTestComponent : Component {
+            public SceneEntityReference DirectReference { get; set; }
+            public SceneReferenceGeneratorTestContainer Nested { get; set; }
+        }
+
+        public sealed class SceneReferenceGeneratorTestContainer {
+            public SceneEntityReference[] References { get; set; }
+        }
         /// <summary>
         /// Ensures generated native payload-boundary validation calls the concrete native stream API.
         /// </summary>

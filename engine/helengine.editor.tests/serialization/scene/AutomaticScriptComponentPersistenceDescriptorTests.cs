@@ -120,6 +120,36 @@ namespace helengine.editor.tests.serialization.scene {
             Assert.Equal(component.EntityReferenceValue.EntityId, restored.EntityReferenceValue.EntityId);
         }
 
+        [Fact]
+        public void RuntimeDeserializer_WhenReferenceSinkIsSupplied_TracksOnlyNonzeroSceneReferences() {
+            AutomaticScriptComponentPersistenceDescriptor descriptor = new AutomaticScriptComponentPersistenceDescriptor(new ScriptComponentReflectionSchemaBuilder());
+            TestEveryLeafTypeSerializableComponent authored = new TestEveryLeafTypeSerializableComponent {
+                EntityReferenceValue = new SceneEntityReference { EntityId = 4242u }
+            };
+            SceneComponentAssetRecord taggedRecord = descriptor.SerializeComponent(authored, 0, new EntityComponentSaveState());
+            SceneComponentAssetRecord runtimeRecord = BuildRuntimeRecordFromDescriptor(authored, taggedRecord);
+            AutomaticScriptComponentRuntimeDeserializer runtimeDeserializer = new AutomaticScriptComponentRuntimeDeserializer(
+                runtimeRecord.ComponentTypeId,
+                typeof(TestEveryLeafTypeSerializableComponent));
+            RuntimeSceneReferenceFixups fixups = new RuntimeSceneReferenceFixups();
+
+            TestEveryLeafTypeSerializableComponent restored = Assert.IsType<TestEveryLeafTypeSerializableComponent>(
+                runtimeDeserializer.Deserialize(runtimeRecord, null, fixups));
+
+            Assert.NotNull(restored.EntityReferenceValue);
+            InvalidOperationException missing = Assert.Throws<InvalidOperationException>(() => fixups.Bind(Array.Empty<Entity>()));
+            Assert.Contains(runtimeRecord.ComponentTypeId, missing.Message, StringComparison.Ordinal);
+            Assert.Contains("4242", missing.Message, StringComparison.Ordinal);
+
+            authored.EntityReferenceValue = null;
+            taggedRecord = descriptor.SerializeComponent(authored, 0, new EntityComponentSaveState());
+            runtimeRecord = BuildRuntimeRecordFromDescriptor(authored, taggedRecord);
+            fixups = new RuntimeSceneReferenceFixups();
+            restored = Assert.IsType<TestEveryLeafTypeSerializableComponent>(runtimeDeserializer.Deserialize(runtimeRecord, null, fixups));
+
+            Assert.Null(restored.EntityReferenceValue);
+            fixups.Bind(Array.Empty<Entity>());
+        }
         /// <summary>
         /// Characterises the recursive part of the reflected read walk by round-tripping an array of nested authored objects that
         /// carry enum and double members from the editor write path through the runtime ordinal read path.

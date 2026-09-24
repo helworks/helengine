@@ -54,6 +54,16 @@ namespace helengine {
         }
 
         /// <summary>
+        /// Gets or sets the load-scoped sink that receives decoded scene entity references.
+        /// </summary>
+        public RuntimeSceneReferenceFixups SceneReferenceFixups { get; set; }
+
+        /// <summary>
+        /// Gets or sets the stable component type id that owns references decoded by this reader.
+        /// </summary>
+        public string SceneReferenceOwnerTypeId { get; set; }
+
+        /// <summary>
         /// Gets the payload endianness handled by this reader.
         /// </summary>
         public abstract EngineBinaryEndianness Endianness { get; }
@@ -235,9 +245,13 @@ namespace helengine {
                 return null;
             }
 
-            return new SceneEntityReference {
+            SceneEntityReference reference = new SceneEntityReference {
                 EntityId = ReadUInt32()
             };
+            if (SceneReferenceFixups != null) {
+                SceneReferenceFixups.Track(reference, SceneReferenceOwnerTypeId);
+            }
+            return reference;
         }
 
         /// <summary>

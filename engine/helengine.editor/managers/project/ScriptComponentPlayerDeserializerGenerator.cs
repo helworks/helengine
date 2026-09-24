@@ -51,9 +51,11 @@ namespace helengine.editor {
             }
 
             StringBuilder builder = new StringBuilder();
-            builder.AppendLine("public Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver) {");
+            builder.AppendLine("public Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver, RuntimeSceneReferenceFixups fixups) {");
             builder.AppendLine("    using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);");
             builder.AppendLine("    using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);");
+            builder.AppendLine("    reader.SceneReferenceFixups = fixups;");
+            builder.AppendLine("    reader.SceneReferenceOwnerTypeId = record.ComponentTypeId;");
             builder.AppendLine($"    {schema.ComponentType.FullName} component = new {schema.ComponentType.FullName}();");
             builder.AppendLine("    byte? receivedVersion = null;");
             builder.AppendLine("    int? receivedMemberCount = null;");
@@ -151,6 +153,7 @@ namespace helengine.editor {
             builder.AppendLine("class Component;");
             builder.AppendLine("class SceneComponentAssetRecord;");
             builder.AppendLine("class RuntimeSceneAssetReferenceResolver;");
+            builder.AppendLine("class RuntimeSceneReferenceFixups;");
             builder.AppendLine();
             builder.AppendLine("#include \"IRuntimeComponentDeserializer.hpp\"");
             builder.AppendLine("#include \"runtime/native_string.hpp\"");
@@ -170,7 +173,7 @@ namespace helengine.editor {
             builder.AppendLine();
             builder.AppendLine("    const HeCppString& get_ComponentTypeId();");
             builder.AppendLine();
-            builder.AppendLine("    ::Component* Deserialize(::SceneComponentAssetRecord* record, ::RuntimeSceneAssetReferenceResolver* referenceResolver);");
+            builder.AppendLine("    ::Component* Deserialize(::SceneComponentAssetRecord* record, ::RuntimeSceneAssetReferenceResolver* referenceResolver, ::RuntimeSceneReferenceFixups* fixups);");
             builder.AppendLine("private:");
             builder.AppendLine("    static HeCppString ComponentType;");
             builder.AppendLine();
@@ -228,7 +231,7 @@ namespace helengine.editor {
             builder.AppendLine("return ComponentType;");
             builder.AppendLine("}");
             builder.AppendLine();
-            builder.AppendLine($"::Component* {className}::Deserialize(::SceneComponentAssetRecord* record, ::RuntimeSceneAssetReferenceResolver* referenceResolver)");
+            builder.AppendLine($"::Component* {className}::Deserialize(::SceneComponentAssetRecord* record, ::RuntimeSceneAssetReferenceResolver* referenceResolver, ::RuntimeSceneReferenceFixups* fixups)");
             builder.AppendLine("{");
             builder.AppendLine("    if (record == nullptr)");
             builder.AppendLine("    {");
@@ -257,6 +260,8 @@ namespace helengine.editor {
             builder.AppendLine("delete reader;");
             builder.AppendLine("}");
             builder.AppendLine("});");
+            builder.AppendLine("reader->set_SceneReferenceFixups(fixups);");
+            builder.AppendLine("reader->set_SceneReferenceOwnerTypeId(ComponentType);");
             builder.AppendLine("uint8_t receivedVersion = 0;");
             builder.AppendLine("bool hasReceivedVersion = false;");
             builder.AppendLine("int32_t receivedMemberCount = 0;");

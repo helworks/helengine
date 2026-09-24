@@ -73,8 +73,9 @@ namespace helengine {
         /// </summary>
         /// <param name="record">Packaged scene record to deserialize.</param>
         /// <param name="referenceResolver">Resolver used to rebuild packaged asset references.</param>
+        /// <param name="fixups">Optional load-scoped sink that records decoded scene entity references.</param>
         /// <returns>Loaded runtime component instance.</returns>
-        public Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver) {
+        public Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver, RuntimeSceneReferenceFixups fixups = null) {
             if (record == null) {
                 throw new ArgumentNullException(nameof(record));
             }
@@ -88,6 +89,8 @@ namespace helengine {
                 WalkerDiagnosticScope);
             using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);
             using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);
+            reader.SceneReferenceFixups = fixups;
+            reader.SceneReferenceOwnerTypeId = ComponentTypeIdValue;
             byte? receivedVersion = null;
             int? receivedMemberCount = null;
             try {
