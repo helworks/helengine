@@ -7,5 +7,11 @@ namespace helengine {
         /// Gets or sets the stable id assigned to the referenced entity.
         /// </summary>
         public uint EntityId { get; set; }
+
+        /// <summary>
+        /// Gets the runtime entity resolved for this reference during scene loading.
+        /// </summary>
+        [ScenePersistenceIgnore]
+        public Entity ResolvedEntity { get; internal set; }
     }
 }
