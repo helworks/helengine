@@ -175,8 +175,23 @@ namespace helengine.editor {
             }
 
             List<PlatformCookedArtifactDeclaration> declarations = new(packagerResult.CookedArtifactDeclarations);
+            IReadOnlyList<PlatformShaderDependency> shaderDependencies = packagerResult.ReferencedShaderDependencies;
+            bool rendererDependencyProvider = materialBuilder is IPlatformRendererShaderDependencyProvider;
+            if (rendererDependencyProvider) {
+                IPlatformRendererShaderDependencyProvider provider = (IPlatformRendererShaderDependencyProvider)materialBuilder;
+                shaderDependencies = EditorRendererShaderDependencyResolver.Merge(
+                    packagerResult.ReferencedShaderDependencies,
+                    provider.RendererShaderDependencies);
+            }
+
+            if (rendererDependencyProvider
+                && shaderDependencies.Count > 0
+                && materialBuilder is not IPlatformShaderArtifactBuilder) {
+                throw new InvalidOperationException("Platform builders that declare renderer shader dependencies must provide shader artifact cooking.");
+            }
+
             if (materialBuilder is not IPlatformShaderArtifactBuilder shaderArtifactBuilder
-                || packagerResult.ReferencedShaderDependencies.Count == 0) {
+                || shaderDependencies.Count == 0) {
                 return declarations.ToArray();
             }
 
@@ -184,7 +199,7 @@ namespace helengine.editor {
                 throw new InvalidOperationException("Shader source cooking requires the owning built-in shader library.");
             }
             EditorProjectShaderSourceResolver sourceResolver = new(Path.Combine(ProjectRootPath, "assets"), BuiltInShaderAssetLibrary);
-            IReadOnlyList<string> referencedShaderAssetIds = packagerResult.ReferencedShaderDependencies
+            IReadOnlyList<string> referencedShaderAssetIds = shaderDependencies
                 .Select(dependency => dependency.ShaderAssetId)
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
@@ -204,7 +219,7 @@ namespace helengine.editor {
                 ResolvePlatformName(platformDefinition, materialBuilder),
                 selectedBuildProfileId,
                 selectedGraphicsProfileId,
-                packagerResult.ReferencedShaderDependencies,
+                shaderDependencies,
                 shaderSources);
             PlatformShaderArtifactCookResult shaderResult = shaderArtifactBuilder.CookShaderArtifacts(shaderRequest)
                 ?? throw new InvalidOperationException("Platform shader artifact builders must return an explicit cook result.");
