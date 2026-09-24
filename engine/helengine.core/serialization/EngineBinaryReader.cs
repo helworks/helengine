@@ -239,7 +239,8 @@ namespace helengine {
         /// <summary>
         /// Reads one optional scene entity reference value using the reader's endianness.
         /// </summary>
-        /// <returns>Decoded scene entity reference or null when the value was not present.</returns>
+        /// <returns>A newly decoded scene entity reference owned by the caller, or null when the value was not present. The configured fixups sink may temporarily borrow a returned reference until binding or clearing its requests.</returns>
+        [NativeOwnedReturn]
         public SceneEntityReference ReadSceneEntityReference() {
             if (ReadByte() == 0) {
                 return null;

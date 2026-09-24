@@ -51,7 +51,7 @@ namespace helengine.editor {
             }
 
             StringBuilder builder = new StringBuilder();
-            builder.AppendLine("public Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver, RuntimeSceneReferenceFixups fixups) {");
+            builder.AppendLine("public Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver, [NativeNoEscape] RuntimeSceneReferenceFixups fixups) {");
             builder.AppendLine("    using MemoryStream stream = new MemoryStream(record.Payload ?? Array.Empty<byte>(), false);");
             builder.AppendLine("    using EngineBinaryReader reader = EngineBinaryReader.Create(stream, EngineBinaryEndianness.LittleEndian);");
             builder.AppendLine("    reader.SceneReferenceFixups = fixups;");

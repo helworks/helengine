@@ -13,9 +13,9 @@ namespace helengine {
         /// </summary>
         /// <param name="record">Packaged scene record to deserialize.</param>
         /// <param name="referenceResolver">Resolver used to rebuild packaged asset references.</param>
-        /// <param name="fixups">Optional load-scoped sink that records decoded scene entity references.</param>
+        /// <param name="fixups">Optional borrowed load-scoped sink for decoded scene entity references; implementations must not retain it after returning.</param>
         /// <returns>A newly materialized component whose cleanup responsibility transfers to the caller.</returns>
         [NativeOwnedReturn]
-        Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver, RuntimeSceneReferenceFixups fixups = null);
+        Component Deserialize(SceneComponentAssetRecord record, RuntimeSceneAssetReferenceResolver referenceResolver, [NativeNoEscape] RuntimeSceneReferenceFixups fixups = null);
     }
 }

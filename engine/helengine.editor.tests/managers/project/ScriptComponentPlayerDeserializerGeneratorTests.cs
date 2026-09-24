@@ -63,6 +63,7 @@ namespace helengine.editor.tests.managers.project {
             string managedSource = generator.Generate(schema);
             string nativeSource = generator.GenerateNativeDeserializerSource(schema);
 
+            Assert.Contains("[NativeNoEscape] RuntimeSceneReferenceFixups fixups", managedSource, StringComparison.Ordinal);
             Assert.Contains("RuntimeSceneReferenceFixups fixups", managedSource, StringComparison.Ordinal);
             Assert.Contains("reader.SceneReferenceFixups = fixups", managedSource, StringComparison.Ordinal);
             Assert.Contains("reader.SceneReferenceOwnerTypeId = record.ComponentTypeId", managedSource, StringComparison.Ordinal);
