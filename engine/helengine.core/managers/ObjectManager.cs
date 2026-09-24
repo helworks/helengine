@@ -29,6 +29,11 @@ namespace helengine {
         static readonly Dictionary<Type, uint> StableTypeNameHashesByType = new Dictionary<Type, uint>();
 
         /// <summary>
+        /// Tracks which updateable types have already been published to the active CPU profiling sink.
+        /// </summary>
+        Dictionary<Type, bool> CpuProfileTypeNamesByType;
+
+        /// <summary>
         /// Initializes a new object manager using the provided initialization options.
         /// </summary>
         /// <param name="settings">Initialization settings that control ordering and list sizing.</param>
@@ -325,6 +330,7 @@ namespace helengine {
         /// </summary>
         /// <param name="entity">Updateable instance.</param>
         public virtual void RegisterForUpdate(IUpdateable entity) {
+            RegisterCpuProfileType(entity);
             if (entity == null) {
                 return;
             }
@@ -607,6 +613,7 @@ namespace helengine {
         public virtual void Update() {
             Core core = OwnerCore;
             bool shouldRecordUpdateStages = core != null && core.HasUpdateStageDiagnostics;
+            IRuntimeCpuProfileSink cpuProfileSink = core == null ? null : core.CpuProfileSink;
             DiagnosticUpdatePassCount++;
             LastUpdateableDiagnosticPass = DiagnosticUpdatePassCount;
             LastUpdateableDiagnosticIndex = -1;
@@ -628,7 +635,17 @@ namespace helengine {
                             + " hash=" + LastUpdateableDiagnosticTypeHash
                             + " owner=" + LastUpdateableDiagnosticOwnerSceneEntityId);
                     }
+                    ulong cpuProfileStart = cpuProfileSink == null ? 0UL : cpuProfileSink.ReadMicroseconds();
                     item.Update();
+                    if (cpuProfileSink != null) {
+                        ulong cpuProfileEnd = cpuProfileSink.ReadMicroseconds();
+                        if (cpuProfileEnd < cpuProfileStart) {
+                            cpuProfileSink.ClockFault();
+                        } else {
+                            cpuProfileSink.RecordUpdateable(item, i, LastUpdateableDiagnosticTypeHash,
+                                LastUpdateableDiagnosticOwnerSceneEntityId, cpuProfileEnd - cpuProfileStart);
+                        }
+                    }
                     if (shouldRecordUpdateStages) {
                         core.ReportSceneTransitionStage(
                             "AfterObjectManagerUpdateable index=" + i
@@ -643,6 +660,28 @@ namespace helengine {
             ApplyPendingUpdateOperations();
         }
 
+        /// <summary>
+        /// Publishes one updateable type name once for the current profiling session.
+        /// </summary>
+        /// <param name="entity">Updateable being registered.</param>
+        void RegisterCpuProfileType(IUpdateable entity) {
+            Core core = OwnerCore;
+            IRuntimeCpuProfileSink sink = core == null ? null : core.CpuProfileSink;
+            if (sink == null || entity == null) {
+                return;
+            }
+            if (CpuProfileTypeNamesByType == null) {
+                CpuProfileTypeNamesByType = new Dictionary<Type, bool>();
+            }
+
+            Type entityType = entity.GetType();
+            if (CpuProfileTypeNamesByType.ContainsKey(entityType)) {
+                return;
+            }
+
+            CpuProfileTypeNamesByType[entityType] = true;
+            sink.RegisterType(ResolveStableTypeNameHash(entity), entityType.Name);
+        }
         /// <summary>
         /// Adds an updateable to the ordered update list.
         /// </summary>
