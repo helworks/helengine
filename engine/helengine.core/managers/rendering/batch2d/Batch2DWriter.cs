@@ -53,6 +53,10 @@ namespace helengine {
             ValidateCamera(projection, pixelViewport);
             Flush();
 
+#if HELENGINE_CODEGEN_FATAL_ONLY
+            Sink.SetCamera(projection, pixelViewport);
+            HasCamera = true;
+#else
             try {
                 Sink.SetCamera(projection, pixelViewport);
                 HasCamera = true;
@@ -61,6 +65,7 @@ namespace helengine {
                 IsFaulted = true;
                 throw;
             }
+#endif
         }
 
         /// <summary>Validates and copies one quad while preserving original run order.</summary>
@@ -114,6 +119,14 @@ namespace helengine {
                 return;
             }
 
+#if HELENGINE_CODEGEN_FATAL_ONLY
+            ValidateRun(CurrentRun);
+            Sink.Submit(Buffer, CurrentRun);
+            Buffer.VertexCount = 0;
+            Buffer.IndexCount = 0;
+            QuadCount = 0;
+            HasRun = false;
+#else
             try {
                 ValidateRun(CurrentRun);
                 Sink.Submit(Buffer, CurrentRun);
@@ -126,16 +139,16 @@ namespace helengine {
                 IsFaulted = true;
                 throw;
             }
+#endif
         }
 
         /// <summary>Releases owned CPU arrays without submitting or disposing borrowed objects.</summary>
         public void Dispose() {
+            NativeOwnership.DisposeAndRelease(ref Buffer);
             if (IsDisposed) {
                 return;
             }
 
-            Buffer.Dispose();
-            NativeOwnership.Release(ref Buffer);
             Sink = null;
             IsDisposed = true;
         }
