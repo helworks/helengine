@@ -59,7 +59,7 @@ namespace helengine {
         /// Releases all temporary reference requests collected for this load.
         /// </summary>
         public void Clear() {
-            Requests = null;
+            NativeOwnership.Release(ref Requests);
         }
 
         void BindEntity(Entity entity) {
