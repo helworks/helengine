@@ -17,11 +17,14 @@ namespace helengine {
         /// <summary>Gets the number of initialized indices in the current chunk.</summary>
         public int IndexCount { get; internal set; }
 
-        /// <summary>Allocates fixed storage sized for the writer's validated quad capacity.</summary>
+        /// <summary>Allocates fixed storage after confirming both array lengths fit in an integer.</summary>
         /// <param name="quadCapacity">The maximum number of quads in one chunk.</param>
         internal Batch2DBuffer(int quadCapacity) {
-            Vertices = new Batch2DVertex[checked(quadCapacity * 4)];
-            Indices = new ushort[checked(quadCapacity * 6)];
+            if (quadCapacity < 0 || quadCapacity > int.MaxValue / 6) {
+                throw new OverflowException("Quad capacity exceeds the supported array length.");
+            }
+            Vertices = new Batch2DVertex[quadCapacity * 4];
+            Indices = new ushort[quadCapacity * 6];
         }
 
         /// <summary>Releases the owned value arrays without deleting their elements.</summary>
