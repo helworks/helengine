@@ -1000,7 +1000,7 @@ namespace helengine.editor.tests {
                 true,
                 target => target.AddComponent(new MeshComponent()));
 
-            panel.ShowEntityProperties(entity, new[] { "windows" });
+            panel.ShowEntityProperties(entity, new[] { "windows" }, TestInspectorPlatformDefinitions.Create("windows"));
             SelectInspectorPlatform(panel, "windows");
 
             InvokePrivate(panel, "HandleAddComponentSelected", descriptor);
@@ -1033,7 +1033,7 @@ namespace helengine.editor.tests {
                 true,
                 target => target.AddComponent(new MeshComponent()));
 
-            panel.ShowEntityProperties(entity, new[] { "windows" });
+            panel.ShowEntityProperties(entity, new[] { "windows" }, TestInspectorPlatformDefinitions.Create("windows"));
             SelectInspectorPlatform(panel, "windows");
             InvokePrivate(panel, "HandleAddComponentSelected", descriptor);
             SelectInspectorPlatform(panel, "windows");
@@ -1064,7 +1064,7 @@ namespace helengine.editor.tests {
             PropertiesPanel panel = BindPanel(new PropertiesPanel(CoreValue, GeneratedAssetGraph.InteractionServices, CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
-            panel.ShowEntityProperties(entity, new[] { "windows" });
+            panel.ShowEntityProperties(entity, new[] { "windows" }, TestInspectorPlatformDefinitions.Create("windows"));
             SelectInspectorPlatform(panel, "windows");
 
             ComponentPropertiesView windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
@@ -1095,7 +1095,7 @@ namespace helengine.editor.tests {
             PropertiesPanel panel = BindPanel(new PropertiesPanel(CoreValue, GeneratedAssetGraph.InteractionServices, CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
-            panel.ShowEntityProperties(entity, new[] { "windows" });
+            panel.ShowEntityProperties(entity, new[] { "windows" }, TestInspectorPlatformDefinitions.Create("windows"));
             SelectInspectorPlatform(panel, "windows");
 
             ComponentPropertiesView windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");
@@ -1137,7 +1137,7 @@ namespace helengine.editor.tests {
             PropertiesPanel panel = BindPanel(new PropertiesPanel(CoreValue, GeneratedAssetGraph.InteractionServices, CreateFont(), new ContentManager(new HostFileSystemContentStreamSource(TempRootPath))));
             EditorEntity entity = CreateEntityWithVisibleComponents();
 
-            panel.ShowEntityProperties(entity, new[] { "windows" });
+            panel.ShowEntityProperties(entity, new[] { "windows" }, TestInspectorPlatformDefinitions.Create("windows"));
             SelectInspectorPlatform(panel, "windows");
 
             ComponentPropertiesView windowsView = GetPrivateField<ComponentPropertiesView>(panel, "ComponentView");

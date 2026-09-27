@@ -1153,6 +1153,57 @@ namespace helengine.editor {
         }
 
         /// <summary>
+        /// Indicates that the selected platform has no locally loaded definition to validate inspector edits.
+        /// Common properties remain editable independently of installed platform builders.
+        /// </summary>
+        bool IsSelectedPlatformUnavailable => !IsCommonPlatformSelected(SelectedComponentPlatformId)
+            && (!CurrentPlatformDefinitionsById.TryGetValue(SelectedComponentPlatformId, out PlatformDefinition definition) || definition == null);
+
+        /// <summary>
+        /// Displays saved metadata without interpreting or rewriting builder-owned values for an unavailable platform.
+        /// </summary>
+        void RefreshPlatformAvailabilityNotice() {
+            if (!IsSelectedPlatformUnavailable) {
+                ApplyLines(Array.Empty<string>());
+                return;
+            }
+
+            List<string> lines = new List<string> {
+                $"{SelectedComponentPlatformId}: builder unavailable (read-only)",
+                "Saved overrides will be preserved.",
+                "Install this platform to edit."
+            };
+            EntitySaveComponent save = FindEntitySaveComponent(SelectedEntity);
+            if (save != null) {
+                if (save.TryGetTransformPlatformOverride(CurrentComponentScope, out SceneEntityPlatformTransformOverrideAsset transform)) {
+                    if (transform.HasLocalPositionOverride) {
+                        lines.Add($"Saved position: {transform.LocalPosition}");
+                    }
+                    if (transform.HasLocalOrientationOverride) {
+                        lines.Add($"Saved orientation: {transform.LocalOrientation}");
+                    }
+                    if (transform.HasLocalScaleOverride) {
+                        lines.Add($"Saved scale: {transform.LocalScale}");
+                    }
+                }
+                if (save.TryGetExistencePlatformOverride(CurrentComponentScope, out SceneEntityPlatformExistenceOverrideAsset existence)) {
+                    lines.Add($"Saved existence: {existence.Exists}");
+                }
+                foreach (EntityComponentSaveState state in save.EnumerateComponentStates()) {
+                    foreach (EntityComponentPlatformOverrideState scope in state.EnumeratePlatformOverrides()) {
+                        if (scope.Scope != CurrentComponentScope) {
+                            continue;
+                        }
+                        foreach (KeyValuePair<string, string> member in scope.EnumerateMemberValues()) {
+                            lines.Add($"{member.Key}: {member.Value}");
+                        }
+                    }
+                }
+            }
+            ApplyLines(lines);
+        }
+
+        /// <summary>
         /// Updates the screen-wide modal dialogs using the current host window size.
         /// </summary>
         /// <param name="windowWidth">Current host window width.</param>
@@ -1169,6 +1220,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="component">Component pending removal.</param>
         void HandleComponentRemoveRequested(ComponentSectionView section) {
+            if (IsSelectedPlatformUnavailable) {
+                return;
+            }
             if (section == null) {
                 throw new ArgumentNullException(nameof(section));
             }
@@ -1189,6 +1243,10 @@ namespace helengine.editor {
         /// Removes the pending component from the selected entity after confirmation.
         /// </summary>
         void HandleRemoveComponentConfirmed() {
+            if (IsSelectedPlatformUnavailable) {
+                HideRemoveComponentDialog();
+                return;
+            }
             if (SelectedEntity == null || PendingRemovalSection == null || PendingRemovalSection.TargetComponent == null) {
                 HideRemoveComponentDialog();
                 return;
@@ -1238,7 +1296,7 @@ namespace helengine.editor {
 
             PersistSelectedEntityTransformPlatform();
             SelectedComponentPlatformId = platformId;
-            ComponentPlatformTabStrip.SetEnvironmentAddButtonInteractive(!IsCommonPlatformSelected(platformId));
+            ComponentPlatformTabStrip.SetEnvironmentAddButtonInteractive(!IsCommonPlatformSelected(platformId) && !IsSelectedPlatformUnavailable);
             SelectedComponentEnvironmentId = ComponentEnvironmentOverridePlatforms.Contains(platformId)
                 ? ResolveEnvironmentId(SelectedComponentEnvironmentId)
                 : string.Empty;
@@ -1251,7 +1309,8 @@ namespace helengine.editor {
             ComponentPlatformTabStrip.SetSelectedPlatform(platformId);
             SyncTransformFields(SelectedEntity);
             ComponentView.SetPlatformDefinitions(CurrentPlatformDefinitionsById);
-            ComponentView.ShowComponents(SelectedEntity, platformId, SelectedComponentEnvironmentId);
+            ComponentView.ShowComponents(SelectedEntity, platformId, SelectedComponentEnvironmentId, IsSelectedPlatformUnavailable);
+            RefreshPlatformAvailabilityNotice();
             LayoutLines();
         }
 
@@ -1263,6 +1322,9 @@ namespace helengine.editor {
                 || string.Equals(platformId, ComponentPlatformEditingService.CommonPlatformId, StringComparison.OrdinalIgnoreCase)) {
                 return;
             }
+            if (!CurrentPlatformDefinitionsById.TryGetValue(platformId.Trim(), out PlatformDefinition definition) || definition == null) {
+                return;
+            }
 
             ComponentEnvironmentOverridePlatforms.Add(platformId.Trim());
             SelectedComponentPlatformId = platformId.Trim();
@@ -1272,7 +1334,7 @@ namespace helengine.editor {
             ComponentEnvironmentTabStrip.Root.Enabled = true;
             ActivateSelectedEntityTransformPlatform();
             SyncTransformFields(SelectedEntity);
-            ComponentView.ShowComponents(SelectedEntity, SelectedComponentPlatformId, SelectedComponentEnvironmentId);
+            ComponentView.ShowComponents(SelectedEntity, SelectedComponentPlatformId, SelectedComponentEnvironmentId, IsSelectedPlatformUnavailable);
             LayoutLines();
         }
 
@@ -1288,7 +1350,8 @@ namespace helengine.editor {
             SelectedComponentEnvironmentId = environmentId.Trim();
             ActivateSelectedEntityTransformPlatform();
             SyncTransformFields(SelectedEntity);
-            ComponentView.ShowComponents(SelectedEntity, SelectedComponentPlatformId, SelectedComponentEnvironmentId);
+            ComponentView.ShowComponents(SelectedEntity, SelectedComponentPlatformId, SelectedComponentEnvironmentId, IsSelectedPlatformUnavailable);
+            RefreshPlatformAvailabilityNotice();
             LayoutLines();
         }
 
@@ -1694,6 +1757,16 @@ namespace helengine.editor {
             TransformRoot.Position = new float3(0, top, 0.2f);
             RefreshTransformOverrideChrome();
 
+            NameRow.Enabled = !IsSelectedPlatformUnavailable;
+            PositionRow.Enabled = !IsSelectedPlatformUnavailable;
+            RotationRow.Enabled = !IsSelectedPlatformUnavailable;
+            ScaleRow.Enabled = !IsSelectedPlatformUnavailable;
+            if (IsSelectedPlatformUnavailable) {
+                ExistsRow.Enabled = false;
+                LayoutComponentPlatformTabs(ComponentPlatformTabTopSpacing, maxWidth);
+                return;
+            }
+
             int labelWidth = Math.Min(TransformLabelWidth, maxWidth);
             int nameFieldWidth = Math.Max(48, maxWidth - labelWidth - TransformFieldSpacing);
             int rowSpacing = LineSpacing + 2;
@@ -1961,6 +2034,10 @@ namespace helengine.editor {
         /// Applies transform edits if input fields have changed.
         /// </summary>
         internal void UpdateTransformEdits() {
+            if (IsSelectedPlatformUnavailable) {
+                ApplyTransformRequested = false;
+                return;
+            }
             if (!ShowTransformControls || SelectedEntity == null) {
                 return;
             }
@@ -2072,7 +2149,9 @@ namespace helengine.editor {
                 return;
             }
 
-            TransformPlatformEditingService.ActivateScope(SelectedEntity, saveComponent, CurrentComponentScope);
+            // Never project unavailable scopes into mutable scene transforms: saving a projection can normalize its overrides.
+            TransformPlatformEditingService.ActivateScope(SelectedEntity, saveComponent,
+                IsSelectedPlatformUnavailable ? EditorOverrideScope.ForPlatform(ComponentPlatformEditingService.CommonPlatformId) : CurrentComponentScope);
         }
 
         /// <summary>
@@ -2133,6 +2212,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="fieldKind">Transform field that should return to common behavior.</param>
         void ClearSelectedEntityTransformOverride(TransformOverrideFieldKind fieldKind) {
+            if (IsSelectedPlatformUnavailable) {
+                return;
+            }
             if (!HasLiveSelectedEntity()) {
                 return;
             }
@@ -2231,7 +2313,7 @@ namespace helengine.editor {
             if (checkBox == null) {
                 throw new ArgumentNullException(nameof(checkBox));
             }
-            if (IsSynchronizingInputs || !HasLiveSelectedEntity()) {
+            if (IsSynchronizingInputs || !HasLiveSelectedEntity() || IsSelectedPlatformUnavailable) {
                 return;
             }
             if (string.IsNullOrWhiteSpace(SelectedComponentPlatformId)
@@ -2396,7 +2478,7 @@ namespace helengine.editor {
                 UpdateTransformLayout(transformTop, maxWidth);
                 int addComponentTop = transformTop + GetTransformSectionHeight() + ComponentSectionSpacing;
                 LayoutAddComponentButton(addComponentTop, maxWidth);
-                int componentTop = addComponentTop + AddComponentButtonHeight + AddComponentListSpacing;
+                int componentTop = addComponentTop + (IsSelectedPlatformUnavailable ? 0 : AddComponentButtonHeight + AddComponentListSpacing);
                 ComponentView.UpdateLayout(0, componentTop, rowWidth);
                 offsetY = Math.Max(addComponentTop + AddComponentButtonHeight, componentTop + ComponentView.Height);
             } else if (BlueprintEditorReadOnlyService.IsInheritedEntity(SelectedEntity) && ComponentView.IsVisible) {
@@ -2428,6 +2510,9 @@ namespace helengine.editor {
                 tabStripHeight = ComponentPlatformTabTopSpacing
                     + (ComponentPlatformTabHeight * visibleTabCount)
                     + ComponentPlatformTabBottomSpacing;
+            }
+            if (IsSelectedPlatformUnavailable) {
+                return tabStripHeight;
             }
             int existenceRowCount = ShouldShowEntityExistenceRow() ? 1 : 0;
             int rowCount = 4 + existenceRowCount;
@@ -2494,7 +2579,7 @@ namespace helengine.editor {
         /// Handles activation of the add-component button.
         /// </summary>
         void HandleAddComponentClicked() {
-            if (!HasLiveSelectedEntity() || SelectedEntity is not EditorEntity) {
+            if (!HasLiveSelectedEntity() || SelectedEntity is not EditorEntity || IsSelectedPlatformUnavailable) {
                 return;
             }
 
@@ -2514,6 +2599,9 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="descriptor">Descriptor that defines the component to add.</param>
         void HandleAddComponentSelected(EditorComponentAddDescriptor descriptor) {
+            if (IsSelectedPlatformUnavailable) {
+                return;
+            }
             if (descriptor == null) {
                 throw new ArgumentNullException(nameof(descriptor));
             }
@@ -2567,7 +2655,7 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="top">Top offset within the content root.</param>
         void LayoutAddComponentButton(int top, int width) {
-            if (!HasLiveSelectedEntity() || SelectedEntity is not EditorEntity) {
+            if (!HasLiveSelectedEntity() || SelectedEntity is not EditorEntity || IsSelectedPlatformUnavailable) {
                 AddComponentButtonRoot.Enabled = false;
                 return;
             }

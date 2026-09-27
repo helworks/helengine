@@ -27,6 +27,30 @@ namespace helengine.editor.tests {
         public void Dispose() {
         }
 
+        /// <summary>A focused textbox in another core must not consume this editor's keyboard shortcuts.</summary>
+        [Fact]
+        public void Update_when_another_core_owns_the_focused_text_box_routes_this_cores_delete_shortcut() {
+            Core ownerCore = Core.Instance;
+            EditorKeyboardFocusUpdateComponent component = new EditorKeyboardFocusUpdateComponent(ownerCore.Input, InteractionServices);
+            int deleteCount = 0;
+            component.DeleteShortcutRequested = () => deleteCount++;
+            using Core otherCore = new Core(new CoreInitializationOptions { ContentStreamSource = new FakeContentStreamSource() });
+            otherCore.Initialize(null, new TestRenderManager2D(), new TestInputBackend(), new PlatformInfo("test", "test-version"));
+            using EditorSessionInteractionServices otherServices = new EditorSessionInteractionServices();
+            using EditorEntity otherEntity = new EditorEntity(otherCore, otherServices);
+            TextBoxComponent otherTextBox = new TextBoxComponent(new int2(180, 28), CreateFont(), "Other editor");
+            otherEntity.AddComponent(otherTextBox);
+            otherEntity.InitializeHierarchy();
+            otherTextBox.IsFocused = true;
+
+            InputBackend.SetKeyboardState(new KeyboardState(Keys.Delete));
+            ownerCore.Input.EarlyUpdate();
+            component.Update();
+
+            Assert.Equal(1, deleteCount);
+            Assert.True(otherTextBox.IsFocused);
+        }
+
         /// <summary>
         /// Ensures pressing Ctrl+Z invokes the undo shortcut callback.
         /// </summary>

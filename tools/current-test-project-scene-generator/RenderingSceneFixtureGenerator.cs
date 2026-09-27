@@ -44,7 +44,6 @@ namespace helengine.current_test_project_scene_generator {
         const string TowerSpinTypeId = "gameplay.rendering.DirectionalShadowTowerSpinComponent, gameplay";
         const ushort SceneObjectsLayerMask = 0b0100000000000000;
 
-        readonly GeneratedMaterialAssetWriteService MaterialWriter = new GeneratedMaterialAssetWriteService();
         readonly GeneratedSceneComponentAuthoringService ComponentAuthoringService = new GeneratedSceneComponentAuthoringService();
 
         /// <summary>
@@ -67,10 +66,28 @@ namespace helengine.current_test_project_scene_generator {
                 throw new InvalidOperationException($"Assets root was not found: {root}");
             }
 
-            WriteMaterialDependencies(root);
-            WritePs2BasisMaterialDependencies(root);
+            using helengine.directx11.DirectX11Renderer3D renderer = new helengine.directx11.DirectX11Renderer3D();
+            using EditorCore core = new EditorCore(null);
+            core.Initialize(renderer, renderer.Render2D, null, new PlatformInfo("editor", "fixture-generator"),
+                new CoreInitializationOptions { ContentStreamSource = new HostFileSystemContentStreamSource(Path.Combine(root, "assets")) });
+            using EditorSessionInteractionServices interactionServices = new EditorSessionInteractionServices();
+            using EditorCoreInteractionGraphBinding interactionBinding = new EditorCoreInteractionGraphBinding(core, interactionServices);
+            ShaderBackendRegistry shaderBackends = new ShaderBackendRegistry();
+            shaderBackends.Register(new helengine.directx11.DirectX11ShaderBackend());
+            using EditorBuiltInShaderAssetLibrary shaderLibrary = new EditorBuiltInShaderAssetLibrary(shaderBackends);
+            using EngineGeneratedModelCache modelCache = new EngineGeneratedModelCache(core);
+            using EngineGeneratedMaterialCache materialCache = new EngineGeneratedMaterialCache(core, shaderLibrary);
+            using EditorSessionRendererResources rendererResources = new EditorSessionRendererResources(
+                core.RenderManager3D, core.RenderManager2D, core.ObjectManager, core.EntityFactory,
+                core.SceneEntityIdAllocator, core.Input, () => core.FrameDeltaSeconds, null, interactionServices);
+            using GeneratedAssetProviderRegistry providers = new GeneratedAssetProviderRegistry();
             using IEditorProjectAuthoringSession authoringSession = new EditorProjectAssetAuthoringServiceFactory(
-                Array.Empty<IAssetImporterRegistration>()).CreateSession(root);
+                Array.Empty<IAssetImporterRegistration>()).CreateSession(root, providers, modelCache, materialCache, rendererResources);
+            using (EditorAuthoringTransaction transaction = authoringSession.BeginTransaction()) {
+                WriteMaterialDependencies(transaction);
+                WritePs2BasisMaterialDependencies(transaction);
+                transaction.Commit();
+            }
             WriteBootstrapScene(authoringSession);
             SceneAssetReference cube = EngineSceneAssetReferenceFactory.CreateCubeModel();
             SceneAssetReference plane = EngineSceneAssetReferenceFactory.CreatePlaneModel();
@@ -312,18 +329,16 @@ namespace helengine.current_test_project_scene_generator {
         /// <summary>
         /// Writes the current common-settings documents referenced by the rendering scene catalog.
         /// </summary>
-        /// <param name="projectRootPath">Project root that owns the test-project assets.</param>
-        void WriteMaterialDependencies(string projectRootPath) {
-            MaterialWriter.WriteMaterial(
-                projectRootPath,
+        /// <param name="transaction">Transaction that publishes the generated material family.</param>
+        void WriteMaterialDependencies(EditorAuthoringTransaction transaction) {
+            transaction.WriteMaterial(
                 MaterialRootRelativePath + "/TransparentStandard.helmat",
                 CreateMaterialDefinition(
                     "Materials/rendering/TransparentStandard",
                     "alpha-blend",
                     false,
                     "transparent-standard"));
-            MaterialWriter.WriteMaterial(
-                projectRootPath,
+            transaction.WriteMaterial(
                 MaterialRootRelativePath + "/DoubleSidedStandard.helmat",
                 CreateMaterialDefinition(
                     "Materials/rendering/DoubleSidedStandard",
@@ -335,8 +350,8 @@ namespace helengine.current_test_project_scene_generator {
         /// <summary>
         /// Rewrites the stale PS2 basis material family and its Windows/PS2 settings through the current material writer.
         /// </summary>
-        /// <param name="projectRootPath">Project root that owns the test-project assets.</param>
-        void WritePs2BasisMaterialDependencies(string projectRootPath) {
+        /// <param name="transaction">Transaction that publishes the generated material family.</param>
+        void WritePs2BasisMaterialDependencies(EditorAuthoringTransaction transaction) {
             for (int index = 0; index < Ps2BasisMaterialDefinitions.Length; index++) {
                 (string name, string baseColor) = Ps2BasisMaterialDefinitions[index];
                 string materialRelativePath = MaterialRootRelativePath + "/ps2_basis_light_test/" + name + ".hasset";
@@ -373,7 +388,7 @@ namespace helengine.current_test_project_scene_generator {
                 ps2.SetFieldValue("vertex-color-mode", "ignore");
                 ps2.SetFieldValue("base-color", baseColor);
 
-                MaterialWriter.WriteMaterial(projectRootPath, materialRelativePath, definition);
+                transaction.WriteMaterial(materialRelativePath, definition);
             }
         }
 

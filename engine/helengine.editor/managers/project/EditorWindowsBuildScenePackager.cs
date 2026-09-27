@@ -541,7 +541,7 @@ namespace helengine.editor {
                 projectRootPath,
                 importers,
                 targetPlatformId,
-                null,
+                materialBuilder?.Definition,
                 null,
                 materialBuilder,
                 selectedBuildProfileId,

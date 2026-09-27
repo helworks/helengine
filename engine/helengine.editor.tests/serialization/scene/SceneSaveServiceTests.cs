@@ -56,6 +56,56 @@ namespace helengine.editor.tests.serialization.scene {
         }
 
         /// <summary>
+        /// Saving a common edit without any platform builder preserves opaque platform and environment overrides.
+        /// </summary>
+        [Fact]
+        public void SaveLoadSave_WhenPlatformBuilderIsAbsent_PreservesStoredOverrides() {
+            EditorEntity entity = CreateUserEntity("Menu", float3.Zero, float3.One, float4.Identity);
+            CameraComponent camera = new CameraComponent();
+            entity.AddComponent(camera);
+            EntitySaveComponent save = GetSaveComponent(entity);
+            EntityComponentSaveState state = save.GetOrCreateComponentState(camera);
+            EntityComponentPlatformOverrideState stored = new EntityComponentPlatformOverrideState { Payload = new byte[] { 7, 3, 9, 1 } };
+            stored.SetMemberValue("UnrecognizedDreamcastParameter", "original-value");
+            stored.SetPropertyOverride("FarPlaneDistance");
+            state.SetScopedPlatformOverride(new EditorOverrideScope("dc", "release"), stored);
+            SceneEntityPlatformTransformOverrideAsset transform = save.GetOrCreateTransformPlatformOverride("dc");
+            transform.HasLocalPositionOverride = true;
+            transform.LocalPosition = float3.Zero;
+            ComponentPersistenceRegistry registry = new ComponentPersistenceRegistry();
+            using SceneSaveService service = CreateSceneSaveService(registry);
+            string path = Path.Combine(TempProjectRootPath, "assets", "Scenes", "MissingPlatform.helen");
+            service.Save(path);
+            SceneAsset first;
+            using (FileStream stream = File.OpenRead(path)) {
+                first = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+            SceneLoadService loader = new SceneLoadService(registry, new TestSceneAssetReferenceResolver(), GeneratedAssetGraph.MaterialCache, GeneratedAssetGraph.RendererResources);
+            entity.Dispose();
+            EditorEntity restored = Assert.Single(loader.Load(first));
+            restored.Name = "Edited common name";
+            service.Save(path);
+            SceneAsset second;
+            using (FileStream stream = File.OpenRead(path)) {
+                second = Assert.IsType<SceneAsset>(AssetSerializer.Deserialize(stream));
+            }
+            restored.Dispose();
+            EditorEntity reloaded = Assert.Single(loader.Load(second));
+            Assert.Equal("Edited common name", reloaded.Name);
+            EntitySaveComponent finalSave = GetSaveComponent(reloaded);
+            CameraComponent finalCamera = Assert.Single(reloaded.Components.OfType<CameraComponent>());
+            EntityComponentPlatformOverrideState finalOverride = Assert.Single(finalSave.GetOrCreateComponentState(finalCamera).EnumeratePlatformOverrides());
+            Assert.Equal("platform:dc/buildconfig:release", finalOverride.Scope.ToString());
+            Assert.Equal(new byte[] { 7, 3, 9, 1 }, finalOverride.Payload);
+            Assert.True(finalOverride.TryGetMemberValue("UnrecognizedDreamcastParameter", out string value));
+            Assert.Equal("original-value", value);
+            Assert.True(finalOverride.HasPropertyOverride("FarPlaneDistance"));
+            Assert.True(finalSave.TryGetTransformPlatformOverride("dc", out var finalTransform));
+            Assert.True(finalTransform.HasLocalPositionOverride);
+            Assert.Equal(float3.Zero, finalTransform.LocalPosition);
+        }
+
+        /// <summary>
         /// Ensures native scenes mint embedded identity once and preserve it on later saves without sidecars.
         /// </summary>
         [Fact]

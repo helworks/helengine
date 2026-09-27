@@ -235,7 +235,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "ps2-install-tree",
                     generatedCoreRootPath,
-                    "disc-layout"
+                    "disc-layout",
+                    Path.Combine(rootPath, "native-object-cache")
                 ]);
 
             Assert.Equal(generatedCoreRootPath, request.GeneratedCoreCppRootPath);
@@ -337,7 +338,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "windows-install-tree",
                     generatedCoreRootPath,
-                    "loose"
+                    "loose",
+                    Path.Combine(rootPath, "native-object-cache")
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -439,7 +441,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "wiiu-install-tree",
                     generatedCoreRootPath,
-                    "loose"
+                    "loose",
+                    Path.Combine(rootPath, "native-object-cache")
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -541,7 +544,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "switch-install-tree",
                     generatedCoreRootPath,
-                    "loose"
+                    "loose",
+                    Path.Combine(rootPath, "native-object-cache")
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -643,7 +647,8 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
                     queueItem.SelectedCodegenOptionValues,
                     "ds-cartridge",
                     generatedCoreRootPath,
-                    "nitrofs-package"
+                    "nitrofs-package",
+                    Path.Combine(rootPath, "native-object-cache")
                 ]);
 
             PlatformCookProfile cookProfile = Assert.Single(request.CookProfiles);
@@ -1941,7 +1946,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
     /// <summary>
     /// Verifies the shared Windows build graph can export the committed point-shadow smoke scene from a copied project workspace.
     /// </summary>
-    [Fact]
+    [InstalledTestProjectPlatformFact("windows")]
     public void Execute_WhenBuildingCommittedPointShadowSceneForWindows_Succeeds() {
         string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");
@@ -1995,7 +2000,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
     /// <summary>
     /// Verifies the shared Windows build graph still succeeds when generated core includes the expanded 2D clip command stream types.
     /// </summary>
-    [Fact]
+    [InstalledTestProjectPlatformFact("windows")]
     public void Execute_WhenBuildingCommittedPointShadowSceneForWindows_WithClipCommandsInGeneratedCore_Succeeds() {
         Execute_WhenBuildingCommittedPointShadowSceneForWindows_Succeeds();
     }
@@ -2003,7 +2008,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
     /// <summary>
     /// Verifies the shared Windows build graph still succeeds after the native rounded-rect path moves to the SDF renderer.
     /// </summary>
-    [Fact]
+    [InstalledTestProjectPlatformFact("windows")]
     public void Execute_WhenBuildingCommittedPointShadowSceneForWindows_WithRoundedRectSdfParity_Succeeds() {
         Execute_WhenBuildingCommittedPointShadowSceneForWindows_Succeeds();
     }
@@ -2011,7 +2016,7 @@ public class EditorPlatformBuildGraphRunnerTests : IDisposable {
     /// <summary>
     /// Verifies project bootstrap can still resolve the installed Windows selection model when the editor runs from a git worktree copy.
     /// </summary>
-    [Fact]
+    [InstalledTestProjectPlatformFact("windows")]
     public void Bootstrap_WhenRunningFromWorktreeCopy_ResolvesWindowsSelectionModel() {
         string repositoryRootPath = TestSourceRepositoryLocator.ResolveHelEngineRootPath();
         string sourceProjectRootPath = Path.Combine(repositoryRootPath, "test-project");

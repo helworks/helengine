@@ -51,7 +51,9 @@ namespace helengine.editor {
             // A focused text box owns the keyboard. Dialog and panel boxes are not registered focus targets, so
             // without this the previously focused target (usually the viewport) would still see W/R/S/F and Delete.
             TextBoxComponent focusedTextEntry = TextBoxComponent.FocusedTextEntry;
-            bool textEntryActive = focusedTextEntry != null && focusedTextEntry.IsFocused;
+            bool textEntryActive = focusedTextEntry != null
+                && focusedTextEntry.IsFocused
+                && ReferenceEquals(focusedTextEntry.OwnerCore?.Input, Input);
             bool activationKeysAllowed = !textEntryActive || InteractionServices.KeyboardFocus.IsFocusedTarget(focusedTextEntry);
             bool shiftPressed = input.IsKeyDown(Keys.LeftShift) || input.IsKeyDown(Keys.RightShift);
             bool controlPressed = input.IsKeyDown(Keys.LeftControl) || input.IsKeyDown(Keys.RightControl);

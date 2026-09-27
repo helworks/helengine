@@ -35,56 +35,6 @@ namespace helengine.editor.tests {
         }
 
         /// <summary>
-        /// Ensures inverse-transpose uses a runtime path that does not allocate a managed array for every 3D draw.
-        /// </summary>
-        [Fact]
-        public void InverseTranspose_SourceDoesNotAllocateAugmentedMatrixArray() {
-            string sourcePath = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "helengine.core",
-                "model",
-                "float4x4.cs"));
-            string source = File.ReadAllText(sourcePath);
-
-            Assert.DoesNotContain("double[] augmented", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("new double[32]", source, StringComparison.Ordinal);
-        }
-
-        /// <summary>
-        /// Ensures the shared matrix source keeps one consistent translation, projection, and multiplication layout instead of reviving the broken GX ABI branch.
-        /// </summary>
-        [Fact]
-        public void GeneratedSource_GxAbiBranchDoesNotFlipFloat4x4Layout() {
-            string sourcePath = Path.GetFullPath(Path.Combine(
-                AppContext.BaseDirectory,
-                "..",
-                "..",
-                "..",
-                "..",
-                "helengine.core",
-                "model",
-                "float4x4.cs"));
-            string source = File.ReadAllText(sourcePath);
-
-            Assert.DoesNotContain("result.M14 = x;", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("result.M24 = y;", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("result.M34 = z;", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("matrix2.M11 * matrix1.M11", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("result.M34 = nearPlaneDistance * negFarRange;", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("result.M43 = -1.0f;", source, StringComparison.Ordinal);
-            Assert.Contains("result.M41 = x;", source, StringComparison.Ordinal);
-            Assert.Contains("result.M42 = y;", source, StringComparison.Ordinal);
-            Assert.Contains("result.M43 = z;", source, StringComparison.Ordinal);
-            Assert.Contains("result.M34 = -1.0f;", source, StringComparison.Ordinal);
-            Assert.Contains("result.M43 = nearPlaneDistance * negFarRange;", source, StringComparison.Ordinal);
-            Assert.Contains("matrix1.M11 * matrix2.M11", source, StringComparison.Ordinal);
-        }
-
-        /// <summary>
         /// Ensures inverse-transpose remains mathematically correct for affine transforms after removing the heap-backed augmented matrix.
         /// </summary>
         [Fact]

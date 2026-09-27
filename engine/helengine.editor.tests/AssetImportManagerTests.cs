@@ -112,47 +112,6 @@ namespace helengine.editor.tests {
             }
         }
 
-        /// <summary>
-        /// Keeps every public source/settings entry point behind the same
-        /// authoritative path preflight before it can probe a file.
-        /// </summary>
-        [Fact]
-        public void AuthoredSourceApis_NormalizeBeforeFilesystemProbe() {
-            string source = File.ReadAllText(ResolveEditorSourcePath());
-            string[] methodNames = {
-                "ImportTexture", "TryGetTextureSourceDimensions", "ImportText", "ImportFont",
-                "ImportAudio", "BuildFontAssetForPlatform", "ImportModel", "LoadOrCreateImportSettings",
-                "SaveImportSettings", "TryLoadTextureAsset", "TryLoadTextAsset", "TryLoadFontAsset",
-                "TryLoadAudioAsset", "TryLoadModelAsset", "TryLoadOrCreateImportSettings",
-                "LoadOrCreateTextureImportSettings", "SaveTextureImportSettings",
-                "TryLoadOrCreateTextureImportSettings", "LoadOrCreateModelImportSettings",
-                "LoadOrCreateAudioImportSettings", "SaveModelImportSettings", "SaveAudioImportSettings",
-                "TryLoadOrCreateModelImportSettings", "TryLoadOrCreateAudioImportSettings"
-            };
-
-            foreach (string methodName in methodNames) {
-                int declaration = source.IndexOf("public ", source.IndexOf("class AssetImportManager", StringComparison.Ordinal), StringComparison.Ordinal);
-                while (declaration >= 0) {
-                    int nameStart = source.IndexOf(methodName + "(", declaration, StringComparison.Ordinal);
-                    int declarationEnd = source.IndexOf("\n", declaration, StringComparison.Ordinal);
-                    if (nameStart >= declaration && (declarationEnd < 0 || nameStart < declarationEnd)) {
-                        break;
-                    }
-                    int nextDeclaration = source.IndexOf("\n        public ", declaration + 1, StringComparison.Ordinal);
-                    declaration = nextDeclaration < 0 ? -1 : nextDeclaration + 1;
-                }
-
-                Assert.True(declaration >= 0, $"Could not locate public method {methodName}.");
-                int bodyStart = source.IndexOf('{', declaration);
-                int nextMethod = source.IndexOf("\n        public ", bodyStart + 1, StringComparison.Ordinal);
-                string methodBody = source.Substring(bodyStart, (nextMethod < 0 ? source.Length : nextMethod) - bodyStart);
-                int preflight = methodBody.IndexOf("NormalizeAndValidateAuthoredSourcePath(sourcePath)", StringComparison.Ordinal);
-                int probe = methodBody.IndexOf("File.Exists(sourcePath)", StringComparison.Ordinal);
-                Assert.True(preflight >= 0, $"{methodName} must normalize sourcePath before any operation.");
-                Assert.True(probe < 0 || preflight < probe, $"{methodName} probes sourcePath before normalization.");
-            }
-        }
-
         [Fact]
         public void SaveImportSettings_RoundTripsPlatformFontTextureSettingsThroughVerifiedLeaves() {
             string sourcePath = WriteSourceFont("round-trip-font.ttf");

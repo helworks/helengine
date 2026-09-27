@@ -3,6 +3,34 @@ namespace helengine.editor {
     /// Verifies generated material settings persistence behavior used by city-authored material generators.
     /// </summary>
     public sealed class MaterialAssetSettingsServiceTests {
+        /// <summary>Missing builder metadata preserves saved material fields without seeding or rewriting them.</summary>
+        [Fact]
+        public void LoadOrCreateInMemory_WhenBuilderIsUnavailable_PreservesSavedSettings() {
+            string projectRoot = Path.Combine(helengine.editor.tests.TestSourceRepositoryLocator.ResolveHelEngineRootPath(),
+                "artifacts", "material-settings-tests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(projectRoot);
+            try {
+                string materialPath = Path.Combine(projectRoot, "Material.hasset");
+                MaterialAssetSettingsService service = new MaterialAssetSettingsService(projectRoot);
+                MaterialAssetImportSettings settings = new MaterialAssetImportSettings();
+                settings.Importer.ImporterId = "helengine.material";
+                MaterialAssetProcessorSettings platform = new MaterialAssetProcessorSettings { SchemaId = "unavailable-schema" };
+                platform.FieldValues["opaque-builder-setting"] = "preserve-me";
+                settings.Processor.Platforms["dc"] = platform;
+                service.Save(materialPath, settings);
+                Dictionary<string, byte[]> before = Directory.GetFiles(projectRoot).ToDictionary(path => path, File.ReadAllBytes);
+
+                MaterialAssetImportSettings loaded = service.LoadOrCreateInMemory(materialPath, null, ["dc"], _ => null);
+
+                Assert.Equal(platform.SchemaId, loaded.Processor.Platforms["dc"].SchemaId);
+                Assert.Equal(platform.FieldValues, loaded.Processor.Platforms["dc"].FieldValues);
+                Assert.Equal(before.Keys.OrderBy(path => path), Directory.GetFiles(projectRoot).OrderBy(path => path));
+                Assert.All(before, file => Assert.Equal(file.Value, File.ReadAllBytes(file.Key)));
+            } finally {
+                Directory.Delete(projectRoot, true);
+            }
+        }
+
         /// <summary>
         /// Ensures native authored material documents mint identity once and preserve it without sidecars.
         /// </summary>

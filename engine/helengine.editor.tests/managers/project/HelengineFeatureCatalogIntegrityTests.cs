@@ -13,12 +13,14 @@ public class HelengineFeatureCatalogIntegrityTests {
 
         Assert.True(File.Exists(normalizedFilePath));
 
-        string json = File.ReadAllText(normalizedFilePath);
-        Assert.Contains("\"shaders\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"render2d\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"managed_metadata_only\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"host_file_system\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"runtime_json\"", json, StringComparison.Ordinal);
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(normalizedFilePath));
+        string[] featureIds = document.RootElement.GetProperty("features").EnumerateArray()
+            .Select(feature => feature.GetProperty("id").GetString()).ToArray();
+        Assert.Contains("shaders", featureIds);
+        Assert.Contains("render2d", featureIds);
+        Assert.Contains("managed_metadata_only", featureIds);
+        Assert.Contains("host_file_system", featureIds);
+        Assert.DoesNotContain("runtime_json", featureIds);
     }
 
     /// <summary>
@@ -30,18 +32,21 @@ public class HelengineFeatureCatalogIntegrityTests {
 
         Assert.True(File.Exists(normalizedFilePath));
 
-        string json = File.ReadAllText(normalizedFilePath);
-        Assert.Contains("\"typeName\": \"helengine.HostFileSystemContentStreamSource\", \"featureIds\": [ \"host_file_system\" ]", json, StringComparison.Ordinal);
-        Assert.Contains("\"typeName\": \"helengine.TextContentManagerConfiguration\", \"featureIds\": [ \"text_processing\" ]", json, StringComparison.Ordinal);
-        Assert.Contains("\"typeName\": \"helengine.GeneratedRuntimeModuleManifestAttribute\", \"featureIds\": [ \"managed_metadata_only\" ]", json, StringComparison.Ordinal);
-        Assert.Contains("\"typeName\": \"helengine.RuntimeFeatureRequirementAttribute\", \"featureIds\": [ \"managed_metadata_only\" ]", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"typeName\": \"helengine.core.content.RuntimeManifestJsonReader\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"typeName\": \"helengine.core.content.RuntimeStartupManifest\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"typeName\": \"helengine.core.content.RuntimeCodeModuleManifest\"", json, StringComparison.Ordinal);
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(normalizedFilePath));
+        Dictionary<string, string[]> rules = document.RootElement.GetProperty("rootRules").EnumerateArray()
+            .ToDictionary(rule => rule.GetProperty("typeName").GetString(),
+                rule => rule.GetProperty("featureIds").EnumerateArray().Select(id => id.GetString()).ToArray());
+        Assert.Equal(new[] { "host_file_system" }, rules["helengine.HostFileSystemContentStreamSource"]);
+        Assert.Equal(new[] { "text_processing" }, rules["helengine.TextContentManagerConfiguration"]);
+        Assert.Equal(new[] { "managed_metadata_only" }, rules["helengine.GeneratedRuntimeModuleManifestAttribute"]);
+        Assert.Equal(new[] { "managed_metadata_only" }, rules["helengine.RuntimeFeatureRequirementAttribute"]);
+        Assert.DoesNotContain("helengine.core.content.RuntimeManifestJsonReader", rules.Keys);
+        Assert.DoesNotContain("helengine.core.content.RuntimeStartupManifest", rules.Keys);
+        Assert.DoesNotContain("helengine.core.content.RuntimeCodeModuleManifest", rules.Keys);
     }
 
     /// <summary>
-    /// Resolves the checked-in helengine feature catalog path by searching upward from the test process base directory.
+    /// Resolves the checked-in feature catalog from the source root embedded when the test project was built.
     /// </summary>
     /// <returns>Absolute path to the checked-in helengine feature catalog.</returns>
     static string ResolveFeatureCatalogPath() {
@@ -51,17 +56,6 @@ public class HelengineFeatureCatalogIntegrityTests {
             "codegen",
             "features",
             "helengine-feature-catalog.json");
-        DirectoryInfo currentDirectory = new DirectoryInfo(Path.GetFullPath(AppContext.BaseDirectory));
-
-        for (int depth = 0; depth < 10 && currentDirectory != null; depth++) {
-            string candidatePath = Path.Combine(currentDirectory.FullName, relativeCatalogPath);
-            if (File.Exists(candidatePath)) {
-                return candidatePath;
-            }
-
-            currentDirectory = currentDirectory.Parent;
-        }
-
-        return Path.Combine(AppContext.BaseDirectory, relativeCatalogPath);
+        return Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), relativeCatalogPath);
     }
 }

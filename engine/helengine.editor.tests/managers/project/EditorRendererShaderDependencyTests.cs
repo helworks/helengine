@@ -12,7 +12,7 @@ using Xunit;
 namespace helengine.editor.tests.managers.project;
 
 /// <summary>Verifies renderer-owned shader dependencies reach the platform shader cook request.</summary>
-public sealed class EditorRendererShaderDependencyTests {
+public sealed class EditorRendererShaderDependencyTests : IDisposable {
     /// <summary>Stable renderer shader asset identity used by the packaging contract.</summary>
     const string ShaderAssetId = "SpriteBatchShader";
     /// <summary>Stable renderer vertex program identity.</summary>
@@ -22,15 +22,23 @@ public sealed class EditorRendererShaderDependencyTests {
     /// <summary>Build-owned root reserved for this test instance's project and cook fixtures.</summary>
     readonly string TestRootPath;
 
-    /// <summary>Creates a fixture under the explicitly configured Task 4 build-owned artifact root.</summary>
+    /// <summary>Creates an isolated fixture under the repository artifacts directory or an explicitly configured output root.</summary>
     public EditorRendererShaderDependencyTests() {
         string configuredRoot = Environment.GetEnvironmentVariable("HELENGINE_TASK4_TEST_OUTPUT");
-        if (string.IsNullOrWhiteSpace(configuredRoot) || !Path.IsPathFullyQualified(configuredRoot)) {
+        if (string.IsNullOrWhiteSpace(configuredRoot)) {
+            configuredRoot = Path.Combine(TestSourceRepositoryLocator.ResolveHelEngineRootPath(), "artifacts", "renderer-shader-tests");
+        }
+        if (!Path.IsPathFullyQualified(configuredRoot)) {
             throw new InvalidOperationException("HELENGINE_TASK4_TEST_OUTPUT must name the absolute Task 4 test artifact root.");
         }
 
         TestRootPath = Path.Combine(Path.GetFullPath(configuredRoot), "editor", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(TestRootPath);
+    }
+
+    /// <summary>Removes only the isolated project and cook fixtures owned by this test instance.</summary>
+    public void Dispose() {
+        Directory.Delete(TestRootPath, true);
     }
 
     /// <summary>Checks opted-in renderer variants pass through source resolution into the real platform cook request.</summary>
