@@ -500,11 +500,11 @@ namespace helengine.editor {
             ProjectMenuItemsById = new Dictionary<string, EditorMenuItemDescriptor>(StringComparer.OrdinalIgnoreCase);
             ProjectMenuItems = Array.Empty<EditorMenuItemDescriptor>();
 
-            MinimizeButtonEntity = CreateTitleBarButton("-", HandleMinimizeRequested, null, true, false, out int minimizeButtonWidth);
+            MinimizeButtonEntity = CreateWindowControlButton(EditorWindowControlIconKind.Minimize, HandleMinimizeRequested, out int minimizeButtonWidth);
             MinimizeButtonWidth = minimizeButtonWidth;
-            MaximizeButtonEntity = CreateTitleBarButton("Max", HandleToggleMaximizeRequested, null, true, false, out int maximizeButtonWidth);
+            MaximizeButtonEntity = CreateWindowControlButton(EditorWindowControlIconKind.Maximize, HandleToggleMaximizeRequested, out int maximizeButtonWidth);
             MaximizeButtonWidth = maximizeButtonWidth;
-            CloseButtonEntity = CreateTitleBarButton("X", HandleCloseRequested, null, true, false, out int closeButtonWidth);
+            CloseButtonEntity = CreateWindowControlButton(EditorWindowControlIconKind.Close, HandleCloseRequested, out int closeButtonWidth);
             CloseButtonWidth = closeButtonWidth;
 
             NativeResizeBorderEntity = new EditorEntity(ownerCore, interactionServices) {
@@ -595,9 +595,9 @@ namespace helengine.editor {
             BuildMenuButtonWidth = ComputeButtonWidth("Build");
             ToolsMenuButtonWidth = ComputeButtonWidth("Tools");
             UiMenuButtonWidth = ComputeButtonWidth("UI");
-            MinimizeButtonWidth = ComputeButtonWidth("-");
-            MaximizeButtonWidth = ComputeButtonWidth("Max");
-            CloseButtonWidth = ComputeButtonWidth("X");
+            MinimizeButtonWidth = Metrics.ScalePixels(36);
+            MaximizeButtonWidth = Metrics.ScalePixels(36);
+            CloseButtonWidth = Metrics.ScalePixels(36);
 
             UpdateTitleBarButtonChrome(FileMenuButtonEntity, FileMenuButtonWidth, true, false, font);
             UpdateTitleBarButtonChrome(AddMenuButtonEntity, AddMenuButtonWidth, true, true, font);
@@ -1123,16 +1123,17 @@ namespace helengine.editor {
         /// <param name="includeLeftBorder">True when the button should draw its own left separator.</param>
         /// <param name="includeRightBorder">True when the button should draw its own right separator.</param>
         /// <param name="width">Computed button width.</param>
+        /// <param name="isWindowControl">Uses an icon-only label and fixed physical width for host window controls.</param>
         /// <returns>Entity hosting the created button.</returns>
-        EditorEntity CreateTitleBarButton(string label, Action onClick, Action onHover, bool includeLeftBorder, bool includeRightBorder, out int width) {
-            if (string.IsNullOrWhiteSpace(label)) {
+        EditorEntity CreateTitleBarButton(string label, Action onClick, Action onHover, bool includeLeftBorder, bool includeRightBorder, out int width, bool isWindowControl = false) {
+            if (!isWindowControl && string.IsNullOrWhiteSpace(label)) {
                 throw new ArgumentException("Button label must be provided.", nameof(label));
             }
             if (onClick == null) {
                 throw new ArgumentNullException(nameof(onClick));
             }
 
-            width = ComputeButtonWidth(label);
+            width = isWindowControl ? Metrics.ScalePixels(36) : ComputeButtonWidth(label);
             EditorEntity buttonEntity = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices) {
                 LayerMask = TitleBarLayerMask,
                 Position = new float3(0f, GetContentTopOffset(), 0f)
@@ -1151,6 +1152,49 @@ namespace helengine.editor {
             AddTitleBarButtonVerticalBorders(buttonEntity, width, includeLeftBorder, includeRightBorder);
             RootEntity.AddChild(buttonEntity);
             return buttonEntity;
+        }
+
+        /// <summary>Creates an icon-only host control using the same hover, pressed, and keyboard behavior as menu buttons.</summary>
+        /// <param name="kind">SVG glyph displayed in the control.</param>
+        /// <param name="onClick">Existing host action invoked by the button.</param>
+        /// <param name="width">Physical width reserved for the window control.</param>
+        /// <returns>Button entity with an owned in-memory SVG icon.</returns>
+        EditorEntity CreateWindowControlButton(EditorWindowControlIconKind kind, Action onClick, out int width) {
+            EditorEntity buttonEntity = CreateTitleBarButton(string.Empty, onClick, null, true, false, out width, true);
+            EditorEntity glyphEntity = new EditorEntity(RootEntity.OwnerCore, RootEntity.InteractionServices) {
+                LayerMask = TitleBarLayerMask
+            };
+            EditorWindowControlIconComponent icon = new EditorWindowControlIconComponent(
+                RootEntity.OwnerCore.RenderManager2D, kind, Metrics.ScalePixels(12));
+            glyphEntity.AddComponent(icon);
+            glyphEntity.AddComponent(icon.Sprite);
+            buttonEntity.AddChild(glyphEntity);
+            UpdateWindowControlIconLayout(icon, width);
+            return buttonEntity;
+        }
+
+        /// <summary>Regenerates and centers a window-control glyph at integer display coordinates after a DPI or theme change.</summary>
+        /// <param name="icon">Owned icon component to resize and recolor.</param>
+        /// <param name="buttonWidth">Physical width of the host control.</param>
+        void UpdateWindowControlIconLayout(EditorWindowControlIconComponent icon, int buttonWidth) {
+            int pixelSize = Metrics.ScalePixels(12);
+            icon.ApplyGlyph(icon.Kind, pixelSize);
+            icon.Sprite.Color = ThemeManager.Colors.AccentQuaternary;
+            icon.Sprite.Parent.Position = new float3(
+                (float)Math.Floor((buttonWidth - pixelSize) / 2d),
+                (float)Math.Floor((GetButtonHeight() - pixelSize) / 2d), 0.1f);
+        }
+
+        /// <summary>Switches the maximize button between single-window and restore glyphs to reflect the host window state.</summary>
+        /// <param name="isMaximized">Whether the host currently occupies its maximized bounds.</param>
+        public void SetWindowMaximized(bool isMaximized) {
+            for (int childIndex = 0; childIndex < MaximizeButtonEntity.Children.Count; childIndex++) {
+                if (TryGetComponent<EditorWindowControlIconComponent>(MaximizeButtonEntity.Children[childIndex], out EditorWindowControlIconComponent icon)) {
+                    icon.ApplyGlyph(isMaximized ? EditorWindowControlIconKind.Restore : EditorWindowControlIconKind.Maximize, Metrics.ScalePixels(12));
+                    return;
+                }
+            }
+            throw new InvalidOperationException("The maximize button must own a window-control icon.");
         }
 
         /// <summary>
@@ -1179,6 +1223,11 @@ namespace helengine.editor {
             }
 
             UpdateTitleBarButtonVerticalBorders(buttonEntity, width, includeLeftBorder, includeRightBorder);
+            for (int childIndex = 0; childIndex < buttonEntity.Children.Count; childIndex++) {
+                if (TryGetComponent<EditorWindowControlIconComponent>(buttonEntity.Children[childIndex], out EditorWindowControlIconComponent icon)) {
+                    UpdateWindowControlIconLayout(icon, width);
+                }
+            }
         }
 
         /// <summary>
@@ -1255,7 +1304,8 @@ namespace helengine.editor {
 
             for (int childIndex = 0; childIndex < buttonEntity.Children.Count; childIndex++) {
                 Entity childEntity = buttonEntity.Children[childIndex];
-                if (TryGetComponent<SpriteComponent>(childEntity, out _)) {
+                if (TryGetComponent<SpriteComponent>(childEntity, out _) &&
+                    !TryGetComponent<EditorWindowControlIconComponent>(childEntity, out _)) {
                     borderEntities.Add(childEntity);
                 }
             }

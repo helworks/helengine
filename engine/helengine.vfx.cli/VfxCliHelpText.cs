@@ -15,6 +15,7 @@ namespace helengine.vfx.cli {
             var builder = new StringBuilder();
             builder.AppendLine(VfxCliArguments.UsageLine);
             builder.AppendLine("       helengine.vfx.cli --help [--effect <id>]");
+            builder.AppendLine("       helengine.vfx.cli captions --help (SRT/Whisper to transparent PNG sequence)");
             builder.AppendLine();
             builder.Append("Known effect ids: ");
             builder.Append(string.Join(", ", VfxEffectRegistry.KnownIds));

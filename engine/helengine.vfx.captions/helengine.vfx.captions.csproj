@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <UseCommonOutputDirectory>false</UseCommonOutputDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <Using Include="System.Drawing" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.11" />
+  </ItemGroup>
+</Project>

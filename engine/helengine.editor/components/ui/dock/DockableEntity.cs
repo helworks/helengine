@@ -69,6 +69,10 @@ namespace helengine.editor {
         /// </summary>
         InteractableComponent PanelMenuButtonInteractivity;
         /// <summary>
+        /// Keeps the pressed background active while the pointer moves inside the menu button.
+        /// </summary>
+        bool PanelMenuButtonPressed;
+        /// <summary>
         /// Context menu shown when the panel menu button is activated.
         /// </summary>
         ContextMenu PanelMenu;
@@ -553,17 +557,35 @@ namespace helengine.editor {
         }
 
         /// <summary>
-        /// Handles pointer interaction on the panel menu button.
+        /// Updates the panel menu button's hover and pressed background, and toggles its menu on press.
         /// </summary>
         /// <param name="pos">Pointer position relative to the button.</param>
         /// <param name="delta">Pointer movement delta.</param>
         /// <param name="state">Pointer interaction state.</param>
         void PanelMenuButtonInteractivity_CursorEvent(int2 pos, int2 delta, PointerInteraction state) {
-            if (state != PointerInteraction.Press) {
-                return;
+            switch (state) {
+                case PointerInteraction.Hover:
+                    if (!PanelMenuButtonPressed) {
+                        PanelMenuButtonBackground.FillColor = ThemeManager.Colors.AccentPrimary;
+                    }
+                    break;
+                case PointerInteraction.Press:
+                    PanelMenuButtonPressed = true;
+                    PanelMenuButtonBackground.FillColor = ThemeManager.Colors.AccentTertiary;
+                    TogglePanelMenu();
+                    break;
+                case PointerInteraction.Release:
+                    PanelMenuButtonPressed = false;
+                    PanelMenuButtonBackground.FillColor = pos.X >= 0 && pos.Y >= 0
+                        && pos.X < PanelMenuButtonWidth && pos.Y < TitleBarHeightPixels
+                        ? ThemeManager.Colors.AccentPrimary
+                        : new byte4(255, 255, 255, 0);
+                    break;
+                case PointerInteraction.Leave:
+                    PanelMenuButtonPressed = false;
+                    PanelMenuButtonBackground.FillColor = new byte4(255, 255, 255, 0);
+                    break;
             }
-
-            TogglePanelMenu();
         }
 
         /// <summary>

@@ -301,6 +301,7 @@ namespace helengine.editor.app {
         /// <param name="cursorScreenPosition">Current cursor position in screen coordinates.</param>
         public void PrepareForTitleBarDrag(Point cursorScreenPosition) {
             WindowStateController.PrepareForTitleBarDrag(this, cursorScreenPosition);
+            editorSession.TitleBar.SetWindowMaximized(!WindowStateController.IsResizeBorderEnabled);
         }
 
         /// <summary>
@@ -556,7 +557,8 @@ namespace helengine.editor.app {
                 throw new ArgumentNullException(nameof(metrics));
             }
 
-            return GDIFontProcessor.ImportFont(new Font("Consolas", metrics.UiFontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel), renderManager2D);
+            using Font font = new Font("Consolas", metrics.UiFontPixelSize, FontStyle.Regular, GraphicsUnit.Pixel);
+            return GDIFontProcessor.ImportFont(font, renderManager2D, renderManager2D.SupportsRgbFontCoverage);
         }
 
         /// <summary>
@@ -569,7 +571,8 @@ namespace helengine.editor.app {
                 throw new ArgumentNullException(nameof(metrics));
             }
 
-            return GDIFontProcessor.ImportFont(new Font("Consolas", metrics.SnapModifierFontPixelSize, FontStyle.Bold, GraphicsUnit.Pixel), renderManager2D);
+            using Font font = new Font("Consolas", metrics.SnapModifierFontPixelSize, FontStyle.Bold, GraphicsUnit.Pixel);
+            return GDIFontProcessor.ImportFont(font, renderManager2D, renderManager2D.SupportsRgbFontCoverage);
         }
 
         /// <summary>
@@ -676,6 +679,7 @@ namespace helengine.editor.app {
         /// </summary>
         void ToggleMaximizeState() {
             WindowStateController.ToggleMaximize(this);
+            editorSession.TitleBar.SetWindowMaximized(!WindowStateController.IsResizeBorderEnabled);
         }
 
         /// <summary>
@@ -813,6 +817,9 @@ namespace helengine.editor.app {
 
             if (m.Msg == WmExitSizeMove) {
                 WindowStateController.CompleteTitleBarDrag(this, Cursor.Position);
+                if (initialized && !closed) {
+                    editorSession.TitleBar.SetWindowMaximized(!WindowStateController.IsResizeBorderEnabled);
+                }
             }
         }
     }

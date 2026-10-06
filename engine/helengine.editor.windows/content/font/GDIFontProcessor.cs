@@ -16,6 +16,10 @@ namespace helengine.editor {
     /// </summary>
     [SupportedOSPlatform("windows")]
     public static class GDIFontProcessor {
+        /// <summary>
+        /// Keeps runtime ClearType coverage at minimum gamma correction so small UI glyphs retain narrow edges.
+        /// </summary>
+        const int EditorClearTypeContrast = 0;
         // Extra transparent pixels around each glyph in the atlas to prevent bleeding
         private const int ATLAS_PADDING = 2;
         static readonly char[] Characters = new char[]
@@ -49,12 +53,14 @@ namespace helengine.editor {
         /// <param name="font">Font used for rendering.</param>
         /// <param name="res">Resolution of the temporary bitmap.</param>
         /// <param name="offset">Padding offset applied before rendering.</param>
+        /// <param name="useClearType">Whether to rasterize independent RGB coverage on an opaque black background.</param>
         /// <param name="bitmap">Output bitmap containing the rendered glyph.</param>
         /// <param name="rectangle">Output bounds of the glyph within the bitmap.</param>
         private static void GenerateChar(char c,
             Font font,
             int res,
             int offset,
+            bool useClearType,
             out Bitmap bitmap,
             out Rectangle rectangle) {
             bitmap = new Bitmap(res, res);
@@ -63,7 +69,13 @@ namespace helengine.editor {
             int pos = offset; // consistent top-of-line margin
             using (Graphics graphics = Graphics.FromImage(bitmap)) {
                 graphics.SmoothingMode = SmoothingMode.None;
-                graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+                if (useClearType) {
+                    graphics.Clear(Color.Black);
+                    graphics.TextContrast = EditorClearTypeContrast;
+                }
+                graphics.TextRenderingHint = useClearType
+                    ? TextRenderingHint.ClearTypeGridFit
+                    : TextRenderingHint.AntiAliasGridFit;
                 graphics.DrawString(cs, font, Brushes.White, new PointF(pos, pos), StringFormat.GenericTypographic);
             }
 
@@ -74,7 +86,7 @@ namespace helengine.editor {
             for (int x = 0; x < bitmap.Width; x++) {
                 for (int y = 0; y < bitmap.Height; y++) {
                     Color pixel = locker.GetPixel(x, y);
-                    bytes[x, y] = pixel.R;
+                    bytes[x, y] = useClearType ? Math.Max(pixel.R, Math.Max(pixel.G, pixel.B)) : pixel.A;
                 }
             }
 
@@ -108,7 +120,7 @@ namespace helengine.editor {
             int Height = (Bottom - Y) + 1;
 
             int off = 1;
-            rectangle = new Rectangle(X - off, Y - off, Width + off, Height + off);
+            rectangle = new Rectangle(X - off, Y - off, Width + (off * 2), Height + (off * 2));
         }
 
         /// <summary>
@@ -116,10 +128,14 @@ namespace helengine.editor {
         /// </summary>
         /// <param name="font">Font to import.</param>
         /// <param name="renderManager2D">Session-owned renderer that receives the generated atlas, or null for a headless managed texture.</param>
+        /// <param name="useClearType">Enables RGB coverage for runtime editor fonts rendered by a subpixel-aware backend; cooked fonts use grayscale coverage.</param>
         /// <returns>Constructed <see cref="FontAsset"/> containing atlas texture and metrics.</returns>
-        public static FontAsset ImportFont(Font font, RenderManager2D renderManager2D) {
+        public static FontAsset ImportFont(Font font, RenderManager2D renderManager2D, bool useClearType = false) {
             if (font == null) {
                 throw new ArgumentNullException(nameof(font));
+            }
+            if (useClearType && renderManager2D != null && !renderManager2D.SupportsRgbFontCoverage) {
+                throw new NotSupportedException("ClearType font atlases require a renderer that supports RGB font coverage.");
             }
 
             Dictionary<char, TempFontChar> tempChars = new Dictionary<char, TempFontChar>();
@@ -147,7 +163,7 @@ namespace helengine.editor {
 
                 Bitmap bmp;
                 Rectangle rect;
-                GenerateChar(c, font, res * 2, offset, out bmp, out rect);
+                GenerateChar(c, font, res * 2, offset, useClearType, out bmp, out rect);
 
                 // Measure advance width with typographic settings
                 float advanceWidth;
@@ -180,17 +196,17 @@ namespace helengine.editor {
 
             byte[] colors = locker.Pixels;
 
-            // Convert ARGB->RGBA as expected by renderer
+            // LockBits exposes BGRA. The renderer consumes RGBA, with straight alpha for grayscale fonts.
             for (int i = 0; i < colors.Length; i += 4) {
-                byte a = colors[i];
-                byte r = colors[i + 1];
-                byte g = colors[i + 2];
-                byte b = colors[i + 3];
+                byte b = colors[i];
+                byte g = colors[i + 1];
+                byte r = colors[i + 2];
+                byte a = colors[i + 3];
 
-                colors[i] = r;
-                colors[i + 1] = g;
-                colors[i + 2] = b;
-                colors[i + 3] = a;
+                colors[i] = useClearType ? r : byte.MaxValue;
+                colors[i + 1] = useClearType ? g : byte.MaxValue;
+                colors[i + 2] = useClearType ? b : byte.MaxValue;
+                colors[i + 3] = useClearType ? (byte)((r + g + b + 1) / 3) : a;
             }
 
             // DEBUG: Save atlas to disk to inspect
@@ -207,6 +223,7 @@ namespace helengine.editor {
             rawTex.Height = (ushort)atlasImg.Height;
 
             RuntimeTexture asset = CreateRuntimeTexture(rawTex, renderManager2D);
+            asset.UsesRgbFontCoverage = useClearType;
 
             // Populate font asset with measured line height and space width
             FontAsset fontAsset = new FontAsset(
@@ -218,6 +235,10 @@ namespace helengine.editor {
                 atlasImg.Height
             );
             fontAsset.SourceTextureAsset = rawTex;
+            atlasImg.Dispose();
+            foreach (TempFontChar temporaryGlyph in tempChars.Values) {
+                temporaryGlyph.Bitmap.Dispose();
+            }
             return fontAsset;
         }
 
@@ -397,7 +418,8 @@ namespace helengine.editor {
             Bitmap atlas = new Bitmap(width, height, PixelFormat.Format32bppArgb);
 
             using (Graphics g = Graphics.FromImage(atlas)) {
-                g.Clear(Color.Transparent);
+                g.Clear(Color.FromArgb(0, 0, 0, 0));
+                g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
                 foreach (var item in items) {
                     Point pos = positions[item.Char];
                     // Draw glyph with padding offset to leave transparent border around glyph
