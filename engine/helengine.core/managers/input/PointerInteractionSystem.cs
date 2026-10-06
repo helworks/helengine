@@ -252,7 +252,7 @@ namespace helengine {
                 return camera.Viewport;
             }
 
-            int2 mainWindowSize = Core.RenderManager3D.MainWindowSize;
+            int2 mainWindowSize = Core.RenderManager3D.InputWindowSize;
             if (mainWindowSize.X <= 0 || mainWindowSize.Y <= 0) {
                 return camera.Viewport;
             }

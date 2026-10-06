@@ -30,7 +30,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void ResolveStoredWorldPositionFromPresented_WhenViewportUsesReferenceCanvasFit_RestoresStoredWorldPosition() {
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(Core.Instance.RenderManager3D);
-            renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
+            renderManager3D.OnWindowResize(IntPtr.Zero, 1600, 1200);
 
             Entity viewportEntity = new Entity(Core.Instance);
             viewportEntity.InitComponents();

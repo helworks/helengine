@@ -4,10 +4,14 @@ namespace helengine {
     /// </summary>
     public abstract class RenderManager3D : IDisposable {
         /// <summary>
-        /// Tracks whether a window has already been added, so the first window's size seeds
-        /// <see cref="MainWindowSize"/> while later windows only update it through resize events.
+        /// Stores each registered host window's client size independently of the primary window.
         /// </summary>
-        bool SetOneWindow;
+        readonly Dictionary<IntPtr, int2> WindowSizes = new Dictionary<IntPtr, int2>();
+
+        /// <summary>
+        /// Records primary registration, including hosts with a zero-valued virtual handle.
+        /// </summary>
+        bool HasMainWindow;
 
         /// <summary>
         /// Core that owns this renderer. Renderers must use this explicit owner
@@ -17,9 +21,29 @@ namespace helengine {
         public Core OwnerCore { get; internal set; }
 
         /// <summary>
-        /// Gets the primary window size when using a single window setup.
+        /// Gets the primary layout reference size, retaining its last usable dimensions while that window is minimized.
         /// </summary>
         public int2 MainWindowSize { get; private set; }
+
+        /// <summary>
+        /// Gets the first registered handle, whose size is the shared scene's layout reference.
+        /// </summary>
+        public IntPtr MainWindowHandle { get; private set; }
+
+        /// <summary>
+        /// Gets the window whose client coordinates are used by the current input frame.
+        /// </summary>
+        public IntPtr InputWindowHandle { get; private set; }
+
+        /// <summary>
+        /// Gets the input window's size, or the primary size before any host window is registered.
+        /// </summary>
+        public int2 InputWindowSize => HasMainWindow ? GetWindowSize(InputWindowHandle) : MainWindowSize;
+
+        /// <summary>
+        /// Gets the number of windows currently registered with this renderer.
+        /// </summary>
+        public int WindowCount => WindowSizes.Count;
 
         /// <summary>
         /// Event raised when a window is resized.
@@ -33,11 +57,56 @@ namespace helengine {
         /// <param name="width">Window width.</param>
         /// <param name="height">Window height.</param>
         public virtual void AddWindow(IntPtr handle, int width, int height) {
-            if (!SetOneWindow) {
-                MainWindowSize = new int2(width, height);
+            if (width < 0 || height < 0) {
+                throw new ArgumentOutOfRangeException(nameof(width), "Window client dimensions cannot be negative.");
             }
+            if (WindowSizes.ContainsKey(handle)) {
+                throw new InvalidOperationException("The window is already registered with this renderer.");
+            }
+            WindowSizes.Add(handle, new int2(width, height));
+            if (!HasMainWindow) {
+                MainWindowHandle = handle;
+                InputWindowHandle = handle;
+                MainWindowSize = new int2(width, height);
+                HasMainWindow = true;
+            }
+        }
 
-            SetOneWindow = true;
+        /// <summary>
+        /// Retrieves a registered window's client size; unknown handles are configuration errors.
+        /// </summary>
+        /// <param name="handle">Registered host window handle.</param>
+        /// <returns>The client width and height in pixels.</returns>
+        public int2 GetWindowSize(IntPtr handle) {
+            if (!WindowSizes.ContainsKey(handle)) {
+                throw new ArgumentException("The window is not registered with this renderer.", nameof(handle));
+            }
+            return WindowSizes[handle];
+        }
+
+        /// <summary>
+        /// Selects the pointer coordinate space without changing the primary layout size.
+        /// </summary>
+        /// <param name="handle">Registered window that owns the current input frame.</param>
+        public void SelectInputWindow(IntPtr handle) {
+            GetWindowSize(handle);
+            InputWindowHandle = handle;
+        }
+
+        /// <summary>
+        /// Unregisters a secondary window and returns its input ownership to the primary window.
+        /// The primary window owns host lifetime and is released by disposing the renderer.
+        /// </summary>
+        /// <param name="handle">Registered secondary window to remove.</param>
+        public void RemoveWindow(IntPtr handle) {
+            GetWindowSize(handle);
+            if (handle == MainWindowHandle) {
+                throw new InvalidOperationException("The primary window cannot be removed while the renderer is running.");
+            }
+            WindowSizes.Remove(handle);
+            if (InputWindowHandle == handle) {
+                InputWindowHandle = MainWindowHandle;
+            }
         }
 
         /// <summary>
@@ -178,7 +247,13 @@ namespace helengine {
         /// <summary>
         /// Releases resources owned by the render manager.
         /// </summary>
-        public virtual void Dispose() { }
+        public virtual void Dispose() {
+            WindowSizes.Clear();
+            HasMainWindow = false;
+            MainWindowSize = new int2(0, 0);
+            MainWindowHandle = (IntPtr)0;
+            InputWindowHandle = (IntPtr)0;
+        }
 
         /// <summary>
         /// Triggers window resize handling; should be called by the host when resizing.
@@ -187,7 +262,12 @@ namespace helengine {
         /// <param name="newWidth">New width.</param>
         /// <param name="newHeight">New height.</param>
         public virtual void OnWindowResize(IntPtr handle, int newWidth, int newHeight) {
-            if (!SetOneWindow || (MainWindowSize.X == 0 && MainWindowSize.Y == 0)) {
+            GetWindowSize(handle);
+            if (newWidth < 0 || newHeight < 0) {
+                throw new ArgumentOutOfRangeException(nameof(newWidth), "Window client dimensions cannot be negative.");
+            }
+            WindowSizes[handle] = new int2(newWidth, newHeight);
+            if (handle == MainWindowHandle && newWidth > 0 && newHeight > 0) {
                 MainWindowSize = new int2(newWidth, newHeight);
             }
 

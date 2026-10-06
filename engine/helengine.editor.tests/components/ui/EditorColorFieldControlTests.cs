@@ -51,7 +51,7 @@ namespace helengine.editor.tests.components.ui {
         [Fact]
         public void EditorColorPickerOverlay_WhenOpenedNearTheBottom_ClampsIntoTheViewport() {
             InitializeCore();
-            Core.Instance.RenderManager3D.AddWindow(IntPtr.Zero, 400, 300);
+            Core.Instance.RenderManager3D.OnWindowResize(IntPtr.Zero, 400, 300);
 
             EditorEntity host = new EditorEntity(Core.Instance, new helengine.editor.EditorSessionInteractionServices());
             EditorColorPickerOverlayComponent overlay = new EditorColorPickerOverlayComponent(Core.Instance, new helengine.editor.EditorSessionInteractionServices(), CreateFont(), 1, Core.Instance.RenderManager3D, Core.Instance.RenderManager2D, Core.Instance.Input);

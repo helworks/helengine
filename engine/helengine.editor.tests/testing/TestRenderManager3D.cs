@@ -57,6 +57,8 @@ namespace helengine.editor.tests.testing {
         /// </summary>
         /// <param name="shaderCompileTarget">Shader target exposed to shared shader-runtime loading helpers.</param>
         public TestRenderManager3D(ShaderCompileTarget shaderCompileTarget = ShaderCompileTarget.Vulkan) {
+            // This headless host explicitly registers its virtual window before tests send resize events.
+            AddWindow(IntPtr.Zero, 0, 0);
             BuiltModelAssetsValue = new List<ModelAsset>();
             BuiltMaterialAssetsValue = new List<ShaderMaterialAsset>();
             ReleasedModelsValue = new List<RuntimeModel>();

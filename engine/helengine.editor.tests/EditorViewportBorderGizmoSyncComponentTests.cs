@@ -150,7 +150,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenViewportUsesReferenceCanvasFit_ResolvesPresentedViewportOriginInsteadOfLiveWindowOffset() {
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
-            renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
+            renderManager3D.OnWindowResize(IntPtr.Zero, 1600, 1200);
 
             Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
@@ -185,7 +185,7 @@ namespace helengine.editor.tests {
         [Fact]
         public void Update_WhenScreenBoundViewportUsesReferenceCanvasFit_PresentsReferenceCanvasSize() {
             TestRenderManager3D renderManager3D = Assert.IsType<TestRenderManager3D>(CoreValue.RenderManager3D);
-            renderManager3D.AddWindow(IntPtr.Zero, 1600, 1200);
+            renderManager3D.OnWindowResize(IntPtr.Zero, 1600, 1200);
 
             Entity sourceEntity = new Entity(CoreValue);
             sourceEntity.InitComponents();
