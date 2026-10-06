@@ -96,7 +96,7 @@ namespace helengine {
                 return ValidateOrthographicVerticalSpan(settings.OrthographicVerticalSpan) / viewportHeight;
             }
             if (settings != null && settings.ProjectionMode != CameraProjectionMode.Perspective) {
-                throw new ArgumentOutOfRangeException(nameof(settings.ProjectionMode), settings.ProjectionMode, "The camera projection mode is not supported.");
+                throw new ArgumentOutOfRangeException(nameof(settings.ProjectionMode), "The camera projection mode is not supported.");
             }
 
             float fieldOfView = camera.FieldOfView;
@@ -119,7 +119,7 @@ namespace helengine {
         /// <returns>The validated vertical span.</returns>
         static float ValidateOrthographicVerticalSpan(float span) {
             if (!float.IsFinite(span) || span < MinimumOrthographicVerticalSpan) {
-                throw new ArgumentOutOfRangeException(nameof(span), span, "Orthographic vertical span must be finite and at least the configured minimum.");
+                throw new ArgumentOutOfRangeException(nameof(span), "Orthographic vertical span must be finite and at least the configured minimum.");
             }
             return span;
         }
@@ -131,7 +131,7 @@ namespace helengine {
         /// <param name="parameterName">Public parameter name used in validation errors.</param>
         static void ValidatePositiveFinite(double value, string parameterName) {
             if (!double.IsFinite(value) || value <= 0.0) {
-                throw new ArgumentOutOfRangeException(parameterName, value, "The value must be finite and positive.");
+                throw new ArgumentOutOfRangeException(parameterName, "The value must be finite and positive.");
             }
         }
 
